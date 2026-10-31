@@ -312,12 +312,12 @@ export class TerminalRegistry {
               terminalId
             )
           },
-          async (running) => {
+          async (running, shell) => {
             if (!ownerWindow || ownerWindow.isDestroyed()) return false
             const { response } = await showShellDialog(ownerWindow, {
               type: 'warning',
               title: 'Close running terminal?',
-              message: `${describeRunningCommand(running)} is still running.`,
+              message: `${describeRunningCommand(running, shell)} is still running.`,
               detail: 'Closing this terminal will stop the process.',
               buttons: ['Close Terminal', 'Cancel'],
               primaryVariant: 'destructive',

@@ -413,6 +413,28 @@ describe('LocalFilesystemService', () => {
     }
   )
 
+  it.each([
+    ['an alternate data stream', 'README.md%3Ahidden'],
+    ['a reserved device name', 'CON'],
+    ['a reserved device name with an extension', 'src/nul.txt'],
+    ['a trailing dot Windows would strip', 'README.md.'],
+    ['a trailing space Windows would strip', 'README.md%20'],
+    ['a wildcard', 'src/%2A.ts'],
+    ['a pipe', 'a%7Cb'],
+    ['a quote', 'a%22b'],
+    ['an angle bracket', 'a%3Cb'],
+  ])('refuses %s in a URI on Windows', async (_label, path) => {
+    const windowsService = new LocalFilesystemService({
+      chooseDirectory: async () => root,
+      platform: 'win32',
+    })
+    const granted = await mount(windowsService)
+
+    expect(
+      await windowsService.handle({ operation: 'read', uri: `${granted.uri}${path}` })
+    ).toMatchObject({ ok: false, code: 'INVALID_URI' })
+  })
+
   it('rejects lexical traversal before URL normalization can reinterpret it', async () => {
     const granted = await mount(service)
     const traversal = await service.handle({

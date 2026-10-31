@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { open, rename, rm, truncate } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { BROWSER_FILE_TRANSFER_MAX_BYTES } from '@sim/browser-protocol'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -59,7 +59,7 @@ describe('stageUploadFiles', () => {
       body: JSON.stringify({ toolCallId: 'call-1', index: 0 }),
       signal,
     })
-    expect(staged.map((path) => path.split('/').pop())).toEqual(['Q3 plan.pdf', 'granted.txt'])
+    expect(staged.map((path) => basename(path))).toEqual(['Q3 plan.pdf', 'granted.txt'])
     expect(readFileSync(staged[0], 'utf8')).toBe('workspace bytes')
     expect(readFileSync(staged[1], 'utf8')).toBe('local bytes')
     expect(staged.every((path) => path.startsWith(join(temp, 'sim-browser-uploads')))).toBe(true)
@@ -83,7 +83,7 @@ describe('stageUploadFiles', () => {
     })
 
     expect(staged.startsWith(join(temp, 'sim-browser-uploads'))).toBe(true)
-    expect(staged.endsWith('/evil')).toBe(true)
+    expect(basename(staged)).toBe('evil')
   })
 
   it('refuses a workspace file over the transfer ceiling', async () => {

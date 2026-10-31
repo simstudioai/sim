@@ -48,8 +48,6 @@
       "version": "0.0.0",
       "dependencies": {
         "@lydell/node-pty": "1.2.0-beta.12",
-        "@lydell/node-pty-darwin-arm64": "1.2.0-beta.12",
-        "@lydell/node-pty-darwin-x64": "1.2.0-beta.12",
         "@sim/auth-ui": "workspace:*",
         "@sim/browser-protocol": "workspace:*",
         "@sim/desktop-bridge": "workspace:*",
@@ -83,6 +81,12 @@
         "react-dom": "19.2.4",
         "typescript": "^7.0.2",
         "vitest": "^5.0.4",
+      },
+      "optionalDependencies": {
+        "@lydell/node-pty-darwin-arm64": "1.2.0-beta.12",
+        "@lydell/node-pty-darwin-x64": "1.2.0-beta.12",
+        "@lydell/node-pty-win32-arm64": "1.2.0-beta.12",
+        "@lydell/node-pty-win32-x64": "1.2.0-beta.12",
       },
     },
     "apps/docs": {

@@ -191,6 +191,18 @@ export function handleWillPreventUnload(
   }
 }
 
+/**
+ * Points the native caption (and Electron-drawn menus) at Sim's own theme
+ * choice on Windows. Only the user's *preference* may drive this, never the
+ * resolved theme: `themeSource` also pins `prefers-color-scheme`, so pinning a
+ * resolved "light" would freeze a Sim set to follow the system. A sender that
+ * reports no preference leaves the OS default in place.
+ */
+function syncNativeThemeSource(preference: unknown): void {
+  if (preference !== 'system' && preference !== 'dark' && preference !== 'light') return
+  if (nativeTheme.themeSource !== preference) nativeTheme.themeSource = preference
+}
+
 export interface CreateMainWindowDeps {
   config: ConfigStore
   events: EventRecorder
@@ -210,6 +222,11 @@ export interface CreateMainWindowDeps {
   restorePosition?: boolean
   /** Injectable for platform-specific window behavior tests. */
   platform?: NodeJS.Platform
+  /**
+   * Window icon for Windows runs that have no packaged executable icon to
+   * inherit; packaged builds omit it.
+   */
+  icon?: string
 }
 
 /**
@@ -247,6 +264,11 @@ export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
           titleBarOverlay: true,
         }
       : {}),
+    // Windows keeps its native frame; the menu bar stays out of the page's
+    // space until Alt reveals it.
+    ...(platform === 'win32'
+      ? { autoHideMenuBar: true, ...(deps.icon ? { icon: deps.icon } : {}) }
+      : {}),
     show: false,
     backgroundColor: backgroundColorFor(
       deps.config.get('themeBackground'),
@@ -260,7 +282,7 @@ export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
   })
 
   attachShellTheme(win)
-  win.webContents.ipc.on('shell:app-theme', (event, theme: unknown) => {
+  win.webContents.ipc.on('shell:app-theme', (event, theme: unknown, preference: unknown) => {
     if (
       event.sender !== win.webContents ||
       event.senderFrame !== win.webContents.mainFrame ||
@@ -270,6 +292,7 @@ export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
       return
     deps.config.set('themeBackground', theme)
     setShellTheme(theme)
+    if (platform === 'win32') syncNativeThemeSource(preference)
   })
 
   let boundsTimer: NodeJS.Timeout | undefined
@@ -418,4 +441,28 @@ export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
   })
 
   return win
+}
+
+export interface SecondInstanceDeps {
+  /** The existing full Sim window, creating one only when none is open. */
+  ensureMainWindow: () => Promise<BrowserWindow>
+  createWindow: () => Promise<BrowserWindow>
+  showWindow: (win: BrowserWindow) => void
+  /** Injectable for platform-specific lifecycle tests. */
+  platform?: NodeJS.Platform
+}
+
+/**
+ * Answers a second OS launch forwarded by the single-instance lock. On
+ * Windows every Start-menu, taskbar, or shortcut launch while Sim runs
+ * arrives here, so it must surface the window the user already has rather
+ * than stack a new one per click. macOS only sees this for an explicit extra
+ * launch (`open -n`), which keeps meaning "another window".
+ */
+export async function handleSecondInstance(deps: SecondInstanceDeps): Promise<void> {
+  if ((deps.platform ?? process.platform) === 'darwin') {
+    await deps.createWindow()
+    return
+  }
+  deps.showWindow(await deps.ensureMainWindow())
 }

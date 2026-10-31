@@ -585,7 +585,7 @@ interface SimDesktopBrowserCredentialsApi {
    * This is the only method on the entire bridge that can produce password
    * plaintext, and it is heavily conditioned: it requires an active user
    * gesture, the shell prompts for Touch ID (or a native confirmation where
-   * Touch ID is unavailable) on every call, and it returns exactly one
+   * Touch ID is unavailable, including every Windows machine) on every call, and it returns exactly one
    * password. Resolves null when the user declines or the credential is gone.
    */
   reveal(id: string): Promise<string | null>
@@ -593,10 +593,16 @@ interface SimDesktopBrowserCredentialsApi {
    * Copy one saved password to the clipboard. Same authorization as
    * {@link reveal}, but the password never enters the renderer: the shell
    * writes the clipboard itself and clears it again shortly after.
+   *
+   * Absent on Windows, where Clipboard History and the cloud clipboard keep a
+   * copy that clearing the clipboard does not remove.
    */
-  copy(id: string): Promise<boolean>
-  /** Copy saved passwords out of a Chrome profile into the vault. */
-  importFromChrome(
+  copy?(id: string): Promise<boolean>
+  /**
+   * Copy saved passwords out of a Chrome profile into the vault. Absent where
+   * browser import is unavailable (everything but macOS).
+   */
+  importFromChrome?(
     profileId?: string,
     policy?: BrowserCredentialConflictPolicy
   ): Promise<BrowserPasswordImportResult>
@@ -938,7 +944,7 @@ export interface DesktopPreferences {
   notificationsOnlyWhenUnfocused: boolean
   launchAtLogin: boolean
   autoDownloadUpdates: boolean
-  /** Show the Sim status item (recent chats menu) in the macOS menu bar. */
+  /** Show the Sim status item (recent chats menu) in the macOS menu bar or the Windows system tray. */
   trayEnabled: boolean
   /** Let Chat drive the built-in agent browser on this device. */
   browserEnabled: boolean
@@ -1171,10 +1177,18 @@ interface SimDesktopExecutorApi {
   getDevice(): Promise<DesktopExecutorDevice | null>
 }
 
+/** The operating systems a desktop shell runs on. */
+export const DESKTOP_PLATFORMS = ['darwin', 'win32', 'linux'] as const
+
+/** The operating system a desktop shell runs on. */
+export type DesktopPlatform = (typeof DESKTOP_PLATFORMS)[number]
+
 export interface SimDesktopApi {
   computerUse?: SimDesktopComputerUseApi
   /** Installed shell version (plain semver, e.g. `0.3.1`). */
   version: string
+  /** The shell's operating system. Absent on shells that predate it, all of which are macOS. */
+  platform?: DesktopPlatform
   openExternal(url: string): Promise<boolean>
   /** Opens the operating system's microphone privacy settings when supported. */
   openMicrophoneSettings?(): Promise<boolean>
@@ -1217,7 +1231,7 @@ export interface SimDesktopApi {
   browserAgent: SimDesktopBrowserAgentApi
   /**
    * Local Chrome import for the built-in browser. Absent on platforms without
-   * a supported importer.
+   * a supported importer (everything but macOS today).
    */
   browserImport?: SimDesktopBrowserImportApi
   /** Saved passwords and user-driven fill for the built-in browser. */
@@ -1228,7 +1242,7 @@ export interface SimDesktopApi {
    * desktop tools to the chat view.
    */
   desktopExecutor?: SimDesktopExecutorApi
-  /** Reads and selects Terminal.app or iTerm2 color profiles on macOS. */
+  /** Reads and selects Terminal.app or iTerm2 color profiles. Present only on macOS. */
   terminalThemes?: SimDesktopTerminalThemesApi
 }
 export {
@@ -1242,3 +1256,4 @@ export {
   type DesktopTitleBarMode,
   observeDesktopTitleBar,
 } from './title-bar'
+export { DESKTOP_UPDATE_ARTIFACTS, type DesktopUpdateArtifacts } from './update-artifacts'

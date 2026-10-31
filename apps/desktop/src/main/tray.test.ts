@@ -13,6 +13,7 @@ function makeDeps(overrides: Partial<TrayDeps> = {}): TrayDeps {
     appOrigin: () => 'https://sim.ai',
     lastRoute: () => '/workspace/ws1/home',
     openMainWindow: vi.fn(),
+    platform: 'darwin',
     ...overrides,
   }
 }
@@ -139,5 +140,34 @@ describe('installTray', () => {
 
     const tray = Tray.instances[0]
     expect(JSON.stringify(tray.setContextMenu.mock.calls.at(-1)?.[0])).not.toContain('Secret')
+  })
+
+  it('opens Sim on a left-click of the Windows notification-area icon', () => {
+    // Windows shows the attached menu only on right-click, so without this a
+    // left-click on the icon does nothing at all.
+    const resized = {
+      addRepresentation: vi.fn(),
+      toPNG: vi.fn(() => Buffer.alloc(0)),
+      setTemplateImage: vi.fn(),
+    }
+    vi.mocked(nativeImage.createFromPath).mockReturnValueOnce({
+      isEmpty: () => false,
+      resize: () => resized,
+    } as never)
+    vi.mocked(session.fromPartition).mockReturnValue({
+      fetch: vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ chats: [] }) })),
+    } as never)
+    const openMainWindow = vi.fn()
+
+    const handle = installTray(makeDeps({ platform: 'win32', openMainWindow }))
+    try {
+      const tray = Tray.instances[0]
+      const onClick = tray.on.mock.calls.find(([event]) => event === 'click')?.[1]
+      onClick?.()
+      expect(openMainWindow).toHaveBeenCalledWith()
+      expect(resized.setTemplateImage).not.toHaveBeenCalled()
+    } finally {
+      handle?.destroy()
+    }
   })
 })

@@ -28,11 +28,12 @@ if (bakedDefaultOrigin) {
   console.log(`• Baking default server origin: ${bakedDefaultOrigin}`)
 }
 
-const appIcon = identityForOrigin(bakedDefaultOrigin).icon
+const identity = identityForOrigin(bakedDefaultOrigin)
 const generatedIcon = 'build/generated-icon.icon'
 rmSync(generatedIcon, { force: true, recursive: true })
-cpSync(appIcon, generatedIcon, { recursive: true })
-console.log(`• Selecting desktop icon: ${appIcon}`)
+cpSync(identity.icon, generatedIcon, { recursive: true })
+cpSync(identity.windowsIcon, 'build/generated-icon.ico')
+console.log(`• Selecting desktop icon: ${identity.icon} / ${identity.windowsIcon}`)
 
 /** Bundle the native helper; packaged builds sign it with the desktop distribution identity. */
 function compileComputerUse(): void {

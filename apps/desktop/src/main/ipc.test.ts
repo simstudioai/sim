@@ -305,6 +305,7 @@ describe('registerIpcHandlers', () => {
     deps = {
       appOrigin: () => APP,
       getExecutorDevice: () => null,
+      platform: 'darwin',
       allowHttpLocalhost: () => false,
       accountDataAvailable: () => true,
       isLocalPageUrl,
@@ -368,6 +369,31 @@ describe('registerIpcHandlers', () => {
     for (const root of computerRoots.splice(0)) rmSync(root, { recursive: true, force: true })
   })
 
+  it.each([
+    'terminal-themes:list-profiles',
+    'computer-use:execute-tool',
+    'browser-import:all',
+    'browser-credentials:import',
+    'browser-credentials:copy',
+  ])('registers no handler on Windows for %s, which that shell does not ship', (channel) => {
+    expect(collectHandlers().invoke.has(channel) || collectHandlers().on.has(channel)).toBe(true)
+    vi.mocked(ipcMain.handle).mockClear()
+    vi.mocked(ipcMain.on).mockClear()
+
+    registerIpcHandlers({ ...deps, platform: 'win32' })
+
+    const { invoke, on } = collectHandlers()
+    expect(invoke.has(channel) || on.has(channel)).toBe(false)
+  })
+
+  it('keeps password reveal on Windows while copy and import are withheld', () => {
+    vi.mocked(ipcMain.handle).mockClear()
+    vi.mocked(ipcMain.on).mockClear()
+    registerIpcHandlers({ ...deps, platform: 'win32' })
+
+    expect(collectHandlers().invoke.has('browser-credentials:reveal')).toBe(true)
+  })
+
   it('opens validated external URLs only after recent user input', async () => {
     const { invoke } = collectHandlers()
     const handler = invoke.get('desktop:open-external')
@@ -389,8 +415,9 @@ describe('registerIpcHandlers', () => {
 
     expect(await handler?.(evilEvent)).toBe(false)
     expect(await handler?.(appEvent)).toBe(false)
-    expect(await handler?.(activeAppEvent)).toBe(process.platform === 'darwin')
-    expect(shell.openExternal).toHaveBeenCalledTimes(process.platform === 'darwin' ? 1 : 0)
+    const hasPrivacySettings = process.platform === 'darwin' || process.platform === 'win32'
+    expect(await handler?.(activeAppEvent)).toBe(hasPrivacySettings)
+    expect(shell.openExternal).toHaveBeenCalledTimes(hasPrivacySettings ? 1 : 0)
   })
 
   it('restricts the OAuth connect handoff to an activated app origin', async () => {

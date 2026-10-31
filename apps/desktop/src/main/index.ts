@@ -57,7 +57,6 @@ import { attachClientInfo } from '@/main/client-info'
 import { NativeComputerUseClient } from '@/main/computer-use/native-client'
 import { ComputerUseService } from '@/main/computer-use/service'
 import {
-  APP_NAME_FOR_CHANNEL,
   channelForOrigin,
   createConfigStore,
   DEFAULT_ORIGIN,
@@ -106,14 +105,17 @@ import {
   resolveStartRoute,
 } from '@/main/session-lifecycle'
 import { setShellTheme } from '@/main/shell-theme'
+import { bringWindowToFront } from '@/main/shell-window'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
 import { TerminalRegistry } from '@/main/terminal/registry'
 import { createRunLedger } from '@/main/terminal/run-ledger'
 import { installTray, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/main/updater'
 import { installBrowserUserAgent } from '@/main/user-agent'
-import { createMainWindow, setupPermissionHandlers } from '@/main/window'
+import { createMainWindow, handleSecondInstance, setupPermissionHandlers } from '@/main/window'
 import { attachWindowOpenPolicy, isPopupContents } from '@/main/windows'
+import { CHANNEL_IDENTITIES } from '@/shared/channel-identity'
+import { desktopFeatures } from '@/shared/platform-features'
 
 const logger = createLogger('DesktopMain')
 
@@ -127,13 +129,6 @@ const logger = createLogger('DesktopMain')
 function reportHandoffFailure(error: unknown): void {
   logger.error('Sign-in handoff failed', { error: getErrorMessage(error) })
 }
-
-const DOCK_ICON_FOR_CHANNEL = {
-  prod: 'dock-icon.png',
-  staging: 'dock-icon-staging.png',
-  dev: 'dock-icon-dev.png',
-  local: 'dock-icon-local.png',
-} as const
 
 function main(): void {
   app.enableSandbox()
@@ -188,7 +183,8 @@ function main(): void {
   const computerStopShortcut = 'CommandOrControl+Shift+Escape'
   const computerUse = new ComputerUseService({
     config,
-    supported: process.platform === 'darwin' && Number.parseInt(release(), 10) >= 23,
+    supported:
+      desktopFeatures(process.platform).computerUse && Number.parseInt(release(), 10) >= 23,
     native: computerNative,
     openPermissionSettings: (permission) =>
       shell.openExternal(
@@ -258,6 +254,16 @@ function main(): void {
     createRunLedger(join(userDataPath, 'terminal-runs'))
   )
   const preloadPath = join(__dirname, 'preload.cjs')
+  // Packaged Windows builds inherit the executable's icon; a dev run would show Electron's.
+  const unpackagedWindowIcon =
+    process.platform === 'win32' && !app.isPackaged
+      ? join(
+          __dirname,
+          '..',
+          'static',
+          CHANNEL_IDENTITIES[channelForOrigin(processOrigin)].dockIcon
+        )
+      : undefined
 
   const windows = new Set<BrowserWindow>()
   const loadHealthByWindow = new Map<BrowserWindow, LoadHealthHandle>()
@@ -303,14 +309,11 @@ function main(): void {
   /** Restore/show/focus one full Sim window and activate the app. */
   function showMainWindow(target?: BrowserWindow | null): void {
     const win = target ?? getMainWindow()
-    if (win) {
-      if (win.isMinimized()) {
-        win.restore()
-      }
-      win.show()
-      win.focus()
+    if (!win) {
+      app.focus({ steal: true })
+      return
     }
-    app.focus({ steal: true })
+    bringWindowToFront(win)
   }
 
   const handoff = createHandoffManager(
@@ -506,6 +509,7 @@ function main(): void {
     const win = createMainWindow({
       config,
       events,
+      icon: unpackagedWindowIcon,
       appOrigin,
       partition: appPartition(origin),
       preloadPath,
@@ -793,13 +797,21 @@ function main(): void {
   }
 
   app.on('second-instance', () => {
-    void (startupReady ?? app.whenReady()).then(() => createAndLoadAppWindow())
+    void (startupReady ?? app.whenReady()).then(() =>
+      handleSecondInstance({
+        ensureMainWindow,
+        createWindow: () => createAndLoadAppWindow(),
+        showWindow: showMainWindow,
+      })
+    )
   })
 
   app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-      app.quit()
-    }
+    if (process.platform === 'darwin') return
+    // The Windows notification-area icon keeps Sim resident, like the macOS
+    // Dock: closing the last window hides to the tray; Exit and Quit Sim quit.
+    if (process.platform === 'win32' && tray) return
+    app.quit()
   })
 
   app.on('before-quit', (event) => {
@@ -862,7 +874,7 @@ function main(): void {
     // bundle, so they still need the channel-specific development icon.
     if (process.platform === 'darwin' && !app.isPackaged) {
       const channel = channelForOrigin(config.getOrigin())
-      app.dock?.setIcon(join(__dirname, '..', 'static', DOCK_ICON_FOR_CHANNEL[channel]))
+      app.dock?.setIcon(join(__dirname, '..', 'static', CHANNEL_IDENTITIES[channel].dockIcon))
     }
     events.record('app_launch', {
       version: app.getVersion(),
@@ -1141,7 +1153,10 @@ function main(): void {
 // The name follows the build's channel ("Sim", "Sim Dev", …) so one developer
 // can run one install per environment side by side — separate settings,
 // sessions, locks, and update feeds.
-app.setName(APP_NAME_FOR_CHANNEL[channelForOrigin(DEFAULT_ORIGIN)])
+app.setName(CHANNEL_IDENTITIES[channelForOrigin(DEFAULT_ORIGIN)].name)
+if (process.platform === 'win32') {
+  app.setAppUserModelId(CHANNEL_IDENTITIES[channelForOrigin(DEFAULT_ORIGIN)].appId)
+}
 if (process.env.SIM_DESKTOP_USER_DATA) {
   app.setPath('userData', process.env.SIM_DESKTOP_USER_DATA)
 }

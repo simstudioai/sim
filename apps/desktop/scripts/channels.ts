@@ -1,15 +1,12 @@
 /**
- * Build-time channel identity, derived from the origin a build is baked to.
+ * Build-time channel identity, derived from the origin a build is baked to. The identity itself
+ * is `CHANNEL_IDENTITIES` (src/shared/channel-identity.ts), which the running app claims too.
  *
- * Must stay in sync with APP_NAME_FOR_CHANNEL / channelForOrigin in
- * src/main/config.ts. That pair is the RUNTIME source of truth — the app calls
- * app.setName() from its baked origin at startup, which decides the userData
- * directory and single-instance lock — and this is what the packager stamps
- * into the bundle. When the two disagree, the bundle on disk and the running
- * app disagree about which app they are: a dev-pointed build packaged as
- * "Sim.app" with the production bundle id installs over a real production
- * install while naming itself "Sim Dev" at runtime.
+ * {@link identityForOrigin} must stay in sync with channelForOrigin in src/main/config.ts: when
+ * the two disagree, a dev-pointed build packaged as "Sim.app" with the production bundle id
+ * installs over a real production install while naming itself "Sim Dev" at runtime.
  */
+import { CHANNEL_IDENTITIES, type DesktopChannelIdentity } from '@/shared/channel-identity'
 
 /** Canonical no-redirect origins per environment. */
 export const PROD_ORIGIN = 'https://www.sim.ai'
@@ -17,51 +14,16 @@ export const STAGING_ORIGIN = 'https://www.staging.sim.ai'
 export const DEV_ORIGIN = 'https://www.dev.sim.ai'
 export const LOCAL_ORIGIN = 'http://localhost:3000'
 
-export interface ChannelIdentity {
-  /** Display + bundle name; also the userData directory name. */
-  name: string
-  appId: string
+/** A channel's identity, with the origin its builds are baked to. */
+export interface ChannelIdentity extends DesktopChannelIdentity {
   /** Baked default origin + persisted settings origin. */
   origin: string
-  /** Native Icon Composer source copied into the packager's generated path. */
-  icon: string
-  /**
-   * Artifact filename stem, and the per-channel scratch directory name.
-   * Space-free for the same reason electron-builder.yml's artifactName is:
-   * GitHub rewrites asset names containing spaces, which desyncs the
-   * electron-updater manifest from the uploaded files.
-   */
-  slug: string
 }
 
-export const PROD: ChannelIdentity = {
-  name: 'Sim',
-  appId: 'ai.sim.desktop',
-  origin: PROD_ORIGIN,
-  icon: 'build/icon.icon',
-  slug: 'sim',
-}
-export const STAGING: ChannelIdentity = {
-  name: 'Sim Staging',
-  appId: 'ai.sim.desktop.staging',
-  origin: STAGING_ORIGIN,
-  icon: 'build/icon-staging.icon',
-  slug: 'sim-staging',
-}
-export const DEV: ChannelIdentity = {
-  name: 'Sim Dev',
-  appId: 'ai.sim.desktop.dev',
-  origin: DEV_ORIGIN,
-  icon: 'build/icon-dev.icon',
-  slug: 'sim-dev',
-}
-export const LOCAL: ChannelIdentity = {
-  name: 'Sim Local',
-  appId: 'ai.sim.desktop.local',
-  origin: LOCAL_ORIGIN,
-  icon: 'build/icon-local.icon',
-  slug: 'sim-local',
-}
+export const PROD: ChannelIdentity = { ...CHANNEL_IDENTITIES.prod, origin: PROD_ORIGIN }
+export const STAGING: ChannelIdentity = { ...CHANNEL_IDENTITIES.staging, origin: STAGING_ORIGIN }
+export const DEV: ChannelIdentity = { ...CHANNEL_IDENTITIES.dev, origin: DEV_ORIGIN }
+export const LOCAL: ChannelIdentity = { ...CHANNEL_IDENTITIES.local, origin: LOCAL_ORIGIN }
 
 /** Every channel, in the order a full run builds them. */
 export const ALL_CHANNELS: readonly ChannelIdentity[] = [PROD, STAGING, DEV, LOCAL]

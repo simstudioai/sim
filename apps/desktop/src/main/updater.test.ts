@@ -16,6 +16,7 @@ const autoUpdaterMock = {
   autoDownload: true,
   autoInstallOnAppQuit: false,
   autoRunAppAfterInstall: true,
+  disableWebInstaller: false,
   logger: null as unknown,
   on: vi.fn(),
   setFeedURL: vi.fn(),
@@ -112,6 +113,7 @@ describe('initUpdater state machine', () => {
     probeOriginFeed?: (feedUrl: string) => Promise<boolean | 'no-release'>
     beforeInstall?: () => Promise<void>
     setRelaunchPending?: (pending: boolean) => void
+    platform?: NodeJS.Platform
   }) {
     const states: DesktopUpdateState[] = []
     const handle = initUpdater({
@@ -124,7 +126,7 @@ describe('initUpdater state machine', () => {
         autoUpdaterMock as unknown as typeof import('electron-updater')['autoUpdater'],
       probeOriginFeed: options?.probeOriginFeed ?? (async () => options?.feedAvailable ?? false),
       canSelfUpdate: async () => true,
-      platform: 'darwin',
+      platform: options?.platform ?? 'darwin',
       beforeInstall: options?.beforeInstall,
       setRelaunchPending: options?.setRelaunchPending,
     })
@@ -143,6 +145,8 @@ describe('initUpdater state machine', () => {
     autoUpdaterMock.downloadUpdate.mockClear()
     autoUpdaterMock.quitAndInstall.mockClear()
     autoUpdaterMock.autoRunAppAfterInstall = false
+    autoUpdaterMock.autoInstallOnAppQuit = false
+    autoUpdaterMock.disableWebInstaller = false
     updaterChannel = ''
     vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 0, checkboxChecked: false })
   })
@@ -620,6 +624,115 @@ describe('initUpdater state machine', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(2)
   })
+
+  describe('on Windows (NSIS)', () => {
+    const windowsAsset = (version: string) =>
+      `https://github.com/simstudioai/sim/releases/download/v${version}/Sim-${version}-x64.exe`
+
+    it('offers a verified download for restart without waiting for a native stage', async () => {
+      const { handle, states } = await createUpdater({ platform: 'win32' })
+
+      handle.check()
+      await vi.advanceTimersByTimeAsync(0)
+      emit('update-available', { version: '2.0.0' })
+      emit('update-downloaded', { version: '2.0.0' })
+
+      expect(states.at(-1)).toEqual({ status: 'ready', version: '2.0.0' })
+      expect(autoUpdaterMock.autoInstallOnAppQuit).toBe(true)
+      expect(autoUpdaterMock.disableWebInstaller).toBe(true)
+      expect(events.record).toHaveBeenCalledWith('update_downloaded', { version: '2.0.0' })
+      expect(squirrelUpdater.on).not.toHaveBeenCalled()
+    })
+
+    it('installs silently and relaunches after the restart is confirmed', async () => {
+      const { handle } = await createUpdater({ platform: 'win32' })
+      handle.check()
+      await vi.advanceTimersByTimeAsync(0)
+      emit('update-available', { version: '2.0.0' })
+      emit('update-downloaded', { version: '2.0.0' })
+
+      vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({
+        response: 1,
+        checkboxChecked: false,
+      })
+      handle.install()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(autoUpdaterMock.quitAndInstall).toHaveBeenCalledWith(true, true)
+    })
+
+    it('replaces a ready update with a newer verified release', async () => {
+      const { handle } = await createUpdater({ platform: 'win32' })
+      handle.check()
+      await vi.advanceTimersByTimeAsync(0)
+      emit('update-available', { version: '2.0.0' })
+      emit('update-downloaded', { version: '2.0.0' })
+
+      await vi.advanceTimersByTimeAsync(10_000)
+      emit('update-available', { version: '2.1.0' })
+      expect(handle.getState()).toEqual({ status: 'downloading', version: '2.1.0' })
+      emit('update-downloaded', { version: '2.1.0' })
+
+      expect(handle.getState()).toEqual({ status: 'ready', version: '2.1.0' })
+    })
+
+    it('keeps a ready update when a later download fails, but not when the installer fails', async () => {
+      const { handle } = await createUpdater({ platform: 'win32' })
+      handle.check()
+      await vi.advanceTimersByTimeAsync(0)
+      emit('update-available', { version: '2.0.0' })
+      emit('update-downloaded', { version: '2.0.0' })
+
+      await vi.advanceTimersByTimeAsync(10_000)
+      autoUpdaterMock.downloadUpdate.mockRejectedValueOnce(new Error('download interrupted'))
+      emit('error', new Error('download interrupted'))
+      emit('update-available', { version: '2.1.0' })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(handle.getState()).toEqual({ status: 'ready', version: '2.0.0' })
+
+      vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({
+        response: 1,
+        checkboxChecked: false,
+      })
+      handle.install()
+      await vi.advanceTimersByTimeAsync(0)
+      emit('error', new Error('No update filepath provided'))
+
+      expect(handle.getState()).toEqual({ status: 'error', version: '2.0.0' })
+      expect(autoUpdaterMock.autoInstallOnAppQuit).toBe(false)
+    })
+
+    it('accepts the Windows installer from an origin feed', async () => {
+      const probeOriginFeed = vi.fn(async () => true)
+      const { handle } = await createUpdater({ platform: 'win32', probeOriginFeed })
+      handle.check()
+      await vi.advanceTimersByTimeAsync(0)
+      emit('update-available', {
+        version: '2.0.0',
+        files: [{ url: windowsAsset('2.0.0'), sha512: 'checksum' }],
+      })
+
+      expect(handle.getState()).toEqual({ status: 'downloading', version: '2.0.0' })
+    })
+
+    it('blocks a macOS artifact offered to a Windows shell', async () => {
+      const { handle } = await createUpdater({ platform: 'win32', feedAvailable: true })
+      handle.check()
+      await vi.advanceTimersByTimeAsync(0)
+      emit('update-available', {
+        version: '2.0.0',
+        files: [
+          {
+            url: 'https://github.com/simstudioai/sim/releases/download/v2.0.0/Sim-2.0.0-universal.zip',
+            sha512: 'checksum',
+          },
+        ],
+      })
+
+      expect(handle.getState()).toEqual({ status: 'idle' })
+      expect(autoUpdaterMock.downloadUpdate).not.toHaveBeenCalled()
+    })
+  })
 })
 
 describe('readUpdateManifest', () => {
@@ -778,6 +891,56 @@ describe('initUpdater manual mode (no Developer ID signature)', () => {
 
     expect(handle.getState()).toMatchObject({ status: 'error', manual: true })
     handle.check()
+    handle.install()
+    expect(shell.openExternal).not.toHaveBeenCalled()
+  })
+
+  it('offers the Windows installer from the Windows manifest', async () => {
+    const windowsManifest = [
+      'version: 9.9.9',
+      'files:',
+      '  - url: https://github.com/simstudioai/sim/releases/download/v9.9.9/Sim-9.9.9-x64.exe',
+      '    sha512: abc',
+      "releaseDate: '2026-07-23T00:00:00.000Z'",
+    ].join('\n')
+    const fetchManifest = vi.fn(async () => windowsManifest)
+    const handle = initUpdater({
+      getWindow: () => null,
+      events,
+      appOrigin: () => 'https://www.dev.sim.ai',
+      canSelfUpdate: async () => false,
+      fetchManifest,
+      platform: 'win32',
+    })
+    await vi.advanceTimersByTimeAsync(0)
+
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fetchManifest).toHaveBeenCalledWith(
+      'https://www.dev.sim.ai/api/desktop/update/latest.yml'
+    )
+    handle.install()
+
+    expect(shell.openExternal).toHaveBeenCalledWith(
+      'https://github.com/simstudioai/sim/releases/download/v9.9.9/Sim-9.9.9-x64.exe'
+    )
+  })
+
+  it('never offers a macOS download to a Windows shell', async () => {
+    const handle = initUpdater({
+      getWindow: () => null,
+      events,
+      appOrigin: () => 'https://www.dev.sim.ai',
+      canSelfUpdate: async () => false,
+      fetchManifest: async () => manifest('9.9.9'),
+      platform: 'win32',
+    })
+    await vi.advanceTimersByTimeAsync(0)
+
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(handle.getState()).toMatchObject({ status: 'error', manual: true })
     handle.install()
     expect(shell.openExternal).not.toHaveBeenCalled()
   })

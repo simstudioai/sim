@@ -1,5 +1,5 @@
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent } from 'electron'
-import { screen } from 'electron'
+import { app, screen } from 'electron'
 
 /** Only the exact bundled top-level document may operate its own host window. */
 export function isShellWindowSender(
@@ -34,4 +34,24 @@ export function attachShellWindowSizing(
       onReady?.()
     }
   })
+}
+
+/**
+ * Raises a window above whatever app currently has the foreground, restoring it if minimized —
+ * the user just finished something in the browser or relaunched Sim and expects it in front.
+ * macOS activates the app (`steal` is macOS-only). Windows ignores focus requests from a
+ * background process and only flashes the taskbar button, so a momentary always-on-top lift puts
+ * the window in front first.
+ */
+export function bringWindowToFront(win: BrowserWindow): void {
+  if (win.isMinimized()) win.restore()
+  win.show()
+  if (process.platform === 'win32') {
+    win.setAlwaysOnTop(true)
+    win.focus()
+    win.setAlwaysOnTop(false)
+    return
+  }
+  win.focus()
+  app.focus({ steal: true })
 }

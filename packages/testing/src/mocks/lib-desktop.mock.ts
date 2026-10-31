@@ -2,6 +2,7 @@ import { vi } from 'vitest'
 
 interface MockDesktopBridge {
   version?: string
+  platform?: string
   updates?: unknown
 }
 
@@ -21,7 +22,8 @@ function isDesktop(): boolean {
  *   `getDesktopBridge() != null` (device switches read as enabled, the real unread default). The
  *   real check is `!== undefined`; `null` is also treated as "no bridge" because several local
  *   stubs returned `null` for the browser case.
- * - `getDesktopShellVersion` returns `bridge?.version`, `getDesktopUpdates` returns `bridge?.updates`.
+ * - `getDesktopShellVersion` returns `bridge?.version`, `getDesktopUpdates` returns `bridge?.updates`,
+ *   `getDesktopPlatform` returns `bridge?.platform`, defaulting a bridge without one to `'darwin'`.
  * - `mockSubscribeDesktopPreferences` returns a no-op unsubscribe; `mockSetDesktopPreferencesSnapshot`
  *   is a no-op; `mockGetDesktopChatCapabilities` resolves `{}` (the web result).
  *
@@ -50,6 +52,10 @@ export const libDesktopMockFns = {
   mockGetDesktopUpdates: vi.fn(
     (): unknown => (mockGetDesktopBridge() as MockDesktopBridge | undefined)?.updates
   ),
+  mockGetDesktopPlatform: vi.fn((): string | undefined => {
+    const bridge = mockGetDesktopBridge() as MockDesktopBridge | null | undefined
+    return bridge ? (bridge.platform ?? 'darwin') : undefined
+  }),
   mockGetDesktopChatCapabilities: vi.fn(async (_scopeId: string): Promise<unknown> => ({})),
 }
 
@@ -75,5 +81,6 @@ export const libDesktopMock = {
   isTerminalEnabled: libDesktopMockFns.mockIsTerminalEnabled,
   getDesktopShellVersion: libDesktopMockFns.mockGetDesktopShellVersion,
   getDesktopUpdates: libDesktopMockFns.mockGetDesktopUpdates,
+  getDesktopPlatform: libDesktopMockFns.mockGetDesktopPlatform,
   getDesktopChatCapabilities: libDesktopMockFns.mockGetDesktopChatCapabilities,
 }

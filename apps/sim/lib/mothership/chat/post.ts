@@ -1,5 +1,6 @@
 import { context as otelContextApi } from '@opentelemetry/api'
 import type { SessionPrincipal } from '@sim/auth/principal'
+import { DESKTOP_PLATFORMS, type DesktopPlatform } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -40,6 +41,7 @@ import { buildOnComplete, buildOnError } from '@/lib/mothership/chat/completion'
 import { MAX_CHAT_MESSAGE_LENGTH } from '@/lib/mothership/chat/context-limits'
 import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
+  DESKTOP_TERMINAL_HINT_SHELL_MAX_LENGTH,
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
 } from '@/lib/mothership/chat/desktop-capabilities'
 import {
@@ -163,6 +165,8 @@ const ChatMessageSchema = z
         browser: z.boolean().optional(),
         terminal: z.boolean().optional(),
         computerUse: z.boolean().optional(),
+        /** Optional: shells that predate it are all macOS. */
+        platform: z.enum(DESKTOP_PLATFORMS).optional(),
         terminals: z
           .array(
             z.object({
@@ -171,6 +175,7 @@ const ChatMessageSchema = z
               running: z.string().max(DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH).optional(),
               interactive: z.boolean().optional(),
               active: z.boolean().optional(),
+              shell: z.string().max(DESKTOP_TERMINAL_HINT_SHELL_MAX_LENGTH).optional(),
             })
           )
           .optional(),
@@ -287,6 +292,7 @@ type UnifiedChatBranch =
         browser?: boolean
         terminalCapable?: boolean
         computerUse?: boolean
+        desktopPlatform?: DesktopPlatform
         terminals?: Terminals
         browserSessions?: BrowserSessions
       }) => Promise<ChatRequest>
@@ -329,6 +335,7 @@ type UnifiedChatBranch =
         browser?: boolean
         terminalCapable?: boolean
         computerUse?: boolean
+        desktopPlatform?: DesktopPlatform
         terminals?: Terminals
         browserSessions?: BrowserSessions
       }) => Promise<ChatRequest>
@@ -627,6 +634,7 @@ async function resolveBranch(params: {
           browser: payloadParams.browser,
           terminalCapable: payloadParams.terminalCapable,
           computerUse: payloadParams.computerUse,
+          desktopPlatform: payloadParams.desktopPlatform,
           terminals: payloadParams.terminals,
           browserSessions: payloadParams.browserSessions,
         }),
@@ -691,6 +699,7 @@ async function resolveBranch(params: {
         browser: payloadParams.browser,
         terminalCapable: payloadParams.terminalCapable,
         computerUse: payloadParams.computerUse,
+        desktopPlatform: payloadParams.desktopPlatform,
         terminals: payloadParams.terminals,
         browserSessions: payloadParams.browserSessions,
       }),
@@ -1206,6 +1215,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
                 computerUse: body.desktopCapabilities?.computerUse === true,
+                desktopPlatform: body.desktopCapabilities?.platform,
                 terminals: body.desktopCapabilities?.terminals,
                 browserSessions: body.desktopCapabilities?.browserSessions,
               })
@@ -1234,6 +1244,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
                 computerUse: body.desktopCapabilities?.computerUse === true,
+                desktopPlatform: body.desktopCapabilities?.platform,
                 terminals: body.desktopCapabilities?.terminals,
                 browserSessions: body.desktopCapabilities?.browserSessions,
               })

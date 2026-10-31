@@ -22,7 +22,7 @@
  *   capabilities consistently.
  */
 import type { BrowserKnownSession } from '@sim/browser-protocol'
-import type { DesktopPreferences, SimDesktopApi } from '@sim/desktop-bridge'
+import type { DesktopPlatform, DesktopPreferences, SimDesktopApi } from '@sim/desktop-bridge'
 import { truncate } from '@sim/utils/string'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -31,6 +31,7 @@ import {
 } from '@/lib/api/contracts/computer-use'
 import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
+  DESKTOP_TERMINAL_HINT_SHELL_MAX_LENGTH,
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
 } from '@/lib/mothership/chat/desktop-capabilities'
 
@@ -139,6 +140,15 @@ export function getDesktopShellVersion(): string | undefined {
   return getDesktopBridge()?.version
 }
 
+/**
+ * The shell's operating system, or undefined in a browser. Shells that predate
+ * the field are all macOS.
+ */
+export function getDesktopPlatform(): DesktopPlatform | undefined {
+  const bridge = getDesktopBridge()
+  return bridge ? (bridge.platform ?? 'darwin') : undefined
+}
+
 /** The shell updater surface, when the installed shell provides one. */
 export function getDesktopUpdates(): SimDesktopApi['updates'] | undefined {
   return getDesktopBridge()?.updates
@@ -155,6 +165,8 @@ export interface DesktopTerminalHint {
   running?: string
   interactive?: boolean
   active?: boolean
+  /** The shell's program name (`zsh`, `pwsh`, `powershell`), so commands are written for it. */
+  shell?: string
 }
 
 export interface DesktopChatCapabilities {
@@ -165,6 +177,7 @@ export interface DesktopChatCapabilities {
     browser?: true
     terminal?: true
     computerUse?: true
+    platform?: DesktopPlatform
     browserSessions?: BrowserKnownSession[]
     terminals?: DesktopTerminalHint[]
     /** The desktop's background executor, offered to run this turn's desktop tools. */
@@ -225,6 +238,9 @@ export async function getDesktopChatCapabilities(
                   : {}),
                 ...(tab.interactive ? { interactive: true as const } : {}),
                 ...(tab.active ? { active: true as const } : {}),
+                ...(tab.shell
+                  ? { shell: truncate(tab.shell, DESKTOP_TERMINAL_HINT_SHELL_MAX_LENGTH, '') }
+                  : {}),
               }))
           )
           .catch(() => [])
@@ -236,6 +252,7 @@ export async function getDesktopChatCapabilities(
           .then((state) => state.sessions)
           .catch(() => [])
       : []
+  const platform = getDesktopPlatform()
   // Shells without a background executor (every build before it ships) leave the turn unbound.
   const executorDevice = bridge?.desktopExecutor
     ? await bridge.desktopExecutor.getDevice().catch(() => null)
@@ -250,6 +267,7 @@ export async function getDesktopChatCapabilities(
             ...(browser ? { browser: true as const } : {}),
             ...(terminal ? { terminal: true as const } : {}),
             ...(computerUse ? { computerUse: true as const } : {}),
+            ...(platform ? { platform } : {}),
             ...(terminals.length > 0 ? { terminals } : {}),
             ...(browserSessions.length > 0 ? { browserSessions } : {}),
             ...(executorDevice

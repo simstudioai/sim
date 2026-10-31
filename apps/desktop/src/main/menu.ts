@@ -36,14 +36,44 @@ export interface MenuDeps {
   signOut: () => void
   checkForUpdates: () => void
   openDiagnostics: () => void
+  /** Injectable so each platform's template is testable on any host. */
+  platform?: NodeJS.Platform
+}
+
+type MenuClick = NonNullable<MenuItemConstructorOptions['click']>
+
+/** The items both platforms' menus are assembled from. */
+interface SharedMenuItems {
+  viewSubmenu: MenuItemConstructorOptions[]
+  helpItems: MenuItemConstructorOptions[]
+  resourceFileItems: MenuItemConstructorOptions[]
+  aboutItem: MenuItemConstructorOptions
+  settingsItem: MenuItemConstructorOptions
+  serverItem: MenuItemConstructorOptions
+  checkForUpdatesItem: MenuItemConstructorOptions
+  signOutItem: MenuItemConstructorOptions
+  folderAccessItem: MenuItemConstructorOptions
+  newWindowItem: MenuItemConstructorOptions
+  newChatItem: MenuItemConstructorOptions
+  closeWindowItem: MenuItemConstructorOptions
+  goBack: MenuClick
+  goForward: MenuClick
 }
 
 /**
- * Builds the role-based macOS menu. Edit roles are load-bearing — without
- * them copy/paste/undo silently fail in web inputs. Zoom items are custom so
- * the zoom level persists across launches.
+ * Builds the application menu: the macOS app-menu shape, or on Windows a
+ * File/Edit/View/Help bar. Edit roles are load-bearing — without them
+ * copy/paste/undo silently fail in web inputs on macOS. Zoom items are custom
+ * so the zoom level persists across launches.
  */
 export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] {
+  const items = sharedMenuItems(deps)
+  return (deps.platform ?? process.platform) === 'win32'
+    ? buildWindowsMenu(items)
+    : buildMacMenu(items)
+}
+
+function sharedMenuItems(deps: MenuDeps): SharedMenuItems {
   /** Utility windows must not redirect resource commands into the hidden main window. */
   const focusedMainOrFallback = (focusedWindow: unknown): BrowserWindow | null => {
     if (focusedWindow instanceof BrowserWindow) {
@@ -182,26 +212,242 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
   ]
   viewSubmenu.push({ role: 'togglefullscreen' })
 
+  const aboutItem: MenuItemConstructorOptions = {
+    label: `About ${app.name}`,
+    click: () => {
+      void showShellDialog({
+        title: `About ${app.name}`,
+        type: 'info',
+        message: app.name,
+        detail: `Version ${app.getVersion()}`,
+        buttons: ['OK'],
+      })
+    },
+  }
+  const settingsItem: MenuItemConstructorOptions = {
+    label: 'Settings…',
+    accelerator: 'CmdOrCtrl+,',
+    click: deps.openSettings,
+  }
+  const serverItem: MenuItemConstructorOptions = {
+    label: 'Server…',
+    click: deps.openServerSettings,
+  }
+  const checkForUpdatesItem: MenuItemConstructorOptions = {
+    label: 'Check for Updates…',
+    click: deps.checkForUpdates,
+  }
+  const signOutItem: MenuItemConstructorOptions = { label: 'Sign Out', click: deps.signOut }
+  const folderAccessItem: MenuItemConstructorOptions = {
+    label: 'Folder Access…',
+    click: (_item, focusedWindow) => {
+      const win = focusedWindowOrMain(focusedWindow)
+      if (win) deps.openFolderAccess(win)
+    },
+  }
+  const newWindowItem: MenuItemConstructorOptions = {
+    label: 'New Window',
+    accelerator: 'CmdOrCtrl+Shift+N',
+    click: deps.newWindow,
+  }
+  const newChatItem: MenuItemConstructorOptions = {
+    label: 'New Chat',
+    accelerator: 'CmdOrCtrl+N',
+    click: deps.newChat,
+  }
+  const closeWindowItem: MenuItemConstructorOptions = {
+    label: 'Close Window',
+    accelerator: 'CmdOrCtrl+Shift+W',
+    click: (_item, focusedWindow) => {
+      focusedWindowOrMain(focusedWindow)?.close()
+    },
+  }
+  const helpItems: MenuItemConstructorOptions[] = [
+    {
+      label: 'Sim Documentation',
+      click: () => void openExternalSafe(DOCS_URL, deps.allowHttpLocalhost()),
+    },
+    // Omitted for a self-hosted shell, like the offline page's status
+    // button — see isSimCloudOrigin.
+    ...(isSimCloudOrigin(deps.config.getOrigin())
+      ? [
+          {
+            label: 'Sim Status',
+            click: () => void openExternalSafe(STATUS_URL, deps.allowHttpLocalhost()),
+          },
+        ]
+      : []),
+    { type: 'separator' },
+    { label: 'Show Diagnostic Logs', click: deps.openDiagnostics },
+  ]
+
+  const resourceFileItems: MenuItemConstructorOptions[] = [
+    // Panel-scoped shortcuts stay out of the visible File menu; hidden items'
+    // accelerators still fire on both platforms. Tab items sit flat because a
+    // hidden submenu's children do not reliably register accelerators.
+    {
+      label: 'New Tab',
+      accelerator: 'CmdOrCtrl+T',
+      visible: false,
+      click: (_item, focusedWindow) => {
+        const win = focusedMainOrFallback(focusedWindow)
+        if (win) deps.handleFocusedResourceShortcut(win, 'new-tab')
+      },
+    },
+    {
+      label: 'Reopen Closed Tab',
+      accelerator: 'CmdOrCtrl+Shift+T',
+      visible: false,
+      click: (_item, focusedWindow) => {
+        const win = focusedMainOrFallback(focusedWindow)
+        if (win) deps.handleFocusedResourceShortcut(win, 'reopen-closed-tab')
+      },
+    },
+    {
+      label: 'Focus Address Bar',
+      accelerator: 'CmdOrCtrl+L',
+      visible: false,
+      click: resourceShortcut('focus-omnibox'),
+    },
+    {
+      label: 'Next Tab',
+      accelerator: 'Ctrl+Tab',
+      visible: false,
+      click: resourceShortcut('next-tab'),
+    },
+    {
+      label: 'Previous Tab',
+      accelerator: 'Ctrl+Shift+Tab',
+      visible: false,
+      click: resourceShortcut('previous-tab'),
+    },
+    ...numberedTabItems,
+    {
+      label: 'Close Tab',
+      accelerator: 'CmdOrCtrl+W',
+      visible: false,
+      click: (_item, focusedWindow) => {
+        const win = focusedWindowOrMain(focusedWindow)
+        if (!win) return
+        if (deps.isMainWindow(win) && deps.handleFocusedResourceShortcut(win, 'close-tab')) {
+          return
+        }
+        win.close()
+      },
+    },
+  ]
+
+  return {
+    viewSubmenu,
+    helpItems,
+    resourceFileItems,
+    aboutItem,
+    settingsItem,
+    serverItem,
+    checkForUpdatesItem,
+    signOutItem,
+    folderAccessItem,
+    newWindowItem,
+    newChatItem,
+    closeWindowItem,
+    goBack: traverseHistory('back'),
+    goForward: traverseHistory('forward'),
+  }
+}
+
+function buildWindowsMenu({
+  viewSubmenu,
+  helpItems,
+  resourceFileItems,
+  aboutItem,
+  settingsItem,
+  serverItem,
+  checkForUpdatesItem,
+  signOutItem,
+  folderAccessItem,
+  newWindowItem,
+  newChatItem,
+  closeWindowItem,
+  goBack,
+  goForward,
+}: SharedMenuItems): MenuItemConstructorOptions[] {
+  return [
+    {
+      label: '&File',
+      submenu: [
+        newWindowItem,
+        newChatItem,
+        { type: 'separator' },
+        folderAccessItem,
+        settingsItem,
+        serverItem,
+        { type: 'separator' },
+        signOutItem,
+        { type: 'separator' },
+        closeWindowItem,
+        ...resourceFileItems,
+        { type: 'separator' },
+        { role: 'quit', label: 'Exit' },
+      ],
+    },
+    { role: 'editMenu' },
+    {
+      label: '&View',
+      submenu: [
+        ...viewSubmenu,
+        // Alt+Left/Right are the Windows browser-history keys; hidden so View keeps one row each.
+        {
+          label: 'Back',
+          accelerator: 'Alt+Left',
+          visible: false,
+          click: goBack,
+        },
+        {
+          label: 'Forward',
+          accelerator: 'Alt+Right',
+          visible: false,
+          click: goForward,
+        },
+      ],
+    },
+    // No windowMenu role: off macOS it carries a Close item bound to Ctrl+W,
+    // which would steal the hidden Close Tab accelerator.
+    {
+      label: '&Help',
+      submenu: [
+        ...helpItems,
+        { type: 'separator' },
+        checkForUpdatesItem,
+        { type: 'separator' },
+        aboutItem,
+      ],
+    },
+  ]
+}
+
+function buildMacMenu({
+  viewSubmenu,
+  helpItems,
+  resourceFileItems,
+  aboutItem,
+  settingsItem,
+  serverItem,
+  checkForUpdatesItem,
+  signOutItem,
+  folderAccessItem,
+  newWindowItem,
+  newChatItem,
+  closeWindowItem,
+}: SharedMenuItems): MenuItemConstructorOptions[] {
   return [
     {
       label: app.name,
       submenu: [
-        {
-          label: `About ${app.name}`,
-          click: () => {
-            void showShellDialog({
-              title: `About ${app.name}`,
-              type: 'info',
-              message: app.name,
-              detail: `Version ${app.getVersion()}`,
-              buttons: ['OK'],
-            })
-          },
-        },
-        { label: 'Settings…', accelerator: 'CmdOrCtrl+,', click: deps.openSettings },
-        { label: 'Server…', click: deps.openServerSettings },
-        { label: 'Check for Updates…', click: deps.checkForUpdates },
-        { label: 'Sign Out', click: deps.signOut },
+        aboutItem,
+        settingsItem,
+        serverItem,
+        checkForUpdatesItem,
+        signOutItem,
         { type: 'separator' },
         { role: 'hide' },
         { role: 'hideOthers' },
@@ -213,113 +459,19 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
     {
       label: 'File',
       submenu: [
-        {
-          label: 'Folder Access…',
-          click: (_item, focusedWindow) => {
-            const win = focusedWindowOrMain(focusedWindow)
-            if (win) deps.openFolderAccess(win)
-          },
-        },
+        folderAccessItem,
         { type: 'separator' },
-        {
-          label: 'New Window',
-          accelerator: 'CmdOrCtrl+Shift+N',
-          click: deps.newWindow,
-        },
-        { label: 'New Chat', accelerator: 'CmdOrCtrl+N', click: deps.newChat },
+        newWindowItem,
+        newChatItem,
         { type: 'separator' },
-        {
-          label: 'Close Window',
-          accelerator: 'CmdOrCtrl+Shift+W',
-          click: (_item, focusedWindow) => {
-            focusedWindowOrMain(focusedWindow)?.close()
-          },
-        },
-        /**
-         * Resource-scoped shortcuts: these act on whichever Browser/Terminal
-         * panel is focused, not on the app, so they stay out of the visible
-         * File menu. The accelerators still fire — macOS registers a hidden
-         * item's accelerator (`acceleratorWorksWhenHidden` defaults to true).
-         * The numbered tab items sit flat here rather than under a "Select
-         * Tab" submenu because children of a hidden submenu do not reliably
-         * register their accelerators.
-         */
-        {
-          label: 'New Tab',
-          accelerator: 'CmdOrCtrl+T',
-          visible: false,
-          click: (_item, focusedWindow) => {
-            const win = focusedMainOrFallback(focusedWindow)
-            if (win) deps.handleFocusedResourceShortcut(win, 'new-tab')
-          },
-        },
-        {
-          label: 'Reopen Closed Tab',
-          accelerator: 'CmdOrCtrl+Shift+T',
-          visible: false,
-          click: (_item, focusedWindow) => {
-            const win = focusedMainOrFallback(focusedWindow)
-            if (win) deps.handleFocusedResourceShortcut(win, 'reopen-closed-tab')
-          },
-        },
-        {
-          label: 'Focus Address Bar',
-          accelerator: 'CmdOrCtrl+L',
-          visible: false,
-          click: resourceShortcut('focus-omnibox'),
-        },
-        {
-          label: 'Next Tab',
-          accelerator: 'Ctrl+Tab',
-          visible: false,
-          click: resourceShortcut('next-tab'),
-        },
-        {
-          label: 'Previous Tab',
-          accelerator: 'Ctrl+Shift+Tab',
-          visible: false,
-          click: resourceShortcut('previous-tab'),
-        },
-        ...numberedTabItems,
-        {
-          label: 'Close Tab',
-          accelerator: 'CmdOrCtrl+W',
-          visible: false,
-          click: (_item, focusedWindow) => {
-            const win = focusedWindowOrMain(focusedWindow)
-            if (!win) return
-            if (deps.isMainWindow(win) && deps.handleFocusedResourceShortcut(win, 'close-tab')) {
-              return
-            }
-            win.close()
-          },
-        },
+        closeWindowItem,
+        ...resourceFileItems,
       ],
     },
     { role: 'editMenu' },
     { label: 'View', submenu: viewSubmenu },
     { role: 'windowMenu' },
-    {
-      role: 'help',
-      submenu: [
-        {
-          label: 'Sim Documentation',
-          click: () => void openExternalSafe(DOCS_URL, deps.allowHttpLocalhost()),
-        },
-        // Omitted for a self-hosted shell, like the offline page's status
-        // button — see isSimCloudOrigin.
-        ...(isSimCloudOrigin(deps.config.getOrigin())
-          ? [
-              {
-                label: 'Sim Status',
-                click: () => void openExternalSafe(STATUS_URL, deps.allowHttpLocalhost()),
-              },
-            ]
-          : []),
-        { type: 'separator' },
-        { label: 'Show Diagnostic Logs', click: deps.openDiagnostics },
-      ],
-    },
+    { role: 'help', submenu: helpItems },
   ]
 }
 

@@ -35,6 +35,7 @@ import type {
   DesktopNotificationPayload,
   DesktopOAuthConnectResult,
   DesktopOAuthConnectScope,
+  DesktopPlatform,
   DesktopPreferenceKey,
   DesktopPreferences,
   DesktopServerChangeResult,
@@ -59,6 +60,7 @@ import {
 } from '@sim/terminal-protocol'
 import { contextBridge, ipcRenderer } from 'electron'
 import { exposeShellTheme, observeAppTheme } from '@/preload/shell-theme'
+import { desktopFeatures } from '@/shared/platform-features'
 
 exposeShellTheme()
 observeAppTheme()
@@ -115,13 +117,21 @@ function shellVersion(): string {
   return version || '0.0.0'
 }
 
+/** Any other platform reports as Linux. */
+function bridgePlatform(): DesktopPlatform {
+  return process.platform === 'darwin' || process.platform === 'win32' ? process.platform : 'linux'
+}
+
+const features = desktopFeatures(process.platform)
+
 /**
  * The narrow bridge exposed to pages. Every channel is validated and gated in
  * the main process — nothing here grants page code any privilege by itself.
  */
 const api: SimDesktopApi = {
   version: shellVersion(),
-  ...(process.platform === 'darwin'
+  platform: bridgePlatform(),
+  ...(features.computerUse
     ? {
         computerUse: {
           getActivity: () => ipcRenderer.invoke('computer-use:get-activity'),
@@ -416,11 +426,7 @@ const api: SimDesktopApi = {
       }
     },
   },
-  // Omitted entirely off macOS, so the web app's feature detection reflects
-  // whether an import can actually run rather than only whether the shell is
-  // new enough. Chrome's App-Bound Encryption on Windows is deliberately not
-  // worked around.
-  ...(process.platform === 'darwin'
+  ...(features.terminalThemes
     ? {
         terminalThemes: {
           listProfiles: (): Promise<TerminalThemeProfile[]> =>
@@ -428,6 +434,14 @@ const api: SimDesktopApi = {
           selectProfile: (profileId: string): Promise<DesktopPreferences | null> =>
             ipcRenderer.invoke('terminal-themes:select-profile', profileId),
         },
+      }
+    : {}),
+  // Omitted entirely where no importer runs, so the web app's feature detection
+  // reflects whether an import can actually run rather than only whether the
+  // shell is new enough. Chrome's App-Bound Encryption on Windows is
+  // deliberately not worked around.
+  ...(features.browserImport
+    ? {
         browserImport: {
           listChromeProfiles: (): Promise<BrowserImportProfile[]> =>
             ipcRenderer.invoke('browser-import:list-profiles'),
@@ -455,12 +469,21 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('browser-credentials:forget-all'),
     reveal: (id: string): Promise<string | null> =>
       ipcRenderer.invoke('browser-credentials:reveal', id),
-    copy: (id: string): Promise<boolean> => ipcRenderer.invoke('browser-credentials:copy', id),
-    importFromChrome: (
-      profileId?: string,
-      policy?: BrowserCredentialConflictPolicy
-    ): Promise<BrowserPasswordImportResult> =>
-      ipcRenderer.invoke('browser-credentials:import', profileId, policy),
+    ...(features.passwordCopy
+      ? {
+          copy: (id: string): Promise<boolean> =>
+            ipcRenderer.invoke('browser-credentials:copy', id),
+        }
+      : {}),
+    ...(features.browserImport
+      ? {
+          importFromChrome: (
+            profileId?: string,
+            policy?: BrowserCredentialConflictPolicy
+          ): Promise<BrowserPasswordImportResult> =>
+            ipcRenderer.invoke('browser-credentials:import', profileId, policy),
+        }
+      : {}),
     showChooser: (anchor: { x: number; y: number }, scopeId: string): Promise<boolean> =>
       ipcRenderer.invoke('browser-credentials:show-chooser', anchor, scopeId),
     listFillOptions: (scopeId: string): Promise<BrowserCredentialMetadata[]> =>

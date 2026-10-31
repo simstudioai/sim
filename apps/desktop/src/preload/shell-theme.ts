@@ -14,21 +14,36 @@ export function exposeShellTheme(): void {
   contextBridge.exposeInMainWorld('simShellTheme', api)
 }
 
-/** Reports the actual app theme, including changes after hydration or OS theme changes. */
+/** The app's explicit theme choice (the next-themes `sim-theme` key), or `system`. */
+function themePreference(): string {
+  try {
+    return localStorage.getItem('sim-theme') ?? 'system'
+  } catch {
+    return 'system'
+  }
+}
+
+/**
+ * Reports the actual app theme and the user's preference behind it, including
+ * changes after hydration or OS theme changes.
+ */
 export function observeAppTheme(): void {
   window.addEventListener('DOMContentLoaded', () => {
     if (!['https:', 'http:'].includes(location.protocol)) return
-    let previous: ShellTheme | undefined
+    let previous: string | undefined
     const report = () => {
       const root = document.documentElement
-      const theme = root.classList.contains('dark')
+      const theme: ShellTheme | undefined = root.classList.contains('dark')
         ? 'dark'
         : root.classList.contains('light')
           ? 'light'
           : undefined
-      if (!theme || theme === previous) return
-      previous = theme
-      ipcRenderer.send('shell:app-theme', theme)
+      if (!theme) return
+      const preference = themePreference()
+      const reported = `${theme}:${preference}`
+      if (reported === previous) return
+      previous = reported
+      ipcRenderer.send('shell:app-theme', theme, preference)
     }
     new MutationObserver(report).observe(document.documentElement, {
       attributes: true,

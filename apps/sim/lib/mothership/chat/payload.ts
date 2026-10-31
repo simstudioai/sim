@@ -1,5 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import type { BrowserKnownSession } from '@sim/browser-protocol'
+import type { DesktopPlatform } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { isPermissionType, permissionSatisfies } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
@@ -98,12 +99,15 @@ interface BuildPayloadParams {
   browser?: boolean
   terminalCapable?: boolean
   computerUse?: boolean
+  /** The desktop shell's operating system, so commands and paths are written for it. */
+  desktopPlatform?: DesktopPlatform
   terminals?: Array<{
     id: string
     cwd?: string
     running?: string
     interactive?: boolean
     active?: boolean
+    shell?: string
   }>
   browserSessions?: BrowserKnownSession[]
 }
@@ -555,6 +559,7 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
             browser: params.browser === true,
             terminal: params.terminalCapable === true,
             computerUse,
+            ...(params.desktopPlatform ? { platform: params.desktopPlatform } : {}),
             terminals: params.terminalCapable ? (params.terminals ?? []).slice(0, 20) : [],
             browserSessions: params.browser ? (params.browserSessions ?? []).slice(0, 20) : [],
           },

@@ -80,6 +80,7 @@ export const systemPreferences = {
 
 export const nativeTheme = {
   shouldUseDarkColors: false,
+  themeSource: 'system' as 'system' | 'light' | 'dark',
   on: vi.fn(),
 }
 
@@ -323,6 +324,7 @@ export class BrowserWindow {
   setTitle = vi.fn()
   setVisibleOnAllWorkspaces = vi.fn()
   setAlwaysOnTop = vi.fn()
+  removeMenu = vi.fn()
   getSize = vi.fn(() => [1180, 850])
   getContentSize = vi.fn(() => [1180, 850])
   contentView = {

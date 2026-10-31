@@ -96,7 +96,7 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
 
   const copy = useCallback(async () => {
     const bridge = getDesktopBridge()?.browserCredentials
-    if (!bridge) return
+    if (!bridge?.copy) return
     setBusy(true)
     try {
       await bridge.copy(credential.id)
@@ -123,6 +123,8 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
   }, [credential.id, hide, onBack, onForgotten])
 
   const site = siteLabel(credential.origin)
+  // Absent where the OS clipboard keeps history Sim cannot clear (Windows).
+  const canCopy = typeof getDesktopBridge()?.browserCredentials.copy === 'function'
   return (
     <>
       <SettingsPanel
@@ -184,21 +186,23 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
                         {revealed ? 'Hide password' : 'Show password'}
                       </Tooltip.Content>
                     </Tooltip.Root>
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          type='button'
-                          variant='quiet'
-                          size='icon'
-                          disabled={busy}
-                          onClick={() => void copy()}
-                          aria-label='Copy password'
-                        >
-                          <Duplicate className='size-[13px]' />
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>Copy password</Tooltip.Content>
-                    </Tooltip.Root>
+                    {canCopy && (
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            type='button'
+                            variant='quiet'
+                            size='icon'
+                            disabled={busy}
+                            onClick={() => void copy()}
+                            aria-label='Copy password'
+                          >
+                            <Duplicate className='size-[13px]' />
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>Copy password</Tooltip.Content>
+                      </Tooltip.Root>
+                    )}
                   </>
                 }
               />

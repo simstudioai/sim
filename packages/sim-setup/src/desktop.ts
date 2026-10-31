@@ -10,12 +10,29 @@ import { APP_URL } from './urls'
 
 /**
  * Where a deployment redirects to the newest installer for its own channel,
- * and the manifest installed shells poll. Both ship in every Sim deployment
- * (`app/api/desktop/update/*`), so a self-hosted install already serves them —
- * there is nothing to build or host.
+ * and the manifest installed shells poll, per desktop platform. Both ship in
+ * every Sim deployment (`app/api/desktop/update/*`), so a self-hosted install
+ * already serves them — there is nothing to build or host.
  */
-const DOWNLOAD_PATH = '/api/desktop/update/download'
-const FEED_PATH = '/api/desktop/update/latest-mac.yml'
+const DESKTOP_PLATFORMS = {
+  mac: {
+    downloadPath: '/api/desktop/update/download',
+    feedPath: '/api/desktop/update/latest-mac.yml',
+    serverCommand: 'Sim → Server…',
+    serverCommandWhere: 'in the menu bar',
+  },
+  windows: {
+    downloadPath: '/api/desktop/update/download?platform=windows',
+    feedPath: '/api/desktop/update/latest.yml',
+    serverCommand: 'File → Server…',
+    serverCommandWhere: 'in the menu bar (press Alt to show it)',
+  },
+} as const
+
+/** The desktop build for the machine running the CLI; macOS unless it is Windows. */
+function desktopPlatformForHost(): (typeof DESKTOP_PLATFORMS)[keyof typeof DESKTOP_PLATFORMS] {
+  return process.platform === 'win32' ? DESKTOP_PLATFORMS.windows : DESKTOP_PLATFORMS.mac
+}
 
 const PROBE_TIMEOUT_MS = 15_000
 
@@ -219,7 +236,8 @@ export async function runDesktop(flags: DesktopFlags): Promise<number> {
   // values`, so it is seconds of blocking work — and every bit of it is
   // discarded when --url already names the deployment.
   const appUrl = resolveDeploymentUrl(flags.url ? [] : discoverConfigurationSources(), flags.url)
-  const downloadUrl = `${appUrl}${DOWNLOAD_PATH}`
+  const platform = desktopPlatformForHost()
+  const downloadUrl = `${appUrl}${platform.downloadPath}`
 
   p.log.step(`Deployment: ${theme.accent(appUrl)}`)
 
@@ -227,7 +245,7 @@ export async function runDesktop(flags: DesktopFlags): Promise<number> {
   spin.start('Resolving the desktop installer…')
   const [probe, feedOk] = await Promise.all([
     probeDownload(downloadUrl),
-    httpHealth(`${appUrl}${FEED_PATH}`, PROBE_TIMEOUT_MS),
+    httpHealth(`${appUrl}${platform.feedPath}`, PROBE_TIMEOUT_MS),
   ])
   const { headline, hints } = describeProbe(probe, appUrl)
   spin.stop(headline)
@@ -242,7 +260,7 @@ export async function runDesktop(flags: DesktopFlags): Promise<number> {
 
   if (!feedOk) {
     p.log.warn(
-      `${FEED_PATH} did not resolve — the app will install but will not auto-update from this deployment.`
+      `${platform.feedPath} did not resolve — the app will install but will not auto-update from this deployment.`
     )
   }
 
@@ -251,13 +269,15 @@ export async function runDesktop(flags: DesktopFlags): Promise<number> {
       `1. Download and install Sim:`,
       `   ${theme.accent(downloadUrl)}`,
       '',
-      `2. Open Sim, then choose ${theme.command('Sim → Server…')} in the menu bar.`,
+      `2. Open Sim, then choose ${theme.command(platform.serverCommand)} ${platform.serverCommandWhere}.`,
       '',
       `3. Enter your server URL and press Connect:`,
       `   ${theme.accent(appUrl)}`,
       '',
       theme.muted('Sim relaunches against your deployment and updates from it from then on.'),
-      theme.muted('The desktop app is macOS-only today; the web app works everywhere.'),
+      theme.muted(
+        'The desktop app runs on macOS and Windows (x64, 10 1809 or later); the web app works everywhere.'
+      ),
     ].join('\n'),
     'Connect the desktop app'
   )

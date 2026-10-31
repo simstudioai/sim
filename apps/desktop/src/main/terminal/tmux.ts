@@ -26,6 +26,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { generateRandomHex } from '@sim/utils/random'
+import { desktopFeatures } from '@/shared/platform-features'
 
 const logger = createLogger('DesktopTmux')
 
@@ -90,11 +91,6 @@ export interface TmuxAttachment {
 }
 
 /**
- * Runs one tmux command. Never throws: a missing binary, a dead server, and a
- * bad target all arrive as `ok: false` with tmux's own message, which is more
- * useful to the model than an exception.
- */
-/**
  * Set once a `tmux` spawn fails with ENOENT: the binary is not installed, and
  * it will not appear mid-session, so every later call short-circuits instead
  * of paying a failed spawn. Most machines running this have no tmux at all,
@@ -102,13 +98,21 @@ export interface TmuxAttachment {
  */
 let tmuxBinaryMissing = false
 
+const TMUX_SUPPORTED = desktopFeatures(process.platform).tmux
+
+/** Whether tmux is off the table: never attached on this platform, or not installed. */
 export function isTmuxUnavailable(): boolean {
-  return tmuxBinaryMissing
+  return !TMUX_SUPPORTED || tmuxBinaryMissing
 }
 
+/**
+ * Runs one tmux command. Never throws: a missing binary, a dead server, and a
+ * bad target all arrive as `ok: false` with tmux's own message, which is more
+ * useful to the model than an exception.
+ */
 export function runTmux(args: string[], env: NodeJS.ProcessEnv): Promise<TmuxCommandResult> {
   return new Promise((resolve) => {
-    if (tmuxBinaryMissing) {
+    if (isTmuxUnavailable()) {
       resolve({ ok: false, stdout: '', stderr: 'tmux is not installed' })
       return
     }
