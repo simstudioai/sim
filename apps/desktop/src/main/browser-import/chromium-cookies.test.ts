@@ -123,7 +123,7 @@ describe.skipIf(!sqliteAvailable)('readBrowserCookies', () => {
       },
     ])
 
-    const result = await readBrowserCookies(path, KEY, NOW_SECONDS)
+    const result = await readBrowserCookies(path, KEY, { nowSeconds: NOW_SECONDS })
 
     expect(result.rowsSeen).toBe(1)
     expect(result.cookies).toHaveLength(1)
@@ -150,7 +150,7 @@ describe.skipIf(!sqliteAvailable)('readBrowserCookies', () => {
       },
     ])
 
-    const [cookie] = (await readBrowserCookies(path, KEY, NOW_SECONDS)).cookies
+    const [cookie] = (await readBrowserCookies(path, KEY, { nowSeconds: NOW_SECONDS })).cookies
     expect(cookie.expirationDate).toBeCloseTo(NOW_SECONDS + 86_400, 3)
   })
 
@@ -163,7 +163,9 @@ describe.skipIf(!sqliteAvailable)('readBrowserCookies', () => {
       { hostKey: '.example.com', name: 'a', encryptedValue: encryptV10(plaintext) },
     ])
 
-    expect((await readBrowserCookies(path, KEY, NOW_SECONDS)).cookies[0].value).toBe('bound')
+    expect(
+      (await readBrowserCookies(path, KEY, { nowSeconds: NOW_SECONDS })).cookies[0].value
+    ).toBe('bound')
   })
 
   it('counts unreadable and expired rows instead of failing the import', async () => {
@@ -178,12 +180,43 @@ describe.skipIf(!sqliteAvailable)('readBrowserCookies', () => {
       },
     ])
 
-    const result = await readBrowserCookies(path, KEY, NOW_SECONDS)
+    const result = await readBrowserCookies(path, KEY, { nowSeconds: NOW_SECONDS })
 
     expect(result.rowsSeen).toBe(3)
     expect(result.cookies.map(({ name }) => name)).toEqual(['good'])
     expect(result.skipped['decrypt-failed']).toBe(1)
     expect(result.skipped.expired).toBe(1)
+  })
+
+  it('reads only in-scope rows, never decrypting or counting another site', async () => {
+    const path = await writeCookieDatabase([
+      { hostKey: '.example.com', name: 'domain', encryptedValue: encryptV10(Buffer.from('a')) },
+      {
+        hostKey: 'Console.Example.com',
+        name: 'host',
+        encryptedValue: encryptV10(Buffer.from('b')),
+      },
+      {
+        hostKey: 'notexample.com',
+        name: 'lookalike',
+        encryptedValue: encryptV10(Buffer.from('c')),
+      },
+      {
+        hostKey: 'example.com.evil.com',
+        name: 'prefix',
+        encryptedValue: encryptV10(Buffer.from('d')),
+      },
+      { hostKey: 'evil.com', name: 'broken', encryptedValue: Buffer.from('v20-not-supported') },
+    ])
+
+    const result = await readBrowserCookies(path, KEY, {
+      nowSeconds: NOW_SECONDS,
+      scope: { domain: 'example.com', exact: false },
+    })
+
+    expect(result.cookies.map(({ name }) => name).sort()).toEqual(['domain', 'host'])
+    expect(result.rowsSeen).toBe(2)
+    expect(result.skipped['decrypt-failed']).toBe(0)
   })
 
   it('reports an unrecognised schema rather than guessing', async () => {
@@ -193,7 +226,7 @@ describe.skipIf(!sqliteAvailable)('readBrowserCookies', () => {
     database.exec('CREATE TABLE something_else (a TEXT)')
     database.close()
 
-    await expect(readBrowserCookies(path, KEY, NOW_SECONDS)).rejects.toMatchObject({
+    await expect(readBrowserCookies(path, KEY, { nowSeconds: NOW_SECONDS })).rejects.toMatchObject({
       code: 'unsupported-schema',
     })
   })
@@ -204,7 +237,7 @@ describe.skipIf(!sqliteAvailable)('readBrowserCookies', () => {
     ])
     const before = await stat(path)
 
-    await readBrowserCookies(path, KEY, NOW_SECONDS)
+    await readBrowserCookies(path, KEY, { nowSeconds: NOW_SECONDS })
 
     const after = await stat(path)
     expect(after.size).toBe(before.size)
@@ -217,7 +250,7 @@ describe.skipIf(!sqliteAvailable)('readBrowserCookies', () => {
       { hostKey: 'example.com', name: 'a', encryptedValue: encryptV10(Buffer.from('v')) },
     ])
 
-    await readBrowserCookies(path, KEY, NOW_SECONDS)
+    await readBrowserCookies(path, KEY, { nowSeconds: NOW_SECONDS })
 
     expect(await stagingLeftBehindSince(before)).toEqual([])
   })
@@ -226,7 +259,9 @@ describe.skipIf(!sqliteAvailable)('readBrowserCookies', () => {
     const before = await stagingDirectories()
     await writeFile(join(directory, 'Cookies'), 'not a database')
 
-    await expect(readBrowserCookies(join(directory, 'Cookies'), KEY, NOW_SECONDS)).rejects.toThrow()
+    await expect(
+      readBrowserCookies(join(directory, 'Cookies'), KEY, { nowSeconds: NOW_SECONDS })
+    ).rejects.toThrow()
 
     expect(await stagingLeftBehindSince(before)).toEqual([])
   })

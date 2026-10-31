@@ -20,6 +20,15 @@ vi.mock('@/main/browser-import', () => ({
     passwordsUpdated: 0,
     passwordsSkipped: 1,
   })),
+  continueSignIn: vi.fn(async () => ({
+    pending: { site: 'example.com', browserLabel: 'Chrome' },
+  })),
+  bringSignInBack: vi.fn(async () => ({
+    result: { cookiesImported: 2, cookiesSkipped: 0 },
+    handoff: { tabId: 'tab-1', url: 'https://signin.example.com/login' },
+  })),
+  cancelSignIn: vi.fn(),
+  getPendingSignIn: vi.fn(() => null),
 }))
 
 vi.mock('@/main/browser-search/suggestions', () => ({
@@ -135,6 +144,8 @@ import {
   revealCredential,
 } from '@/main/browser-credentials'
 import {
+  bringSignInBack,
+  continueSignIn,
   importChromeCookies,
   importChromePasswords,
   listChromeImportProfiles,
@@ -1162,6 +1173,148 @@ describe('registerIpcHandlers', () => {
       cookiesSkipped: 1,
     })
     expect(importChromeCookies).toHaveBeenCalledWith('Default')
+  })
+
+  describe('continuing a sign-in in another browser', () => {
+    const SIGN_IN_URL = 'https://signin.example.com/login'
+    let tabUrl = SIGN_IN_URL
+    let active: ReturnType<typeof vi.spyOn>
+
+    beforeEach(async () => {
+      tabUrl = SIGN_IN_URL
+      active = vi.spyOn(browserSession, 'activeTab').mockReturnValue({
+        id: 'tab-1',
+        view: { webContents: { getURL: () => tabUrl } },
+      } as never)
+      await collectHandlers().invoke.get('browser-agent:activate-scope')?.(
+        activeAppEvent,
+        'chat-signin'
+      )
+    })
+
+    afterEach(() => active.mockRestore())
+
+    const continueIn = (event: typeof activeAppEvent, ...args: unknown[]) =>
+      collectHandlers().invoke.get('browser-import:continue-sign-in')?.(event, ...args)
+
+    it('hands over the page the tab shows, ignoring any address the renderer names', async () => {
+      await expect(
+        continueIn(activeAppEvent, 'chrome:Default', 'chat-signin', 'https://evil.example/')
+      ).resolves.toEqual({ pending: { site: 'example.com', browserLabel: 'Chrome' } })
+      expect(continueSignIn).toHaveBeenCalledWith('chat-signin', {
+        profileId: 'chrome:Default',
+        tabId: 'tab-1',
+        url: SIGN_IN_URL,
+      })
+    })
+
+    it('refuses a renderer acting without the user', async () => {
+      await collectHandlers().invoke.get('browser-agent:activate-scope')?.(
+        inactiveAppEvent,
+        'chat-scripted'
+      )
+      expect(await continueIn(inactiveAppEvent, 'chrome:Default', 'chat-scripted')).toEqual({
+        error: 'unknown',
+      })
+      expect(continueSignIn).not.toHaveBeenCalled()
+    })
+
+    it('refuses a foreign origin and a malformed profile', async () => {
+      expect(await continueIn(evilEvent, 'chrome:Default', 'chat-signin')).toEqual({
+        error: 'unknown',
+      })
+      expect(await continueIn(activeAppEvent, 42, 'chat-signin')).toEqual({ error: 'unknown' })
+      expect(continueSignIn).not.toHaveBeenCalled()
+    })
+
+    it("refuses Sim's own pages, which ride the app session", async () => {
+      tabUrl = `${APP}/workspace/ws1/files`
+      expect(await continueIn(activeAppEvent, 'chrome:Default', 'chat-signin')).toEqual({
+        error: 'unsupported-page',
+      })
+      expect(continueSignIn).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('bringing a sign-in back', () => {
+    let panelAction: ReturnType<typeof vi.spyOn>
+    let peek: ReturnType<typeof vi.spyOn>
+    const tabsWith = (...tabIds: string[]) => ({
+      scopeId: 'chat-signin',
+      tabs: tabIds.map((tabId) => ({ tabId, url: '', title: '', loading: false, active: false })),
+      activeTabId: 'tab-2',
+    })
+
+    beforeEach(async () => {
+      panelAction = vi.spyOn(browserDriver, 'handlePanelAction').mockResolvedValue()
+      peek = vi.spyOn(browserSession, 'peekTabsState').mockReturnValue(tabsWith('tab-1', 'tab-2'))
+      await collectHandlers().invoke.get('browser-agent:activate-scope')?.(
+        activeAppEvent,
+        'chat-signin'
+      )
+    })
+
+    afterEach(() => {
+      panelAction.mockRestore()
+      peek.mockRestore()
+    })
+
+    const bringBack = (event: typeof activeAppEvent, scope: string) =>
+      collectHandlers().invoke.get('browser-import:bring-sign-in-back')?.(event, scope)
+
+    it('refuses a renderer acting without the user, and a foreign origin', async () => {
+      await collectHandlers().invoke.get('browser-agent:activate-scope')?.(
+        inactiveAppEvent,
+        'chat-scripted'
+      )
+      expect(await bringBack(inactiveAppEvent, 'chat-scripted')).toEqual({
+        cookiesImported: 0,
+        cookiesSkipped: 0,
+        error: 'unknown',
+      })
+      expect(await bringBack(evilEvent, 'chat-signin')).toMatchObject({ error: 'unknown' })
+      expect(bringSignInBack).not.toHaveBeenCalled()
+    })
+
+    it('reopens the handed-off page in its own tab', async () => {
+      await expect(bringBack(activeAppEvent, 'chat-signin')).resolves.toEqual({
+        cookiesImported: 2,
+        cookiesSkipped: 0,
+      })
+      expect(bringSignInBack).toHaveBeenCalledWith('chat-signin')
+      expect(panelAction.mock.calls).toEqual([
+        ['chat-signin', { action: 'switch-tab', tabId: 'tab-1' }],
+        ['chat-signin', { action: 'navigate', url: 'https://signin.example.com/login' }],
+      ])
+    })
+
+    it('reopens the page in a new tab when its tab was closed', async () => {
+      peek.mockReturnValue(tabsWith('tab-2'))
+      const tabContents = { loadURL: vi.fn(async () => {}), isDestroyed: () => false }
+      const add = vi
+        .spyOn(browserSession, 'addTab')
+        .mockReturnValue({ view: { webContents: tabContents } } as never)
+      const focus = vi.spyOn(browserSession, 'focusPageForUser').mockImplementation(() => {})
+
+      await bringBack(activeAppEvent, 'chat-signin')
+
+      expect(add).toHaveBeenCalledOnce()
+      expect(tabContents.loadURL).toHaveBeenCalledWith('https://signin.example.com/login')
+      expect(panelAction).not.toHaveBeenCalled()
+      add.mockRestore()
+      focus.mockRestore()
+    })
+
+    it('leaves the tabs alone when nothing came back', async () => {
+      vi.mocked(bringSignInBack).mockResolvedValueOnce({
+        result: { cookiesImported: 0, cookiesSkipped: 0 },
+        handoff: { tabId: 'tab-1', url: 'https://signin.example.com/login' },
+      })
+
+      await bringBack(activeAppEvent, 'chat-signin')
+
+      expect(panelAction).not.toHaveBeenCalled()
+    })
   })
 
   it('never imports Chrome cookies for a foreign origin', async () => {

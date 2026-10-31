@@ -66,6 +66,10 @@ import {
 } from '@/lib/desktop/appearance'
 import { trackPanelFocus } from '@/lib/desktop/panel-focus'
 import { addMothershipContext } from '@/lib/mothership/events'
+import {
+  BrowserContinueSignInMenuItems,
+  BrowserContinueSignInNotice,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-continue-sign-in'
 import { BrowserDownloads } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-downloads'
 import { BrowserFindBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-find-bar'
 import { BrowserLoadingBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-loading-bar'
@@ -90,6 +94,7 @@ import {
   type OmniboxSuggestion,
   type UrlSuggestion,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/url-suggestions'
+import { useContinueSignIn } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/use-continue-sign-in'
 import { ResourceZoomMenuItems } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/resource-zoom-menu-items'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -444,6 +449,7 @@ export function BrowserSession({
   const [importOpen, setImportOpen] = useState(false)
   const [importVersion, setImportVersion] = useState(0)
   const canImport = Boolean(getDesktopBridge()?.browserImport?.importFromChrome)
+  const continueSignIn = useContinueSignIn({ scopeId, pageUrl: pageState?.url })
   const mediaPermissionRequest = pageState?.mediaPermissionRequest
   const sitePermissionRequest = pageState?.sitePermissionRequest
   const permissionRequest = sitePermissionRequest ?? mediaPermissionRequest
@@ -1299,6 +1305,10 @@ export function BrowserSession({
                 Find in Page
                 <DropdownMenuShortcut>⌘F</DropdownMenuShortcut>
               </DropdownMenuItem>
+              <BrowserContinueSignInMenuItems
+                controller={continueSignIn}
+                afterClose={afterToolbarClose}
+              />
               <DropdownMenuSeparator />
               <ResourceZoomMenuItems
                 onZoomIn={afterToolbarClose(() => sendBrowserPanelAction('zoom-in', {}, scopeId))}
@@ -1339,6 +1349,7 @@ export function BrowserSession({
         {themeNoticeVersion > 0 && (
           <BrowserThemeNotice key={themeNoticeVersion} scopeId={scopeId} />
         )}
+        <BrowserContinueSignInNotice controller={continueSignIn} />
         <BrowserLoadingBar loading={Boolean(pageState?.loading)} />
       </div>
       {/* Host area: the real page is overlaid exactly on this rect. */}

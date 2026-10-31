@@ -530,3 +530,23 @@ describe('remembering the sites an import brought over', () => {
     expect(readSites).toHaveBeenCalledWith('/chrome/Default/History', new Set(['example.com']))
   })
 })
+
+describe('importChromeCookies with a site scope', () => {
+  it('reads only the scoped site from the chosen profile', async () => {
+    const readCookies = vi.fn<ImportServiceDeps['readCookies']>(async () => read())
+    const scope = { domain: 'amazon.com', exact: false }
+
+    await expect(
+      importChromeCookies('arc:Profile 2', createDeps({ readCookies }), scope)
+    ).resolves.toEqual({ cookiesImported: 1, cookiesSkipped: 0 })
+    expect(readCookies).toHaveBeenCalledWith('/arc/Profile 2/Cookies', expect.any(Buffer), scope)
+  })
+
+  it('reports nothing found, not a failure, when the profile has no sign-in for the site', async () => {
+    const deps = createDeps({ readCookies: async () => read({ cookies: [], rowsSeen: 0 }) })
+
+    await expect(
+      importChromeCookies('chrome:Default', deps, { domain: 'example.com', exact: false })
+    ).resolves.toEqual({ cookiesImported: 0, cookiesSkipped: 0 })
+  })
+})

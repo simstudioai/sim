@@ -57,6 +57,7 @@ import {
 } from '@/main/browser-agent/driver'
 import { isAgentWebContents } from '@/main/browser-agent/registry'
 import {
+  activeTab,
   addTab,
   findInActiveTab,
   focusPageForUser,
@@ -79,6 +80,10 @@ import {
   revealCredential,
 } from '@/main/browser-credentials'
 import {
+  bringSignInBack,
+  cancelSignIn,
+  continueSignIn,
+  getPendingSignIn,
   importChromeCookies,
   importChromeData,
   importChromePasswords,
@@ -1511,6 +1516,78 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           typeof profileId === 'string' ? profileId : undefined,
           policy === 'replace' ? 'replace' : 'keep-existing'
         )
+      },
+    },
+    // Continue a sign-in in the user's own browser (see the bridge's
+    // `continueSignIn`). The shell reads the address from the tab, never from
+    // the renderer; Sim's own pages ride the app session, so they are refused.
+    'browser-import:continue-sign-in': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      needsUserActivation: true,
+      denied: { error: 'unknown' },
+      handler: (sender, profileId, rawScope) => {
+        const scopeId = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        if (!scopeId || typeof profileId !== 'string') return { error: 'unknown' }
+        const tab = withBrowserScope(scopeId, () => activeTab())
+        const url = tab?.view.webContents.getURL() ?? ''
+        if (!tab || isAppOrigin(url, deps.appOrigin())) return { error: 'unsupported-page' }
+        return continueSignIn(scopeId, { profileId, tabId: tab.id, url })
+      },
+    },
+    // Imports the chat's pending sign-in, then reopens the handed-off page
+    // through the omnibox's navigation path, or in a new tab if it was closed.
+    'browser-import:bring-sign-in-back': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      needsUserActivation: true,
+      denied: { cookiesImported: 0, cookiesSkipped: 0, error: 'unknown' },
+      handler: async (sender, rawScope) => {
+        const scopeId = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        if (!scopeId) return { cookiesImported: 0, cookiesSkipped: 0, error: 'unknown' }
+        const { result, handoff } = await bringSignInBack(scopeId)
+        if (!handoff || result.cookiesImported === 0) return result
+        const tabOpen = withBrowserScope(scopeId, () =>
+          peekTabsState().tabs.some(({ tabId }) => tabId === handoff.tabId)
+        )
+        if (!tabOpen) {
+          withBrowserScope(scopeId, () => {
+            const tab = addTab()
+            void tab.view.webContents.loadURL(handoff.url).catch(() => {})
+            focusPageForUser(tab.view.webContents)
+          })
+          return result
+        }
+        await handlePanelAction(scopeId, { action: 'switch-tab', tabId: handoff.tabId })
+          .then(() => handlePanelAction(scopeId, { action: 'navigate', url: handoff.url }))
+          .catch(() => {})
+        return result
+      },
+    },
+    'browser-import:cancel-sign-in': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: undefined,
+      handler: (sender, rawScope) => {
+        const scopeId = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        if (scopeId) cancelSignIn(scopeId)
+      },
+    },
+    'browser-import:pending-sign-in': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: null,
+      handler: (sender, rawScope) => {
+        const scopeId = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        return scopeId ? getPendingSignIn(scopeId) : null
       },
     },
     // Reported by the browser preload for the page it is running in. The
