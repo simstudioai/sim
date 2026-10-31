@@ -94,7 +94,7 @@ await writeFile(
     {
       manifest_version: 3,
       name: development ? 'Sim (Development)' : 'Sim',
-      version: '0.1.0',
+      version: '0.1.1',
       description:
         'Ask Sim about the page you are reading, with your existing Sim conversations and tools.',
       minimum_chrome_version: '120',

@@ -128,6 +128,13 @@ try {
   await signIn.goto(`${origin}/sign-in`)
   await signIn.close()
   const panel: Page = await context.newPage()
+  // Observe dispatch before the bridge so background metadata queries stay outside each action.
+  await panel.addInitScript(() => {
+    window.addEventListener('message', () => {
+      document.documentElement.dataset.queryCountAtDispatch =
+        document.documentElement.dataset.browserQueryCount ?? '0'
+    })
+  })
   await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`)
   await panel.getByTitle('Sim chat').waitFor()
   const frame: Frame = panel.frames()[1] ?? (await panel.waitForEvent('frameattached'))
@@ -576,6 +583,7 @@ try {
           callback?: (tabs: chrome.tabs.Tab[]) => void
         ) => {
           queries++
+          document.documentElement.dataset.browserQueryCount = String(queries)
           return callback ? originalQuery(query, callback) : originalQuery(query)
         }) as typeof chrome.tabs.query
         window.addEventListener('message', (event: MessageEvent<unknown>) => {
@@ -587,24 +595,31 @@ try {
             event.data.type !== 'action'
           )
             return
-          document.body.dataset.actionQueries = String(queries)
+          document.body.dataset.actionQueries = String(
+            queries - Number(document.documentElement.dataset.queryCountAtDispatch ?? '0')
+          )
           document.body.dataset.observedActions = String(++actions)
         })
       })
+      await panel.evaluate(() => chrome.tabs.query({ active: true, currentWindow: true }))
       const parentCdp = await panel.context().newCDPSession(panel)
       const cdp = await panel.context().newCDPSession(app)
       await expect
         .poll(
           async () => {
-            const result = await parentCdp.send('Runtime.evaluate', {
-              expression: 'navigator.userActivation.isActive',
-              userGesture: false,
-            })
-            return result.result.value
+            const results = await Promise.all(
+              [parentCdp, cdp].map((session) =>
+                session.send('Runtime.evaluate', {
+                  expression: 'navigator.userActivation.isActive',
+                  userGesture: false,
+                })
+              )
+            )
+            return results.map((result) => result.result.value)
           },
           { timeout: 10_000 }
         )
-        .toBe(false)
+        .toEqual([false, false])
       const action = {
         channel: 'sim-extension',
         version: 1,
@@ -639,6 +654,55 @@ try {
       )
       await cdp.detach()
       await parentCdp.detach()
+    }
+  )
+  await check(
+    'Site access stays modal without violating the packaged security policy',
+    async () => {
+      const policyErrors: string[] = []
+      panel.on('console', (message) => {
+        if (message.type() === 'error' && message.text().includes('Content Security Policy'))
+          policyErrors.push(message.text())
+      })
+      const openAccess = () =>
+        app.evaluate(
+          ({ targetOrigin, sessionId }) => {
+            parent.postMessage(
+              {
+                channel: 'sim-extension',
+                version: 1,
+                type: 'action',
+                sessionId,
+                action: 'site-access',
+              },
+              targetOrigin
+            )
+          },
+          { targetOrigin: `chrome-extension://${extensionId}`, sessionId: receiverSessionId }
+        )
+      await panel.bringToFront()
+      await openAccess()
+      const dialog = panel.getByRole('dialog', { name: 'Site access' })
+      await expect(dialog).toBeVisible()
+      await settleMessages()
+      assert(policyErrors.length === 0, `Site access violated CSP: ${policyErrors.join('\n')}`)
+      await panel.evaluate(() => document.querySelector('iframe')?.focus())
+      assert(
+        await dialog.evaluate((element) => element.contains(document.activeElement)),
+        'The hosted frame accepted focus behind the modal'
+      )
+      await dialog.getByRole('button', { name: 'Close' }).press('Escape')
+      await expect(dialog, 'Escape closes the modal').toBeHidden()
+      await openAccess()
+      await expect(dialog).toBeVisible()
+      await dialog.getByRole('button', { name: 'Close' }).click()
+      await expect(dialog, 'The Close button dismisses the modal').toBeHidden()
+      await openAccess()
+      await expect(dialog).toBeVisible()
+      await dialog.click({ trial: true })
+      await panel.mouse.click(1, 1)
+      await expect(dialog, 'The backdrop dismisses the modal').toBeHidden()
+      assert(policyErrors.length === 0, `Site access violated CSP: ${policyErrors.join('\n')}`)
     }
   )
   await mkdir(dirname(output), { recursive: true })
