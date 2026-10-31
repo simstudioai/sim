@@ -53,8 +53,13 @@ describe('faviconHostCandidates', () => {
       ],
     ],
     [
-      'acme.lightning.force.com',
-      ['acme.lightning.force.com', 'lightning.force.com', 'force.com', 'salesforce.com'],
+      'acme.gitlab-dedicated.com',
+      ['acme.gitlab-dedicated.com', 'gitlab-dedicated.com', 'gitlab.com'],
+    ],
+    ['acme.testrail.io', ['acme.testrail.io', 'testrail.io', 'testrail.com']],
+    [
+      'dbc-1.cloud.databricks.us',
+      ['dbc-1.cloud.databricks.us', 'cloud.databricks.us', 'databricks.us', 'databricks.com'],
     ],
   ])(
     'ends a platform tenant %s at the platform, after its own host and parents',
@@ -89,6 +94,14 @@ describe('faviconHostCandidates', () => {
       expect(faviconHostCandidates(host)).toEqual([])
     }
   )
+
+  it('adds nothing for a platform whose parent the walk already reaches', () => {
+    expect(faviconHostCandidates('acme.my.salesforce.com')).toEqual([
+      'acme.my.salesforce.com',
+      'my.salesforce.com',
+      'salesforce.com',
+    ])
+  })
 
   it('never repeats a host the walk already reaches', () => {
     expect(faviconHostCandidates('gitlab.gitlab.com')).toEqual(['gitlab.gitlab.com', 'gitlab.com'])

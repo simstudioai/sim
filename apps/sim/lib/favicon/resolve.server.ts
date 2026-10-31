@@ -36,7 +36,7 @@ type FaviconResolution =
 
 const inFlight = new Map<string, Promise<FaviconResolution>>()
 
-const cacheKey = (host: string) => `favicon:v2:${host}`
+const cacheKey = (host: string) => `favicon:v3:${host}`
 
 /** A host's key holds the result of the walk that starts at that host. */
 async function readCache(host: string): Promise<FaviconResolution | null> {
@@ -128,10 +128,11 @@ async function walk(candidates: string[], signal: AbortSignal): Promise<FaviconR
 }
 
 /**
- * The icon for a host, or its nearest parent domain's, from public icon providers — the
- * destination itself is never contacted, so a host behind a login still gets its platform's
- * icon. Results are cached per host (30 days for an icon, a day for none, minutes after an
- * outage), and concurrent lookups of one host in this process share a single resolution.
+ * The icon for a host, or its nearest parent domain's, from public icon providers — Sim never
+ * contacts the destination itself (a provider may, from its own servers), so a host behind a
+ * login still gets its platform's icon. Results are cached per host (30 days for an icon, a day
+ * for none or for a parent's icon chosen after a timeout, minutes after an outage), and
+ * concurrent lookups of one host in this process share a single resolution.
  */
 export async function resolveFavicon(host: string): Promise<FaviconResolution> {
   const candidates = faviconHostCandidates(host)
