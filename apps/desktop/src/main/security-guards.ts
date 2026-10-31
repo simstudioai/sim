@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
-import type { WebContents } from 'electron'
+import type { WebContents, WebFrameMain } from 'electron'
 import { app } from 'electron'
+import {
+  handleBrowserLogin,
+  handleSelectClientCertificate,
+  requestExternalLaunch,
+} from '@/main/browser-agent/page-prompts'
 import { isAgentWebContents } from '@/main/browser-agent/registry'
 import { trackInputActivity } from '@/main/input-activity'
 import { classifyNavigation, openExternalSafe } from '@/main/navigation'
@@ -21,14 +26,25 @@ export interface GuardDeps {
  * Applies the top-level navigation policy to both will-navigate and
  * will-redirect — OAuth chains can be redirect-injected, so redirects get the
  * same classifier as direct navigations.
+ *
+ * Agent-browser tabs never navigate off http(s). A link to another app (Zoom,
+ * Teams, mail) becomes a launch request the user decides only when the tab's
+ * own top-level document initiated it: a navigation a frame initiated, even
+ * one targeting the top level, is refused, as is the `openExternal`
+ * permission that backs frame launches.
  */
 export function attachNavigationGuards(contents: WebContents, deps: GuardDeps): void {
-  const handle = (event: { preventDefault(): void }, url: string) => {
+  const handle = (
+    event: { preventDefault(): void; isMainFrame?: boolean; initiator?: WebFrameMain | null },
+    url: string
+  ) => {
     if (isAgentWebContents(contents)) {
       const hasAllowedAgentBrowserScheme = /^https?:/i.test(url)
       if (!hasAllowedAgentBrowserScheme) {
         event.preventDefault()
-        logger.warn('Denied non-http navigation in agent browser', { url: scrubUrl(url) })
+        if (event.isMainFrame === true) {
+          requestExternalLaunch(contents, url, { initiator: event.initiator })
+        } else logger.warn('Denied non-http navigation in agent browser', { url: scrubUrl(url) })
       }
       return
     }
@@ -69,7 +85,9 @@ export function attachNavigationGuards(contents: WebContents, deps: GuardDeps): 
  * Agent-browser tabs swap the classifier for a free-http(s) policy (their job
  * is browsing arbitrary sites, isolated on their own partition). TLS errors
  * are always fatal when packaged; self-host private CAs must be
- * system-trusted rather than bypassed in-app.
+ * system-trusted rather than bypassed in-app. HTTP authentication and client
+ * certificate requests from agent-browser tabs wait on the user; every other
+ * contents keeps Electron's defaults.
  */
 export function installGlobalGuards(deps: GuardDeps): void {
   app.on('web-contents-created', (_event, contents) => {
@@ -86,6 +104,9 @@ export function installGlobalGuards(deps: GuardDeps): void {
     trackInputActivity(contents)
     attachNavigationGuards(contents, deps)
   })
+
+  app.on('login', handleBrowserLogin)
+  app.on('select-client-certificate', handleSelectClientCertificate)
 
   app.on('certificate-error', (event, _webContents, url, error, _certificate, callback) => {
     event.preventDefault()

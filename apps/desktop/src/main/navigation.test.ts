@@ -4,6 +4,7 @@ vi.mock('electron', () => import('@/test/electron-mock'))
 
 import { shell } from 'electron'
 import {
+  appLinkTarget,
   classifyNavigation,
   classifyWindowOpen,
   isSafeExternalUrl,
@@ -136,5 +137,50 @@ describe('openExternalSafe', () => {
   ])('refuses a mailto with %s', async (_rule, url) => {
     await expect(openExternalSafe(url)).resolves.toBe(false)
     expect(shell.openExternal).not.toHaveBeenCalled()
+  })
+})
+
+describe('appLinkTarget', () => {
+  it.each([
+    'file:///etc/passwd',
+    'javascript:alert(1)',
+    'ms-msdt:id',
+    'search-ms:query=x',
+    'ms-cxh-full://0',
+    'local+app://x',
+    'jnlp://evil.example/app.jnlp',
+    'x-man-page://ls',
+    'c:/Windows/System32/calc.exe',
+    'https://example.com',
+  ])('refuses %s', (url) => {
+    expect(appLinkTarget(url)).toBeNull()
+  })
+
+  it('refuses credentials, control characters, oversize URLs, and unsafe mail links', () => {
+    expect(appLinkTarget('zoommtg://user:pass@zoom.us/join')).toBeNull()
+    expect(appLinkTarget('zoommtg://zoom.us/join?x=1\n')).toBeNull()
+    expect(appLinkTarget('zoommtg://zoom.us/join?x= 1')).toBeNull()
+    expect(appLinkTarget(`zoommtg://zoom.us/join?x=${'a'.repeat(2_048)}`)).toBeNull()
+    expect(appLinkTarget('mailto:a@example.com?attach=/etc/passwd')).toBeNull()
+  })
+
+  it('hands the operating system the parser-rebuilt URL of an app link', () => {
+    expect(appLinkTarget('ZoomMtg://zoom.us/join?confno=123&pwd=abc')).toEqual({
+      url: 'zoommtg://zoom.us/join?confno=123&pwd=abc',
+      scheme: 'zoommtg',
+    })
+    expect(appLinkTarget('mailto:a@example.com?subject=Hi')?.scheme).toBe('mailto')
+  })
+
+  it('opens an app link only on the app-link path, and only in its rebuilt form', async () => {
+    vi.mocked(shell.openExternal).mockClear()
+    await expect(openExternalSafe('zoommtg://zoom.us/join')).resolves.toBe(false)
+    await expect(
+      openExternalSafe('ZoomMtg://zoom.us/join', false, { appLink: true })
+    ).resolves.toBe(false)
+    await expect(
+      openExternalSafe('zoommtg://zoom.us/join', false, { appLink: true })
+    ).resolves.toBe(true)
+    expect(shell.openExternal).toHaveBeenCalledExactlyOnceWith('zoommtg://zoom.us/join')
   })
 })

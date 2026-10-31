@@ -1566,9 +1566,11 @@ describe('browser-agent session', () => {
   it('leaves nothing of the signed-out user behind in the browser profile', async () => {
     const clearStorageData = vi.fn(async () => {})
     const clearCache = vi.fn(async () => {})
+    const clearAuthCache = vi.fn(async () => {})
     vi.mocked(electronSession.fromPartition).mockReturnValue({
       clearStorageData,
       clearCache,
+      clearAuthCache,
     } as unknown as ReturnType<typeof electronSession.fromPartition>)
     const { persistence, snapshots } = memoryBrowserPersistence()
     session = freshSession(win, {}, persistence)
@@ -1587,6 +1589,8 @@ describe('browser-agent session', () => {
     expect(snapshots.get('chat-test')).toMatchObject({ tabs: [], activeIndex: -1 })
     expect(clearStorageData).toHaveBeenCalled()
     expect(clearCache).toHaveBeenCalled()
+    // Chromium keeps typed HTTP sign-in credentials outside storage and cache.
+    expect(clearAuthCache).toHaveBeenCalled()
   })
 
   it('hides the panel when the renderer stops renewing its bounds lease', async () => {
