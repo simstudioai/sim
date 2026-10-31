@@ -1,13 +1,13 @@
 ---
 title: Sim Desktop
-description: Install the macOS app and configure browser, terminal, local file, and available Mac app controls.
+description: Install the macOS or Windows app and configure browser, terminal, local file, and available Mac app controls.
 ---
 
 import { Callout } from '@/components/ui/callout'
 import { Step, Steps } from '@/components/ui/steps'
 import { Image } from '@/components/ui/image'
 
-Sim Desktop opens your Sim workspace in a macOS app. It adds a built-in browser, terminal sessions, local file tools, and native notifications. Available builds and deployments can also provide native Mac app control. Your account, workspaces, and workflows are shared with the web app.
+Sim Desktop opens your Sim workspace in a macOS or Windows app. It adds a built-in browser, terminal sessions, local file tools, and native notifications. Available builds and deployments can also provide native Mac app control. Your account, workspaces, and workflows are shared with the web app.
 
 <Image
   variant="overview"
@@ -20,17 +20,22 @@ Sim Desktop opens your Sim workspace in a macOS app. It adds a built-in browser,
 
 ## Download and requirements
 
-**[Download Sim Desktop for macOS](https://www.sim.ai/api/desktop/update/download)**
+**[Download Sim Desktop for macOS](https://www.sim.ai/api/desktop/update/download)** · **[Download Sim Desktop for Windows](https://www.sim.ai/api/desktop/update/download?platform=windows)**
 
-The official build is signed and notarized. One universal installer supports Apple Silicon and Intel Macs running **macOS 12 Monterey or later**. Use the web app on other platforms.
+| Platform | Installer | Requirements |
+| --- | --- | --- |
+| macOS | Signed and notarized universal `.dmg` | Apple Silicon or Intel, **macOS 12 Monterey or later** |
+| Windows | Signed per-user `.exe` installer | x64, **Windows 10 version 1809 or later**, or Windows 11 |
 
-The download link redirects to the latest available desktop installer for that deployment. Results can be cached for five minutes. To install a specific version, download `Sim-<version>-universal.dmg` from [GitHub releases](https://github.com/simstudioai/sim/releases).
+Use the web app on other platforms, including Windows on Arm.
+
+The download links redirect to the latest available desktop installer for that deployment. Results can be cached for five minutes. To install a specific version, download `Sim-<version>-universal.dmg` or `Sim-<version>-x64.exe` from [GitHub releases](https://github.com/simstudioai/sim/releases).
 
 You need outbound access to your Sim deployment and GitHub's release downloads. For a self-hosted deployment:
 
 - Use your own download endpoint, such as `https://sim.example.com/api/desktop/update/download`.
 - Allow the Sim server to reach both `api.github.com` and `github.com` for release lookup and manifests. Blocking either can make the download endpoint return `502`.
-- Use a certificate trusted by macOS. The app rejects certificate errors without an override; install a private CA in the system trust store if required.
+- Use a certificate trusted by the operating system. The app rejects certificate errors without an override; install a private CA in the system trust store if required.
 
 See [Desktop app on your deployment](/platform/self-hosting/desktop) for server URLs, update channels, and network troubleshooting.
 
@@ -39,12 +44,14 @@ See [Desktop app on your deployment](/platform/self-hosting/desktop) for server 
 <Steps>
 <Step>
 
-### Install in Applications
+### Install the app
 
-Open the disk image and drag Sim to **Applications**. Launch it from there.
+On macOS, open the disk image and drag Sim to **Applications**. Launch it from there.
+
+On Windows, run the installer. It installs for your user account without an administrator prompt and opens Sim when it finishes. A new installer can show a Microsoft Defender SmartScreen warning until it builds download reputation; check that the publisher is Sim before choosing **More info → Run anyway**.
 
 <Callout type="warn">
-  Automatic self-update requires a Developer ID build installed in Applications. Builds elsewhere use the manual installer update path.
+  On macOS, automatic self-update requires a Developer ID build installed in Applications. Builds elsewhere use the manual installer update path.
 </Callout>
 
 </Step>
@@ -67,6 +74,10 @@ The app has its own session. Signing out of the app does not sign you out of Sim
 </Steps>
 
 ## Browser, terminal, and local files
+
+<Callout type="info">
+  On Windows, Terminal, local file tools, native app control, and importing from other browsers are not available yet. The built-in browser, notifications, and updates work as on macOS.
+</Callout>
 
 | Capability | Behavior |
 | --- | --- |
@@ -192,8 +203,8 @@ The app checks the deployment it is connected to for updates. It does not force 
 
 | Installation | Update behavior |
 | --- | --- |
-| Developer ID build in **Applications** | The app can replace itself. With **Automatically download updates** on, it downloads in the background and offers to restart. Choose **Later** to apply the downloaded update when you next quit. With the setting off, **Sim → Check for Updates…** offers a version and waits for **Download**. |
-| Build outside **Applications**, or without Developer ID signing | The app offers an installer for you to download and install manually. |
+| Windows installer, or a Developer ID build in **Applications** on macOS | The app can replace itself. With **Automatically download updates** on, it downloads in the background and offers to restart. Choose **Later** to apply the downloaded update when you next quit. With the setting off, **Sim → Check for Updates…** offers a version and waits for **Download**. |
+| macOS build outside **Applications**, or without Developer ID signing | The app offers an installer for you to download and install manually. |
 
 If the deployment's update feed is unavailable, an eligible stable build falls back to Sim's public GitHub releases. Prerelease builds skip the check instead. See [Desktop app on your deployment](/platform/self-hosting/desktop#what-an-installed-app-does-when-the-feed-fails) for feed failures and release selection.
 

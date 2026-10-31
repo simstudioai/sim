@@ -1,19 +1,19 @@
 ---
 title: Desktop app on your deployment
-description: Connect the macOS desktop app to a Sim deployment you operate
+description: Connect the macOS or Windows desktop app to a Sim deployment you operate
 ---
 
 import { Callout } from '@/components/ui/callout'
 import { Step, Steps } from '@/components/ui/steps'
 
-Install the official Sim desktop app and connect it to your deployment. You do not need a custom build to change servers. The app is currently macOS-only; use the web app on other platforms. See [Sim Desktop](/desktop) for general installation and use.
+Install the official Sim desktop app and connect it to your deployment. You do not need a custom build to change servers. The app runs on macOS and on Windows (x64, Windows 10 version 1809 or later, or Windows 11); use the web app on other platforms. See [Sim Desktop](/desktop) for general installation and use.
 
 ## Server prerequisites [#requirements-for-the-server-url]
 
 - Use the origin your server serves, including scheme, hostname, and port. Paths are ignored.
 - HTTPS is required except for `localhost`, `127.0.0.1`, and `::1`, which allow HTTP for local testing.
 - Do not include credentials in the URL.
-- Use a certificate trusted by macOS.
+- Use a certificate trusted by the operating system.
 - Allow your Sim server to reach `api.github.com` and `github.com` for official installer and update lookup.
 
 <Callout type="warn">
@@ -39,21 +39,21 @@ The command reads Compose/Helm configuration, resolves the installer, and prints
 bunx sim-setup desktop --url https://sim.example.com --no-open
 ```
 
-`--url` skips discovery. Without the CLI, open `https://<your-sim-origin>/api/desktop/update/download` in a browser.
+`--url` skips discovery. The command resolves the installer for the machine it runs on. Without the CLI, open `https://<your-sim-origin>/api/desktop/update/download` in a browser, adding `?platform=windows` for the Windows installer.
 
 </Step>
 <Step>
 
 ### Install the app
 
-Open the `.dmg` and drag Sim to **Applications**. Official installers are signed and notarized by Sim.
+On macOS, open the `.dmg` and drag Sim to **Applications**. On Windows, run the `.exe`; it installs for the current user. Official installers are signed by Sim, and macOS installers are also notarized.
 
 </Step>
 <Step>
 
 ### Connect to your server
 
-Launch Sim, choose **Sim → Server…**, enter your deployment origin, and select **Connect**. The app relaunches against that server and saves the setting across updates.
+Launch Sim, choose **Sim → Server…** (on Windows, **Server…** in the **Sim** menu), enter your deployment origin, and select **Connect**. The app relaunches against that server and saves the setting across updates.
 
 </Step>
 </Steps>
@@ -75,18 +75,19 @@ Window size, zoom, theme, notification preferences, tray, and launch-at-login se
 
 The **Can't connect** page reports a DNS, timeout, or TLS failure. Select **Change server** to open the picker with the current value prefilled. No filesystem change is needed to correct a typo.
 
-A private or self-signed certificate must be trusted by macOS; otherwise the app shows **Connection isn't secure**. A correct URL does not bypass certificate validation.
+A private or self-signed certificate must be trusted by the operating system; otherwise the app shows **Connection isn't secure**. A correct URL does not bypass certificate validation.
 
 ## Installer and update endpoints [#your-deployment-already-serves-the-installer]
 
-Your deployment exposes two public endpoints:
+Your deployment exposes these public endpoints:
 
 | Endpoint | Response |
 | --- | --- |
-| `/api/desktop/update/download` | `302` to the newest official installer for the deployment channel. |
-| `/api/desktop/update/latest-mac.yml` | `200` with a `text/yaml` update manifest. |
+| `/api/desktop/update/download` | `302` to the newest official macOS installer for the deployment channel. Add `?platform=windows` for the Windows installer. |
+| `/api/desktop/update/latest-mac.yml` | `200` with the macOS `text/yaml` update manifest. |
+| `/api/desktop/update/latest.yml` | `200` with the Windows `text/yaml` update manifest. |
 
-Both resolve official GitHub release assets and cache lookups for five minutes. They return `404` when the channel has no release and `502` when GitHub lookup fails or candidates lack valid desktop artifacts.
+All resolve official GitHub release assets and cache lookups for five minutes. They return `404` when the channel has no release for the platform and `502` when GitHub lookup fails or candidates lack valid desktop artifacts. Windows builds are published separately from macOS builds, so the Windows endpoints can serve an older release than the macOS ones.
 
 The server serves release selection and the manifest; clients download installers from GitHub. These endpoints cannot distribute your custom artifacts. Set `GITHUB_TOKEN` on the Sim server if its shared egress IP reaches GitHub's unauthenticated 60-requests/hour limit; authenticated user-token requests typically allow 5,000/hour. See [GitHub rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
 
@@ -112,7 +113,7 @@ A feed `404` with the no-release header means no update is available. For `502`,
 - A `dev` or `staging` build skips the check because the stable fallback cannot update its bundle identity.
 - Other builds receive no update offer until the deployment feed answers again.
 
-Self-update requires a Developer ID build installed in **Applications**. Other packaged builds can offer manual downloads when the feed works. Release selection therefore follows your deployment only while its feed answers; an eligible stable app can use the fallback during an outage.
+On macOS, self-update requires a Developer ID build installed in **Applications**; official Windows installs always self-update. Other packaged builds can offer manual downloads when the feed works. Release selection therefore follows your deployment only while its feed answers; an eligible stable app can use the fallback during an outage.
 
 ## CLI discovery and probe failures
 
@@ -130,6 +131,8 @@ SIM_DESKTOP_DEFAULT_ORIGIN=https://sim.example.com bun run package:mac
 ```
 
 The default origin applies to fresh installs; the server picker remains available. The macOS target builds a universal binary. Output files are `apps/desktop/release/Sim-<version>-universal.dmg` and `.zip`. Pass `-c.appId=com.example.sim` to choose a bundle identifier.
+
+On Windows, `bun run package:win` builds `apps/desktop/release/Sim-<version>-x64.exe`. Pass `-c.extraMetadata.name=<slug>` with a unique slug as well as `-c.appId`, because one-click Windows installs use the package name for their install directory. Sign it with your own Authenticode certificate.
 
 The baked default determines the app's channel identity, userData directory, and single-instance lock. Loopback, `dev.sim.ai`, and `staging.sim.ai` defaults produce separate Local, Dev, and Staging app identities; other origins use the production Sim identity. A Local build can still be pointed at another HTTPS server, but changing servers does not turn it into a production build or change its update eligibility.
 
