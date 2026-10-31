@@ -29,3 +29,16 @@ The [machine access guide](MACHINE_ACCESS.md) documents Markdown, JSON, MCP, sea
 From the repository root, run the required lint, type, audit, and test gates in the development guidelines. From this directory, `bun run type-check` compiles MDX and checks the docs workspace, and `bun run build` validates the production site. Inspect affected page types on desktop and a narrow viewport, and check internal links and existing anchors after heading changes.
 
 The docs HTTP workflow also checks sidebar navigation, API language switching, and copying Markdown on desktop and mobile layouts. It uploads screenshots and a JSON report with the HTTP regression artifacts. These checks run against the built site in CI; no visitor telemetry is collected. Use Vercel's build logs and usage reports to compare deployment cost and duration.
+
+## Reader feedback
+
+Votes are submitted through `/api/feedback` to an authenticated Sim webhook. Configure
+`DOCS_FEEDBACK_WEBHOOK_URL` and `DOCS_FEEDBACK_WEBHOOK_TOKEN` only on the server. The
+endpoint returns unavailable when either is absent. Limit POST requests to this path
+at the deployment edge before enabling it (10 requests per IP per minute).
+
+The workflow receives `submission_id`, `page`, `helpful`, `comment`, and `received_at`.
+Use `submission_id` as the webhook deduplication field and a unique table column for
+upsert. Retries of an unchanged submission reuse its ID. The acknowledgment confirms
+queue acceptance; workflow failures remain visible in Sim execution logs. No email,
+IP address, or user identity is included in the stored feedback payload.
