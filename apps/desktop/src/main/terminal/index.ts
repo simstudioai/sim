@@ -37,7 +37,7 @@ import {
   isResourceTabSelectionShortcut,
   resourceTabTargetIndex,
 } from '@/main/resource-shortcuts'
-import { readForegroundProcessGroup, signalProcessGroup } from '@/main/terminal/process-group'
+import { osProcessGroups, type TerminalProcessGroups } from '@/main/terminal/process-group'
 import type { RunLedger } from '@/main/terminal/run-ledger'
 import { elide, type ShellStartupBounds, TerminalSession } from '@/main/terminal/session'
 import {
@@ -160,20 +160,10 @@ export interface TerminalServiceOptions {
    */
   loadCwd?(): string | undefined
   canSpawn?(): boolean
-  /** Reads and signals a terminal's foreground process group; the OS's by default. */
+  /** Reads and signals a terminal's foreground command; the OS's by default. */
   processGroups?: TerminalProcessGroups
   /** Where tagged tmux runs are recorded, so a later process can still stop them. */
   runLedger?: RunLedger
-}
-
-interface TerminalProcessGroups {
-  foreground(shellPid: number): Promise<number | null>
-  signal(pgid: number, signal: NodeJS.Signals): void
-}
-
-const OS_PROCESS_GROUPS: TerminalProcessGroups = {
-  foreground: readForegroundProcessGroup,
-  signal: signalProcessGroup,
 }
 
 /**
@@ -966,25 +956,27 @@ export class TerminalService {
   }
 
   /**
-   * Interrupts the command a run started. Escalation is bound to that command's own process
-   * group, read while it still holds the foreground, and each signal is sent only while the same
-   * call and the same group still hold it, so a command the user starts meanwhile is never hit.
+   * Interrupts the command a run started. Escalation is bound to that command's own processes,
+   * read while it still holds the foreground, and each signal goes only to those of them that still
+   * hold it while the same call does, so a command the user starts meanwhile is never hit.
    */
   private async stopCommand(session: TerminalSession, toolCallId: string): Promise<void> {
     if (session.agentCommandToolCallId !== toolCallId) return
-    const groups = this.options.processGroups ?? OS_PROCESS_GROUPS
-    const pgid = await groups.foreground(session.pid)
+    const groups = this.options.processGroups ?? osProcessGroups(process.platform)
+    const command = await groups.foreground(session.pid)
     if (session.agentCommandToolCallId !== toolCallId) return
     session.kill('SIGINT')
     for (const escalation of ['SIGTERM', 'SIGKILL'] as const) {
       if (await this.commandEnds(session, toolCallId, STOP_ESCALATION_MS)) return
-      if (pgid === null || (await groups.foreground(session.pid)) !== pgid) return
+      const foreground = await groups.foreground(session.pid)
+      const remaining = command.filter((id) => foreground.includes(id))
+      if (remaining.length === 0) return
       if (session.agentCommandToolCallId !== toolCallId) return
       logger.info('Stopped command ignored the previous signal; escalating', {
         toolCallId,
         signal: escalation,
       })
-      groups.signal(pgid, escalation)
+      groups.signal(remaining, escalation)
     }
   }
 

@@ -481,11 +481,11 @@ describe('stopping a tool call', () => {
   const COMMAND_GROUP = 4242
 
   function cancellableService() {
-    /** The tty's foreground group as the OS would report it at each read. */
-    let foreground: number | null = COMMAND_GROUP
+    /** What holds the terminal's foreground as the OS would report it at each read. */
+    let foreground: number[] = [COMMAND_GROUP]
     const processGroups = {
       foreground: vi.fn(async (_shellPid: number) => foreground),
-      signal: vi.fn((_pgid: number, _signal: NodeJS.Signals) => {}),
+      signal: vi.fn((_ids: number[], _signal: NodeJS.Signals) => {}),
     }
     const terminal = new TerminalService({ loadCwd: () => '/tmp', processGroups })
     const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
@@ -495,8 +495,8 @@ describe('stopping a tool call', () => {
       terminal,
       session,
       processGroups,
-      setForeground: (pgid: number | null) => {
-        foreground = pgid
+      setForeground: (ids: number[]) => {
+        foreground = ids
       },
     }
   }
@@ -531,15 +531,30 @@ describe('stopping a tool call', () => {
 
     await terminal.cancelTool('call-stubborn')
 
-    expect(processGroups.signal).toHaveBeenCalledWith(COMMAND_GROUP, 'SIGTERM')
+    expect(processGroups.signal).toHaveBeenCalledWith([COMMAND_GROUP], 'SIGTERM')
     await expect(running).resolves.toMatchObject({ ok: true, result: { exitCode: 143 } })
+  })
+
+  it('signals only the processes of the stopped command that are still running', async () => {
+    const { terminal, session, processGroups, setForeground } = cancellableService()
+    session.setInterruptible(false)
+    setForeground([101, 102])
+    processGroups.signal.mockImplementation(() => session.finishRun(1))
+    const { running } = await startRun(terminal, session, 'call-pipeline')
+    // One of a Windows pipeline's processes exits on Ctrl-C and its pid is handed to a new one.
+    session.kill.mockImplementation(() => setForeground([102, 103]))
+
+    await terminal.cancelTool('call-pipeline')
+
+    expect(processGroups.signal).toHaveBeenCalledWith([102], 'SIGTERM')
+    await running
   })
 
   it('never signals a different command that took the foreground meanwhile', async () => {
     const { terminal, session, processGroups, setForeground } = cancellableService()
     session.setInterruptible(false)
     const { running } = await startRun(terminal, session, 'call-replaced')
-    session.kill.mockImplementation(() => setForeground(9999))
+    session.kill.mockImplementation(() => setForeground([9999]))
 
     await terminal.cancelTool('call-replaced')
 
