@@ -23,6 +23,13 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
+if (process.platform !== 'darwin') {
+  console.error(
+    '✖ install:local installs into /Applications and only runs on macOS. On Windows, run `bun run package:win` and launch release/Sim-<version>-x64.exe.'
+  )
+  process.exit(1)
+}
+
 interface ChannelIdentity {
   /** Display + bundle name; also the userData directory name. */
   name: string

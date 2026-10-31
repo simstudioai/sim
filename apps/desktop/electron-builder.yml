@@ -16,15 +16,11 @@ files:
     filter:
       - SeasonSansUprightsVF.woff2
 
-extraResources:
-  - from: dist/native/Sim Computer Use.app
-    to: Sim Computer Use.app
-
 asar: true
 
 # Native modules cannot be dlopen'd from inside an asar. The Help-search addon
-# is already universal; `scripts/ensure-pty-prebuilds.ts` guarantees both pty
-# prebuilds are present before packaging.
+# is already universal; `scripts/ensure-pty-prebuilds.ts` guarantees the host
+# platform's pty prebuilds are present before packaging.
 asarUnpack:
   - "**/node_modules/@lydell/node-pty-*/prebuilds/**"
   - "**/dist/native/*.node"
@@ -46,6 +42,12 @@ electronFuses:
 
 mac:
   category: public.app-category.developer-tools
+  # Each platform ships only its own node-pty prebuilds.
+  files:
+    - "!**/node_modules/@lydell/node-pty-win32-*/**"
+  extraResources:
+    - from: dist/native/Sim Computer Use.app
+      to: Sim Computer Use.app
   target:
     - target: dmg
       arch: [universal]
@@ -95,6 +97,31 @@ dmg:
       y: 210
       type: link
       path: /Applications
+
+# One-click per-user NSIS installer, x64 only for now. CI passes the channel's
+# slug as -c.extraMetadata.name: one-click installs are keyed by the package
+# name (install directory and updater cache), not productName, so without it
+# every channel would install over the same directory.
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/generated-icon.ico
+  # .exe files are always signed; also sign the native addons (node-pty) so
+  # every binary Sim loads carries the publisher's Authenticode signature.
+  signExts: [".node"]
+  files:
+    - "!**/node_modules/@lydell/node-pty-darwin-*/**"
+    # ~10 MB of debug symbols nothing loads at runtime.
+    - "!**/node_modules/@lydell/node-pty-win32-*/prebuilds/**/*.pdb"
+
+nsis:
+  oneClick: true
+  perMachine: false
+  # One installer per architecture; never a combined multi-arch stub.
+  buildUniversalInstaller: false
+  # Uninstalling keeps the user's sessions, settings, and downloads.
+  deleteAppDataOnUninstall: false
 
 # node-pty ships pure N-API prebuilds, which are ABI-stable across Node and
 # Electron versions, so there is nothing to rebuild against Electron's ABI.

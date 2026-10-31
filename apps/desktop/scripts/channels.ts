@@ -25,6 +25,10 @@ export interface ChannelIdentity {
   origin: string
   /** Native Icon Composer source copied into the packager's generated path. */
   icon: string
+  /** Multi-size Windows icon copied into the packager's generated path. */
+  windowsIcon: string
+  /** 512px source the Windows icon is generated from (`scripts/generate-windows-icons.ts`). */
+  dockIcon: string
   /**
    * Artifact filename stem, and the per-channel scratch directory name.
    * Space-free for the same reason electron-builder.yml's artifactName is:
@@ -39,6 +43,8 @@ export const PROD: ChannelIdentity = {
   appId: 'ai.sim.desktop',
   origin: PROD_ORIGIN,
   icon: 'build/icon.icon',
+  windowsIcon: 'build/icon.ico',
+  dockIcon: 'static/dock-icon.png',
   slug: 'sim',
 }
 export const STAGING: ChannelIdentity = {
@@ -46,6 +52,8 @@ export const STAGING: ChannelIdentity = {
   appId: 'ai.sim.desktop.staging',
   origin: STAGING_ORIGIN,
   icon: 'build/icon-staging.icon',
+  windowsIcon: 'build/icon-staging.ico',
+  dockIcon: 'static/dock-icon-staging.png',
   slug: 'sim-staging',
 }
 export const DEV: ChannelIdentity = {
@@ -53,6 +61,8 @@ export const DEV: ChannelIdentity = {
   appId: 'ai.sim.desktop.dev',
   origin: DEV_ORIGIN,
   icon: 'build/icon-dev.icon',
+  windowsIcon: 'build/icon-dev.ico',
+  dockIcon: 'static/dock-icon-dev.png',
   slug: 'sim-dev',
 }
 export const LOCAL: ChannelIdentity = {
@@ -60,6 +70,8 @@ export const LOCAL: ChannelIdentity = {
   appId: 'ai.sim.desktop.local',
   origin: LOCAL_ORIGIN,
   icon: 'build/icon-local.icon',
+  windowsIcon: 'build/icon-local.ico',
+  dockIcon: 'static/dock-icon-local.png',
   slug: 'sim-local',
 }
 

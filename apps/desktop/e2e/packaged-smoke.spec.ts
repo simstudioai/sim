@@ -45,12 +45,43 @@ function profileWriters(appGroup: number, profilePaths: readonly string[]): numb
     })
 }
 
+const isWindows = process.platform === 'win32'
+
+/**
+ * Windows has no process groups. `taskkill /T` walks the tree from the main process — helpers and
+ * Crashpad's handler are its descendants — so it must run while the main process is still alive.
+ * Files stay locked for a moment after their process dies, so removal retries until it succeeds.
+ */
+async function stopAndRemoveWindowsProfile(child: ChildProcess, userDataPath: string) {
+  if (child.pid !== undefined && child.exitCode === null && child.signalCode === null) {
+    const exited = once(child, 'exit')
+    try {
+      execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
+    } catch {}
+    await exited
+  }
+  await expect
+    .poll(() => {
+      try {
+        rmSync(userDataPath, { recursive: true, force: true })
+        return true
+      } catch {
+        return false
+      }
+    })
+    .toBe(true)
+}
+
 /**
  * Removes a profile only once nothing can write into it. Killing the main process leaves its
  * helpers and Crashpad's handler running for a moment, and a file one of them creates while the
  * directory is being removed fails the removal with ENOTEMPTY.
  */
 async function stopAndRemoveProfile(child: ChildProcess, userDataPath: string): Promise<void> {
+  if (isWindows) {
+    await stopAndRemoveWindowsProfile(child, userDataPath)
+    return
+  }
   if (child.exitCode === null && child.signalCode === null) {
     const exited = once(child, 'exit')
     child.kill('SIGKILL')
@@ -95,7 +126,8 @@ test('packaged main process starts and records launch telemetry', async () => {
   if (!executablePath) throw new Error('SIM_DESKTOP_EXECUTABLE is required')
   const userDataPath = mkdtempSync(join(tmpdir(), 'sim-desktop-packaged-e2e-'))
   const child = spawn(executablePath, [], {
-    detached: true,
+    // Its own process group on POSIX, for profileWriters; on Windows it would only open a console.
+    detached: !isWindows,
     env: {
       ...process.env,
       SIM_DESKTOP_ORIGIN: 'http://127.0.0.1:1',
@@ -140,7 +172,8 @@ test('packaged shell renders the bundled offline page', async () => {
   // run on a machine that already has the real app's item) would block on a
   // Keychain prompt on its main thread, and the debugging endpoint with it.
   const child = spawn(executablePath, ['--remote-debugging-port=0', '--use-mock-keychain'], {
-    detached: true,
+    // Its own process group on POSIX, for profileWriters; on Windows it would only open a console.
+    detached: !isWindows,
     env: {
       ...process.env,
       SIM_DESKTOP_ORIGIN: 'http://127.0.0.1:1',

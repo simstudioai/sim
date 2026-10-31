@@ -1,4 +1,4 @@
-# Sim Desktop (macOS)
+# Sim Desktop (macOS and Windows)
 
 A thin Electron shell around the hosted Sim web app. The renderer loads the configured origin (default `https://www.sim.ai` — the origin the server actually serves; the apex 301s there) as a normal top-level page in a bundled, pinned Chromium — rendering is identical to Chrome of that version on every machine. No UI is re-implemented and no server stack is bundled.
 
@@ -194,13 +194,36 @@ The native `read_local_file` and `import_local_files` tools also accept absolute
 
 Approved native reads can return bounded text, directory listings, images, or PDFs to the chat. Approved imports transfer file bytes to Workspace Files. Electron revalidates every pending call before using a grant, including remembered grants, checks canonical containment and grant identity throughout the operation, and opens files with no-follow and descriptor identity checks. Directory enumeration uses `fdopendir` on the verified descriptor, so replacing a parent path cannot redirect the listing. Listings scan at most 1,001 entries and return up to 1,000 sorted names with an explicit truncation flag; the cap bounds both memory and filesystem work, rather than promising the globally first 1,000 names in an arbitrarily large directory. Imports reject truncated listings. A model or hosted renderer cannot answer the local consent dialog. These permissions govern the native file tools; the separately enabled terminal still runs with the user's OS privileges.
 
+## Windows
+
+The Windows build is a one-click, per-user NSIS installer (`Sim-<version>-x64.exe`), x64 only for now (arm64 later). It installs under `%LOCALAPPDATA%\Programs` without an elevation prompt, and uninstalling keeps the user's data (`deleteAppDataOnUninstall: false`). Supported: Windows 10 1809+ and Windows 11.
+
+- Local: `bun run package:win` (installer) or `bun run package:win:dir` (unpacked app in `release/win-unpacked/`), on Windows. `scripts/build-native.ts` skips the macOS/Linux native modules there, and `scripts/ensure-pty-prebuilds.ts` fetches the `win32-x64` ConPTY prebuild. `install:local` and `package:share` are macOS-only.
+- Channel isolation: one-click installs derive their install directory and updater cache from the package **name**, not `productName`, so CI passes `-c.extraMetadata.name=<slug>` (`sim`, `sim-staging`, `sim-dev`, `sim-local`) beside `-c.productName`/`-c.appId`. `-c.appId` must match the AppUserModelID the app sets at runtime, or toasts and taskbar pins split. Local builds without the slug install as the package name.
+- Icons: `build/icon*.ico` (16–256 px) are committed, generated from the per-channel `static/dock-icon*.png` by `bun run scripts/generate-windows-icons.ts` (needs the workspace's hoisted `sharp`); `scripts/build.ts` copies the channel's one to the ignored `build/generated-icon.ico`.
+- Signing: Azure Artifact Signing through `win.azureSignOptions`, authenticated by GitHub OIDC (`azure/login`); nothing in `electron-builder.yml` or the workflow names the account. `signExts: [".node"]` also signs the node-pty addons, and `-c.forceCodeSigning=true` fails the build on anything unsigned. `azureSignOptions.publisherName` is written into `resources/app-update.yml`; without it electron-updater **skips** signature verification of downloaded installers, so CI asserts it is present, and it must equal the certificate's subject CN exactly. Windows ASAR integrity is embedded in the exe by electron-builder, so the fuse policy carries over unchanged.
+- Updates: the NSIS updater requests `latest.yml` from the same `/api/desktop/update` feed. `ready` is reached when electron-updater's own `update-downloaded` fires (after the publisher check); there is no native staging step. A confirmed restart runs the installer silently and relaunches. Builds without a packaged `app-update.yml` fall back to the manual-download pipeline. Deltas use `.exe.blockmap`.
+- Publication: Windows publishes independently of macOS. `desktop-signing-windows` probes the Azure configuration and skips with a warning until it exists; unsigned Windows builds are never published. No job waits on the Windows calls, so a Windows failure never blocks the macOS release, and the feed treats a release without `latest.yml` as having no Windows build (Windows shells keep the newest release that has one). `latest.yml` is uploaded last.
+- SmartScreen: a new signing identity starts without download reputation, so early installers can show "Windows protected your PC" until reputation builds. Keep the same certificate profile across releases.
+- Not available on Windows yet: Terminal, native local-file tools, native Computer Use, and importing from other browsers. node-pty still ships but is not exercised.
+
+| Secret / variable | Kind | Contents |
+|---|---|---|
+| `AZURE_CLIENT_ID` | secret | App registration (or managed identity) client ID with a federated credential for this repository and the *Artifact Signing Certificate Profile Signer* role |
+| `AZURE_TENANT_ID` | secret | Entra tenant ID |
+| `AZURE_SUBSCRIPTION_ID` | secret | Subscription holding the signing account |
+| `AZURE_SIGNING_ENDPOINT` | variable | Regional endpoint, e.g. `https://eus.codesigning.azure.net` |
+| `AZURE_SIGNING_ACCOUNT` | variable | Artifact Signing account name |
+| `AZURE_SIGNING_PROFILE` | variable | Certificate profile name |
+| `AZURE_SIGNING_PUBLISHER` | variable | The certificate's subject CN, exactly (pinned in `app-update.yml`) |
+
 ## Auto-update, channels, rollout, rollback
 
 - `electron-updater` reads the deployment's `/api/desktop/update` feed; production resolves stable releases from `simstudioai/sim`, while dev/staging resolve prereleases from `simstudioai/sim-desktop-releases`. Artifact downloads go directly to GitHub and deltas use `.zip.blockmap`. Sim validates every candidate before starting its download. Developer ID builds installed under `/Applications` use a prompt (Restart and update / Later; Later installs on quit); other packaged builds offer a validated installer download — never forced mid-session. A staged or offered update keeps being re-checked on the normal cadence, and a newer release replaces it, so a shell left running across several releases installs the latest build in one restart instead of the stale one followed by another prompt.
 - Streams: production follows stable `X.Y.Z` releases, dev follows `-dev.N`, and staging follows `-staging.N`. The feed still recognizes legacy `-alpha.N`/`-beta.N` releases during migration.
-- Restart becomes available only after Squirrel confirms native staging. Replacing a staged update returns the UI to downloading; a failed transfer can retain the previous staged build, but a failure after the native feed is replaced requires a retry. Diagnostics record `update_downloaded` after native staging, `update_install` when an explicit restart is committed, and `update_install_result` on the next launch with the expected and installed versions. The staging checkpoint also covers updates installed on a normal quit.
+- On macOS, restart becomes available only after Squirrel confirms native staging (Windows has no native step; see [Windows](#windows)). Replacing a staged update returns the UI to downloading; a failed transfer can retain the previous staged build, but a failure after the native feed is replaced requires a retry. Diagnostics record `update_downloaded` after native staging, `update_install` when an explicit restart is committed, and `update_install_result` on the next launch with the expected and installed versions. The staging checkpoint also covers updates installed on a normal quit.
 - `bun run test:e2e e2e/updater.spec.ts` exercises the real Electron process, MacUpdater, downloads, retries, and installation checkpoints. Native verification and bundle replacement are simulated. Set `DESKTOP_UPDATER_REPORT_PATH` to choose the JSON report path; by default it is included in Playwright's test results and uploaded by CI on failure.
-- Staged rollout: after publishing, edit `stagingPercentage: 10` into the release's `latest-mac.yml`, then raise as crash metrics stay clean.
+- Staged rollout: after publishing, edit `stagingPercentage: 10` into the release's `latest-mac.yml` (and `latest.yml` for Windows), then raise as crash metrics stay clean.
 - Rollback: a pulled release must be superseded by a **higher** version — users on the broken build will not reinstall an equal one. (A blocked-versions kill-switch was removed as unwired dead code; reintroduce it in `updater.ts` if a remote config source ever exists to feed it.)
 - Ship the DMG and tell users to install to `/Applications` — App Translocation breaks Squirrel.Mac updates from quarantined paths.
 

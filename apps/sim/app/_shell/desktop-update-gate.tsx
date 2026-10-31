@@ -3,7 +3,13 @@
 import { useEffect, useState } from 'react'
 import type { DesktopUpdateState } from '@sim/desktop-bridge'
 import { Chip, useNativeSurfaceOcclusionReady } from '@sim/emcn'
-import { getDesktopBridge, getDesktopShellVersion, getDesktopUpdates } from '@/lib/desktop'
+import type { DesktopUpdatePlatform } from '@/lib/api/contracts/desktop-update'
+import {
+  getDesktopBridge,
+  getDesktopPlatform,
+  getDesktopShellVersion,
+  getDesktopUpdates,
+} from '@/lib/desktop'
 import { isShellOutdated } from '@/lib/desktop/min-version'
 import { useDesktopUpdateState } from '@/hooks/use-desktop-update-state'
 
@@ -19,9 +25,10 @@ function manualDownloadUrl(): string {
   const origin = window.location.origin
   // openExternal only accepts https, so an http self-hosted origin cannot
   // serve the redirect to the system browser.
-  return origin.startsWith('https://')
-    ? `${origin}${DOWNLOAD_REDIRECT_PATH}`
-    : DOWNLOAD_FALLBACK_URL
+  if (!origin.startsWith('https://')) return DOWNLOAD_FALLBACK_URL
+  // Shells that cannot report their platform predate Windows support: macOS.
+  const platform: DesktopUpdatePlatform = getDesktopPlatform() === 'win32' ? 'windows' : 'mac'
+  return `${origin}${DOWNLOAD_REDIRECT_PATH}?platform=${platform}`
 }
 
 interface GateAction {
