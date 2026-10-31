@@ -325,10 +325,11 @@ async function answerWithinWait(
       readable = await runIsReadable(executionId, workflowId)
       if (!readable) await Promise.race([finished, waited(RUN_LOG_POLL_MS)])
     }
+    // One macrotask lets a run that settled as its log was read deliver its result first.
+    if (!outcome.current) await Promise.race([finished, waited(0)])
   } finally {
     stopWaiting.abort()
   }
-  // A run that settled while its log was being read answers with how it settled.
   if (outcome.current?.ok === false) throw outcome.current.error
   if (outcome.current) return outcome.current.result
   logger.info('Workflow tool run outlasted its wait; answering it still running', {
