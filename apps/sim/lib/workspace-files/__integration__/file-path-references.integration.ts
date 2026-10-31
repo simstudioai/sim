@@ -2,7 +2,7 @@
  * Real PostgreSQL behavior of single-file operations addressed by a `files/…` VFS path instead
  * of an id: the path names exactly one live file in the asserted workspace, never a same-named
  * file in another folder or workspace, a chat upload or an archived file, and authorization is
- * unchanged.
+ * unchanged. A caller who cannot reach the workspace learns nothing about the paths in it.
  */
 import { db } from '@sim/db'
 import { permissions, user, workspace, workspaceFiles } from '@sim/db/schema'
@@ -222,6 +222,27 @@ describe('single-file operations addressed by VFS path', () => {
       code: 'forbidden',
     })
     expect((await row(ids.rootReport))?.deletedAt).toBeNull()
+  })
+
+  it('answers a non-member the same for an ambiguous, a missing and an existing path', async () => {
+    const ambiguous = workspaceFileVfsPath((await describeFile(ids.alikeSingle)).file)
+    const outcomes = await Promise.all(
+      [ambiguous, 'files/missing.csv', 'files/report.csv'].map((path) =>
+        describeFile(path, carol).then(
+          () => null,
+          (error: { code?: string; message?: string }) => ({
+            code: error.code,
+            message: error.message,
+          })
+        )
+      )
+    )
+    expect(outcomes[0]).toMatchObject({ code: 'forbidden' })
+    expect(outcomes[1]).toEqual(outcomes[0])
+    expect(outcomes[2]).toEqual(outcomes[0])
+    await expect(describeFile('files/Docs/../report.csv', carol)).rejects.toMatchObject({
+      code: 'validation',
+    })
   })
 
   it('rejects a dot-segment path instead of walking out of its folder', async () => {
