@@ -7,3 +7,10 @@ export function defaultBillingPeriod(): { start: Date; end: Date } {
     end: OPEN_BILLING_PERIOD_END,
   }
 }
+
+export function isDefaultBillingPeriod(period: { start: Date; end: Date }): boolean {
+  return (
+    period.start.getTime() === OPEN_BILLING_PERIOD_START.getTime() &&
+    period.end.getTime() === OPEN_BILLING_PERIOD_END.getTime()
+  )
+}
