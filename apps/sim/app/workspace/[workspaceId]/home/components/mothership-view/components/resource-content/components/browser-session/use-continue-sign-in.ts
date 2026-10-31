@@ -58,7 +58,8 @@ export function useContinueSignIn({ scopeId, pageUrl }: UseContinueSignInProps) 
   const { mutate: cancelHandoff } = useCancelSignInHandoff(scopeId)
   useSyncExternalStore(subscribeToDismissals, dismissalCount, dismissalCount)
 
-  const page = continuablePage(pageUrl, typeof window === 'undefined' ? '' : window.location.origin)
+  // Server rendering has no origin to compare and no shell to continue in, so it offers nothing.
+  const page = supported ? continuablePage(pageUrl, window.location.origin) : null
   // The profiles cache is shared with the import dialog, which older shells
   // also support, so cached profiles alone must not reveal this feature.
   const canContinue = supported && profiles.length > 0 && page !== null

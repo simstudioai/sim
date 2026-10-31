@@ -33,7 +33,7 @@ import {
 } from '@/lib/table/import'
 import type { TableDefinition } from '@/lib/table/types'
 import { type CsvImportMode, useImportCsvIntoTable } from '@/hooks/queries/tables'
-import { useBeforeUnloadWhile } from '@/hooks/use-before-unload-while'
+import { trackUpload } from '@/stores/in-flight-uploads/store'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 
 const logger = createLogger('ImportCsvDialog')
@@ -147,7 +147,6 @@ export function ImportCsvDialog({
   const [createHeaders, setCreateHeaders] = useState<Set<string>>(new Set())
   const [mode, setMode] = useState<CsvImportMode>('append')
   const importMutation = useImportCsvIntoTable()
-  useBeforeUnloadWhile(importMutation.isPending)
 
   function resetState() {
     setParsed(null)
@@ -317,8 +316,10 @@ export function ImportCsvDialog({
     let importId: string | null = null
     onOpenChange(false)
     toast.success(`Importing "${parsed.file.name}" into "${table.name}" in the background`)
-    importMutation.mutate(
-      {
+    // The dialog closes before the upload ends, so its outcome is handled on the promise,
+    // which settles even after the dialog unmounts.
+    trackUpload(() =>
+      importMutation.mutateAsync({
         workspaceId,
         tableId: table.id,
         file: parsed.file,
@@ -337,19 +338,18 @@ export function ImportCsvDialog({
         onProgress: (percent) => {
           if (importId) useImportTrayStore.getState().setUploadPercent(importId, percent)
         },
+      })
+    ).then(
+      () => {
+        if (importId) {
+          useImportTrayStore.getState().endUpload(importId)
+          useImportTrayStore.getState().consumeCanceled(importId)
+        }
+        onImported?.({})
       },
-      {
-        onSuccess: () => {
-          if (importId) {
-            useImportTrayStore.getState().endUpload(importId)
-            useImportTrayStore.getState().consumeCanceled(importId)
-          }
-          onImported?.({})
-        },
-        onError: (error) => {
-          if (importId) useImportTrayStore.getState().endUpload(importId)
-          setSubmitError(summarizeImportError(error.message))
-        },
+      (error: unknown) => {
+        if (importId) useImportTrayStore.getState().endUpload(importId)
+        setSubmitError(summarizeImportError(getErrorMessage(error)))
       }
     )
   }

@@ -3,6 +3,7 @@
 import type { MouseEvent } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useBeforeUnloadWhile } from '@/hooks/use-before-unload-while'
 
 interface UseUnsavedChangesGuardParams {
   isDirty: boolean
@@ -28,6 +29,8 @@ export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesG
   const [showUnsavedAlert, setShowUnsavedAlert] = useState(false)
   const [isReleased, setIsReleased] = useState(false)
   const hasSentinelRef = useRef(false)
+
+  useBeforeUnloadWhile(isDirty && !isReleased)
 
   useEffect(() => {
     // The caller is navigating away — popping the seeded entry would cancel it. But
@@ -58,19 +61,12 @@ export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesG
       window.history.pushState(null, '', window.location.href)
       hasSentinelRef.current = true
     }
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault()
-    }
     const handlePopState = () => {
       window.history.pushState(null, '', window.location.href)
       setShowUnsavedAlert(true)
     }
-    window.addEventListener('beforeunload', handleBeforeUnload)
     window.addEventListener('popstate', handlePopState)
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-      window.removeEventListener('popstate', handlePopState)
-    }
+    return () => window.removeEventListener('popstate', handlePopState)
   }, [isDirty, isReleased])
 
   const handleBackClick = useCallback(
