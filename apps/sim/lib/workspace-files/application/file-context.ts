@@ -3,14 +3,17 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   type ActiveWorkspaceFileContext,
+  getWorkspaceFileByVfsPath,
   loadActiveWorkspaceFileContext,
   loadWorkspaceFileLifecycleContext,
   type WorkspaceFileLifecycleContext,
 } from '@/lib/uploads/contexts/workspace/file-manager'
+import { isWorkspaceFileVfsPath, VfsPathError } from '@/lib/vfs/path'
 import { ownedFileKind } from '@/lib/workspace-files/owned-files'
 import { matchesFileOwner } from '@/lib/workspace-files/ownership'
 
 export interface WorkspaceFileContextInput {
+  /** A file id, or — with `assertedWorkspaceId` — the file's exact `files/…` VFS path. */
   fileId: string
   assertedWorkspaceId?: string
   includeDeleted?: boolean
@@ -74,11 +77,30 @@ function requireWorkspaceFileContext<C extends ActiveWorkspaceFileContext>(
   return canonical
 }
 
+/** A path becomes an id first, so the canonical load and every authorization check run unchanged. */
+async function resolveFileId(input: WorkspaceFileContextInput): Promise<string> {
+  if (!isWorkspaceFileVfsPath(input.fileId)) return input.fileId
+  if (input.assertedWorkspaceId === undefined) {
+    throw new OrchestrationError('not_found', 'File not found')
+  }
+  const file = await getWorkspaceFileByVfsPath(input.assertedWorkspaceId, input.fileId).catch(
+    (error: unknown) => {
+      if (!(error instanceof VfsPathError)) throw error
+      throw new OrchestrationError(
+        'validation',
+        `"${input.fileId}" is not a valid workspace file path: ${error.message}`
+      )
+    }
+  )
+  if (!file) throw new OrchestrationError('not_found', 'File not found')
+  return file.id
+}
+
 export async function resolveActiveWorkspaceFileContext(
   input: WorkspaceFileContextInput
 ): Promise<ActiveWorkspaceFileContext> {
   const canonical = requireWorkspaceFileContext(
-    await loadActiveWorkspaceFileContext(input.fileId, {
+    await loadActiveWorkspaceFileContext(await resolveFileId(input), {
       includeDeleted: input.includeDeleted,
       includeChatUploads: input.includeChatUploads,
       includeOwnedFiles: Boolean(input.ownedFilePrincipal),

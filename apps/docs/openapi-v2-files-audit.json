@@ -2151,13 +2151,12 @@
             "name": "fileId",
             "in": "path",
             "required": true,
-            "description": "File identifier.",
+            "description": "File identifier, or the file’s VFS path: `files/<folder>/<name>`.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 128,
-              "pattern": "^[A-Za-z0-9_-]+$",
-              "description": "File identifier."
+              "maxLength": 4096,
+              "description": "File identifier, or the file’s VFS path: `files/<folder>/<name>`."
             }
           },
           {
@@ -2238,13 +2237,12 @@
             "name": "fileId",
             "in": "path",
             "required": true,
-            "description": "File identifier.",
+            "description": "File identifier, or the file’s VFS path: `files/<folder>/<name>`.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 128,
-              "pattern": "^[A-Za-z0-9_-]+$",
-              "description": "File identifier."
+              "maxLength": 4096,
+              "description": "File identifier, or the file’s VFS path: `files/<folder>/<name>`."
             }
           }
         ],
@@ -2489,13 +2487,12 @@
             "name": "fileId",
             "in": "path",
             "required": true,
-            "description": "File identifier.",
+            "description": "File identifier, or the file’s VFS path: `files/<folder>/<name>`.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 128,
-              "pattern": "^[A-Za-z0-9_-]+$",
-              "description": "File identifier."
+              "maxLength": 4096,
+              "description": "File identifier, or the file’s VFS path: `files/<folder>/<name>`."
             }
           },
           {

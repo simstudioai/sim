@@ -2343,6 +2343,21 @@ async function getWorkspaceFileByExactReference(
 }
 
 /**
+ * The live workspace file at an exact `files/…` VFS path, or null. Unlike
+ * {@link resolveWorkspaceFileReference} there is no name or listing fallback, so a mutation
+ * addressed by path lands only on the one file it names. Throws `VfsPathError` if malformed.
+ */
+export async function getWorkspaceFileByVfsPath(
+  workspaceId: string,
+  vfsPath: string
+): Promise<WorkspaceFileRecord | null> {
+  return getWorkspaceFileByExactReference(
+    workspaceId,
+    normalizeWorkspaceFileReferenceSegments(vfsPath)
+  )
+}
+
+/**
  * Resolve a workspace file record from either its id or a VFS/name reference.
  *
  * A reference that is already a file id resolves through the versioned read, so the record

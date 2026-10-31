@@ -10,6 +10,11 @@ export class VfsPathError extends Error {
   }
 }
 
+/** A `files/…` workspace-file VFS path. File ids are drawn from `[A-Za-z0-9_-]`, so no id is one. */
+export function isWorkspaceFileVfsPath(reference: string): boolean {
+  return reference.startsWith('files/')
+}
+
 /**
  * The name a VFS path segment displays: NFC-composed, trimmed, control characters removed,
  * whitespace runs collapsed. Its SQL twin is `displaySegmentKey` in `@sim/db/schema`, which an
