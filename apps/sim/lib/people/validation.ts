@@ -2,7 +2,9 @@ import { z } from 'zod'
 
 export const PROFILE_TEXT_MAX_LENGTH = 200
 
-const ISO_DATE = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:T.*)?$/
+/** A date, optionally with a time of day and offset, which are dropped. */
+const ISO_DATE =
+  /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/
 const US_DATE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
 
 function calendarDate(year: number, month: number, day: number): string | null {

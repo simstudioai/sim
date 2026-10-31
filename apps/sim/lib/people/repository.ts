@@ -176,10 +176,11 @@ export async function getPerson(
  * ends at a manager who is suspended or outside the organization, and never revisits anyone.
  */
 export async function getReportingChain(
+  executor: DbOrTx,
   organizationId: string,
   memberId: string
 ): Promise<PersonSummary[]> {
-  const rows = await db.execute<PersonSummary>(sql`
+  const rows = await executor.execute<PersonSummary>(sql`
     WITH RECURSIVE chain(member_id, depth, path) AS (
       SELECT m.id, 1, ARRAY[p.member_id, m.id]
       FROM member_profile p
@@ -206,10 +207,11 @@ export async function getReportingChain(
 
 /** The active people who report to `memberId`, by name. */
 export async function listDirectReports(
+  executor: DbOrTx,
   organizationId: string,
   memberId: string
 ): Promise<PersonSummary[]> {
-  return db
+  return executor
     .select(summaryColumns)
     .from(member)
     .innerJoin(user, eq(user.id, member.userId))

@@ -1,3 +1,4 @@
+import { normalizeEmail } from '@sim/utils/string'
 import { z } from 'zod'
 import {
   type MemberProfileFields,
@@ -179,9 +180,17 @@ export function planPeopleImport({
   rows: readonly Record<string, string>[]
   members: readonly PeopleImportMember[]
 }): PeopleImportPlan {
-  const byEmail = new Map(
-    members.filter((member) => member.active).map((member) => [member.email.toLowerCase(), member])
-  )
+  const byEmail = new Map<string, PeopleImportMember | 'ambiguous'>()
+  for (const member of members) {
+    if (!member.active) continue
+    const key = normalizeEmail(member.email)
+    byEmail.set(key, byEmail.has(key) ? 'ambiguous' : member)
+  }
+  /** The one active member an address names; `undefined` when none or several do. */
+  const memberWith = (email: string) => {
+    const found = byEmail.get(email)
+    return found === 'ambiguous' ? undefined : found
+  }
   const managers = new Map(
     members.map((member) => [member.memberId, member.profile?.managerMemberId ?? null])
   )
@@ -193,14 +202,17 @@ export function planPeopleImport({
   rows.forEach((row, index) => {
     const rowNumber = index + 2
     if (Object.values(row).every((value) => !value?.trim())) return
-    const email = cell(row, columns.email).toLowerCase()
+    const email = normalizeEmail(cell(row, columns.email))
     const skip = (message: string) =>
       issues.push({ row: rowNumber, email: email || null, severity: 'skipped', message })
 
     if (!emailSchema.safeParse(email).success) return skip('Enter a valid email address')
     const earlierRow = acceptedRowByEmail.get(email)
     if (earlierRow !== undefined) return skip(`Already listed in row ${earlierRow}`)
-    const member = byEmail.get(email)
+    if (byEmail.get(email) === 'ambiguous') {
+      return skip('More than one member has this email, so the row was not applied')
+    }
+    const member = memberWith(email)
     if (!member) return skip('Not a member of this organization')
 
     const fields: Partial<MemberProfileFields> = {}
@@ -228,8 +240,8 @@ export function planPeopleImport({
 
     let warning: string | null = null
     if (columns.managerEmail !== undefined) {
-      const managerEmail = cell(row, columns.managerEmail).toLowerCase()
-      const manager = managerEmail ? byEmail.get(managerEmail) : null
+      const managerEmail = normalizeEmail(cell(row, columns.managerEmail))
+      const manager = managerEmail ? memberWith(managerEmail) : null
       if (manager?.memberId === member.memberId) return skip("A person can't be their own manager")
       if (!managerEmail) {
         fields.managerMemberId = null

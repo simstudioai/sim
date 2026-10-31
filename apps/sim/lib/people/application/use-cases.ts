@@ -56,16 +56,23 @@ export const listDepartments = defineAuthorizedOrganizationUseCase({
     repository.listDepartments(input.organizationId),
 })
 
-/** One person with the managers above them and the people who report to them. */
+/**
+ * One person with the managers above them and the people who report to them, read from one
+ * snapshot so a reporting-line edit made meanwhile can't leave the three disagreeing.
+ */
 export const getPerson = defineAuthorizedOrganizationUseCase({
   operation: peopleOperations.get,
   authorizeResource: authorizeDirectory,
   async execute({ input }: OrganizationUseCaseContext<PersonInput>) {
-    const [person, chain, reports] = await Promise.all([
-      repository.getPerson(db, input.organizationId, input.memberId),
-      repository.getReportingChain(input.organizationId, input.memberId),
-      repository.listDirectReports(input.organizationId, input.memberId),
-    ])
+    const { organizationId, memberId } = input
+    const { person, chain, reports } = await db.transaction(
+      async (tx) => ({
+        person: await repository.getPerson(tx, organizationId, memberId),
+        chain: await repository.getReportingChain(tx, organizationId, memberId),
+        reports: await repository.listDirectReports(tx, organizationId, memberId),
+      }),
+      { isolationLevel: 'repeatable read', accessMode: 'read only' }
+    )
     if (!person) throw new OrchestrationError('not_found', 'Person not found')
     return { person, chain, reports }
   },

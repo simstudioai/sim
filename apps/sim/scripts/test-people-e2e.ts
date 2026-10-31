@@ -320,7 +320,7 @@ async function run() {
         from audit_log where resource_id = ${orgId} and action in ${sql(Object.keys(expected))}
         group by action`
       counts = Object.fromEntries(rows.map((row) => [row.action, row.count]))
-      if (counts['org_people.imported'] === expected['org_people.imported']) break
+      if (Object.entries(expected).every(([action, count]) => counts[action] === count)) break
       await sleep(250)
     }
     assert.deepEqual(counts, expected, 'Previews are not audited; each apply and edit is')

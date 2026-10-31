@@ -215,6 +215,7 @@ describe('planPeopleImport', () => {
     ['2021/3/4', '2021-03-04'],
     ['3/4/2021', '2021-03-04'],
     ['2021-03-04T09:00:00Z', '2021-03-04'],
+    ['2021-03-04 09:00', '2021-03-04'],
   ])('reads the start date %s', (value, startDate) => {
     const result = plan(
       ['email', 'start date'],
@@ -223,7 +224,7 @@ describe('planPeopleImport', () => {
     expect(result.changes).toEqual([{ memberId: 'm-ada', profile: profile({ startDate }) }])
   })
 
-  it.each(['2021-02-30', '13/45/2021', '04.03.2021', 'March 4', '1/2/21'])(
+  it.each(['2021-02-30', '13/45/2021', '04.03.2021', 'March 4', '1/2/21', '2021-03-04Tsoon'])(
     'skips the row with the unreadable start date %s instead of guessing',
     (value) => {
       const result = plan(
@@ -335,6 +336,23 @@ describe('planPeopleImport', () => {
       [2, 'warning'],
       [3, 'warning'],
       [4, 'skipped'],
+    ])
+  })
+
+  it('refuses an address two members share once case and spaces are ignored', () => {
+    const twin = { memberId: 'm-twin', email: ' ADA@example.com', profile: null, active: true }
+    const result = plan(
+      ['email', 'title', 'manager email'],
+      [
+        { email: 'ada@example.com', title: 'A', 'manager email': '' },
+        { email: 'bo@example.com', title: 'B', 'manager email': 'Ada@Example.com' },
+      ],
+      [ada, twin, bo]
+    )
+    expect(result.changes).toEqual([{ memberId: 'm-bo', profile: profile({ title: 'B' }) }])
+    expect(result.issues).toEqual([
+      expect.objectContaining({ row: 2, severity: 'skipped' }),
+      expect.objectContaining({ row: 3, severity: 'warning' }),
     ])
   })
 

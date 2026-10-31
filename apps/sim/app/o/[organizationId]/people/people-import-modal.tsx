@@ -15,6 +15,7 @@ import {
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { PEOPLE_IMPORT_MAX_ROWS, type PeopleImportResult } from '@/lib/api/contracts/people'
+import { assertOoxmlPreviewWithinLimits } from '@/lib/file-parsers/ooxml-preview-guard'
 import { saveBlob } from '@/lib/uploads/client/download'
 import { useImportPeople } from '@/hooks/queries/people'
 
@@ -38,8 +39,10 @@ interface PeopleSheet {
  */
 async function readPeopleSheet(file: File): Promise<PeopleSheet> {
   if (file.size > MAX_FILE_BYTES) throw new Error('Choose a file under 5 MB')
+  const data = new Uint8Array(await file.arrayBuffer())
+  if (/\.xlsx$/i.test(file.name)) await assertOoxmlPreviewWithinLimits(data)
   const XLSX = await import('xlsx')
-  const workbook = XLSX.read(await file.arrayBuffer(), {
+  const workbook = XLSX.read(data, {
     type: 'array',
     raw: /\.(csv|tsv)$/i.test(file.name),
     dense: true,
@@ -91,7 +94,11 @@ function plural(count: number, noun: string): string {
 }
 
 /** The preview's issues in file order, with a count of any past the ones listed. */
-function ImportIssueList({ result }: { result: PeopleImportResult }) {
+interface ImportIssueListProps {
+  result: PeopleImportResult
+}
+
+function ImportIssueList({ result }: ImportIssueListProps) {
   const listRef = useRef<HTMLUListElement>(null)
   const edges = useScrollEdges(listRef)
   const unlisted = result.skipped + result.warnings - result.issues.length
@@ -108,9 +115,9 @@ function ImportIssueList({ result }: { result: PeopleImportResult }) {
         <li key={`${issue.row}-${issue.message}`} className='py-0.5'>
           <span className='text-[var(--text-muted)]'>Row {issue.row}</span>{' '}
           <span
-            className={
+            className={cn(
               issue.severity === 'skipped' ? 'text-[var(--text-error)]' : 'text-[var(--text-body)]'
-            }
+            )}
           >
             {issue.email ? `${issue.email}: ` : ''}
             {issue.message}
