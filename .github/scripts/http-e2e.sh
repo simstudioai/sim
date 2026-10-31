@@ -145,6 +145,7 @@ case "$group" in
     export DB_TX_TRIPWIRE=throw
     export NEXT_PUBLIC_CHAT_DISABLED=true
     export SIM_LINKS=true
+    export PEOPLE=true
     start_app scim 3017 SCIM record-http-status
     SCIM_E2E_BASE_URL="$local_app_url" \
     SCIM_E2E_DATABASE_URL="$DATABASE_URL" \
@@ -161,6 +162,11 @@ case "$group" in
     SIM_LINKS_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
     SIM_LINKS_E2E_REPORT_PATH="$report_dir/sim-links-e2e-report.json" \
       bun run test:sim-links:e2e
+    PEOPLE_E2E_BASE_URL="$local_app_url" \
+    PEOPLE_E2E_DATABASE_URL="$DATABASE_URL" \
+    PEOPLE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    PEOPLE_E2E_REPORT_PATH="$report_dir/people-e2e-report.json" \
+      bun run test:people:e2e
     ;;
 
   # The search suites serve their own fixtures in-process and need no app. They share this group

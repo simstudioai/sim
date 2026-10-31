@@ -1,8 +1,8 @@
-import { ChartColumn, Home, Integration, Link, Search } from '@sim/emcn/icons'
+import { ChartColumn, Home, Integration, Link, Search, Users } from '@sim/emcn/icons'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { SidebarNavItemData } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 
-type OrganizationNavRoute = 'home' | 'search' | 'integrations' | 'simLinks' | 'benchmark'
+type OrganizationNavRoute = 'home' | 'search' | 'people' | 'integrations' | 'simLinks' | 'benchmark'
 
 interface OrganizationNavEntry {
   id: string
@@ -18,6 +18,7 @@ interface OrganizationNavEntry {
 const ORGANIZATION_NAV_ENTRIES: readonly OrganizationNavEntry[] = [
   { id: 'home', label: 'Home', icon: Home, route: 'home' },
   { id: 'search', label: 'Search', icon: Search, route: 'search' },
+  { id: 'people', label: 'People', icon: Users, route: 'people' },
   { id: 'integrations', label: 'Integrations', icon: Integration, route: 'integrations' },
   { id: 'sim-links', label: 'Sim Links', icon: Link, route: 'simLinks' },
   { id: 'benchmark', label: 'Benchmark', icon: ChartColumn, route: 'benchmark' },
@@ -28,6 +29,7 @@ interface OrganizationNavAvailability {
   mothershipAvailable: boolean
   benchmarkEnabled?: boolean
   simLinksEnabled?: boolean
+  peopleEnabled?: boolean
 }
 
 export function buildOrganizationNavItems(
@@ -37,12 +39,14 @@ export function buildOrganizationNavItems(
     mothershipAvailable,
     benchmarkEnabled = false,
     simLinksEnabled = false,
+    peopleEnabled = false,
   }: OrganizationNavAvailability
 ): SidebarNavItemData[] {
   const routes = organizationRoutes(organizationId)
   const available: Record<OrganizationNavRoute, boolean> = {
     home: mothershipAvailable,
     search: searchAvailable,
+    people: peopleEnabled,
     integrations: searchAvailable,
     simLinks: simLinksEnabled,
     benchmark: benchmarkEnabled,

@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Avatar, Chip, ChipConfirmModal, ChipModalError, writeTextToClipboard } from '@sim/emcn'
+import { Avatar, ChipConfirmModal, ChipModalError, writeTextToClipboard } from '@sim/emcn'
 import { Link } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useQueryStates } from 'nuqs'
@@ -23,6 +23,7 @@ import { SimLinkContextMenu } from '@/app/o/[organizationId]/links/sim-link-cont
 import { SimLinkIcon } from '@/app/o/[organizationId]/links/sim-link-icon'
 import { SimLinkModal } from '@/app/o/[organizationId]/links/sim-link-modal'
 import {
+  ResourceLoadError,
   ResourceNoResults,
   SimLinksEmptyState,
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
@@ -157,10 +158,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
         loadMoreFailed={links.isFetchNextPageError}
         emptyState={
           links.isLoadingError ? (
-            <div role='alert' className='flex flex-col items-center gap-3 p-6'>
-              <p className='text-[var(--text-error)] text-small'>{links.error.message}</p>
-              <Chip onClick={() => void links.refetch()}>Retry</Chip>
-            </div>
+            <ResourceLoadError message={links.error.message} onRetry={() => void links.refetch()} />
           ) : query ? (
             <ResourceNoResults
               search={query}
