@@ -19,6 +19,12 @@ export interface DesktopFeatures {
    * Clipboard History and the cloud clipboard keep the text after Sim clears it.
    */
   passwordCopy: boolean
+  /**
+   * Attaching the agent to tmux running in a terminal. Off on Windows: attaching matches tmux
+   * clients to the shell through POSIX ttys and `ps`, and an MSYS or Cygwin tmux on PATH lives in
+   * a process and path world the Windows shell is not part of.
+   */
+  tmux: boolean
 }
 
 const MAC_FEATURES: DesktopFeatures = {
@@ -27,6 +33,7 @@ const MAC_FEATURES: DesktopFeatures = {
   terminalThemes: true,
   browserImport: true,
   passwordCopy: true,
+  tmux: true,
 }
 
 const WINDOWS_FEATURES: DesktopFeatures = {
@@ -35,15 +42,17 @@ const WINDOWS_FEATURES: DesktopFeatures = {
   terminalThemes: false,
   browserImport: false,
   passwordCopy: false,
+  tmux: false,
 }
 
 /** Linux is unpackaged: macOS's surfaces minus the macOS-only ones. */
 const LINUX_FEATURES: DesktopFeatures = {
-  ...MAC_FEATURES,
   computerUse: false,
   helpSearch: false,
   terminalThemes: false,
   browserImport: false,
+  passwordCopy: true,
+  tmux: true,
 }
 
 /** The desktop surfaces available on `platform`. */

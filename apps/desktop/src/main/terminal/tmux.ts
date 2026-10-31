@@ -26,6 +26,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { generateRandomHex } from '@sim/utils/random'
+import { desktopFeatures } from '@/shared/platform-features'
 
 const logger = createLogger('DesktopTmux')
 
@@ -97,13 +98,11 @@ export interface TmuxAttachment {
  */
 let tmuxBinaryMissing = false
 
-/**
- * Whether tmux is off the table. Always on Windows: attaching matches tmux
- * clients to the shell through POSIX ttys and `ps`, and an MSYS or Cygwin tmux
- * on PATH lives in a process and path world the Windows shell is not part of.
- */
+const TMUX_SUPPORTED = desktopFeatures(process.platform).tmux
+
+/** Whether tmux is off the table: never attached on this platform, or not installed. */
 export function isTmuxUnavailable(): boolean {
-  return process.platform === 'win32' || tmuxBinaryMissing
+  return !TMUX_SUPPORTED || tmuxBinaryMissing
 }
 
 /**
