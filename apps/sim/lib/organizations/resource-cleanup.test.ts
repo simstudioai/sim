@@ -12,6 +12,7 @@ vi.mock('@/lib/cleanup/chat-cleanup', () => chatCleanupMock)
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
+import { MEMORY_CLEANUP_EVENT } from '@/lib/mothership/memories/cleanup-event'
 import {
   enqueueOrganizationResourceCleanup,
   organizationResourceCleanupOutboxHandlers,
@@ -20,7 +21,7 @@ import { ORGANIZATION_RESOURCE_CLEANUP_EVENT } from '@/lib/organizations/resourc
 
 const { mockDeleteFile } = storageServiceMockFns
 const { mockCleanupCopilotBackend } = chatCleanupMockFns
-const { mockEnqueueOutboxEvent } = outboxServiceMockFns
+const { mockEnqueueOutboxEvent, mockEnqueueOutboxEvents } = outboxServiceMockFns
 
 const ORG_ID = 'org-1'
 const CHAT_ID = '10000000-0000-4000-8000-000000000001'
@@ -60,6 +61,19 @@ afterAll(() => {
 })
 
 describe('enqueueOrganizationResourceCleanup', () => {
+  it("erases the organization's private Mothership memory in the delete transaction", async () => {
+    queueTableRows(organization, [{ id: ORG_ID }])
+
+    await db.transaction(async (tx) => {
+      await enqueueOrganizationResourceCleanup(tx, ORG_ID)
+      expect(mockEnqueueOutboxEvents).toHaveBeenCalledWith(tx, MEMORY_CLEANUP_EVENT, [
+        expect.objectContaining({
+          request: { version: 1, target: { kind: 'organization', organizationId: ORG_ID } },
+        }),
+      ])
+    })
+  })
+
   it('locks the organization and snapshots only canonical direct org resources inside the caller transaction', async () => {
     queueTableRows(organization, [{ id: ORG_ID }])
     queueTableRows(workspaceFiles, [

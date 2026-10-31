@@ -61,6 +61,7 @@ import { isRetryableTransactionError } from '@/lib/db/transaction'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
+import { enqueueMemoryCleanup } from '@/lib/mothership/memories/cleanup-outbox'
 import { requireMemberManagementAuthority } from '@/lib/organizations/members/authority'
 import {
   revokePersonalApiKeysTx,
@@ -1192,6 +1193,13 @@ export async function transferUserBetweenOrganizations(
         if (deleted.length === 0) {
           throw new Error('Member could not be transferred because their role changed')
         }
+        await enqueueMemoryCleanup(tx, [
+          {
+            kind: 'organization_member',
+            organizationId: params.sourceOrganizationId,
+            userId: params.userId,
+          },
+        ])
 
         const cancelledInvitations = invitationIds.length
           ? await tx
@@ -1407,6 +1415,7 @@ export async function removeUserFromOrganization(
             'The membership changed before removal. Refresh and try again.'
           )
         }
+        await enqueueMemoryCleanup(tx, [{ kind: 'organization_member', organizationId, userId }])
 
         if (!skipBillingLogic) {
           await enqueueOutboxEvent(tx, MEMBER_BILLING_RECONCILIATION_EVENT_TYPE, {
@@ -1679,6 +1688,7 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
           )
 
         await setOrgMemberUsageLimit(organizationId, userId, null, undefined, tx)
+        await enqueueMemoryCleanup(tx, [{ kind: 'organization_member', organizationId, userId }])
 
         const cancelledInvitations = invitationIds.length
           ? await tx
