@@ -3809,6 +3809,8 @@ export function handleFocusedShortcut(
   shortcut: FocusedResourceShortcut,
   ownerWindow?: BrowserWindow | null
 ): boolean {
+  // Accelerators and mouse buttons arrive before any chat has opened a browser.
+  if (!getActiveBrowserScopeId()) return false
   // Tab-management accelerators belong to the visible Browser even after
   // focus moves into Sim chrome. Otherwise Cmd-T/L/Shift-T silently stop
   // behaving like browser shortcuts, and Cmd-W becomes especially unsafe.
