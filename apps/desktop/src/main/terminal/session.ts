@@ -221,6 +221,15 @@ const ALT_SCREEN_ENTER = '\u001b[?1049h'
 const ALT_SCREEN_EXIT = '\u001b[?1049l'
 
 /**
+ * The bundled ConPTY asks the terminal for its device attributes as it starts and holds the
+ * shell's first output until it hears back, for three seconds when nothing answers. The session
+ * answers that one query itself, as xterm.js would, and keeps it from the panel so the reply is
+ * never sent twice; an agent's shell has no panel to answer it at all.
+ */
+const DEVICE_ATTRIBUTES_QUERY = '\u001b[c'
+const DEVICE_ATTRIBUTES_REPLY = '\u001b[?1;2c'
+
+/**
  * Scrollback the on-demand emulator keeps while rendering a read.
  *
  * Only ever needs to cover what a read returns — a couple of hundred lines by
@@ -356,6 +365,8 @@ export class TerminalSession {
   private startupBegunAt: number | null = null
   private readonly spawnedAt = Date.now()
   private altScreen = false
+  /** Whether ConPTY's startup query is still to be answered. */
+  private conptyQueryPending: boolean
   private foregroundCommand: string | null = null
   private foregroundToolCallId: string | null = null
   /**
@@ -390,6 +401,7 @@ export class TerminalSession {
     this.integrationDir = integrationDir
     this.shellName = shellName
     this.parser = new ShellIntegrationParser(nonce)
+    this.conptyQueryPending = platform === 'win32'
 
     this.pty.onData((chunk) => this.handleData(chunk))
     this.pty.onExit(() => this.handleExit())
@@ -865,7 +877,7 @@ export class TerminalSession {
   }
 
   private handleData(chunk: string): void {
-    const { text, markers } = this.parser.parse(chunk)
+    const { text, markers } = this.parser.parse(this.answerConptyQuery(chunk))
 
     for (const marker of markers) {
       this.applyMarker(marker)
@@ -888,6 +900,16 @@ export class TerminalSession {
       this.pendingOutput += text
       this.scheduleFlush()
     }
+  }
+
+  /** Answers and removes ConPTY's startup device-attributes query, the first time it appears. */
+  private answerConptyQuery(chunk: string): string {
+    if (!this.conptyQueryPending) return chunk
+    const index = chunk.indexOf(DEVICE_ATTRIBUTES_QUERY)
+    if (index === -1) return chunk
+    this.conptyQueryPending = false
+    this.pty.write(DEVICE_ATTRIBUTES_REPLY)
+    return chunk.slice(0, index) + chunk.slice(index + DEVICE_ATTRIBUTES_QUERY.length)
   }
 
   private applyMarker(

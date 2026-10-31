@@ -293,19 +293,57 @@ describe('TerminalSession command lifecycle', () => {
 describe('TerminalSession on Windows', () => {
   const marker = (body: string) => `\u001b]633;${body};test-nonce\u0007`
 
-  function windowsSession(): TerminalSession {
+  function sessionOn(
+    platform: NodeJS.Platform,
+    onData: (terminalId: string, data: string) => void = () => {}
+  ): TerminalSession {
     return TerminalSession.create({
       terminalId: 'terminal-windows',
       cwd: 'C:\\Users\\me',
       cols: 80,
       rows: 24,
-      platform: 'win32',
-      callbacks: { onData: () => {}, onState: () => {}, onCommand: () => {}, onExit: () => {} },
+      platform,
+      callbacks: { onData, onState: () => {}, onCommand: () => {}, onExit: () => {} },
     })
   }
 
+  const DEVICE_ATTRIBUTES_REPLY = '\u001b[?1;2c'
+
+  it("answers ConPTY's startup query once, which otherwise holds the shell back for 3 s", async () => {
+    vi.useFakeTimers()
+    let painted = ''
+    const session = sessionOn('win32', (_id, data) => {
+      painted += data
+    })
+    try {
+      ptyStub.dataHandler?.('\u001b[1t')
+      ptyStub.dataHandler?.('\u001b[c\u001b[?1004h')
+      // A program's own query later on is the panel's to answer.
+      ptyStub.dataHandler?.('\u001b[c')
+      await vi.advanceTimersByTimeAsync(50)
+
+      expect(ptyStub.writes.filter((write) => write === DEVICE_ATTRIBUTES_REPLY)).toHaveLength(1)
+      expect(painted).toBe('\u001b[1t\u001b[?1004h\u001b[c')
+    } finally {
+      session.dispose()
+    }
+  })
+
+  it('leaves the startup query of a macOS shell to the panel', async () => {
+    vi.useFakeTimers()
+    const session = sessionOn('darwin')
+    try {
+      ptyStub.dataHandler?.('\u001b[c')
+      await vi.advanceTimersByTimeAsync(50)
+
+      expect(ptyStub.writes).not.toContain(DEVICE_ATTRIBUTES_REPLY)
+    } finally {
+      session.dispose()
+    }
+  })
+
   it('starts the shell without the POSIX login flag, which Windows shells reject', () => {
-    const session = windowsSession()
+    const session = sessionOn('win32')
     try {
       expect(ptyStub.args).not.toContain('-l')
     } finally {
@@ -315,7 +353,7 @@ describe('TerminalSession on Windows', () => {
 
   it('ends the shell for a terminating signal, which node-pty refuses to send there', () => {
     ptyStub.signalsSupported = false
-    const session = windowsSession()
+    const session = sessionOn('win32')
     try {
       session.kill('SIGTERM')
       expect(ptyStub.ended).toBe(true)
@@ -325,7 +363,7 @@ describe('TerminalSession on Windows', () => {
   })
 
   it('names the tab after the last folder of a Windows path', () => {
-    const session = windowsSession()
+    const session = sessionOn('win32')
     try {
       ptyStub.dataHandler?.(marker('P;Cwd=D:\\\\work\\\\project'))
       expect(session.tabState(true).title).toBe('project')
