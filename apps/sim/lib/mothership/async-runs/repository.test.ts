@@ -476,6 +476,14 @@ describe('the workflow run a settled call left running', () => {
     ).toBe('run-1')
   })
 
+  it('is a workflows run behind global flags', () => {
+    expect(
+      detachedWorkflowExecutionId(
+        cli(['--output', 'json', 'workflows', 'run', 'wf-1', '--wait-timeout', '240'], 4, running)
+      )
+    ).toBe('run-1')
+  })
+
   it('is a workflow tool answered still running', () => {
     expect(
       detachedWorkflowExecutionId({

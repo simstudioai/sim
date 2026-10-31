@@ -1948,7 +1948,11 @@ export function detachedWorkflowExecutionId(call: {
   if (call.executableName === 'sim_cli') {
     const request = toRecordOrNull(toRecordOrNull(call.args)?.request)
     const argv = toRecordOrNull(request?.invocation)?.argv
-    if (!Array.isArray(argv) || argv[0] !== 'workflows' || argv[1] !== 'run') return undefined
+    // The command path, wherever global flags (`--output json`) put it, never `workflows runs`.
+    const end = Array.isArray(argv) && argv.includes('--') ? argv.indexOf('--') : undefined
+    const tokens = Array.isArray(argv) ? argv.slice(0, end) : []
+    if (!tokens.some((token, index) => token === 'workflows' && tokens[index + 1] === 'run'))
+      return undefined
     if (result.exitCode !== 4 || typeof result.stdout !== 'string') return undefined
     try {
       const record = toRecordOrNull(JSON.parse(result.stdout))
