@@ -370,8 +370,6 @@ describe('registerIpcHandlers', () => {
   })
 
   it.each([
-    'terminal:execute-tool',
-    'terminal:write',
     'terminal-themes:list-profiles',
     'computer-use:execute-tool',
     'browser-import:all',
@@ -388,11 +386,14 @@ describe('registerIpcHandlers', () => {
     expect(invoke.has(channel) || on.has(channel)).toBe(false)
   })
 
-  it('keeps the user-local folder grants and password reveal on Windows', () => {
+  it('keeps the terminal, user-local folder grants and password reveal on Windows', () => {
     vi.mocked(ipcMain.handle).mockClear()
+    vi.mocked(ipcMain.on).mockClear()
     registerIpcHandlers({ ...deps, platform: 'win32' })
 
-    const { invoke } = collectHandlers()
+    const { invoke, on } = collectHandlers()
+    expect(invoke.has('terminal:execute-tool')).toBe(true)
+    expect(on.has('terminal:write')).toBe(true)
     expect(invoke.has('desktop:local-filesystem')).toBe(true)
     expect(invoke.has('browser-credentials:reveal')).toBe(true)
   })

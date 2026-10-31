@@ -140,9 +140,21 @@ describe('background terminal calls', () => {
   })
 })
 
+describe('terminal calls on Windows', () => {
+  it('runs them, since the Windows shell ships the terminal', async () => {
+    const executeTool = vi.fn(async () => ({ ok: true, result: { exitCode: 0 } }))
+    const completion = await runner({
+      platform: 'win32',
+      terminal: { executeTool, cancelTool: vi.fn(async () => true) },
+    }).run(terminalCall('call-windows', 'run'), new AbortController().signal)
+
+    expect(completion.data).not.toMatchObject({ notStarted: true })
+    expect(executeTool).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('calls for a surface the platform does not ship', () => {
   it.each([
-    ['terminal', { operation: 'run', args: { command: 'echo hi' } }],
     ['read_local_file', { path: '~/notes.txt' }],
     ['import_local_files', { path: '~/notes', targetWorkspaceId: 'ws-1' }],
   ])('never starts %s on Windows', async (toolName, args) => {

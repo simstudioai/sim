@@ -41,7 +41,7 @@ const MAC_FEATURES: DesktopFeatures = {
 const WINDOWS_FEATURES: DesktopFeatures = {
   computerUse: false,
   helpSearch: false,
-  terminal: false,
+  terminal: true,
   terminalThemes: false,
   localFiles: false,
   browserImport: false,

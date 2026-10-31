@@ -231,14 +231,14 @@ describe('desktop executor registration', () => {
     ['darwin', true],
     ['win32', false],
   ] as const)(
-    'advertises the terminal and native file tools on %s: %s',
-    async (platform, shipped) => {
+    'advertises the terminal everywhere, and native file tools on %s: %s',
+    async (platform, localFiles) => {
       const { sim, desktopExecutor } = await service(1, undefined, platform)
       desktopExecutor.start()
       await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
 
       expect(sim.registrationBodies[0]).toMatchObject({
-        capabilities: { browser: true, terminal: shipped, localFiles: shipped },
+        capabilities: { browser: true, terminal: true, localFiles },
       })
       sim.registrations[0]?.(false)
       await desktopExecutor.signOut()
