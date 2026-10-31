@@ -57,16 +57,16 @@ export function SimLinkContextMenu({
           <ArrowUpRight />
           Open
         </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onCopyLink}>
+          <Duplicate />
+          Copy link
+        </DropdownMenuItem>
         {onEdit && (
           <DropdownMenuItem onSelect={onEdit}>
             <Pencil />
             Edit
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem onSelect={onCopyLink}>
-          <Duplicate />
-          Copy link
-        </DropdownMenuItem>
         {onDelete && <DropdownMenuSeparator />}
         {onDelete && (
           <DropdownMenuItem onSelect={onDelete}>

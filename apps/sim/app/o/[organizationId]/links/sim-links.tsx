@@ -5,7 +5,6 @@ import { Avatar, Chip, ChipConfirmModal, ChipModalError, writeTextToClipboard } 
 import { Link, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useQueryStates } from 'nuqs'
-import { EmptyState } from '@/components/empty-state/empty-state'
 import type { SimLink } from '@/lib/api/contracts/sim-links'
 import { simLinkPath } from '@/lib/navigation/paths'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -17,7 +16,10 @@ import {
 import { SimLinkContextMenu } from '@/app/o/[organizationId]/links/sim-link-context-menu'
 import { SimLinkIcon } from '@/app/o/[organizationId]/links/sim-link-icon'
 import { SimLinkModal } from '@/app/o/[organizationId]/links/sim-link-modal'
-import { SimLinksEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import {
+  ResourceNoResults,
+  SimLinksEmptyState,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import type {
   SearchConfig,
   SortConfig,
@@ -37,13 +39,13 @@ import { useUrlSort } from '@/hooks/use-url-sort'
 const logger = createLogger('SimLinks')
 
 const COLUMNS: ResourceColumn[] = [
-  { id: 'name', header: 'Name', widthMultiplier: 0.7 },
+  { id: 'name', header: 'Name' },
   { id: 'destination', header: 'Destination', widthMultiplier: 1.6 },
   { id: 'description', header: 'Description', widthMultiplier: 1.4 },
   { id: 'owner', header: 'Created by' },
-  { id: 'opens', header: 'Opens', widthMultiplier: 0.7 },
+  { id: 'opens', header: 'Opens' },
   { id: 'access', header: 'Access' },
-  { id: 'updated', header: 'Last updated' },
+  { id: 'updated', header: 'Updated' },
 ]
 
 const SORT_OPTIONS = [
@@ -165,14 +167,11 @@ export function SimLinks({ organizationId }: SimLinksProps) {
               <Chip onClick={() => void links.refetch()}>Retry</Chip>
             </div>
           ) : !links.data ? undefined : searching ? (
-            <EmptyState
-              title={`No results for “${debouncedSearch.trim()}”`}
-              description='Searched every Sim link in your organization.'
-              action={
-                <Chip variant='border' onClick={() => setSearch('')}>
-                  Clear search
-                </Chip>
-              }
+            <ResourceNoResults
+              search={debouncedSearch}
+              filterCount={0}
+              searchScope='Searched every Sim link in your organization.'
+              onClear={() => setSearch('')}
             />
           ) : (
             <SimLinksEmptyState onCreate={startCreate} />
