@@ -45,6 +45,7 @@ import {
 import { MAX_FOLDER_PATH_BYTES, MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file'
+import { isWorkspaceFileVfsPath } from '@/lib/vfs/path'
 import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
 import {
   FILE_SEARCH_DEFAULT_MAX_RESULTS,
@@ -301,6 +302,17 @@ export const v2FileReferenceParamsSchema = z.object({
 })
 
 export type V2FileReferenceParams = z.output<typeof v2FileReferenceParamsSchema>
+
+/** Also takes the `files/…` path `glob` and listings print, so no listing round-trip finds the id. */
+const v2FileIdOrPathParamsSchema = z.object({
+  fileId: requiredFieldSchema('File reference is required')
+    .max(MAX_FOLDER_PATH_BYTES, 'File reference is too long')
+    .refine(
+      (value) => isWorkspaceFileVfsPath(value) || workspaceFileIdSchema.safeParse(value).success,
+      'Invalid file id or path: pass a file id or its `files/<folder>/<name>` VFS path'
+    )
+    .describe('File identifier, or the file’s VFS path: `files/<folder>/<name>`.'),
+})
 
 export const v2CreateFileBodySchema = z
   .object({
@@ -943,7 +955,7 @@ export const v2ReadFileTextContract = defineRouteContract({
 export const v2GetFileContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/files/[fileId]/metadata',
-  params: v2FileParamsSchema,
+  params: v2FileIdOrPathParamsSchema,
   query: v2GetFileMetadataQuerySchema,
   response: {
     mode: 'json',
@@ -955,7 +967,7 @@ export const v2RenameFileContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/files/[fileId]',
   query: noInputSchema,
-  params: v2FileParamsSchema,
+  params: v2FileIdOrPathParamsSchema,
   body: v2RenameFileBodySchema,
   response: {
     mode: 'json',
@@ -966,7 +978,7 @@ export const v2RenameFileContract = defineRouteContract({
 export const v2DeleteFileContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/files/[fileId]',
-  params: v2FileParamsSchema,
+  params: v2FileIdOrPathParamsSchema,
   query: v2FileWorkspaceQuerySchema,
   response: {
     mode: 'json',

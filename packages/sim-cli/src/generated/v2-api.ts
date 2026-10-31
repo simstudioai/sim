@@ -17680,7 +17680,7 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/files/[fileId]',
     pathParams: ['fileId'] as const,
-    pathParamDocs: { fileId: 'File identifier.' },
+    pathParamDocs: { fileId: 'File identifier, or the file’s VFS path: `files/<folder>/<name>`.' },
     responseMode: 'json',
     summary: 'Delete file',
     query: {
@@ -18673,7 +18673,7 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/files/[fileId]/metadata',
     pathParams: ['fileId'] as const,
-    pathParamDocs: { fileId: 'File identifier.' },
+    pathParamDocs: { fileId: 'File identifier, or the file’s VFS path: `files/<folder>/<name>`.' },
     responseMode: 'json',
     summary: 'Get file metadata',
     query: {
@@ -22959,7 +22959,7 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/files/[fileId]',
     pathParams: ['fileId'] as const,
-    pathParamDocs: { fileId: 'File identifier.' },
+    pathParamDocs: { fileId: 'File identifier, or the file’s VFS path: `files/<folder>/<name>`.' },
     responseMode: 'json',
     summary: 'Rename file',
     body: {
