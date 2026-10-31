@@ -44,7 +44,7 @@ function richText(content: string): ReactNode {
 export const PRIVACY_CONFIG: LegalPageConfig = {
   title: 'Privacy Policy',
   description: 'Sim Studio, Inc. · Operating the Sim platform (sim.ai)',
-  lastUpdated: 'October 13, 2026',
+  lastUpdated: 'October 31, 2026',
   intro: [
     {
       kind: 'paragraph',
@@ -795,6 +795,52 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
           kind: 'paragraph',
           content: richText(
             'Prompts and outputs are retained according to the data category and context in which they are processed. Account and workflow content follows the Account Data period in the retention table in section 10; Google Data, Usage Logs, and Transaction Records follow their respective periods in that table. Questions about AI processing may be sent to privacy@sim.ai.'
+          ),
+        },
+      ],
+    },
+    {
+      id: 'browser-extension',
+      heading: '10B. Sim Browser Extension',
+      blocks: [
+        {
+          kind: 'paragraph',
+          content: richText(
+            'When You ask Sim to attach a page or selection, the browser extension reads the requested text from the top frame of that page and transfers it, the page title, and a normalized page address to the hosted Sim composer. URL credentials, query parameters, and fragments are removed. The extractor skips form inputs, editable fields, scripts, embedded frames, and elements it detects as hidden. Page text, including text in collapsed sections, may still contain personal or sensitive information, such as personal communications or health, financial, or authentication information.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Capture starts only in response to Your action. The extension does not collect page content continuously or silently in the background. Optional continuing site access is requested for an individual site and can be removed through Site access or Chrome settings. Incognito capture is disabled.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Attaching a page transfers the snapshot to the hosted composer before You send a message. Captured text is held in memory and is not persisted in Chrome extension storage. Short-lived extension session records contain capture intent metadata and a one-way digest of the source address, not captured text or the raw address. You can review or remove an attachment before sending it.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'When You send a message, submitted content is processed and retained as part of Your Sim conversation under this Privacy Policy and applicable Account or organization controls. Sim infrastructure and the AI providers or integrations used for Your requested conversation may process that content as described in sections 6 and 10A. Removing a draft attachment or uninstalling the extension does not delete previously submitted conversations. Access and deletion controls are described in section 14.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'The hosted chat uses Your normal Sim Account and authenticated session, together with the operational diagnostics and consent controls described in this Privacy Policy. The extension document and its page attachments are excluded from session replay. Captured page content is not used for advertising.'
+          ),
+        },
+        {
+          kind: 'subheading',
+          text: 'Chrome Web Store Limited Use',
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            "Sim's use and transfer of data obtained through the browser extension complies with the [Chrome Web Store User Data Policy](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq), including its [Limited Use requirements](https://developer.chrome.com/docs/webstore/program-policies/limited-use). This data is used only to provide or improve the extension's disclosed user-facing features. It is not sold, used or transferred for personalized advertising, or used to determine creditworthiness or for lending purposes. Transfers are limited to providing or improving those features, security needs, compliance with applicable laws, or a merger, acquisition, or asset sale as permitted by that policy. Human access is limited to specific user consent, necessary security or legal purposes, or aggregated and anonymized internal operations permitted by that policy."
           ),
         },
       ],
