@@ -4,6 +4,7 @@ import {
 } from '@sim/browser-extension-protocol'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
+import { LRUCache } from 'lru-cache'
 import { SIM_ORIGIN } from '@/config'
 
 const logger = createLogger('BrowserExtensionOmnibox')
@@ -11,14 +12,23 @@ const logger = createLogger('BrowserExtensionOmnibox')
 /** Long enough to skip the requests a fast typist's intermediate keystrokes would make. */
 const SUGGEST_DELAY_MS = 120
 
-/** What was typed after the `sim` keyword, whether or not `sim/` was typed too. */
-function typedSimLink(text: string): string {
-  return text.trim().replace(/^sim\//i, '')
+/** A Sim link as suggested: its name, and what it shows beside the name. */
+interface SuggestedLink {
+  name: string
+  detail: string
 }
 
-/** The name part, which alone decides the suggestions: `jira/ABC-1?x` suggests from `jira`. */
-function typedName(text: string): string {
-  return typedSimLink(text).split(/[/?]/)[0].toLowerCase()
+/**
+ * What was typed after the `sim` keyword, split where the name ends: `sim/jira/ABC-1?tab=all`
+ * (the `sim/` is optional) has the name `jira` and the rest `/ABC-1?tab=all`. Only the space
+ * before the name and the prefix are dropped; values and the query stay exactly as typed.
+ */
+function readTyped(text: string): { name: string; rest: string } {
+  const typed = text.trimStart().replace(/^sim\//i, '')
+  const nameEnd = typed.search(/[/?]/)
+  return nameEnd === -1
+    ? { name: typed, rest: '' }
+    : { name: typed.slice(0, nameEnd), rest: typed.slice(nameEnd) }
 }
 
 /** Suggestion text is XML, where these five characters are markup. */
@@ -27,23 +37,19 @@ function escapeXml(text: string): string {
 }
 
 /**
- * The resolver address for what was typed after the `sim` keyword, written the way it is typed
- * in the address bar: `jira/ABC-1?tab=all` (with or without a leading `sim/`) opens
- * `sim/jira/ABC-1?tab=all`. Each `/` separates a value, and a value may contain spaces.
+ * The resolver address for what was typed, as the address bar would send `sim/<typed>`: each
+ * `/` starts a value, kept in position even when empty, and a trailing `/` adds none.
  */
 function simLinkUrl(text: string): string {
-  const typed = typedSimLink(text)
-  const queryStart = typed.indexOf('?')
-  const path = queryStart === -1 ? typed : typed.slice(0, queryStart)
-  const query = queryStart === -1 ? '' : new URLSearchParams(typed.slice(queryStart + 1)).toString()
-  const segments = path.split('/').filter(Boolean).map(encodeURIComponent)
+  const { name, rest } = readTyped(text)
+  const queryStart = rest.indexOf('?')
+  const path = `${name}${queryStart === -1 ? rest : rest.slice(0, queryStart)}`.replace(/\/$/, '')
+  const query = queryStart === -1 ? '' : new URLSearchParams(rest.slice(queryStart + 1)).toString()
+  const segments = path ? path.split('/').map(encodeURIComponent) : []
   return `${SIM_ORIGIN}/${['sim', ...segments].join('/')}${query ? `?${query}` : ''}`
 }
 
-async function fetchSuggestions(
-  name: string,
-  signal: AbortSignal
-): Promise<chrome.omnibox.SuggestResult[]> {
+async function fetchSuggestedLinks(name: string, signal: AbortSignal): Promise<SuggestedLink[]> {
   const response = await fetch(
     `${SIM_ORIGIN}${SIM_LINK_SUGGESTIONS_PATH}?${new URLSearchParams({ q: name })}`,
     { credentials: 'include', signal }
@@ -51,9 +57,17 @@ async function fetchSuggestions(
   // Signed out, or Sim links are unavailable: the typed link still opens through the resolver.
   if (!response.ok) return []
   const { links } = simLinkSuggestionsSchema.parse(await response.json())
+  return links.map((link) => ({ name: link.name, detail: link.description ?? link.url }))
+}
+
+/** Each link as a suggestion that keeps whatever was typed after the name. */
+function toSuggestions(
+  links: readonly SuggestedLink[],
+  rest: string
+): chrome.omnibox.SuggestResult[] {
   return links.map((link) => ({
-    content: link.name,
-    description: `<match>sim/${escapeXml(link.name)}</match> <dim>${escapeXml(link.description ?? link.url)}</dim>`,
+    content: `${link.name}${rest}`,
+    description: `<match>sim/${escapeXml(`${link.name}${rest}`)}</match> <dim>${escapeXml(link.detail)}</dim>`,
   }))
 }
 
@@ -63,20 +77,24 @@ async function fetchSuggestions(
  */
 export function registerSimLinkOmnibox() {
   let pending: AbortController | null = null
-  /** Suggestions by typed name for the current keyword session, so retyping and editing values reuse them. */
-  const suggestionsByName = new Map<string, chrome.omnibox.SuggestResult[]>()
+  /**
+   * Links by typed name, emptied as each keyword session starts, so editing values or retyping
+   * a name in one session asks Sim once per name.
+   */
+  const linksByName = new LRUCache<string, SuggestedLink[]>({ max: 100 })
 
-  chrome.omnibox.onInputStarted.addListener(() => suggestionsByName.clear())
+  chrome.omnibox.onInputStarted.addListener(() => linksByName.clear())
 
   chrome.omnibox.onInputChanged.addListener((text, suggest) => {
     pending?.abort()
+    const { name, rest } = readTyped(text)
     chrome.omnibox.setDefaultSuggestion({
-      description: `Open <match>sim/${escapeXml(typedSimLink(text))}</match>`,
+      description: `Open <match>sim/${escapeXml(`${name}${rest}`)}</match>`,
     })
-    const name = typedName(text)
-    const known = suggestionsByName.get(name)
+    const key = name.toLowerCase()
+    const known = linksByName.get(key)
     if (known) {
-      suggest(known)
+      suggest(toSuggestions(known, rest))
       return
     }
     const controller = new AbortController()
@@ -84,9 +102,9 @@ export function registerSimLinkOmnibox() {
     void (async () => {
       await sleep(SUGGEST_DELAY_MS)
       if (controller.signal.aborted) return
-      const suggestions = await fetchSuggestions(name, controller.signal)
-      suggestionsByName.set(name, suggestions)
-      if (!controller.signal.aborted) suggest(suggestions)
+      const links = await fetchSuggestedLinks(key, controller.signal)
+      linksByName.set(key, links)
+      if (!controller.signal.aborted) suggest(toSuggestions(links, rest))
     })().catch(() => {
       if (!controller.signal.aborted) logger.warn('Could not load Sim link suggestions')
     })
