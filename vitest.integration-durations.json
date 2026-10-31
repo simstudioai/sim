@@ -269,7 +269,6 @@
   "packages/db/file-entity-ownership.integration.ts": 1.7,
   "packages/db/file-folder-version-ownership.integration.ts": 0.7,
   "packages/db/large-table-vacuum-throttle-migration.integration.ts": 0.1,
-  "packages/db/maintenance/search-retirement.integration.ts": 15.9,
   "packages/db/member-sync-status-migration.integration.ts": 0.1,
   "packages/db/organization-search-migration.integration.ts": 2.4,
   "packages/db/permission-access-requests-migration.integration.ts": 0.4,
@@ -285,6 +284,7 @@
   "packages/db/scripts/file-ownership-reconciliation.integration.ts": 3.5,
   "packages/db/scripts/project-authority.integration.ts": 2.8,
   "packages/db/scripts/project-contract.integration.ts": 33.9,
+  "packages/db/scripts/purge-search-projection.integration.ts": 6.1,
   "packages/db/scripts/push.integration.ts": 14.8,
   "packages/db/scripts/retired-columns.integration.ts": 0.7,
   "packages/db/scripts/workspace-project-column.integration.ts": 1.4
