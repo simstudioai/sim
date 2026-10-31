@@ -267,7 +267,10 @@ export async function isInReportingChain(
   return row?.found === true
 }
 
-/** Every active member with the email they are matched by and their stored profile. */
+/**
+ * Every member with the email they are matched by, their stored profile, and whether they are
+ * active: a suspended member's reporting lines still close loops.
+ */
 export async function listMemberProfiles(
   executor: DbOrTx,
   organizationId: string
@@ -282,14 +285,16 @@ export async function listMemberProfiles(
       startDate: memberProfile.startDate,
       managerMemberId: memberProfile.managerMemberId,
       hasProfile: sql<boolean>`${memberProfile.memberId} IS NOT NULL`,
+      active: sql<boolean>`${user.suspendedAt} IS NULL`,
     })
     .from(member)
     .innerJoin(user, eq(user.id, member.userId))
     .leftJoin(memberProfile, eq(memberProfile.memberId, member.id))
-    .where(and(eq(member.organizationId, organizationId), ACTIVE_USER))
-  return rows.map(({ memberId, email, hasProfile, ...profile }) => ({
+    .where(eq(member.organizationId, organizationId))
+  return rows.map(({ memberId, email, hasProfile, active, ...profile }) => ({
     memberId,
     email,
+    active,
     profile: hasProfile ? profile : null,
   }))
 }

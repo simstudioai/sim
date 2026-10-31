@@ -20,6 +20,9 @@ import { useDebounce } from '@/hooks/use-debounce'
 
 type TextField = 'title' | 'department' | 'location'
 
+/** The picker's value for no manager; membership ids are never this. */
+const NO_MANAGER = 'no-manager'
+
 const TEXT_FIELDS: readonly { field: TextField; title: string; placeholder: string }[] = [
   { field: 'title', title: 'Title', placeholder: 'Staff Engineer' },
   { field: 'department', title: 'Department', placeholder: 'Engineering' },
@@ -51,11 +54,16 @@ export function PersonModal({ organizationId, person, onClose }: PersonModalProp
     useDebounce(managerSearch.trim(), SEARCH_DEBOUNCE_MS),
     ''
   )
-  const managerOptions = (candidates.data?.pages ?? []).flatMap((page) =>
-    page.people
-      .filter((candidate) => candidate.memberId !== person.memberId)
-      .map((candidate) => ({ value: candidate.memberId, label: candidate.name }))
+  const found = (candidates.data?.pages ?? []).flatMap((page) =>
+    page.people.filter((candidate) => candidate.memberId !== person.memberId)
   )
+  const managerOptions = [
+    { value: NO_MANAGER, label: 'No manager' },
+    ...found.map((candidate) => ({
+      value: candidate.memberId,
+      label: `${candidate.name} (${candidate.email})`,
+    })),
+  ]
   const managerLabel = (draft.managerMemberId && managerName) || 'No manager'
 
   const change = <K extends keyof PersonBody>(field: K, value: PersonBody[K]) => {
@@ -122,20 +130,20 @@ export function PersonModal({ organizationId, person, onClose }: PersonModalProp
           {() => (
             <ChipCombobox
               options={managerOptions}
-              value={draft.managerMemberId ?? ''}
+              value={draft.managerMemberId ?? NO_MANAGER}
               onChange={(value) => {
-                setManagerName(
-                  managerOptions.find((option) => option.value === value)?.label ?? null
-                )
-                change('managerMemberId', value || null)
+                const manager = found.find((candidate) => candidate.memberId === value)
+                setManagerName(manager?.name ?? null)
+                change('managerMemberId', manager?.memberId ?? null)
               }}
               overlayContent={managerLabel}
               searchable
               onSearchChange={setManagerSearch}
               searchPlaceholder='Search people...'
-              isLoading={candidates.isFetching}
-              showAllOption
-              allOptionLabel='No manager'
+              isLoading={candidates.isFetching && !candidates.isFetchingNextPage}
+              hasMore={candidates.hasNextPage}
+              isLoadingMore={candidates.isFetchingNextPage}
+              onLoadMore={() => void candidates.fetchNextPage()}
               emptyMessage='No one matches'
               disabled={update.isPending}
               className='w-full'

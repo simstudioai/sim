@@ -24,18 +24,19 @@ interface PersonInput extends OrganizationInput {
 /** Issues past this many are counted, not listed, so a broken file can't flood the response. */
 const MAX_REPORTED_ISSUES = 200
 
-async function authorizeDirectory({
+async function authorizeDirectory<I extends OrganizationInput>({
   input,
   context,
-}: OrganizationUseCaseContext<OrganizationInput>): Promise<void> {
+}: OrganizationUseCaseContext<I>): Promise<void> {
   await Promise.all([
     requirePeopleEnabled(input.organizationId),
     requireOrganizationMemberDirectory(input.organizationId, context.role),
   ])
 }
 
-const authorizeAdministration = ({ input }: OrganizationUseCaseContext<OrganizationInput>) =>
-  requirePeopleEnabled(input.organizationId)
+const authorizeAdministration = <I extends OrganizationInput>({
+  input,
+}: OrganizationUseCaseContext<I>) => requirePeopleEnabled(input.organizationId)
 
 export const listPeople = defineAuthorizedOrganizationUseCase({
   operation: peopleOperations.list,

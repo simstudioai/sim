@@ -106,7 +106,14 @@ export const importPeopleContract = defineRouteContract({
   params,
   body: z
     .object({
-      headers: z.array(z.string().max(200)).min(1).max(100),
+      headers: z
+        .array(z.string().max(200))
+        .min(1)
+        .max(100)
+        .refine(
+          (headers) => new Set(headers).size === headers.length,
+          'Each column must have its own name'
+        ),
       rows: z
         .array(z.record(z.string().max(200), z.string().max(1000)))
         .min(1, 'The file has no rows')

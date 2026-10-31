@@ -14,9 +14,9 @@ function profile(fields: Partial<MemberProfileFields>): MemberProfileFields {
   }
 }
 
-const ada = { memberId: 'm-ada', email: 'ada@example.com', profile: null }
-const bo = { memberId: 'm-bo', email: 'bo@example.com', profile: null }
-const cy = { memberId: 'm-cy', email: 'cy@example.com', profile: null }
+const ada = { memberId: 'm-ada', email: 'ada@example.com', profile: null, active: true }
+const bo = { memberId: 'm-bo', email: 'bo@example.com', profile: null, active: true }
+const cy = { memberId: 'm-cy', email: 'cy@example.com', profile: null, active: true }
 
 function plan(
   headers: string[],
@@ -311,6 +311,31 @@ describe('planPeopleImport', () => {
       { memberId: 'm-ada', profile: profile({ startDate: '2021-03-04' }) },
     ])
     expect(result.issues).toEqual([expect.objectContaining({ row: 2, severity: 'skipped' })])
+  })
+
+  it('follows a suspended manager when checking for loops, but never matches them', () => {
+    const suspended = {
+      memberId: 'm-sus',
+      email: 'sus@example.com',
+      active: false,
+      profile: profile({ managerMemberId: 'm-ada' }),
+    }
+    const reportsToSuspended = { ...bo, profile: profile({ managerMemberId: 'm-sus' }) }
+    const result = plan(
+      ['email', 'manager email'],
+      [
+        { email: 'ada@example.com', 'manager email': 'bo@example.com' },
+        { email: 'cy@example.com', 'manager email': 'sus@example.com' },
+        { email: 'sus@example.com', 'manager email': '' },
+      ],
+      [ada, reportsToSuspended, cy, suspended]
+    )
+    expect(result.changes).toEqual([])
+    expect(result.issues.map((issue) => [issue.row, issue.severity])).toEqual([
+      [2, 'warning'],
+      [3, 'warning'],
+      [4, 'skipped'],
+    ])
   })
 
   it('combines location parts, leaving out the blank ones', () => {

@@ -30,39 +30,54 @@ interface PeopleSheet {
 }
 
 /**
- * The first sheet as text rows keyed by header. Delimited text is read verbatim so the server
- * interprets dates the same way for every file; spreadsheet date cells become `YYYY-MM-DD`.
+ * The first sheet as text rows keyed by header, one per sheet row (blank ones included) so the
+ * row numbers in the preview match the spreadsheet. Delimited text is read verbatim so the server
+ * interprets dates the same way for every file. A spreadsheet date cell is read from its stored
+ * value, not the text its locale displays, so `31/01/2024` and `1/31/24` both arrive as
+ * `2024-01-31`.
  */
 async function readPeopleSheet(file: File): Promise<PeopleSheet> {
   if (file.size > MAX_FILE_BYTES) throw new Error('Choose a file under 5 MB')
   const XLSX = await import('xlsx')
-  const delimited = /\.(csv|tsv)$/i.test(file.name)
   const workbook = XLSX.read(await file.arrayBuffer(), {
     type: 'array',
-    raw: delimited,
-    cellDates: !delimited,
+    raw: /\.(csv|tsv)$/i.test(file.name),
     dense: true,
   })
   const sheet = workbook.Sheets[workbook.SheetNames[0] ?? '']
-  if (!sheet) throw new Error('The file has no sheets')
-  const [headerRow = [], ...body] = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-    header: 1,
-    raw: false,
-    dateNF: 'yyyy-mm-dd',
-    defval: '',
-    blankrows: false,
-  })
-  const headers = headerRow.map((value) => String(value).trim())
-  const columns = headers.flatMap((header, index) => (header ? [{ header, index }] : []))
+  if (!sheet?.['!ref']) throw new Error('The file has no rows')
+  const range = XLSX.utils.decode_range(sheet['!ref'])
+  const grid = sheet['!data'] ?? []
+  const text = (row: number, column: number): string => {
+    const cell = grid[row]?.[column]
+    if (!cell || cell.v === undefined || cell.v === null) return ''
+    if (cell.t === 'n' && XLSX.SSF.is_date(cell.z ?? '')) {
+      const date = XLSX.SSF.parse_date_code(Number(cell.v))
+      return `${date.y}-${String(date.m).padStart(2, '0')}-${String(date.d).padStart(2, '0')}`
+    }
+    return String(cell.w ?? cell.v).trim()
+  }
+  const columns: { header: string; index: number }[] = []
+  for (let index = range.s.c; index <= range.e.c; index++) {
+    const header = text(range.s.r, index)
+    if (!header) continue
+    if (columns.some((column) => column.header === header)) {
+      throw new Error(`The ${header} column appears more than once`)
+    }
+    columns.push({ header, index })
+  }
   if (!columns.length) throw new Error('The first row should name the columns')
-  if (body.length > PEOPLE_IMPORT_MAX_ROWS) {
+  const rowCount = range.e.r - range.s.r
+  if (rowCount > PEOPLE_IMPORT_MAX_ROWS) {
     throw new Error(`Import at most ${PEOPLE_IMPORT_MAX_ROWS} rows at a time`)
   }
   return {
     fileName: file.name,
     headers: columns.map(({ header }) => header),
-    rows: body.map((row) =>
-      Object.fromEntries(columns.map(({ header, index }) => [header, String(row[index] ?? '')]))
+    rows: Array.from({ length: rowCount }, (_, offset) =>
+      Object.fromEntries(
+        columns.map(({ header, index }) => [header, text(range.s.r + 1 + offset, index)])
+      )
     ),
   }
 }

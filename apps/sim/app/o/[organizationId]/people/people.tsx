@@ -35,6 +35,9 @@ import { useDepartments, usePeople } from '@/hooks/queries/people'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 
+/** The filter's value for every department: stored text can't hold a NUL, so no department is this. */
+const ALL_DEPARTMENTS = '\u0000all'
+
 function personCell(person: PersonSummary) {
   return {
     icon: <Avatar size='xs' name={person.name} src={person.image} aria-hidden />,
@@ -117,18 +120,19 @@ export function People({ organizationId }: PeopleProps) {
             <ResourceFilterPanel>
               <ResourceFilterSection label='Department'>
                 <ChipCombobox
-                  options={departments.map(({ name, count }) => ({
-                    value: name,
-                    label: `${name} (${count})`,
-                  }))}
-                  value={department}
-                  onChange={setDepartment}
+                  options={[
+                    { value: ALL_DEPARTMENTS, label: 'All' },
+                    ...departments.map(({ name, count }) => ({
+                      value: name,
+                      label: `${name} (${count})`,
+                    })),
+                  ]}
+                  value={department || ALL_DEPARTMENTS}
+                  onChange={(value) => setDepartment(value === ALL_DEPARTMENTS ? '' : value)}
                   overlayContent={department || 'All'}
                   searchable
                   searchPlaceholder='Search departments...'
-                  showAllOption
-                  allOptionLabel='All'
-                  emptyMessage='No departments recorded yet'
+                  emptyMessage='No departments match'
                   className='w-full'
                 />
               </ResourceFilterSection>

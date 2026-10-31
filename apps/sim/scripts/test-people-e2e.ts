@@ -166,8 +166,8 @@ async function run() {
     const { people } = await api(ada, '', {})
     assert(Array.isArray(people) && people.length === 3, `Expected 3 people, got ${people}`)
     assert.deepEqual((await api(ada, '/departments', {})).departments, [])
-    await api({ ...outsider, orgId }, '', { expected: 403 })
-    await api({ ...outsider, orgId }, `/${ada.memberId}`, { expected: 403 })
+    await api({ ...outsider, orgId }, '', { expected: 404 })
+    await api({ ...outsider, orgId }, `/${ada.memberId}`, { expected: 404 })
     await api(outsider, `/${ada.memberId}`, { expected: 404 })
   })
 

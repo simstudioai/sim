@@ -92,6 +92,8 @@ export interface PeopleImportMember {
   memberId: string
   email: string
   profile: MemberProfileFields | null
+  /** Suspended members keep their reporting lines for loop checks but are never matched. */
+  active: boolean
 }
 
 interface PeopleImportIssue {
@@ -177,7 +179,9 @@ export function planPeopleImport({
   rows: readonly Record<string, string>[]
   members: readonly PeopleImportMember[]
 }): PeopleImportPlan {
-  const byEmail = new Map(members.map((member) => [member.email.toLowerCase(), member]))
+  const byEmail = new Map(
+    members.filter((member) => member.active).map((member) => [member.email.toLowerCase(), member])
+  )
   const managers = new Map(
     members.map((member) => [member.memberId, member.profile?.managerMemberId ?? null])
   )
