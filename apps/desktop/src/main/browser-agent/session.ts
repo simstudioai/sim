@@ -4177,7 +4177,10 @@ export async function clearAgentData(kinds: readonly BrowserDataKind[]): Promise
   if (storages.length > 0) {
     await ses.clearStorageData({ storages } as Parameters<Session['clearStorageData']>[0])
   }
-  if (kinds.includes('cookies')) await ses.clearAuthCache()
+  if (kinds.includes('cookies')) {
+    await ses.clearAuthCache()
+    resetPagePromptDecisions(ses)
+  }
   if (kinds.includes('cache')) {
     await ses.clearCache()
     // Resolved-host verdicts are a cache too, and a user clearing the cache

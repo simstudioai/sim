@@ -215,8 +215,17 @@ describe('client certificates', () => {
       request(agentContents(session), [first, work], 'https://other.corp').callback
     ).not.toHaveBeenCalled()
 
-    resetPagePromptDecisions()
+    const otherSession = {} as Session
+    const otherContents = agentContents(otherSession)
+    request(otherContents, [first])
+    answer(otherContents, { allowed: true, kind: 'client-certificate', choiceId: 'sha256/first' })
+
+    resetPagePromptDecisions(session)
     expect(request(agentContents(session), [first, work]).callback).not.toHaveBeenCalled()
+    expect(request(agentContents(otherSession), [first]).callback).toHaveBeenCalledWith(first)
+
+    resetPagePromptDecisions()
+    expect(request(agentContents(otherSession), [first]).callback).not.toHaveBeenCalled()
   })
 
   it("remembers Don't send, but not a prompt nobody answered", () => {

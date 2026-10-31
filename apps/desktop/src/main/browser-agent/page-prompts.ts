@@ -104,8 +104,9 @@ export function setPagePromptHost(next: PagePromptHost | null): void {
 }
 
 /** Forgets remembered certificate and app-launch choices, as a sign-out or data wipe must. */
-export function resetPagePromptDecisions(): void {
-  certificateDecisions = new WeakMap()
+export function resetPagePromptDecisions(session?: Session): void {
+  if (session) certificateDecisions.delete(session)
+  else certificateDecisions = new WeakMap()
   alwaysAllowedLaunches.clear()
 }
 
