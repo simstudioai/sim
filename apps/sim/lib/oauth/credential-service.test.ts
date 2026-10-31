@@ -601,8 +601,11 @@ describe('OAuth access-token refresh headroom', () => {
     expect(guard).toContain('original-refresh-token')
   })
 
+  /** A Google token with a minute left: the refresh is awaited, and enough validity remains to serve it. */
+  const WAITED_GOOGLE_REMAINING_MS = 60_000
+
   it('returns no token when the rotation write finds the account gone', async () => {
-    queueCredentialAccount(createOAuthAccount())
+    queueCredentialAccount(createOAuthAccount(WAITED_GOOGLE_REMAINING_MS))
     dbChainMockFns.returning.mockResolvedValueOnce([])
     queueTableRows(account, [createOAuthAccount()])
     queueTableRows(account, [])
@@ -629,8 +632,17 @@ describe('OAuth access-token refresh headroom', () => {
     expect(markCredentialDead).not.toHaveBeenCalled()
   })
 
+  it('returns no token for a credential flagged dead, however long its stored token lasts', async () => {
+    mocks.getRecentTerminalError.mockResolvedValue('invalid_client')
+    queueCredentialAccount(createOAuthAccount(WAITED_GOOGLE_REMAINING_MS))
+    await expect(
+      resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
+    ).resolves.toBeNull()
+    expect(mocks.withLeaderLock).not.toHaveBeenCalled()
+  })
+
   it('flags a credential dead on a terminal failure when its chain did not move', async () => {
-    queueCredentialAccount(createOAuthAccount())
+    queueCredentialAccount(createOAuthAccount(WAITED_GOOGLE_REMAINING_MS))
     vi.mocked(isTerminalRefreshError).mockReturnValue(true)
     mocks.refreshOAuthToken.mockResolvedValue({ ok: false, errorCode: 'invalid_client' })
     queueTableRows(account, [createOAuthAccount()])
@@ -798,6 +810,12 @@ describe('OAuth access-token refresh headroom', () => {
       redisConfigMockFns.mockAcquireLock.mockResolvedValueOnce(false)
     })
 
+    /** Every follower poll, once the lock is contested, reads the unchanged row the caller read. */
+    async function keepChainStoredDuringWait(stored: OAuthAccount) {
+      await vi.waitFor(() => expect(redisConfigMockFns.mockAcquireLock).toHaveBeenCalled())
+      dbChainMockFns.limit.mockResolvedValue([stored])
+    }
+
     it.each([
       {
         label: 'serves a Google token still valid after the wait',
@@ -815,12 +833,59 @@ describe('OAuth access-token refresh headroom', () => {
         token: null,
       },
     ])('$label', async ({ row, token }) => {
-      queueCredentialAccount({ ...createOAuthAccount(row.remainingMs), providerId: row.providerId })
+      const stored = { ...createOAuthAccount(row.remainingMs), providerId: row.providerId }
+      queueCredentialAccount(stored)
       const pending = resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
+      await keepChainStoredDuringWait(stored)
       await vi.advanceTimersByTimeAsync(31_000)
       await expect(pending).resolves.toEqual(token === null ? null : { accessToken: token })
       expect(mocks.refreshOAuthToken).not.toHaveBeenCalled()
     })
+
+    it.each([
+      { label: 'the account is deleted', deleted: true, deadCode: null },
+      { label: 'another leader flags it dead', deleted: false, deadCode: 'invalid_client' },
+    ])('fails a valid Google token when $label during the wait', async ({ deleted, deadCode }) => {
+      const stored = createOAuthAccount(100_000)
+      queueCredentialAccount(stored)
+      const pending = resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
+      if (!deleted) await keepChainStoredDuringWait(stored)
+      if (deadCode) mocks.getRecentTerminalError.mockResolvedValue(deadCode)
+      await vi.advanceTimersByTimeAsync(31_000)
+      await expect(pending).resolves.toBeNull()
+    })
+
+    it('lets the follower finish its wait before the in-process refresh times out', async () => {
+      const { coalesceLocally } = await vi.importActual<
+        typeof import('@/lib/concurrency/singleflight')
+      >('@/lib/concurrency/singleflight')
+      mocks.coalesceLocally.mockImplementation(coalesceLocally)
+      const stored = createOAuthAccount(100_000)
+      queueCredentialAccount(stored)
+      const pending = resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
+      await keepChainStoredDuringWait(stored)
+      await vi.advanceTimersByTimeAsync(31_000)
+      await expect(pending).resolves.toEqual({ accessToken: 'original-access-token' })
+    })
+  })
+
+  it('fails callers of a refresh hung in this process once it times out', async () => {
+    const { coalesceLocally } = await vi.importActual<
+      typeof import('@/lib/concurrency/singleflight')
+    >('@/lib/concurrency/singleflight')
+    mocks.coalesceLocally.mockImplementation(coalesceLocally)
+    mocks.refreshOAuthToken.mockReturnValue(new Promise(() => {}))
+    queueCredentialAccount(createOAuthAccount(100_000))
+    let settled = false
+    const pending = resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test').finally(
+      () => {
+        settled = true
+      }
+    )
+    await vi.advanceTimersByTimeAsync(44_000)
+    expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(2_000)
+    await expect(pending).resolves.toBeNull()
   })
 
   it('fails a Google chain the provider revokes even while its access token is valid', async () => {
@@ -867,7 +932,7 @@ describe('OAuth access-token refresh headroom', () => {
   })
 
   it('spreads refresh-ahead start across accounts expiring at the same moment', async () => {
-    const row = createOAuthAccount(270_000)
+    const row = createOAuthAccount(570_000)
     /** Chosen because their hashes fall on opposite sides of the 30s jitter cut, so a hash-rule change fails loudly. */
     await expect(refreshTokenIfNeeded('test', row, 'account-2')).resolves.toEqual({
       accessToken: 'original-access-token',

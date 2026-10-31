@@ -287,8 +287,8 @@ function resultFor(
  * database (credentials, source settings, provider rollout) along with the network calls those
  * reads lead to, such as a token refresh or a Google Directory lookup and delegated token mints,
  * so it is bounded well under the web database pool. The bound is per account, not per
- * connection: Google delegation resolves its subjects concurrently, and the service-account reads
- * those subjects' mints overlap on are shared. Provider searches are not bounded: a search waits
+ * connection: Google delegation resolves its subjects concurrently, and concurrent subjects share
+ * one service-account key read. Provider searches are not bounded: a search waits
  * for every account, and a second wave would add a full provider round trip.
  */
 const ACCOUNT_OPEN_CONCURRENCY = 6
