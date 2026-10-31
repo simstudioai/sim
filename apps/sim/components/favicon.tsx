@@ -1,14 +1,15 @@
 'use client'
 
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useReducer } from 'react'
 import { cn } from '@sim/emcn'
 import { LRUCache } from 'lru-cache'
 import { faviconSrc } from '@/lib/favicon/url'
 
 /**
- * Hosts whose icon just failed, so an icon that mounts again renders its fallback at once
- * instead of an empty slot first. An `<img>` can't tell no icon from a provider outage, so this
- * lasts only as long as the route retries an outage; a confirmed miss stays in the HTTP cache.
+ * Hosts whose icon failed recently: the only failure record, so mounted and remounted icons
+ * render the fallback at once instead of an empty slot. An `<img>` can't tell no icon from a
+ * provider outage, so an entry lasts only as long as the route retries an outage; the next render
+ * after that asks again, and a confirmed miss stays in the HTTP cache.
  */
 const knownMisses = new LRUCache<string, true>({ max: 500, ttl: 5 * 60 * 1000 })
 
@@ -27,8 +28,8 @@ interface FaviconProps {
  * of a provider's placeholder.
  */
 export function Favicon({ host, fallback, className }: FaviconProps) {
-  const [failedHost, setFailedHost] = useState<string | null>(null)
-  if (!host || failedHost === host || knownMisses.has(host)) return fallback
+  const [, rerender] = useReducer((failures: number) => failures + 1, 0)
+  if (!host || knownMisses.has(host)) return fallback
   return (
     <img
       src={faviconSrc(host)}
@@ -38,7 +39,7 @@ export function Favicon({ host, fallback, className }: FaviconProps) {
       className={cn('rounded-sm', className)}
       onError={() => {
         knownMisses.set(host, true)
-        setFailedHost(host)
+        rerender()
       }}
     />
   )
