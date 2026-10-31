@@ -19,7 +19,7 @@ it('publishes asynchronous startup preferences and later settings changes to sub
   }
   const pending = Promise.withResolvers<DesktopPreferences>()
   const getPreferences = vi.fn(() => pending.promise)
-  vi.stubGlobal('window', { simDesktop: { settings: { getPreferences } } })
+  vi.stubGlobal('window', { simDesktop: { settings: { getPreferences }, terminal: {} } })
   const listener = vi.fn()
   const unsubscribe = subscribeDesktopPreferences(listener)
   const otherListener = vi.fn()
