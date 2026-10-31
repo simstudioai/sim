@@ -17,6 +17,7 @@
  * icon grid instead of rendering visibly smaller than neighboring apps.
  */
 import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import sharp from 'sharp'
 import { ALL_CHANNELS } from './channels'
@@ -111,7 +112,7 @@ function encodeIco(frames: readonly IconFrame[]): Buffer {
 
 async function run(): Promise<void> {
   for (const channel of ALL_CHANNELS) {
-    const trimmed = await sharp(channel.dockIcon).trim().png().toBuffer()
+    const trimmed = await sharp(join('static', channel.dockIcon)).trim().png().toBuffer()
     const frames: IconFrame[] = []
     for (const size of FRAME_SIZES) {
       frames.push(await renderFrame(trimmed, size))

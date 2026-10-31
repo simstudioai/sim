@@ -4,12 +4,8 @@ import { truncate } from '@sim/utils/string'
 import type { MenuItemConstructorOptions, NativeImage } from 'electron'
 import { app, Menu, nativeImage, session, Tray } from 'electron'
 import { newChatRoute } from '@/main/app-routes'
-import {
-  APP_ICON_FOR_CHANNEL,
-  APP_NAME_FOR_CHANNEL,
-  channelForOrigin,
-  type DesktopChannel,
-} from '@/main/config'
+import { channelForOrigin } from '@/main/config'
+import { CHANNEL_IDENTITIES, type DesktopChannel } from '@/shared/channel-identity'
 
 const logger = createLogger('DesktopTray')
 
@@ -422,7 +418,7 @@ function macTrayIcon(channel: DesktopChannel): NativeImage | null {
  * scale gets its own downsample so the icon stays crisp at 125-200% DPI.
  */
 function windowsTrayIcon(channel: DesktopChannel): NativeImage | null {
-  const iconPath = join(app.getAppPath(), 'static', APP_ICON_FOR_CHANNEL[channel])
+  const iconPath = join(app.getAppPath(), 'static', CHANNEL_IDENTITIES[channel].dockIcon)
   const source = nativeImage.createFromPath(iconPath)
   if (source.isEmpty()) {
     logger.error('Tray icon missing; skipping tray install', { iconPath })
@@ -453,7 +449,7 @@ export function installTray(deps: TrayDeps): TrayHandle | null {
 
   const tray = new Tray(icon)
   tray.setIgnoreDoubleClickEvents(true)
-  tray.setToolTip(APP_NAME_FOR_CHANNEL[channel])
+  tray.setToolTip(CHANNEL_IDENTITIES[channel].name)
   // Windows opens the context menu only on right-click; a left-click is "show me Sim".
   if (isWindows) tray.on('click', () => deps.openMainWindow())
 

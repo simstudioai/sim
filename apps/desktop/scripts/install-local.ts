@@ -22,6 +22,8 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { CHANNEL_IDENTITIES, type DesktopChannelIdentity } from '@/shared/channel-identity'
+import { DEV, LOCAL, STAGING } from './channels'
 
 if (process.platform !== 'darwin') {
   console.error(
@@ -30,31 +32,23 @@ if (process.platform !== 'darwin') {
   process.exit(1)
 }
 
-interface ChannelIdentity {
-  /** Display + bundle name; also the userData directory name. */
-  name: string
-  appId: string
+interface InstallIdentity extends DesktopChannelIdentity {
   /** Baked default origin + persisted settings origin. Unset = leave as-is. */
   origin?: string
 }
 
-/** Must stay in sync with APP_NAME_FOR_CHANNEL in src/main/config.ts. */
-const CHANNEL_FLAGS: Record<string, ChannelIdentity> = {
-  '--local': { name: 'Sim Local', appId: 'ai.sim.desktop.local', origin: 'http://localhost:3000' },
-  '--dev': { name: 'Sim Dev', appId: 'ai.sim.desktop.dev', origin: 'https://www.dev.sim.ai' },
-  '--staging': {
-    name: 'Sim Staging',
-    appId: 'ai.sim.desktop.staging',
-    origin: 'https://www.staging.sim.ai',
-  },
+const CHANNEL_FLAGS: Record<string, InstallIdentity> = {
+  '--local': LOCAL,
+  '--dev': DEV,
+  '--staging': STAGING,
   // Origin left unset, exactly as official prod builds do, so this install
   // resolves the same DEFAULT_ORIGIN (config.ts) and therefore the same cookie
   // partition as a real one. Naming an origin here re-creates the drift that
   // pinned prod to the apex while the server serves www.
-  '--prod': { name: 'Sim', appId: 'ai.sim.desktop' },
+  '--prod': CHANNEL_IDENTITIES.prod,
 }
 
-const DEFAULT_IDENTITY: ChannelIdentity = { name: 'Sim', appId: 'ai.sim.desktop' }
+const DEFAULT_IDENTITY: InstallIdentity = CHANNEL_IDENTITIES.prod
 
 const channelFlags = process.argv.filter((arg) => arg in CHANNEL_FLAGS)
 if (channelFlags.length > 1) {

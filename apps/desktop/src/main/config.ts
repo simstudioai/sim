@@ -3,6 +3,7 @@ import type { DesktopZoomPercent, TerminalAppearanceTheme } from '@sim/desktop-b
 import { createLogger } from '@sim/logger'
 import { isLoopbackHostname } from '@sim/security/ssrf'
 import { writeJsonFileAtomicallySync } from '@/main/atomic-json-file'
+import type { DesktopChannel } from '@/shared/channel-identity'
 
 /** settings.json is meant to be readable when a user opens it. */
 const SETTINGS_INDENT = 2
@@ -42,15 +43,7 @@ export const DEFAULT_ORIGIN = isValidBakedOrigin(process.env.SIM_DESKTOP_DEFAULT
   ? process.env.SIM_DESKTOP_DEFAULT_ORIGIN
   : 'https://www.sim.ai'
 
-/**
- * The environment a build is keyed to, derived from its baked default origin.
- * Channel drives the app's identity — its name and therefore its userData
- * directory and single-instance lock — so one developer can keep a prod,
- * staging, dev, and localhost install side by side, each with its own
- * settings, sessions, and update feed.
- */
-export type DesktopChannel = 'prod' | 'staging' | 'dev' | 'local'
-
+/** The channel a build baked to `origin` belongs to; unrecognized hosts are production. */
 export function channelForOrigin(origin: string): DesktopChannel {
   try {
     const host = new URL(origin).hostname.toLowerCase()
@@ -61,41 +54,6 @@ export function channelForOrigin(origin: string): DesktopChannel {
   } catch {
     return 'prod'
   }
-}
-
-/**
- * Per-channel app names. Prod keeps the plain name every existing install
- * already has (its userData must not move); the others are distinct apps.
- */
-export const APP_NAME_FOR_CHANNEL: Record<DesktopChannel, string> = {
-  prod: 'Sim',
-  staging: 'Sim Staging',
-  dev: 'Sim Dev',
-  local: 'Sim Local',
-}
-
-/**
- * Per-channel installer app IDs. On Windows this is also the AppUserModelID:
- * the running process must claim the same ID the installer stamped on its
- * Start-menu shortcut, or toasts lose their attribution and taskbar pins
- * group under a separate icon.
- */
-export const APP_ID_FOR_CHANNEL: Record<DesktopChannel, string> = {
-  prod: 'ai.sim.desktop',
-  staging: 'ai.sim.desktop.staging',
-  dev: 'ai.sim.desktop.dev',
-  local: 'ai.sim.desktop.local',
-}
-
-/**
- * Per-channel app icons under `static/`, for runs with no packaged bundle or
- * executable icon to inherit, and for the Windows tray.
- */
-export const APP_ICON_FOR_CHANNEL: Record<DesktopChannel, string> = {
-  prod: 'dock-icon.png',
-  staging: 'dock-icon-staging.png',
-  dev: 'dock-icon-dev.png',
-  local: 'dock-icon-local.png',
 }
 
 export interface WindowBounds {

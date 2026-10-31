@@ -57,9 +57,6 @@ import { attachClientInfo } from '@/main/client-info'
 import { NativeComputerUseClient } from '@/main/computer-use/native-client'
 import { ComputerUseService } from '@/main/computer-use/service'
 import {
-  APP_ICON_FOR_CHANNEL,
-  APP_ID_FOR_CHANNEL,
-  APP_NAME_FOR_CHANNEL,
   channelForOrigin,
   createConfigStore,
   DEFAULT_ORIGIN,
@@ -117,6 +114,7 @@ import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/m
 import { installBrowserUserAgent } from '@/main/user-agent'
 import { createMainWindow, handleSecondInstance, setupPermissionHandlers } from '@/main/window'
 import { attachWindowOpenPolicy, isPopupContents } from '@/main/windows'
+import { CHANNEL_IDENTITIES } from '@/shared/channel-identity'
 import { desktopFeatures } from '@/shared/platform-features'
 
 const logger = createLogger('DesktopMain')
@@ -259,7 +257,12 @@ function main(): void {
   // Packaged Windows builds inherit the executable's icon; a dev run would show Electron's.
   const unpackagedWindowIcon =
     process.platform === 'win32' && !app.isPackaged
-      ? join(__dirname, '..', 'static', APP_ICON_FOR_CHANNEL[channelForOrigin(processOrigin)])
+      ? join(
+          __dirname,
+          '..',
+          'static',
+          CHANNEL_IDENTITIES[channelForOrigin(processOrigin)].dockIcon
+        )
       : undefined
 
   const windows = new Set<BrowserWindow>()
@@ -871,7 +874,7 @@ function main(): void {
     // bundle, so they still need the channel-specific development icon.
     if (process.platform === 'darwin' && !app.isPackaged) {
       const channel = channelForOrigin(config.getOrigin())
-      app.dock?.setIcon(join(__dirname, '..', 'static', APP_ICON_FOR_CHANNEL[channel]))
+      app.dock?.setIcon(join(__dirname, '..', 'static', CHANNEL_IDENTITIES[channel].dockIcon))
     }
     events.record('app_launch', {
       version: app.getVersion(),
@@ -1150,9 +1153,9 @@ function main(): void {
 // The name follows the build's channel ("Sim", "Sim Dev", …) so one developer
 // can run one install per environment side by side — separate settings,
 // sessions, locks, and update feeds.
-app.setName(APP_NAME_FOR_CHANNEL[channelForOrigin(DEFAULT_ORIGIN)])
+app.setName(CHANNEL_IDENTITIES[channelForOrigin(DEFAULT_ORIGIN)].name)
 if (process.platform === 'win32') {
-  app.setAppUserModelId(APP_ID_FOR_CHANNEL[channelForOrigin(DEFAULT_ORIGIN)])
+  app.setAppUserModelId(CHANNEL_IDENTITIES[channelForOrigin(DEFAULT_ORIGIN)].appId)
 }
 if (process.env.SIM_DESKTOP_USER_DATA) {
   app.setPath('userData', process.env.SIM_DESKTOP_USER_DATA)
