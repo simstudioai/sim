@@ -134,7 +134,9 @@ describe('large file downloads', () => {
 
   beforeEach(() => {
     downloadedHref = ''
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () {
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement
+    ) {
       downloadedHref = this.getAttribute('href') ?? ''
       downloadedName = this.download
       click()

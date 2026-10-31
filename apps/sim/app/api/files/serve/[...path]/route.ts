@@ -32,7 +32,7 @@ import { resolveStoredFileContext } from '@/lib/uploads/server/metadata'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import {
   inferContextFromKey,
-  isRenderableDocumentName,
+  needsRenderedArtifact,
   resolveEffectiveMimeType,
 } from '@/lib/uploads/utils/file'
 import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
@@ -218,7 +218,9 @@ function servesStoredObject(
   if (recordedType === SIM_PAGE_CONTENT_TYPE || filename.toLowerCase().endsWith('.html')) {
     return false
   }
-  return !isRenderableDocumentName(filename)
+  // A recorded type tells a finished upload from a generation source; without one, every
+  // document name may be a source.
+  return !needsRenderedArtifact(recordedType, filename)
 }
 
 /**

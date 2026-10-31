@@ -520,6 +520,19 @@ describe('File Serve API Route', () => {
       expect(response.headers.get('Content-Type')).toBe('text/csv')
     })
 
+    it('streams an uploaded document, which is already the finished file', async () => {
+      const response = await serveWorkspaceFile({
+        ...video,
+        name: 'scan.pdf',
+        key: 'workspace/test-workspace-id/scan.pdf',
+        type: 'application/pdf',
+      })
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Content-Length')).toBe(String(video.size))
+      expect(fileUtilsServerMockFns.mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
+    })
+
     it('streams the raw source of a page rather than rendering it', async () => {
       mockGetContentType.mockReturnValue('text/html')
       const response = await serveWorkspaceFile(

@@ -496,7 +496,7 @@ function StreamedMediaPlayer({
       loading={status === 'loading'}
       mediaRef={syncWithElement}
       onLoadedMetadata={() => setStatus('ready')}
-      onError={status === 'loading' ? handleError : undefined}
+      onError={handleError}
     />
   )
 }

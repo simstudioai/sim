@@ -1,10 +1,14 @@
-import { Readable } from 'node:stream'
-import { storageServiceMock, storageServiceMockFns } from '@sim/testing'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 import {
   createDelegatedPrincipal,
   createSessionPrincipal,
 } from '@sim/testing/factories/principal.factory'
 import { fileReadReceiptMock } from '@sim/testing/mocks/file-read-receipt.mock'
+import { uploadsConfigMock, uploadsConfigMockFns } from '@sim/testing/mocks/uploads-config.mock'
+import { uploadsMetadataMock } from '@sim/testing/mocks/uploads-metadata.mock'
+import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import {
   workspaceFileSecretProvenanceMock,
   workspaceFileSecretProvenanceMockFns,
@@ -22,10 +26,14 @@ vi.mock(
   '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
-vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
+vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { streamAuthorizedWorkspaceFile } from '@/lib/workspace-files/application/stream-authorized-workspace-file'
+
+const CONTENT = Buffer.from('0123456789abcdefghij')
 
 const file = {
   id: 'file-1',
@@ -33,49 +41,50 @@ const file = {
   name: 'clip.mp4',
   key: 'workspace/workspace-1/clip.mp4',
   path: '/api/files/serve/workspace/workspace-1/clip.mp4',
-  size: 6,
+  size: CONTENT.length,
   type: 'video/mp4',
   uploadedBy: 'user-1',
   uploadedAt: new Date('2026-08-01T00:00:00Z'),
   updatedAt: new Date('2026-08-01T00:00:00Z'),
 } satisfies WorkspaceFileRecord
 
-let source: Readable
-
-async function readAll(stream: ReadableStream<Uint8Array>): Promise<string> {
-  return Buffer.from(await new Response(stream).arrayBuffer()).toString()
+async function readAll(stream: ReadableStream<Uint8Array>): Promise<Buffer> {
+  return Buffer.from(await new Response(stream).arrayBuffer())
 }
 
 describe('streamAuthorizedWorkspaceFile', () => {
   beforeEach(() => {
-    source = Readable.from([Buffer.from('stream')])
-    storageServiceMockFns.mockDownloadFileStream.mockResolvedValue(source)
+    const uploads = mkdtempSync(join(tmpdir(), 'stream-authorized-'))
+    mkdirSync(dirname(join(uploads, file.key)), { recursive: true })
+    writeFileSync(join(uploads, file.key), CONTENT)
+    setUploadDirServer(uploads)
+    uploadsConfigMockFns.mockGetStorageConfig.mockReturnValue({ bucket: 'b', region: 'r' })
   })
 
-  it('streams the stored bytes once access still holds after storage opens', async () => {
+  it('streams every stored byte once access still holds after storage opens', async () => {
     const stream = await streamAuthorizedWorkspaceFile({
       file,
       principal: createSessionPrincipal(),
       authorize: async () => undefined,
     })
-    await expect(readAll(stream)).resolves.toBe('stream')
+
+    expect(await readAll(stream)).toEqual(CONTENT)
   })
 
-  it('reads only the requested span from storage', async () => {
-    await streamAuthorizedWorkspaceFile({
+  it('reads exactly the requested inclusive span and nothing else', async () => {
+    const stream = await streamAuthorizedWorkspaceFile({
       file,
       principal: createSessionPrincipal(),
       authorize: async () => undefined,
-      range: { start: 2, end: 4 },
+      range: { start: 5, end: 9 },
     })
-    expect(storageServiceMockFns.mockDownloadFileStream).toHaveBeenCalledWith({
-      key: file.key,
-      context: 'workspace',
-      range: { start: 2, end: 4 },
-    })
+
+    expect((await readAll(stream)).toString()).toBe('56789')
   })
 
   it('disposes the opened stream when access is revoked before it is handed out', async () => {
+    const cancel = vi.spyOn(ReadableStream.prototype, 'cancel')
+
     await expect(
       streamAuthorizedWorkspaceFile({
         file,
@@ -85,7 +94,8 @@ describe('streamAuthorizedWorkspaceFile', () => {
         },
       })
     ).rejects.toThrow('revoked')
-    expect(source.destroyed).toBe(true)
+    expect(cancel).toHaveBeenCalled()
+    cancel.mockRestore()
   })
 
   it('refuses and disposes the stream when provenance changes after storage opens', async () => {
@@ -94,6 +104,7 @@ describe('streamAuthorizedWorkspaceFile', () => {
       { status: 'exact', entries: [] }
     )
     vi.mocked(recheckFileReadReceipt).mockResolvedValueOnce({ status: 'unknown' })
+    const cancel = vi.spyOn(ReadableStream.prototype, 'cancel')
 
     await expect(
       observeContentDelivery(
@@ -102,6 +113,7 @@ describe('streamAuthorizedWorkspaceFile', () => {
           streamAuthorizedWorkspaceFile({ file, principal: chat, authorize: async () => undefined })
       )
     ).rejects.toBeInstanceOf(ContentRefusedError)
-    expect(source.destroyed).toBe(true)
+    expect(cancel).toHaveBeenCalled()
+    cancel.mockRestore()
   })
 })
