@@ -35,4 +35,13 @@ describe('describeRunningCommand', () => {
   it('reads a backslash as a path separator in Windows shells, never an escape', () => {
     expect(describeRunningCommand('cd C:\\; npm test', 'powershell')).toBe('npm')
   })
+
+  it("honors each Windows shell's own escape character", () => {
+    expect(describeRunningCommand('echo ^& npm test', 'cmd')).toBe('echo')
+    expect(describeRunningCommand('echo `; npm test', 'pwsh')).toBe('echo')
+  })
+
+  it('reads a single quote in cmd as an ordinary character', () => {
+    expect(describeRunningCommand("echo 'a & npm test'", 'cmd')).toBe('npm')
+  })
 })

@@ -308,35 +308,67 @@ const COMMAND_PREFIX_WORDS = new Set([
 /** `NAME=value`, the other thing that can sit in front of the program. */
 const ENVIRONMENT_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/
 
-/**
- * Windows shells, where a backslash separates path segments rather than
- * escaping the next character (PowerShell escapes with a backtick, cmd with a
- * caret).
- */
-const LITERAL_BACKSLASH_SHELLS: ReadonlySet<string> = new Set(['pwsh', 'powershell', 'cmd'])
+/** What a shell line's quoting looks like, as far as finding its last command needs. */
+interface ShellSyntax {
+  /** The character that makes the next one literal. */
+  escape: string
+  /** Whether {@link escape} still works inside double quotes. */
+  escapesInDoubleQuotes: boolean
+  quotes: ReadonlySet<string>
+  /** Windows shells read either slash as a path separator; POSIX ones only `/`. */
+  windowsPaths: boolean
+}
+
+const POSIX_SYNTAX: ShellSyntax = {
+  escape: '\\',
+  escapesInDoubleQuotes: true,
+  quotes: new Set(["'", '"']),
+  windowsPaths: false,
+}
+
+const POWERSHELL_SYNTAX: ShellSyntax = {
+  escape: '`',
+  escapesInDoubleQuotes: true,
+  quotes: new Set(["'", '"']),
+  windowsPaths: true,
+}
+
+/** cmd has no single quotes, and a caret is literal inside double quotes. */
+const CMD_SYNTAX: ShellSyntax = {
+  escape: '^',
+  escapesInDoubleQuotes: false,
+  quotes: new Set(['"']),
+  windowsPaths: true,
+}
+
+const SHELL_SYNTAX: ReadonlyMap<string, ShellSyntax> = new Map([
+  ['pwsh', POWERSHELL_SYNTAX],
+  ['powershell', POWERSHELL_SYNTAX],
+  ['cmd', CMD_SYNTAX],
+])
 
 /**
  * The last command in a shell line, ignoring separators inside quotes. A
  * quote-blind split would cut `claude "a && b"` in half and report `b"` as the
  * program.
  */
-function lastCommandSegment(command: string, backslashEscapes: boolean): string {
+function lastCommandSegment(command: string, syntax: ShellSyntax): string {
   let start = 0
-  let quote: "'" | '"' | null = null
+  let quote: string | null = null
   for (let index = 0; index < command.length; index++) {
     const char = command[index]
     if (quote) {
-      // Only double quotes honor backslash escapes; inside single quotes a
-      // backslash is a literal character and cannot hide the closing quote.
-      if (char === '\\' && quote === '"' && backslashEscapes) index++
+      // Only double quotes can honor escapes; inside single quotes the escape
+      // character is literal and cannot hide the closing quote.
+      if (char === syntax.escape && quote === '"' && syntax.escapesInDoubleQuotes) index++
       else if (char === quote) quote = null
       continue
     }
-    if (char === "'" || char === '"') {
+    if (syntax.quotes.has(char)) {
       quote = char
       continue
     }
-    if (char === '\\' && backslashEscapes) {
+    if (char === syntax.escape) {
       index++
       continue
     }
@@ -372,8 +404,8 @@ export function describeRunningCommand(running: string, shell?: string): string 
   const line = running.trim()
   if (!line) return 'a command'
 
-  const backslashEscapes = !LITERAL_BACKSLASH_SHELLS.has(shell ?? '')
-  const segment = lastCommandSegment(line, backslashEscapes) || line
+  const syntax = (shell && SHELL_SYNTAX.get(shell)) || POSIX_SYNTAX
+  const segment = lastCommandSegment(line, syntax) || line
   const program = segment
     .split(/\s+/)
     .filter(Boolean)
@@ -386,7 +418,7 @@ export function describeRunningCommand(running: string, shell?: string): string 
 
   const label =
     (program
-      ? lastPathSegment(program.replace(/^['"]|['"]$/g, ''), backslashEscapes ? '/' : /[\\/]/)
+      ? lastPathSegment(program.replace(/^['"]|['"]$/g, ''), syntax.windowsPaths ? /[\\/]/ : '/')
       : '') || segment
   return truncate(label, MAX_RUNNING_COMMAND_LABEL, '…')
 }
