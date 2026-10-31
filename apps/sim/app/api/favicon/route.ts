@@ -17,8 +17,9 @@ export const GET = defineInternalBinaryRoute({
   operation: getFavicon.operation,
   rateLimit: internalRateLimits.user({
     bucketName: 'favicon',
-    /** A page can render dozens of icons at once; the browser caches each one after its first load. */
-    config: { maxTokens: 300, refillRate: 300, refillIntervalMs: 60_000 },
+    // A table can show hundreds of sites at once; requests that reach the icon providers are
+    // budgeted separately (favicon use case), so this only bounds cheap cached reads.
+    config: { maxTokens: 1200, refillRate: 1200, refillIntervalMs: 60_000 },
   }),
   errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ query }) => ({ host: query.host }),

@@ -38,19 +38,21 @@ export function toSimLinkName(input: string): string {
 const PASTED_TRAILING_PUNCTUATION = /[.,;:!?'"’”)\]}>]+$/
 
 /**
- * `sim/<name>/<values…>` split into the name and its values. A name typed alone loses the
- * punctuation it picked up from the sentence it was copied out of, so `sim/onboarding).` opens
- * `sim/onboarding`: none of these characters can end a distinct name, since `.` and `:` are
- * ignored when matching and the rest are not allowed. Values are kept verbatim, and a name that
- * is only punctuation stays as typed, so it still fails validation.
+ * `sim/<name>/<values…>` split into the name and its values. The name loses surrounding spaces,
+ * which no name can hold, and a name typed alone also loses the punctuation it picked up from the
+ * sentence it was copied out of, so `sim/onboarding).` opens `sim/onboarding`: none of these
+ * characters can end a distinct name, since `.` and `:` are ignored when matching and the rest
+ * are not allowed. Values are kept verbatim, and a name that is only punctuation stays as typed,
+ * so it still fails validation.
  */
 export function parseTypedSimLink(segments: readonly string[]): {
   name: string
   values: string[]
 } {
-  const [name = '', ...values] = segments
+  const [typedName = '', ...values] = segments
+  const name = typedName.trim()
   if (values.length) return { name, values }
-  return { name: name.replace(PASTED_TRAILING_PUNCTUATION, '') || name, values }
+  return { name: name.replace(PASTED_TRAILING_PUNCTUATION, '').trimEnd() || name, values }
 }
 
 export function isVariableSimLinkUrl(url: string): boolean {

@@ -155,9 +155,14 @@ async function walk(candidates: string[], signal: AbortSignal): Promise<FaviconR
  * contacts the destination itself (a provider may, from its own servers), so a host behind a
  * login still gets its platform's icon. Results are cached per host (30 days for an icon, a day
  * for none or for a parent's icon chosen after a timeout, minutes after an outage), and
- * concurrent lookups of one host in this process share a single resolution.
+ * concurrent lookups of one host in this process share a single resolution. `admitLookup` is
+ * asked only when nothing is cached, before any provider is: refused, the host is reported
+ * unavailable and nothing is cached, so cached icons stay free while new lookups are budgeted.
  */
-export async function resolveFavicon(host: string): Promise<FaviconResolution> {
+export async function resolveFavicon(
+  host: string,
+  admitLookup: () => Promise<boolean> = async () => true
+): Promise<FaviconResolution> {
   const candidates = faviconHostCandidates(host)
   const requested = candidates[0]
   if (!requested) return { kind: 'miss' }
@@ -167,6 +172,7 @@ export async function resolveFavicon(host: string): Promise<FaviconResolution> {
   const resolution = (async (): Promise<FaviconResolution> => {
     const cached = await readCache(requested)
     if (cached) return cached
+    if (!(await admitLookup())) return { kind: 'unavailable' }
     const resolved = await runWithOutboundOrganization(null, () =>
       walk(candidates, AbortSignal.timeout(RESOLVE_DEADLINE_MS))
     ).catch((): FaviconResolution => ({ kind: 'unavailable' }))

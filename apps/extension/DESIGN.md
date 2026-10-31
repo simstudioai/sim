@@ -60,8 +60,13 @@ other workspace resources or browser-control tools.
 - Other HTTP(S) origins are optional grants requested for the current site from a
   user gesture. Each grant can be revoked. Keeping the panel open is not a grant
   to read every subsequently selected tab.
-- No history, bookmarks, cookie API, debugger, network interception, native
-  messaging, external messaging, or arbitrary remote code execution.
+- No history, bookmarks, cookie API, debugger, native messaging, external messaging,
+  or arbitrary remote code execution. The only network interception is the static
+  `sim/` redirect rule above.
+- The only background network request is the `sim` address-bar keyword: after
+  `sim` and Space, the typed link name (never a page, URL, or search containing a
+  space) is sent to the configured Sim origin with the signed-in session to suggest
+  matching Sim links. Unlisted links are never suggested.
 - No always-running page reader. Extraction is tied to an explicit attachment action.
 - Page bytes are not written to extension local/sync storage. Temporary context-menu
   handoff uses trusted-context session storage, expiration and navigation cleanup.

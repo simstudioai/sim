@@ -9,8 +9,11 @@ import { SIM_ORIGIN } from '@/config'
 
 const logger = createLogger('BrowserExtensionOmnibox')
 
-/** Long enough to skip the requests a fast typist's intermediate keystrokes would make. */
-const SUGGEST_DELAY_MS = 120
+/** Longer than the gap between a typist's keystrokes, so a name is looked up once it settles. */
+const SUGGEST_DELAY_MS = 220
+
+/** Link names are at most this long, so nothing longer can match. */
+const MAX_NAME_LENGTH = 64
 
 /** A Sim link as suggested: its name, and what it shows beside the name. */
 interface SuggestedLink {
@@ -20,20 +23,37 @@ interface SuggestedLink {
 
 /**
  * What was typed after the `sim` keyword, split where the name ends: `sim/jira/ABC-1?tab=all`
- * (the `sim/` is optional) has the name `jira` and the rest `/ABC-1?tab=all`. Only the space
- * before the name and the prefix are dropped; values and the query stay exactly as typed.
+ * (the `sim/` is optional) has the name `jira` and the rest `/ABC-1?tab=all`. Surrounding spaces,
+ * the prefix, leading slashes, and any `#fragment` are dropped, as the address bar would; values
+ * and the query otherwise stay exactly as typed.
  */
 function readTyped(text: string): { name: string; rest: string } {
-  const typed = text.trimStart().replace(/^sim\//i, '')
+  const typed = text
+    .trim()
+    .replace(/^sim\//i, '')
+    .replace(/^\/+/, '')
+    .replace(/#.*$/, '')
   const nameEnd = typed.search(/[/?]/)
   return nameEnd === -1
     ? { name: typed, rest: '' }
     : { name: typed.slice(0, nameEnd), rest: typed.slice(nameEnd) }
 }
 
-/** Suggestion text is XML, where these five characters are markup. */
+/**
+ * Suggestion text is XML, where these five characters are markup and control characters are not
+ * allowed even as references, so one bad description can't make Chrome drop every suggestion.
+ */
 function escapeXml(text: string): string {
-  return text.replace(/[&<>"']/g, (character) => `&#${character.charCodeAt(0)};`)
+  return text
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+    .replace(/[&<>"']/g, (character) => `&#${character.charCodeAt(0)};`)
+}
+
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g
+
+/** `encodeURIComponent`, except a lone surrogate (which it refuses) is dropped. */
+function encodeSegment(segment: string): string {
+  return encodeURIComponent(segment.replace(LONE_SURROGATE, ''))
 }
 
 /**
@@ -45,17 +65,20 @@ function simLinkUrl(text: string): string {
   const queryStart = rest.indexOf('?')
   const path = `${name}${queryStart === -1 ? rest : rest.slice(0, queryStart)}`.replace(/\/$/, '')
   const query = queryStart === -1 ? '' : new URLSearchParams(rest.slice(queryStart + 1)).toString()
-  const segments = path ? path.split('/').map(encodeURIComponent) : []
+  const segments = path ? path.split('/').map(encodeSegment) : []
   return `${SIM_ORIGIN}/${['sim', ...segments].join('/')}${query ? `?${query}` : ''}`
 }
 
-async function fetchSuggestedLinks(name: string, signal: AbortSignal): Promise<SuggestedLink[]> {
+/** The links Sim suggests for `name`, or `null` when it couldn't answer (signed out, rate limited). */
+async function fetchSuggestedLinks(
+  name: string,
+  signal: AbortSignal
+): Promise<SuggestedLink[] | null> {
   const response = await fetch(
     `${SIM_ORIGIN}${SIM_LINK_SUGGESTIONS_PATH}?${new URLSearchParams({ q: name })}`,
     { credentials: 'include', signal }
   )
-  // Signed out, or Sim links are unavailable: the typed link still opens through the resolver.
-  if (!response.ok) return []
+  if (!response.ok) return null
   const { links } = simLinkSuggestionsSchema.parse(await response.json())
   return links.map((link) => ({ name: link.name, detail: link.description ?? link.url }))
 }
@@ -91,6 +114,11 @@ export function registerSimLinkOmnibox() {
     chrome.omnibox.setDefaultSuggestion({
       description: `Open <match>sim/${escapeXml(`${name}${rest}`)}</match>`,
     })
+    // A name can't hold a space, so `sim card prices` is a search, not a link: ask Sim nothing.
+    if (/\s/.test(name) || name.length > MAX_NAME_LENGTH) {
+      suggest([])
+      return
+    }
     const key = name.toLowerCase()
     const known = linksByName.get(key)
     if (known) {
@@ -102,9 +130,11 @@ export function registerSimLinkOmnibox() {
     void (async () => {
       await sleep(SUGGEST_DELAY_MS)
       if (controller.signal.aborted) return
+      // Signed out or rate limited: the typed link still opens through the resolver, and the name
+      // is asked about again on the next keystroke rather than remembered as having no links.
       const links = await fetchSuggestedLinks(key, controller.signal)
-      linksByName.set(key, links)
-      if (!controller.signal.aborted) suggest(toSuggestions(links, rest))
+      if (links) linksByName.set(key, links)
+      if (!controller.signal.aborted) suggest(toSuggestions(links ?? [], rest))
     })().catch(() => {
       if (!controller.signal.aborted) logger.warn('Could not load Sim link suggestions')
     })

@@ -107,9 +107,9 @@ await writeFile(
     {
       manifest_version: 3,
       name: development ? 'Sim (Development)' : 'Sim',
-      version: '0.1.1',
+      version: '0.1.2',
       description:
-        'Ask Sim about the page you are reading, with your existing Sim conversations and tools.',
+        "Ask Sim about the page you are reading, and open your organization's sim/ links from the address bar.",
       minimum_chrome_version: '120',
       permissions: [
         'activeTab',

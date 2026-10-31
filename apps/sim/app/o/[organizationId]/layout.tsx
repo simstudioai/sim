@@ -75,10 +75,12 @@ export default async function OrganizationLayout({
       return false
     }
   )
+  const simLinksEnabledLookup = isSimLinksEnabled(organizationId)
   if (
     !context.mothershipAvailable &&
     !context.searchAccess.memberScoped &&
-    !(await peopleEnabledLookup)
+    !(await peopleEnabledLookup) &&
+    !(await simLinksEnabledLookup)
   )
     redirect(WORKSPACE_SETTINGS_PATH)
 
@@ -110,7 +112,7 @@ export default async function OrganizationLayout({
     isWorkflowTestsEnabled(organizationId),
     isChangelogEnabled(organizationId),
     isProjectsEnabled(),
-    isSimLinksEnabled(organizationId),
+    simLinksEnabledLookup,
     peopleEnabledLookup,
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'

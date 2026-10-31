@@ -113,12 +113,18 @@ describe('faviconHostCandidates', () => {
     expect(faviconHostCandidates('gitlab.gitlab.com')).toEqual(['gitlab.gitlab.com', 'gitlab.com'])
   })
 
-  it('tries at most three parents', () => {
+  it('tries at most three parents, always ending at the registrable domain', () => {
     expect(faviconHostCandidates('a.b.c.d.e.example.com')).toEqual([
       'a.b.c.d.e.example.com',
       'b.c.d.e.example.com',
       'c.d.e.example.com',
-      'd.e.example.com',
+      'example.com',
+    ])
+    expect(faviconHostCandidates('a.b.c.d.example.co.uk')).toEqual([
+      'a.b.c.d.example.co.uk',
+      'b.c.d.example.co.uk',
+      'c.d.example.co.uk',
+      'example.co.uk',
     ])
   })
 

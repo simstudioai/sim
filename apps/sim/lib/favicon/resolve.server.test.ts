@@ -71,4 +71,19 @@ describe('resolveFavicon', () => {
     expect((await resolveFavicon('acme.example.com')).kind).toBe('hit')
     expect(ttlOf('acme.example.com')).toBe(30 * DAY)
   })
+
+  it('asks no provider and caches nothing when a lookup is not admitted', async () => {
+    answers = { 'acme.example.com': 'icon' }
+    expect((await resolveFavicon('acme.example.com', async () => false)).kind).toBe('unavailable')
+    expect(inputValidationMockFns.mockSecureFetchWithValidation).not.toHaveBeenCalled()
+    expect(ttlOf('acme.example.com')).toBeUndefined()
+  })
+
+  it('serves a cached icon without asking to admit a lookup', async () => {
+    answers = { 'acme.example.com': 'icon' }
+    await resolveFavicon('acme.example.com')
+    const admit = vi.fn(async () => false)
+    expect((await resolveFavicon('acme.example.com', admit)).kind).toBe('hit')
+    expect(admit).not.toHaveBeenCalled()
+  })
 })

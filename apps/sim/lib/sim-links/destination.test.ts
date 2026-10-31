@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveSimLinkTarget } from '@/lib/sim-links/destination'
+import { resolveSimLinkTarget, typedQueryString } from '@/lib/sim-links/destination'
 import { parseTypedSimLink, simLinkFieldsSchema } from '@/lib/sim-links/validation'
 
 const fields = {
@@ -20,7 +20,7 @@ function redirectUrl(
   defaultUrl: string | null = null,
   query?: string
 ): string {
-  const target = resolveSimLinkTarget({ url, defaultUrl }, values, new URLSearchParams(query))
+  const target = resolveSimLinkTarget({ url, defaultUrl }, values, query)
   if (target.kind !== 'redirect') throw new Error(`Expected a redirect, got ${target.kind}`)
   return target.url
 }
@@ -137,7 +137,14 @@ describe('Sim link destinations', () => {
   })
 
   it.each([
-    ['https://ex.com/p', [], null, 'a=1&b=two words', 'https://ex.com/p?a=1&b=two+words'],
+    [
+      'https://ex.com/p',
+      [],
+      null,
+      'a=1&b=two%20words&edit',
+      'https://ex.com/p?a=1&b=two%20words&edit',
+    ],
+    ['https://ex.com/p', [], null, 'q=a b', 'https://ex.com/p?q=a%20b'],
     ['https://ex.com/p?x=1#top', ['y'], null, 'x=2', 'https://ex.com/p/y?x=1&x=2#top'],
     [
       'https://ex.com/search?q={*}',
@@ -155,7 +162,35 @@ describe('Sim link destinations', () => {
   })
 })
 
+describe('typedQueryString', () => {
+  it('keeps the spelling a destination reads: spaces as %20 and bare flags bare', () => {
+    expect(typedQueryString({ q: 'hello world', edit: '', tag: ['a', 'b&c'] })).toBe(
+      'q=hello%20world&edit&tag=a&tag=b%26c'
+    )
+  })
+
+  it('carries a typed # as data, never a fragment, once on a destination', () => {
+    const query = typedQueryString({ q: 'a#b' })
+    expect(resolveSimLinkTarget({ url: 'https://ex.com/p', defaultUrl: null }, [], query)).toEqual({
+      kind: 'redirect',
+      url: 'https://ex.com/p?q=a%23b',
+    })
+  })
+})
+
 describe('parseTypedSimLink', () => {
+  it.each([
+    [' onboarding', 'onboarding'],
+    ['onboarding ', 'onboarding'],
+    ['onboarding ).', 'onboarding'],
+  ])('drops the spaces around %j, which no name can hold', (name, trimmed) => {
+    expect(parseTypedSimLink([name]).name).toBe(trimmed)
+  })
+
+  it('trims the name but keeps values verbatim when values follow', () => {
+    expect(parseTypedSimLink([' jira ', ' ABC-1 '])).toEqual({ name: 'jira', values: [' ABC-1 '] })
+  })
+
   it.each([
     ['onboarding).', 'onboarding'],
     ['onboarding,', 'onboarding'],

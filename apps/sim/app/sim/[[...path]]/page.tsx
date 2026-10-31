@@ -5,6 +5,7 @@ import { getSession } from '@/lib/auth'
 import { organizationRoutes, simLinkPath } from '@/lib/navigation/paths'
 import { resolveSimLinkOrganization } from '@/lib/sim-links/application/organization'
 import { resolveSimLink, type SimLinkResolution } from '@/lib/sim-links/application/use-cases'
+import { typedQueryString } from '@/lib/sim-links/destination'
 import { parseTypedSimLink, simLinkNameSchema } from '@/lib/sim-links/validation'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { LogoShell } from '@/app/(landing)/components/logo-shell'
@@ -31,15 +32,6 @@ function decodeSimLinkPath(path: string[]): string[] {
   return segments.length === 1 ? segments[0].split('/').filter(Boolean) : segments
 }
 
-/** The typed `?…` query, rebuilt from Next's parsed params, which group repeated keys. */
-function toQueryString(searchParams: Record<string, string | string[] | undefined>): string {
-  const query = new URLSearchParams()
-  for (const [key, value] of Object.entries(searchParams)) {
-    for (const item of [value ?? []].flat()) query.append(key, item)
-  }
-  return query.toString()
-}
-
 /**
  * Why a link did not redirect. Only a valid link name is echoed back, so an arbitrary path
  * can't put its own text on this page.
@@ -59,7 +51,7 @@ function describeUnresolved(result: SimLinkResolution, validName: boolean, name:
  * or a page that offers to create the link when nobody has yet.
  */
 export default async function SimLinkPage({ params, searchParams }: SimLinkPageProps) {
-  const [{ path = [] }, query] = await Promise.all([params, searchParams.then(toQueryString)])
+  const [{ path = [] }, query] = await Promise.all([params, searchParams.then(typedQueryString)])
   const segments = decodeSimLinkPath(path)
   const session = await getSession()
   if (!session?.user)

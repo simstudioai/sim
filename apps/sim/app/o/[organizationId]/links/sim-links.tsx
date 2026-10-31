@@ -1,12 +1,13 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { type MouseEvent, useCallback, useMemo, useState } from 'react'
 import { Avatar, ChipConfirmModal, ChipModalError, writeTextToClipboard } from '@sim/emcn'
 import { Link } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useQueryStates } from 'nuqs'
 import type { SimLink } from '@/lib/api/contracts/sim-links'
 import { simLinkPath } from '@/lib/navigation/paths'
+import { toSimLinkName } from '@/lib/sim-links/validation'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
   NEW_SIM_LINK_ACTION,
@@ -90,7 +91,6 @@ export function SimLinks({ organizationId }: SimLinksProps) {
   const loaded = useMemo(() => links.data?.pages.flatMap((page) => page.links) ?? [], [links.data])
   const linksById = useMemo(() => new Map(loaded.map((link) => [link.id, link])), [loaded])
   const menuLink = menuLinkId ? linksById.get(menuLinkId) : undefined
-  if (menuLinkId && !menuLink) setMenuLinkId(null)
 
   const rows: ResourceRow[] = useMemo(
     () =>
@@ -128,6 +128,25 @@ export function SimLinks({ organizationId }: SimLinksProps) {
   }
   const sortConfig: SortConfig = { options: SORT_OPTIONS, active: activeSort, onSort, onClear }
   const startCreate = () => void setView({ create: '' })
+  const { fetchNextPage } = links
+  const { handleContextMenu } = contextMenu
+  // Rows are memoized, so stable handlers keep a keystroke from re-rendering every row.
+  const openRow = useCallback(
+    (id: string) => {
+      const link = linksById.get(id)
+      if (link) openLink(link.name)
+    },
+    [linksById]
+  )
+  const openRowMenu = useCallback(
+    (event: MouseEvent, id: string) => {
+      if (!linksById.has(id)) return
+      setMenuLinkId(id)
+      handleContextMenu(event)
+    },
+    [linksById, handleContextMenu]
+  )
+  const loadMore = useCallback(() => void fetchNextPage(), [fetchNextPage])
 
   if (!links.data && !links.isLoadingError) return <SimLinksLoading />
 
@@ -142,16 +161,10 @@ export function SimLinks({ organizationId }: SimLinksProps) {
       <Resource.Table
         columns={SIM_LINK_COLUMNS}
         rows={rows}
-        onRowClick={(id) => {
-          const link = linksById.get(id)
-          if (link) openLink(link.name)
-        }}
-        onRowContextMenu={(event, id) => {
-          if (!linksById.has(id)) return
-          setMenuLinkId(id)
-          contextMenu.handleContextMenu(event)
-        }}
-        onLoadMore={() => void links.fetchNextPage()}
+        virtualized
+        onRowClick={openRow}
+        onRowContextMenu={openRowMenu}
+        onLoadMore={loadMore}
         hasMore={links.hasNextPage}
         isLoadingMore={links.isFetchingNextPage}
         isFetching={links.isFetching}
@@ -163,7 +176,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
             <ResourceNoResults
               search={query}
               filterCount={0}
-              searchScope='Searched every Sim link in your organization.'
+              searchScope='Searched every Sim link you can see.'
               onClear={() => setSearch('')}
             />
           ) : (
@@ -193,7 +206,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
         <SimLinkModal
           key={create}
           organizationId={organizationId}
-          initialName={create}
+          initialName={toSimLinkName(create)}
           onClose={() => void setView({ create: null })}
         />
       )}

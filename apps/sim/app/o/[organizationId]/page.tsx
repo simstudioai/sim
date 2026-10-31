@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { canBrowsePeople } from '@/lib/people/feature-flag'
+import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 
 export default async function OrganizationPage({
@@ -20,9 +21,6 @@ export default async function OrganizationPage({
   if (!context) notFound()
   if (context.mothershipAvailable && context.canBuild) redirect(routes.home)
   if (context.searchAccess.memberScoped) redirect(routes.search)
-  redirect(
-    (await canBrowsePeople(organizationId, context.viewer.role))
-      ? routes.people
-      : WORKSPACE_SETTINGS_PATH
-  )
+  if (await canBrowsePeople(organizationId, context.viewer.role)) redirect(routes.people)
+  redirect((await isSimLinksEnabled(organizationId)) ? routes.simLinks : WORKSPACE_SETTINGS_PATH)
 }

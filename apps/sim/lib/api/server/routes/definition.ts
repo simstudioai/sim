@@ -23,6 +23,9 @@ export function requireJsonRouteDefinition(
   return declaredSuccessStatuses(contract)
 }
 
+/** Statuses a response body can't accompany, so never a binary route's default. */
+const BODYLESS_STATUSES = new Set([204, 205, 304])
+
 export function requireBinaryRouteDefinition(
   contract: AnyApiRouteContract,
   declaredOperation: ApplicationOperation,
@@ -36,7 +39,13 @@ export function requireBinaryRouteDefinition(
       `Route operation ${declaredOperation.id} does not match use case ${useCaseOperation.id}`
     )
   }
-  return declaredSuccessStatuses(contract)
+  const metadata = declaredSuccessStatuses(contract)
+  if (BODYLESS_STATUSES.has(metadata.successStatus)) {
+    throw new Error(
+      `${contract.method} ${contract.path} must list a status that carries a body first; it is the status a body is served with`
+    )
+  }
+  return metadata
 }
 
 /** The contract's success statuses, 200 by default; the first is a route's default status. */

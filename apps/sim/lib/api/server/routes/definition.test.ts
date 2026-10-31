@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import {
   methodMatchesContract,
+  requireBinaryRouteDefinition,
   requireJsonRouteDefinition,
 } from '@/lib/api/server/routes/definition'
 
@@ -25,6 +26,22 @@ describe('declarative route definition invariants', () => {
         { ...renameOperation, id: 'files.delete' }
       )
     ).toThrow('does not match')
+  })
+
+  it('refuses a binary route whose first status cannot carry the body it serves', () => {
+    const contract = (status: number[]) =>
+      defineRouteContract({
+        method: 'GET',
+        path: '/icon',
+        response: { mode: 'binary', status },
+      })
+    expect(() =>
+      requireBinaryRouteDefinition(contract([204, 200]), renameOperation, renameOperation)
+    ).toThrow('carries a body first')
+    expect(
+      requireBinaryRouteDefinition(contract([200, 204]), renameOperation, renameOperation)
+        .successStatus
+    ).toBe(200)
   })
 })
 
