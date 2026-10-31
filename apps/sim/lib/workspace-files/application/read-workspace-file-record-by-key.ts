@@ -1,31 +1,21 @@
 import type { Principal } from '@sim/auth/principal'
-import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ActiveWorkspaceFileContext,
-  fetchWorkspaceFileBuffer,
   getWorkspaceFile,
   loadActiveWorkspaceFileContext,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
-import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { assertOwnedFileAccess } from '@/lib/workspace-files/application/file-context'
-import { finishFileDelivery } from '@/lib/workspace-files/application/finish-file-delivery'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { OWNED_FILE_CONTEXTS, ownedFileKind } from '@/lib/workspace-files/owned-files'
-import { createFileReadReceipt } from '@/lib/workspace-files/read-receipt'
 
-export interface ReadWorkspaceFileByKeyInput {
+interface ReadWorkspaceFileByKeyInput {
   key: string
   assertedWorkspaceId?: string
-}
-
-export interface ReadWorkspaceFileContentByKeyResult {
-  file: WorkspaceFileRecord
-  content: Buffer
 }
 
 export interface ReadWorkspaceFileRecordByKeyResult {
@@ -42,29 +32,6 @@ async function loadCurrentWorkspaceFileByKey(
   })
   if (!file || file.key !== input.key) throw new OrchestrationError('not_found', 'File not found')
   return file
-}
-
-async function executeReadWorkspaceFileContentByKey({
-  input,
-  context,
-  principal,
-}: AuthorizedWorkspaceUseCaseContext<
-  typeof fileOperations.readContent,
-  ReadWorkspaceFileByKeyInput,
-  ActiveWorkspaceFileContext
->): Promise<ReadWorkspaceFileContentByKeyResult> {
-  const file = await loadCurrentWorkspaceFileByKey(input, context)
-  await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'opaque')
-  const content = await fetchWorkspaceFileBuffer(file, { maxBytes: MAX_BUFFERED_TRANSFER_BYTES })
-  const provenance = await finishFileDelivery({
-    principal,
-    authorize: () => readWorkspaceFileContentByKey.authorize({ principal, input }),
-    receipt: createFileReadReceipt({ entityType: 'workspace', entityId: context.workspaceId }, [
-      { ...file, contentUpdatedAt: file.contentUpdatedAt ?? file.updatedAt },
-    ]),
-  })
-  await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'opaque', provenance)
-  return { file, content }
 }
 
 /** Workspace files and owned files share the `workspace/` key prefix; the row says which. */
@@ -105,10 +72,4 @@ export const readWorkspaceFileRecordByKey = defineAuthorizedWorkspaceFileUseCase
     await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'opaque')
     return { file }
   },
-})
-
-export const readWorkspaceFileContentByKey = defineAuthorizedWorkspaceFileUseCase({
-  operation: fileOperations.readContent,
-  resolveContext: resolveWorkspaceFileByKeyContext,
-  execute: executeReadWorkspaceFileContentByKey,
 })

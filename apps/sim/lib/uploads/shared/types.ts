@@ -176,3 +176,9 @@ export interface StoredObjectInfo {
   uploadId?: string
   version?: string
 }
+
+/** A span of a stored object's bytes, with both offsets inclusive as HTTP `Range` counts them. */
+export interface ByteRange {
+  start: number
+  end: number
+}

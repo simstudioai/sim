@@ -5198,8 +5198,6 @@
   "apps/sim/lib/workspace-files/application/folders.ts#ListWorkspaceFileFoldersResult",
   "apps/sim/lib/workspace-files/application/folders.ts#UpdateWorkspaceFileFolderResult",
   "apps/sim/lib/workspace-files/application/move-workspace-file-items.ts#MoveWorkspaceFileItemsResult",
-  "apps/sim/lib/workspace-files/application/read-workspace-file-content-by-key.ts#ReadWorkspaceFileByKeyInput",
-  "apps/sim/lib/workspace-files/application/read-workspace-file-content-by-key.ts#ReadWorkspaceFileContentByKeyResult",
   "apps/sim/lib/workspace-files/application/read-workspace-file-content.ts#ReadWorkspaceFileContentInput",
   "apps/sim/lib/workspace-files/application/read-workspace-file-content.ts#ReadWorkspaceFileContentResult",
   "apps/sim/lib/workspace-files/application/read-workspace-file-metadata.ts#ReadWorkspaceFileMetadataResult",

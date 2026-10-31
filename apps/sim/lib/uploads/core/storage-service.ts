@@ -17,6 +17,7 @@ import type {
 } from '@/lib/uploads/providers/google-cloud-storage/types'
 import type { S3Config, S3MultipartPart } from '@/lib/uploads/providers/s3/types'
 import type {
+  ByteRange,
   DeleteFileOptions,
   DownloadFileOptions,
   FileInfo,
@@ -660,35 +661,40 @@ export async function downloadFile(options: DownloadFileOptions): Promise<Buffer
  * Stream a file out of the configured storage provider without buffering it in memory.
  * The caller MUST fully consume or `destroy()` the returned stream. Used by the large-CSV
  * import worker so a multi-hundred-MB file is never held resident.
+ *
+ * `range` reads one inclusive span of the object instead of all of it — the bytes behind an
+ * HTTP 206. The caller resolves it against the object's size first; it is passed through
+ * unchecked.
  */
 export async function downloadFileStream(options: {
   key: string
   context: StorageContext
+  range?: ByteRange
 }): Promise<Readable> {
-  const { key, context } = options
+  const { key, context, range } = options
   const config = getStorageConfig(context)
 
   if (USE_BLOB_STORAGE) {
     const { downloadFromBlobStream } = await import('@/lib/uploads/providers/blob/client')
-    return downloadFromBlobStream(key, createBlobConfig(config))
+    return downloadFromBlobStream(key, createBlobConfig(config), range)
   }
 
   if (USE_S3_STORAGE) {
     const { downloadFromS3Stream } = await import('@/lib/uploads/providers/s3/client')
-    return downloadFromS3Stream(key, createS3Config(config))
+    return downloadFromS3Stream(key, createS3Config(config), range)
   }
 
   if (USE_GCS_STORAGE) {
     const { downloadFromGcsStream } = await import(
       '@/lib/uploads/providers/google-cloud-storage/client'
     )
-    return downloadFromGcsStream(key, createGcsConfig(config))
+    return downloadFromGcsStream(key, createGcsConfig(config), range)
   }
 
   const { createReadStream } = await import('fs')
   const { join } = await import('path')
   const { UPLOAD_DIR_SERVER } = await getLocalStorageSetup()
-  return createReadStream(join(UPLOAD_DIR_SERVER, sanitizeFileKey(key)))
+  return createReadStream(join(UPLOAD_DIR_SERVER, sanitizeFileKey(key)), range)
 }
 
 /**
@@ -802,7 +808,8 @@ export async function headObject(
   const { UPLOAD_DIR_SERVER } = await getLocalStorageSetup()
   try {
     const file = await stat(join(UPLOAD_DIR_SERVER, sanitizeFileKey(key)))
-    return { size: file.size }
+    // A local write replaces the file in place, so its modification time is what changes with it.
+    return { size: file.size, version: `${file.mtimeMs}` }
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code
     if (code === 'ENOENT') return null
