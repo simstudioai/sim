@@ -61,6 +61,11 @@ export function flagSpecFor(operation: V2OperationName, field: string): FlagSpec
   return CLI_CONTRACT[operation]?.flags?.[field] ?? {}
 }
 
+/** The list field whose values may also follow the command as arguments, if any. */
+export function trailingListField(commandSpec: CommandSpec): string | undefined {
+  return Object.entries(commandSpec.flags ?? {}).find(([, flag]) => flag.trailing)?.[0]
+}
+
 /**
  * Long and short flags the root program has already claimed.
  *

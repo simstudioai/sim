@@ -1556,7 +1556,7 @@ export const CLI_CONTRACT: CliContract = {
     command: 'files batch-delete',
     describe: 'Delete several files at once',
     flags: {
-      fileIds: { list: true },
+      fileIds: { list: true, trailing: true },
     },
     confirm: 'This archives the listed files; restore them with `files restore`.',
   },

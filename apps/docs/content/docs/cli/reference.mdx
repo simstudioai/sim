@@ -972,8 +972,18 @@ Delete several files at once
 This archives the listed files; restore them with `files restore`.
 
 ```bash
-sim files batch-delete [options]
+sim files batch-delete [file-ids...] [options]
 ```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `file-ids...` | No | File identifiers to delete. Same as --file-ids. |
+
+</CommandTable>
 
 **Options**
 
@@ -981,7 +991,7 @@ sim files batch-delete [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--file-ids <value...>` | Yes | File identifiers to delete. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--file-ids <value...>` | No | File identifiers to delete. (space-separated, or @path / @- with one value per line; @@value for a literal leading @) (required, or pass the values as arguments). |
 | `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>

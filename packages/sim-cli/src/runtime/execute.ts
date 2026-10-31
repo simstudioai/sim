@@ -22,6 +22,7 @@ import {
   flagNameFor,
   isProfileWorkspacePath,
   PROFILE_INJECTED_FIELD,
+  trailingListField,
 } from './request'
 import { foldPageEnvelope, renderPage, renderResult } from './result'
 import type { OperationSpec } from './types'
@@ -415,6 +416,17 @@ export async function executeOperation(
   const requestFlags: Record<string, unknown> = { ...flags }
   for (const [index, field] of (commandSpec.positionals ?? []).entries()) {
     requestFlags[camel(flagNameFor(operation, field))] = invocation[pathPositionalCount + index]
+  }
+  const trailing = trailingListField(commandSpec)
+  const trailingValues = trailing
+    ? invocation[pathPositionalCount + (commandSpec.positionals?.length ?? 0)]
+    : undefined
+  if (trailing && Array.isArray(trailingValues) && trailingValues.length > 0) {
+    const name = flagNameFor(operation, trailing)
+    if (requestFlags[camel(name)] !== undefined) {
+      throw new SimApiError(`Pass the ${name} as arguments or with --${name}, not both`, 0)
+    }
+    requestFlags[camel(name)] = trailingValues
   }
 
   foldRenamedFlags(operation, commandSpec, requestFlags)
