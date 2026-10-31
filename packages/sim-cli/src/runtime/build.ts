@@ -477,11 +477,15 @@ function addLeafCommand(
     for (const segment of rest.slice(0, -1)) {
       parent = nestedGroup(parent, segment)
     }
-    parent.addCommand(buildLeaf(operation, spec, rest[rest.length - 1]))
+    parent.addCommand(buildLeaf(operation, spec, rest[rest.length - 1]), {
+      isDefault: spec.defaultSubcommand === true,
+    })
     return
   }
 
-  group.addCommand(buildLeaf(operation, spec, rest[0]))
+  group.addCommand(buildLeaf(operation, spec, rest[0]), {
+    isDefault: spec.defaultSubcommand === true,
+  })
 }
 
 function variantCommandSpec(spec: CommandSpec, variant: CommandVariantSpec): CommandSpec {
@@ -489,6 +493,7 @@ function variantCommandSpec(spec: CommandSpec, variant: CommandVariantSpec): Com
     ...spec,
     command: variant.command,
     groupDefault: false,
+    defaultSubcommand: undefined,
     aliases: [],
     positionals: variant.positionals,
     requestFields: variant.requestFields,
