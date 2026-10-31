@@ -14,7 +14,7 @@
  * - forwarding relays, whose aliases deliver to a real, permanent inbox;
  * - the reviewed real providers in `LEGITIMATE_DOMAINS`.
  *
- * Usage, from apps/sim: `bun run vendor:disposable-email-domains [path-to-blocklist.conf]`. With
+ * Usage, from apps/sim: `bun run generate:disposable-email-domains [path-to-blocklist.conf]`. With
  * no path it downloads the pinned commit. To refresh, bump `UPSTREAM_COMMIT`, run it, and review
  * the diff against the Tranco top list for mainstream providers and companies.
  */

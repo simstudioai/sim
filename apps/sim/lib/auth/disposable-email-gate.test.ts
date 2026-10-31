@@ -4,6 +4,7 @@ import { admin } from 'better-auth/plugins'
 import { describe, expect, it } from 'vitest'
 import { DISPOSABLE_EMAIL_ERROR_CODE } from '@/lib/auth/constants'
 import { refuseDisposableAccountEmail } from '@/lib/auth/disposable-email-gate'
+import { configuredSsoPlugin } from '@/lib/auth/sso/plugin'
 
 /**
  * A real Better Auth instance wired the way `auth.ts` wires the gate, so the endpoint path each
@@ -56,14 +57,20 @@ describe('refuseDisposableAccountEmail', () => {
     expect(result.user.email).toBe('jane@mailinator.com')
   })
 
-  it.each([
-    '/sso/callback/:providerId',
-    '/sso/callback',
-    '/sso/saml2/callback/:providerId',
-    '/sso/saml2/sp/acs/:providerId',
-  ])('admits an SSO just-in-time account created at %s', async (path) => {
-    await expect(refuseDisposableAccountEmail('jane@mailinator.com', path)).resolves.toBeUndefined()
-  })
+  /**
+   * Better Auth dispatches with an endpoint's declared path, so the SSO plugin's own callback
+   * endpoints name the paths a just-in-time creation reports. No IdP is driven here.
+   */
+  const { callbackSSO, callbackSSOShared, callbackSSOSAML, acsEndpoint } =
+    configuredSsoPlugin.endpoints
+  it.each([callbackSSO.path, callbackSSOShared.path, callbackSSOSAML.path, acsEndpoint.path])(
+    'admits any domain at the SSO plugin callback path %s',
+    async (path) => {
+      await expect(
+        refuseDisposableAccountEmail('jane@mailinator.com', path)
+      ).resolves.toBeUndefined()
+    }
+  )
 
   it.each([undefined, '/sign-up/email', '/callback/:id', '/oauth2/callback/:providerId'])(
     'refuses a disposable domain created at %s',
