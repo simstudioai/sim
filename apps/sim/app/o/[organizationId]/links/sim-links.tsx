@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
   writeTextToClipboard,
 } from '@sim/emcn'
-import { Link, MoreHorizontal, Plus } from '@sim/emcn/icons'
+import { MoreHorizontal, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import { useQueryStates } from 'nuqs'
@@ -26,6 +26,7 @@ import {
   useOrganizationPageFilters,
 } from '@/app/o/[organizationId]/components/organization-page'
 import { simLinkViewParsers } from '@/app/o/[organizationId]/links/search-params'
+import { SimLinkIcon } from '@/app/o/[organizationId]/links/sim-link-icon'
 import { SimLinkModal } from '@/app/o/[organizationId]/links/sim-link-modal'
 import { SimLinksEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import {
@@ -127,7 +128,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
             return (
               <SettingsResourceRow
                 key={link.id}
-                icon={<Link />}
+                icon={<SimLinkIcon url={link.url} />}
                 title={`sim/${link.name}`}
                 description={link.description ? `${link.description} · ${link.url}` : link.url}
                 badge={<SimLinkDetails link={link} />}
