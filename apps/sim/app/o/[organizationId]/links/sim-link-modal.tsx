@@ -18,10 +18,17 @@ import {
   SIM_LINK_NAME_MAX_LENGTH,
   SIM_LINK_VARIABLE,
   simLinkFieldsSchema,
+  toSimLinkName,
 } from '@/lib/sim-links/validation'
 import { useCreateSimLink, useUpdateSimLink } from '@/hooks/queries/sim-links'
 
 type Field = 'name' | 'url' | 'defaultUrl' | 'description'
+
+const SIM_LINKS_DOCS_URL = 'https://docs.sim.ai/search/sim-links'
+
+function openDocs() {
+  window.open(SIM_LINKS_DOCS_URL, '_blank', 'noopener,noreferrer')
+}
 
 interface SimLinkModalProps {
   organizationId: string
@@ -101,11 +108,6 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
           value={draft.url}
           onChange={(value) => change('url', value)}
           error={errors.url}
-          hint={
-            variable
-              ? `Variable link: sim/${draft.name || 'name'}/value fills each ${SIM_LINK_VARIABLE}.`
-              : `Add ${SIM_LINK_VARIABLE} where a value typed after the name should go.`
-          }
         />
         {variable && (
           <ChipModalField
@@ -117,7 +119,7 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
             value={draft.defaultUrl ?? ''}
             onChange={(value) => change('defaultUrl', value || null)}
             error={errors.defaultUrl}
-            hint={`Opens when sim/${draft.name || 'name'} is used without a value.`}
+            hint={`Opens when no value fills ${SIM_LINK_VARIABLE}.`}
           />
         )}
         <ChipModalField
@@ -128,9 +130,8 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
           placeholder='handbook'
           maxLength={SIM_LINK_NAME_MAX_LENGTH}
           value={draft.name}
-          onChange={(value) => change('name', value)}
+          onChange={(value) => change('name', toSimLinkName(value))}
           error={errors.name ?? (nameTaken ? mutation.error?.message : undefined)}
-          hint='Letters, numbers, and . : @ & ~ - _. Case and punctuation are ignored, so sim/Q4-goals is sim/q4goals.'
         />
         <ChipModalField
           type='input'
@@ -146,9 +147,7 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
           type='custom'
           title='Access'
           hint={
-            canManage
-              ? 'Anyone in your organization can open this link.'
-              : 'Only the creator or an organization admin can change access.'
+            canManage ? undefined : 'Only the creator or an organization admin can change access.'
           }
         >
           {(aria) => (
@@ -162,7 +161,7 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
                   onCheckedChange={(checked) => change('unlisted', checked === true)}
                 />
                 <span className='text-[var(--text-primary)] text-small'>
-                  Hide from the Sim Links page for everyone except you and admins
+                  Hide from the Sim Links page
                 </span>
               </label>
               <label htmlFor={restrictEditId} className='flex cursor-pointer items-center gap-2'>
@@ -174,7 +173,7 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
                   onCheckedChange={(checked) => change('restrictEdit', checked === true)}
                 />
                 <span className='text-[var(--text-primary)] text-small'>
-                  Restrict editing to you and admins
+                  Only you and admins can edit
                 </span>
               </label>
             </div>
@@ -184,6 +183,7 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
       </ChipModalBody>
       <ChipModalFooter
         onCancel={onClose}
+        secondaryActions={[{ label: 'Learn more', onClick: openDocs }]}
         primaryAction={{
           label: mutation.isPending ? pendingLabel : actionLabel,
           disabled: mutation.isPending,

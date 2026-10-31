@@ -87,7 +87,7 @@ export async function listSimLinks(
     dir = sort === 'popular' ? 'desc' : 'asc',
   }: { search?: string; cursor?: string; sort?: SimLinkSort; dir?: SortDirection }
 ): Promise<{ links: SimLinkRecord[]; nextCursor: string | null }> {
-  const order = dir === 'asc' ? asc : desc
+  const [order, after] = dir === 'asc' ? ([asc, gt] as const) : ([desc, lt] as const)
   const conditions: (SQL | undefined)[] = [eq(simLink.organizationId, organizationId)]
   if (!viewer.isAdmin) {
     conditions.push(or(eq(simLink.unlisted, false), eq(simLink.createdBy, viewer.userId)))
@@ -111,11 +111,7 @@ export async function listSimLinks(
       .limit(PAGE_SIZE)
     return { links: rows.map(toRecord), nextCursor: null }
   }
-  if (cursor) {
-    conditions.push(
-      dir === 'asc' ? gt(simLink.normalizedName, cursor) : lt(simLink.normalizedName, cursor)
-    )
-  }
+  if (cursor) conditions.push(after(simLink.normalizedName, cursor))
   const rows = await selectRecords(db)
     .where(and(...conditions))
     .orderBy(order(simLink.normalizedName))

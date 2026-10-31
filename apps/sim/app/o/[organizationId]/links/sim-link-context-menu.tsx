@@ -61,12 +61,14 @@ export function SimLinkContextMenu({
             Edit
           </DropdownMenuItem>
         )}
-        {onDelete && <DropdownMenuSeparator />}
         {onDelete && (
-          <DropdownMenuItem onSelect={onDelete}>
-            <Trash />
-            Delete
-          </DropdownMenuItem>
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onDelete}>
+              <Trash />
+              Delete
+            </DropdownMenuItem>
+          </>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

@@ -2,12 +2,17 @@
 
 import { useMemo, useState } from 'react'
 import { Avatar, Chip, ChipConfirmModal, ChipModalError, writeTextToClipboard } from '@sim/emcn'
-import { Link, Plus } from '@sim/emcn/icons'
+import { Link } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useQueryStates } from 'nuqs'
 import type { SimLink } from '@/lib/api/contracts/sim-links'
 import { simLinkPath } from '@/lib/navigation/paths'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import {
+  NEW_SIM_LINK_ACTION,
+  SIM_LINK_COLUMNS,
+  SIM_LINKS_SEARCH_PLACEHOLDER,
+} from '@/app/o/[organizationId]/links/columns'
 import SimLinksLoading from '@/app/o/[organizationId]/links/loading'
 import {
   simLinksParsers,
@@ -28,7 +33,6 @@ import type {
 import { timeCell } from '@/app/workspace/[workspaceId]/components/resource/components/time-cell'
 import {
   Resource,
-  type ResourceColumn,
   type ResourceRow,
 } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import { useDeleteSimLink, useSimLinks } from '@/hooks/queries/sim-links'
@@ -38,15 +42,6 @@ import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
 
 const logger = createLogger('SimLinks')
-
-const COLUMNS = [
-  { id: 'name', header: 'Name' },
-  { id: 'destination', header: 'Destination', widthMultiplier: 2 },
-  { id: 'description', header: 'Description', widthMultiplier: 1.4 },
-  { id: 'owner', header: 'Created by' },
-  { id: 'access', header: 'Access' },
-  { id: 'updated', header: 'Updated' },
-] as const satisfies readonly ResourceColumn[]
 
 const SORT_OPTIONS = [
   { id: 'name', label: 'Name' },
@@ -83,15 +78,18 @@ export function SimLinks({ organizationId }: SimLinksProps) {
   )
   const debouncedSearch = useSearchFilterValue(search, SEARCH_DEBOUNCE_MS)
   const { sort, dir, activeSort, onSort, onClear } = useUrlSort(simLinksSortParams, simLinksUrlKeys)
-  const links = useSimLinks(organizationId, debouncedSearch.trim(), sort, dir)
+  const query = debouncedSearch.trim()
+  const links = useSimLinks(organizationId, query, sort, dir)
   const remove = useDeleteSimLink(organizationId)
   const contextMenu = useContextMenu()
-  const [menuLink, setMenuLink] = useState<SimLink | null>(null)
+  const [menuLinkId, setMenuLinkId] = useState<string | null>(null)
   const [editing, setEditing] = useState<SimLink | null>(null)
   const [deleting, setDeleting] = useState<SimLink | null>(null)
 
   const loaded = useMemo(() => links.data?.pages.flatMap((page) => page.links) ?? [], [links.data])
   const linksById = useMemo(() => new Map(loaded.map((link) => [link.id, link])), [loaded])
+  const menuLink = menuLinkId ? linksById.get(menuLinkId) : undefined
+  if (menuLinkId && !menuLink) setMenuLinkId(null)
 
   const rows: ResourceRow[] = useMemo(
     () =>
@@ -125,10 +123,9 @@ export function SimLinks({ organizationId }: SimLinksProps) {
     value: search,
     onChange: setSearch,
     onClearAll: () => setSearch(''),
-    placeholder: 'Search Sim links...',
+    placeholder: SIM_LINKS_SEARCH_PLACEHOLDER,
   }
   const sortConfig: SortConfig = { options: SORT_OPTIONS, active: activeSort, onSort, onClear }
-  const searching = Boolean(debouncedSearch.trim())
   const startCreate = () => void setView({ create: '' })
 
   if (!links.data && !links.isLoadingError) return <SimLinksLoading />
@@ -138,22 +135,19 @@ export function SimLinks({ organizationId }: SimLinksProps) {
       <Resource.Header
         icon={Link}
         title='Sim Links'
-        actions={[
-          { id: 'create', text: 'New link', icon: Plus, variant: 'primary', onSelect: startCreate },
-        ]}
+        actions={[{ ...NEW_SIM_LINK_ACTION, id: 'create', onSelect: startCreate }]}
       />
       <Resource.Options search={searchConfig} sort={sortConfig} />
       <Resource.Table
-        columns={COLUMNS}
+        columns={SIM_LINK_COLUMNS}
         rows={rows}
         onRowClick={(id) => {
           const link = linksById.get(id)
           if (link) openLink(link.name)
         }}
         onRowContextMenu={(event, id) => {
-          const link = linksById.get(id)
-          if (!link) return
-          setMenuLink(link)
+          if (!linksById.has(id)) return
+          setMenuLinkId(id)
           contextMenu.handleContextMenu(event)
         }}
         onLoadMore={() => void links.fetchNextPage()}
@@ -167,9 +161,9 @@ export function SimLinks({ organizationId }: SimLinksProps) {
               <p className='text-[var(--text-error)] text-small'>{links.error.message}</p>
               <Chip onClick={() => void links.refetch()}>Retry</Chip>
             </div>
-          ) : searching ? (
+          ) : query ? (
             <ResourceNoResults
-              search={debouncedSearch}
+              search={query}
               filterCount={0}
               searchScope='Searched every Sim link in your organization.'
               onClear={() => setSearch('')}
