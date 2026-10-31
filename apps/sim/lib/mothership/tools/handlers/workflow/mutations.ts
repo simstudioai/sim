@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { createCopilotWorkspaceApiKey } from '@/lib/api-key/application/create-api-key'
@@ -277,10 +278,8 @@ async function answerWithinWait(
   })
   const settled = run({ ...lifecycle, executionId, onDispatch: () => markDispatched() })
   retainSandboxExecution(settled)
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const waited = new Promise<null>((resolve) => {
-    timer = setTimeout(() => resolve(null), waitMs)
-  })
+  const stopWaiting = new AbortController()
+  const waited = interruptibleSleep(waitMs, stopWaiting.signal).then(() => null)
   try {
     const result = await Promise.race([settled, waited])
     if (result) return result
@@ -288,7 +287,7 @@ async function answerWithinWait(
     const started = await Promise.race([settled, dispatched])
     if (started) return started
   } finally {
-    clearTimeout(timer)
+    stopWaiting.abort()
   }
   logger.info('Workflow tool run outlasted its wait; answering it still running', {
     toolCallId: context.toolCallId,
