@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BROWSER_SOURCES, type BrowserSource } from '@/main/browser-import/browser-sources'
 import type { BrowserProfile } from '@/main/browser-import/types'
 import { emptySkipCounts } from '@/main/browser-import/types'
@@ -35,9 +35,33 @@ vi.mock('@/main/browser-import/chromium-crypto', async (importOriginal) => ({
 const { openInBrowserProfile } = await import('@/main/browser-import/browser-launch')
 const { listAllBrowserProfiles } = await import('@/main/browser-import/chromium-profiles')
 const { readBrowserCookies } = await import('@/main/browser-import/chromium-cookies')
-const { bringSignInBack, cancelSignIn, continueSignIn, getPendingSignIn } = await import(
-  '@/main/browser-import'
-)
+const {
+  bringSignInBack,
+  cancelSignIn,
+  clearSignIns,
+  continueSignIn,
+  getPendingSignIn,
+  migrateSignIn,
+} = await import('@/main/browser-import')
+
+/** The importer is macOS-only; pin the platform so the suite means the same on every runner. */
+const realPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
+beforeAll(() => Object.defineProperty(process, 'platform', { value: 'darwin' }))
+afterAll(() => {
+  if (realPlatform) Object.defineProperty(process, 'platform', realPlatform)
+})
+
+/** Holds the next browser launch open until the test releases it. */
+function holdLaunch(): () => void {
+  let release: (() => void) | undefined
+  vi.mocked(openInBrowserProfile).mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        release = resolve
+      })
+  )
+  return () => release?.()
+}
 
 const ARC = BROWSER_SOURCES.find(({ id }) => id === 'arc') as BrowserSource
 const PROFILE: BrowserProfile = {
@@ -71,12 +95,10 @@ function readsCookies(count: number) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   vi.mocked(listAllBrowserProfiles).mockResolvedValue([PROFILE])
   vi.mocked(openInBrowserProfile).mockResolvedValue()
   readsCookies(2)
-  cancelSignIn('chat-a')
-  cancelSignIn('chat-b')
+  clearSignIns()
 })
 
 describe('continueSignIn', () => {
@@ -132,6 +154,7 @@ describe('bringSignInBack', () => {
     await expect(bringSignInBack('chat-a')).resolves.toEqual({
       result: { cookiesImported: 2, cookiesSkipped: 0 },
       handoff: expect.objectContaining({ tabId: 'tab-1', url: SIGN_IN_URL }),
+      current: true,
     })
     expect(readBrowserCookies).toHaveBeenCalledWith('/arc/Profile 2/Cookies', expect.any(Buffer), {
       scope: { domain: 'amazon.com', exact: false },
@@ -167,7 +190,10 @@ describe('bringSignInBack', () => {
     await vi.waitFor(() => expect(finishRead).toBeTypeOf('function'))
     await continueSignIn('chat-a', request('https://accounts.google.com/signin'))
     finishRead?.()
-    await expect(broughtBack).resolves.toMatchObject({ result: { cookiesImported: 2 } })
+    await expect(broughtBack).resolves.toMatchObject({
+      result: { cookiesImported: 2 },
+      current: false,
+    })
 
     expect(getPendingSignIn('chat-a')).toEqual({ site: 'google.com', browserLabel: 'Arc' })
   })
@@ -187,5 +213,58 @@ describe('bringSignInBack', () => {
 
     await expect(bringSignInBack('chat-a')).resolves.toMatchObject({ result: { error: 'unknown' } })
     expect(readBrowserCookies).not.toHaveBeenCalled()
+  })
+})
+
+describe('a handoff retired or moved while its browser launches', () => {
+  it('records nothing once a cancel lands mid-launch', async () => {
+    const release = holdLaunch()
+    const continuing = continueSignIn('chat-a', request())
+    await vi.waitFor(() => expect(openInBrowserProfile).toHaveBeenCalled())
+    cancelSignIn('chat-a')
+    release()
+
+    await expect(continuing).resolves.toEqual({})
+    expect(getPendingSignIn('chat-a')).toBeNull()
+  })
+
+  it('lets a newer continue win over an older launch that finishes later', async () => {
+    const release = holdLaunch()
+    const older = continueSignIn('chat-a', request())
+    await vi.waitFor(() => expect(openInBrowserProfile).toHaveBeenCalled())
+    await continueSignIn('chat-a', request('https://accounts.google.com/signin'))
+    release()
+
+    await expect(older).resolves.toEqual({})
+    expect(getPendingSignIn('chat-a')).toEqual({ site: 'google.com', browserLabel: 'Arc' })
+  })
+
+  it('follows a provisional chat to its saved id, mid-launch or after', async () => {
+    const release = holdLaunch()
+    const continuing = continueSignIn('pending:new-chat', request())
+    await vi.waitFor(() => expect(openInBrowserProfile).toHaveBeenCalled())
+    migrateSignIn('pending:new-chat', 'chat-a')
+    release()
+    await continuing
+
+    expect(getPendingSignIn('chat-a')).toEqual({ site: 'amazon.com', browserLabel: 'Arc' })
+    expect(getPendingSignIn('pending:new-chat')).toBeNull()
+    migrateSignIn('chat-a', 'chat-b')
+    await expect(bringSignInBack('chat-b')).resolves.toMatchObject({
+      result: { cookiesImported: 2 },
+    })
+  })
+
+  it('forgets every handoff on account teardown, including one still launching', async () => {
+    await continueSignIn('chat-a', request())
+    const release = holdLaunch()
+    const continuing = continueSignIn('chat-b', request())
+    await vi.waitFor(() => expect(openInBrowserProfile).toHaveBeenCalledTimes(2))
+    clearSignIns()
+    release()
+
+    await expect(continuing).resolves.toEqual({})
+    expect(getPendingSignIn('chat-a')).toBeNull()
+    expect(getPendingSignIn('chat-b')).toBeNull()
   })
 })

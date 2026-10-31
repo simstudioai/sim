@@ -88,6 +88,7 @@ import {
   importChromeData,
   importChromePasswords,
   listChromeImportProfiles,
+  migrateSignIn,
 } from '@/main/browser-import'
 import { getSearchSuggestions } from '@/main/browser-search/suggestions'
 import { listSites } from '@/main/browser-sites'
@@ -1182,6 +1183,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           return { tabs: [], activeTabId: null }
         }
         consumePendingScope(browserPendingScopesBySender, contents, from)
+        migrateSignIn(from, to)
         if (browserScopeBySender.get(contents) === from) {
           browserScopeBySender.set(contents, to)
           deps.scopeEvents.activateBrowser(contents, to)
@@ -1549,8 +1551,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       handler: async (sender, rawScope) => {
         const scopeId = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
         if (!scopeId) return { cookiesImported: 0, cookiesSkipped: 0, error: 'unknown' }
-        const { result, handoff } = await bringSignInBack(scopeId)
-        if (!handoff || result.cookiesImported === 0) return result
+        const { result, handoff, current } = await bringSignInBack(scopeId)
+        if (!handoff || !current || result.cookiesImported === 0) return result
         const tabOpen = withBrowserScope(scopeId, () =>
           peekTabsState().tabs.some(({ tabId }) => tabId === handoff.tabId)
         )

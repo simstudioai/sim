@@ -26,9 +26,11 @@ vi.mock('@/main/browser-import', () => ({
   bringSignInBack: vi.fn(async () => ({
     result: { cookiesImported: 2, cookiesSkipped: 0 },
     handoff: { tabId: 'tab-1', url: 'https://signin.example.com/login' },
+    current: true,
   })),
   cancelSignIn: vi.fn(),
   getPendingSignIn: vi.fn(() => null),
+  migrateSignIn: vi.fn(),
 }))
 
 vi.mock('@/main/browser-search/suggestions', () => ({
@@ -149,6 +151,7 @@ import {
   importChromeCookies,
   importChromePasswords,
   listChromeImportProfiles,
+  migrateSignIn,
 } from '@/main/browser-import'
 import { getSearchSuggestions } from '@/main/browser-search/suggestions'
 import { ComputerUseService } from '@/main/computer-use/service'
@@ -1149,8 +1152,20 @@ describe('registerIpcHandlers', () => {
     })
 
     expect(migrate).not.toHaveBeenCalled()
+    expect(migrateSignIn).not.toHaveBeenCalled()
     expect(deps.scopeEvents.activateBrowser).toHaveBeenCalledTimes(1)
 
+    migrate.mockRestore()
+  })
+
+  it('moves a pending sign-in with the browser scope when a new chat gets its id', async () => {
+    const migrate = vi.spyOn(browserDriver, 'migrateBrowserScope').mockReturnValue(true)
+    const { invoke } = collectHandlers()
+
+    await invoke.get('browser-agent:activate-scope')?.(appEvent, 'pending:signin')
+    await invoke.get('browser-agent:migrate-scope')?.(appEvent, 'pending:signin', 'chat-saved')
+
+    expect(migrateSignIn).toHaveBeenCalledWith('pending:signin', 'chat-saved')
     migrate.mockRestore()
   })
 
@@ -1305,10 +1320,23 @@ describe('registerIpcHandlers', () => {
       focus.mockRestore()
     })
 
+    it('leaves the tabs alone when a newer continue retired the handoff mid-import', async () => {
+      vi.mocked(bringSignInBack).mockResolvedValueOnce({
+        result: { cookiesImported: 2, cookiesSkipped: 0 },
+        handoff: { tabId: 'tab-1', url: 'https://signin.example.com/login' },
+        current: false,
+      })
+
+      await bringBack(activeAppEvent, 'chat-signin')
+
+      expect(panelAction).not.toHaveBeenCalled()
+    })
+
     it('leaves the tabs alone when nothing came back', async () => {
       vi.mocked(bringSignInBack).mockResolvedValueOnce({
         result: { cookiesImported: 0, cookiesSkipped: 0 },
         handoff: { tabId: 'tab-1', url: 'https://signin.example.com/login' },
+        current: true,
       })
 
       await bringBack(activeAppEvent, 'chat-signin')

@@ -89,11 +89,25 @@ interface SignInHandoff {
   scope: SiteScope
 }
 
-/** At most one per chat: continuing another page replaces the previous handoff. */
-const handoffsByScope = new Map<string, SignInHandoff>()
+/**
+ * A chat's handoff, created before the browser launches so a cancel, a newer
+ * continue, sign-out, or the chat's id migrating during the launch can retire
+ * or move it. A launch records its handoff only while its slot is still current.
+ */
+interface HandoffSlot {
+  handoff?: SignInHandoff
+}
+
+/** At most one per chat: continuing another page replaces the previous slot. */
+const slotsByScope = new Map<string, HandoffSlot>()
 
 function pendingSignIn({ profile, scope }: SignInHandoff): BrowserPendingSignIn {
   return { site: scope.domain, browserLabel: profile.source.label }
+}
+
+function isCurrentSlot(slot: HandoffSlot): boolean {
+  for (const current of slotsByScope.values()) if (current === slot) return true
+  return false
 }
 
 /**
@@ -102,7 +116,9 @@ function pendingSignIn({ profile, scope }: SignInHandoff): BrowserPendingSignIn 
  * user left from and reopens that page, whatever the tab shows by then.
  *
  * Only an https page goes, and only to a profile the importer can read back
- * from: a sign-in that can never return would strand the user.
+ * from: a sign-in that can never return would strand the user. A handoff
+ * retired while its browser launched resolves with neither `pending` nor
+ * `error`.
  */
 export async function continueSignIn(
   scopeId: string,
@@ -110,45 +126,73 @@ export async function continueSignIn(
 ): Promise<BrowserContinueSignInResult> {
   const scope = isSafeExternalUrl(request.url) ? siteScopeFor(new URL(request.url).hostname) : null
   if (!scope) return { error: 'unsupported-page' }
+  const slot: HandoffSlot = {}
+  slotsByScope.set(scopeId, slot)
   const profiles = await listAllBrowserProfiles().catch(() => [])
   const profile = profiles.find(({ id }) => id === request.profileId)
-  if (!profile?.cookiesPath) return { error: 'chrome-not-found' }
+  if (!profile?.cookiesPath) return retire(slot, { error: 'chrome-not-found' })
   try {
     await openInBrowserProfile(profile.source.bundleId, profile.directory, request.url)
   } catch {
-    return { error: 'launch-failed' }
+    return retire(slot, { error: 'launch-failed' })
   }
-  const handoff = { profile, tabId: request.tabId, url: request.url, scope }
-  handoffsByScope.set(scopeId, handoff)
-  return { pending: pendingSignIn(handoff) }
+  if (!isCurrentSlot(slot)) return {}
+  slot.handoff = { profile, tabId: request.tabId, url: request.url, scope }
+  return { pending: pendingSignIn(slot.handoff) }
+}
+
+function retire(
+  slot: HandoffSlot,
+  result: BrowserContinueSignInResult
+): BrowserContinueSignInResult {
+  for (const [scopeId, current] of slotsByScope) {
+    if (current === slot) slotsByScope.delete(scopeId)
+  }
+  return result
 }
 
 export function getPendingSignIn(scopeId: string): BrowserPendingSignIn | null {
-  const handoff = handoffsByScope.get(scopeId)
+  const handoff = slotsByScope.get(scopeId)?.handoff
   return handoff ? pendingSignIn(handoff) : null
 }
 
 export function cancelSignIn(scopeId: string): void {
-  handoffsByScope.delete(scopeId)
+  slotsByScope.delete(scopeId)
+}
+
+/** Follows a provisional chat to its saved id, including a launch still in flight. */
+export function migrateSignIn(fromScopeId: string, toScopeId: string): void {
+  const slot = slotsByScope.get(fromScopeId)
+  if (!slot) return
+  slotsByScope.delete(fromScopeId)
+  slotsByScope.set(toScopeId, slot)
+}
+
+/** Account teardown: forgets every handoff and retires launches still in flight. */
+export function clearSignIns(): void {
+  slotsByScope.clear()
 }
 
 /**
  * Imports the chat's handed-off site from the profile it was continued in. The
  * handoff stays pending until something comes back, so the user can finish
- * signing in and try again.
+ * signing in and try again. `current` is false when a cancel, a newer
+ * continue, or teardown retired the handoff while it was being imported.
  */
-export async function bringSignInBack(
-  scopeId: string
-): Promise<{ result: BrowserImportResult; handoff?: { tabId: string; url: string } }> {
-  const handoff = handoffsByScope.get(scopeId)
-  if (!handoff) return { result: cookieFailure('unknown') }
+export async function bringSignInBack(scopeId: string): Promise<{
+  result: BrowserImportResult
+  handoff?: { tabId: string; url: string }
+  current?: boolean
+}> {
+  const slot = slotsByScope.get(scopeId)
+  const handoff = slot?.handoff
+  if (!slot || !handoff) return { result: cookieFailure('unknown') }
   const result = await runCookieImport(
     handoff.profile.id,
     { ...deps(), listProfiles: async () => [handoff.profile] },
     handoff.scope
   )
-  if (result.cookiesImported > 0 && handoffsByScope.get(scopeId) === handoff) {
-    handoffsByScope.delete(scopeId)
-  }
-  return { result, handoff }
+  const current = slotsByScope.get(scopeId) === slot && slot.handoff === handoff
+  if (current && result.cookiesImported > 0) slotsByScope.delete(scopeId)
+  return { result, handoff, current }
 }

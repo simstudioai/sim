@@ -538,7 +538,10 @@ export interface BrowserPendingSignIn {
   browserLabel: string
 }
 
-/** A page handed to another browser, or why it could not be. */
+/**
+ * A page handed to another browser, or why it could not be. Neither is set when
+ * a cancel or a newer continue retired the handoff while the browser launched.
+ */
 export interface BrowserContinueSignInResult {
   pending?: BrowserPendingSignIn
   error?: BrowserContinueSignInError

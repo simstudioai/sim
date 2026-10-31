@@ -67,7 +67,7 @@ export function useContinueSignIn({ scopeId, pageUrl }: UseContinueSignInProps) 
     async (profile: BrowserImportProfile) => {
       try {
         const result = await startHandoff(profile.id)
-        if (!result.pending) toast.error(CONTINUE_ERROR_MESSAGES[result.error ?? 'unknown'])
+        if (result.error) toast.error(CONTINUE_ERROR_MESSAGES[result.error])
       } catch {
         toast.error(CONTINUE_ERROR_MESSAGES.unknown)
       }
