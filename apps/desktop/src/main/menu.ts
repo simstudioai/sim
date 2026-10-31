@@ -40,6 +40,26 @@ export interface MenuDeps {
   platform?: NodeJS.Platform
 }
 
+type MenuClick = NonNullable<MenuItemConstructorOptions['click']>
+
+/** The items both platforms' menus are assembled from. */
+interface SharedMenuItems {
+  viewSubmenu: MenuItemConstructorOptions[]
+  helpItems: MenuItemConstructorOptions[]
+  resourceFileItems: MenuItemConstructorOptions[]
+  aboutItem: MenuItemConstructorOptions
+  settingsItem: MenuItemConstructorOptions
+  serverItem: MenuItemConstructorOptions
+  checkForUpdatesItem: MenuItemConstructorOptions
+  signOutItem: MenuItemConstructorOptions
+  folderAccessItem: MenuItemConstructorOptions
+  newWindowItem: MenuItemConstructorOptions
+  newChatItem: MenuItemConstructorOptions
+  closeWindowItem: MenuItemConstructorOptions
+  goBack: MenuClick
+  goForward: MenuClick
+}
+
 /**
  * Builds the application menu: the macOS app-menu shape, or on Windows a
  * File/Edit/View/Help bar. Edit roles are load-bearing — without them
@@ -47,6 +67,13 @@ export interface MenuDeps {
  * so the zoom level persists across launches.
  */
 export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] {
+  const items = sharedMenuItems(deps)
+  return (deps.platform ?? process.platform) === 'win32'
+    ? buildWindowsMenu(items)
+    : buildMacMenu(items)
+}
+
+function sharedMenuItems(deps: MenuDeps): SharedMenuItems {
   /** Utility windows must not redirect resource commands into the hidden main window. */
   const focusedMainOrFallback = (focusedWindow: unknown): BrowserWindow | null => {
     if (focusedWindow instanceof BrowserWindow) {
@@ -310,61 +337,108 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
     },
   ]
 
-  if ((deps.platform ?? process.platform) === 'win32') {
-    return [
-      {
-        label: '&File',
-        submenu: [
-          newWindowItem,
-          newChatItem,
-          { type: 'separator' },
-          folderAccessItem,
-          settingsItem,
-          serverItem,
-          { type: 'separator' },
-          signOutItem,
-          { type: 'separator' },
-          closeWindowItem,
-          ...resourceFileItems,
-          { type: 'separator' },
-          { role: 'quit', label: 'Exit' },
-        ],
-      },
-      { role: 'editMenu' },
-      {
-        label: '&View',
-        submenu: [
-          ...viewSubmenu,
-          // Alt+Left/Right are the Windows browser-history keys; hidden so View keeps one row each.
-          {
-            label: 'Back',
-            accelerator: 'Alt+Left',
-            visible: false,
-            click: traverseHistory('back'),
-          },
-          {
-            label: 'Forward',
-            accelerator: 'Alt+Right',
-            visible: false,
-            click: traverseHistory('forward'),
-          },
-        ],
-      },
-      // No windowMenu role: off macOS it carries a Close item bound to Ctrl+W,
-      // which would steal the hidden Close Tab accelerator.
-      {
-        label: '&Help',
-        submenu: [
-          ...helpItems,
-          { type: 'separator' },
-          checkForUpdatesItem,
-          { type: 'separator' },
-          aboutItem,
-        ],
-      },
-    ]
+  return {
+    viewSubmenu,
+    helpItems,
+    resourceFileItems,
+    aboutItem,
+    settingsItem,
+    serverItem,
+    checkForUpdatesItem,
+    signOutItem,
+    folderAccessItem,
+    newWindowItem,
+    newChatItem,
+    closeWindowItem,
+    goBack: traverseHistory('back'),
+    goForward: traverseHistory('forward'),
   }
+}
 
+function buildWindowsMenu({
+  viewSubmenu,
+  helpItems,
+  resourceFileItems,
+  aboutItem,
+  settingsItem,
+  serverItem,
+  checkForUpdatesItem,
+  signOutItem,
+  folderAccessItem,
+  newWindowItem,
+  newChatItem,
+  closeWindowItem,
+  goBack,
+  goForward,
+}: SharedMenuItems): MenuItemConstructorOptions[] {
+  return [
+    {
+      label: '&File',
+      submenu: [
+        newWindowItem,
+        newChatItem,
+        { type: 'separator' },
+        folderAccessItem,
+        settingsItem,
+        serverItem,
+        { type: 'separator' },
+        signOutItem,
+        { type: 'separator' },
+        closeWindowItem,
+        ...resourceFileItems,
+        { type: 'separator' },
+        { role: 'quit', label: 'Exit' },
+      ],
+    },
+    { role: 'editMenu' },
+    {
+      label: '&View',
+      submenu: [
+        ...viewSubmenu,
+        // Alt+Left/Right are the Windows browser-history keys; hidden so View keeps one row each.
+        {
+          label: 'Back',
+          accelerator: 'Alt+Left',
+          visible: false,
+          click: goBack,
+        },
+        {
+          label: 'Forward',
+          accelerator: 'Alt+Right',
+          visible: false,
+          click: goForward,
+        },
+      ],
+    },
+    // No windowMenu role: off macOS it carries a Close item bound to Ctrl+W,
+    // which would steal the hidden Close Tab accelerator.
+    {
+      label: '&Help',
+      submenu: [
+        ...helpItems,
+        { type: 'separator' },
+        checkForUpdatesItem,
+        { type: 'separator' },
+        aboutItem,
+      ],
+    },
+  ]
+}
+
+function buildMacMenu({
+  viewSubmenu,
+  helpItems,
+  resourceFileItems,
+  aboutItem,
+  settingsItem,
+  serverItem,
+  checkForUpdatesItem,
+  signOutItem,
+  folderAccessItem,
+  newWindowItem,
+  newChatItem,
+  closeWindowItem,
+}: SharedMenuItems): MenuItemConstructorOptions[] {
   return [
     {
       label: app.name,
