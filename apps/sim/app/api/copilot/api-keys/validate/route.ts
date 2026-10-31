@@ -27,6 +27,7 @@ import {
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/attribution'
 import {
+  isFreeRunPayer,
   readMidRunAccountUsageVerdict,
   readMidRunUsageVerdict,
 } from '@/lib/billing/core/mid-run-usage'
@@ -418,7 +419,8 @@ export const POST = withRouteHandler((req: NextRequest) =>
           })
           // A continuation, and a worker's periodic re-check of a long run, also reads the
           // original payer's spend through the cached execution usage gate. A read that fails
-          // admits: the run is already under way, and the next re-check reads again.
+          // refuses a free payer, whose spend past the limit is never billed, and admits a paid
+          // one: the run is already under way, and the next re-check reads again.
           const verdict =
             !blocked?.blocked && purpose === COPILOT_VALIDATION_PURPOSE.continuation && billing
               ? billing.kind === 'attributed'
@@ -444,8 +446,15 @@ export const POST = withRouteHandler((req: NextRequest) =>
               { status: 402 }
             )
           }
-          if (verdict?.status === 'exceeded') {
-            logger.info('[API VALIDATION] Continuation usage exceeded', { userId })
+          const unreadFreePayer =
+            verdict?.status === 'unknown' &&
+            billing !== null &&
+            isFreeRunPayer(billing.kind === 'attributed' ? billing.attribution : billing.decision)
+          if (verdict?.status === 'exceeded' || unreadFreePayer) {
+            logger.info('[API VALIDATION] Continuation usage exceeded', {
+              userId,
+              unread: unreadFreePayer,
+            })
             span.setAttribute(
               TraceAttr.CopilotValidateOutcome,
               CopilotValidateOutcome.UsageExceeded
@@ -453,8 +462,14 @@ export const POST = withRouteHandler((req: NextRequest) =>
             span.setAttribute(TraceAttr.HttpStatusCode, 402)
             const usageUpgrade = await resolveUsageUpgradePayload(
               userId,
-              billing?.kind === 'attributed' ? billing.attribution : verdict.payer,
-              verdict.scope
+              billing?.kind === 'attributed'
+                ? billing.attribution
+                : verdict?.status === 'exceeded'
+                  ? verdict.payer
+                  : billing
+                    ? { billingEntity: billing.decision.billingEntity, payerSubscription: null }
+                    : undefined,
+              verdict?.status === 'exceeded' ? verdict.scope : undefined
             )
             return NextResponse.json<ValidateCopilotApiKeyUsageExceeded>(
               {

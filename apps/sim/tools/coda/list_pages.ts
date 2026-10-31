@@ -20,6 +20,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const codaListPagesTool: ToolConfig<CodaListPagesParams, CodaListPagesResponse> = {
   id: 'coda_list_pages',
+  assistant: { effect: 'read', version: 1 },
   name: 'Coda List Pages',
   description: 'List the pages in a Coda doc, including their hierarchy',
   version: '1.0.0',

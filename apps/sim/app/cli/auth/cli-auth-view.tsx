@@ -1,7 +1,12 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChipSelect, type ChipSelectOption, Label } from '@sim/emcn'
+import {
+  AuthReadonlyInput,
+  AuthSelect as ChipSelect,
+  type AuthSelectOption as ChipSelectOption,
+  AuthLabel as Label,
+} from '@sim/auth-ui'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
@@ -45,7 +50,7 @@ export function CliAuthView() {
 
   if (!resolution.valid) {
     return (
-      <div className='space-y-6'>
+      <div className='au:space-y-[var(--auth-group-gap)]'>
         <AuthHeader
           title='Invalid request'
           description='This page can only be opened by the Sim CLI.'
@@ -84,41 +89,53 @@ export function CliAuthView() {
   const suggested = workspaces.data?.workspaces.some((w) => w.id === request.suggestedWorkspaceId)
     ? request.suggestedWorkspaceId
     : null
-  const workspaceId = selected ?? suggested ?? workspaces.data?.lastActiveWorkspaceId ?? null
+  const workspaceId = workspaces.isError
+    ? null
+    : (selected ?? suggested ?? workspaces.data?.lastActiveWorkspaceId ?? null)
   const chosen = workspaces.data?.workspaces.find((w) => w.id === workspaceId)
 
   return (
-    <div className='space-y-6'>
+    <div className='au:space-y-[var(--auth-group-gap)]'>
       <AuthHeader
         title='Connect your terminal'
         description='Approve only if the code below matches the one in your terminal.'
       />
-      <div className='space-y-4'>
-        <div className='flex items-center justify-center rounded-[10px] border border-[var(--border-1)] py-5'>
-          {/* `pl` offsets the trailing letter-space `tracking` adds after the last glyph, which would otherwise pull the code left of optical center. */}
-          <code className='pl-[0.2em] font-mono text-[28px] text-[var(--text-primary)] leading-none tracking-[0.2em]'>
-            {request.pairing}
-          </code>
-        </div>
+      <div className='au:space-y-[var(--auth-group-gap)]'>
+        <AuthReadonlyInput value={request.pairing} />
         {isPlatform && (
-          <div className='flex flex-col gap-[9px]'>
-            <Label className='text-[var(--text-muted)] text-small'>Default workspace</Label>
+          <div className='au:flex au:flex-col au:gap-2'>
+            <Label
+              htmlFor='terminal-workspace'
+              className='au:text-[var(--auth-secondary)] au:text-control'
+            >
+              Default workspace
+            </Label>
             <ChipSelect
+              id='terminal-workspace'
+              aria-label='Default workspace'
               options={options}
               value={workspaceId ?? NO_DEFAULT_WORKSPACE_VALUE}
               onChange={setSelected}
-              disabled={loadingWorkspaces || workspaces.isError}
+              disabled={
+                loadingWorkspaces || workspaces.isError || approve.isPending || approve.isSuccess
+              }
               // A placeholder only shows when nothing is selected, and the
               // fallback value always counts as a selection — so the loading
               // state has to override the rendered label outright.
-              displayLabel={loadingWorkspaces ? 'Loading workspaces…' : undefined}
+              displayLabel={
+                loadingWorkspaces
+                  ? 'Loading workspaces…'
+                  : workspaces.isError
+                    ? 'Workspaces unavailable'
+                    : undefined
+              }
               placeholder='Select a workspace'
               searchable={options.length > 8}
               searchPlaceholder='Search workspaces'
               fullWidth
               dropdownWidth='trigger'
             />
-            <p className='text-[var(--text-muted)] text-caption'>
+            <p className='au:text-[var(--auth-secondary)] au:text-caption'>
               {loadingWorkspaces
                 ? 'Loading your workspace options…'
                 : workspaces.isError
@@ -137,7 +154,9 @@ export function CliAuthView() {
           loading={approve.isPending || approve.isSuccess}
           disabled={loadingWorkspaces}
           loadingLabel='Connecting'
-          onClick={() =>
+          onClick={() => {
+            if (approve.isPending || approve.isSuccess || loadingWorkspaces) return
+            setSelected(workspaceId ?? NO_DEFAULT_WORKSPACE_VALUE)
             approve.mutate(
               {
                 request: request.request,
@@ -150,7 +169,7 @@ export function CliAuthView() {
               },
               { onSuccess: () => router.push('/cli/auth/done') }
             )
-          }
+          }}
         >
           Connect
         </AuthSubmitButton>

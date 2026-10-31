@@ -32,13 +32,160 @@ export const openaiAgentkitProfile: CompetitorProfile = {
   },
   oneLiner:
     "OpenAI AgentKit bundled a visual Agent Builder, ChatKit embeddable chat UI, Connector Registry, Guardrails, and Evals for building agentic workflows on OpenAI's models. But OpenAI is winding down Agent Builder and Evals, with full shutdown November 30, 2026, in favor of the code-first Agents SDK or ChatGPT Workspace Agents.",
+  seoTitle: 'Sim vs OpenAI AgentKit: Agent Builder Shutdown Migration',
+  seoDescription:
+    'OpenAI Agent Builder shuts down November 30, 2026. Compare Sim and OpenAI AgentKit, pick a migration path, and move your workflows to Sim.',
+  leadAnswer: [
+    "OpenAI is shutting down Agent Builder, the visual canvas in AgentKit, on November 30, 2026, and the Evals platform shuts down the same day. ChatKit and the Agents SDK remain, and OpenAI's migration guide points teams to the code-first Agents SDK or ChatGPT Workspace Agents. Sim, the open-source AI workspace, fits teams that want to keep a visual workflow canvas: rebuild the workflow in Sim, keep running it on OpenAI models or switch providers, and deploy it as an API, a chat, or an MCP tool.",
+  ],
+  migration: {
+    heading: 'What to migrate to when OpenAI Agent Builder shuts down',
+    answer: [
+      'Agent Builder stops working on November 30, 2026. Before then, export each workflow as Agents SDK code; ',
+      {
+        text: 'OpenAI notes',
+        href: 'https://developers.openai.com/api/docs/guides/agent-builder/migrate-from-agent-builder',
+      },
+      ' that the export does not convert the workflow graph, and that some behavior needs manual recreation. ',
+      {
+        text: 'ChatKit stays available',
+        href: 'https://developers.openai.com/api/docs/guides/chatkit',
+      },
+      ', but a ChatKit embed backed by an Agent Builder workflow needs your own server-side agent once Agent Builder is gone. Choose the destination by who maintains the agent and how deterministic it must be.',
+    ],
+    options: [
+      {
+        name: 'OpenAI Agents SDK',
+        fitsWhen:
+          'Your developers want to keep the exported Python or TypeScript code, stay on OpenAI models, and run the agent inside an application they deploy and operate themselves.',
+        source: {
+          url: 'https://developers.openai.com/api/docs/guides/agent-builder/migrate-from-agent-builder',
+          label: 'OpenAI API: Migrate from Agent Builder',
+          asOf: '2026-10-29',
+        },
+      },
+      {
+        name: 'ChatGPT Workspace Agents',
+        fitsWhen:
+          'Your team works in a ChatGPT Business, Enterprise, or Edu workspace and wants agents built in natural language and shared there. OpenAI warns that workflows with strong determinism may not migrate faithfully.',
+        source: {
+          url: 'https://developers.openai.com/api/docs/guides/agent-builder/migrate-from-agent-builder',
+          label: 'OpenAI API: Migrate from Agent Builder',
+          asOf: '2026-10-29',
+        },
+      },
+      {
+        name: 'LangGraph',
+        fitsWhen:
+          'Your developers want low-level control of a stateful agent graph in open-source code, mixing hand-coded and model-driven steps, and accept building the hosting, monitoring, and interface around it.',
+        source: {
+          url: 'https://docs.langchain.com/oss/python/langgraph/overview',
+          label: 'LangGraph overview',
+          asOf: '2026-10-29',
+        },
+      },
+      {
+        name: 'CrewAI',
+        fitsWhen:
+          'Your developers want an open-source framework for teams of collaborating agents in code, and accept building the hosting, monitoring, and interface around it.',
+        source: {
+          url: 'https://docs.crewai.com/en/introduction',
+          label: 'CrewAI introduction',
+          asOf: '2026-10-29',
+        },
+      },
+      {
+        name: 'Microsoft Copilot Studio',
+        fitsWhen:
+          "Your organization standardizes on Microsoft 365 and wants agents built and governed in Microsoft's low-code agent builder.",
+        source: {
+          url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/fundamentals-what-is-copilot-studio',
+          label: 'Microsoft Learn: What is Copilot Studio',
+          asOf: '2026-10-29',
+        },
+      },
+      {
+        name: 'Sim',
+        fitsWhen:
+          "Your team wants to keep a visual canvas, mix agent steps with deterministic logic in one workflow, choose among model providers including OpenAI, and deploy without building its own hosting, in Sim's cloud or self-hosted.",
+        source: {
+          url: 'https://docs.sim.ai/introduction',
+          label: 'Sim Docs: Introduction',
+          asOf: '2026-10-29',
+        },
+      },
+    ],
+    stepsHeading: 'How to migrate an Agent Builder workflow to Sim',
+    steps: [
+      [
+        "Before November 30, 2026, open each workflow in Agent Builder, select Code, and copy the Agents SDK export. Note every agent's instructions, model, and tools, and the typed inputs and outputs between nodes.",
+      ],
+      [
+        'Rebuild the graph on the Sim canvas, or describe it to Sim in plain language and refine the result. Agent nodes become ',
+        { text: 'Agent blocks', href: 'https://docs.sim.ai/workflows/blocks/agent' },
+        ', If/else becomes a ',
+        { text: 'Condition block', href: 'https://docs.sim.ai/workflows/blocks/condition' },
+        ', While becomes a ',
+        { text: 'Loop', href: 'https://docs.sim.ai/workflows/blocks/loop' },
+        ', Human approval becomes a ',
+        { text: 'Human block', href: 'https://docs.sim.ai/workflows/blocks/human-in-the-loop' },
+        ', and Guardrails becomes the ',
+        { text: 'Guardrails block', href: 'https://docs.sim.ai/workflows/blocks/guardrails' },
+        '.',
+      ],
+      [
+        'Add your OpenAI API key to keep the same models, or switch any step to another provider. ',
+        {
+          text: 'Calls made with your own key',
+          href: 'https://docs.sim.ai/platform/costs#bring-your-own-key-byok',
+        },
+        " skip Sim's model usage charge.",
+      ],
+      [
+        'Reconnect tools: point MCP nodes at the same servers through ',
+        { text: "Sim's MCP tools", href: 'https://docs.sim.ai/agents/mcp' },
+        ', and move the documents behind File search into a ',
+        { text: 'Sim knowledge base', href: 'https://docs.sim.ai/knowledgebase' },
+        '.',
+      ],
+      [
+        'Run the inputs you used in Agent Builder Preview through the Sim workflow and compare the results before switching traffic.',
+      ],
+      [
+        { text: 'Deploy the workflow', href: 'https://docs.sim.ai/workflows/deployment' },
+        ' as an API, a chat, or an MCP tool, or start it from a schedule or webhook, then point your application at the Sim deployment.',
+      ],
+    ],
+  },
+  faqs: [
+    {
+      question: 'Is OpenAI AgentKit shutting down, and what should I migrate my agents to?',
+      answer:
+        "Part of OpenAI AgentKit is shutting down: Agent Builder and the Evals platform stop on November 30, 2026, while ChatKit and the Agents SDK remain. OpenAI's own migration paths are the Agents SDK for code and ChatGPT Workspace Agents for natural-language agents in ChatGPT. Sim fits teams that want to keep a visual workflow canvas, combine agent and deterministic steps, and choose among model providers, including OpenAI.",
+    },
+    {
+      question: 'When does OpenAI Agent Builder shut down?',
+      answer:
+        'OpenAI Agent Builder is scheduled to shut down on November 30, 2026, after a deprecation OpenAI announced on June 3, 2026. Existing evals become read-only on October 31, 2026, and the Evals dashboard and API shut down on November 30, 2026. A workflow rebuilt in Sim is unaffected by either date and can keep calling OpenAI models with your own API key.',
+    },
+    {
+      question: 'How much does OpenAI AgentKit cost?',
+      answer:
+        "OpenAI AgentKit has no plan of its own. You pay API rates for the models a workflow calls, plus built-in tools: web search costs $10 per 1,000 calls, and file search costs $2.50 per 1,000 calls plus $0.10 per GB per day of storage after the first 1 GB. Sim's paid plans are priced per user with included usage credits, and calls made with your own provider key skip Sim's model usage charge, though a base per-run charge still applies.",
+    },
+  ],
+  chooseCompetitorAnswer:
+    "Choose OpenAI's Agents SDK, the code-first part of AgentKit that remains after Agent Builder shuts down on November 30, 2026, if your developers want to own the agent in Python or TypeScript and stay on OpenAI's models.",
   sectionIntros: {
     platform: [
       'Sim offers a visual builder, supported self-hosting, and promotion across environments. OpenAI Agent Builder is a hosted visual canvas that OpenAI is retiring, leaving the code-first Agents SDK as its successor.',
     ],
     pricing: [
+      'OpenAI AgentKit has no plan of its own: workflows pay ',
+      { text: 'API rates', href: 'https://developers.openai.com/api/docs/pricing' },
+      ' for model tokens and built-in tools, such as web search at $10 per 1,000 calls and file search at $2.50 per 1,000 calls. ',
       { text: 'Sim combines a per-user subscription', href: '/pricing' },
-      ' with usage credits and bring-your-own-key exemptions, while OpenAI charges for model tokens and tools without a dedicated AgentKit plan. Estimate workflow volume, token consumption, and paid tool calls when comparing total cost.',
+      ' with usage credits and bring-your-own-key exemptions. Estimate workflow volume, token consumption, and paid tool calls when comparing total cost.',
     ],
     security: [
       'OpenAI publishes a broader certification portfolio, while Sim provides more direct infrastructure control through ',
@@ -89,9 +236,9 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         'ChatKit ships prebuilt widget nodes (cards, lists, forms, buttons), theming, file attachments, and chain-of-thought visualization for embedding chat-based agents into a product. Unlike Agent Builder and Evals, ChatKit itself is not being deprecated, but its managed-backend integration is being eliminated in the Agent Builder winddown, leaving only the self-hosted-backend path supported.',
       shortDescription: 'Embeddable chat UI with prebuilt widgets, theming, and file attachments.',
       source: {
-        url: 'https://community.openai.com/t/deprecation-notice-agent-builder/1382650',
-        label: 'OpenAI Community: Deprecation notice - Agent Builder',
-        asOf: '2026-07-02',
+        url: 'https://developers.openai.com/api/docs/guides/chatkit',
+        label: 'OpenAI API: ChatKit',
+        asOf: '2026-10-29',
       },
     },
     {
@@ -113,9 +260,9 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         'OpenAI announced in June 2026 that it is winding down Agent Builder (the visual no-code canvas) and the Evals platform. Evals goes read-only October 31, 2026, and both are fully unavailable November 30, 2026. The visual/no-code building experience central to AgentKit as originally announced is being discontinued in favor of the code-first Agents SDK or ChatGPT Workspace Agents.',
       shortDescription: 'Visual builder and evals platform shut down November 30, 2026.',
       source: {
-        url: 'https://community.openai.com/t/deprecation-notice-agent-builder/1382650',
-        label: 'OpenAI Community: Deprecation notice - Agent Builder',
-        asOf: '2026-07-02',
+        url: 'https://developers.openai.com/api/docs/deprecations',
+        label: 'OpenAI API: Deprecations (Agent Builder and Evals)',
+        asOf: '2026-10-29',
       },
     },
     {
@@ -125,9 +272,9 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       shortDescription:
         'Self-hosting requires running ChatKit on your own infrastructure entirely.',
       source: {
-        url: 'https://community.openai.com/t/deprecation-notice-agent-builder/1382650',
-        label: 'OpenAI Community: Deprecation notice - Agent Builder',
-        asOf: '2026-07-02',
+        url: 'https://developers.openai.com/api/docs/guides/chatkit',
+        label: 'OpenAI API: ChatKit',
+        asOf: '2026-10-29',
       },
     },
     {
@@ -154,9 +301,9 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://community.openai.com/t/deprecation-notice-agent-builder/1382650',
-            label: 'OpenAI Community: Deprecation notice - Agent Builder',
-            asOf: '2026-07-02',
+            url: 'https://developers.openai.com/api/docs/guides/agent-builder',
+            label: 'OpenAI API: Agent Builder',
+            asOf: '2026-10-29',
           },
           {
             url: 'https://developers.openai.com/api/docs/guides/agents',
@@ -182,9 +329,9 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://community.openai.com/t/deprecation-notice-agent-builder/1382650',
-            label: 'OpenAI Community: Deprecation notice - Agent Builder',
-            asOf: '2026-07-02',
+            url: 'https://developers.openai.com/api/docs/guides/chatkit',
+            label: 'OpenAI API: ChatKit',
+            asOf: '2026-10-29',
           },
         ],
       },
@@ -490,9 +637,9 @@ export const openaiAgentkitProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://community.openai.com/t/deprecation-notice-agent-builder/1382650',
-            label: 'OpenAI Community: Deprecation notice - Agent Builder',
-            asOf: '2026-07-02',
+            url: 'https://developers.openai.com/api/docs/deprecations',
+            label: 'OpenAI API: Deprecations (Agent Builder and Evals)',
+            asOf: '2026-10-29',
           },
         ],
       },

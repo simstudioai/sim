@@ -178,23 +178,20 @@ test.describe('desktop shell smoke', () => {
     const window = await app.firstWindow()
     await window.waitForSelector('#retry', { timeout: 30_000 })
     expect(window.url()).toMatch(/^sim-shell:\/\/pages\/offline\.html\?/)
-    await expect(window.getByRole('img', { name: 'Sim', exact: true })).toBeVisible()
-    await expect(window.getByRole('img', { name: 'Sim', exact: true })).toHaveAttribute(
-      'aria-label',
-      'Sim'
-    )
+    const home = window.getByRole('link', { name: 'Home', exact: true })
+    await expect(home).toBeVisible()
+    await expect(home).toHaveAttribute('href', 'https://sim.ai')
     await expect(window.locator('#title')).toHaveText('Can’t connect to Sim')
-    // The recovery path for a self-hosted shell pointed at a server it cannot
-    // reach. Exercised end to end here because it is the only coverage of the
-    // `server:` local-page IPC gate: the bundled page reads the configuration
-    // over the real preload bridge, and status.sim.ai is withheld because this
-    // origin is not one of Sim's own. `toBeHidden` is load-bearing — the page's
-    // own `button { display: inline-flex }` outranks the UA `[hidden]` rule, so
-    // the attribute alone does not hide it.
+    // The real preload bridge must retain server recovery while hiding cloud-only status.
     await expect(window.locator('#server')).toBeVisible()
     await expect(window.locator('#status')).toBeHidden()
     await expect
-      .poll(() => window.evaluate(() => document.fonts.check('16px "Season Sans"')))
+      .poll(() =>
+        window.evaluate(async () => {
+          const fonts = await document.fonts.load('14px "Sim Auth Geist"')
+          return fonts.length > 0 && fonts.every((font) => font.status === 'loaded')
+        })
+      )
       .toBe(true)
     await expect(window.locator('#detail')).toHaveAttribute('role', 'status')
   })
@@ -205,6 +202,10 @@ test.describe('desktop shell smoke', () => {
     const window = await app.firstWindow()
     await expect(window.locator('#server')).toBeVisible()
     await expect(window.locator('html')).toHaveAttribute('data-sim-desktop-title-bar', 'inset')
+    const titlebar = window.locator('[data-auth-titlebar]')
+    await expect
+      .poll(() => titlebar.evaluate((element) => element.getBoundingClientRect().height))
+      .toBeGreaterThanOrEqual(38)
     await app.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0].setFullScreen(true)
     })
@@ -212,11 +213,14 @@ test.describe('desktop shell smoke', () => {
     await window.reload()
     await expect(window.locator('#server')).toBeVisible()
     await expect(window.locator('html')).toHaveAttribute('data-sim-desktop-title-bar', 'fullscreen')
-    await expect(window.locator('.desktop-title-bar-page')).toHaveCSS('padding-top', '0px')
+    await expect(titlebar).toHaveCSS('height', '0px')
     await app.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0].setFullScreen(false)
     })
     await expect(window.locator('html')).toHaveAttribute('data-sim-desktop-title-bar', 'inset')
+    await expect
+      .poll(() => titlebar.evaluate((element) => element.getBoundingClientRect().height))
+      .toBeGreaterThanOrEqual(38)
   })
 
   test('bundled dialogs follow the app theme independently of the system theme', async () => {
@@ -310,7 +314,7 @@ test.describe('desktop shell smoke', () => {
   // Its page, the pre-filled value (which crosses the local-page IPC gate) and
   // Escape are asserted together because the packaged build once opened it as
   // a blank sheet with no way out.
-  test('the offline server picker renders EMCN controls and handles validation and dismissal', async () => {
+  test('the offline server picker handles validation and dismissal', async () => {
     const testInfo = test.info()
     app = await launchApp('http://127.0.0.1:1')
     const window = await app.firstWindow()
@@ -333,17 +337,21 @@ test.describe('desktop shell smoke', () => {
       .toBe(true)
     await picker.getByLabel('Server URL').fill('http://example.com')
     await picker.getByLabel('Server URL').press('Enter')
-    await expect(picker.getByRole('alert')).toBeVisible()
+    await expect(picker.locator('#server-origin-errors')).toBeVisible()
+    await expect(picker.getByLabel('Server URL')).toHaveAccessibleDescription(
+      /Server URL must use HTTPS/
+    )
     await expect(picker.getByLabel('Server URL')).toHaveAttribute('aria-invalid', 'true')
     await picker.getByLabel('Server URL').fill('http://127.0.0.1:1')
-    await expect(picker.getByRole('alert')).toHaveCount(0)
+    await expect(picker.locator('#server-origin-errors')).toHaveCount(0)
+    await expect(picker.getByLabel('Server URL')).not.toHaveAttribute('aria-invalid', 'true')
     await picker.getByRole('button', { name: 'Connect', exact: true }).click()
     await expect(picker.getByRole('status')).toHaveText('Already connected to this server.')
     await expect
       .poll(() =>
         picker
-          .locator('[data-chip-modal-body]')
-          .evaluate((element) => element.scrollHeight <= element.clientHeight)
+          .getByRole('dialog')
+          .evaluate((element) => element.scrollHeight <= globalThis.innerHeight)
       )
       .toBe(true)
     await picker.emulateMedia({ colorScheme: 'light' })
@@ -352,7 +360,7 @@ test.describe('desktop shell smoke', () => {
       animations: 'disabled',
     })
     await picker.emulateMedia({ colorScheme: 'dark' })
-    await expect(picker.locator('html')).toHaveClass('dark')
+    await expect(picker.locator('[data-auth-root]')).toHaveCSS('color-scheme', 'light')
     await picker.screenshot({
       path: testInfo.outputPath('server-modal-dark.png'),
       animations: 'disabled',

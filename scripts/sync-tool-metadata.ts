@@ -67,6 +67,7 @@ const METADATA_FIELDS = [
   'params',
   'oauth',
   'personalToken',
+  'assistant',
 ] as const
 
 type ToolRecord = Record<string, ToolConfig>
@@ -136,6 +137,33 @@ function build(registry: ToolRecord) {
   for (const toolId of Object.keys(registry).sort()) {
     const tool = registry[toolId] as ToolConfig & Record<string, unknown>
     if (!tool) continue
+
+    if (tool.assistant) {
+      if (!Number.isSafeInteger(tool.assistant.version) || tool.assistant.version < 1) {
+        throw new Error(`${toolId}: Assistant policy version must be a positive integer`)
+      }
+      const fields = new Set<string>()
+      for (const field of tool.assistant.reviewFields ?? []) {
+        const param = tool.params[field.name]
+        if (!param || fields.has(field.name) || !field.label.trim()) {
+          throw new Error(`${toolId}: invalid or duplicate Assistant review field ${field.name}`)
+        }
+        if (
+          param.visibility === 'hidden' ||
+          param.visibility === 'user-only' ||
+          ['credential', 'credentialId', 'oauthCredential', 'impersonateUserEmail'].includes(
+            field.name
+          ) ||
+          tool.oauth?.authoritativeParams?.some((name) => name === field.name) ||
+          field.name === tool.personalToken?.tokenParam ||
+          field.name === tool.personalToken?.hostParam ||
+          (field.editable && (field.target || tool.assistant.effect !== 'write'))
+        ) {
+          throw new Error(`${toolId}: Assistant review cannot edit authority or targets`)
+        }
+        fields.add(field.name)
+      }
+    }
 
     const entry: Record<string, unknown> = { id: tool.id ?? toolId }
     for (const field of METADATA_FIELDS) {

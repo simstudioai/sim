@@ -52,6 +52,7 @@ import { isStatusNoticePreviewEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree, getFolderPathNames } from '@/lib/folders/tree'
 import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
+import { isIntegrationUsable } from '@/lib/integrations/access'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { captureEvent } from '@/lib/posthog/client'
 import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
@@ -144,6 +145,7 @@ import { useUserProfile } from '@/hooks/queries/user-profile'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import type { Workspace } from '@/hooks/queries/workspace'
 import { useContextMenu } from '@/hooks/use-context-menu'
+import { useIntegrationAccess } from '@/hooks/use-integration-access'
 import { useMothershipChatEvents } from '@/hooks/use-mothership-chat-events'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -419,12 +421,12 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
   const {
     config: permissionConfig,
     filterBlocks,
-    isBlockAllowed,
     isToolAllowed,
     integrationAvailability,
   } = usePermissionConfig()
+  const { getAccess: getIntegrationAccess } = useIntegrationAccess(workspaceId)
   const accessRequests = useWorkspaceAccessRequestFeatures()
-  const accessRequestsEnabled = accessRequests.data?.enabled === true
+  const requestableFeatureKeys = accessRequests.requestableFeatureKeys
   const { getSettingsHref, navigateToSettings } = useSettingsNavigation()
   const initializeSearchData = useSearchModalStore((state) => state.initializeData)
   const customBlockOverlayVersion = useCustomBlockOverlayVersion()
@@ -767,7 +769,9 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
           // on a workflow the server declined to create.
           hidden:
             (!chatEnabled && !permissionsLoading && !canEdit) ||
-            (chatEnabled && permissionConfig.hideCopilot && !accessRequestsEnabled),
+            (chatEnabled &&
+              permissionConfig.hideCopilot &&
+              !requestableFeatureKeys.has('hideCopilot')),
           restricted: chatEnabled && permissionConfig.hideCopilot,
         },
         {
@@ -775,7 +779,9 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
           label: 'Dashboard',
           icon: Dashboard,
           href: `/workspace/${workspaceId}/dashboards`,
-          hidden: !dashboardsEnabled || (permissionConfig.hideFilesTab && !accessRequestsEnabled),
+          hidden:
+            !dashboardsEnabled ||
+            (permissionConfig.hideFilesTab && !requestableFeatureKeys.has('hideFilesTab')),
           restricted: permissionConfig.hideFilesTab,
         },
         {
@@ -783,7 +789,9 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
           label: 'Changelog',
           icon: Rss,
           href: `/workspace/${workspaceId}/changelog`,
-          hidden: !changelogEnabled || (permissionConfig.hideFilesTab && !accessRequestsEnabled),
+          hidden:
+            !changelogEnabled ||
+            (permissionConfig.hideFilesTab && !requestableFeatureKeys.has('hideFilesTab')),
           restricted: permissionConfig.hideFilesTab,
         },
         {
@@ -792,7 +800,9 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
           icon: Integration,
           href: `/workspace/${workspaceId}/integrations`,
           additionalActivePaths: [`/workspace/${workspaceId}/skills`],
-          hidden: permissionConfig.hideIntegrationsTab && !accessRequestsEnabled,
+          hidden:
+            permissionConfig.hideIntegrationsTab &&
+            !requestableFeatureKeys.has('hideIntegrationsTab'),
           restricted: permissionConfig.hideIntegrationsTab,
         },
       ].filter((item) => !item.hidden),
@@ -804,7 +814,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
       permissionConfig.hideIntegrationsTab,
       permissionConfig.hideCopilot,
       permissionConfig.hideFilesTab,
-      accessRequestsEnabled,
+      requestableFeatureKeys,
       chatEnabled,
       dashboardsEnabled,
       changelogEnabled,
@@ -819,7 +829,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
           label: 'Tables',
           icon: Table,
           href: `/workspace/${workspaceId}/tables`,
-          hidden: permissionConfig.hideTablesTab && !accessRequestsEnabled,
+          hidden: permissionConfig.hideTablesTab && !requestableFeatureKeys.has('hideTablesTab'),
           restricted: permissionConfig.hideTablesTab,
         },
         {
@@ -827,7 +837,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
           label: 'Files',
           icon: Files,
           href: `/workspace/${workspaceId}/files`,
-          hidden: permissionConfig.hideFilesTab && !accessRequestsEnabled,
+          hidden: permissionConfig.hideFilesTab && !requestableFeatureKeys.has('hideFilesTab'),
           restricted: permissionConfig.hideFilesTab,
         },
         {
@@ -835,7 +845,9 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
           label: 'Knowledge bases',
           icon: Database,
           href: `/workspace/${workspaceId}/knowledge`,
-          hidden: permissionConfig.hideKnowledgeBaseTab && !accessRequestsEnabled,
+          hidden:
+            permissionConfig.hideKnowledgeBaseTab &&
+            !requestableFeatureKeys.has('hideKnowledgeBaseTab'),
           restricted: permissionConfig.hideKnowledgeBaseTab,
         },
         {
@@ -843,7 +855,9 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
           label: 'Tests',
           icon: ShieldCheck,
           href: `/workspace/${workspaceId}/tests`,
-          hidden: !testsEnabled || (permissionConfig.hideFilesTab && !accessRequestsEnabled),
+          hidden:
+            !testsEnabled ||
+            (permissionConfig.hideFilesTab && !requestableFeatureKeys.has('hideFilesTab')),
           restricted: permissionConfig.hideFilesTab,
         },
         {
@@ -859,7 +873,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
       permissionConfig.hideFilesTab,
       permissionConfig.hideKnowledgeBaseTab,
       permissionConfig.hideTablesTab,
-      accessRequestsEnabled,
+      requestableFeatureKeys,
       testsEnabled,
     ]
   )
@@ -1136,14 +1150,22 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
     () =>
       permissionConfig.hideIntegrationsTab
         ? []
-        : buildIntegrationSearchItems(workspaceId, isBlockAllowed, (blockType) => {
-            const availability = integrationAvailability.get(blockType.toLowerCase())
-            if (!availability) return CONNECT_MODE.oauth
-            if (availability?.oauthAvailable) return CONNECT_MODE.oauth
-            if (availability?.state === 'limited') return CONNECT_MODE.serviceAccount
-            return null
-          }),
-    [workspaceId, permissionConfig.hideIntegrationsTab, isBlockAllowed, integrationAvailability]
+        : buildIntegrationSearchItems(
+            workspaceId,
+            (blockType) => isIntegrationUsable(getIntegrationAccess(blockType)),
+            (blockType) => {
+              const availability = integrationAvailability.get(blockType.toLowerCase())
+              if (!availability || availability.oauthAvailable) return CONNECT_MODE.oauth
+              if (availability.state === 'limited') return CONNECT_MODE.serviceAccount
+              return null
+            }
+          ),
+    [
+      workspaceId,
+      permissionConfig.hideIntegrationsTab,
+      getIntegrationAccess,
+      integrationAvailability,
+    ]
   )
 
   const searchModalConnectedAccounts = useMemo(

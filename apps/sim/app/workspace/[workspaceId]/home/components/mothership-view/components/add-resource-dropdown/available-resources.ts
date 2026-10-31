@@ -1,6 +1,7 @@
 import { useMemo, useSyncExternalStore } from 'react'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { subscribeDesktopPreferences } from '@/lib/desktop'
+import { isIntegrationUsable } from '@/lib/integrations/access'
 import { isTerminalAvailable } from '@/lib/terminal/transport'
 import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
 import {
@@ -21,6 +22,7 @@ import { useWorkflowTests } from '@/hooks/queries/workflow-tests'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
 import { useWorkspaceFilePickerOptions } from '@/hooks/queries/workspace-files'
+import { useIntegrationAccess } from '@/hooks/use-integration-access'
 
 /**
  * Placeholder id for the Browser launcher row. It never names a resource: the
@@ -178,6 +180,23 @@ export function useAvailableResources(
   const { data: tasks, isPending: tasksPending } = useMothershipChats(workspaceId, {
     enabled: enabled && Boolean(workspaceId),
   })
+  const integrationsIncluded = !excludeTypes?.includes('integration')
+  const integrationAccess = useIntegrationAccess(workspaceId, {
+    enabled: enabled && integrationsIncluded,
+  })
+  const { getAccess: getIntegrationAccess } = integrationAccess
+
+  /**
+   * Only integrations the workspace can use now: the server drops a mention of
+   * one its policy restricts or whose OAuth this deployment has not configured.
+   */
+  const usableIntegrations = useMemo(
+    () =>
+      listIntegrationsByPopularity().filter((integration) =>
+        isIntegrationUsable(getIntegrationAccess(integration.blockType))
+      ),
+    [getIntegrationAccess]
+  )
   const { data: logsData, isPending: logsPending } = useLogsList(
     workspaceId,
     LOG_DROPDOWN_FILTERS,
@@ -208,7 +227,8 @@ export function useAvailableResources(
           (!excludeTypes?.includes('knowledgebase') && knowledgeBaseFoldersPending))) ||
       fileFoldersPending ||
       tasksPending ||
-      logsPending)
+      logsPending ||
+      (integrationsIncluded && integrationAccess.isPending))
 
   const groups = useMemo(() => {
     if (!enabled) return NO_RESOURCE_GROUPS
@@ -279,7 +299,7 @@ export function useAvailableResources(
       },
       {
         type: 'integration' as const,
-        items: listIntegrationsByPopularity().map((integration) => ({
+        items: usableIntegrations.map((integration) => ({
           id: integration.blockType,
           name: integration.name,
           iconComponent: integration.icon,
@@ -355,6 +375,7 @@ export function useAvailableResources(
     knowledgeBases,
     tasks,
     logs,
+    usableIntegrations,
     excludeTypes,
     dashboardsEnabled,
     testsEnabled,

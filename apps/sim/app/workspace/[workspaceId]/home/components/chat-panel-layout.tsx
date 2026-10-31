@@ -13,6 +13,7 @@ import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/comp
 
 interface ChatPanelLayoutProps {
   children: ReactNode
+  header?: ReactNode
   panel: ReactNode
   collapsed: boolean
   label: string
@@ -27,6 +28,7 @@ interface ChatPanelLayoutProps {
 /** Shared resize handle and collapse control for resources and Search results. */
 export function ChatPanelLayout({
   children,
+  header,
   panel,
   collapsed,
   label,
@@ -48,7 +50,15 @@ export function ChatPanelLayout({
         RESOURCE_HEADER_CLASSES.layout
       )}
     >
-      <div className={cn('contents', !collapsed && 'max-md:hidden')}>{children}</div>
+      <div
+        className={cn(
+          header ? 'flex min-h-0 min-w-0 flex-1 flex-col md:min-w-[min(480px,50%)]' : 'contents',
+          !collapsed && 'max-md:hidden'
+        )}
+      >
+        {header && <div className={RESOURCE_HEADER_CLASSES.content}>{header}</div>}
+        {children}
+      </div>
       {!collapsed && (
         <div className='relative z-20 w-0 flex-none max-md:hidden'>
           <div

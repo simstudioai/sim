@@ -3,7 +3,7 @@
 # CI groups, which reuse the production build from `e2e-build`.
 # The job extracts it into apps/sim/.next before running these suites.
 #
-# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|project-files|mobile|seo>   (run from apps/sim)
+# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|browser-extension|project-files|mobile|seo>   (run from apps/sim)
 #
 # The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
@@ -20,7 +20,7 @@
 # telemetry flush runs detached and still writes .next/dev).
 set -euo pipefail
 
-group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|project-files|mobile|seo>}
+group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|browser-extension|project-files|mobile|seo>}
 report_dir="$RUNNER_TEMP/e2e"
 ready_timeout_seconds=600
 mkdir -p "$report_dir"
@@ -144,6 +144,7 @@ case "$group" in
     export INTERNAL_API_SECRET=scim-http-ci-local-secret-at-least-32-characters
     export DB_TX_TRIPWIRE=throw
     export NEXT_PUBLIC_CHAT_DISABLED=true
+    export SIM_LINKS=true
     start_app scim 3017 SCIM record-http-status
     SCIM_E2E_BASE_URL="$local_app_url" \
     SCIM_E2E_DATABASE_URL="$DATABASE_URL" \
@@ -155,6 +156,11 @@ case "$group" in
     VERSION_COMPARE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
     VERSION_COMPARE_E2E_REPORT_PATH="$report_dir/version-compare-http-report.json" \
       bun run test:workflow-version-compare:e2e
+    SIM_LINKS_E2E_BASE_URL="$local_app_url" \
+    SIM_LINKS_E2E_DATABASE_URL="$DATABASE_URL" \
+    SIM_LINKS_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    SIM_LINKS_E2E_REPORT_PATH="$report_dir/sim-links-e2e-report.json" \
+      bun run test:sim-links:e2e
     ;;
 
   # The search suites serve their own fixtures in-process and need no app. They share this group
@@ -198,11 +204,14 @@ case "$group" in
     ;;
 
   # The desktop background executor's protocol: device registration, the SSE doorbell over Redis
-  # pub/sub, presence, leased claims, Stop and isolation. The only group whose app gets Redis.
+  # pub/sub, presence, leased claims, Stop and isolation.
   desktop-inbox)
     export REDIS_URL=redis://127.0.0.1:6379
     export NEXT_PUBLIC_FORCE_HOSTED=false
     export COPILOT_TOOL_PERMISSIONS_ENABLED=true
+    export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
+    export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
+    bunx --no-install playwright install --with-deps chromium
     export INTERNAL_API_SECRET=desktop-inbox-http-ci-local-secret-at-least-32-characters
     export DB_TX_TRIPWIRE=throw
     start_app desktop-inbox 3019 'desktop executor' record-http-status
@@ -212,6 +221,41 @@ case "$group" in
     DESKTOP_INBOX_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
     DESKTOP_INBOX_E2E_REPORT_PATH="$report_dir/desktop-inbox-http-report.json" \
       bun run test:desktop-inbox:e2e
+    ASSISTANT_ACTIONS_E2E_BASE_URL="$local_app_url" \
+    ASSISTANT_ACTIONS_E2E_DATABASE_URL="$DATABASE_URL" \
+    ASSISTANT_ACTIONS_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    ASSISTANT_ACTIONS_E2E_REPORT_PATH="$report_dir/assistant-actions-ui-report.json" \
+      bun --no-env-file scripts/test-assistant-actions-e2e.ts
+    ORGANIZATION_SEARCH_E2E_BASE_URL="$local_app_url" \
+    ORGANIZATION_SEARCH_E2E_DATABASE_URL="$DATABASE_URL" \
+    ORGANIZATION_SEARCH_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    ORGANIZATION_SEARCH_E2E_REPORT_PATH="$report_dir/organization-search-ui-report.json" \
+      bun --no-env-file scripts/test-organization-search-e2e.ts
+    ;;
+
+  browser-extension)
+    export REDIS_URL=redis://127.0.0.1:6379
+    export NEXT_PUBLIC_FORCE_HOSTED=false
+    export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
+    export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true
+    export API_ENCRYPTION_KEY="$ENCRYPTION_KEY"
+    bunx --no-install playwright install --with-deps chromium
+    extension_identity=$(bun - <<'JS'
+      import { generateKeyPairSync, createHash } from 'node:crypto'
+      const { publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+      const der = publicKey.export({ type: 'spki', format: 'der' })
+      const id = [...createHash('sha256').update(der).digest('hex').slice(0, 32)]
+        .map(c => String.fromCharCode(97 + parseInt(c, 16))).join('')
+      process.stdout.write(`${der.toString('base64')}\n${id}`)
+JS
+    )
+    export SIM_EXTENSION_KEY="${extension_identity%%$'\n'*}"
+    export BROWSER_EXTENSION_IDS="${extension_identity#*$'\n'}"
+    start_app browser-extension 3007 'browser extension' record-http-status
+    EXTENSION_APP_E2E_BASE_URL="$local_app_url" \
+    EXTENSION_APP_E2E_DATABASE_URL="$DATABASE_URL" \
+    EXTENSION_APP_E2E_REPORT_PATH="$report_dir/browser-extension/report.json" \
+      bun run test:browser-extension:e2e
     ;;
 
   project-files)

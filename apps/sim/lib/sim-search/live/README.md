@@ -161,6 +161,16 @@ Zoom Search defaults off for organization-scoped rollout. Enable selected organi
 
 Only the canonical organization ID participates in this rollout check. For local or self-hosted deployments, `ZOOM_SEARCH=true` enables Zoom Search for all otherwise eligible organization-owned scopes; personal workspaces without an organization cannot use managed connected accounts. Leave that boolean fallback off for an organization-targeted rollout. Setup, enrollment and retrieval enforce the flag. The dedicated Zoom MCP Search connector is gated wherever it is invoked, including generic MCP tools; the standard workflow Zoom OAuth/tools remain available. Disabling the flag preserves saved grants and conversations while denying subsequent Search use; existing approvals can still be removed and connected accounts disconnected. Other providers retain the shared Search and credential-group availability policies without a separate provider rollout gate.
 
+### Search diagnostics
+
+Dashboard, Copilot, and MCP searches share a `searchId` across the application summary and each provider account. The route logger also carries its request ID. `Live search provider completed` records the account's ordinal within that search, elapsed time, stage timings, query outcomes, coverage limitations, and up to 128 outbound requests. Each request includes its stage, native-query ordinal when present, transport, status, start offset, elapsed time including body decoding, and safe failure codes. Stage times can overlap; do not sum them to calculate request latency.
+
+The coverage flags distinguish failed verification, verification rate limits, partial service-account coverage, provider-reported partial results, missing dates, and pagination limits. A partial result can occur even when every HTTP request succeeds. Failures caught by verification or preview fallbacks remain visible in the request records.
+
+`pendingRequestCount` identifies requests still running when a provider returns. Retained requests finishing later emit `Live search request completed after provider`, correlated by `searchId`, provider, account ordinal, and zero-based `requestIndex`. Search never waits for telemetry or late previews. `omittedRequestCount` reports requests beyond the diagnostic cap; their individual records, including late completions, are intentionally omitted.
+
+In CloudWatch Logs Insights, start with the request's time window and filter `@message` for `Knowledge search completed` or `Live search provider completed`, then follow its `searchId` across all records. Authentication and session setup, search, verification, and previews have separate stages. Only fixed failure classifications, HTTP statuses, allowlisted network/credential codes, and allowlisted provider reason codes are retained. Unknown errors remain `unexpected_error`; query text, URLs, document content, account identifiers, credentials, provider error messages, and stacks are not logged by these diagnostics.
+
 ### Shared invariants
 
 - Keep provider parsing isolated from authorization. The application operation owns current membership, policy loading, active account resolution, scoped references, and result projection.

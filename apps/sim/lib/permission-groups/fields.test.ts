@@ -164,6 +164,7 @@ const fixtures: readonly CoercionFixture[] = [
       disableOAuthAppAccess: true,
       disableKnowledgeBaseExport: true,
       deniedPartialAccessProjectIssues: ['project-a'],
+      deniedAccessRequests: ['feature:hideTablesTab'],
     },
     expected: {
       allowedIntegrations: ['slack_v2'],
@@ -209,6 +210,7 @@ const fixtures: readonly CoercionFixture[] = [
       disableOAuthAppAccess: true,
       disableKnowledgeBaseExport: true,
       deniedPartialAccessProjectIssues: ['project-a'],
+      deniedAccessRequests: ['feature:hideTablesTab'],
       defaultAgentModel: null,
     },
   },

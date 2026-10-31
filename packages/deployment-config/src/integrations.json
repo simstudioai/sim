@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-26",
+  "updatedAt": "2026-10-28",
   "integrations": [
     {
       "type": "onepassword",
@@ -14251,6 +14251,10 @@
           "description": "Create a new Jira issue"
         },
         {
+          "name": "Create Sprint",
+          "description": "Create a future sprint on a Jira Software board"
+        },
+        {
           "name": "Delete Issue",
           "description": "Delete a Jira issue"
         },
@@ -14355,7 +14359,7 @@
           "description": "Get all system and custom fields defined in the Jira instance. Useful for discovering custom field IDs (e.g., customfield_10001) to use when writing or updating issues."
         }
       ],
-      "operationCount": 30,
+      "operationCount": 31,
       "triggers": [
         {
           "id": "jira_issue_created",
@@ -14439,7 +14443,7 @@
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["project-management", "ticketing"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-10-28"
     },
     {
       "type": "jira_service_management",

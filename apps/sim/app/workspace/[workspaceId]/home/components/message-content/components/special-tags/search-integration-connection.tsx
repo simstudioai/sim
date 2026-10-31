@@ -2,6 +2,10 @@
 
 import { Chip } from '@sim/emcn'
 import { Check } from '@sim/emcn/icons'
+import {
+  getCredentialGroupProviderService,
+  isCredentialGroupProvider,
+} from '@/lib/credential-groups/providers'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
 import {
@@ -48,7 +52,11 @@ function SearchIntegrationConnectionControl({
     controlId,
     onConnected,
   })
-  const name = connector?.meta.name ?? target.provider
+  const service = isCredentialGroupProvider(target.provider)
+    ? getCredentialGroupProviderService(target.provider)
+    : undefined
+  const name = connector?.meta.name ?? service?.name ?? target.provider
+  const icon = connector?.serviceIcon ?? service?.icon
   const action = target.credentialId ? 'Reconnect' : 'Connect'
   const connected = connection.connected
   const label = connected
@@ -67,16 +75,13 @@ function SearchIntegrationConnectionControl({
         label={label}
         divided={Boolean(divided)}
         disabled={
-          !connector ||
           connection.isLoading ||
           connection.isStarting ||
           connected ||
           (!connection.available && !connection.pending)
         }
         onClick={handleConnect}
-        leading={
-          connector && <BrandIcon icon={connector.serviceIcon} className='size-[16px] shrink-0' />
-        }
+        leading={icon && <BrandIcon icon={icon} className='size-[16px] shrink-0' />}
         trailing={connected ? <Check className='size-[16px] text-[var(--text-icon)]' /> : undefined}
       />
       {connection.pending && <Chip onClick={connection.cancel}>Cancel</Chip>}

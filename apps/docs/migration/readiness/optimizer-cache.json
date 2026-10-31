@@ -1,0 +1,96 @@
+{
+  "revision": "179c340e8069b59d770cfc763dd42602d8c66c76",
+  "scope": "6 bounded loopback HTTP requests; no browser cache or CDN; existing CI build artifact installed locally, no cache purge",
+  "results": [
+    {
+      "asset": "hero-foreground",
+      "visit": "first",
+      "requestedWidth": 384,
+      "status": 200,
+      "durationMs": 28.9,
+      "bodyBytes": 6740,
+      "headers": {
+        "vary": "Accept",
+        "cache-control": "public, max-age=315360000, immutable",
+        "etag": "OETD85zOGlj3n3B08e1dA3MqkWPzg6aLDWXphBehtPU",
+        "content-type": "image/webp",
+        "x-nextjs-cache": "MISS",
+        "content-length": "6740"
+      }
+    },
+    {
+      "asset": "hero-foreground",
+      "visit": "repeat",
+      "requestedWidth": 384,
+      "status": 200,
+      "durationMs": 1.0,
+      "bodyBytes": 6740,
+      "headers": {
+        "vary": "Accept",
+        "cache-control": "public, max-age=315360000, immutable",
+        "etag": "OETD85zOGlj3n3B08e1dA3MqkWPzg6aLDWXphBehtPU",
+        "content-type": "image/webp",
+        "x-nextjs-cache": "HIT",
+        "content-length": "6740"
+      }
+    },
+    {
+      "asset": "hero-foreground",
+      "visit": "conditional",
+      "requestedWidth": 384,
+      "status": 304,
+      "durationMs": 1.1,
+      "bodyBytes": 0,
+      "headers": {
+        "vary": "Accept",
+        "cache-control": "public, max-age=315360000, immutable",
+        "etag": "OETD85zOGlj3n3B08e1dA3MqkWPzg6aLDWXphBehtPU"
+      }
+    },
+    {
+      "asset": "hero-background",
+      "visit": "first",
+      "requestedWidth": 384,
+      "status": 200,
+      "durationMs": 14.8,
+      "bodyBytes": 7916,
+      "headers": {
+        "vary": "Accept",
+        "cache-control": "public, max-age=315360000, immutable",
+        "etag": "-5680RST4xJbISyfw0KxAMUQ-NSPgdGq7tI2YwufCQI",
+        "content-type": "image/webp",
+        "x-nextjs-cache": "MISS",
+        "content-length": "7916"
+      }
+    },
+    {
+      "asset": "hero-background",
+      "visit": "repeat",
+      "requestedWidth": 384,
+      "status": 200,
+      "durationMs": 1.1,
+      "bodyBytes": 7916,
+      "headers": {
+        "vary": "Accept",
+        "cache-control": "public, max-age=315360000, immutable",
+        "etag": "-5680RST4xJbISyfw0KxAMUQ-NSPgdGq7tI2YwufCQI",
+        "content-type": "image/webp",
+        "x-nextjs-cache": "HIT",
+        "content-length": "7916"
+      }
+    },
+    {
+      "asset": "hero-background",
+      "visit": "conditional",
+      "requestedWidth": 384,
+      "status": 304,
+      "durationMs": 0.9,
+      "bodyBytes": 0,
+      "headers": {
+        "vary": "Accept",
+        "cache-control": "public, max-age=315360000, immutable",
+        "etag": "-5680RST4xJbISyfw0KxAMUQ-NSPgdGq7tI2YwufCQI"
+      }
+    }
+  ]
+}

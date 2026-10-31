@@ -13,16 +13,14 @@ import {
 } from '@sim/emcn'
 import { Search, X } from '@sim/emcn/icons'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
+import { PAGE_COLUMN_CLASS } from '@/app/o/[organizationId]/components/organization-page/constants'
 import { useOrganizationPageFilters } from '@/app/o/[organizationId]/components/organization-page/use-organization-page-filters'
 import {
   SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
   SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 
-/** The home surface's reading column, so every organization page shares its width. */
-export const PAGE_COLUMN_CLASS = 'mx-auto w-full max-w-chat px-6'
-
-export interface OrganizationPageTab {
+interface OrganizationPageTab {
   id: string
   label: string
 }

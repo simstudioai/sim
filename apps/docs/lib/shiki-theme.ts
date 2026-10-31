@@ -7,7 +7,8 @@ import type { ThemeRegistrationRaw } from 'shiki'
  * token colors live in `packages/emcn/src/components/code/code.css`. Docs highlight with
  * Shiki, which is TextMate-scoped rather than Prism-tokenized, so parity has to be
  * expressed as a scope-to-color mapping rather than a shared stylesheet. The palette follows
- * `code.css`, with darker light-mode hues where needed for readable contrast on the code surface.
+ * `code.css` in light mode, with darker hues for readable contrast. Dark mode consumes the
+ * docs semantic tokens so authored MDX and generated examples share the reading palette.
  *
  * The mapping was derived by highlighting the same snippets through both engines and
  * comparing output. Two places where the grammars genuinely disagree, and the choice made:
@@ -44,21 +45,19 @@ const LIGHT = {
   deleted: '#b91c1c',
 } as const
 
-/** Dark-mode token colors, from the `.dark .code-editor-theme` rules in emcn's `code.css`. */
+/** Dark syntax roles resolve through the shared docs theme, including portal surfaces. */
 const DARK = {
-  /** `--code-foreground`. */
-  foreground: '#eeeeee',
-  /** `--code-bg`. */
-  background: '#1f1f1f',
-  comment: '#6ec97d',
-  punctuation: '#d4d4d4',
-  variable: '#4fc3f7',
-  constant: '#a5d6a7',
-  string: '#f39c6b',
-  keyword: '#2fa1ff',
-  function: '#fbbf24',
-  regex: '#f87171',
-  deleted: '#f87171',
+  foreground: 'var(--docs-text)',
+  background: 'var(--docs-surface)',
+  comment: 'var(--docs-green)',
+  punctuation: 'var(--docs-text)',
+  variable: 'var(--docs-blue)',
+  constant: 'var(--docs-green)',
+  string: 'var(--docs-orange)',
+  keyword: 'var(--docs-blue)',
+  function: 'var(--docs-orange)',
+  regex: 'var(--docs-red)',
+  deleted: 'var(--docs-red)',
 } as const
 
 type TokenColors = typeof LIGHT | typeof DARK
@@ -192,17 +191,7 @@ function buildTheme(name: string, type: 'light' | 'dark', c: TokenColors): Theme
 const simShikiLight = buildTheme('sim-light', 'light', LIGHT)
 const simShikiDark = buildTheme('sim-dark', 'dark', DARK)
 
-/**
- * The Shiki configuration shared by both highlighting pipelines — the MDX one in
- * `source.config.ts` and fumadocs-openapi's separate instance in the docs page. They must
- * agree or the API reference renders in a different palette from the rest of the site, so the
- * options object is defined once here rather than written out at each call site.
- *
- * `defaultColor: false` is fumadocs' own default and has to be restated, because supplying
- * `themes` replaces that default block wholesale. It is what emits the paired
- * `--shiki-light` / `--shiki-dark` custom properties that let the theme toggle recolor code
- * without re-highlighting.
- */
+/** Shared syntax palette for build-time MDX and generated API examples. */
 export const simShikiOptions = {
   themes: { light: simShikiLight, dark: simShikiDark },
   defaultColor: false,

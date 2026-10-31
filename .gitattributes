@@ -41,3 +41,6 @@ Dockerfile* text eol=lf
 *.ttf binary
 *.eot binary
 *.pdf binary
+
+apps/docs/migration/report.json linguist-generated=true
+apps/docs/migration/verification/** linguist-generated=true

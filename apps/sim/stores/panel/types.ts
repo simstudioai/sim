@@ -1,3 +1,4 @@
+import type { PageSnapshot } from '@sim/browser-extension-protocol'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import type { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
@@ -44,6 +45,7 @@ interface WorkspaceOwned {
 }
 
 export type ChatContext =
+  | { kind: 'browser_page'; label: string; snapshot: PageSnapshot }
   | ({ kind: 'past_chat'; chatId: string; label: string } & WorkspaceOwned)
   | ({ kind: 'workflow'; workflowId: string; label: string } & WorkspaceOwned)
   | { kind: 'current_workflow'; workflowId: string; label: string }

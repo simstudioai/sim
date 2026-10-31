@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentType, useCallback, useMemo, useRef } from 'react'
+import { type ComponentType, useCallback, useMemo, useRef, useState } from 'react'
 import {
   ChevronDown,
   ChipInput,
@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
   Search,
 } from '@sim/emcn'
+import { Lock } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import {
@@ -20,6 +21,7 @@ import {
   type Integration,
   resolveCredentialDisplay,
 } from '@/lib/integrations'
+import { isIntegrationPermitted } from '@/lib/integrations/access'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components/integration-tabs-header'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
@@ -32,12 +34,19 @@ import {
   integrationsParsers,
   integrationsUrlKeys,
 } from '@/app/workspace/[workspaceId]/integrations/search-params'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
+import {
+  PermissionAccessBoundary,
+  useWorkspaceAccessRequestFeatures,
+} from '@/ee/access-requests/components/permission-access-boundary'
+import { RequestAccessModal } from '@/ee/access-requests/components/request-access-action'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
-import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useIntegrationAccess } from '@/hooks/use-integration-access'
 
 /** Slugs surfaced in the pinned Featured section, in display order. */
 const FEATURED_SLUGS = ['slack', 'gmail', 'jira', 'github', 'google-sheets', 'hubspot'] as const
@@ -71,6 +80,9 @@ interface IntegrationItemProps {
   description?: string | null
   icon: ComponentType<{ className?: string }>
   unavailable?: boolean
+  restricted?: boolean
+  /** Set for an integration the viewer's policy restricts but lets them request. */
+  onRequestAccess?: () => void
 }
 
 function IntegrationItem({
@@ -81,6 +93,8 @@ function IntegrationItem({
   description,
   icon: Icon,
   unavailable = false,
+  restricted = false,
+  onRequestAccess,
 }: IntegrationItemProps) {
   return (
     <SettingsResourceRow
@@ -92,9 +106,15 @@ function IntegrationItem({
           ? 'Unavailable in this deployment. Contact your administrator.'
           : description || undefined
       }
-      href={`/workspace/${workspaceId}/integrations/${slug}`}
-      clickLabel={`Open ${name}`}
-      navigable={!unavailable}
+      badge={
+        restricted ? (
+          <Lock className='size-[14px] text-[var(--text-icon)]' aria-hidden />
+        ) : undefined
+      }
+      href={onRequestAccess ? undefined : `/workspace/${workspaceId}/integrations/${slug}`}
+      onClick={onRequestAccess}
+      clickLabel={onRequestAccess ? `Request access to ${name}` : `Open ${name}`}
+      navigable={!unavailable && !restricted}
       disabled={unavailable}
     />
   )
@@ -150,10 +170,20 @@ function IntegrationsContent() {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
-  const { integrationAvailability } = usePermissionConfig()
+  const {
+    getAccess,
+    isReady: isAccessReady,
+    isAvailabilityFetching,
+    availabilityError,
+    refetchAvailability,
+  } = useIntegrationAccess(workspaceId)
+  const accessRequestsEnabled = useWorkspaceAccessRequestFeatures().data?.enabled === true
+  const [requestedIntegration, setRequestedIntegration] = useState<Integration | null>(null)
 
-  const [{ category: selectedCategory, search: urlSearchTerm }, setIntegrationFilters] =
-    useQueryStates(integrationsParsers, integrationsUrlKeys)
+  const [{ category: urlCategory, search: urlSearchTerm }, setIntegrationFilters] = useQueryStates(
+    integrationsParsers,
+    integrationsUrlKeys
+  )
 
   /**
    * The input is controlled directly by the instant nuqs value; only the URL
@@ -180,10 +210,22 @@ function IntegrationsContent() {
     [credentials]
   )
 
+  /**
+   * A credential is listed while one integration it authenticates is usable
+   * here; one tied to no catalog integration is not governed by the allowlist.
+   * Nothing is listed until the access policy has loaded.
+   */
   const connectedItems = useMemo<ConnectedDisplayItem[]>(() => {
+    if (!isAccessReady) return []
     return oauthCredentials.flatMap((credential) => {
       const display = resolveCredentialDisplay(credential)
       if (!display.service || !display.icon) return []
+      const isUsable =
+        display.coveredIntegrations.length === 0 ||
+        display.coveredIntegrations.some((integration) =>
+          isIntegrationPermitted(getAccess(integration.type))
+        )
+      if (!isUsable) return []
       return [
         {
           credential,
@@ -203,7 +245,36 @@ function IntegrationsContent() {
         },
       ]
     })
-  }, [oauthCredentials])
+  }, [oauthCredentials, isAccessReady, getAccess])
+
+  /**
+   * Usable and unconfigured integrations are listed, the latter as unavailable;
+   * a requestable one stays listed as a locked row while requests are paused.
+   * Nothing is listed until the access policy has loaded.
+   */
+  const isListed = useCallback(
+    (blockType: string) => {
+      const access = getAccess(blockType)
+      return isIntegrationPermitted(access) || access === 'requestable'
+    },
+    [getAccess]
+  )
+
+  const listedFeatured = useMemo(
+    () => FEATURED_INTEGRATIONS.filter((integration) => isListed(integration.type)),
+    [isListed]
+  )
+
+  const listedCategorySections = useMemo(
+    () =>
+      ALL_CATEGORY_SECTIONS.flatMap((section) => {
+        const integrations = section.integrations.filter((integration) =>
+          isListed(integration.type)
+        )
+        return integrations.length > 0 ? [{ label: section.label, integrations }] : []
+      }),
+    [isListed]
+  )
 
   const setSelectedCategory = useCallback(
     (category: string) => {
@@ -215,9 +286,20 @@ function IntegrationsContent() {
   const categoryOptions = [
     ALL_CATEGORY,
     ...(connectedItems.length > 0 ? [CONNECTED_LABEL] : []),
-    FEATURED_LABEL,
-    ...ALL_CATEGORY_SECTIONS.map((section) => section.label),
+    ...(listedFeatured.length > 0 ? [FEATURED_LABEL] : []),
+    ...listedCategorySections.map((section) => section.label),
   ]
+
+  /**
+   * A category the viewer's integration policy leaves empty is not offered, so a
+   * link or a policy change that points at one falls back to All. Connected stays
+   * selected while its rows load so the page does not flash All first.
+   */
+  const selectedCategory =
+    categoryOptions.includes(urlCategory) ||
+    (urlCategory === CONNECTED_LABEL && (credentialsLoading || !isAccessReady))
+      ? urlCategory
+      : ALL_CATEGORY
 
   const isAllCategorySelected = selectedCategory === ALL_CATEGORY
   const isFeaturedSelected = selectedCategory === FEATURED_LABEL
@@ -234,7 +316,7 @@ function IntegrationsContent() {
       integration.description.toLowerCase().includes(normalizedSearch)
 
     if (isFeaturedSelected) {
-      const items = FEATURED_INTEGRATIONS.filter(matchesSearch)
+      const items = listedFeatured.filter(matchesSearch)
       return items.length > 0 ? [{ label: FEATURED_LABEL, integrations: items }] : []
     }
 
@@ -243,27 +325,22 @@ function IntegrationsContent() {
 
     // Featured is a curated home-row pin: hide it during search so results
     // are not duplicated between the Featured section and the category list.
-    const featured = normalizedSearch ? [] : FEATURED_INTEGRATIONS.filter(matchesCategory)
+    const featured = normalizedSearch ? [] : listedFeatured.filter(matchesCategory)
     const featuredSection =
       featured.length > 0 ? [{ label: FEATURED_LABEL, integrations: featured }] : []
 
-    if (isAllCategorySelected) {
-      const rest = ALL_CATEGORY_SECTIONS.map((section) => ({
+    const categorySections = listedCategorySections
+      .filter((section) => isAllCategorySelected || section.label === selectedCategory)
+      .map((section) => ({
         label: section.label,
         integrations: section.integrations.filter(matchesSearch),
-      })).filter((section) => section.integrations.length > 0)
-      return [...featuredSection, ...rest]
-    }
+      }))
+      .filter((section) => section.integrations.length > 0)
 
-    const integrations = INTEGRATIONS.filter(matchesCategory)
-      .filter(matchesSearch)
-      .sort((a, b) => a.name.localeCompare(b.name))
-
-    return [
-      ...featuredSection,
-      ...(integrations.length > 0 ? [{ label: selectedCategory, integrations }] : []),
-    ]
+    return [...featuredSection, ...categorySections]
   }, [
+    listedFeatured,
+    listedCategorySections,
     isAllCategorySelected,
     isConnectedSelected,
     isFeaturedSelected,
@@ -298,6 +375,7 @@ function IntegrationsContent() {
   ])
 
   const showNoResults =
+    isAccessReady &&
     Boolean(urlSearchTerm.trim() || !isAllCategorySelected) &&
     filteredCategorySections.length === 0 &&
     visibleConnectedItems.length === 0
@@ -305,6 +383,15 @@ function IntegrationsContent() {
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <IntegrationTabsHeader active='integrations' workspaceId={workspaceId} />
+      {requestedIntegration && accessRequestsEnabled && (
+        <RequestAccessModal
+          key={requestedIntegration.type}
+          scope={{ kind: 'workspace', workspaceId }}
+          target={{ kind: 'integration', id: requestedIntegration.type }}
+          label={requestedIntegration.name}
+          onClose={() => setRequestedIntegration(null)}
+        />
+      )}
       <div
         ref={scrollContainerRef}
         className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'
@@ -357,14 +444,22 @@ function IntegrationsContent() {
               </IntegrationSection>
             )}
 
+            {availabilityError && (
+              <SettingsQueryErrorState
+                variant='inline'
+                error={availabilityError}
+                fallback='Unable to load integrations'
+                isRetrying={isAvailabilityFetching}
+                onRetry={() => void refetchAvailability()}
+              />
+            )}
+
             {filteredCategorySections.map((section) => (
               <IntegrationSection key={section.label} label={formatIntegrationType(section.label)}>
                 {section.integrations.map((integration) => {
                   const Icon = blockTypeToIconMap[integration.type]
                   if (!Icon) return null
-                  const availability = integrationAvailability.get(integration.type.toLowerCase())
-                  const deploymentUnavailable =
-                    availability?.state === 'unavailable' || availability?.state === 'misconfigured'
+                  const access = getAccess(integration.type)
                   return (
                     <IntegrationItem
                       key={integration.type}
@@ -374,7 +469,13 @@ function IntegrationsContent() {
                       name={integration.name}
                       description={integration.description}
                       icon={Icon}
-                      unavailable={integration.authType === 'oauth' && deploymentUnavailable}
+                      unavailable={access === 'unconfigured'}
+                      restricted={access === 'requestable'}
+                      onRequestAccess={
+                        access === 'requestable' && accessRequestsEnabled
+                          ? () => setRequestedIntegration(integration)
+                          : undefined
+                      }
                     />
                   )
                 })}

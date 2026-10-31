@@ -21,13 +21,88 @@ interface CheckResult {
   durationMs: number
   contentType?: string
   vary?: string
+  statusCode?: number
   error?: string
 }
 
-const cases = [
-  { name: 'HTML advertises its representation and router cache dimensions', accept: 'text/html' },
-  { name: 'Markdown negotiates at the same URL', accept: 'text/markdown' },
-  { name: 'HTML remains available after a Markdown request', accept: 'text/html' },
+interface RepresentationCase {
+  name: string
+  accept: string
+  expected: 'text/html' | 'text/markdown'
+  method?: 'GET' | 'HEAD'
+  statusCode?: number
+  useHtmlValidator?: boolean
+}
+
+const cases: readonly RepresentationCase[] = [
+  {
+    name: 'HTML advertises its representation and router cache dimensions',
+    accept: 'text/html',
+    expected: 'text/html',
+  },
+  {
+    name: 'Markdown negotiates at the same URL',
+    accept: 'text/markdown',
+    expected: 'text/markdown',
+  },
+  {
+    name: 'HTML remains available after a Markdown request',
+    accept: 'text/html',
+    expected: 'text/html',
+  },
+  {
+    name: 'Higher Markdown quality wins',
+    accept: 'text/html;q=0.4,text/markdown;q=0.8',
+    expected: 'text/markdown',
+  },
+  {
+    name: 'Equal quality defaults to HTML',
+    accept: 'text/markdown;q=0.8,text/html;q=0.8',
+    expected: 'text/html',
+  },
+  {
+    name: 'Explicit Markdown rejection overrides wildcard',
+    accept: 'text/markdown;q=0,*/*;q=1',
+    expected: 'text/html',
+  },
+  {
+    name: 'Explicit HTML rejection permits Markdown wildcard',
+    accept: 'text/html;q=0,text/*;q=0.5',
+    expected: 'text/markdown',
+  },
+  {
+    name: 'HTML HEAD retains representation headers',
+    accept: 'text/html',
+    expected: 'text/html',
+    method: 'HEAD',
+  },
+  {
+    name: 'Markdown HEAD retains representation headers',
+    accept: 'text/markdown',
+    expected: 'text/markdown',
+    method: 'HEAD',
+  },
+  {
+    name: 'Matching HTML validator returns a 304 with cache dimensions',
+    accept: 'text/html',
+    expected: 'text/html',
+    statusCode: 304,
+    useHtmlValidator: true,
+  },
+  {
+    name: 'Conditional HTML HEAD returns a 304',
+    accept: 'text/html',
+    expected: 'text/html',
+    method: 'HEAD',
+    statusCode: 304,
+    useHtmlValidator: true,
+  },
+  {
+    name: 'An HTML validator cannot suppress the Markdown representation',
+    accept: 'text/markdown',
+    expected: 'text/markdown',
+    useHtmlValidator: true,
+  },
 ] as const
 
 for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -40,24 +115,34 @@ for (let attempt = 0; attempt < 20; attempt += 1) {
 }
 
 const checks: CheckResult[] = []
+let htmlValidator: string | undefined
 for (const entry of cases) {
   const started = performance.now()
   const result: CheckResult = { name: entry.name, status: 'failed', durationMs: 0 }
   try {
+    const headers = new Headers({ Accept: entry.accept })
+    if (entry.useHtmlValidator) {
+      if (!htmlValidator) throw new Error('HTML did not provide a cache validator')
+      headers.set('If-None-Match', htmlValidator)
+    }
     const response = await fetch(url, {
-      headers: { Accept: entry.accept },
+      method: entry.method ?? 'GET',
+      headers,
       signal: AbortSignal.timeout(10000),
     })
     await response.body?.cancel()
+    result.statusCode = response.status
     result.contentType = response.headers.get('Content-Type') ?? ''
     result.vary = response.headers.get('Vary') ?? ''
     const fields = result.vary.split(',').map((field) => field.trim().toLowerCase())
-    if (!response.ok) throw new Error(`Unexpected HTTP status ${response.status}`)
-    if (!result.contentType.startsWith(entry.accept)) {
-      throw new Error(`Expected ${entry.accept}; received ${result.contentType}`)
+    if (response.status !== (entry.statusCode ?? 200))
+      throw new Error(`Unexpected HTTP status ${response.status}`)
+    if (response.status !== 304 && !result.contentType.startsWith(entry.expected)) {
+      throw new Error(`Expected ${entry.expected}; received ${result.contentType}`)
     }
     if (!fields.includes('accept')) throw new Error('The response lost Vary: Accept')
-    if (entry.accept === 'text/html') {
+    if (entry.expected === 'text/html') {
+      if (response.status === 200) htmlValidator = response.headers.get('etag') ?? undefined
       for (const field of [
         'rsc',
         'next-router-state-tree',

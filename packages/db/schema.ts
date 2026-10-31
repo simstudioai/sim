@@ -938,6 +938,38 @@ export const organizationSecret = pgTable(
   ]
 )
 
+/**
+ * An organization's Sim links (go links): `sim/<name>` redirects members to `url`. Names match
+ * case- and punctuation-insensitively through `normalized_name`. `{*}` in `url`
+ * marks a variable link filled from the path after the name, and `default_url`
+ * serves a variable link opened without values. `visit_count` counts redirects.
+ */
+export const simLink = pgTable(
+  'sim_link',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    normalizedName: text('normalized_name').notNull(),
+    url: text('url').notNull(),
+    defaultUrl: text('default_url'),
+    description: text('description'),
+    unlisted: boolean('unlisted').notNull().default(false),
+    restrictEdit: boolean('restrict_edit').notNull().default(false),
+    visitCount: integer('visit_count').notNull().default(0),
+    lastVisitedAt: timestamp('last_visited_at'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('sim_link_organization_name_unique').on(table.organizationId, table.normalizedName),
+    index('sim_link_created_by_idx').on(table.createdBy),
+  ]
+)
+
 export const workspaceEnvironment = pgTable(
   'workspace_environment',
   {
@@ -4889,6 +4921,12 @@ export type CopilotAsyncToolStatus = (typeof copilotAsyncToolStatusEnum.enumValu
 export type CopilotToolPermissionDecision =
   (typeof copilotToolPermissionDecisionEnum.enumValues)[number]
 
+export interface AssistantActionBinding {
+  operationVersion: number
+  effect: 'read' | 'write'
+  credentialId: string
+}
+
 /** Stop may arrive before chat creation. Its actor/workspace scope cannot cancel another request. */
 export const copilotRequestStops = pgTable(
   'copilot_request_stops',
@@ -5050,19 +5088,27 @@ export const copilotAsyncToolCalls = pgTable(
     toolCallId: text('tool_call_id').notNull(),
     toolName: text('tool_name').notNull(),
     args: jsonb('args').notNull().default('{}'),
+    /** Canonical dispatch identity; null only on calls recorded before invocation binding. */
+    executableName: text('executable_name'),
+    targetWorkspaceId: text('target_workspace_id'),
+    /** Validated user edits, committed once with the decision; original args stay immutable. */
+    approvedArgs: jsonb('approved_args'),
+    /** Server-resolved authority sealed with the original proposal, never supplied by the worker. */
+    assistantAction: jsonb('assistant_action').$type<AssistantActionBinding>(),
+    /** External writes without a provider idempotency key must never be replayed after a crash. */
+    executionRetryable: boolean('execution_retryable').notNull().default(true),
     status: copilotAsyncToolStatusEnum('status').notNull().default('pending'),
     result: jsonb('result'),
     error: text('error'),
     /**
-     * Set only for tools declaring requiresApproval in the mothership tool catalog. A null decision
-     * on such a tool means the prompt is still outstanding, which is what lets it survive a reload.
+     * A null decision on a gated call means its prompt is still outstanding after a reload.
      */
     permissionDecision: copilotToolPermissionDecisionEnum('permission_decision'),
     permissionDecidedAt: timestamp('permission_decided_at'),
     /**
      * Set when this call was held for the user's decision. Whether a call is gated depends on the
      * turn (the feature flag, the tool's arguments, the user's allow lists), so the row records it:
-     * a desktop claim refuses a gated call until `permissionDecision` allows it.
+     * every execution claim refuses a gated call until `permissionDecision` allows it.
      */
     permissionRequestedAt: timestamp('permission_requested_at'),
     /**
@@ -6101,9 +6147,28 @@ export const usageLog = pgTable(
         (${table.billingEntityType} IS NOT NULL AND ${table.billingEntityId} IS NOT NULL AND ${table.billingPeriodStart} IS NOT NULL AND ${table.billingPeriodEnd} IS NOT NULL AND ${table.billingPeriodStart} < ${table.billingPeriodEnd})
       )`
     ),
-    workspaceCreatedAtIdx: index('usage_log_workspace_created_at_idx').on(
+    /**
+     * Serves the Workspaces drill-down index-only: an analytics read narrowed to one
+     * workspace over a `created_at` window (entity + `workspace_id` + the window)
+     * reads its totals, series, and member, source and workflow rankings from here,
+     * and skips the workspace's rows billed to another entity without a heap fetch.
+     * A Stripe-period drill-down matches the period stamps, which are not here.
+     *
+     * `workspace_id` and `created_at` lead so the scan is bounded by the
+     * workspace's rows in the window rather than its organization's, and so the
+     * reads that name only the workspace keep their order: the `workspace_id`
+     * foreign key's `ON DELETE SET NULL`, and the ledger list filtered to a
+     * workspace. The entity and everything after it are payload.
+     */
+    workspaceCreatedAtCostIdx: index('usage_log_workspace_created_at_cost_idx').on(
       table.workspaceId,
-      table.createdAt
+      table.createdAt,
+      table.billingEntityType,
+      table.billingEntityId,
+      table.userId,
+      table.source,
+      table.cost,
+      table.workflowId
     ),
     executionIdIdx: index('usage_log_execution_id_idx').on(table.executionId),
   })
@@ -6137,6 +6202,8 @@ export interface ManagedMcpToolSnapshot {
   name: string
   description?: string
   inputSchema: Record<string, unknown>
+  /** Absent when the tool declares no output schema, and on snapshots taken before it was kept. */
+  outputSchema?: Record<string, unknown>
 }
 
 /** contract-pending(after all GitLab tokens migrate and workspace-token writers are retired): drop credential_personal_token_identity_unique; only the index is retired. */
@@ -6553,6 +6620,40 @@ export const credentialGroupEnrollment = pgTable(
       'credential_group_enrollment_invitation_token_hash_length_check',
       sql`length(${table.invitationTokenHash}) = 64`
     ),
+  })
+)
+
+/** Personal Assistant preferences never confer access to another account or override organization policy. */
+export const assistantToolPermission = pgTable(
+  'assistant_tool_permission',
+  {
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    credentialId: text('credential_id')
+      .notNull()
+      .references(() => credential.id, { onDelete: 'cascade' }),
+    revision: integer('revision').notNull().default(1),
+    readPolicy: text('read_policy').$type<'allow' | 'ask' | 'block'>().notNull().default('allow'),
+    writePolicy: text('write_policy').$type<'allow' | 'ask' | 'block'>().notNull().default('ask'),
+    overrides: jsonb('overrides')
+      .$type<Record<string, { version: number; policy: 'allow' | 'ask' | 'block' }>>()
+      .notNull()
+      .default({}),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.organizationId, table.userId, table.credentialId] }),
+    credentialIdx: index('assistant_tool_permission_credential_idx').on(table.credentialId),
+    userIdx: index('assistant_tool_permission_user_idx').on(table.userId),
+    policyCheck: check(
+      'assistant_tool_permission_policy_check',
+      sql`${table.readPolicy} IN ('allow', 'ask', 'block') AND ${table.writePolicy} IN ('allow', 'ask', 'block')`
+    ),
+    revisionCheck: check('assistant_tool_permission_revision_check', sql`${table.revision} > 0`),
   })
 )
 

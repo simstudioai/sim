@@ -1,6 +1,7 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import type { ResourceOwner } from '@/lib/core/resource-scope'
 import { MANAGED_MCP_CONNECTORS } from '@/lib/credential-groups/managed-mcp-connectors'
+import { withSearchRequestDiagnostics } from '@/lib/knowledge/search/diagnostics'
 import { createManagedMcpAuthProvider } from '@/lib/mcp/application/managed-auth-provider'
 import { mcpService } from '@/lib/mcp/service'
 import { compileMcpToolSchema } from '@/lib/mcp/tool-schema'
@@ -74,32 +75,46 @@ export async function createManagedSearchMcpClient(
       return true
     },
     async call(name, args) {
-      signal.throwIfAborted()
-      if (!allowed.includes(name))
-        throw new NativeSearchError('unavailable', `${label} Search permits read-only tools.`)
-      if (++requests > budget)
-        throw new NativeSearchError(
-          'unavailable',
-          `${label} read request limit reached. Narrow the query.`
-        )
-      const tool = byName.get(name)
-      if (!tool)
-        throw new NativeSearchError(
-          'unavailable',
-          `${label} no longer advertises ${name}. Reconnect or update the connector.`
-        )
-      if (!compileMcpToolSchema(tool.inputSchema)(args))
-        throw new NativeSearchError(
-          'unavailable',
-          `${label} rejected these search arguments. Its current tool schema is incompatible with this query.`
-        )
-      await loadCurrent()
-      const result = await session.callTool(
-        { name, arguments: args },
-        { signal, timeoutMs: 10_000 }
+      return withSearchRequestDiagnostics(
+        { transport: 'mcp', tool: allowed.includes(name) ? name : undefined },
+        async () => {
+          signal.throwIfAborted()
+          if (!allowed.includes(name))
+            throw new NativeSearchError('unavailable', `${label} Search permits read-only tools.`)
+          if (++requests > budget)
+            throw new NativeSearchError(
+              'unavailable',
+              `${label} read request limit reached. Narrow the query.`,
+              undefined,
+              undefined,
+              'request_budget_exceeded'
+            )
+          const tool = byName.get(name)
+          if (!tool)
+            throw new NativeSearchError(
+              'unavailable',
+              `${label} no longer advertises ${name}. Reconnect or update the connector.`,
+              undefined,
+              undefined,
+              'mcp_tool_unavailable'
+            )
+          if (!compileMcpToolSchema(tool.inputSchema)(args))
+            throw new NativeSearchError(
+              'unavailable',
+              `${label} rejected these search arguments. Its current tool schema is incompatible with this query.`,
+              undefined,
+              undefined,
+              'mcp_schema_incompatible'
+            )
+          await loadCurrent()
+          const result = await session.callTool(
+            { name, arguments: args },
+            { signal, timeoutMs: 10_000 }
+          )
+          await loadCurrent()
+          return managedMcpPayload(result, label)
+        }
       )
-      await loadCurrent()
-      return managedMcpPayload(result, label)
     },
   }
 }

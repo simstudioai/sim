@@ -52,7 +52,12 @@ export const IntegrationCatalogResponse = z.object({
       toolId: z.string().min(1),
       service: z.string().optional(),
       description: z.string(),
+      assistant: z
+        .object({ effect: z.enum(["read", "write"]), version: z.number().int().positive() })
+        .optional(),
       inputSchema: z.record(z.string(), z.unknown()).optional(),
+      /** The JSON Schema of the reply's `structuredContent`, for an MCP operation that declares one; present wherever `inputSchema` is. */
+      outputSchema: z.record(z.string(), z.unknown()).optional(),
     }),
   ),
 });

@@ -7,3 +7,8 @@ export const DOCS_BASE_URL = process.env.NEXT_PUBLIC_DOCS_URL ?? SIM_DOCS_URL
  * links only exist on sim.ai, wherever docs is hosted.
  */
 export { SIM_SITE_URL }
+
+/** Canonical Markdown endpoint, including the root catalog document. */
+export function getMarkdownPath(path: string): string {
+  return path === '/' ? '/llms.mdx' : `${path}.md`
+}

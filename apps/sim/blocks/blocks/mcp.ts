@@ -1,4 +1,5 @@
 import { McpIcon } from '@/components/icons'
+import { MCP_TOOL_OUTPUT_SCHEMA_SUBBLOCK } from '@/lib/mcp/output-schema'
 import type { BlockConfig } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
@@ -123,6 +124,15 @@ export const McpBlock: BlockConfig = {
       },
       dependsOn: ['tool'],
     },
+    {
+      id: MCP_TOOL_OUTPUT_SCHEMA_SUBBLOCK,
+      title: 'Output schema',
+      type: 'code',
+      hidden: true,
+      hideFromCopilot: true,
+      description:
+        "The selected operation's declared reply shape, which types the structuredContent output",
+    },
   ],
   tools: {
     access: ['mcp_run_operation', 'mcp_list_operations'],
@@ -157,7 +167,8 @@ export const McpBlock: BlockConfig = {
     serverId: { type: 'string', description: 'The supplied MCP server or connection ID' },
     operations: {
       type: 'json',
-      description: 'Authorized operations (name, description, inputSchema)',
+      description:
+        'Authorized operations (name, description, inputSchema, outputSchema if declared)',
     },
     nextCursor: { type: 'string', description: 'Cursor for the next page, or null' },
     hasMore: { type: 'boolean', description: 'Whether more authorized operations are available' },

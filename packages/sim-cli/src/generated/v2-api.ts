@@ -2978,6 +2978,7 @@ export type CreatePermissionGroupBody = {
     disableKnowledgeBaseExport?: boolean
     deniedPartialAccessProjectIssues?: Array<string>
     defaultAgentModel?: string | null
+    deniedAccessRequests?: Array<string>
   }
   isDefault?: boolean
   workspaceIds?: Array<string>
@@ -3033,6 +3034,7 @@ type CreatePermissionGroupResponseRef0 = {
     disableKnowledgeBaseExport: boolean
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
+    deniedAccessRequests: Array<string>
   }
   isDefault: boolean
   membershipMode: string
@@ -5547,6 +5549,7 @@ export type ExecuteWorkflowBody = {
       }
   async?: boolean
   executionTimeoutSeconds?: number
+  waitTimeoutSeconds?: number
   stream?: boolean
   selectedOutputs?: Array<string>
   includeThinking?: boolean
@@ -6851,6 +6854,7 @@ type GetPermissionGroupResponseRef0 = {
     disableKnowledgeBaseExport: boolean
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
+    deniedAccessRequests: Array<string>
   }
   isDefault: boolean
   membershipMode: string
@@ -8216,6 +8220,7 @@ type GetWorkspacePermissionConfigResponseRef0 = {
     disableKnowledgeBaseExport: boolean
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
+    deniedAccessRequests: Array<string>
   } | null
   entitled: boolean
   organizationId: string | null
@@ -9319,6 +9324,11 @@ type ListMcpServerToolsResponseRef0 = {
     properties?: Record<string, unknown>
     required?: Array<string>
   }
+  outputSchema?: {
+    type: 'object'
+    properties?: Record<string, unknown>
+    required?: Array<string>
+  }
   serverId: string
   serverName: string
 }
@@ -9948,6 +9958,7 @@ type ListPermissionGroupsResponseRef0 = {
     disableKnowledgeBaseExport: boolean
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
+    deniedAccessRequests: Array<string>
   }
   isDefault: boolean
   membershipMode: string
@@ -14780,6 +14791,7 @@ export type UpdatePermissionGroupBody = {
     disableKnowledgeBaseExport?: boolean
     deniedPartialAccessProjectIssues?: Array<string>
     defaultAgentModel?: string | null
+    deniedAccessRequests?: Array<string>
   }
   isDefault?: boolean
   workspaceIds?: Array<string>
@@ -14835,6 +14847,7 @@ type UpdatePermissionGroupResponseRef0 = {
     disableKnowledgeBaseExport: boolean
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
+    deniedAccessRequests: Array<string>
   }
   isDefault: boolean
   membershipMode: string
@@ -18439,7 +18452,7 @@ export const V2_OPERATIONS = {
       run: {
         kind: 'unknown',
         describe:
-          'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only.',
+          'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.',
       },
       async: {
         kind: 'boolean',
@@ -18450,7 +18463,12 @@ export const V2_OPERATIONS = {
       executionTimeoutSeconds: {
         kind: 'integer',
         describe:
-          "Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true`; otherwise returns `400`.",
+          "Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true` or `waitTimeoutSeconds`; otherwise returns `400`.",
+      },
+      waitTimeoutSeconds: {
+        kind: 'integer',
+        describe:
+          'Wait at most this many seconds for a synchronous run; `0` waits until it settles. A run still going then continues in the background and the response carries its run receipt instead of its result: `202` on a JSON response, or a closing `detached` frame on an `application/x-ndjson` result stream, which keeps its `200`. The receipt is sent only once the run can be read on the runs resource, where it can also be cancelled. The run is admitted under asynchronous limits, and a dropped connection no longer cancels it. Requires an API key or OAuth access token. Cannot be combined with `async` or `stream`.',
       },
       stream: {
         kind: 'boolean',

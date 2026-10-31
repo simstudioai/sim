@@ -1,8 +1,10 @@
 import { db } from '@sim/db'
 import { credential, credentialGroupEnrollment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
+import { LRUCache } from 'lru-cache'
 import type { WorkspaceAuthorizationContext } from '@/lib/core/application'
 import {
   type ResourceOwner,
@@ -23,6 +25,8 @@ import {
 import { getCredentialGroupProviderAdapterByProviderId } from '@/lib/credential-groups/provider-registry'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import { isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
+import { fetchSalesforceInstanceUrl } from '@/lib/oauth/salesforce-instance.server'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const logger = createLogger('ManagedOAuthCredential')
@@ -30,6 +34,21 @@ const logger = createLogger('ManagedOAuthCredential')
 const MANAGED_OAUTH_TOKEN_SET_TYPE = 'managed-oauth-token-set' as const
 const MANAGED_OAUTH_TOKEN_SET_VERSION = 1 as const
 const ACCESS_TOKEN_REFRESH_WINDOW_MS = 30_000
+const SALESFORCE_INSTANCE_CACHE_TTL_MS = 5 * 60_000
+const SALESFORCE_INSTANCE_CACHE_MAX = 10_000
+
+/** Only verified destinations are cached; credential authorization remains fresh on every use. */
+const salesforceInstanceCache = new LRUCache<
+  string,
+  string,
+  { providerId: string; accessToken: string }
+>({
+  max: SALESFORCE_INSTANCE_CACHE_MAX,
+  ttl: SALESFORCE_INSTANCE_CACHE_TTL_MS,
+  ignoreFetchAbort: true,
+  fetchMethod: (_key, _stale, { context }) =>
+    fetchSalesforceInstanceUrl(context.providerId, context.accessToken),
+})
 
 export type ManagedOAuthCredentialErrorCode =
   | 'MANAGED_CREDENTIAL_NOT_FOUND'
@@ -40,6 +59,7 @@ export type ManagedOAuthCredentialErrorCode =
   | 'MANAGED_CREDENTIAL_INSUFFICIENT_SCOPE'
   | 'MANAGED_CREDENTIAL_INVALID_TOKEN_SET'
   | 'MANAGED_CREDENTIAL_CONFIGURATION_UNAVAILABLE'
+  | 'MANAGED_CREDENTIAL_IDENTITY_UNAVAILABLE'
   | 'MANAGED_CREDENTIAL_REFRESH_FAILED'
 
 export class ManagedOAuthCredentialError extends Error {
@@ -65,6 +85,7 @@ export interface ManagedOAuthTokenSet {
 export interface ResolvedManagedOAuthToken {
   accessToken: string
   idToken?: string
+  instanceUrl?: string
   refreshed: boolean
 }
 
@@ -265,10 +286,7 @@ async function assertManagedCredentialUsable(
       503
     )
   }
-  if (
-    row.authorizationAppId !== policy.authorizationAppId ||
-    row.managedOauthScopeVersion !== policy.scopeVersion
-  ) {
+  if (row.authorizationAppId !== policy.authorizationAppId) {
     throw new ManagedOAuthCredentialError(
       'MANAGED_CREDENTIAL_NEEDS_REAUTH',
       'Managed credential was authorized with a different OAuth app',
@@ -348,7 +366,7 @@ export async function rejectManagedOAuthToken(input: {
   if (updated.length === 0) return false
   if (!tokenSet.refreshToken) return true
   try {
-    await resolveManagedOAuthToken({
+    await resolveManagedOAuthAccessToken({
       credentialId: input.credentialId,
       workspaceId: input.workspaceId,
       organizationId: input.organizationId,
@@ -372,8 +390,35 @@ export async function rejectManagedOAuthToken(input: {
   }
 }
 
+async function resolveProviderTokenContext(
+  providerId: string,
+  token: ResolvedManagedOAuthToken
+): Promise<ResolvedManagedOAuthToken> {
+  if (!isSalesforceOAuthProviderId(providerId)) return token
+  const instanceUrl = await salesforceInstanceCache.fetch(
+    `${providerId}:${sha256Hex(token.accessToken)}`,
+    { context: { providerId, accessToken: token.accessToken } }
+  )
+  if (!instanceUrl)
+    throw new ManagedOAuthCredentialError(
+      'MANAGED_CREDENTIAL_IDENTITY_UNAVAILABLE',
+      'The Salesforce account destination could not be verified. Try again before starting this action.',
+      502
+    )
+  return { ...token, instanceUrl }
+}
+
 /** Resolves a managed credential ID into a usable token without exposing it to list APIs. */
 export async function resolveManagedOAuthToken(
+  params: ResolveManagedOAuthTokenParams
+): Promise<ResolvedManagedOAuthToken> {
+  return resolveProviderTokenContext(
+    params.expectedProviderId,
+    await resolveManagedOAuthAccessToken(params)
+  )
+}
+
+async function resolveManagedOAuthAccessToken(
   params: ResolveManagedOAuthTokenParams
 ): Promise<ResolvedManagedOAuthToken> {
   const initial = await getManagedCredential(db, params.credentialId, params)

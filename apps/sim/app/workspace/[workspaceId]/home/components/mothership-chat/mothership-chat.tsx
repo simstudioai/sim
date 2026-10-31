@@ -22,6 +22,10 @@ import {
 } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
+import {
+  AssistantActionReviewMessage,
+  useHasAssistantActionReview,
+} from '@/components/assistant-actions'
 import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
 import type { TurnOrigin } from '@/lib/mothership/generated/protocol'
@@ -56,6 +60,7 @@ import {
   UserInput,
   type UserInputHandle,
 } from '@/app/workspace/[workspaceId]/home/components/user-input'
+import type { ModelSelectorOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
 import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
 import {
   fetchWorkspaceResourceRef,
@@ -80,15 +85,19 @@ interface MothershipChatProps {
   SearchConnectionComponent?: ComponentType<SearchIntegrationConnectionProps>
   workspaceId?: string
   composer?: ReactNode
+  composerAttachments?: ReactNode
+  composerResourceActions?: ReactNode
+  composerModelSelectorOptions?: ModelSelectorOptions
   messages: ChatMessage[]
   isSending: boolean
   isReconnecting?: boolean
   isLoading?: boolean
+  /** Returning false synchronously preserves the composer draft. */
   onSubmit: (
     text: string,
     fileAttachments?: FileAttachmentForApi[],
     contexts?: ChatContext[]
-  ) => void
+  ) => unknown
   onStopGeneration: () => void
   messageQueue: QueuedMessage[]
   editingQueuedId: string | null
@@ -107,9 +116,13 @@ interface MothershipChatProps {
    */
   onContextRemove?: (context: ChatContext, remaining: ChatContext[]) => void
   onViewSources?: (messageId: string, requestId?: string) => void
+  onNavigateToChat?: (chatId: string) => void
   onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
   draftScopeKey?: string
+  /** Keeps the live composer mounted when a pending conversation receives its durable ID. */
+  composerKey?: string
   layout?: 'mothership-view' | 'copilot-view'
+  reserveResourceHeader?: boolean
   initialScrollBlocked?: boolean
   animateInput?: boolean
   onInputAnimationEnd?: () => void
@@ -281,6 +294,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   onOptionSelect,
   onAnimatingChange,
 }: AssistantMessageRowProps) {
+  const hasActionReview = useHasAssistantActionReview()
   const permissions = useOptionalWorkspacePermissionsContext()
   const canEdit = permissions?.userPermissions.canEdit ?? false
   const blocks = message.contentBlocks ?? EMPTY_BLOCKS
@@ -324,15 +338,18 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   // Settle timing lives in MessageContent (the actions take the thinking
   // slot's place in the same render), so eligibility here is phase-free:
   // `phase: 'settled'` asks the helper "would a settled turn show them?".
-  const actionsEligible = shouldShowAssistantMessageActions({
-    phase: 'settled',
-    hasContent: Boolean(message.content) || hasAnyBlocks,
-    endsWithInteraction: endsWithQuestion || showsCredentialCard,
-    questionDismissed,
-  })
+  const actionsEligible =
+    !hasActionReview &&
+    shouldShowAssistantMessageActions({
+      phase: 'settled',
+      hasContent: Boolean(message.content) || hasAnyBlocks,
+      endsWithInteraction: endsWithQuestion || showsCredentialCard,
+      questionDismissed,
+    })
 
   /** Match the 16px prose/card gap when the card is the message's last visible content. */
-  const showsInteractionCard = (endsWithQuestion && !questionDismissed) || showsCredentialCard
+  const showsInteractionCard =
+    (endsWithQuestion && !questionDismissed) || showsCredentialCard || hasActionReview
 
   return (
     <div className={cn(rowClassName, showsInteractionCard && 'pb-4')}>
@@ -344,6 +361,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
         fallbackContent={message.content}
         isStreaming={isStreaming}
         isLast={isLast}
+        awaitingInteraction={hasActionReview}
         questionAnswers={questionAnswers}
         credentialSubmission={credentialSubmission}
         credentialAbandoned={credentialAbandoned}
@@ -372,6 +390,9 @@ export function MothershipChat({
   SearchConnectionComponent,
   workspaceId,
   composer,
+  composerAttachments,
+  composerResourceActions,
+  composerModelSelectorOptions,
   messages: messagesProp,
   isSending,
   isReconnecting = false,
@@ -390,9 +411,12 @@ export function MothershipChat({
   onContextAdd,
   onContextRemove,
   onViewSources,
+  onNavigateToChat,
   onWorkspaceResourceSelect,
   draftScopeKey,
+  composerKey,
   layout = 'mothership-view',
+  reserveResourceHeader = true,
   initialScrollBlocked = false,
   animateInput = false,
   onInputAnimationEnd,
@@ -865,6 +889,17 @@ export function MothershipChat({
   }, [lastUserMessageId, lastIndex, isSending, initialScrollBlocked, virtualizer, find.isOpen])
 
   const virtualItems = virtualizer.getVirtualItems()
+  const receiptQueryOwners = new Map<string, string>()
+  const mountedReceiptMessages = new Map<string, string[]>()
+  for (const item of virtualItems) {
+    const message = messages[item.index]
+    if (message.streamId) {
+      receiptQueryOwners.set(message.streamId, message.id)
+      const ids = mountedReceiptMessages.get(message.streamId) ?? []
+      ids.push(message.id)
+      mountedReceiptMessages.set(message.streamId, ids)
+    }
+  }
 
   return (
     <ChatSurfaceProvider
@@ -874,6 +909,7 @@ export function MothershipChat({
       onContextAdd={onContextAdd}
       onContextRemove={onContextRemove}
       onViewSources={onViewSources}
+      onNavigateToChat={onNavigateToChat}
       onWorkspaceResourceSelect={onWorkspaceResourceSelect}
     >
       <div
@@ -883,6 +919,7 @@ export function MothershipChat({
         className={cn(
           'relative flex h-full min-h-0 min-w-0 flex-col [&::highlight(chat-find)]:bg-[var(--highlight-match-bg)] [&::highlight(chat-find)]:text-[var(--highlight-match-text)] [&::highlight(chat-find-active)]:bg-[var(--brand-secondary)] [&::highlight(chat-find-active)]:text-[var(--color-black)]',
           layout === 'mothership-view' &&
+            reserveResourceHeader &&
             'max-md:mt-[var(--resource-header-controls-height)] max-md:h-auto max-md:flex-1',
           inter.className,
           className
@@ -937,39 +974,52 @@ export function MothershipChat({
                     className='absolute left-0 w-full'
                     style={{ top: virtualItem.start }}
                   >
-                    {msg.role === 'user' ? (
-                      interactionPairing.hiddenUserByIndex[index] ? null : msg.origin ? (
-                        <AutomatedTurnRow
-                          origin={msg.origin}
-                          content={msg.content}
-                          rowClassName={styles.rowGap}
-                        />
+                    <AssistantActionReviewMessage
+                      messageId={msg.id}
+                      mountedMessageIds={
+                        (msg.streamId && mountedReceiptMessages.get(msg.streamId)) || [msg.id]
+                      }
+                      mountedReceiptTurnCount={receiptQueryOwners.size}
+                      isReceiptQueryOwner={
+                        !msg.streamId || receiptQueryOwners.get(msg.streamId) === msg.id
+                      }
+                    >
+                      {msg.role === 'user' ? (
+                        interactionPairing.hiddenUserByIndex[index] ? null : msg.origin ? (
+                          <AutomatedTurnRow
+                            origin={msg.origin}
+                            content={msg.content}
+                            rowClassName={styles.rowGap}
+                          />
+                        ) : (
+                          <UserMessageRow
+                            content={msg.content}
+                            contexts={msg.contexts}
+                            attachments={msg.attachments}
+                            rowClassName={cn(styles.userRow, styles.rowGap)}
+                            bubbleClassName={styles.userBubble}
+                            attachmentWidthClassName={styles.attachmentWidth}
+                          />
+                        )
                       ) : (
-                        <UserMessageRow
-                          content={msg.content}
-                          contexts={msg.contexts}
-                          attachments={msg.attachments}
-                          rowClassName={cn(styles.userRow, styles.rowGap)}
-                          bubbleClassName={styles.userBubble}
-                          attachmentWidthClassName={styles.attachmentWidth}
+                        <AssistantMessageRow
+                          message={msg}
+                          prepareContentForCopy={prepareContentForCopy}
+                          isStreaming={isLast && msg.id === streamingMessageId}
+                          isLast={isLast}
+                          precedingUserContent={precedingUserByIndex[index]?.content}
+                          requestMode={precedingUserByIndex[index]?.requestMode}
+                          questionAnswers={interactionPairing.answersByIndex[index]}
+                          credentialSubmission={
+                            interactionPairing.credentialSubmissionByIndex[index]
+                          }
+                          credentialAbandoned={interactionPairing.credentialAbandonedByIndex[index]}
+                          rowClassName={cn(styles.assistantRow, styles.rowGap)}
+                          onOptionSelect={isLast ? stableOnOptionSelect : undefined}
+                          onAnimatingChange={isLast ? setLastRowAnimating : undefined}
                         />
-                      )
-                    ) : (
-                      <AssistantMessageRow
-                        message={msg}
-                        prepareContentForCopy={prepareContentForCopy}
-                        isStreaming={isLast && msg.id === streamingMessageId}
-                        isLast={isLast}
-                        precedingUserContent={precedingUserByIndex[index]?.content}
-                        requestMode={precedingUserByIndex[index]?.requestMode}
-                        questionAnswers={interactionPairing.answersByIndex[index]}
-                        credentialSubmission={interactionPairing.credentialSubmissionByIndex[index]}
-                        credentialAbandoned={interactionPairing.credentialAbandonedByIndex[index]}
-                        rowClassName={cn(styles.assistantRow, styles.rowGap)}
-                        onOptionSelect={isLast ? stableOnOptionSelect : undefined}
-                        onAnimatingChange={isLast ? setLastRowAnimating : undefined}
-                      />
-                    )}
+                      )}
+                    </AssistantActionReviewMessage>
                   </div>
                 )
               })}
@@ -995,9 +1045,12 @@ export function MothershipChat({
             {!isLoading &&
               (composer ?? (
                 <UserInput
-                  key={draftScopeKey}
+                  key={composerKey ?? draftScopeKey}
                   ref={userInputRef}
                   onSubmit={onSubmit}
+                  attachments={composerAttachments}
+                  resourceActions={composerResourceActions}
+                  modelSelectorOptions={composerModelSelectorOptions}
                   isSending={isStreamActive}
                   onStopGeneration={onStopGeneration}
                   isInitialView={false}

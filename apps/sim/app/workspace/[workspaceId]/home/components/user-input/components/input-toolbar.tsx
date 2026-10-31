@@ -2,13 +2,17 @@
 
 import type { ReactNode, RefObject } from 'react'
 import { cn } from '@sim/emcn'
-import { ModelSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
+import {
+  ModelSelector,
+  type ModelSelectorOptions,
+} from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
 
 interface InputToolbarProps {
   leadingControls: ReactNode
   showModelSelector?: boolean
   plan?: boolean
   selectionControl?: ReactNode
+  modelSelectorOptions?: ModelSelectorOptions
   voiceControl?: ReactNode
   beforeSubmitControl?: ReactNode
   submitControl?: ReactNode
@@ -25,6 +29,7 @@ export function InputToolbar({
   showModelSelector = true,
   plan = false,
   selectionControl,
+  modelSelectorOptions,
   voiceControl,
   beforeSubmitControl,
   submitControl,
@@ -71,7 +76,8 @@ export function InputToolbar({
           <>
             {(selectionControl || showModelSelector || voiceControl) && (
               <div className='flex items-center gap-[inherit]'>
-                {selectionControl ?? (showModelSelector && <ModelSelector plan={plan} />)}
+                {selectionControl ??
+                  (showModelSelector && <ModelSelector plan={plan} {...modelSelectorOptions} />)}
                 {voiceControl}
               </div>
             )}

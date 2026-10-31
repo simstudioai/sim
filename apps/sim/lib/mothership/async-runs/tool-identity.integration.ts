@@ -4,6 +4,8 @@
  * Set TEST_DATABASE_URL to a local PostgreSQL database and
  * TEST_REDIS_URL to an isolated local Redis service.
  */
+
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import Redis from 'ioredis'
@@ -44,6 +46,10 @@ vi.mock('@sim/db', () => ({
       if (!database.current) throw new Error('PostgreSQL test database is not initialized')
       return Reflect.apply(database.current.update, database.current, args)
     },
+    transaction: (...args: unknown[]) => {
+      if (!database.current) throw new Error('PostgreSQL test database is not initialized')
+      return Reflect.apply(database.current.transaction, database.current, args)
+    },
   },
 }))
 vi.mock('@/lib/mothership/request/otel', () => ({ markSpanForError: vi.fn() }))
@@ -56,6 +62,7 @@ vi.mock('@/lib/core/config/redis', () => ({
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import * as asyncRepository from '@/lib/mothership/async-runs/repository'
 import {
+  claimToolExecution,
   completeAsyncToolCall,
   getAsyncToolCall,
   recordToolPermissionDecision,
@@ -123,6 +130,12 @@ describe('Copilot tool identity with PostgreSQL', () => {
       CREATE TEMP TABLE copilot_async_tool_calls
         (LIKE public.copilot_async_tool_calls INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)
     `)
+    await connection.unsafe(`
+      CREATE TEMP TABLE copilot_runs
+        (LIKE public.copilot_runs INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)
+    `)
+    await connection`INSERT INTO copilot_runs (id, execution_id, chat_id, stream_id, user_id, tool_execution_version)
+      VALUES (${firstRunId}, ${generateId()}, ${generateId()}, ${generateId()}, 'approval-user', 3)`
     if (redisUrl) {
       redisState.current = new Redis(redisUrl, { maxRetriesPerRequest: 1 })
       await redisState.current.ping()
@@ -177,6 +190,235 @@ describe('Copilot tool identity with PostgreSQL', () => {
       upsertAsyncToolCall({ runId: firstRunId, toolCallId: providerId, toolName: 'glob' })
     ).rejects.toBeInstanceOf(AsyncToolCallOwnershipError)
     expect(await getAsyncToolCall(providerId)).toEqual(legacy)
+  })
+
+  it.each([
+    { operationVersion: 2, effect: 'read' as const, credentialId: 'account-one' },
+    { operationVersion: 1, effect: 'write' as const, credentialId: 'account-one' },
+    { operationVersion: 1, effect: 'read' as const, credentialId: 'account-two' },
+    undefined,
+  ])(
+    'refuses a replay that changes or removes its Assistant authority: %j',
+    async (assistantAction) => {
+      const invocation = {
+        runId: firstRunId,
+        toolCallId: firstId,
+        toolName: 'gmail_list_labels_v2',
+        args: { credential: 'account-one' },
+        assistantAction: {
+          operationVersion: 1,
+          effect: 'read' as const,
+          credentialId: 'account-one',
+        },
+      }
+      const original = await upsertAsyncToolCall(invocation)
+      await expect(upsertAsyncToolCall({ ...invocation, assistantAction })).rejects.toBeInstanceOf(
+        AsyncToolCallOwnershipError
+      )
+      expect(await getAsyncToolCall(firstId)).toEqual(original)
+    }
+  )
+
+  it.each([
+    { toolName: 'gmail_send', args: { to: 'review@example.test', body: 'Reviewed' } },
+    { toolName: 'gmail_draft_v2', args: { to: 'other@example.test', body: 'Reviewed' } },
+    { toolName: 'gmail_draft_v2', args: { to: 'review@example.test', body: 'Changed' } },
+  ])('refuses a replay that changes the persisted proposal: $toolName $args', async (replay) => {
+    const original = await upsertAsyncToolCall({
+      runId: firstRunId,
+      toolCallId: firstId,
+      toolName: 'gmail_draft_v2',
+      args: { to: 'review@example.test', body: 'Reviewed' },
+      permissionRequested: true,
+    })
+    await expect(
+      upsertAsyncToolCall({ runId: firstRunId, toolCallId: firstId, ...replay })
+    ).rejects.toBeInstanceOf(AsyncToolCallOwnershipError)
+    expect(await getAsyncToolCall(firstId)).toEqual(original)
+  })
+
+  it('accepts an identical proposal replay regardless of JSON object key order', async () => {
+    const original = await upsertAsyncToolCall({
+      runId: firstRunId,
+      toolCallId: firstId,
+      toolName: 'gmail_draft_v2',
+      args: { to: 'review@example.test', message: { body: 'Reviewed', subject: 'Draft' } },
+    })
+    expect(
+      await upsertAsyncToolCall({
+        runId: firstRunId,
+        toolCallId: firstId,
+        toolName: 'gmail_draft_v2',
+        args: { message: { subject: 'Draft', body: 'Reviewed' }, to: 'review@example.test' },
+      })
+    ).toEqual(original)
+  })
+
+  it('rejects a conflicting invocation that loses the first-insert race', async () => {
+    const attempts = await Promise.allSettled(
+      ['first@example.test', 'second@example.test'].map((to) =>
+        upsertAsyncToolCall({
+          runId: firstRunId,
+          toolCallId: firstId,
+          toolName: 'gmail_draft_v2',
+          args: { to },
+          permissionRequested: true,
+        })
+      )
+    )
+    expect(attempts.filter((attempt) => attempt.status === 'fulfilled')).toHaveLength(1)
+    const rejected = attempts.find((attempt) => attempt.status === 'rejected')
+    expect(rejected?.reason).toBeInstanceOf(AsyncToolCallOwnershipError)
+  })
+
+  it.each([
+    { executableName: 'other_operation', targetWorkspaceId: 'reviewed-workspace' },
+    { executableName: 'reviewed_operation', targetWorkspaceId: 'other-workspace' },
+  ])('refuses a replay that changes executable context: %j', async (replay) => {
+    const original = await upsertAsyncToolCall({
+      runId: firstRunId,
+      toolCallId: firstId,
+      toolName: 'display_operation',
+      executableName: 'reviewed_operation',
+      targetWorkspaceId: 'reviewed-workspace',
+      permissionRequested: true,
+    })
+    await expect(
+      upsertAsyncToolCall({
+        runId: firstRunId,
+        toolCallId: firstId,
+        toolName: 'display_operation',
+        ...replay,
+      })
+    ).rejects.toBeInstanceOf(AsyncToolCallOwnershipError)
+    expect(await getAsyncToolCall(firstId)).toEqual(original)
+  })
+
+  it.each([null, 'skip'] as const)(
+    'cannot claim an unapproved or declined Sim action: %s',
+    async (decision) => {
+      await upsertAsyncToolCall({
+        runId: firstRunId,
+        toolCallId: firstId,
+        toolName: 'gmail_draft_v2',
+        args: { to: 'review@example.test' },
+        permissionRequested: true,
+      })
+      if (decision) await recordToolPermissionDecision(firstId, decision)
+      expect(
+        await claimToolExecution({
+          toolCallId: firstId,
+          runId: firstRunId,
+          userId: 'approval-user',
+          ownerToken: generateId(),
+        })
+      ).toEqual({ outcome: 'awaiting_permission' })
+      expect(await getAsyncToolCall(firstId)).toMatchObject({
+        status: 'pending',
+        executionStartedAt: null,
+        executionAttempts: 0,
+      })
+    }
+  )
+
+  it('admits exactly one execution after a durable approval', async () => {
+    await upsertAsyncToolCall({
+      runId: firstRunId,
+      toolCallId: firstId,
+      toolName: 'gmail_draft_v2',
+      permissionRequested: true,
+    })
+    await recordToolPermissionDecision(firstId, 'allow')
+    const claims = await Promise.all(
+      Array.from({ length: 12 }, () =>
+        claimToolExecution({
+          toolCallId: firstId,
+          runId: firstRunId,
+          userId: 'approval-user',
+          ownerToken: generateId(),
+        })
+      )
+    )
+    expect(claims.filter((claim) => claim.outcome === 'claimed')).toHaveLength(1)
+    expect(await getAsyncToolCall(firstId)).toMatchObject({ executionAttempts: 1 })
+  })
+
+  it('never lets another actor consume an approved action', async () => {
+    await upsertAsyncToolCall({
+      runId: firstRunId,
+      toolCallId: firstId,
+      toolName: 'gmail_draft_v2',
+      permissionRequested: true,
+    })
+    await recordToolPermissionDecision(firstId, 'allow')
+    await expect(
+      claimToolExecution({
+        toolCallId: firstId,
+        runId: firstRunId,
+        userId: 'another-user',
+        ownerToken: generateId(),
+      })
+    ).rejects.toThrow('ownership is unavailable')
+    expect(await getAsyncToolCall(firstId)).toMatchObject({
+      status: 'pending',
+      executionAttempts: 0,
+    })
+  })
+
+  it('executes the winning approved edits while preserving the original proposal', async () => {
+    const original = { issueKey: 'TEST-42', body: 'Proposed comment' }
+    const edited = { issueKey: 'TEST-42', body: 'Reviewed comment' }
+    await upsertAsyncToolCall({
+      runId: firstRunId,
+      toolCallId: firstId,
+      toolName: 'jira_add_comment',
+      args: original,
+      permissionRequested: true,
+      executionRetryable: false,
+    })
+    const decisions = await Promise.all([
+      recordToolPermissionDecision(firstId, 'allow', { approvedArgs: edited }),
+      recordToolPermissionDecision(firstId, 'skip'),
+    ])
+    expect(decisions.filter(Boolean)).toHaveLength(1)
+    const winner = decisions.find((decision) => decision !== null)
+    const claim = await claimToolExecution({
+      toolCallId: firstId,
+      runId: firstRunId,
+      userId: 'approval-user',
+      ownerToken: generateId(),
+    })
+    if (winner?.permissionDecision === 'allow') {
+      expect(claim).toMatchObject({
+        outcome: 'claimed',
+        invocation: { executableName: 'jira_add_comment', args: edited },
+      })
+    } else {
+      expect(claim).toEqual({ outcome: 'awaiting_permission' })
+    }
+    expect((await getAsyncToolCall(firstId))?.args).toEqual(original)
+  })
+
+  it('never repeats an external write after its executor dies with an unknown outcome', async () => {
+    await upsertAsyncToolCall({
+      runId: firstRunId,
+      toolCallId: firstId,
+      toolName: 'gmail_draft_v2',
+      executionRetryable: false,
+      permissionRequested: true,
+    })
+    await recordToolPermissionDecision(firstId, 'allow')
+    const owner = { toolCallId: firstId, runId: firstRunId, userId: 'approval-user' }
+    expect(await claimToolExecution({ ...owner, ownerToken: generateId() })).toMatchObject({
+      outcome: 'claimed',
+    })
+    await connection`UPDATE copilot_async_tool_calls
+      SET execution_lease_expires_at = clock_timestamp() - interval '1 second'
+      WHERE tool_call_id = ${firstId}`
+    expect(await claimToolExecution({ ...owner, ownerToken: generateId() })).toEqual({
+      outcome: 'existing',
+    })
+    expect((await getAsyncToolCall(firstId))?.executionAttempts).toBe(1)
   })
 
   it('settles and replaces only the intended current run, preserving the legacy completion', async () => {
@@ -236,6 +478,50 @@ describe('Copilot tool identity with PostgreSQL', () => {
   })
 
   describe.skipIf(!redisUrl)('with actual Redis confirmation and permission channels', () => {
+    it.each(['abort', 'timeout'] as const)(
+      'stops durable permission reads after %s',
+      async (ending) => {
+        await createCurrentCalls()
+        const durableReads = vi.spyOn(asyncRepository, 'getAsyncToolCall')
+        const abort = new AbortController()
+        const waiting = waitForToolPermissionDecision(
+          firstId,
+          ending === 'timeout' ? 100 : 5_000,
+          abort.signal
+        )
+        try {
+          await vi.waitFor(() => expect(durableReads).toHaveBeenCalledTimes(1))
+          await Promise.all(durableReads.mock.results.map((result) => result.value))
+          if (ending === 'abort') abort.abort()
+          expect(await waiting).toBeNull()
+          const readsAtSettlement = durableReads.mock.calls.length
+          await recordToolPermissionDecision(firstId, 'allow')
+          await sleep(1_200)
+          expect(durableReads).toHaveBeenCalledTimes(readsAtSettlement)
+        } finally {
+          abort.abort()
+          await waiting
+        }
+      }
+    )
+
+    it('recovers a committed permission decision when its notification is lost', async () => {
+      await createCurrentCalls()
+      const durableReads = vi.spyOn(asyncRepository, 'getAsyncToolCall')
+      const abort = new AbortController()
+      const waiting = waitForToolPermissionDecision(firstId, 3_000, abort.signal)
+      try {
+        await vi.waitFor(() => expect(durableReads).toHaveBeenCalledTimes(1))
+        await Promise.all(durableReads.mock.results.map((result) => result.value))
+        await recordToolPermissionDecision(firstId, 'allow')
+        expect(await waiting).toMatchObject({ toolCallId: firstId, decision: 'allow' })
+        expect((await getAsyncToolCall(secondId))?.permissionDecision).toBeNull()
+      } finally {
+        abort.abort()
+        await waiting
+      }
+    })
+
     it('wakes only the matching waiter and reads its durable terminal result', async () => {
       await createCurrentCalls()
       const durableReads = vi.spyOn(asyncRepository, 'getAsyncToolCalls')

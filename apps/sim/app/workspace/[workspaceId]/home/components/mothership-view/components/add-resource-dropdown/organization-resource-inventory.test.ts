@@ -33,6 +33,32 @@ describe('organization mention inventory', () => {
     expect(result.groups[1].items).toEqual([{ id: 'slack', name: 'Slack' }])
     expect(result.isHydrating).toBe(false)
   })
+  it('offers an integration only when every workspace policy permits it', () => {
+    const withIntegrations = (ids: string[]) => ({
+      ...inventory,
+      groups: [{ type: 'integration' as const, items: ids.map((id) => ({ id, name: id })) }],
+    })
+    const result = mergeOrganizationResourceInventories(
+      [
+        { id: 'sales', name: 'Sales' },
+        { id: 'finance', name: 'Finance' },
+      ],
+      { sales: withIntegrations(['slack', 'gmail_v2']), finance: withIntegrations(['gmail_v2']) }
+    )
+    expect(result.groups).toEqual([
+      { type: 'integration', items: [{ id: 'gmail_v2', name: 'gmail_v2' }] },
+    ])
+  })
+  it('offers no integration while a workspace policy has not arrived', () => {
+    const result = mergeOrganizationResourceInventories(
+      [
+        { id: 'sales', name: 'Sales' },
+        { id: 'finance', name: 'Finance' },
+      ],
+      { sales: inventory }
+    )
+    expect(result.groups.find((group) => group.type === 'integration')?.items ?? []).toEqual([])
+  })
   it('keeps mention confirmation pending until every accessible workspace settles', () => {
     expect(
       mergeOrganizationResourceInventories([{ id: 'sales', name: 'Sales' }], {}).isHydrating

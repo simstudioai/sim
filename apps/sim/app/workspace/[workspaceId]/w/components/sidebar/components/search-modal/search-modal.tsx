@@ -166,7 +166,7 @@ function SearchModalContent({
   const { navigateToSettings } = useSettingsNavigation()
   const { config: permissionConfig } = usePermissionConfig()
   const accessRequests = useWorkspaceAccessRequestFeatures()
-  const accessRequestsEnabled = accessRequests.data?.enabled === true
+  const requestableFeatureKeys = accessRequests.requestableFeatureKeys
   const invokeCommand = useInvokeGlobalCommand()
   const posthog = usePostHog()
 
@@ -250,7 +250,9 @@ function SearchModalContent({
           name: 'Integrations',
           icon: Integration,
           href: `/workspace/${workspaceId}/integrations`,
-          hidden: permissionConfig.hideIntegrationsTab && !accessRequestsEnabled,
+          hidden:
+            permissionConfig.hideIntegrationsTab &&
+            !requestableFeatureKeys.has('hideIntegrationsTab'),
         },
         {
           id: 'skills',
@@ -264,21 +266,23 @@ function SearchModalContent({
           name: 'Tables',
           icon: Table,
           href: `/workspace/${workspaceId}/tables`,
-          hidden: permissionConfig.hideTablesTab && !accessRequestsEnabled,
+          hidden: permissionConfig.hideTablesTab && !requestableFeatureKeys.has('hideTablesTab'),
         },
         {
           id: 'files',
           name: 'Files',
           icon: File,
           href: `/workspace/${workspaceId}/files`,
-          hidden: permissionConfig.hideFilesTab && !accessRequestsEnabled,
+          hidden: permissionConfig.hideFilesTab && !requestableFeatureKeys.has('hideFilesTab'),
         },
         {
           id: 'knowledge-base',
           name: 'Knowledge bases',
           icon: Database,
           href: `/workspace/${workspaceId}/knowledge`,
-          hidden: permissionConfig.hideKnowledgeBaseTab && !accessRequestsEnabled,
+          hidden:
+            permissionConfig.hideKnowledgeBaseTab &&
+            !requestableFeatureKeys.has('hideKnowledgeBaseTab'),
         },
         {
           id: 'logs',
@@ -314,7 +318,7 @@ function SearchModalContent({
       permissionConfig.hideTablesTab,
       permissionConfig.hideFilesTab,
       permissionConfig.hideIntegrationsTab,
-      accessRequestsEnabled,
+      requestableFeatureKeys,
     ]
   )
 

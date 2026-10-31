@@ -10,6 +10,7 @@ export const listTeamsTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsL
     name: 'List Microsoft Teams',
     description: 'List the Microsoft Teams the current user is a direct member of',
     version: '1.0',
+    assistant: { effect: 'read', version: 1 },
     errorExtractor: 'nested-error-object',
     oauth: {
       required: true,

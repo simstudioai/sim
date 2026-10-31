@@ -1,0 +1,16 @@
+{
+  "gapPx": 16,
+  "request": {
+    "x": 944,
+    "y": 96,
+    "width": 400,
+    "height": 104
+  },
+  "response": {
+    "x": 944,
+    "y": 216,
+    "width": 400,
+    "height": 478
+  },
+  "passed": true
+}

@@ -2139,6 +2139,10 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Run a deployed workflow or execute saved state manually',
     flags: {
       async: { boolean: true, describe: 'Queue the run and return immediately' },
+      executionTimeoutSeconds: {
+        describe:
+          "Maximum duration of the run in seconds, capped by the plan's execution timeout. Requires --async or --wait-timeout",
+      },
       input: { json: true, describe: 'Trigger input as JSON' },
       run: {
         hidden: true,
@@ -2159,6 +2163,10 @@ export const CLI_CONTRACT: CliContract = {
       stream: { omit: true },
       includeThinking: { omit: true },
       includeToolCalls: { omit: true },
+      // Spelled `--wait-timeout <seconds>` like every other wait, and parsed the
+      // same way, by `workflow-run-follow.ts`, which also reads the run back
+      // when the server stops waiting.
+      waitTimeoutSeconds: { omit: true },
       // Its embedded default lives with the synchronous request in
       // `workflow-run-follow.ts`, because an `--async` run rejects the field.
       includeFileBase64: {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/auth-ui'
 import {
   AuthField,
   AuthFormMessage,
@@ -32,6 +32,7 @@ export function SetNewPasswordForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSubmitting || !token) return
 
     const errors: string[] = []
 
@@ -72,14 +73,26 @@ export function SetNewPasswordForm({
     onSubmit(password)
   }
 
-  const hasValidationErrors = validationMessages.length > 0
+  const passwordErrors = validationMessages.filter(
+    (message) => message !== 'Passwords do not match'
+  )
+  const confirmationErrors = validationMessages.filter(
+    (message) => message === 'Passwords do not match'
+  )
 
   return (
-    <form onSubmit={handleSubmit} className={cn('space-y-6', className)}>
-      <div className='space-y-5'>
-        <AuthField htmlFor='password' label='New Password'>
+    <form onSubmit={handleSubmit} className={cn('au:space-y-[var(--auth-group-gap)]', className)}>
+      <div className='au:space-y-5'>
+        <AuthField
+          htmlFor='password'
+          label='New password'
+          errors={passwordErrors}
+          hint='8+ characters, upper/lowercase, number and symbol.'
+        >
           <PasswordInput
             id='password'
+            name='password'
+            aria-describedby='password-hint'
             autoCapitalize='none'
             autoComplete='new-password'
             autoCorrect='off'
@@ -88,12 +101,13 @@ export function SetNewPasswordForm({
             onChange={(e) => setPassword(e.target.value)}
             required
             placeholder='Enter new password'
-            error={hasValidationErrors}
+            error={passwordErrors.length > 0}
           />
         </AuthField>
-        <AuthField htmlFor='confirmPassword' label='Confirm Password'>
+        <AuthField htmlFor='confirmPassword' label='Confirm password' errors={confirmationErrors}>
           <PasswordInput
             id='confirmPassword'
+            name='confirmPassword'
             autoCapitalize='none'
             autoComplete='new-password'
             autoCorrect='off'
@@ -102,17 +116,9 @@ export function SetNewPasswordForm({
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
             placeholder='Confirm new password'
-            error={hasValidationErrors}
+            error={confirmationErrors.length > 0}
           />
         </AuthField>
-
-        {hasValidationErrors && (
-          <AuthFormMessage type='error'>
-            {validationMessages.map((error) => (
-              <p key={error}>{error}</p>
-            ))}
-          </AuthFormMessage>
-        )}
 
         {statusType && statusMessage && (
           <AuthFormMessage type={statusType === 'success' ? 'success' : 'error'}>

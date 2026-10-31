@@ -1,0 +1,18 @@
+{
+  "startedAt": "2026-10-30T01:18:36.617Z",
+  "completedAt": "2026-10-30T01:18:48.409Z",
+  "origin": "http://localhost:3001",
+  "canonicalOrigin": "https://docs.sim.ai",
+  "catalogHash": "6423bc4447d2506fbfa120a86fcdd6188766ec2a48c61f10f7cd39423c67b87a",
+  "concurrency": 4,
+  "maxBodyBytes": 33554432,
+  "catalogPages": 803,
+  "readablePages": 802,
+  "redirectOnlyPages": ["/"],
+  "assets": 187,
+  "excludedOsArtifacts": [],
+  "checks": 2996,
+  "passed": 2996,
+  "failed": 0,
+  "fullReportSha256": "b3b4a0787c2ab91ae34cd6f2d9bbf0e5a7c58c75629e441a4a95c28ad86251a2"
+}

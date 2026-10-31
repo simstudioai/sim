@@ -1,12 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
-import {
-  sealClientToolCompletion,
-  sealClientToolContext,
-} from '@/lib/mothership/request/tools/client-completion-seal.server'
+import { sealProjectedClientToolCompletion } from '@/lib/mothership/request/tools/client-completion-seal.server'
 import { settleClientToolCall } from '@/lib/mothership/request/tools/client-settlement.server'
-import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('CopilotToolCallFailure')
 
@@ -29,7 +25,6 @@ export async function settleToolCallFailure(input: {
   toolCallId: string
   runId?: string
   userId: string
-  registry?: ResolvedSecretTraceRegistry
   message: string
   data: Record<string, unknown>
   unclaimedOnly: boolean
@@ -38,18 +33,16 @@ export async function settleToolCallFailure(input: {
   const { toolCallId, message, data } = input
   try {
     let durableData: unknown = data
-    if (input.runId && input.registry) {
-      const binding = { toolCallId, runId: input.runId, userId: input.userId }
-      const [completion, provenance] = await Promise.all([
-        sealClientToolCompletion({ ...binding, message, data }),
-        sealClientToolContext({
-          ...binding,
-          registry: input.registry,
-          /** The fixed failure contains no output or arguments from the abandoned call. */
-          toolInput: undefined,
-        }),
-      ])
-      durableData = { ...completion, ...provenance }
+    if (input.runId) {
+      // These server-authored failures contain no tool input or output to project.
+      durableData = await sealProjectedClientToolCompletion({
+        toolCallId,
+        runId: input.runId,
+        userId: input.userId,
+        status: MothershipStreamV1ToolOutcome.error,
+        message,
+        data,
+      })
     }
     if (input.settledLocally?.()) return 'superseded'
     const outcome = await settleClientToolCall({

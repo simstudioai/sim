@@ -90,6 +90,8 @@ interface SettingsResourceRowProps {
    * the bleed would force a horizontal scrollbar.
    */
   flush?: boolean
+  /** Compact single-line controls retain a 40px row without changing the default resource layout. */
+  density?: 'default' | 'compact'
   /** Renders the row as unavailable without an activation target. */
   disabled?: boolean
 }
@@ -133,6 +135,7 @@ export function SettingsResourceRow({
   clickLabel,
   navigable = false,
   flush = false,
+  density = 'default',
   disabled = false,
 }: SettingsResourceRowProps) {
   const describedById = useId()
@@ -202,7 +205,9 @@ export function SettingsResourceRow({
   // mixing clickable and static rows keeps one height and one inset.
   const rowClass = cn(
     'flex items-center justify-between gap-2.5',
-    !flush && '-mx-2 rounded-lg p-2',
+    !flush && '-mx-2 rounded-lg',
+    !flush && (density === 'compact' ? 'px-2' : 'p-2'),
+    density === 'compact' && 'min-h-10 max-md:pointer-coarse:min-h-11',
     disabled && 'opacity-50'
   )
 

@@ -2,9 +2,15 @@ import { db } from '@sim/db'
 import { auditLog, user, workspace } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, inArray, type SQL, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { buildOrgScopeCondition, type OrgScopeParams, queryAuditLogs } from '@/lib/audit-logs/query'
+import {
+  type AuditLogFilterParams,
+  type AuditLogListScope,
+  buildFilterConditions,
+  buildOrgScopeCondition,
+  queryAuditLogs,
+} from '@/lib/audit-logs/query'
 
 const organizationId = generateId()
 const otherOrganizationId = generateId()
@@ -56,38 +62,38 @@ const rows = Array.from({ length: 81 }, (_, index) => {
       ? 'organization'
       : 'workflow',
     resourceId: placement.resourceId,
+    resourceName: index % 5 === 0 ? 'Quarterly report' : 'Fixture resource',
     metadata: { ...placement.metadata, fixture: 'x'.repeat(200) },
   }
 })
 const fixtureIds = rows.map((row) => row.id)
 
+/** The fixture clock: row `index` is written at `millisecond(floor(index / 4))` plus `index % 4` × 100µs. */
+const millisecond = (offset: number) =>
+  new Date(Date.UTC(2026, 0, 1, 12, 0, 0, offset)).toISOString()
+
 const auditLogTimestamp = sql`date_trunc('milliseconds', ${auditLog.createdAt})`
 
-/** The listing's contract as one predicate: every row in scope, newest first. */
-async function referenceOrder(scope: OrgScopeParams, filters: SQL<unknown>[]) {
+/** The listing's contract as the single scope predicate: every matching row in scope, newest first. */
+async function referenceOrder(scope: AuditLogListScope, filters: AuditLogFilterParams) {
   const matching = await db
     .select({ id: auditLog.id })
     .from(auditLog)
-    .where(and(buildOrgScopeCondition(scope), ...filters))
+    .where(and(buildOrgScopeCondition(scope), ...buildFilterConditions(filters)))
     .orderBy(desc(auditLogTimestamp), desc(auditLog.id))
   return matching.map((row) => row.id)
 }
 
 async function paginate(
-  scope: OrgScopeParams,
-  filters: SQL<unknown>[],
+  scope: AuditLogListScope,
+  filters: AuditLogFilterParams,
   limit: number,
   maxBytes?: number
 ) {
   const seen: string[] = []
   let cursor: string | undefined
   for (let page = 0; page <= rows.length; page++) {
-    const result = await queryAuditLogs(
-      [buildOrgScopeCondition(scope), ...filters],
-      limit,
-      cursor,
-      maxBytes
-    )
+    const result = await queryAuditLogs(scope, filters, limit, cursor, maxBytes)
     expect(result.truncated ?? false).toBe(false)
     seen.push(...result.data.map((row) => row.id))
     if (!result.nextCursor) return seen
@@ -136,26 +142,47 @@ afterAll(async () => {
   await db.$client.end()
 })
 
-describe('queryAuditLogs scope against real Postgres', () => {
-  const fixtureOnly = inArray(auditLog.id, fixtureIds)
+/**
+ * A time range alone is read per workspace through the keyset index; any other filter keeps the
+ * single predicate. Bounds fall inside a millisecond holding four rows, so a bound on the sort key
+ * that admitted the whole millisecond would show up as extra rows.
+ */
+const FILTERS: [string, AuditLogFilterParams][] = [
+  ['no filter', {}],
+  ['a start date', { startDate: millisecond(8) }],
+  ['an end date inside a millisecond', { endDate: millisecond(15) }],
+  ['a date range', { startDate: millisecond(3), endDate: millisecond(15) }],
+  ['a start date near the newest rows', { startDate: millisecond(19) }],
+  ['an action', { action: 'workflow.deployed' }],
+  ['an action and a start date', { action: 'workflow.deployed', startDate: millisecond(8) }],
+  ['a resource type', { resourceType: 'organization' }],
+  [
+    'resource types and an end date',
+    { resourceType: 'workflow, organization', endDate: millisecond(15) },
+  ],
+  ['a resource', { resourceId: organizationId }],
+  ['an actor', { actorId: memberId }],
+  ['a workspace', { workspaceId: workspaceB }],
+  ['a search', { search: 'quarterly' }],
+]
 
-  it.each([
-    { includeDeparted: false, action: undefined },
-    { includeDeparted: true, action: undefined },
-    { includeDeparted: false, action: 'workflow.deployed' },
-    { includeDeparted: true, action: 'workflow.deployed' },
-  ])(
-    'pages through exactly the single-predicate result (%o)',
-    async ({ includeDeparted, action }) => {
-      const scope: OrgScopeParams = {
+describe('queryAuditLogs scope against real Postgres', () => {
+  it.each(
+    FILTERS.flatMap(([label, filters]) => [
+      { label, includeDeparted: false, filters },
+      { label, includeDeparted: true, filters },
+    ])
+  )(
+    'pages through exactly the single-predicate result ($label, departed included: $includeDeparted)',
+    async ({ includeDeparted, filters }) => {
+      const scope: AuditLogListScope = {
         organizationId,
         orgWorkspaceIds: [workspaceA, workspaceB, workspaceA],
         orgMemberIds: [memberId],
         includeDeparted,
       }
-      const filters = action ? [fixtureOnly, eq(auditLog.action, action)] : [fixtureOnly]
       const expected = await referenceOrder(scope, filters)
-      expect(expected.length).toBeGreaterThan(4)
+      expect(expected.length).toBeGreaterThan(0)
 
       for (const limit of [1, 3, 7, 100]) {
         expect(await paginate(scope, filters, limit)).toEqual(expected)
@@ -164,15 +191,28 @@ describe('queryAuditLogs scope against real Postgres', () => {
     }
   )
 
+  it('keeps an end bound to the instant, not its whole millisecond', async () => {
+    const scope: AuditLogListScope = {
+      organizationId,
+      orgWorkspaceIds: [workspaceA, workspaceB],
+      orgMemberIds: [],
+      includeDeparted: true,
+    }
+    const ids = await paginate(scope, { endDate: millisecond(15) }, 100)
+    const inScope = rows.filter((row) => ids.includes(row.id))
+    expect(Math.max(...inScope.map((row) => row.index))).toBeLessThanOrEqual(60)
+    expect(inScope.some((row) => row.index === 60)).toBe(true)
+  })
+
   it('reads only organization-level rows when the organization has no workspaces', async () => {
-    const scope: OrgScopeParams = {
+    const scope: AuditLogListScope = {
       organizationId,
       orgWorkspaceIds: [],
       orgMemberIds: [],
       includeDeparted: true,
     }
-    const expected = await referenceOrder(scope, [fixtureOnly])
-    const ids = await paginate(scope, [fixtureOnly], 5)
+    const expected = await referenceOrder(scope, {})
+    const ids = await paginate(scope, {}, 5)
 
     expect(ids).toEqual(expected)
     expect(
@@ -185,14 +225,30 @@ describe('queryAuditLogs scope against real Postgres', () => {
     ).toEqual(new Set([3, 4, 5, 6]))
   })
 
+  it('leaves out a workspace the organization no longer holds', async () => {
+    const scope: AuditLogListScope = {
+      organizationId,
+      orgWorkspaceIds: [workspaceB],
+      orgMemberIds: [],
+      includeDeparted: true,
+    }
+    const ids = await paginate(scope, {}, 4)
+
+    expect(ids).toEqual(await referenceOrder(scope, {}))
+    const workspaces = new Set(
+      rows.filter((row) => ids.includes(row.id)).map((row) => row.workspaceId)
+    )
+    expect(workspaces).toEqual(new Set([workspaceB, null]))
+  })
+
   it('narrows to one workspace when the filter names it', async () => {
-    const scope: OrgScopeParams = {
+    const scope: AuditLogListScope = {
       organizationId,
       orgWorkspaceIds: [workspaceA, workspaceB],
       orgMemberIds: [memberId],
       includeDeparted: true,
     }
-    const filters = [fixtureOnly, eq(auditLog.workspaceId, workspaceB)]
+    const filters = { workspaceId: workspaceB }
     const expected = await referenceOrder(scope, filters)
 
     expect(await paginate(scope, filters, 4)).toEqual(expected)

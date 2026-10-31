@@ -59,6 +59,20 @@ describe('List MCP operations', () => {
     })
   })
 
+  it('publishes the reply schema an operation declares, and none for one that declares none', async () => {
+    const outputSchema = { type: 'object', properties: { ok: { type: 'boolean' } } }
+    discover.mockResolvedValue([
+      { name: 'add_note', serverId: 'server-1', inputSchema: { type: 'object' }, outputSchema },
+      { name: 'on_call', serverId: 'server-1', inputSchema: { type: 'object' } },
+    ])
+    const response = await listMcpOperations({ ...call, input: { server: 'server-1' } })
+    const { output } = await response.json()
+    expect(output.operations).toEqual([
+      { name: 'add_note', description: '', inputSchema: { type: 'object' }, outputSchema },
+      { name: 'on_call', description: '', inputSchema: { type: 'object' } },
+    ])
+  })
+
   it('rejects an empty resolved server without selecting a credential', async () => {
     await expect(listMcpOperations({ ...call, input: { server: '' } })).rejects.toThrow(
       'MCP server is required'

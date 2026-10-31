@@ -1,0 +1,104 @@
+# Reading Sim documentation from tools
+
+Every interface uses the same compiled catalog as the rendered pages. Documentation access is public and read-only. It does not authorize access to Sim workspaces or execute product API requests.
+
+## Markdown and discovery
+
+Append `.md` or `.mdx` to a canonical page URL, or request that URL with `Accept: text/markdown`:
+
+```sh
+curl https://docs.sim.ai/integrations/slack.md
+curl -H 'Accept: text/markdown' https://docs.sim.ai/integrations/slack
+```
+
+The compatibility path `/llms.mdx/integrations/slack` returns the same complete Markdown. HTTP negotiation respects quality values, defaults to HTML when representations have equal quality, and preserves `Vary: Accept`. Asset and API routes do not negotiate document Markdown.
+
+`/llms.txt` lists canonical pages, including API operations. `/llms-full.txt` contains authored guides and integration references; it deliberately excludes generated API operation bodies. Each API operation has its own complete Markdown representation. `/openapi.json` downloads the combined canonical OpenAPI document.
+
+## JSON API
+
+`GET /api/docs/pages` returns `{ pages, nextCursor, total }`. Each metadata record includes `id`, `path`, canonical `url`, title, description, section, content hash and last-modified time when available.
+
+- `section`: optional `docs`, `api`, `cli`, or `mcp`.
+- `limit`: 1–100, default 25.
+- `cursor`: the previous response's `nextCursor`. Omit it for the first page.
+
+Continue until `nextCursor` is `null`. Unknown cursors and invalid parameters return 400.
+
+`GET /api/docs/page?path=/introduction` returns `{ page }`, containing the same metadata, headings and complete processed `markdown`. Use a canonical site-relative path. Remote URLs, traversal paths and malformed paths return 400; an unknown canonical page returns 404. Content is never silently truncated.
+
+`GET /api/search?query=slack&limit=10` returns the established array of `{ id, type: "page", url, content, breadcrumbs }`. `q` is a supported alias for `query`. Queries are bounded to 256 code points; the result limit defaults to 10 and is capped at 20. Heading citations preserve explicit document anchors. An empty query returns `[]`; an actual service failure returns 503.
+
+## Documentation MCP
+
+Configure a remote Streamable HTTP server at `https://docs.sim.ai/api/mcp`. This endpoint is separate from Sim's workspace MCP server and `/mcp/...` documentation pages. It requires no API key.
+
+The official stable MCP TypeScript SDK 2.3.1 serves the 2026-07-28 protocol and stateless compatibility for 2025-era clients. Tools:
+
+| Tool | Input | Result |
+| --- | --- | --- |
+| `list_pages` | Optional `section`, `cursor`, `limit` as above | Paginated metadata and next cursor |
+| `get_page` | `path` | Complete Markdown and canonical metadata |
+| `search` | `query`, optional `limit` 1–20 | The same search results as the docs UI |
+
+All three tools advertise read-only behavior. Unknown pages produce tool errors; invalid inputs produce protocol/tool validation errors. The transport rejects unapproved browser origins, unrecognized hosts and request bodies over 16 KiB. Non-browser MCP clients normally omit `Origin`. No caller-supplied URL is fetched.
+
+## Search index operations
+
+Basic search uses a server-only index generated atomically with the local compiled catalog and needs no database or embedding credentials. Markdown parsing and text normalization happen during content compilation; requests read precomputed chunks. The generated index is capped at 64 MiB and its catalog fingerprint is validated before serving results. When `DATABASE_URL` is present, bounded PostgreSQL keyword search can supplement it; `OPENAI_API_KEY` additionally enables vector search using the existing 1536-dimensional `text-embedding-3-small` table contract. Unavailable providers fall back to lexical results. Results with old content hashes or nonexistent heading targets are excluded.
+
+Search chunks contain at most 6,000 characters, including continuation context. Paragraphs and code blocks stay intact when they fit. Larger code blocks become explicitly labeled excerpts with the original language, complete fences and unchanged code lines; an excerpt is not necessarily a complete JSON value or executable program. Continuations repeat the page and heading, and table excerpts repeat their column headers while retaining oversized cell text in fragments. Content that cannot fit safely, such as one oversized code line or an oversized nested code block, stops compilation with the page and heading in the error instead of discarding content.
+
+From `apps/docs`:
+
+```sh
+bun run content:generate
+bun scripts/index-search.ts --plan
+bun scripts/index-search.ts --check
+bun scripts/index-search.ts
+```
+
+`--plan` is local and read-only. `--check` requires the search database and reports missing, stale or retired documents without writes. It compares stored chunk text, embedding model and input identity, headings, citations and metadata with the canonical catalog. The final command prepares bounded embedding batches, atomically updates one document at a time, and removes retired documents only after all page updates succeed. A failed page leaves its previous index intact. Citation or metadata changes reuse existing vectors when the embedding input is unchanged. The canonical index includes authored content and generated API operations; the agent VFS retains its deliberate `academy` and `api-reference` exclusions.
+
+Add one or more `--path=/introduction` arguments to plan, check or repair specific canonical pages. Scoped publication never retires other pages. Publication and checks acquire an exclusive PostgreSQL advisory lock; a competing invocation fails before changing rows. Automatic index publication is disabled. The main-branch workflow only publishes after a manual dispatch with `publish` confirmed, the serving docs deployment ID, its full source SHA, and a restorable index backup reference. It checks out the dispatch's exact SHA and rejects a different deployment revision before accessing the index. The operator must independently verify the serving deployment and backup before confirming; the workflow records that attestation but does not create or validate a backup. Publisher jobs remain serialized. Do not run an older publisher checkout against the index.
+
+Set `DOCS_SEARCH_REPORT_PATH` to choose the JSON report destination. The default is `test-results/docs-search-index.json`. Reports include embedding request, input and provider token counts. The main-branch docs workflow retains separate publication and freshness reports; no production indexing is part of the docs build.
+
+## Repeatable verification
+
+Start a local production server, then run the existing negotiation and navigation suites and the official-client interface suite:
+
+```sh
+DOCS_E2E_BASE_URL=http://127.0.0.1:3001 \
+DOCS_INTERFACES_REPORT_PATH=test-results/interfaces.json \
+bun scripts/test-docs-interfaces-e2e.ts
+```
+
+The suite exercises real HTTP and the official MCP client, including discovery pagination, complete page retrieval, search consistency, invalid inputs, denied origins and byte limits. `DOCS_NEGOTIATION_REPORT_PATH` and `DOCS_NAVIGATION_REPORT_PATH` configure the companion reports. CI uploads the reports and browser screenshots on success or failure.
+
+
+The PostgreSQL suite uses a new, empty, loopback database and no embedding key. It verifies real keyword search, citation freshness, graceful database failure, repeated index publication, retirement and failed-publication preservation. It refuses databases containing existing tables. CI provisions its own `pgvector/pgvector:pg17` service and uploads the report with the other docs checks.
+
+The platform consumer harness also uses an empty loopback database and the running docs build. From `apps/sim`, run `bun --no-env-file scripts/test-docs-search-provider-e2e.ts` with `DOCS_PROVIDER_E2E_DATABASE_URL`, `DOCS_PROVIDER_E2E_BASE_URL` and `DOCS_PROVIDER_E2E_REPORT_PATH`. Its default mode uses the existing Azure endpoint configuration with a local HTTP fixture, deterministic vectors and the real PostgreSQL provider-admission store. It verifies the platform's direct-table search, scope exclusions, VFS reads and public citations, with no paid requests. This verifies the transport and consumer contract, not semantic relevance.
+
+Live provider verification is opt-in: set `DOCS_PROVIDER_E2E_ALLOW_LIVE=1` and supply `OPENAI_API_KEY`, using a fresh database named `docs_search_provider_test`. The harness limits publication to the introduction page, rejects plans above 15 chunks, and sends at most one batch with up to three attempts. The consumer makes at most one query embedding request, for a total cap of four provider requests. Provider failure stops the run and remains a failed report. The default fixture mode also accepts the empty `docs_search_test` database used by the PostgreSQL suite. Both modes remove their tables when finished.
+
+To repeat locally, create a disposable container (the command returns its ID):
+
+```sh
+docker run --rm -d --name sim-docs-search-e2e \
+  -e POSTGRES_USER=docs_test -e POSTGRES_PASSWORD=docs_test \
+  -e POSTGRES_DB=docs_search_test -p 127.0.0.1:15432:5432 \
+  pgvector/pgvector:pg17
+docker exec sim-docs-search-e2e pg_isready -U docs_test -d docs_search_test
+```
+
+After PostgreSQL reports ready, run from `apps/docs`:
+
+```sh
+DOCS_SEARCH_E2E_DATABASE_URL=postgresql://docs_test:docs_test@127.0.0.1:15432/docs_search_test \
+DOCS_SEARCH_E2E_REPORT_PATH=test-results/search-postgres/report.json \
+bun run test:search:postgres:e2e
+```
+
+Then stop the container using the ID returned by `docker run`; `--rm` removes its temporary data. Successful vector generation and provider ranking still require separate verification with an embedding provider. The local suite makes no paid provider calls.

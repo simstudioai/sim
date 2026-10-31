@@ -95,7 +95,7 @@ export function SettingsSidebar({
 
   const { config: permissionConfig } = usePermissionConfig()
   const accessRequests = useWorkspaceAccessRequestFeatures()
-  const accessRequestsEnabled = accessRequests.data?.enabled === true
+  const requestableFeatureKeys = accessRequests.requestableFeatureKeys
   const forkingAvailable = useForkingAvailable(workspaceId)
   const { workspacePermissions, userPermissions } = useWorkspacePermissionsContext()
   // The server-seeded viewer permission, read directly: the derived admin flag waits on the client
@@ -168,26 +168,46 @@ export function SettingsSidebar({
         return false
       }
 
-      if (item.id === 'secrets' && permissionConfig.hideSecretsTab && !accessRequestsEnabled) {
+      if (
+        item.id === 'secrets' &&
+        permissionConfig.hideSecretsTab &&
+        !requestableFeatureKeys.has('hideSecretsTab')
+      ) {
         return false
       }
-      if (item.id === 'apikeys' && permissionConfig.hideApiKeysTab && !accessRequestsEnabled) {
+      if (
+        item.id === 'apikeys' &&
+        permissionConfig.hideApiKeysTab &&
+        !requestableFeatureKeys.has('hideApiKeysTab')
+      ) {
         return false
       }
-      if (item.id === 'inbox' && permissionConfig.hideInboxTab && !accessRequestsEnabled) {
+      if (
+        item.id === 'inbox' &&
+        permissionConfig.hideInboxTab &&
+        !requestableFeatureKeys.has('hideInboxTab')
+      ) {
         return false
       }
-      if (item.id === 'mcp' && permissionConfig.disableMcpTools && !accessRequestsEnabled) {
+      if (
+        item.id === 'mcp' &&
+        permissionConfig.disableMcpTools &&
+        !requestableFeatureKeys.has('disableMcpTools')
+      ) {
         return false
       }
       if (
         item.id === 'custom-tools' &&
         permissionConfig.disableCustomTools &&
-        !accessRequestsEnabled
+        !requestableFeatureKeys.has('disableCustomTools')
       ) {
         return false
       }
-      if (item.id === 'sandboxes' && permissionConfig.hideSandboxesTab && !accessRequestsEnabled) {
+      if (
+        item.id === 'sandboxes' &&
+        permissionConfig.hideSandboxesTab &&
+        !requestableFeatureKeys.has('hideSandboxesTab')
+      ) {
         return false
       }
       if (item.id === 'forks' && !(forkingAvailable && canAdminWorkspace)) {
@@ -258,7 +278,7 @@ export function SettingsSidebar({
     isSSOProviderOwner,
     ssoProvidersData?.providers?.length,
     permissionConfig,
-    accessRequestsEnabled,
+    requestableFeatureKeys,
     isSuperUser,
     generalSettings?.superUserModeEnabled,
     forkingAvailable,

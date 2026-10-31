@@ -6,11 +6,13 @@ import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { JiraOperationError } from '@/lib/internal/jira/errors'
 import {
   jiraAddAttachmentInputSchema,
+  jiraCreateSprintInputSchema,
   jiraUpdateInputSchema,
   jiraWriteInputSchema,
 } from '@/lib/internal/jira/input'
 import {
   executeJiraAddAttachment,
+  executeJiraCreateSprint,
   executeJiraUpdate,
   executeJiraWrite,
   type JiraOperationContext,
@@ -43,6 +45,10 @@ async function dispatch(
   context: JiraOperationContext
 ): Promise<unknown | Response> {
   switch (request.toolId) {
+    case 'jira_create_sprint': {
+      const input = validateInput(jiraCreateSprintInputSchema, request.input)
+      return input instanceof Response ? input : executeJiraCreateSprint(input, context)
+    }
     case 'jira_write': {
       const input = validateInput(jiraWriteInputSchema, request.input)
       return input instanceof Response ? input : executeJiraWrite(input, context)

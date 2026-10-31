@@ -1,5 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { ApiClientError } from '@/lib/api/client/errors'
 
 /**
  * The app-facing session shape derived from the Better Auth client response.
@@ -62,7 +63,11 @@ export function extractSessionDataFromAuthClientResult(result: unknown): unknown
   if (isBetterAuthErrorEnvelope(result)) {
     const fallback =
       result.error.statusText || `Better Auth session request failed (${result.error.status})`
-    throw new Error(getErrorMessage(result.error.message, fallback))
+    throw new ApiClientError({
+      status: result.error.status,
+      message: getErrorMessage(result.error.message, fallback),
+      body: result.error,
+    })
   }
 
   if (!isRecordLike(result)) {

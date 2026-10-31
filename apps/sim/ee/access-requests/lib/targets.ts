@@ -308,61 +308,78 @@ function integrationDenied(config: PermissionGroupConfig, integrationId: string)
   )
 }
 
-/** Tests denial without copying full policies or their potentially large denylists. */
-export function isAccessRequestTargetDenied(
+/** Group policy state before applying deployment availability, workspace roles, and scope. */
+export type PermissionGroupAccessState = 'allowed' | 'requestable' | 'unavailable'
+
+/** Prerequisites whose restrictions an approval would also have to lift. */
+export function getAccessRequestTargetParents(
   target: AccessRequestTarget,
-  config: PermissionGroupConfig,
   catalog: AccessRequestCatalog
-): boolean {
-  const canonical = validateAccessRequestTarget(target, catalog)
-  if (!canonical) throw new Error('Unknown access request target')
-  if (requiredFeatures(canonical, catalog).some((key) => config[key])) return true
-  switch (canonical.kind) {
+): AccessRequestTarget[] {
+  const parents: AccessRequestTarget[] = requiredFeatures(target, catalog)
+    .filter((key) => target.kind !== 'feature' || key !== target.configKey)
+    .map((configKey) => ({ kind: 'feature', configKey }))
+  if (target.kind === 'model') {
+    const providerId = catalog.models.get(target.id.toLowerCase())?.providerId
+    if (providerId) parents.push({ kind: 'provider', id: providerId })
+  }
+  if (target.kind === 'tool') {
+    const integrationId = catalog.tools.get(target.id)?.integrationId
+    if (integrationId)
+      parents.push({ kind: 'integration', id: normalizeIntegration(integrationId) })
+  }
+  return parents
+}
+
+function directlyDenied(target: AccessRequestTarget, config: PermissionGroupConfig): boolean {
+  switch (target.kind) {
     case 'feature':
-      return false
+      return config[target.configKey]
     case 'integration':
-      return integrationDenied(config, canonical.id)
+      return integrationDenied(config, target.id)
     case 'provider':
       return (
-        config.allowedModelProviders !== null &&
-        !config.allowedModelProviders.includes(canonical.id)
+        config.allowedModelProviders !== null && !config.allowedModelProviders.includes(target.id)
       )
-    case 'model': {
-      const providerId = catalog.models.get(canonical.id.toLowerCase())?.providerId
-      return (
-        config.deniedModels.some((id) => id.toLowerCase() === canonical.id.toLowerCase()) ||
-        Boolean(
-          providerId &&
-            config.allowedModelProviders !== null &&
-            !config.allowedModelProviders.includes(providerId)
-        )
-      )
-    }
-    case 'tool': {
-      const integrationId = catalog.tools.get(canonical.id)?.integrationId
-      return (
-        config.deniedTools.includes(canonical.id) ||
-        Boolean(integrationId && integrationDenied(config, integrationId))
-      )
-    }
+    case 'model':
+      return config.deniedModels.some((id) => id.toLowerCase() === target.id.toLowerCase())
+    case 'tool':
+      return config.deniedTools.includes(target.id)
     case 'knowledge_connector':
       return (
         config.allowedKnowledgeConnectors !== null &&
-        !config.allowedKnowledgeConnectors.includes(canonical.id)
+        !config.allowedKnowledgeConnectors.includes(target.id)
       )
     case 'file_share_auth':
       return (
         config.allowedFileShareAuthTypes !== null &&
-        !config.allowedFileShareAuthTypes.includes(canonical.id)
+        !config.allowedFileShareAuthTypes.includes(target.id)
       )
     case 'chat_deploy_auth':
       return (
         config.allowedChatDeployAuthTypes !== null &&
-        !config.allowedChatDeployAuthTypes.includes(canonical.id)
+        !config.allowedChatDeployAuthTypes.includes(target.id)
       )
     case 'usage_limit':
       throw new Error('Usage limit requests require a billing limit change')
   }
+}
+
+/** Group policy only; callers still enforce catalog, deployment, role and scope ceilings. */
+export function getPermissionGroupAccessState(
+  target: AccessRequestTarget,
+  config: PermissionGroupConfig,
+  catalog: AccessRequestCatalog
+): PermissionGroupAccessState {
+  const requirements = [target, ...getAccessRequestTargetParents(target, catalog)]
+  let state: PermissionGroupAccessState = 'allowed'
+  for (const requirement of requirements) {
+    if (!directlyDenied(requirement, config)) continue
+    const key = getAccessRequestTargetKey(requirement)
+    if (config.deniedAccessRequests.includes(key)) return 'unavailable'
+    state = 'requestable'
+  }
+  return state
 }
 
 function allowIntegration(config: PermissionGroupConfig, id: string) {

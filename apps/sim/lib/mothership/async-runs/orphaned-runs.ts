@@ -28,7 +28,7 @@ import {
 } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
 import type { DbTransaction } from '@/lib/db/types'
-import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
+import { SUPPORTED_SIM_TOOL_EXECUTION_VERSIONS } from '@/lib/mothership/async-runs/lifecycle'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import { isDurableStreamRun } from '@/lib/mothership/request/lifecycle/durable-run'
 import {
@@ -114,7 +114,7 @@ const leasedRunIdle = and(
 )
 const legacyRunIdle = and(
   isNull(controllerToken),
-  lt(copilotRuns.toolExecutionVersion, SIM_TOOL_EXECUTION_VERSION),
+  lt(copilotRuns.toolExecutionVersion, SUPPORTED_SIM_TOOL_EXECUTION_VERSIONS[0]),
   idleFor(LEGACY_RUN_GRACE_MS)
 )
 const orphanIdle = or(leasedRunIdle, legacyRunIdle)

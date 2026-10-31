@@ -38,9 +38,13 @@ export function organizationRoutes(organizationId: string) {
     root,
     home: `${root}/home`,
     search: `${root}/search`,
+    searchChat: (chatId: string) => `${root}/search/chat/${chatId}`,
     integrations: `${root}/integrations`,
+    accountToolPermissions: (credentialId: string) =>
+      `${root}/integrations/accounts/${encodeURIComponent(credentialId)}`,
     benchmark: `${root}/benchmark`,
     memberSecrets: `${root}/integrations/secrets`,
+    simLinks: `${root}/links`,
     organizationSecrets: `${root}/settings/integrations/secrets`,
     skills: `${root}/skills`,
     settings: `${root}/settings`,
@@ -51,6 +55,11 @@ export function organizationRoutes(organizationId: string) {
     settingsSection: (section: string) => `${root}/settings/${section}`,
     chat: (chatId: string) => `${root}/chat/${chatId}`,
   } as const
+}
+
+/** Where `sim/<name>/<values…>` resolves in this app: the address a member types, kept verbatim. */
+export function simLinkPath(...segments: string[]): string {
+  return ['/sim', ...segments.map(encodeURIComponent)].join('/')
 }
 
 /** Whether `pathname` is `root` itself or a route beneath it. */
@@ -77,7 +86,9 @@ export function isAppSurfacePath(pathname: string): boolean {
  * upgrade utility pages.
  */
 const NOINDEX_PATH_ROOTS = [
+  '/sim',
   '/chat',
+  '/extension',
   '/resume',
   '/invite',
   '/unsubscribe',

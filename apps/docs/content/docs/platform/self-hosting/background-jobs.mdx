@@ -3,7 +3,7 @@ title: Background jobs
 description: Scheduled workflows, polling triggers, and the cron endpoints that drive them
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
+import { Callout } from '@/components/ui/callout'
 
 Scheduled workflows, polling triggers, connector syncs, and maintenance jobs depend on authenticated HTTP endpoints called by an external scheduler.
 
@@ -188,6 +188,7 @@ Create a workflow with a Schedule trigger set to every minute, deploy it, and wa
 | Reconcile billing seats | `/api/cron/reconcile-billing-seats` | `0 * * * *` | Billing only — safe to disable when self-hosted |
 | Reconcile inbox entitlement | `/api/cron/reconcile-inbox-entitlement` | `0 3 * * *` | Inbox access reconciliation |
 | Cleanup sandbox images | `/api/cron/cleanup-sandbox-images` | `30 4 * * *` | Reclaims sandbox images |
+| Cleanup session sandboxes | `/api/cron/cleanup-session-sandboxes` | `*/5 * * * *` | Kills chat workbenches paused past their retention window |
 | Idempotency key cleanup | `/api/webhooks/cleanup/idempotency` | `0 5 * * *` | Deletes deduplication records older than seven days |
 
 Subscription renewal covers Microsoft Teams chat triggers. Their Graph subscriptions last at most three days; rich notifications have a shorter limit. Gmail, Outlook, Drive, Calendar, and Sheets use the per-minute polling jobs instead. See [Microsoft Graph subscription lifetimes](https://learn.microsoft.com/en-us/graph/change-notifications-overview). SCIM reconciliation calls its authenticated endpoint directly each hour; it does not require Trigger.dev.

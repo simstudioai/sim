@@ -16,6 +16,7 @@ import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user
 interface SearchInputBarProps {
   inputRef: RefObject<HTMLTextAreaElement | null>
   value: string
+  disabled?: boolean
   onChange: (value: string) => void
   onSubmit: () => void
   onPaste?: ClipboardEventHandler<HTMLTextAreaElement>
@@ -36,6 +37,7 @@ export function SearchInputBar({
   attachments,
   inputRef,
   value,
+  disabled = false,
   onChange,
   onSubmit,
   onPaste,
@@ -106,6 +108,7 @@ export function SearchInputBar({
             inputRef={inputRef}
             scrollerRef={scrollerRef}
             value={value}
+            disabled={disabled}
             compact={!hasAttachments && !expanded}
             className={hasAttachments ? 'min-h-[56px]' : undefined}
             maxHeight={200}

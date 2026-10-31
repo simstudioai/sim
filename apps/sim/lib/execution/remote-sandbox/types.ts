@@ -488,4 +488,17 @@ export interface SandboxProvider {
     key: string,
     options: { language?: CodeLanguage; lifetimeMs?: number }
   ): Promise<SandboxHandle | null>
+  /** Session sandboxes the provider paused when their lease ran out, for the retention sweep. */
+  listPausedSessionSandboxes?(): Promise<PausedSessionSandbox[]>
+  /**
+   * Kills the sandbox only if it is still paused and paused at or before `pausedBeforeMs`,
+   * resolving false when a resume got there first. Callers hold the session's lock.
+   */
+  killPausedSessionSandbox?(sandbox: PausedSessionSandbox, pausedBeforeMs: number): Promise<boolean>
+}
+
+export interface PausedSessionSandbox {
+  sandboxId: string
+  sessionKey: string
+  pausedAtMs: number
 }

@@ -5,6 +5,7 @@ import { jiraAddWorklogTool } from '@/tools/jira/add_worklog'
 import { jiraAssignIssueTool } from '@/tools/jira/assign_issue'
 import { jiraBulkRetrieveTool } from '@/tools/jira/bulk_read'
 import { jiraCreateIssueLinkTool } from '@/tools/jira/create_issue_link'
+import { jiraCreateSprintTool } from '@/tools/jira/create_sprint'
 import { jiraDeleteAttachmentTool } from '@/tools/jira/delete_attachment'
 import { jiraDeleteCommentTool } from '@/tools/jira/delete_comment'
 import { jiraDeleteIssueTool } from '@/tools/jira/delete_issue'
@@ -30,6 +31,7 @@ import { jiraUpdateWorklogTool } from '@/tools/jira/update_worklog'
 import { jiraWriteTool } from '@/tools/jira/write'
 
 export {
+  jiraCreateSprintTool,
   jiraRetrieveTool,
   jiraUpdateTool,
   jiraWriteTool,

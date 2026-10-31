@@ -153,7 +153,10 @@ const CHECKBOX_COLUMN_WIDTH = '52px'
  * virtualized grid layout reproduces the exact column widths. The checkbox
  * column, when present, is a fixed leading track.
  */
-function buildGridTemplateColumns(columns: ResourceColumn[], hasCheckbox: boolean): string {
+function buildGridTemplateColumns(
+  columns: readonly ResourceColumn[],
+  hasCheckbox: boolean
+): string {
   const weights = columns.map(
     (col, colIdx) => (colIdx === 0 ? 2.5 : 1.0) * (col.widthMultiplier ?? 1)
   )
@@ -209,7 +212,7 @@ export interface ResourceTableHandle {
 }
 
 interface ResourceTableProps {
-  columns: ResourceColumn[]
+  columns: readonly ResourceColumn[]
   rows: ResourceRow[]
   selectedRowId?: string | null
   /** Optional imperative handle exposing {@link ResourceTableHandle} (e.g. for keyboard-nav scrolling). */
@@ -639,7 +642,7 @@ const CellContent = memo(function CellContent({
 
 interface DataRowProps {
   row: ResourceRow
-  columns: ResourceColumn[]
+  columns: readonly ResourceColumn[]
   selectedRowId?: string | null
   selectable?: SelectableConfig
   rowDragDrop?: RowDragDropConfig

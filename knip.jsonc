@@ -93,8 +93,11 @@
         // Knip's email CLI plugin infers this transitive preview implementation.
         "@react-email/ui"
       ],
-      // Live test spawns this path with cwd=MSHIP_WORKER_ROOT (a sibling repo).
-      "ignoreUnresolved": ["tools/probes/src/controller-run-read.ts"]
+      // Live tests spawn these paths with cwd=MSHIP_WORKER_ROOT (a sibling repo).
+      "ignoreUnresolved": [
+        "tools/probes/src/controller-run-read.ts",
+        "tools/probes/src/draft-run-slices.ts"
+      ]
     },
     "apps/realtime": {
       "includeEntryExports": false,
@@ -104,6 +107,10 @@
         "src/**/*.integration.ts",
         "vitest.integration.setup.ts"
       ]
+    },
+    "apps/extension": {
+      // Chrome loads the manifest entrypoints; Bun runs packaging and browser verification scripts.
+      "entry": ["src/background.ts", "src/sidepanel.tsx", "scripts/*.ts"]
     },
     "apps/desktop": {
       "includeEntryExports": false,
@@ -125,6 +132,13 @@
     },
     "apps/docs": {
       "includeEntryExports": false,
+      // The compiler discovers MDX by path; the docs CI workflow invokes these scripts directly.
+      "entry": [
+        "content/docs/**/*.mdx",
+        "scripts/benchmark-readiness.ts",
+        "scripts/test-generators-e2e.ts",
+        "scripts/verify-api-samples.ts"
+      ],
       // scripts/generate-docs.ts copies this verbatim from apps/sim/components/icons.tsx, whose
       // export surface is already ratcheted there; docs consumes only the icons it maps.
       "ignoreIssues": { "components/icons.tsx": ["exports", "types", "duplicates"] }

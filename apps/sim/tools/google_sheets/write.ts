@@ -6,6 +6,8 @@ import type {
 } from '@/tools/google_sheets/types'
 import type { ToolConfig } from '@/tools/types'
 
+const DEFAULT_CELL_RANGE = 'A1'
+
 export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResponse> = {
   id: 'google_sheets_write',
   name: 'Write to Google Sheets',
@@ -189,6 +191,16 @@ export const writeV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Wri
   description: 'Write data to a specific sheet in a Google Sheets spreadsheet',
   version: '2.0.0',
 
+  assistant: {
+    effect: 'write',
+    version: 1,
+    reviewFields: [
+      { name: 'spreadsheetId', label: 'Spreadsheet', target: true },
+      { name: 'sheetName', label: 'Sheet', target: true },
+      { name: 'cellRange', label: 'Range', target: true },
+    ],
+  },
+
   oauth: {
     required: true,
     provider: 'google-sheets',
@@ -219,6 +231,7 @@ export const writeV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Wri
       visibility: 'user-or-llm',
       description:
         'The cell range to write to (e.g. "A1:D10", "A1"). Defaults to "A1" if not specified.',
+      default: DEFAULT_CELL_RANGE,
     },
     values: {
       type: 'array',
@@ -249,7 +262,7 @@ export const writeV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Wri
       }
 
       // Build the range: SheetName!CellRange or just SheetName!A1
-      const cellRange = params.cellRange?.trim() || 'A1'
+      const cellRange = params.cellRange?.trim() || DEFAULT_CELL_RANGE
       const fullRange = `${sheetName}!${cellRange}`
 
       const url = new URL(

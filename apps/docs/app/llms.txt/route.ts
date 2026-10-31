@@ -1,17 +1,17 @@
 import { INTEGRATION_REACH } from '@sim/deployment-config/integration-claims'
 import { createLogger } from '@sim/logger'
-import { source } from '@/lib/source'
+import { getPages } from '@/lib/content/catalog'
 import { DOCS_BASE_URL, SIM_SITE_URL } from '@/lib/urls'
 
 const logger = createLogger('DocsLlmsManifest')
 
-export const revalidate = false
+export const dynamic = 'force-static'
 
 export async function GET() {
   const baseUrl = DOCS_BASE_URL
 
   try {
-    const pages = source.getPages().filter((page) => Boolean(page?.data && page.url))
+    const pages = getPages().filter((page) => page.url !== '/')
 
     const sections: Record<string, Array<{ title: string; url: string; description?: string }>> = {}
 
@@ -23,9 +23,9 @@ export async function GET() {
       }
 
       sections[section].push({
-        title: page.data.title || 'Untitled',
+        title: page.title || 'Untitled',
         url: `${baseUrl}${page.url}`,
-        description: page.data.description,
+        description: page.description,
       })
     })
 
@@ -65,6 +65,9 @@ ${Object.entries(sections)
 - Individual page content as markdown: ${baseUrl}/[page-path].md
 - [API documentation](${baseUrl}/api-reference/getting-started)
 - [Integrations](${baseUrl}/integrations)
+- [Page discovery API](${baseUrl}/api/docs/pages): paginated metadata; use \`section\`, \`cursor\`, and \`limit\` parameters.
+- Page retrieval API: ${baseUrl}/api/docs/page?path=/introduction returns complete processed Markdown.
+- Public read-only documentation MCP endpoint: ${baseUrl}/api/mcp (Streamable HTTP). Tools: list_pages, get_page, search.
 
 ## Statistics
 
@@ -72,13 +75,13 @@ ${Object.entries(sections)
 
 ---
 
-Generated: ${new Date().toISOString()}
 Format: llms.txt v0.1.0
 See: https://llmstxt.org for specification`
 
     return new Response(manifest, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'public, max-age=0, s-maxage=86400, must-revalidate',
       },
     })
   } catch (error) {

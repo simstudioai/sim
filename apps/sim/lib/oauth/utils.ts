@@ -262,6 +262,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'webhook:manage': 'Create, view, and delete base webhooks and read their payloads',
 
   // Jira scopes
+  'write:sprint:jira-software': 'Create and update Jira Software sprints',
   'read:jira-user': 'View Jira user profiles, including email addresses',
   'read:jira-work': 'View Jira projects and issues, and search issues',
   'write:jira-work': 'Create, edit, and delete Jira issues, comments, and worklogs',
@@ -828,6 +829,12 @@ export function canonicalizeServiceProviderId(
 export function getCanonicalScopesForProvider(providerId: string): string[] {
   const service = getServiceConfigByProviderId(providerId)
   return service?.scopes ? [...service.scopes] : []
+}
+
+/** Scope requirements for tools without their own declaration, independent of consent expansion. */
+export function getDefaultToolScopesForProvider(providerId: string): string[] {
+  const service = getServiceConfigByProviderId(providerId)
+  return [...(service?.defaultToolScopes ?? service?.scopes ?? [])]
 }
 
 /**

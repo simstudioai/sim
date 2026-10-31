@@ -4,20 +4,24 @@ import { ChevronRight } from '@sim/emcn/icons'
 interface ReferenceDetailsProps {
   children: ReactNode
   label?: string
+  open?: boolean
 }
 
-/** Keeps reference fields in the document for search and direct heading links. */
+/** Native details retain full fields for browser find and direct heading links. */
 export function ReferenceDetails({
   children,
   label = 'Inputs and outputs',
+  open,
 }: ReferenceDetailsProps) {
   return (
-    <details className='group/reference my-4 border-[var(--border)] border-b pb-3'>
-      <summary className='flex min-h-10 pointer-coarse:min-h-11 cursor-pointer list-none items-center gap-2 rounded py-2 text-[var(--text-muted)] text-sm transition-colors hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--text-primary)] focus-visible:outline-offset-2 [&::-webkit-details-marker]:hidden'>
-        <ChevronRight aria-hidden className='size-[14px] shrink-0 group-open/reference:rotate-90' />
+    <details open={open} className='my-4 min-w-0 [&[open]>summary>svg]:rotate-90'>
+      <summary className='flex min-h-[38px] pointer-coarse:min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg py-2 text-[var(--docs-text)] text-docs-table transition-colors hover:bg-[var(--docs-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 [&::-webkit-details-marker]:hidden'>
+        <ChevronRight className='size-4 shrink-0 text-[var(--docs-muted)] transition-transform motion-reduce:transition-none' />
         {label}
       </summary>
-      <div className='min-w-0 pb-2 [&>h4:first-child]:mt-3'>{children}</div>
+      <div className='min-w-0 pt-1 pb-3 pl-6 [&>:first-child]:mt-0 [&>:last-child]:mb-0'>
+        {children}
+      </div>
     </details>
   )
 }

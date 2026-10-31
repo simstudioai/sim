@@ -652,9 +652,21 @@ describe('validation lifecycle purposes', () => {
     }
   })
 
-  it('admits a direct-v1 continuation whose usage cannot be read', async () => {
+  it('admits a paid direct-v1 continuation whose usage cannot be read', async () => {
     mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, unavailable: true })
-    expect((await POST(request(body, directHeaders))).status).toBe(200)
+    const paidHeaders = {
+      ...directHeaders,
+      'x-sim-billing-account-decision': encode({
+        ...ACCOUNT_BILLING_DECISION,
+        payerSubscriptionId: 'sub-account-org',
+      }),
+    }
+    expect((await POST(request(body, paidHeaders), {})).status).toBe(200)
+  })
+
+  it('refuses a free direct-v1 continuation whose usage cannot be read', async () => {
+    mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, unavailable: true })
+    expect((await POST(request(body, directHeaders), {})).status).toBe(402)
   })
 
   it.each([
@@ -771,14 +783,44 @@ describe('validation lifecycle purposes', () => {
     })
   })
 
-  it('admits a polled continuation whose spend cannot be read', async () => {
+  it('admits a paid payer polled continuation whose spend cannot be read', async () => {
+    const paidHeaders = {
+      ...attributedHeaders,
+      'x-sim-billing-attribution': encode({
+        ...ATTRIBUTION,
+        payerSubscription: {
+          id: 'sub-org-1',
+          referenceId: 'org-1',
+          plan: 'team',
+          status: 'active',
+          seats: 5,
+          periodStart: null,
+          periodEnd: null,
+        },
+      }),
+    }
     mockCheckAttributedUsageLimits.mockResolvedValue({
       isExceeded: true,
       reason: 'usage_unavailable',
     })
-    expect((await POST(request(body, attributedHeaders))).status).toBe(200)
+    expect((await POST(request(body, paidHeaders), {})).status).toBe(200)
     mockCheckAttributedUsageLimits.mockRejectedValue(new Error('ledger read timed out'))
-    expect((await POST(request(body, attributedHeaders))).status).toBe(200)
+    expect((await POST(request(body, paidHeaders), {})).status).toBe(200)
+  })
+
+  it('refuses a free payer polled continuation whose spend cannot be read, with the usage card', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      reason: 'usage_unavailable',
+    })
+    const unavailable = await POST(request(body, attributedHeaders), {})
+    expect(unavailable.status).toBe(402)
+    await expect(unavailable.json()).resolves.toMatchObject({
+      code: 'USAGE_LIMIT_EXCEEDED',
+      usageUpgrade: { action: 'upgrade_plan' },
+    })
+    mockCheckAttributedUsageLimits.mockRejectedValue(new Error('ledger read timed out'))
+    expect((await POST(request(body, attributedHeaders), {})).status).toBe(402)
   })
 
   it('refuses a continuation over its usage limit with the card the worker writes', async () => {

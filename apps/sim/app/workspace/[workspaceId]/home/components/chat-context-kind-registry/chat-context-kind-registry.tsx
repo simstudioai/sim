@@ -56,6 +56,10 @@ function renderIntegrationTile({ context, className }: RenderIconArgs): ReactNod
  * without an icon.
  */
 export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKindConfig> = {
+  browser_page: {
+    label: 'Captured page',
+    renderIcon: ({ className }) => <Globe className={className} />,
+  },
   browser_tab: {
     label: 'Browser tab',
     renderIcon: ({ className }) => <Globe className={className} />,

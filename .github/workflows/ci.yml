@@ -287,7 +287,7 @@ jobs:
           if [ -n "$TRIGGER_BRANCH" ]; then
             TARGET_ARGS+=(--branch "$TRIGGER_BRANCH")
           fi
-          bunx trigger.dev@4.7.6 deploy "${TARGET_ARGS[@]}" --skip-promotion
+          bunx trigger.dev@4.8.2 deploy "${TARGET_ARGS[@]}" --skip-promotion
 
       - name: Validate deployment version output
         env:
@@ -638,7 +638,7 @@ jobs:
           if [ -n "$TRIGGER_BRANCH" ]; then
             TARGET_ARGS+=(--branch "$TRIGGER_BRANCH")
           fi
-          bunx trigger.dev@4.7.6 promote "$VERSION" "${TARGET_ARGS[@]}"
+          bunx trigger.dev@4.8.2 promote "$VERSION" "${TARGET_ARGS[@]}"
 
   # Production only, once the new app serves traffic: submit the library and comparison URLs this
   # push changed to IndexNow. Best effort: nothing depends on it, and a failure never fails the run.
@@ -1149,9 +1149,20 @@ jobs:
         with:
           filters: |
             docs:
-              - 'apps/docs/content/docs/**'
-              - 'apps/sim/scripts/process-docs.ts'
-              - 'apps/sim/lib/chunkers/**'
+              - 'apps/docs/content/**'
+              - 'apps/docs/components/workflow-preview/examples.ts'
+              - 'apps/docs/components/workflow-preview/block-display-workflows.ts'
+              - 'apps/docs/scripts/compile-content.ts'
+              - 'apps/docs/scripts/index-search.ts'
+              - 'apps/docs/lib/content/**'
+              - 'apps/docs/lib/search/**'
+              - 'apps/docs/lib/openapi-specs.ts'
+              - 'apps/docs/lib/urls.ts'
+              - 'apps/docs/openapi*.json'
+              - 'apps/docs/package.json'
+              - 'bun.lock'
+              - '.github/workflows/docs.yml'
+              - '.github/workflows/ci.yml'
 
   # Process docs embeddings (only when docs change, after images are promoted)
   docs:

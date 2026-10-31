@@ -1,3 +1,4 @@
+import type { PageSnapshot } from '@sim/browser-extension-protocol'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 import type { MothershipChat } from '@/lib/api/contracts/mothership-chats'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
@@ -162,6 +163,7 @@ export interface ChatMessageAttachment {
 export interface ChatMessageContext {
   kind: ChatContextKind
   label: string
+  snapshot?: PageSnapshot
   workflowId?: string
   knowledgeId?: string
   tableId?: string
@@ -194,6 +196,7 @@ export interface ChatMessageContext {
 
 export interface ChatMessage {
   id: string
+  streamId?: string
   role: 'user' | 'assistant'
   requestMode?: 'agent' | 'assistant' | 'plan'
   content: string

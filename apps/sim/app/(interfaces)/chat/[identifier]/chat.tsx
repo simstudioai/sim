@@ -22,6 +22,7 @@ import {
 } from '@/app/(interfaces)/chat/components'
 import { CHAT_ERROR_MESSAGES, CHAT_REQUEST_TIMEOUT_MS } from '@/app/(interfaces)/chat/constants'
 import { useChatStreaming } from '@/app/(interfaces)/chat/hooks'
+import { InterfacesShell } from '@/app/(interfaces)/components'
 import SSOAuth from '@/ee/sso/components/sso-auth'
 import { useDeployedChatConfig } from '@/hooks/queries/chats'
 import { useGitHubStars } from '@/hooks/queries/github-stars'
@@ -309,7 +310,11 @@ export default function ChatClient({ identifier }: { identifier: string }) {
 
   if (chatConfigError) {
     logger.error('Error fetching chat config:', chatConfigError)
-    return <ChatErrorState error={CHAT_ERROR_MESSAGES.CHAT_UNAVAILABLE} />
+    return (
+      <InterfacesShell>
+        <ChatErrorState error={CHAT_ERROR_MESSAGES.CHAT_UNAVAILABLE} />
+      </InterfacesShell>
+    )
   }
 
   if (authRequired) {
@@ -325,7 +330,11 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   }
 
   if (!chatConfig) {
-    return <ChatLoadingState />
+    return (
+      <InterfacesShell>
+        <ChatLoadingState />
+      </InterfacesShell>
+    )
   }
 
   return (

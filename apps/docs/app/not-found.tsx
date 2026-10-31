@@ -1,28 +1,21 @@
-import { ChipLink } from '@sim/emcn'
-import { DocsPage } from 'fumadocs-ui/page'
-
-export const metadata = {
-  title: 'Page Not Found',
-}
+import Link from 'next/link'
+import { DocsPageFrame } from '@/components/docs/page-frame'
 
 export default function NotFound() {
   return (
-    <DocsPage role='main' tabIndex={-1}>
-      <div className='flex min-h-[60vh] flex-col items-center justify-center px-4 py-24 text-center'>
-        <div className='flex w-full max-w-[410px] flex-col items-center gap-3'>
-          <h1 className='text-balance text-[40px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'>
-            Page not found
-          </h1>
-          <p className='text-[var(--text-secondary)] text-lg'>
-            The page you&apos;re looking for doesn&apos;t exist or has been moved.
-          </p>
-          <div className='mt-3 flex flex-wrap items-center justify-center gap-2'>
-            <ChipLink href='/' variant='primary'>
-              Return home
-            </ChipLink>
-          </div>
-        </div>
-      </div>
-    </DocsPage>
+    <DocsPageFrame headings={[]}>
+      <main id='main-content' tabIndex={-1} className='py-16'>
+        <p className='mb-3 text-[var(--docs-muted)] text-docs-control'>404</p>
+        <h1 className='mb-4 font-medium text-[var(--docs-heading)] text-docs-title'>
+          Page not found
+        </h1>
+        <p className='mb-6 text-docs-body'>
+          This documentation page does not exist. Search the docs or return to the introduction.
+        </p>
+        <Link href='/introduction' className='text-[var(--docs-link)] hover:underline'>
+          Read the introduction
+        </Link>
+      </main>
+    </DocsPageFrame>
   )
 }

@@ -57,6 +57,7 @@ interface OrganizationChatsProps
 
 interface OrganizationSidebarProps {
   benchmarkEnabled?: boolean
+  simLinksEnabled?: boolean
 }
 
 function OrganizationChats({ organizationId, ...props }: OrganizationChatsProps) {
@@ -75,6 +76,7 @@ function OrganizationChats({ organizationId, ...props }: OrganizationChatsProps)
  */
 export const OrganizationSidebar = memo(function OrganizationSidebar({
   benchmarkEnabled = false,
+  simLinksEnabled = false,
 }: OrganizationSidebarProps) {
   const { isCollapsed: railCollapsed, isPeeking, onToggle: toggleCollapsed } = useSidebarChrome()
   /** The peek card always renders the expanded layout, whatever the rail's state. */
@@ -95,13 +97,13 @@ export const OrganizationSidebar = memo(function OrganizationSidebar({
   })
 
   const isMac = isMacPlatform()
-  const canUseHome = mothershipAvailable && (canBuild || searchAccess.memberScoped)
-  const navItems = buildOrganizationNavItems(
-    organization.id,
-    searchAccess.memberScoped,
-    canUseHome,
-    benchmarkEnabled
-  )
+  const canUseHome = mothershipAvailable && canBuild
+  const navItems = buildOrganizationNavItems(organization.id, {
+    searchAvailable: searchAccess.memberScoped,
+    mothershipAvailable: canUseHome,
+    benchmarkEnabled,
+    simLinksEnabled,
+  })
   const settingsPath = organizationRoutes(organization.id).settings
   const isSettings = pathname === settingsPath || pathname?.startsWith(`${settingsPath}/`)
 
@@ -283,7 +285,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar({
                     isCollapsed={isCollapsed}
                     pathname={pathname}
                   />
-                  {canUseHome && (
+                  {mothershipAvailable && (canBuild || searchAccess.memberScoped) && (
                     <OrganizationChats
                       key={organization.id}
                       organizationId={organization.id}

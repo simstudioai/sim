@@ -46,6 +46,16 @@ export async function loadCopilotSearchIntegrations(
     ...inventory,
     connections: connections.connections,
     available: connections.available,
+    actionAccounts: connections.connections.flatMap((connection) =>
+      connection.accounts
+        .filter((account) => account.action !== null)
+        .map((account) => ({
+          credentialId: account.credentialId,
+          providerId: connection.providerId,
+          displayName: account.displayName,
+          status: account.status,
+        }))
+    ),
     connectionGuidance:
       'Offer the exact available target or account action in a terminal <credential> tag to connect or reconnect in chat. Search uses the provider APIs directly. Account inventory alone does not establish permission to search; a provider search must succeed.',
   })

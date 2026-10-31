@@ -1,229 +1,209 @@
 'use client'
 
-import { Chip, toast } from '@sim/emcn'
-import { hasSlackSearchUserScopes } from '@/lib/credential-groups/slack-managed-user-scopes'
-import { LIVE_SEARCH_SCOPE_FIELDS } from '@/lib/sim-search/live/policy-schema'
-import { liveSearchProviderForCredential } from '@/lib/sim-search/live/provider-catalog'
+import type { ReactNode } from 'react'
+import { ChipLink } from '@sim/emcn'
+import { ArrowLeft } from '@sim/emcn/icons'
+import { useQueryStates } from 'nuqs'
+import { organizationRoutes } from '@/lib/navigation/paths'
+import { OrganizationPage } from '@/app/o/[organizationId]/components/organization-page'
+import { IntegrationDetail } from '@/app/o/[organizationId]/integrations/integration-detail'
 import {
-  LIVE_SEARCH_SOURCE_TYPES,
-  liveSearchMcpConnector,
-} from '@/lib/sim-search/live/source-catalog'
-import { DisconnectAccountMenu } from '@/app/o/[organizationId]/integrations/disconnect-account-menu'
-import { GenericSecretSourceRow } from '@/app/o/[organizationId]/settings/components/integrations/generic-secret-source'
+  integrationViewParsers,
+  serializeIntegrationView,
+} from '@/app/o/[organizationId]/integrations/search-params'
+import {
+  memberIntegrationEntries,
+  memberIntegrationStatus,
+} from '@/app/o/[organizationId]/integrations/utils'
+import {
+  GenericSecretSourceIcon,
+  GenericSecretSourceRow,
+} from '@/app/o/[organizationId]/settings/components/integrations/generic-secret-source'
+import { CredentialDetailLayout } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import {
-  useConnectOrganizationAccount,
-  useOrganizationAccounts,
-  useReconnectPersonalOrganizationAccount,
-} from '@/hooks/queries/organization-accounts'
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
 import { useOrganizationSecretSource } from '@/hooks/queries/organization-secrets'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 
 interface LiveMemberIntegrationsProps {
   organizationId: string
   search: string
+  navigationSearch: string
+  intro?: ReactNode
+  action?: ReactNode
 }
 
-/** Personal OAuth apps and administrator-managed GitLab have distinct connection states. */
-export function LiveMemberIntegrations({ organizationId, search }: LiveMemberIntegrationsProps) {
+/** Member integrations share one inventory and the platform's list/detail layout. */
+export function LiveMemberIntegrations({
+  organizationId,
+  search,
+  navigationSearch,
+  intro,
+  action,
+}: LiveMemberIntegrationsProps) {
+  const [{ integration, account }] = useQueryStates(integrationViewParsers)
   const inventory = useOrganizationAccounts(organizationId)
   const policies = useSearchIntegrations(organizationId)
   const secrets = useOrganizationSecretSource(organizationId)
-  const connect = useConnectOrganizationAccount()
-  const reconnect = useReconnectPersonalOrganizationAccount()
-  const onError = (error: Error) => toast.error(error.message)
-  const error = inventory.error ?? policies.error ?? secrets.error
-  if (error)
+  const routes = organizationRoutes(organizationId)
+  const href = (selected: string | null, selectedAccount: string | null = null) =>
+    serializeIntegrationView(routes.integrations, {
+      q: navigationSearch,
+      integration: selected,
+      account: selectedAccount,
+    })
+  const entries = inventory.data
+    ? memberIntegrationEntries(inventory.data, policies.isSuccess ? policies.data : undefined)
+    : []
+  const selected = entries.find((entry) => entry.id === integration)
+  const status = inventory.error ? (
+    <SettingsQueryErrorState
+      error={inventory.error}
+      fallback='Could not load your connections'
+      isRetrying={inventory.isFetching}
+      onRetry={() => void inventory.refetch()}
+      variant='inline'
+    />
+  ) : !inventory.data ? (
+    <SettingsEmptyState variant='inline'>Loading your connections</SettingsEmptyState>
+  ) : null
+  const errors = (
+    <>
+      {policies.error && (
+        <SettingsQueryErrorState
+          error={policies.error}
+          fallback='Could not load Search connections'
+          isRetrying={policies.isFetching}
+          onRetry={() => void policies.refetch()}
+          variant='inline'
+        />
+      )}
+      {secrets.error && (
+        <SettingsQueryErrorState
+          error={secrets.error}
+          fallback='Could not load secret connections'
+          isRetrying={secrets.isFetching}
+          onRetry={() => void secrets.refetch()}
+          variant='inline'
+        />
+      )}
+    </>
+  )
+  if (integration) {
+    const back = (
+      <ChipLink href={href(account ? integration : null)} leftIcon={ArrowLeft}>
+        {account ? (selected?.name ?? 'Integration') : 'Integrations'}
+      </ChipLink>
+    )
+    if (selected && !status) {
+      return (
+        <IntegrationDetail
+          key={selected.id}
+          organizationId={organizationId}
+          integration={selected}
+          accountId={account}
+          accountHref={(credentialId) => href(selected.id, credentialId)}
+          back={back}
+        >
+          {errors}
+        </IntegrationDetail>
+      )
+    }
     return (
-      <SettingsQueryErrorState
-        error={error}
-        fallback='Could not load your connections'
-        isRetrying={inventory.isFetching || policies.isFetching || secrets.isFetching}
-        onRetry={() => {
-          void inventory.refetch()
-          void policies.refetch()
-          void secrets.refetch()
-        }}
-        variant='inline'
-      />
+      <CredentialDetailLayout back={back}>
+        {status ?? (
+          <>
+            {errors}
+            {integration === 'secrets' ? (
+              secrets.data?.source ? (
+                <GenericSecretSourceRow
+                  organizationId={organizationId}
+                  source={secrets.data.source}
+                />
+              ) : (
+                <SettingsEmptyState variant='inline'>
+                  {secrets.isPending
+                    ? 'Loading connection'
+                    : 'This integration is no longer available.'}
+                </SettingsEmptyState>
+              )
+            ) : (
+              <SettingsEmptyState variant='inline'>
+                {policies.isPending
+                  ? 'Loading connection'
+                  : 'This integration is no longer available.'}
+              </SettingsEmptyState>
+            )}
+          </>
+        )}
+      </CredentialDetailLayout>
     )
-  if (!inventory.data || !policies.data || !secrets.data)
-    return <SettingsEmptyState variant='inline'>Loading your connections</SettingsEmptyState>
-  const data = inventory.data
-  const approvals = new Map(policies.data.map((policy) => [policy.connectorType, policy]))
-  const group = data.credentialGroup
-  const mcpProviders = new Map(
-    group?.mcpServers.map((server) => [server.id, server.managedConnectorId])
-  )
-  const mcpAccounts = (provider: string) =>
-    (data.viewerMcpAccounts ?? []).filter(
-      (account) => mcpProviders.get(account.mcpServerId) === provider
-    )
-  const accountsForProvider = (provider: string) =>
-    liveSearchMcpConnector(provider)
-      ? mcpAccounts(provider)
-      : (data.viewerAccounts ?? []).filter(
-          (account) => liveSearchProviderForCredential(account.providerId) === provider
-        )
-  const available = LIVE_SEARCH_SOURCE_TYPES.filter(
-    ([provider]) =>
-      (approvals.get(provider)?.available !== false || accountsForProvider(provider).length > 0) &&
-      LIVE_SEARCH_SCOPE_FIELDS[provider] &&
-      ((provider !== 'hubspot' && provider !== 'zoom') ||
-        data.availableMcpConnectors.includes(provider) ||
-        mcpAccounts(provider).length > 0) &&
-      (approvals.get(provider)?.approved ||
-        data.viewerAccounts?.some(
-          (account) => liveSearchProviderForCredential(account.providerId) === provider
-        ) ||
-        mcpAccounts(provider).length)
-  )
+  }
   const query = search.trim().toLowerCase()
-  const visible = available.filter(([provider, meta]) =>
-    `${provider} ${meta.name} ${accountsForProvider(provider)
-      .map((account) => account.displayName)
-      .join(' ')}`
+  const visible = entries.filter((entry) =>
+    [entry.provider, entry.name, ...entry.accounts.map((item) => item.displayName)]
+      .join(' ')
       .toLowerCase()
       .includes(query)
   )
-  const pending = connect.isPending || reconnect.isPending
-  const secretSource = secrets.data.source
-  const showSecrets = secretSource && 'generic secrets'.includes(query)
-  if (available.length === 0 && !secretSource) return null
+  const showSecrets = secrets.data?.source && 'generic secrets'.includes(query)
   return (
-    <div className='flex flex-col gap-3'>
-      {showSecrets && (
-        <GenericSecretSourceRow organizationId={organizationId} source={secretSource} />
-      )}
-      {visible.map(([provider, meta]) => {
-        const approval = approvals.get(provider)
-        const approved = approval?.approved === true
-        const name = meta.name
-        if (provider === 'gitlab')
-          return (
+    <OrganizationPage
+      title='Integrations'
+      searchMode='expanded'
+      searchPlaceholder='Search integrations'
+      action={action}
+    >
+      {intro}
+      {status ?? (
+        <div className={RESOURCE_LIST_STACK}>
+          {errors}
+          {showSecrets && (
             <SettingsResourceRow
-              key={provider}
               iconVariant='custom'
-              icon={<IntegrationTile blockType={provider} icon={meta.icon} />}
-              title={name}
-              description='Access follows project permissions'
-              trailing={
-                <span className='text-[var(--text-muted)] text-small'>Organization managed</span>
+              icon={<GenericSecretSourceIcon />}
+              title='Generic Secrets'
+              description={
+                secrets.data?.source?.mode === 'organization'
+                  ? 'Organization managed'
+                  : 'Personal secrets'
               }
+              href={
+                secrets.data?.source?.mode === 'member'
+                  ? serializeIntegrationView(routes.memberSecrets, { q: navigationSearch })
+                  : href('secrets')
+              }
+              clickLabel='Open Generic Secrets integration'
+              navigable
             />
-          )
-        const option = group?.options.find(
-          (option) =>
-            liveSearchProviderForCredential(option.provider) === provider &&
-            option.status === 'active'
-        )
-        const server = liveSearchMcpConnector(provider)
-          ? group?.mcpServers.find(
-              (server) => server.managedConnectorId === provider && server.enabled
-            )
-          : undefined
-        const accounts = accountsForProvider(provider)
-        const ready =
-          approval?.available !== false &&
-          group?.status === 'active' &&
-          Boolean(option || server) &&
-          approved &&
-          (!option || option.configurationStatus === 'ready') &&
-          (provider !== 'slack' ||
-            (option?.provider === 'slack' && hasSlackSearchUserScopes(option.requiredScopes))) &&
-          ((provider !== 'hubspot' && provider !== 'zoom') ||
-            data.availableMcpConnectors.includes(provider))
-        const scope =
-          approval?.policy?.accessMode === 'service_account'
-            ? 'Selected resources you can access'
-            : 'All accessible content'
-        const state =
-          approval?.available === false
-            ? 'Currently unavailable'
-            : !approved
-              ? 'Disabled by your organization'
-              : group && group.status !== 'active'
-                ? 'Connections are paused by your organization'
-                : !ready
-                  ? 'Not configured'
-                  : accounts.length
-                    ? scope
-                    : undefined
-        const description = [
-          accounts
-            .map(
-              (account) =>
-                `${account.displayName}${account.status === 'needs_reauth' ? ' · Reconnect needed' : ''}`
-            )
-            .join(', '),
-          state,
-        ]
-          .filter(Boolean)
-          .join(' · ')
-        return (
-          <SettingsResourceRow
-            key={provider}
-            iconVariant='custom'
-            icon={<IntegrationTile blockType={provider} icon={meta.icon} />}
-            title={name}
-            description={description}
-            trailing={
-              <div className='flex flex-wrap items-center justify-end gap-2'>
-                <DisconnectAccountMenu
-                  organizationId={organizationId}
-                  integrationName={name}
-                  accounts={accounts}
-                />
-                {accounts
-                  .filter((account) => account.status === 'needs_reauth')
-                  .map((account) => (
-                    <Chip
-                      key={account.credentialId}
-                      disabled={pending || !ready}
-                      onClick={() => reconnect.mutate(account.credentialId, { onError })}
-                    >
-                      Reconnect{accounts.length > 1 ? ` ${account.displayName}` : ''}
-                    </Chip>
-                  ))}
-                {approved && (
-                  <Chip
-                    variant={accounts.length ? undefined : 'primary'}
-                    disabled={pending || !ready}
-                    onClick={() =>
-                      connect.mutate(
-                        {
-                          organizationId,
-                          ...(server ? { mcpServerId: server.id } : { optionId: option!.id }),
-                        },
-                        { onError }
-                      )
-                    }
-                  >
-                    {pending &&
-                    connect.variables?.organizationId === organizationId &&
-                    (('optionId' in connect.variables &&
-                      connect.variables.optionId === option?.id) ||
-                      ('mcpServerId' in connect.variables &&
-                        connect.variables.mcpServerId === server?.id))
-                      ? 'Connecting'
-                      : accounts.length
-                        ? 'Add account'
-                        : 'Connect'}
-                  </Chip>
-                )}
-              </div>
-            }
-          />
-        )
-      })}
-      {!visible.length && !showSecrets && query && (
-        <SettingsEmptyState variant='inline'>No matching integrations</SettingsEmptyState>
+          )}
+          {visible.map((entry) => (
+            <SettingsResourceRow
+              key={entry.id}
+              iconVariant='custom'
+              icon={<IntegrationTile blockType={entry.provider} icon={entry.icon} />}
+              title={entry.name}
+              description={memberIntegrationStatus(entry)}
+              href={href(entry.id)}
+              clickLabel={`Open ${entry.name} integration`}
+              navigable
+            />
+          ))}
+          {!visible.length && !showSecrets && policies.isSuccess && secrets.isSuccess && (
+            <SettingsEmptyState variant='inline'>
+              {query ? 'No matching integrations' : 'No integrations available'}
+            </SettingsEmptyState>
+          )}
+        </div>
       )}
-    </div>
+    </OrganizationPage>
   )
 }

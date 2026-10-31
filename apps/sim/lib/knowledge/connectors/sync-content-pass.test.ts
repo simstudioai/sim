@@ -27,11 +27,9 @@ import {
   type ListingCheckpoint,
 } from '@/lib/knowledge/connectors/listing-checkpoint'
 import {
-  routeWindowScans,
-  windowCount,
-  windowCounts,
-  windowScan,
-  windowScans,
+  routeWindowTallies,
+  windowTallies,
+  windowTally,
 } from '@/lib/knowledge/connectors/reconciliation-window.test-helpers'
 import {
   removeDisabledImages,
@@ -58,7 +56,7 @@ uploadsMetadataMockFns.mockInsertImmutableFileMetadata.mockImplementation(
 
 function resetDbChainMock() {
   resetDatabaseMock()
-  routeWindowScans()
+  routeWindowTallies()
 }
 
 const hoisted = vi.hoisted(() => ({
@@ -226,18 +224,9 @@ describe('completed listing removal counts', () => {
       complete: true,
       listedCount: 8,
     }
-    windowCounts.push(
-      windowCount({
-        owned: 10,
-        listed: 8,
-        acl: options.revoked?.length ?? 0,
-        soft: soft.length,
-        hard: hard.length,
-      })
-    )
-    /** A walk whose count is zero never scans. Each walk here fits in one partial window. */
+    /** One partial window tallies every count and keeps each removal's rows, so nothing walks. */
+    windowTallies.push(windowTally({ owned: 10, listed: 8, acl: options.revoked, soft, hard }))
     if (options.revoked?.length) {
-      windowScans.push(windowScan(options.revoked))
       /** Each window reads what still grants someone; pages are bounded by their chunks' rows. */
       const granting = options.revoked.map(({ id }) => ({ id, chunkCount: 10 }))
       queueTableRows(schemaMock.document, granting)
@@ -252,14 +241,10 @@ describe('completed listing removal counts', () => {
         queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector' }])
     }
     if (!options.fullSync && soft.length) {
-      windowScans.push(windowScan(soft))
       queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector' }])
       dbChainMockFns.returning.mockResolvedValueOnce(
         options.updated ?? soft.map(({ id }) => ({ id }))
       )
-    }
-    if (hard.length) {
-      windowScans.push(windowScan(hard))
     }
     const result: SyncResult = {
       docsAdded: 0,
@@ -349,7 +334,7 @@ async function runPass(
   vi.clearAllMocks()
   resetDbChainMock()
   vi.setSystemTime(new Date(Date.now() + 60_000))
-  if (options.databaseTime) routeWindowScans(options.databaseTime)
+  if (options.databaseTime) routeWindowTallies(options.databaseTime)
   for (let index = 0; index < 16; index++) {
     queueTableRows(schemaMock.knowledgeConnector, [
       {
@@ -386,7 +371,7 @@ async function runPass(
       schemaMock.document,
       options.permissionStoredAfter ? [options.permissionStoredAfter] : []
     )
-  windowCounts.push(windowCount({ owned: 1, listed: 1, soft: 0, hard: 0 }))
+  windowTallies.push(windowTally({ owned: 1, listed: 1 }))
   for (let index = 0; index < 3; index++) queueTableRows(schemaMock.document, [])
   dbChainMockFns.returning.mockResolvedValue([{ id: 'document' }])
 

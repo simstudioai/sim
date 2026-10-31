@@ -11,6 +11,41 @@ setEnv({
 })
 afterAll(resetEnvMock)
 
+describe('browser extension frame boundary', () => {
+  afterEach(() => setEnv({ BROWSER_EXTENSION_IDS: undefined }))
+
+  it('allows only configured extension ancestors on the dedicated surface', async () => {
+    setEnv({ BROWSER_EXTENSION_IDS: 'abcdefghijklmnopabcdefghijklmnop' })
+    const response = await proxy(new NextRequest('https://app.sim.test/extension/workspace-1'))
+    expect(response.headers.get('Content-Security-Policy')).toContain(
+      'frame-ancestors chrome-extension://abcdefghijklmnopabcdefghijklmnop;'
+    )
+    expect(response.headers.has('X-Frame-Options')).toBe(false)
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(response.headers.get('Referrer-Policy')).toBe('no-referrer')
+    expect(response.headers.get('X-Robots-Tag')).toBe('noindex, nofollow')
+
+    const ordinary = await proxy(new NextRequest('https://app.sim.test/login'))
+    expect(ordinary.headers.get('Content-Security-Policy')).toContain("frame-ancestors 'self'")
+    expect(ordinary.headers.get('X-Frame-Options')).toBe('SAMEORIGIN')
+  })
+
+  it.each([
+    undefined,
+    '',
+    '*',
+    'abcdefghijklmnopabcdefghijklmnop, https://evil.test',
+    'a'.repeat(2048),
+  ])(
+    'refuses embedding with absent or invalid deployment configuration: %s',
+    async (configured) => {
+      setEnv({ BROWSER_EXTENSION_IDS: configured })
+      const response = await proxy(new NextRequest('https://app.sim.test/extension'))
+      expect(response.headers.get('Content-Security-Policy')).toContain("frame-ancestors 'none'")
+    }
+  )
+})
+
 const EXPOSED_HEADERS =
   'Retry-After, WWW-Authenticate, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id, X-Run-Id'
 
@@ -193,9 +228,22 @@ describe('proxy indexing policy', () => {
     expect(robotsTag('/library.md/some-article')).toBeNull()
   })
 
-  it('leaves a self-hosted non-landing public page indexable', () => {
-    setEnvFlags({ isHosted: false })
-    expect(robotsTag('/login')).toBeNull()
+  it.each([
+    '/login',
+    '/signup',
+    '/verify',
+    '/oauth/consent',
+    '/invite/example',
+    '/desktop/auth',
+    '/cli/auth',
+    '/credential-groups/enroll/example',
+    '/f/example',
+    '/chat/example',
+  ])('keeps Auth out of search results on every deployment: %s', (pathname) => {
+    for (const isHosted of [false, true]) {
+      setEnvFlags({ isHosted })
+      expect(robotsTag(pathname)).toBe('noindex, nofollow')
+    }
   })
 })
 

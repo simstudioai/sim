@@ -3,7 +3,7 @@ title: Integrations
 description: Connect a service, choose an account, and use it in a workflow.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
+import { Callout } from '@/components/ui/callout'
 import { Image } from '@/components/ui/image'
 
 Connect workflows to Gmail, Slack, GitHub, HubSpot, and other services using OAuth, a supported API token, or a service account. Select the saved connection in the block that needs it.
@@ -45,7 +45,8 @@ Open a service to see what it offers:
   height={1070}
   variant="detail"
   background="architecture"
-  className="mx-auto w-full max-w-xl"
+  maxWidth="xl"
+  className="mx-auto w-full"
 />
 
 When the provider redirects you back, the connection appears under **Connected**.

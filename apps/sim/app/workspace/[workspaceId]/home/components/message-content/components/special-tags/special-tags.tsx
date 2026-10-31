@@ -31,6 +31,7 @@ import {
 import { isRecordLike, omit } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
+import { useSettingsNavigationTarget } from '@/components/settings/settings-navigation-provider'
 import { useSession } from '@/lib/auth/client'
 import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
@@ -3497,6 +3498,8 @@ function PlanUsageLimitDisplay({ data }: PlanUsageLimitDisplayProps) {
   const organizationContext = useOptionalOrganizationContext()
   const { getSettingsHref } = useSettingsNavigation()
   const { hosted } = useDeploymentShape()
+  const navigationTarget = useSettingsNavigationTarget()
+  const opensInNewTab = !hosted || navigationTarget === '_blank'
   const buttonLabel = data.action === 'upgrade_plan' ? 'Upgrade Plan' : 'Increase Limit'
 
   // Self-hosted plan and limit both live on the hosted account, so local
@@ -3541,10 +3544,10 @@ function PlanUsageLimitDisplay({ data }: PlanUsageLimitDisplayProps) {
             href={href}
             onNavigate={() => rememberSettingsReturnUrl(href)}
             variant='border'
-            rightIcon={hosted ? ArrowRight : SquareArrowUpRight}
-            target={hosted ? undefined : '_blank'}
-            rel={hosted ? undefined : 'noopener noreferrer'}
-            aria-label={hosted ? undefined : `${buttonLabel} (opens in a new tab)`}
+            rightIcon={opensInNewTab ? SquareArrowUpRight : ArrowRight}
+            target={opensInNewTab ? '_blank' : undefined}
+            rel={opensInNewTab ? 'noopener noreferrer' : undefined}
+            aria-label={opensInNewTab ? `${buttonLabel} (opens in a new tab)` : undefined}
             className='mt-2'
           >
             {buttonLabel}

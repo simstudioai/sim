@@ -6953,7 +6953,8 @@
                             "disableOAuthAppAccess": false,
                             "disableKnowledgeBaseExport": false,
                             "deniedPartialAccessProjectIssues": [],
-                            "defaultAgentModel": null
+                            "defaultAgentModel": null,
+                            "deniedAccessRequests": []
                           },
                           "isDefault": false,
                           "membershipMode": "inherit",
@@ -7113,7 +7114,8 @@
                           "disableOAuthAppAccess": false,
                           "disableKnowledgeBaseExport": false,
                           "deniedPartialAccessProjectIssues": [],
-                          "defaultAgentModel": null
+                          "defaultAgentModel": null,
+                          "deniedAccessRequests": []
                         },
                         "isDefault": false,
                         "membershipMode": "inherit",
@@ -7273,7 +7275,8 @@
                           "disableOAuthAppAccess": false,
                           "disableKnowledgeBaseExport": false,
                           "deniedPartialAccessProjectIssues": [],
-                          "defaultAgentModel": null
+                          "defaultAgentModel": null,
+                          "deniedAccessRequests": []
                         },
                         "isDefault": false,
                         "membershipMode": "inherit",
@@ -7441,7 +7444,8 @@
                           "disableOAuthAppAccess": false,
                           "disableKnowledgeBaseExport": false,
                           "deniedPartialAccessProjectIssues": [],
-                          "defaultAgentModel": null
+                          "defaultAgentModel": null,
+                          "deniedAccessRequests": []
                         },
                         "isDefault": false,
                         "membershipMode": "inherit",
@@ -15190,6 +15194,39 @@
             },
             "description": "JSON Schema for the tool's arguments, as reported by the server."
           },
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "object",
+                "description": "JSON Schema type of the structured result. MCP requires `object`."
+              },
+              "properties": {
+                "description": "Result field schemas keyed by field name.",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "description": "Server-defined JSON Schema for one result field."
+                }
+              },
+              "required": {
+                "description": "Names of the fields every result carries.",
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "description": "Name of a field every result carries."
+                }
+              }
+            },
+            "required": ["type"],
+            "additionalProperties": {
+              "description": "Additional JSON Schema keyword reported by the server."
+            },
+            "description": "JSON Schema for the tool's `structuredContent`, as reported by the server. Absent when the tool declares none."
+          },
           "serverId": {
             "type": "string",
             "description": "Identifier of the MCP server exposing the tool."
@@ -21223,6 +21260,16 @@
                   }
                 ],
                 "description": "Default model for new Agent blocks. Null uses the platform default."
+              },
+              "deniedAccessRequests": {
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                "description": "Access requests are unavailable for the listed canonical target keys when access is restricted."
               }
             },
             "required": [
@@ -21269,7 +21316,8 @@
               "disableOAuthAppAccess",
               "disableKnowledgeBaseExport",
               "deniedPartialAccessProjectIssues",
-              "defaultAgentModel"
+              "defaultAgentModel",
+              "deniedAccessRequests"
             ],
             "additionalProperties": false,
             "description": "Resolved group settings. True disables a boolean capability; null allowlists permit every value and empty allowlists permit none. defaultAgentModel selects the default for new Agent blocks without restricting model selection."
@@ -21401,7 +21449,8 @@
                   "disableOAuthAppAccess": false,
                   "disableKnowledgeBaseExport": false,
                   "deniedPartialAccessProjectIssues": [],
-                  "defaultAgentModel": null
+                  "defaultAgentModel": null,
+                  "deniedAccessRequests": []
                 },
                 "isDefault": false,
                 "membershipMode": "inherit",
@@ -21478,7 +21527,8 @@
                 "disableOAuthAppAccess": false,
                 "disableKnowledgeBaseExport": false,
                 "deniedPartialAccessProjectIssues": [],
-                "defaultAgentModel": null
+                "defaultAgentModel": null,
+                "deniedAccessRequests": []
               },
               "isDefault": false,
               "membershipMode": "inherit",
@@ -21753,6 +21803,15 @@
                   }
                 ],
                 "description": "Default model for new Agent blocks. Null uses the platform default."
+              },
+              "deniedAccessRequests": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                "description": "Access requests are unavailable for the listed canonical target keys when access is restricted."
               }
             },
             "additionalProperties": false,
@@ -21846,7 +21905,8 @@
                 "disableOAuthAppAccess": false,
                 "disableKnowledgeBaseExport": false,
                 "deniedPartialAccessProjectIssues": [],
-                "defaultAgentModel": null
+                "defaultAgentModel": null,
+                "deniedAccessRequests": []
               },
               "isDefault": false,
               "membershipMode": "inherit",
@@ -21921,7 +21981,8 @@
                 "disableOAuthAppAccess": false,
                 "disableKnowledgeBaseExport": false,
                 "deniedPartialAccessProjectIssues": [],
-                "defaultAgentModel": null
+                "defaultAgentModel": null,
+                "deniedAccessRequests": []
               },
               "isDefault": false,
               "membershipMode": "inherit",
@@ -22203,6 +22264,15 @@
                   }
                 ],
                 "description": "Default model for new Agent blocks. Null uses the platform default."
+              },
+              "deniedAccessRequests": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                "description": "Access requests are unavailable for the listed canonical target keys when access is restricted."
               }
             },
             "additionalProperties": false,
@@ -24567,6 +24637,16 @@
                       }
                     ],
                     "description": "Default model for new Agent blocks. Null uses the platform default."
+                  },
+                  "deniedAccessRequests": {
+                    "default": [],
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    },
+                    "description": "Access requests are unavailable for the listed canonical target keys when access is restricted."
                   }
                 },
                 "required": [
@@ -24613,7 +24693,8 @@
                   "disableOAuthAppAccess",
                   "disableKnowledgeBaseExport",
                   "deniedPartialAccessProjectIssues",
-                  "defaultAgentModel"
+                  "defaultAgentModel",
+                  "deniedAccessRequests"
                 ],
                 "additionalProperties": false
               },

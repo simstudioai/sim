@@ -279,6 +279,121 @@ const DEPS_STATE = {
 }
 
 describe('workflows deps', () => {
+  describe('an MCP operation with a declared output schema', () => {
+    const snapshot = {
+      server: 'server-1',
+      tool: 'on_call',
+      schema: {
+        type: 'object',
+        properties: {
+          role: { type: 'string' },
+          person: { type: 'object', properties: { id: { type: 'string' } } },
+          shifts: {
+            type: 'array',
+            items: { type: 'object', properties: { start: { type: 'string' } } },
+          },
+        },
+      },
+    }
+
+    async function depsMock(code: string, toolOutputSchema: unknown = snapshot) {
+      const state = {
+        blocks: {
+          oncall: {
+            type: 'mcp',
+            name: 'On call',
+            subBlocks: {
+              operation: { value: 'run' },
+              serverSelector: { value: 'server-1' },
+              toolSelector: { value: 'on_call' },
+              toolOutputSchema: { value: toolOutputSchema },
+            },
+          },
+          target: { type: 'function', name: 'Parse', subBlocks: { code: { value: code } } },
+        },
+        edges: [{ id: 'e1', source: 'oncall', target: 'target', sourceHandle: 'source' }],
+      }
+      const result = await runEngine(
+        'workflows deps',
+        ['wf-1', 'target'],
+        runtimeWith({ [STATE_PATH]: { data: state } }),
+        {}
+      )
+      return JSON.parse(result.stdout).mock['On call']
+    }
+
+    it('mocks a whole structuredContent read with the declared skeleton', async () => {
+      expect(await depsMock('return <oncall.structuredContent>')).toEqual({
+        structuredContent: {
+          role: null,
+          person: { id: null },
+          shifts: [{ start: null }],
+        },
+      })
+    })
+
+    it('expands a read of a declared object and leaves undeclared paths as read', async () => {
+      expect(
+        await depsMock(
+          '<oncall.structuredContent.person> <oncall.structuredContent.onCall> <oncall.content>'
+        )
+      ).toEqual({ structuredContent: { person: { id: null }, onCall: null }, content: null })
+    })
+
+    it('keeps the declared fields of a whole read beside a nested one', async () => {
+      expect(
+        await depsMock('<oncall.structuredContent> <oncall.structuredContent.onCall>')
+      ).toEqual({
+        structuredContent: {
+          role: null,
+          person: { id: null },
+          shifts: [{ start: null }],
+          onCall: null,
+        },
+      })
+    })
+
+    it('keeps every declared field below a whole read, through objects and array items', async () => {
+      expect(
+        await depsMock(
+          '<oncall.structuredContent> <oncall.structuredContent.person.id> <oncall.structuredContent.shifts.0.start>',
+          {
+            ...snapshot,
+            schema: {
+              ...snapshot.schema,
+              properties: {
+                ...snapshot.schema.properties,
+                person: {
+                  type: 'object',
+                  properties: { id: { type: 'string' }, name: { type: 'string' } },
+                },
+                shifts: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: { start: { type: 'string' }, end: { type: 'string' } },
+                  },
+                },
+              },
+            },
+          }
+        )
+      ).toEqual({
+        structuredContent: {
+          role: null,
+          person: { id: null, name: null },
+          shifts: [{ start: null, end: null }],
+        },
+      })
+    })
+
+    it('keeps the read-path skeleton when the operation declares no schema', async () => {
+      expect(
+        await depsMock('return <oncall.structuredContent>', { server: 'server-1', tool: 'on_call' })
+      ).toEqual({ structuredContent: null })
+    })
+  })
+
   it('stops reading a wide object when its traversal budget is exhausted', async () => {
     const value: Record<string, unknown> = {}
     for (let index = 0; index < 10_001; index++) {

@@ -34,7 +34,7 @@ export async function createSandbox(
   if (meterUsage && effectiveLifetimeMs === undefined) {
     throw new Error('Metered sandbox execution requires a provider lifetime')
   }
-  const pricing = meterUsage ? createSandboxPricing(provider.id) : undefined
+  const pricing = meterUsage ? createSandboxPricing(provider.id, kind) : undefined
   let startedAtMs = Date.now()
   const providerOptions = {
     ...options,

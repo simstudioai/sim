@@ -41,7 +41,7 @@ jobs:
           set -euo pipefail
           : "${TRIGGER_ACCESS_TOKEN:?TRIGGER_ACCESS_TOKEN_PREVIEW or TRIGGER_ACCESS_TOKEN must be configured}"
           : "${TRIGGER_PROJECT_ID:?TRIGGER_PROJECT_ID must be configured}"
-          bunx trigger.dev@4.7.6 deploy --env preview --branch dev-sim --skip-promotion
+          bunx trigger.dev@4.8.2 deploy --env preview --branch dev-sim --skip-promotion
 
       - name: Promote current dev preview
         working-directory: ./apps/sim
@@ -61,4 +61,4 @@ jobs:
             echo "::notice::Skipping superseded dev task version $VERSION"
             exit 0
           fi
-          bunx trigger.dev@4.7.6 promote "$VERSION" --env preview --branch dev-sim
+          bunx trigger.dev@4.8.2 promote "$VERSION" --env preview --branch dev-sim

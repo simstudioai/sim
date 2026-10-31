@@ -84,6 +84,7 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
   name: 'Outlook Read',
   description: 'Read emails from Outlook',
   version: '1.0.0',
+  assistant: { effect: 'read', version: 1 },
 
   oauth: {
     required: true,

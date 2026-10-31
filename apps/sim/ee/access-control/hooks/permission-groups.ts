@@ -22,6 +22,7 @@ import {
   type UserPermissionConfig,
   updatePermissionGroupContract,
 } from '@/lib/api/contracts/permission-groups'
+import { accessRequestKeys } from '@/hooks/queries/utils/access-request-keys'
 import {
   PERMISSION_GROUP_MEMBERS_STALE_TIME,
   PERMISSION_GROUPS_STALE_TIME,
@@ -118,8 +119,12 @@ function retryUserPermissionConfig(failureCount: number, error: Error): boolean 
   return failureCount < USER_PERMISSION_CONFIG_RETRIES
 }
 
-export function useUserPermissionConfig(workspaceId?: string) {
+export function useUserPermissionConfig(
+  workspaceId?: string,
+  options?: { refetchInterval?: number | false; refetchOnWindowFocus?: boolean }
+) {
   return useQuery<UserPermissionConfig>({
+    ...options,
     queryKey: permissionGroupKeys.userConfig(workspaceId),
     queryFn: async ({ signal }) => {
       const data = await requestJson(getUserPermissionConfigContract, {
@@ -153,9 +158,11 @@ export function useCreatePermissionGroup() {
         body: data,
       })
     },
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: permissionGroupKeys.list(variables.organizationId),
+    onSettled: (_data, _error, { organizationId }) => {
+      void queryClient.invalidateQueries({ queryKey: permissionGroupKeys.all })
+      void queryClient.invalidateQueries({ queryKey: accessRequestKeys.discoveries() })
+      void queryClient.invalidateQueries({
+        queryKey: accessRequestKeys.organizationDetails(organizationId),
       })
     },
   })
@@ -176,11 +183,15 @@ export function useUpdatePermissionGroup() {
         body: data,
       })
     },
-    onSettled: () => {
+    onSettled: (_data, _error, { organizationId }) => {
       // `all` is the prefix of every key in the factory (list/detail/members/userConfig),
       // so a single invalidation covers them — including the workspace-keyed userConfig
       // entries a mutation that only knows organizationId cannot target directly.
-      queryClient.invalidateQueries({ queryKey: permissionGroupKeys.all })
+      void queryClient.invalidateQueries({ queryKey: permissionGroupKeys.all })
+      void queryClient.invalidateQueries({ queryKey: accessRequestKeys.discoveries() })
+      void queryClient.invalidateQueries({
+        queryKey: accessRequestKeys.organizationDetails(organizationId),
+      })
     },
   })
 }
@@ -199,8 +210,12 @@ export function useDeletePermissionGroup() {
         params: { id: organizationId, groupId: permissionGroupId },
       })
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: permissionGroupKeys.all })
+    onSettled: (_data, _error, { organizationId }) => {
+      void queryClient.invalidateQueries({ queryKey: permissionGroupKeys.all })
+      void queryClient.invalidateQueries({ queryKey: accessRequestKeys.discoveries() })
+      void queryClient.invalidateQueries({
+        queryKey: accessRequestKeys.organizationDetails(organizationId),
+      })
     },
   })
 }
@@ -220,8 +235,12 @@ export function useRemovePermissionGroupMember() {
         query: { memberId: data.memberId },
       })
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: permissionGroupKeys.all })
+    onSettled: (_data, _error, { organizationId }) => {
+      void queryClient.invalidateQueries({ queryKey: permissionGroupKeys.all })
+      void queryClient.invalidateQueries({ queryKey: accessRequestKeys.discoveries() })
+      void queryClient.invalidateQueries({
+        queryKey: accessRequestKeys.organizationDetails(organizationId),
+      })
     },
   })
 }
@@ -245,8 +264,12 @@ export function useBulkAddPermissionGroupMembers() {
         body: data,
       })
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: permissionGroupKeys.all })
+    onSettled: (_data, _error, { organizationId }) => {
+      void queryClient.invalidateQueries({ queryKey: permissionGroupKeys.all })
+      void queryClient.invalidateQueries({ queryKey: accessRequestKeys.discoveries() })
+      void queryClient.invalidateQueries({
+        queryKey: accessRequestKeys.organizationDetails(organizationId),
+      })
     },
   })
 }

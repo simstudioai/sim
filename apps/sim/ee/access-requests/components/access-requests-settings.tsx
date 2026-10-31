@@ -71,9 +71,7 @@ export function AccessRequestsSettings({
     offset: view === 'catalog' ? offset : 0,
   })
   const currentQuery = view === 'requests' ? requests : catalog
-  const showCatalog =
-    view === 'catalog' ||
-    (catalog.isSuccess && catalog.data.enabled && catalog.data.entries.length > 0)
+  const showCatalog = view === 'catalog' || (catalog.isSuccess && catalog.data.entries.length > 0)
   const requestsPaused =
     catalog.isSuccess && !catalog.data.enabled && Boolean(catalog.data.organizationId)
   return (
@@ -100,7 +98,7 @@ export function AccessRequestsSettings({
         <SettingsPanel
           actions={actions}
           search={
-            view === 'catalog' && catalog.data?.enabled
+            view === 'catalog' && catalog.data?.organizationId
               ? {
                   value: search,
                   onChange: setSearch,
@@ -110,7 +108,7 @@ export function AccessRequestsSettings({
               : undefined
           }
         >
-          {view === 'requests' && requestsPaused && (
+          {requestsPaused && (
             <p className='text-[var(--text-muted)] text-sm'>
               Your organization has paused new requests. Your request history is still available.
             </p>
@@ -149,11 +147,9 @@ export function AccessRequestsSettings({
                 />
               ))}
             </div>
-          ) : !catalog.data?.enabled ? (
+          ) : !catalog.data?.organizationId ? (
             <SettingsEmptyState variant='inline'>
-              {requestsPaused
-                ? 'Your organization has paused new requests. Your request history is still available.'
-                : 'Access requests are available in organization workspaces.'}
+              Access requests are available in organization workspaces.
             </SettingsEmptyState>
           ) : (
             <div className={RESOURCE_LIST_STACK}>
@@ -183,7 +179,8 @@ export function AccessRequestsSettings({
                     ) : undefined
                   }
                   trailing={
-                    entry.state === 'requestable' ? (
+                    entry.state === 'requestable' &&
+                    (catalog.data.enabled || entry.pendingRequestId) ? (
                       <RequestAccessAction
                         scope={scope}
                         target={entry.target}

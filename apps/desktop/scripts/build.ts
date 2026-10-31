@@ -108,14 +108,17 @@ const renderer: BuildOptions = {
     {
       name: 'desktop-tailwind',
       setup(builder) {
-        builder.onLoad({ filter: /shell\.css$/ }, async ({ path }) => {
+        builder.onLoad({ filter: /(?:shell|utilities|styles\.module)\.css$/ }, async ({ path }) => {
           const config = await loadPostcssConfig({}, resolve('../sim'))
           const result = await postcss(config.plugins).process(readFileSync(path, 'utf8'), {
             from: path,
           })
           return {
-            contents: result.css,
-            loader: 'css',
+            contents: result.css.replace(
+              /url\(["']?\.\/assets\/(geist[^)"']+)["']?\)/g,
+              'url(./$1)'
+            ),
+            loader: path.endsWith('.module.css') ? 'local-css' : 'css',
             resolveDir: dirname(path),
             watchFiles: result.messages.flatMap((message) =>
               message.type === 'dependency' ? [message.file as string] : []
@@ -130,6 +133,10 @@ const renderer: BuildOptions = {
 async function run(): Promise<void> {
   execFileSync(process.execPath, ['run', 'scripts/build-native.ts'], { stdio: 'inherit' })
   compileComputerUse()
+  mkdirSync('dist/renderer', { recursive: true })
+  for (const font of ['geist-variable.woff2', 'geist-mono-variable.woff2']) {
+    cpSync(resolve('../../packages/auth-ui/src/assets', font), join('dist/renderer', font))
+  }
   if (watch) {
     const { context } = await import('esbuild')
     const rendererCtx = await context(renderer)

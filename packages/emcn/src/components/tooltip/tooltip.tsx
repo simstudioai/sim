@@ -98,6 +98,8 @@ export interface UseFloatingTooltipOptions {
   getFocusTarget?: () => HTMLElement | null
   /** Semantic value whose changes should revalidate a visible tooltip. */
   revalidateKey?: unknown
+  /** Dismiss visible help with Escape until the next hover or focus gesture. Defaults to false. */
+  dismissOnEscape?: boolean
 }
 
 export function useFloatingTooltip(
@@ -106,6 +108,8 @@ export function useFloatingTooltip(
 ): {
   state: FloatingTooltipState
   handlers: FloatingTooltipHandlers
+  /** Hides help until a fresh hover or focus gesture, including while the pointer stays on its trigger. */
+  dismiss: () => void
 } {
   const canShowRef = React.useRef(canShow)
   canShowRef.current = canShow
@@ -115,6 +119,7 @@ export function useFloatingTooltip(
   const lastPointerRef = React.useRef<PointerSnapshot | null>(null)
   const velocityRef = React.useRef({ x: 0, magnitude: 0 })
   const triggerRef = React.useRef<HTMLElement | null>(null)
+  const dismissedRef = React.useRef(false)
   const [state, setState] = React.useState<FloatingTooltipState>(HIDDEN_STATE)
 
   const reset = React.useCallback(() => {
@@ -128,6 +133,11 @@ export function useFloatingTooltip(
     triggerRef.current = null
     setState((current) => (current.visible ? HIDDEN_STATE : current))
   }, [reset])
+
+  const dismiss = React.useCallback(() => {
+    dismissedRef.current = true
+    hide()
+  }, [hide])
 
   const apply = React.useCallback((clientX: number, clientY: number, motion: TooltipMotion) => {
     const next = { ...getTooltipPosition(clientX, clientY, preferAboveRef.current), ...motion }
@@ -175,12 +185,13 @@ export function useFloatingTooltip(
     return {
       onPointerEnter: (event) => {
         if (event.pointerType === 'touch') return
+        dismissedRef.current = false
         if (!canShowRef.current(event.currentTarget)) return
         triggerRef.current = event.currentTarget
         showFromPointer(event.clientX, event.clientY)
       },
       onPointerMove: (event) => {
-        if (event.pointerType === 'touch') return
+        if (event.pointerType === 'touch' || dismissedRef.current) return
         if (!canShowRef.current(event.currentTarget)) return
         triggerRef.current = event.currentTarget
         const now = performance.now()
@@ -210,6 +221,7 @@ export function useFloatingTooltip(
       onPointerDown: hide,
       onFocus: (event) => {
         const target = event.currentTarget
+        dismissedRef.current = false
         if (!canShowRef.current(target)) return
         if (!isFocusVisible(target)) return
         triggerRef.current = target
@@ -223,6 +235,7 @@ export function useFloatingTooltip(
     const target = options.getFocusTarget?.()
     if (!target) return undefined
     const show = () => {
+      dismissedRef.current = false
       if (!canShowRef.current(target) || !isFocusVisible(target)) return
       triggerRef.current = target
       showFromElement(target)
@@ -240,6 +253,18 @@ export function useFloatingTooltip(
     if (state.visible && (!trigger || !canShowRef.current(trigger))) hide()
   }, [hide, options.revalidateKey, state.visible])
 
+  React.useEffect(() => {
+    if (!options.dismissOnEscape || !state.visible) return undefined
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      dismiss()
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [dismiss, options.dismissOnEscape, state.visible])
+
   /**
    * A keyboard- or script-driven UI change can hide the trigger with no pointer or focus event —
    * browsers don't re-dispatch boundary events until the pointer next moves (e.g. an editor bubble
@@ -255,7 +280,7 @@ export function useFloatingTooltip(
     return () => window.clearInterval(intervalId)
   }, [state.visible, hide])
 
-  return { state, handlers }
+  return { state, handlers, dismiss }
 }
 
 const overflowMeasureByElement = new WeakMap<Element, () => void>()

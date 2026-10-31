@@ -71,7 +71,7 @@
     "TS2554": 1
   },
   "apps/sim/app/api/billing/update-cost/route.test.ts": {
-    "TS2554": 51
+    "TS2554": 50
   },
   "apps/sim/app/api/billing/update-cost/worker.live.test.ts": {
     "TS2554": 1
@@ -98,7 +98,7 @@
     "TS2554": 1
   },
   "apps/sim/app/api/copilot/api-keys/validate/route.test.ts": {
-    "TS2554": 55
+    "TS2554": 52
   },
   "apps/sim/app/api/copilot/chat/stop/route.test.ts": {
     "TS18046": 2,
@@ -464,9 +464,6 @@
   },
   "apps/sim/app/desktop/connect/page.test.tsx": {
     "TS2345": 1
-  },
-  "apps/sim/app/o/[organizationId]/home/organization-home.test.tsx": {
-    "TS2698": 1
   },
   "apps/sim/app/o/[organizationId]/settings/components/integrations/search-source-setup.test.tsx": {
     "TS2339": 31,
@@ -1722,9 +1719,6 @@
   "apps/sim/lib/knowledge/reranker.test.ts": {
     "TS2540": 2
   },
-  "apps/sim/lib/knowledge/search/diagnostics.test.ts": {
-    "TS2345": 2
-  },
   "apps/sim/lib/knowledge/search/prewarm.test.ts": {
     "TS2345": 4
   },
@@ -1956,7 +1950,7 @@
     "TS18046": 2
   },
   "apps/sim/lib/mothership/tool-executor/executor.test.ts": {
-    "TS2345": 3,
+    "TS2345": 2,
     "TS2741": 3
   },
   "apps/sim/lib/mothership/tools/client/completion.test.ts": {

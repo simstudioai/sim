@@ -7,7 +7,7 @@ import {
   createAccessRequestCatalog,
   describeAccessRequestTarget,
   getAccessRequestTargetKey,
-  isAccessRequestTargetDenied,
+  getPermissionGroupAccessState,
   isAccessRequestTargetInScope,
   validateAccessRequestTarget,
 } from '@/ee/access-requests/lib/targets'
@@ -217,8 +217,10 @@ describe('access request targets', () => {
     )
     expect(table.changes.map((change) => change.configKey)).toEqual(['hideTablesTab'])
     for (const delta of [mcp, upload, table]) {
-      expect(isAccessRequestTargetDenied(delta.target, config, moduleCatalog)).toBe(true)
-      expect(isAccessRequestTargetDenied(delta.target, delta.config, moduleCatalog)).toBe(false)
+      expect(getPermissionGroupAccessState(delta.target, config, moduleCatalog)).toBe('requestable')
+      expect(getPermissionGroupAccessState(delta.target, delta.config, moduleCatalog)).toBe(
+        'allowed'
+      )
     }
   })
 
@@ -260,7 +262,7 @@ describe('access request targets', () => {
     ]
     for (const config of configs) {
       for (const target of targets) {
-        expect(isAccessRequestTargetDenied(target, config, catalog)).toBe(
+        expect(getPermissionGroupAccessState(target, config, catalog) !== 'allowed').toBe(
           buildAccessRequestPolicyDelta(target, config, catalog).changes.length > 0
         )
       }

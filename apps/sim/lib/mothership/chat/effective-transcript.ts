@@ -549,6 +549,7 @@ export function buildLiveAssistantMessage(params: {
 
   return normalizeMessage({
     id: getLiveAssistantMessageId(streamId),
+    streamId,
     role: 'assistant',
     content: runningText,
     timestamp: lastTimestamp ?? new Date().toISOString(),

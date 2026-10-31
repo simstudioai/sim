@@ -8,13 +8,6 @@ type DocsRedirect = Awaited<ReturnType<NonNullable<NextConfig['redirects']>>>[nu
  * Every unprefixed path redirect, in match order — Next applies the first
  * matching rule.
  *
- * This lives outside `next.config.ts` so it can be read without evaluating that
- * module. `createMDX()` runs at import time and bundles `source.config.ts`
- * against `process.cwd()`, so importing the config from the root Vitest project
- * fails with `The entry point "source.config.ts" cannot be marked as external`.
- * `scripts/openapi/docs-redirects.test.ts` reads `DOCS_REDIRECTS` directly to keep the
- * `/api-reference/` rules honest against the specs.
- *
  * The whole table lives here rather than only the `/api-reference/` block: Next
  * applies the first matching rule, so splitting one ordered list across two
  * modules would make match order an emergent property of two files.

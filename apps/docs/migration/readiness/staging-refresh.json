@@ -1,0 +1,74 @@
+{
+  "failedRun": "https://github.com/simstudioai/sim/actions/runs/41119763582",
+  "testedMerge": "efca1d6bdeeea8791cad8c8f01a5f5ff55b70144",
+  "stagingSource": "3175daab84bfc2d7dfc8d924d55313190c280476",
+  "supersededCompatibilitySource": "5facc5f2656fdc2c09b5a5e3b39476ad60f6cb49",
+  "failures": [
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/search",
+      "status": "failed",
+      "durationMs": 34,
+      "responseStatus": 200,
+      "bytes": 504740,
+      "error": "Missing source media /static/search/organization-search.png (expected /static/search/organization-search.png)"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/search/ask-questions",
+      "status": "failed",
+      "durationMs": 26,
+      "responseStatus": 200,
+      "bytes": 523078,
+      "error": "Missing source media /static/search/assistant-action-review.png (expected /static/search/assistant-action-review.png)"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/search/connect-your-account",
+      "status": "failed",
+      "durationMs": 31,
+      "responseStatus": 200,
+      "bytes": 484147,
+      "error": "Missing source media /static/search/assistant-tool-permissions.png (expected /static/search/assistant-tool-permissions.png)"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/search/find-content",
+      "status": "failed",
+      "durationMs": 24,
+      "responseStatus": 200,
+      "bytes": 477582,
+      "error": "Missing source media /static/search/organization-search.png (expected /static/search/organization-search.png)"
+    },
+    {
+      "name": "Original public asset bytes preserved",
+      "path": "/static/search/assistant-action-review.png",
+      "status": "failed",
+      "durationMs": 1,
+      "responseStatus": 200,
+      "bytes": 78318,
+      "error": "Asset differs from its original source bytes"
+    },
+    {
+      "name": "Original public asset bytes preserved",
+      "path": "/static/search/assistant-tool-permissions.png",
+      "status": "failed",
+      "durationMs": 1,
+      "responseStatus": 200,
+      "bytes": 72055,
+      "error": "Asset differs from its original source bytes"
+    },
+    {
+      "name": "Original public asset bytes preserved",
+      "path": "/static/search/organization-search.png",
+      "status": "failed",
+      "durationMs": 1,
+      "responseStatus": 200,
+      "bytes": 51203,
+      "error": "Asset differs from its original source bytes"
+    }
+  ],
+  "preservationAssertionsChanged": false,
+  "previousBaselineSha256": "3e55855ff9a0687da205a8e764eb17b1b3dc0aad8a6ef0db625731fd8526f998",
+  "refreshedBaselineSha256": "54de4878f15e69585c15453d3f2b4501806033df0ecf6fadf7cb17a5782d0f10"
+}

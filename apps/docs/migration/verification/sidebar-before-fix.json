@@ -1,0 +1,17 @@
+{
+  "origin": "http://localhost:3001",
+  "results": [
+    {
+      "name": "Sidebar keeps its scroll position when opening Logs and navigating back",
+      "status": "failed",
+      "durationMs": 5260,
+      "error": "expect(received).toBeCloseTo(expected, precision)\n\nExpected: 277\nReceived: 0\n\nExpected precision:    0\nExpected difference: < 0.5\nReceived difference:   277\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+    },
+    {
+      "name": "Mobile sidebar keeps its scroll position when reopened after navigation",
+      "status": "failed",
+      "durationMs": 6549,
+      "error": "expect(received).toBeCloseTo(expected, precision)\n\nExpected: 258\nReceived: 0\n\nExpected precision:    0\nExpected difference: < 0.5\nReceived difference:   258\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+    }
+  ]
+}

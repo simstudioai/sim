@@ -56,7 +56,7 @@ async function applyDecision(
     logger.warn('Failed to fetch async tool call', { toolCallId, error: getErrorMessage(err) })
     return null
   })
-  if (!existing) return null
+  if (!existing || existing.assistantAction) return null
 
   const run = await getRunSegment(existing.runId).catch((err) => {
     logger.warn('Failed to fetch run segment', {

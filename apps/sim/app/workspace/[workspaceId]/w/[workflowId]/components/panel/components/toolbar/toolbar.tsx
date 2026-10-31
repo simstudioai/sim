@@ -39,7 +39,6 @@ import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getCustomBlockTile } from '@/blocks/custom/custom-block-icon'
 import { getCanonicalBlocksByCategory } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
-import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/components/permission-access-boundary'
 import { RequestAccessModal } from '@/ee/access-requests/components/request-access-action'
 import { useOrgBrandConfig } from '@/ee/whitelabeling/components/branding-provider'
 import { useCustomBlocks } from '@/hooks/queries/custom-blocks'
@@ -123,7 +122,7 @@ const ToolbarItem = memo(function ToolbarItem({
     <div
       ref={itemRef}
       role='button'
-      aria-label={item.restricted ? `Request access to ${item.name}` : `Add ${item.name}`}
+      aria-label={item.restricted ? `View or request access to ${item.name}` : `Add ${item.name}`}
       tabIndex={-1}
       draggable={!item.restricted}
       onDragStart={item.restricted ? undefined : handleDragStart}
@@ -443,8 +442,6 @@ export const Toolbar = memo(
 
     const posthog = usePostHog()
     const { filterBlocks, isBlockRequestable } = usePermissionConfig()
-    const accessRequests = useWorkspaceAccessRequestFeatures()
-    const accessRequestsEnabled = accessRequests.data?.enabled === true
     const [requestedBlockType, setRequestedBlockType] = useState<string | null>(null)
     const sandboxAllowedBlocks = useSandboxBlockConstraints()
 
@@ -498,10 +495,7 @@ export const Toolbar = memo(
         allTools.find((item) => item.type === requestedBlockType))
       : undefined
 
-    if (
-      requestedBlockType !== null &&
-      (!requestedBlock || !workspaceId || !accessRequestsEnabled)
-    ) {
+    if (requestedBlockType !== null && (!requestedBlock || !workspaceId)) {
       setRequestedBlockType(null)
     }
 
@@ -535,12 +529,9 @@ export const Toolbar = memo(
         .sort((a, b) => a.name.localeCompare(b.name))
     }, [customBlocksData, currentWorkflowId, fallbackIconUrl])
 
-    const handleRequestItemClick = useCallback(
-      (type: string) => {
-        if (accessRequestsEnabled) setRequestedBlockType(type)
-      },
-      [accessRequestsEnabled]
-    )
+    const handleRequestItemClick = useCallback((type: string) => {
+      setRequestedBlockType(type)
+    }, [])
 
     const visibleTriggers = useMemo(() => {
       if (sandboxAllowedBlocks !== null) return []
@@ -566,7 +557,6 @@ export const Toolbar = memo(
     }, [filterBlocks, allTools, sandboxAllowedBlocks])
 
     const restrictedItems = useMemo((): RestrictedBlockItem[] => {
-      if (!accessRequestsEnabled) return []
       const categories = [
         { section: 'triggers', items: sandboxAllowedBlocks === null ? allTriggers : [] },
         { section: 'blocks', items: allBlocks },
@@ -582,14 +572,7 @@ export const Toolbar = memo(
           )
           .map((item) => ({ ...item, restricted: true, section }))
       )
-    }, [
-      accessRequestsEnabled,
-      allTriggers,
-      allBlocks,
-      allTools,
-      isBlockRequestable,
-      sandboxAllowedBlocks,
-    ])
+    }, [allTriggers, allBlocks, allTools, isBlockRequestable, sandboxAllowedBlocks])
 
     const normalizedQuery = searchQuery.trim().toLowerCase()
     const isSearching = normalizedQuery.length > 0
@@ -894,7 +877,7 @@ export const Toolbar = memo(
           </div>
         </div>
 
-        {requestedBlock && workspaceId && accessRequestsEnabled && (
+        {requestedBlock && workspaceId && (
           <RequestAccessModal
             key={`${workspaceId}:${requestedBlock.type}`}
             scope={{ kind: 'workspace', workspaceId }}

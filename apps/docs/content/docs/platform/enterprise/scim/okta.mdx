@@ -3,8 +3,8 @@ title: Okta provisioning
 description: Connect Okta to Sim and verify member and group provisioning
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Callout } from '@/components/ui/callout'
+import { Step, Steps } from '@/components/ui/steps'
 import { Image } from '@/components/ui/image'
 
 Connect an Okta SCIM 2.0 integration to create, update, and deactivate Sim organization members. Configure [single sign-on](/platform/enterprise/sso) separately for authentication.
@@ -78,7 +78,7 @@ Open **Provisioning → Integration → Configure API Integration** and select *
 
 Select **Test API Credentials**, then save. The Header Auth template sends **API Token** as the complete `Authorization` header. Entering the token alone produces **A bearer token is required**.
 
-<Image src="/static/enterprise/okta/api-integration.png" alt="Header Auth Test App API integration showing a successful credential test, a redacted Base URL, and a masked token" width={1001} height={678} className="mx-auto h-auto w-full max-w-xl" />
+<Image src="/static/enterprise/okta/api-integration.png" alt="Header Auth Test App API integration showing a successful credential test, a redacted Base URL, and a masked token" width={1001} height={678} maxWidth="xl" className="mx-auto h-auto w-full" />
 
 A successful credential test confirms connectivity and authentication. Assign a test account to verify provisioning itself.
 </Step>
@@ -90,7 +90,7 @@ Under **Provisioning → To App → Edit**, enable **Create Users**, **Update Us
 
 Use a verified-domain email for both the application username and primary email. Review mappings if Okta usernames differ from email addresses.
 
-<Image src="/static/enterprise/okta/provisioning-actions.png" alt="Header Auth Test App actions with user creation, attribute updates, and deactivation enabled, and password synchronization disabled" width={1001} height={832} className="mx-auto h-auto w-full max-w-xl" />
+<Image src="/static/enterprise/okta/provisioning-actions.png" alt="Header Auth Test App actions with user creation, attribute updates, and deactivation enabled, and password synchronization disabled" width={1001} height={832} maxWidth="xl" className="mx-auto h-auto w-full" />
 </Step>
 </Steps>
 
@@ -116,7 +116,7 @@ For example, use `Sim users` to assign the app and `Finance` as the pushed group
 4. To match policies automatically, enable **Provisioning rules → Manage rules → Match permission groups by name**. The pushed name must exactly match an existing non-default Sim permission group, including case. Select **Reconcile now** for groups already synced. Workspace access still needs its own mapping or existing grant.
 5. Confirm a test member gains workspace access and the expected policy restrictions. Remove it from the pushed group while keeping its app assignment, then verify both directory-grant withdrawal and the [fallback policy](/platform/enterprise/scim#how-access-is-withdrawn) on any workspace it can still access. Add it back and verify access returns without another account being created.
 
-<Image src="/static/enterprise/okta/group-push.png" alt="Header Auth Test App Group Push selecting an engineering group and Create Group for the downstream group" width={1001} height={927} className="mx-auto h-auto w-full max-w-xl" />
+<Image src="/static/enterprise/okta/group-push.png" alt="Header Auth Test App Group Push selecting an engineering group and Create Group for the downstream group" width={1001} height={927} maxWidth="xl" className="mx-auto h-auto w-full" />
 
 With **Lock managed membership** enabled, Sim blocks manual invitations and grants for provisioned members. Read [How access is withdrawn](/platform/enterprise/scim#how-access-is-withdrawn) before mapping groups that overlap existing manual access.
 

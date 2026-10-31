@@ -4,8 +4,15 @@ import {
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 
-/** Recorded on every run the current code admits; older values mark runs from earlier protocols. */
-export const SIM_TOOL_EXECUTION_VERSION = 2
+/** Version 3 binds execution to the persisted invocation and supports reviewed argument edits. */
+export const SIM_TOOL_EXECUTION_VERSION = 3
+
+/** Version 2 retains its existing lease/Stop semantics while older runs drain during rollout. */
+export const SUPPORTED_SIM_TOOL_EXECUTION_VERSIONS = [2, SIM_TOOL_EXECUTION_VERSION] as const
+
+export function supportsSimToolExecution(version: number | undefined): boolean {
+  return SUPPORTED_SIM_TOOL_EXECUTION_VERSIONS.some((supported) => supported === version)
+}
 
 export const ASYNC_TOOL_STATUS = MothershipStreamV1AsyncToolRecordStatus
 

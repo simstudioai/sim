@@ -36,6 +36,7 @@ vi.mock('@/lib/execution/remote-sandbox/session-lock', () => ({
 
 import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/observer'
 import { SandboxOutputLimitError } from '@/lib/execution/remote-sandbox/output-limits'
+import { SESSION_SANDBOX_IDLE_MS } from '@/lib/execution/remote-sandbox/session'
 import { readSessionSecretProvenance } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import {
   readSessionSandboxFile,
@@ -84,7 +85,6 @@ describe('workbench file cancellation', () => {
   })
 
   it('asks the reconnect for the idle lease, which can outlast the runtime cap', async () => {
-    const IDLE_MS = 20 * 60_000
     const capAtMs = Date.now() + 60_000
     let leaseEndAtMs = capAtMs
     find.mockImplementation(async (_key: string, options: { lifetimeMs?: number }) => {
@@ -97,7 +97,7 @@ describe('workbench file cancellation', () => {
       }
     })
     expect(await readSessionSandboxFile('chat', 'input.txt')).toMatchObject({ outcome: 'read' })
-    expect(leaseEndAtMs).toBeGreaterThanOrEqual(Date.now() + IDLE_MS - 1000)
+    expect(leaseEndAtMs).toBeGreaterThanOrEqual(Date.now() + SESSION_SANDBOX_IDLE_MS - 1000)
   })
 
   it('does not write if Stop arrives during the sandbox lookup', async () => {
@@ -379,7 +379,7 @@ describe('workbench file cancellation', () => {
       'mothership',
       expect.objectContaining({
         sessionKey: 'chat',
-        lifetimeMs: 20 * 60_000,
+        lifetimeMs: SESSION_SANDBOX_IDLE_MS + 30_000,
       })
     )
     expect(write).toHaveBeenCalledWith(expect.stringMatching(/^\/home\/user\/\.sim-write-/), 'rows')

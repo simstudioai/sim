@@ -25,12 +25,7 @@ import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1ListAuditLogsContract } from '@/lib/api/contracts/v1/audit-logs'
 import { parseRequest } from '@/lib/api/server'
-import {
-  buildFilterConditions,
-  buildOrgScopeCondition,
-  getOrgWorkspaceIds,
-  queryAuditLogs,
-} from '@/lib/audit-logs/query'
+import { getOrgWorkspaceIds, queryAuditLogs } from '@/lib/audit-logs/query'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateV1EnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
@@ -99,24 +94,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const scopeCondition = buildOrgScopeCondition({
-      organizationId,
-      orgWorkspaceIds,
-      orgMemberIds,
-      includeDeparted: params.includeDeparted,
-    })
-    const filterConditions = buildFilterConditions({
-      action: params.action,
-      resourceType: params.resourceType,
-      resourceId: params.resourceId,
-      workspaceId: params.workspaceId,
-      actorId: params.actorId,
-      startDate: params.startDate,
-      endDate: params.endDate,
-    })
-
     const { data, nextCursor } = await queryAuditLogs(
-      [scopeCondition, ...filterConditions],
+      { organizationId, orgWorkspaceIds, orgMemberIds, includeDeparted: params.includeDeparted },
+      {
+        action: params.action,
+        resourceType: params.resourceType,
+        resourceId: params.resourceId,
+        workspaceId: params.workspaceId,
+        actorId: params.actorId,
+        startDate: params.startDate,
+        endDate: params.endDate,
+      },
       params.limit,
       params.cursor
     )

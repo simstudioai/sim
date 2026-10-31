@@ -22,6 +22,7 @@ export function ref<T>(current: T): MutableRefObject<T> {
 export function makeStreamLoopDeps(overrides: Partial<StreamLoopDeps> = {}): StreamLoopDeps {
   return {
     workspaceId: 'ws-1',
+    requestMode: 'agent',
     queryClient: {
       invalidateQueries: vi.fn(),
       cancelQueries: vi.fn(),
@@ -78,7 +79,6 @@ export function makeStreamLoopDeps(overrides: Partial<StreamLoopDeps> = {}): Str
     pendingUserMsgRef: ref<PersistedMessage | null>(null),
     activeTurnRef: ref<ActiveTurn | null>(null),
     resourcesRef: ref<MothershipResource[]>([]),
-    workflowIdRef: ref<string | undefined>(undefined),
     activeResourceIdRef: ref<string | null>(null),
     onTitleUpdateRef: ref<(() => void) | undefined>(undefined),
     onToolResultRef: ref<

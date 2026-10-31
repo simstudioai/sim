@@ -4,11 +4,15 @@ import { createLogger } from '@sim/logger'
 import { isPermissionType, permissionSatisfies } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
+import { assistantSearchSourceForProvider } from '@/lib/assistant-actions/providers'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
 import { isComputerUseAvailableFor } from '@/lib/computer-use/application/availability'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { yieldWhenSliceExpires } from '@/lib/core/utils/event-loop'
+import { OrganizationAccountsSetupRequiredError } from '@/lib/credential-groups/organization-setup'
+import { findCredentialGroupProviderFromProviderId } from '@/lib/credential-groups/providers'
+import { getOrganizationAccountsGroup } from '@/lib/credential-groups/service'
 import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
 import { getExposedIntegrationTools } from '@/lib/integrations/tool-catalog'
 import {
@@ -28,21 +32,21 @@ import type { AssistantImageContent } from '@/lib/mothership/chat/assistant-imag
 import { buildUploadedFileContext } from '@/lib/mothership/chat/upload-context'
 import { buildWorkspaceInventory } from '@/lib/mothership/chat/workspace-inventory'
 import { computeEntitlements } from '@/lib/mothership/entitlements'
-import { isSearchIntegrationToolsEnabled } from '@/lib/mothership/feature-flags'
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import {
   type ChatRequest,
   type ModelSelection,
   TOOL_DEADLINE_CAPABILITY,
+  WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
 } from '@/lib/mothership/generated/protocol'
 import type { VfsSnapshotV1 } from '@/lib/mothership/generated/vfs-snapshot-v1'
 import { getToolEntry } from '@/lib/mothership/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/mothership/tools/descriptions'
-import { providerIdsForService } from '@/lib/oauth/utils'
 import { listOrganizationSecretNames } from '@/lib/organization-secrets/application/use-cases'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
-import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
+import { requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
+import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/file-manager'
 import { deriveHostedApiKeySupport } from '@/tools/hosted-api-key'
 import { getToolMetadata } from '@/tools/metadata'
@@ -108,6 +112,8 @@ export interface ToolSchema {
   name: string
   description: string
   input_schema: Record<string, unknown>
+  /** JSON Schema of the structured reply, for an MCP operation that declares one. */
+  output_schema?: Record<string, unknown>
   outputs?: Record<string, unknown>
   defer_loading?: boolean
   executeLocally?: boolean
@@ -123,6 +129,7 @@ export interface ToolSchema {
    */
   operation?: string
   oauth?: { required: boolean; provider: string }
+  assistant?: { effect: 'read' | 'write'; version: number }
 }
 
 interface BuildIntegrationToolSchemasOptions {
@@ -235,25 +242,40 @@ export async function buildIntegrationToolSchemas(
   }
 
   if (options.organizationId && personalAccountsOnly) {
-    const approvals = await listOrganizationSearchApprovals(options.organizationId)
-    const providers = new Set(
-      SEARCH_CONNECTORS.filter((connector) => approvals.get(connector.type) === true).map(
-        (connector) => connector.providerId
-      )
+    const [approvals, group, policies] = await Promise.all([
+      listOrganizationSearchApprovals(options.organizationId),
+      getOrganizationAccountsGroup(options.organizationId).catch((error) => {
+        if (error instanceof OrganizationAccountsSetupRequiredError) return null
+        throw error
+      }),
+      loadLiveSearchPolicies({ organizationId: options.organizationId }),
+    ])
+    const configured = new Set(
+      group?.status === 'active'
+        ? group.options
+            .filter((option) => option.status === 'active')
+            .map((option) => option.provider)
+        : []
     )
     return schemas.filter((schema) => {
       const original = getToolMetadata(schema.name)
       const metadata = original ? projectAssistantConnectedAccountTool(original) : undefined
+      if (!metadata?.oauth?.required || metadata.personalToken) return false
+      const oauthProvider = metadata.oauth.provider
+      const provider = findCredentialGroupProviderFromProviderId(oauthProvider)
+      if (!provider || !configured.has(provider)) return false
+      const source = assistantSearchSourceForProvider(oauthProvider)
       return (
-        !metadata?.personalToken &&
-        metadata?.oauth?.required &&
-        providerIdsForService(metadata.oauth.provider).some((providerId) =>
-          providers.has(providerId)
-        )
+        !source ||
+        (approvals.get(source) === true &&
+          !requiresScopedRetrieval(source, livePolicyFor(policies, source)))
       )
     })
   }
-  return schemas
+
+  return personalAccountsOnly
+    ? schemas.filter((schema) => schema.assistant?.effect === 'read')
+    : schemas
 }
 
 async function buildIntegrationToolSchemaVariant(
@@ -310,6 +332,14 @@ async function buildIntegrationToolSchemaVariant(
         service,
         operation,
         description,
+        ...(options.personalAccountsOnly && toolConfig.assistant
+          ? {
+              assistant: {
+                effect: toolConfig.assistant.effect,
+                version: toolConfig.assistant.version,
+              },
+            }
+          : {}),
         input_schema: { ...userSchema },
         ...(toolConfig.outputs && {
           outputs: Object.fromEntries(
@@ -357,7 +387,6 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
     params.principal !== undefined &&
     computerUseOwner !== null &&
     (await isComputerUseAvailableFor(params.principal, computerUseOwner))
-  const integrationGateway = !isAssistant || (await isSearchIntegrationToolsEnabled())
 
   // Track uploaded files in the DB and build context tags instead of base64 inlining.
   // Tracking writes `workspace_files` rows, so it needs the same write grant the
@@ -433,14 +462,17 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
   }
 
   const allContexts = isAssistant
-    ? params.workspaceContext
-      ? [
-          {
-            type: params.organizationId ? 'search_integrations' : 'connected_accounts',
-            content: params.workspaceContext,
-          },
-        ]
-      : []
+    ? [
+        ...(contexts ?? []).filter((context) => context.type === 'browser_page'),
+        ...(params.workspaceContext
+          ? [
+              {
+                type: params.organizationId ? 'search_integrations' : 'connected_accounts',
+                content: params.workspaceContext,
+              },
+            ]
+          : []),
+      ]
     : [
         ...(contexts ?? []),
         ...uploadContexts,
@@ -508,13 +540,9 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
     messageId: userMessageId,
     ...(chatId ? { chatId } : {}),
     ...(allContexts.length > 0 ? { context: allContexts } : {}),
-    ...(integrationGateway
-      ? {
-          integrationCatalog: {
-            mcpServerIds: isAssistant ? [] : [...new Set(params.mcpServerIds ?? [])],
-          },
-        }
-      : {}),
+    integrationCatalog: {
+      mcpServerIds: isAssistant ? [] : [...new Set(params.mcpServerIds ?? [])],
+    },
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
     ...(params.effort ? { effort: params.effort } : {}),
     ...(params.modelSelection ? { modelSelection: params.modelSelection } : {}),
@@ -534,11 +562,13 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
       : {}),
     // The mounted chat view executes client-routed workflow tools (run panel UX), so the
     // UI declares that capability explicitly; headless callers omit it and the server runs
-    // those tools immediately. The deadline token is this server's own: it bounds every
-    // handed call by the deadline its frame names.
+    // those tools immediately. The deadline and run-wait tokens are this server's own: it
+    // bounds every handed call by the deadline its frame names, and its CLI lets a
+    // synchronous `workflows run` outlast `--wait-timeout`.
     clientCapabilities: [
       ...(isAssistant ? [] : ['workflow-tool-pickup']),
       TOOL_DEADLINE_CAPABILITY,
+      WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
     ],
   }
 }

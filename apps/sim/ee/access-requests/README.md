@@ -5,11 +5,14 @@ Members request access from locked features or the block picker and track their 
 ## Deployment
 
 1. Apply migration `0349_permission_access_requests.sql` before deploying the application changes.
-2. Each organization starts with requests enabled. An explicit organization opt-out disables creation and approval and restores existing feature hiding. History, cancellation, and decline remain available.
+2. Each organization starts with requests enabled. An explicit organization opt-out pauses creation and approval while retaining discovery. History, cancellation, and decline remain available.
 3. The existing outbox worker delivers notifications. Email links open authenticated review/history; email never applies a change.
 
 ## Policy and lifecycle
 
+- Permission groups choose **Allowed**, **Can request**, or **Unavailable** per item in the existing editor. Access fields retain their existing meaning; the optional `deniedAccessRequests` list stores canonical target keys for restricted items that cannot be requested. Missing lists default to empty, preserving existing groups. No database migration is needed for this field.
+- Unavailable parents also block descendant requests. Changing a parent preserves its children’s saved choices, and approvals never mutate request eligibility metadata. Existing requests remain in history and can be cancelled or declined after eligibility changes.
+- The editor represents durable group policy, not a member's effective access. Deployment availability and workspace roles are checked separately during discovery, submission, and approval; changes to those ceilings do not rewrite saved group choices.
 - Requests refer to canonical public feature identifiers. Private resource names, preview blocks, deployment-disabled integrations, and unknown tenant model names are excluded from discovery.
 - Fulfillment updates the current governing group. The preview lists every required change, including parent restrictions, and a conservative upper bound of affected people/workspaces. It does not create individual grants or move members between groups.
 - Approval rechecks administrator authority, requester membership identity, workspace ownership, entitlement at admission, organization preference, group resolution, and the preview fingerprint. Membership, policy, or scope changes require a fresh review or request.

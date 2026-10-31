@@ -2,8 +2,14 @@ import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { credentialGroup, user } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
+import { loadAssistantIntegrationTools } from '@/lib/assistant-actions/catalog'
+import { assistantSearchSourceForProvider } from '@/lib/assistant-actions/providers'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { findCredentialGroupProviderFromProviderId } from '@/lib/credential-groups/providers'
+import {
+  findCredentialGroupProviderFromProviderId,
+  getCredentialGroupProviderId,
+  getCredentialGroupProviderService,
+} from '@/lib/credential-groups/providers'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { readSearchConnectionCompletion } from '@/lib/credential-groups/search-connection-completion'
 import { getOrganizationAccountsGroup } from '@/lib/credential-groups/service'
@@ -38,9 +44,10 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
     const scope = { kind: 'organization', organizationId: context.organizationId } as const
     if (!(await isScopedCredentialGroupsAvailable(scope)))
       return { completedCredentialId: null, connections: [], available: [], nextCursor: null }
-    const [group, approvals] = await Promise.all([
+    const [group, approvals, assistant] = await Promise.all([
       getOrganizationAccountsGroup(context.organizationId),
       listOrganizationSearchApprovals(context.organizationId),
+      loadAssistantIntegrationTools({ organizationId: context.organizationId, userId }),
     ])
     const accounts = group
       ? await listViewerOrganizationAccounts({
@@ -53,10 +60,13 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
       const connector = SEARCH_CONNECTORS.find(
         (entry) => findCredentialGroupProviderFromProviderId(entry.providerId) === option.provider
       )
+      const source = assistantSearchSourceForProvider(getCredentialGroupProviderId(option.provider))
+      const connectorType = connector?.type ?? option.provider
+      const searchable = connector && LIVE_SEARCH_SCOPE_FIELDS[connector.type]
+      const supportsActions = assistant.providers.includes(option.provider)
       if (
-        !connector ||
-        !LIVE_SEARCH_SCOPE_FIELDS[connector.type] ||
-        (input.connectorType && connector.type !== input.connectorType)
+        (!searchable && !supportsActions) ||
+        (input.connectorType && connectorType !== input.connectorType)
       )
         return []
       const ready = Boolean(
@@ -64,12 +74,12 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
           group?.status === 'active' &&
           option.status === 'active' &&
           option.configurationStatus === 'ready' &&
-          approvals.get(connector.type)
+          (!source || approvals.get(source))
       )
       const target: SearchConnectionTarget = {
         type: 'link',
         provider: option.provider,
-        connectorType: connector.type,
+        connectorType,
         connectionMode: 'live',
         optionId: option.id,
       }
@@ -84,10 +94,10 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
         }))
       return [
         {
-          name: connector.meta.name,
+          name: connector?.meta.name ?? getCredentialGroupProviderService(option.provider).name,
           providerId: option.provider,
-          connectorType: connector.type,
-          description: '',
+          connectorType,
+          description: searchable ? '' : 'Personal account for Assistant actions',
           accounts: own,
           connectionStatus: !ready
             ? ('unavailable' as const)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useId, useMemo } from 'react'
 import { CANVAS_Z_INDEX_MODE, useCanvasColorMode } from '@sim/workflow-renderer'
 import { type NodeTypes, ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { domAnimation, LazyMotion } from 'framer-motion'
@@ -15,7 +15,7 @@ const PRO_OPTIONS = { hideAttribution: true }
 /** `maxZoom` mirrors the previous hand-rolled hero's 1.3 scale. */
 const FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1.3 } as const
 
-interface BlockPreviewProps {
+export interface BlockPreviewProps {
   /** Block key from {@link BLOCK_DISPLAY_WORKFLOWS} (e.g. `agent`, `condition`, `webhook_trigger`). */
   type: string
 }
@@ -29,6 +29,7 @@ interface BlockPreviewProps {
  * `block-display-workflows.ts`.
  */
 export function BlockPreview({ type }: BlockPreviewProps) {
+  const flowId = useId()
   const colorMode = useCanvasColorMode()
   const workflow = BLOCK_DISPLAY_WORKFLOWS[type]
 
@@ -39,8 +40,9 @@ export function BlockPreview({ type }: BlockPreviewProps) {
   return (
     <div className='not-prose my-6 h-[280px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)]'>
       <LazyMotion features={domAnimation}>
-        <ReactFlowProvider>
+        <ReactFlowProvider initialNodes={elements.nodes} initialEdges={elements.edges}>
           <ReactFlow
+            id={flowId}
             colorMode={colorMode}
             zIndexMode={CANVAS_Z_INDEX_MODE}
             nodes={elements.nodes}

@@ -1,0 +1,2792 @@
+{
+  "startedAt": "2026-10-29T22:38:37.182Z",
+  "completedAt": "2026-10-29T22:38:51.813Z",
+  "origin": "http://localhost:3002",
+  "canonicalOrigin": "https://docs.sim.ai",
+  "catalogHash": "6f8808b62801bc9099dfdf11f095101a88ffe662370d4b320cbc3af60e5de587",
+  "concurrency": 4,
+  "maxBodyBytes": 33554432,
+  "catalogPages": 803,
+  "readablePages": 802,
+  "redirectOnlyPages": ["/"],
+  "assets": 186,
+  "excludedOsArtifacts": [".DS_Store"],
+  "checks": 2995,
+  "passed": 2687,
+  "failed": 308,
+  "results": [
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/access-requests/cancelOrganizationAccessRequest",
+      "status": "failed",
+      "durationMs": 68,
+      "responseStatus": 200,
+      "bytes": 972741,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/access-requests/cancelWorkspaceAccessRequest",
+      "status": "failed",
+      "durationMs": 96,
+      "responseStatus": 200,
+      "bytes": 973674,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/access-requests/createOrganizationAccessRequest",
+      "status": "failed",
+      "durationMs": 110,
+      "responseStatus": 200,
+      "bytes": 1150262,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/access-requests/createWorkspaceAccessRequest",
+      "status": "failed",
+      "durationMs": 81,
+      "responseStatus": 200,
+      "bytes": 1151373,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/access-requests/discoverOrganizationAccessRequests",
+      "status": "failed",
+      "durationMs": 56,
+      "responseStatus": 200,
+      "bytes": 943088,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/access-requests/discoverWorkspaceAccessRequests",
+      "status": "failed",
+      "durationMs": 65,
+      "responseStatus": 200,
+      "bytes": 943935,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/access-requests/getOrganizationAccessRequestSettings",
+      "status": "failed",
+      "durationMs": 68,
+      "responseStatus": 200,
+      "bytes": 818873,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/access-requests/listMyOrganizationAccessRequests",
+      "status": "failed",
+      "durationMs": 74,
+      "responseStatus": 200,
+      "bytes": 994491,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/access-requests/listMyWorkspaceAccessRequests",
+      "status": "failed",
+      "durationMs": 61,
+      "responseStatus": 200,
+      "bytes": 994611,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/access-requests/listOrganizationAccessRequests",
+      "status": "failed",
+      "durationMs": 64,
+      "responseStatus": 200,
+      "bytes": 996184,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/access-requests/previewOrganizationAccessRequest",
+      "status": "failed",
+      "durationMs": 100,
+      "responseStatus": 200,
+      "bytes": 1301973,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/access-requests/resolveOrganizationAccessRequest",
+      "status": "failed",
+      "durationMs": 100,
+      "responseStatus": 200,
+      "bytes": 1091587,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/access-requests/updateOrganizationAccessRequestSettings",
+      "status": "failed",
+      "durationMs": 45,
+      "responseStatus": 200,
+      "bytes": 915916,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/audit-logs/listAuditLogs",
+      "status": "failed",
+      "durationMs": 49,
+      "responseStatus": 200,
+      "bytes": 836647,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/audit-logs/getAuditLog",
+      "status": "failed",
+      "durationMs": 57,
+      "responseStatus": 200,
+      "bytes": 844339,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/billing/listBillingLogs",
+      "status": "failed",
+      "durationMs": 129,
+      "responseStatus": 200,
+      "bytes": 857224,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/billing/getBillingStatus",
+      "status": "failed",
+      "durationMs": 136,
+      "responseStatus": 200,
+      "bytes": 846131,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/catalog/executeTool",
+      "status": "failed",
+      "durationMs": 93,
+      "responseStatus": 200,
+      "bytes": 975358,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/catalog/getBlock",
+      "status": "failed",
+      "durationMs": 143,
+      "responseStatus": 200,
+      "bytes": 1823043,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/catalog/getTool",
+      "status": "failed",
+      "durationMs": 56,
+      "responseStatus": 200,
+      "bytes": 892695,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/catalog/listBlocks",
+      "status": "failed",
+      "durationMs": 62,
+      "responseStatus": 200,
+      "bytes": 889165,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/catalog/listConnectorTypes",
+      "status": "failed",
+      "durationMs": 44,
+      "responseStatus": 200,
+      "bytes": 1148018,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/catalog/listTools",
+      "status": "failed",
+      "durationMs": 58,
+      "responseStatus": 200,
+      "bytes": 841326,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/credentials/createCredentialConnection",
+      "status": "failed",
+      "durationMs": 72,
+      "responseStatus": 200,
+      "bytes": 1083928,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/credentials/createServiceAccountCredential",
+      "status": "failed",
+      "durationMs": 71,
+      "responseStatus": 200,
+      "bytes": 1084892,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/credentials/deleteCredential",
+      "status": "failed",
+      "durationMs": 55,
+      "responseStatus": 200,
+      "bytes": 787270,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/credentials/listCredentialMembers",
+      "status": "failed",
+      "durationMs": 53,
+      "responseStatus": 200,
+      "bytes": 836650,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/credentials/listCredentialProviders",
+      "status": "failed",
+      "durationMs": 88,
+      "responseStatus": 200,
+      "bytes": 1012887,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/credentials/listCredentials",
+      "status": "failed",
+      "durationMs": 84,
+      "responseStatus": 200,
+      "bytes": 852018,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/credentials/updateCredential",
+      "status": "failed",
+      "durationMs": 46,
+      "responseStatus": 200,
+      "bytes": 1061881,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/credentials/removeCredentialMember",
+      "status": "failed",
+      "durationMs": 53,
+      "responseStatus": 200,
+      "bytes": 784741,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/custom-tools/deleteCustomTool",
+      "status": "failed",
+      "durationMs": 53,
+      "responseStatus": 200,
+      "bytes": 784437,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/credentials/upsertCredentialMember",
+      "status": "failed",
+      "durationMs": 63,
+      "responseStatus": 200,
+      "bytes": 915396,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/custom-tools/createCustomTool",
+      "status": "failed",
+      "durationMs": 75,
+      "responseStatus": 200,
+      "bytes": 1071648,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/custom-tools/getCustomTool",
+      "status": "failed",
+      "durationMs": 62,
+      "responseStatus": 200,
+      "bytes": 851230,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/custom-tools/listCustomTools",
+      "status": "failed",
+      "durationMs": 62,
+      "responseStatus": 200,
+      "bytes": 872326,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/custom-tools/updateCustomTool",
+      "status": "failed",
+      "durationMs": 73,
+      "responseStatus": 200,
+      "bytes": 1023243,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/bulkDeleteFiles",
+      "status": "failed",
+      "durationMs": 52,
+      "responseStatus": 200,
+      "bytes": 889978,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/abortFileUpload",
+      "status": "failed",
+      "durationMs": 88,
+      "responseStatus": 200,
+      "bytes": 886089,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/bulkDownloadFiles",
+      "status": "failed",
+      "durationMs": 31,
+      "responseStatus": 200,
+      "bytes": 812239,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/createFile",
+      "status": "failed",
+      "durationMs": 41,
+      "responseStatus": 200,
+      "bytes": 978023,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/completeFileUpload",
+      "status": "failed",
+      "durationMs": 46,
+      "responseStatus": 200,
+      "bytes": 886432,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/createFileUpload",
+      "status": "failed",
+      "durationMs": 49,
+      "responseStatus": 200,
+      "bytes": 998293,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/createFileUploadPartUrls",
+      "status": "failed",
+      "durationMs": 58,
+      "responseStatus": 200,
+      "bytes": 947856,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/createFilesFolder",
+      "status": "failed",
+      "durationMs": 36,
+      "responseStatus": 200,
+      "bytes": 923417,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/deleteFile",
+      "status": "failed",
+      "durationMs": 34,
+      "responseStatus": 200,
+      "bytes": 779273,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/deleteFileVersion",
+      "status": "failed",
+      "durationMs": 34,
+      "responseStatus": 200,
+      "bytes": 832703,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/deleteFilesFolder",
+      "status": "failed",
+      "durationMs": 29,
+      "responseStatus": 200,
+      "bytes": 831023,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/downloadFile",
+      "status": "failed",
+      "durationMs": 42,
+      "responseStatus": 200,
+      "bytes": 853599,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/downloadFileVersion",
+      "status": "failed",
+      "durationMs": 56,
+      "responseStatus": 200,
+      "bytes": 857409,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/editFileContent",
+      "status": "failed",
+      "durationMs": 63,
+      "responseStatus": 200,
+      "bytes": 1127408,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/getFile",
+      "status": "failed",
+      "durationMs": 53,
+      "responseStatus": 200,
+      "bytes": 927475,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/getFileShare",
+      "status": "failed",
+      "durationMs": 35,
+      "responseStatus": 200,
+      "bytes": 826471,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/getFileUpload",
+      "status": "failed",
+      "durationMs": 54,
+      "responseStatus": 200,
+      "bytes": 847599,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/getFileVersion",
+      "status": "failed",
+      "durationMs": 68,
+      "responseStatus": 200,
+      "bytes": 852568,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/listFileVersions",
+      "status": "failed",
+      "durationMs": 75,
+      "responseStatus": 200,
+      "bytes": 874719,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/listFiles",
+      "status": "failed",
+      "durationMs": 74,
+      "responseStatus": 200,
+      "bytes": 894618,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/listFilesFolders",
+      "status": "failed",
+      "durationMs": 43,
+      "responseStatus": 200,
+      "bytes": 812449,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/moveFileItems",
+      "status": "failed",
+      "durationMs": 43,
+      "responseStatus": 200,
+      "bytes": 933726,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/readFileText",
+      "status": "failed",
+      "durationMs": 51,
+      "responseStatus": 200,
+      "bytes": 911405,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/readFileVersionText",
+      "status": "failed",
+      "durationMs": 66,
+      "responseStatus": 200,
+      "bytes": 912375,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/relocateFilesFolder",
+      "status": "failed",
+      "durationMs": 59,
+      "responseStatus": 200,
+      "bytes": 931486,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/renameFile",
+      "status": "failed",
+      "durationMs": 42,
+      "responseStatus": 200,
+      "bytes": 965931,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/restoreFilesFolder",
+      "status": "failed",
+      "durationMs": 32,
+      "responseStatus": 200,
+      "bytes": 935684,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/restoreFile",
+      "status": "failed",
+      "durationMs": 38,
+      "responseStatus": 200,
+      "bytes": 963827,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/revertFileVersion",
+      "status": "failed",
+      "durationMs": 37,
+      "responseStatus": 200,
+      "bytes": 1069401,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/searchFileContent",
+      "status": "failed",
+      "durationMs": 34,
+      "responseStatus": 200,
+      "bytes": 892666,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/unzipFile",
+      "status": "failed",
+      "durationMs": 26,
+      "responseStatus": 200,
+      "bytes": 914660,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/updateFileContent",
+      "status": "failed",
+      "durationMs": 22,
+      "responseStatus": 200,
+      "bytes": 977367,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/files/upsertFileShare",
+      "status": "failed",
+      "durationMs": 28,
+      "responseStatus": 200,
+      "bytes": 966911,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/abortKnowledgeDocumentUpload",
+      "status": "failed",
+      "durationMs": 31,
+      "responseStatus": 200,
+      "bytes": 887178,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/addWorkspaceFilesToKnowledgeBase",
+      "status": "failed",
+      "durationMs": 30,
+      "responseStatus": 200,
+      "bytes": 950173,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/bulkUpdateKnowledgeChunks",
+      "status": "failed",
+      "durationMs": 29,
+      "responseStatus": 200,
+      "bytes": 906697,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/bulkSaveKnowledgeTagDefinitions",
+      "status": "failed",
+      "durationMs": 38,
+      "responseStatus": 200,
+      "bytes": 955239,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/bulkUpdateKnowledgeDocuments",
+      "status": "failed",
+      "durationMs": 44,
+      "responseStatus": 200,
+      "bytes": 904493,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/cancelKnowledgeImport",
+      "status": "failed",
+      "durationMs": 39,
+      "responseStatus": 200,
+      "bytes": 878785,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/completeKnowledgeDocumentUpload",
+      "status": "failed",
+      "durationMs": 28,
+      "responseStatus": 200,
+      "bytes": 887643,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/completeKnowledgeImport",
+      "status": "failed",
+      "durationMs": 26,
+      "responseStatus": 200,
+      "bytes": 920950,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/createKnowledgeBase",
+      "status": "failed",
+      "durationMs": 42,
+      "responseStatus": 200,
+      "bytes": 1025255,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/createKnowledgeChunk",
+      "status": "failed",
+      "durationMs": 38,
+      "responseStatus": 200,
+      "bytes": 959453,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/createKnowledgeConnector",
+      "status": "failed",
+      "durationMs": 40,
+      "responseStatus": 200,
+      "bytes": 1041897,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/createKnowledgeDocumentUpload",
+      "status": "failed",
+      "durationMs": 24,
+      "responseStatus": 200,
+      "bytes": 1059209,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/createKnowledgeFolder",
+      "status": "failed",
+      "durationMs": 40,
+      "responseStatus": 200,
+      "bytes": 925113,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/createKnowledgeDocumentUploadPartUrls",
+      "status": "failed",
+      "durationMs": 48,
+      "responseStatus": 200,
+      "bytes": 952400,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/createKnowledgeImport",
+      "status": "failed",
+      "durationMs": 53,
+      "responseStatus": 200,
+      "bytes": 1051653,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/createKnowledgeImportPartUrls",
+      "status": "failed",
+      "durationMs": 50,
+      "responseStatus": 200,
+      "bytes": 950921,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/createKnowledgeTag",
+      "status": "failed",
+      "durationMs": 40,
+      "responseStatus": 200,
+      "bytes": 939341,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/deleteKnowledgeChunk",
+      "status": "failed",
+      "durationMs": 42,
+      "responseStatus": 200,
+      "bytes": 827104,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/deleteKnowledgeBase",
+      "status": "failed",
+      "durationMs": 47,
+      "responseStatus": 200,
+      "bytes": 778801,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/deleteKnowledgeConnector",
+      "status": "failed",
+      "durationMs": 46,
+      "responseStatus": 200,
+      "bytes": 798873,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/deleteKnowledgeDocument",
+      "status": "failed",
+      "durationMs": 28,
+      "responseStatus": 200,
+      "bytes": 781046,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/deleteKnowledgeFolder",
+      "status": "failed",
+      "durationMs": 36,
+      "responseStatus": 200,
+      "bytes": 870599,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/deleteKnowledgeTag",
+      "status": "failed",
+      "durationMs": 42,
+      "responseStatus": 200,
+      "bytes": 824959,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/deleteKnowledgeTagDefinitions",
+      "status": "failed",
+      "durationMs": 41,
+      "responseStatus": 200,
+      "bytes": 782992,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/exportKnowledgeBase",
+      "status": "failed",
+      "durationMs": 32,
+      "responseStatus": 200,
+      "bytes": 815632,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/getKnowledgeBase",
+      "status": "failed",
+      "durationMs": 47,
+      "responseStatus": 200,
+      "bytes": 888553,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/getKnowledgeConnector",
+      "status": "failed",
+      "durationMs": 46,
+      "responseStatus": 200,
+      "bytes": 913597,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/getKnowledgeChunk",
+      "status": "failed",
+      "durationMs": 52,
+      "responseStatus": 200,
+      "bytes": 892568,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/getKnowledgeDocument",
+      "status": "failed",
+      "durationMs": 29,
+      "responseStatus": 200,
+      "bytes": 856154,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/getKnowledgeImport",
+      "status": "failed",
+      "durationMs": 28,
+      "responseStatus": 200,
+      "bytes": 838730,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/getNextKnowledgeTagSlot",
+      "status": "failed",
+      "durationMs": 42,
+      "responseStatus": 200,
+      "bytes": 798133,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/listKnowledgeBases",
+      "status": "failed",
+      "durationMs": 54,
+      "responseStatus": 200,
+      "bytes": 914208,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/listKnowledgeChunks",
+      "status": "failed",
+      "durationMs": 52,
+      "responseStatus": 200,
+      "bytes": 916504,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/listKnowledgeConnectorDocuments",
+      "status": "failed",
+      "durationMs": 56,
+      "responseStatus": 200,
+      "bytes": 837381,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/listKnowledgeConnectors",
+      "status": "failed",
+      "durationMs": 72,
+      "responseStatus": 200,
+      "bytes": 889564,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/listKnowledgeFolders",
+      "status": "failed",
+      "durationMs": 78,
+      "responseStatus": 200,
+      "bytes": 844321,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/listKnowledgeDocuments",
+      "status": "failed",
+      "durationMs": 86,
+      "responseStatus": 200,
+      "bytes": 845691,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/listKnowledgeTagUsage",
+      "status": "failed",
+      "durationMs": 79,
+      "responseStatus": 200,
+      "bytes": 801011,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/listKnowledgeTags",
+      "status": "failed",
+      "durationMs": 43,
+      "responseStatus": 200,
+      "bytes": 795862,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/relocateKnowledgeFolder",
+      "status": "failed",
+      "durationMs": 54,
+      "responseStatus": 200,
+      "bytes": 932792,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/restoreKnowledgeBase",
+      "status": "failed",
+      "durationMs": 57,
+      "responseStatus": 200,
+      "bytes": 986112,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/searchKnowledge",
+      "status": "failed",
+      "durationMs": 61,
+      "responseStatus": 200,
+      "bytes": 1085935,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/updateKnowledgeBase",
+      "status": "failed",
+      "durationMs": 38,
+      "responseStatus": 200,
+      "bytes": 1022183,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/syncKnowledgeConnector",
+      "status": "failed",
+      "durationMs": 45,
+      "responseStatus": 200,
+      "bytes": 928043,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/updateKnowledgeChunk",
+      "status": "failed",
+      "durationMs": 42,
+      "responseStatus": 200,
+      "bytes": 999376,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/updateKnowledgeConnector",
+      "status": "failed",
+      "durationMs": 40,
+      "responseStatus": 200,
+      "bytes": 1020666,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/updateKnowledgeConnectorDocuments",
+      "status": "failed",
+      "durationMs": 37,
+      "responseStatus": 200,
+      "bytes": 911154,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/updateKnowledgeDocument",
+      "status": "failed",
+      "durationMs": 57,
+      "responseStatus": 200,
+      "bytes": 970569,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/updateKnowledgeTag",
+      "status": "failed",
+      "durationMs": 61,
+      "responseStatus": 200,
+      "bytes": 933339,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/knowledge-bases/uploadKnowledgeDocument",
+      "status": "failed",
+      "durationMs": 56,
+      "responseStatus": 200,
+      "bytes": 941338,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/logs/getLog",
+      "status": "failed",
+      "durationMs": 49,
+      "responseStatus": 200,
+      "bytes": 1148425,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/logs/listLogs",
+      "status": "failed",
+      "durationMs": 68,
+      "responseStatus": 200,
+      "bytes": 1085200,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/logs/getLogStats",
+      "status": "failed",
+      "durationMs": 82,
+      "responseStatus": 200,
+      "bytes": 962038,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/mcp-servers/createMcpServer",
+      "status": "failed",
+      "durationMs": 80,
+      "responseStatus": 200,
+      "bytes": 1049298,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/mcp-servers/createWorkflowMcpServer",
+      "status": "failed",
+      "durationMs": 64,
+      "responseStatus": 200,
+      "bytes": 963438,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/mcp-servers/deleteMcpServer",
+      "status": "failed",
+      "durationMs": 28,
+      "responseStatus": 200,
+      "bytes": 784691,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/mcp-servers/deleteWorkflowMcpServer",
+      "status": "failed",
+      "durationMs": 30,
+      "responseStatus": 200,
+      "bytes": 821449,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/mcp-servers/getMcpServer",
+      "status": "failed",
+      "durationMs": 56,
+      "responseStatus": 200,
+      "bytes": 861531,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/mcp-servers/deployWorkflowMcpTool",
+      "status": "failed",
+      "durationMs": 67,
+      "responseStatus": 200,
+      "bytes": 975992,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/mcp-servers/getWorkflowMcpServer",
+      "status": "failed",
+      "durationMs": 68,
+      "responseStatus": 200,
+      "bytes": 804802,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/mcp-servers/listWorkflowMcpServers",
+      "status": "failed",
+      "durationMs": 47,
+      "responseStatus": 200,
+      "bytes": 847106,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/mcp-servers/listMcpServerTools",
+      "status": "failed",
+      "durationMs": 54,
+      "responseStatus": 200,
+      "bytes": 885301,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/mcp-servers/listMcpServers",
+      "status": "failed",
+      "durationMs": 68,
+      "responseStatus": 200,
+      "bytes": 883746,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/mcp-servers/listWorkflowMcpTools",
+      "status": "failed",
+      "durationMs": 71,
+      "responseStatus": 200,
+      "bytes": 837721,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/mcp-servers/undeployWorkflowMcpTool",
+      "status": "failed",
+      "durationMs": 30,
+      "responseStatus": 200,
+      "bytes": 830702,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/mcp-servers/updateMcpServer",
+      "status": "failed",
+      "durationMs": 28,
+      "responseStatus": 200,
+      "bytes": 999144,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/meta/getApiMeta",
+      "status": "failed",
+      "durationMs": 36,
+      "responseStatus": 200,
+      "bytes": 703963,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/mcp-servers/updateWorkflowMcpServer",
+      "status": "failed",
+      "durationMs": 40,
+      "responseStatus": 200,
+      "bytes": 951358,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/addOrganizationDomain",
+      "status": "failed",
+      "durationMs": 30,
+      "responseStatus": 200,
+      "bytes": 977199,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/createOrganizationInvitation",
+      "status": "failed",
+      "durationMs": 34,
+      "responseStatus": 200,
+      "bytes": 961913,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/getOrganization",
+      "status": "failed",
+      "durationMs": 48,
+      "responseStatus": 200,
+      "bytes": 800447,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/deleteSsoProvider",
+      "status": "failed",
+      "durationMs": 50,
+      "responseStatus": 200,
+      "bytes": 819762,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/getOrganizationInvitation",
+      "status": "failed",
+      "durationMs": 49,
+      "responseStatus": 200,
+      "bytes": 815946,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/getOrganizationMemberUsageLimit",
+      "status": "failed",
+      "durationMs": 35,
+      "responseStatus": 200,
+      "bytes": 795670,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/getOrganizationUsageSummary",
+      "status": "failed",
+      "durationMs": 44,
+      "responseStatus": 200,
+      "bytes": 858014,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/getOrganizationUsageBreakdown",
+      "status": "failed",
+      "durationMs": 53,
+      "responseStatus": 200,
+      "bytes": 898780,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/getSsoPolicy",
+      "status": "failed",
+      "durationMs": 57,
+      "responseStatus": 200,
+      "bytes": 816252,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/getSsoProvider",
+      "status": "failed",
+      "durationMs": 57,
+      "responseStatus": 200,
+      "bytes": 848047,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/listOrganizationDomains",
+      "status": "failed",
+      "durationMs": 39,
+      "responseStatus": 200,
+      "bytes": 856083,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/listOrganizationInvitations",
+      "status": "failed",
+      "durationMs": 43,
+      "responseStatus": 200,
+      "bytes": 840620,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/listOrganizationInvitationWorkspaces",
+      "status": "failed",
+      "durationMs": 48,
+      "responseStatus": 200,
+      "bytes": 824336,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/listOrganizationMembers",
+      "status": "failed",
+      "durationMs": 47,
+      "responseStatus": 200,
+      "bytes": 819938,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/listOrganizationUsageEvents",
+      "status": "failed",
+      "durationMs": 44,
+      "responseStatus": 200,
+      "bytes": 843575,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/listOrganizations",
+      "status": "failed",
+      "durationMs": 46,
+      "responseStatus": 200,
+      "bytes": 822517,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/listOrganizationWorkspaces",
+      "status": "failed",
+      "durationMs": 50,
+      "responseStatus": 200,
+      "bytes": 806600,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/listSsoProviders",
+      "status": "failed",
+      "durationMs": 48,
+      "responseStatus": 200,
+      "bytes": 866146,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/removeOrganizationDomain",
+      "status": "failed",
+      "durationMs": 37,
+      "responseStatus": 200,
+      "bytes": 819432,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/removeOrganizationMember",
+      "status": "failed",
+      "durationMs": 40,
+      "responseStatus": 200,
+      "bytes": 824920,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/resendOrganizationInvitation",
+      "status": "failed",
+      "durationMs": 48,
+      "responseStatus": 200,
+      "bytes": 946364,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/revokeOrganizationInvitation",
+      "status": "failed",
+      "durationMs": 47,
+      "responseStatus": 200,
+      "bytes": 824777,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/setPrimarySsoProvider",
+      "status": "failed",
+      "durationMs": 65,
+      "responseStatus": 200,
+      "bytes": 905498,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/saveSsoProvider",
+      "status": "failed",
+      "durationMs": 77,
+      "responseStatus": 200,
+      "bytes": 1058879,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/updateOrganizationMember",
+      "status": "failed",
+      "durationMs": 83,
+      "responseStatus": 200,
+      "bytes": 934319,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/updateOrganizationMemberUsageLimit",
+      "status": "failed",
+      "durationMs": 88,
+      "responseStatus": 200,
+      "bytes": 919457,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/permission-groups/addPermissionGroupMember",
+      "status": "failed",
+      "durationMs": 45,
+      "responseStatus": 200,
+      "bytes": 938274,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/updateSsoPolicy",
+      "status": "failed",
+      "durationMs": 54,
+      "responseStatus": 200,
+      "bytes": 910643,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/organizations/verifyOrganizationDomain",
+      "status": "failed",
+      "durationMs": 61,
+      "responseStatus": 200,
+      "bytes": 926595,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/permission-groups/bulkAddPermissionGroupMembers",
+      "status": "failed",
+      "durationMs": 61,
+      "responseStatus": 200,
+      "bytes": 930582,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/permission-groups/deletePermissionGroup",
+      "status": "failed",
+      "durationMs": 39,
+      "responseStatus": 200,
+      "bytes": 785253,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/permission-groups/getPermissionGroup",
+      "status": "failed",
+      "durationMs": 54,
+      "responseStatus": 200,
+      "bytes": 1036090,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/permission-groups/createPermissionGroup",
+      "status": "failed",
+      "durationMs": 70,
+      "responseStatus": 200,
+      "bytes": 1295388,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/permission-groups/listPermissionGroupMembers",
+      "status": "failed",
+      "durationMs": 65,
+      "responseStatus": 200,
+      "bytes": 833630,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/permission-groups/listPermissionGroups",
+      "status": "failed",
+      "durationMs": 39,
+      "responseStatus": 200,
+      "bytes": 1060326,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/permission-groups/removePermissionGroupMember",
+      "status": "failed",
+      "durationMs": 34,
+      "responseStatus": 200,
+      "bytes": 827406,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/permission-groups/updatePermissionGroup",
+      "status": "failed",
+      "durationMs": 64,
+      "responseStatus": 200,
+      "bytes": 1295307,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/sandboxes/deleteSandbox",
+      "status": "failed",
+      "durationMs": 52,
+      "responseStatus": 200,
+      "bytes": 786717,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/sandboxes/createSandbox",
+      "status": "failed",
+      "durationMs": 60,
+      "responseStatus": 200,
+      "bytes": 1043118,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/sandboxes/getSandbox",
+      "status": "failed",
+      "durationMs": 51,
+      "responseStatus": 200,
+      "bytes": 859242,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/sandboxes/listSandboxes",
+      "status": "failed",
+      "durationMs": 55,
+      "responseStatus": 200,
+      "bytes": 881438,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/sandboxes/updateSandbox",
+      "status": "failed",
+      "durationMs": 57,
+      "responseStatus": 200,
+      "bytes": 1033530,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/secrets/deleteSecret",
+      "status": "failed",
+      "durationMs": 54,
+      "responseStatus": 200,
+      "bytes": 795374,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/secrets/setSecret",
+      "status": "failed",
+      "durationMs": 50,
+      "responseStatus": 200,
+      "bytes": 1032534,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/secrets/listSecrets",
+      "status": "failed",
+      "durationMs": 53,
+      "responseStatus": 200,
+      "bytes": 857093,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/skills/createSkill",
+      "status": "failed",
+      "durationMs": 58,
+      "responseStatus": 200,
+      "bytes": 961405,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/skills/deleteSkill",
+      "status": "failed",
+      "durationMs": 50,
+      "responseStatus": 200,
+      "bytes": 785135,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/skills/listSkillEditors",
+      "status": "failed",
+      "durationMs": 31,
+      "responseStatus": 200,
+      "bytes": 821142,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/skills/grantSkillEditor",
+      "status": "failed",
+      "durationMs": 40,
+      "responseStatus": 200,
+      "bytes": 952129,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/skills/getSkill",
+      "status": "failed",
+      "durationMs": 44,
+      "responseStatus": 200,
+      "bytes": 806814,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/skills/listSkills",
+      "status": "failed",
+      "durationMs": 49,
+      "responseStatus": 200,
+      "bytes": 823214,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/skills/revokeSkillEditor",
+      "status": "failed",
+      "durationMs": 47,
+      "responseStatus": 200,
+      "bytes": 790814,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/skills/updateSkill",
+      "status": "failed",
+      "durationMs": 53,
+      "responseStatus": 200,
+      "bytes": 954687,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/addTableColumn",
+      "status": "failed",
+      "durationMs": 51,
+      "responseStatus": 200,
+      "bytes": 987827,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/addTableWorkflowGroup",
+      "status": "failed",
+      "durationMs": 68,
+      "responseStatus": 200,
+      "bytes": 1109279,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/bulkUpdateTableRows",
+      "status": "failed",
+      "durationMs": 42,
+      "responseStatus": 200,
+      "bytes": 968272,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/cancelTableDispatch",
+      "status": "failed",
+      "durationMs": 50,
+      "responseStatus": 200,
+      "bytes": 850916,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/bulkDeleteTables",
+      "status": "failed",
+      "durationMs": 59,
+      "responseStatus": 200,
+      "bytes": 1019039,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/cancelTableExport",
+      "status": "failed",
+      "durationMs": 58,
+      "responseStatus": 200,
+      "bytes": 850988,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/cancelTableImport",
+      "status": "failed",
+      "durationMs": 58,
+      "responseStatus": 200,
+      "bytes": 936981,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/cancelTableRuns",
+      "status": "failed",
+      "durationMs": 63,
+      "responseStatus": 200,
+      "bytes": 985081,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/completeTableImportUpload",
+      "status": "failed",
+      "durationMs": 67,
+      "responseStatus": 200,
+      "bytes": 983195,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/countTableRows",
+      "status": "failed",
+      "durationMs": 73,
+      "responseStatus": 200,
+      "bytes": 987249,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/createTable",
+      "status": "failed",
+      "durationMs": 64,
+      "responseStatus": 200,
+      "bytes": 1107495,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/createTableExport",
+      "status": "failed",
+      "durationMs": 65,
+      "responseStatus": 200,
+      "bytes": 951160,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/createTableDispatch",
+      "status": "failed",
+      "durationMs": 83,
+      "responseStatus": 200,
+      "bytes": 1005788,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/createTableImport",
+      "status": "failed",
+      "durationMs": 83,
+      "responseStatus": 200,
+      "bytes": 1294990,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/createTableImportPartUrls",
+      "status": "failed",
+      "durationMs": 61,
+      "responseStatus": 200,
+      "bytes": 950834,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/createTableRows",
+      "status": "failed",
+      "durationMs": 75,
+      "responseStatus": 200,
+      "bytes": 1066407,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/createTableView",
+      "status": "failed",
+      "durationMs": 89,
+      "responseStatus": 200,
+      "bytes": 1113364,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/createTablesFolder",
+      "status": "failed",
+      "durationMs": 83,
+      "responseStatus": 200,
+      "bytes": 923663,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/deleteTableColumn",
+      "status": "failed",
+      "durationMs": 51,
+      "responseStatus": 200,
+      "bytes": 954745,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/deleteTable",
+      "status": "failed",
+      "durationMs": 72,
+      "responseStatus": 200,
+      "bytes": 820409,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/deleteTableRow",
+      "status": "failed",
+      "durationMs": 71,
+      "responseStatus": 200,
+      "bytes": 821200,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/deleteTableRows",
+      "status": "failed",
+      "durationMs": 79,
+      "responseStatus": 200,
+      "bytes": 1034575,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/deleteTableView",
+      "status": "failed",
+      "durationMs": 48,
+      "responseStatus": 200,
+      "bytes": 778532,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/deleteTablesFolder",
+      "status": "failed",
+      "durationMs": 58,
+      "responseStatus": 200,
+      "bytes": 913484,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/deleteTableWorkflowGroup",
+      "status": "failed",
+      "durationMs": 78,
+      "responseStatus": 200,
+      "bytes": 960214,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/downloadTableExport",
+      "status": "failed",
+      "durationMs": 73,
+      "responseStatus": 200,
+      "bytes": 823813,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/getRowEnrichment",
+      "status": "failed",
+      "durationMs": 59,
+      "responseStatus": 200,
+      "bytes": 944222,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/getTable",
+      "status": "failed",
+      "durationMs": 68,
+      "responseStatus": 200,
+      "bytes": 935404,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/getTableDispatch",
+      "status": "failed",
+      "durationMs": 71,
+      "responseStatus": 200,
+      "bytes": 851069,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/getTableExport",
+      "status": "failed",
+      "durationMs": 56,
+      "responseStatus": 200,
+      "bytes": 811883,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/getTableRow",
+      "status": "failed",
+      "durationMs": 84,
+      "responseStatus": 200,
+      "bytes": 868867,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/getTableImport",
+      "status": "failed",
+      "durationMs": 94,
+      "responseStatus": 200,
+      "bytes": 897285,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/getTableView",
+      "status": "failed",
+      "durationMs": 79,
+      "responseStatus": 200,
+      "bytes": 836840,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/listTableDispatches",
+      "status": "failed",
+      "durationMs": 81,
+      "responseStatus": 200,
+      "bytes": 861533,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/listTableViews",
+      "status": "failed",
+      "durationMs": 48,
+      "responseStatus": 200,
+      "bytes": 846256,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/listTableRows",
+      "status": "failed",
+      "durationMs": 52,
+      "responseStatus": 200,
+      "bytes": 884956,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/listTableWorkflowGroups",
+      "status": "failed",
+      "durationMs": 56,
+      "responseStatus": 200,
+      "bytes": 828508,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/listTables",
+      "status": "failed",
+      "durationMs": 63,
+      "responseStatus": 200,
+      "bytes": 961834,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/moveTables",
+      "status": "failed",
+      "durationMs": 45,
+      "responseStatus": 200,
+      "bytes": 958632,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/listTablesFolders",
+      "status": "failed",
+      "durationMs": 48,
+      "responseStatus": 200,
+      "bytes": 843107,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/queryTableRows",
+      "status": "failed",
+      "durationMs": 54,
+      "responseStatus": 200,
+      "bytes": 1186100,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/relocateTablesFolder",
+      "status": "failed",
+      "durationMs": 52,
+      "responseStatus": 200,
+      "bytes": 931518,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/runRowEnrichment",
+      "status": "failed",
+      "durationMs": 54,
+      "responseStatus": 200,
+      "bytes": 879810,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/restoreTablesFolder",
+      "status": "failed",
+      "durationMs": 60,
+      "responseStatus": 200,
+      "bytes": 943183,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/restoreTable",
+      "status": "failed",
+      "durationMs": 69,
+      "responseStatus": 200,
+      "bytes": 1032248,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/searchTableRows",
+      "status": "failed",
+      "durationMs": 68,
+      "responseStatus": 200,
+      "bytes": 1026080,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/updateTableColumn",
+      "status": "failed",
+      "durationMs": 43,
+      "responseStatus": 200,
+      "bytes": 1048909,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/updateTable",
+      "status": "failed",
+      "durationMs": 51,
+      "responseStatus": 200,
+      "bytes": 1054236,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/updateTableRow",
+      "status": "failed",
+      "durationMs": 53,
+      "responseStatus": 200,
+      "bytes": 978678,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/updateTableRows",
+      "status": "failed",
+      "durationMs": 59,
+      "responseStatus": 200,
+      "bytes": 1053029,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/updateTableWorkflowGroup",
+      "status": "failed",
+      "durationMs": 52,
+      "responseStatus": 200,
+      "bytes": 1111083,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/upsertTableRow",
+      "status": "failed",
+      "durationMs": 60,
+      "responseStatus": 200,
+      "bytes": 996037,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/tables/updateTableView",
+      "status": "failed",
+      "durationMs": 70,
+      "responseStatus": 200,
+      "bytes": 1213533,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflow-runs/downloadWorkflowRunFileV2",
+      "status": "failed",
+      "durationMs": 40,
+      "responseStatus": 200,
+      "bytes": 820048,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflow-runs/cancelRunV2",
+      "status": "failed",
+      "durationMs": 45,
+      "responseStatus": 200,
+      "bytes": 849942,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflow-runs/listWorkflowRunsV2",
+      "status": "failed",
+      "durationMs": 50,
+      "responseStatus": 200,
+      "bytes": 860142,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflow-runs/getWorkflowRunV2",
+      "status": "failed",
+      "durationMs": 62,
+      "responseStatus": 200,
+      "bytes": 1051871,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflow-runs/resumeWorkflowRunV2",
+      "status": "failed",
+      "durationMs": 25,
+      "responseStatus": 200,
+      "bytes": 1064759,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/activateWorkflowVersion",
+      "status": "failed",
+      "durationMs": 43,
+      "responseStatus": 200,
+      "bytes": 1066121,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/applyWorkflowVariables",
+      "status": "failed",
+      "durationMs": 43,
+      "responseStatus": 200,
+      "bytes": 1007507,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/applyWorkflowOperations",
+      "status": "failed",
+      "durationMs": 80,
+      "responseStatus": 200,
+      "bytes": 1997070,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/compareWorkflowVersionsV2",
+      "status": "failed",
+      "durationMs": 67,
+      "responseStatus": 200,
+      "bytes": 1109506,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/createWorkflowV2",
+      "status": "failed",
+      "durationMs": 57,
+      "responseStatus": 200,
+      "bytes": 1049043,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/createWorkflowsFolder",
+      "status": "failed",
+      "durationMs": 58,
+      "responseStatus": 200,
+      "bytes": 976915,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/deleteWorkflowChatDeployment",
+      "status": "failed",
+      "durationMs": 54,
+      "responseStatus": 200,
+      "bytes": 782972,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/deleteWorkflowV2",
+      "status": "failed",
+      "durationMs": 59,
+      "responseStatus": 200,
+      "bytes": 825772,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/deleteWorkflowsFolder",
+      "status": "failed",
+      "durationMs": 65,
+      "responseStatus": 200,
+      "bytes": 919664,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/deployWorkflow",
+      "status": "failed",
+      "durationMs": 42,
+      "responseStatus": 200,
+      "bytes": 1316016,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/duplicateWorkflow",
+      "status": "failed",
+      "durationMs": 67,
+      "responseStatus": 200,
+      "bytes": 1017592,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/exportWorkflow",
+      "status": "failed",
+      "durationMs": 58,
+      "responseStatus": 200,
+      "bytes": 921307,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/executeWorkflowV2",
+      "status": "failed",
+      "durationMs": 97,
+      "responseStatus": 200,
+      "bytes": 1417599,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/getWorkflow",
+      "status": "failed",
+      "durationMs": 39,
+      "responseStatus": 200,
+      "bytes": 892141,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/getWorkflowChatDeployment",
+      "status": "failed",
+      "durationMs": 54,
+      "responseStatus": 200,
+      "bytes": 869145,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/getWorkflowDeployment",
+      "status": "failed",
+      "durationMs": 63,
+      "responseStatus": 200,
+      "bytes": 936676,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/getWorkflowState",
+      "status": "failed",
+      "durationMs": 65,
+      "responseStatus": 200,
+      "bytes": 963341,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/getWorkflowVersionV2",
+      "status": "failed",
+      "durationMs": 59,
+      "responseStatus": 200,
+      "bytes": 814743,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/importWorkflow",
+      "status": "failed",
+      "durationMs": 48,
+      "responseStatus": 200,
+      "bytes": 1214482,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/listChatDeployments",
+      "status": "failed",
+      "durationMs": 46,
+      "responseStatus": 200,
+      "bytes": 869407,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/listWorkflowVersionsV2",
+      "status": "failed",
+      "durationMs": 36,
+      "responseStatus": 200,
+      "bytes": 835630,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/listWorkflows",
+      "status": "failed",
+      "durationMs": 29,
+      "responseStatus": 200,
+      "bytes": 905874,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/listWorkflowsFolders",
+      "status": "failed",
+      "durationMs": 35,
+      "responseStatus": 200,
+      "bytes": 859108,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/moveWorkflows",
+      "status": "failed",
+      "durationMs": 40,
+      "responseStatus": 200,
+      "bytes": 905141,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/relocateWorkflowsFolder",
+      "status": "failed",
+      "durationMs": 39,
+      "responseStatus": 200,
+      "bytes": 985974,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/replaceWorkflowChatDeployment",
+      "status": "failed",
+      "durationMs": 34,
+      "responseStatus": 200,
+      "bytes": 1096371,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/replaceWorkflowState",
+      "status": "failed",
+      "durationMs": 44,
+      "responseStatus": 200,
+      "bytes": 1380234,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/restoreWorkflow",
+      "status": "failed",
+      "durationMs": 56,
+      "responseStatus": 200,
+      "bytes": 952190,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/rollbackWorkflow",
+      "status": "failed",
+      "durationMs": 100,
+      "responseStatus": 200,
+      "bytes": 1070909,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/revertWorkflowVersion",
+      "status": "failed",
+      "durationMs": 115,
+      "responseStatus": 200,
+      "bytes": 967961,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/undeployWorkflow",
+      "status": "failed",
+      "durationMs": 55,
+      "responseStatus": 200,
+      "bytes": 912627,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/updateWorkflowPublicApi",
+      "status": "failed",
+      "durationMs": 42,
+      "responseStatus": 200,
+      "bytes": 919996,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/updateWorkflowV2",
+      "status": "failed",
+      "durationMs": 39,
+      "responseStatus": 200,
+      "bytes": 1022621,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workflows/updateWorkflowVersionV2",
+      "status": "failed",
+      "durationMs": 51,
+      "responseStatus": 200,
+      "bytes": 904227,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/forkWorkspace",
+      "status": "failed",
+      "durationMs": 48,
+      "responseStatus": 200,
+      "bytes": 1033511,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/getSelector",
+      "status": "failed",
+      "durationMs": 55,
+      "responseStatus": 200,
+      "bytes": 898150,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/getWorkspaceForkAvailability",
+      "status": "failed",
+      "durationMs": 51,
+      "responseStatus": 200,
+      "bytes": 846830,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/getWorkspaceForkLineage",
+      "status": "failed",
+      "durationMs": 38,
+      "responseStatus": 200,
+      "bytes": 881455,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/getWorkspaceForkMappings",
+      "status": "failed",
+      "durationMs": 43,
+      "responseStatus": 200,
+      "bytes": 887655,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/getWorkspaceOperation",
+      "status": "failed",
+      "durationMs": 45,
+      "responseStatus": 200,
+      "bytes": 946181,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/listSelector",
+      "status": "failed",
+      "durationMs": 49,
+      "responseStatus": 200,
+      "bytes": 912676,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/listWorkspaceForkChildren",
+      "status": "failed",
+      "durationMs": 44,
+      "responseStatus": 200,
+      "bytes": 881422,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/listWorkspaceForkResources",
+      "status": "failed",
+      "durationMs": 38,
+      "responseStatus": 200,
+      "bytes": 883394,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/listWorkspaceOperations",
+      "status": "failed",
+      "durationMs": 46,
+      "responseStatus": 200,
+      "bytes": 962487,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/previewWorkflowImport",
+      "status": "failed",
+      "durationMs": 55,
+      "responseStatus": 200,
+      "bytes": 1158978,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/previewWorkspaceFork",
+      "status": "failed",
+      "durationMs": 55,
+      "responseStatus": 200,
+      "bytes": 923970,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/previewWorkspacePull",
+      "status": "failed",
+      "durationMs": 30,
+      "responseStatus": 200,
+      "bytes": 1162224,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/previewWorkspacePush",
+      "status": "failed",
+      "durationMs": 52,
+      "responseStatus": 200,
+      "bytes": 1162264,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/pullWorkspace",
+      "status": "failed",
+      "durationMs": 84,
+      "responseStatus": 200,
+      "bytes": 1100222,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/pushWorkspace",
+      "status": "failed",
+      "durationMs": 93,
+      "responseStatus": 200,
+      "bytes": 1100218,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/rollbackWorkspaceFork",
+      "status": "failed",
+      "durationMs": 87,
+      "responseStatus": 200,
+      "bytes": 883538,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/unlinkWorkspaceFork",
+      "status": "failed",
+      "durationMs": 31,
+      "responseStatus": 200,
+      "bytes": 862035,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/updateWorkspaceForkExclusions",
+      "status": "failed",
+      "durationMs": 36,
+      "responseStatus": 200,
+      "bytes": 872203,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspace-sync/updateWorkspaceForkMappings",
+      "status": "failed",
+      "durationMs": 49,
+      "responseStatus": 200,
+      "bytes": 902502,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspaces/createWorkspaceInvitations",
+      "status": "failed",
+      "durationMs": 38,
+      "responseStatus": 200,
+      "bytes": 997610,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspaces/getWorkspace",
+      "status": "failed",
+      "durationMs": 31,
+      "responseStatus": 200,
+      "bytes": 806283,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspaces/getWorkspacePermissionConfig",
+      "status": "failed",
+      "durationMs": 37,
+      "responseStatus": 200,
+      "bytes": 927104,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspaces/listWorkspaces",
+      "status": "failed",
+      "durationMs": 54,
+      "responseStatus": 200,
+      "bytes": 827208,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/api-reference/workspaces/listWorkspaceMembers",
+      "status": "failed",
+      "durationMs": 59,
+      "responseStatus": 200,
+      "bytes": 824493,
+      "error": "Authentication description link is not a usable anchor: https://docs.sim.ai/api-reference/authentication#key-types"
+    }
+  ],
+  "resultScope": "Failure entries only; totals describe the complete original run."
+}

@@ -23,12 +23,21 @@ async function fetchWorkspaceHostContext(
   })
 }
 
+interface WorkspaceHostContextQueryOptions {
+  refetchInterval?: number | false
+  refetchOnWindowFocus?: boolean
+}
+
 /**
  * Loads identity, host organization, owner-plan entitlements, and the viewer's
  * route-scoped authorization for one workspace.
  */
-export function useWorkspaceHostContextQuery(workspaceId: string) {
+export function useWorkspaceHostContextQuery(
+  workspaceId: string,
+  options: WorkspaceHostContextQueryOptions = {}
+) {
   return useQuery({
+    ...options,
     queryKey: workspaceHostKeys.detail(workspaceId),
     queryFn: ({ signal }) => fetchWorkspaceHostContext(workspaceId, signal),
     enabled: Boolean(workspaceId),
