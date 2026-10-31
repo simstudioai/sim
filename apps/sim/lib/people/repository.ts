@@ -118,7 +118,10 @@ const SEARCHED_COLUMNS = [
   memberProfile.location,
 ]
 
-/** A page of people by name, then membership id, so equal names still page stably. */
+/**
+ * A page of people by name, then membership id, so equal names still page stably. The page and
+ * its managers come from one snapshot, so a manager shown always matches the profile listed.
+ */
 export async function listPeople(
   organizationId: string,
   {
@@ -128,17 +131,22 @@ export async function listPeople(
   }: { search?: string; department?: string; cursorKeys?: CursorKey[] }
 ): Promise<KeysetPage<PersonRecord>> {
   const term = search?.trim() || undefined
-  const rows = await selectPeople(
-    db,
-    organizationId,
-    term ? or(...SEARCHED_COLUMNS.map((column) => searchFilter(column, term))) : undefined,
-    department ? eq(memberProfile.department, department) : undefined,
-    resumeKeyset(PEOPLE_KEYS, cursorKeys, 'asc')
+  return db.transaction(
+    async (tx) => {
+      const rows = await selectPeople(
+        tx,
+        organizationId,
+        term ? or(...SEARCHED_COLUMNS.map((column) => searchFilter(column, term))) : undefined,
+        department ? eq(memberProfile.department, department) : undefined,
+        resumeKeyset(PEOPLE_KEYS, cursorKeys, 'asc')
+      )
+        .orderBy(...keysetOrderBy(PEOPLE_KEYS, 'asc'))
+        .limit(PAGE_SIZE + 1)
+      const page = keysetPage(PEOPLE_KEYS, rows, PAGE_SIZE)
+      return { ...page, data: await withManagers(tx, organizationId, page.data) }
+    },
+    { isolationLevel: 'repeatable read', accessMode: 'read only' }
   )
-    .orderBy(...keysetOrderBy(PEOPLE_KEYS, 'asc'))
-    .limit(PAGE_SIZE + 1)
-  const page = keysetPage(PEOPLE_KEYS, rows, PAGE_SIZE)
-  return { ...page, data: await withManagers(db, organizationId, page.data) }
 }
 
 /** The departments active people belong to, largest first. */
