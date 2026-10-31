@@ -1,7 +1,9 @@
 /**
- * What the shell ships on each operating system. The preload, the IPC table,
- * the background executor, and device registration all read this one table,
- * so a surface cannot be advertised on one side and refused on the other.
+ * What the shell ships on each operating system. The preload (which bridge
+ * surfaces exist) and the IPC channel specs (`platformFeature`, which channels
+ * are registered) both read this one table, so a surface cannot be exposed on
+ * one side and refused on the other. Main also reads it for computer use, the
+ * Help menu search field, and tmux.
  *
  * Computer use additionally needs a recent macOS; that version check stays
  * with the service that knows the OS release.
