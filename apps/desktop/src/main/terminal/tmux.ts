@@ -90,11 +90,6 @@ export interface TmuxAttachment {
 }
 
 /**
- * Runs one tmux command. Never throws: a missing binary, a dead server, and a
- * bad target all arrive as `ok: false` with tmux's own message, which is more
- * useful to the model than an exception.
- */
-/**
  * Set once a `tmux` spawn fails with ENOENT: the binary is not installed, and
  * it will not appear mid-session, so every later call short-circuits instead
  * of paying a failed spawn. Most machines running this have no tmux at all,
@@ -102,13 +97,23 @@ export interface TmuxAttachment {
  */
 let tmuxBinaryMissing = false
 
+/**
+ * Whether tmux is off the table. Always on Windows: attaching matches tmux
+ * clients to the shell through POSIX ttys and `ps`, and an MSYS or Cygwin tmux
+ * on PATH lives in a process and path world the Windows shell is not part of.
+ */
 export function isTmuxUnavailable(): boolean {
-  return tmuxBinaryMissing
+  return process.platform === 'win32' || tmuxBinaryMissing
 }
 
+/**
+ * Runs one tmux command. Never throws: a missing binary, a dead server, and a
+ * bad target all arrive as `ok: false` with tmux's own message, which is more
+ * useful to the model than an exception.
+ */
 export function runTmux(args: string[], env: NodeJS.ProcessEnv): Promise<TmuxCommandResult> {
   return new Promise((resolve) => {
-    if (tmuxBinaryMissing) {
+    if (isTmuxUnavailable()) {
       resolve({ ok: false, stdout: '', stderr: 'tmux is not installed' })
       return
     }

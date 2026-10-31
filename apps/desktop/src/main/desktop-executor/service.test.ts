@@ -227,18 +227,15 @@ describe('results recovery will hand to the model', () => {
 })
 
 describe('desktop executor registration', () => {
-  it.each([
-    ['darwin', true, true],
-    ['win32', false, true],
-  ] as const)(
-    'advertises on %s the terminal: %s, and the native file tools: %s',
-    async (platform, terminal, localFiles) => {
+  it.each(['darwin', 'win32'] as const)(
+    'advertises the terminal and native file tools on %s',
+    async (platform) => {
       const { sim, desktopExecutor } = await service(1, undefined, platform)
       desktopExecutor.start()
       await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
 
       expect(sim.registrationBodies[0]).toMatchObject({
-        capabilities: { browser: true, terminal, localFiles },
+        capabilities: { browser: true, terminal: true, localFiles: true },
       })
       sim.registrations[0]?.(false)
       await desktopExecutor.signOut()

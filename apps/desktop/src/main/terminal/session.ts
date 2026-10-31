@@ -6,7 +6,7 @@
  * batching, the scrollback ring buffer, and the command lifecycle derived from
  * shell-integration markers.
  */
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { IPty } from '@lydell/node-pty'
@@ -36,7 +36,10 @@ import {
   createNonce,
   detectShell,
   ShellIntegrationParser,
+  shellKind,
+  toWindowsPath,
 } from '@/main/terminal/shell-integration'
+import { resolveShellPath } from '@/main/terminal/shell-path'
 
 const logger = createLogger('DesktopTerminalSession')
 
@@ -294,6 +297,23 @@ export interface TerminalSessionOptions {
   cols: number
   rows: number
   callbacks: TerminalSessionCallbacks
+  /** The operating system the shell runs on; the current one by default. */
+  platform?: NodeJS.Platform
+}
+
+/**
+ * The Windows shell, found once for each `SHELL`: the search stats every PATH
+ * entry, and which shells are installed does not change while Sim runs.
+ */
+let windowsShell: { configured: string | undefined; path: string } | null = null
+
+function shellPathFor(platform: NodeJS.Platform): string {
+  const context = { platform, env: process.env, exists: existsSync }
+  if (platform !== 'win32') return resolveShellPath(context)
+  if (windowsShell === null || windowsShell.configured !== process.env.SHELL) {
+    windowsShell = { configured: process.env.SHELL, path: resolveShellPath(context) }
+  }
+  return windowsShell.path
 }
 
 export class TerminalSession {
@@ -353,7 +373,8 @@ export class TerminalSession {
     nonce: string,
     shellName: string,
     shellEnv: NodeJS.ProcessEnv,
-    private readonly instrumented: boolean
+    private readonly instrumented: boolean,
+    private readonly platform: NodeJS.Platform
   ) {
     this.callbacks = options.callbacks
     this.terminalId = options.terminalId
@@ -371,7 +392,8 @@ export class TerminalSession {
   }
 
   static create(options: TerminalSessionOptions): TerminalSession {
-    const shellPath = process.env.SHELL || '/bin/zsh'
+    const platform = options.platform ?? process.platform
+    const shellPath = shellPathFor(platform)
     const shell = detectShell(shellPath)
     const nonce = createNonce()
     const integrationDir = mkdtempSync(join(tmpdir(), 'sim-terminal-'))
@@ -383,10 +405,11 @@ export class TerminalSession {
     const { ELECTRON_RUN_AS_NODE: _runAsNode, ...env } = process.env as Record<string, string>
 
     // A shell we cannot instrument still gives the user a working terminal;
-    // the agent is refused separately via NO_SHELL_INTEGRATION.
+    // the agent is refused separately via NO_SHELL_INTEGRATION. Windows shells
+    // have no login mode.
     const launch = shell
       ? buildShellLaunch(shell, integrationDir, nonce, env)
-      : { args: ['-l'], env: {} }
+      : { args: platform === 'win32' ? [] : ['-l'], env: {} }
 
     const shellEnv = { ...env, ...launch.env, TERM: 'xterm-256color', TERM_PROGRAM: 'Sim' }
     const pty = spawn(shellPath, launch.args, {
@@ -405,7 +428,8 @@ export class TerminalSession {
       nonce,
       shell ?? shellPath,
       shellEnv,
-      shell !== null
+      shell !== null,
+      platform
     )
   }
 
@@ -485,7 +509,7 @@ export class TerminalSession {
    * at a glance.
    */
   tabState(active: boolean): TerminalTabState {
-    const directory = this.cwd ? (this.cwd.split('/').filter(Boolean).pop() ?? '/') : null
+    const directory = this.cwd ? (this.cwd.split(/[\\/]/).filter(Boolean).pop() ?? '/') : null
     return {
       terminalId: this.terminalId,
       // The directory, always: whether to show the running command instead is
@@ -502,6 +526,7 @@ export class TerminalSession {
       running: this.foregroundCommand === null ? null : this.foregroundCommand.trim() || 'command',
       interactive: this.altScreen,
       active,
+      shell: shellKind(this.shellName),
     }
   }
 
@@ -643,7 +668,9 @@ export class TerminalSession {
       return
     }
     try {
-      this.pty.kill(signal)
+      // node-pty on Windows throws when given a signal: there it can only end the shell.
+      if (this.platform === 'win32') this.pty.kill()
+      else this.pty.kill(signal)
     } catch (error) {
       logger.warn('Failed to signal pty', { signal, error: (error as Error).message })
     }
@@ -884,12 +911,14 @@ export class TerminalSession {
       case 'output-end':
         this.finishCommand(marker.exitCode)
         break
-      case 'cwd':
-        if (marker.cwd && marker.cwd !== this.cwd) {
-          this.cwd = marker.cwd
+      case 'cwd': {
+        const cwd = this.platform === 'win32' ? toWindowsPath(marker.cwd) : marker.cwd
+        if (cwd && cwd !== this.cwd) {
+          this.cwd = cwd
           this.emitState()
         }
         break
+      }
     }
   }
 

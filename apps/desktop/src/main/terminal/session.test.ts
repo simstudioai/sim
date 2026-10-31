@@ -11,23 +11,34 @@ const ptyStub = vi.hoisted(() => ({
   dataHandler: null as ((data: string) => void) | null,
   exitHandler: null as (() => void) | null,
   writes: [] as string[],
+  args: [] as string[],
+  /** node-pty on Windows throws when `kill` is given a signal. */
+  signalsSupported: true,
+  ended: false,
 }))
 
 vi.mock('@lydell/node-pty', () => ({
-  spawn: () => ({
-    pid: 1234,
-    onData: (handler: (data: string) => void) => {
-      ptyStub.dataHandler = handler
-    },
-    onExit: (handler: () => void) => {
-      ptyStub.exitHandler = handler
-    },
-    write: (data: string) => ptyStub.writes.push(data),
-    resize: vi.fn(),
-    kill: vi.fn(),
-    pause: vi.fn(),
-    resume: vi.fn(),
-  }),
+  spawn: (_file: string, args: string[]) => {
+    ptyStub.args = args
+    return {
+      pid: 1234,
+      onData: (handler: (data: string) => void) => {
+        ptyStub.dataHandler = handler
+      },
+      onExit: (handler: () => void) => {
+        ptyStub.exitHandler = handler
+      },
+      write: (data: string) => ptyStub.writes.push(data),
+      resize: vi.fn(),
+      kill: (signal?: string) => {
+        if (signal && !ptyStub.signalsSupported)
+          throw new Error('Signals not supported on windows.')
+        ptyStub.ended = true
+      },
+      pause: vi.fn(),
+      resume: vi.fn(),
+    }
+  },
 }))
 
 vi.mock('@/main/terminal/shell-integration', async (importOriginal) => {
@@ -40,6 +51,8 @@ afterEach(() => {
   ptyStub.dataHandler = null
   ptyStub.exitHandler = null
   ptyStub.writes.length = 0
+  ptyStub.signalsSupported = true
+  ptyStub.ended = false
 })
 
 describe('toInputChunks', () => {
@@ -217,6 +230,61 @@ describe('TerminalSession command lifecycle', () => {
       expect(ptyStub.writes.slice(writesBefore)).toEqual(['first'])
     } finally {
       clearInterval(redraw)
+      session.dispose()
+    }
+  })
+})
+
+describe('TerminalSession on Windows', () => {
+  const marker = (body: string) => `\u001b]633;${body};test-nonce\u0007`
+
+  function windowsSession(): TerminalSession {
+    return TerminalSession.create({
+      terminalId: 'terminal-windows',
+      cwd: 'C:\\Users\\me',
+      cols: 80,
+      rows: 24,
+      platform: 'win32',
+      callbacks: { onData: () => {}, onState: () => {}, onCommand: () => {}, onExit: () => {} },
+    })
+  }
+
+  it('starts the shell without the POSIX login flag, which Windows shells reject', () => {
+    const session = windowsSession()
+    try {
+      expect(ptyStub.args).not.toContain('-l')
+    } finally {
+      session.dispose()
+    }
+  })
+
+  it('ends the shell for a terminating signal, which node-pty refuses to send there', () => {
+    ptyStub.signalsSupported = false
+    const session = windowsSession()
+    try {
+      session.kill('SIGTERM')
+      expect(ptyStub.ended).toBe(true)
+    } finally {
+      session.dispose()
+    }
+  })
+
+  it("reports Git Bash's directory in the form Windows opens", () => {
+    const session = windowsSession()
+    try {
+      ptyStub.dataHandler?.(marker('P;Cwd=/c/Users/me/repo'))
+      expect(session.currentCwd).toBe('C:\\Users\\me\\repo')
+    } finally {
+      session.dispose()
+    }
+  })
+
+  it('names the tab after the last folder of a Windows path', () => {
+    const session = windowsSession()
+    try {
+      ptyStub.dataHandler?.(marker('P;Cwd=D:\\\\work\\\\project'))
+      expect(session.tabState(true).title).toBe('project')
+    } finally {
       session.dispose()
     }
   })

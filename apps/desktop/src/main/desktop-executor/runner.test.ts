@@ -140,34 +140,17 @@ describe('background terminal calls', () => {
   })
 })
 
-describe('calls for a surface the platform does not ship', () => {
-  it.each([['terminal', { operation: 'run', args: { command: 'echo hi' } }]])(
-    'never starts %s on Windows',
-    async (toolName, args) => {
-      const executeTool = vi.fn()
-      const request = vi.fn()
-      const completion = await runner({
-        platform: 'win32',
-        terminal: { executeTool, cancelTool: vi.fn(async () => true) },
-        localFiles: { request },
-      }).run(
-        {
-          toolCallId: 'call-1',
-          toolName,
-          args,
-          chatId: 'chat-b',
-          workspaceId: 'ws-1',
-          executionToken: 'token-call-1',
-        },
-        new AbortController().signal
-      )
+describe('terminal calls on Windows', () => {
+  it('runs them, since the Windows shell ships the terminal', async () => {
+    const executeTool = vi.fn(async () => ({ ok: true, result: { exitCode: 0 } }))
+    const completion = await runner({
+      platform: 'win32',
+      terminal: { executeTool, cancelTool: vi.fn(async () => true) },
+    }).run(terminalCall('call-windows', 'run'), new AbortController().signal)
 
-      expect(completion.data).toMatchObject({ notStarted: true })
-      expect(completion.message).toContain('on this operating system')
-      expect(executeTool).not.toHaveBeenCalled()
-      expect(request).not.toHaveBeenCalled()
-    }
-  )
+    expect(completion.data).not.toMatchObject({ notStarted: true })
+    expect(executeTool).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('local file calls', () => {

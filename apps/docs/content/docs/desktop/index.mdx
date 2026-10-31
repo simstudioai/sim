@@ -76,13 +76,13 @@ The app has its own session. Signing out of the app does not sign you out of Sim
 ## Browser, terminal, and local files
 
 <Callout type="info">
-  On Windows, Terminal, local file tools, native app control, and importing from other browsers are not available yet. The built-in browser, notifications, and updates work as on macOS.
+  On Windows, local file tools, native app control, and importing from other browsers are not available yet. The built-in browser, Terminal, notifications, and updates work as on macOS, except that tmux is not available in Terminal.
 </Callout>
 
 | Capability | Behavior |
 | --- | --- |
 | **Browser** | Open websites in tabs with their own sessions and saved passwords. Chat can use the sites you sign into here. |
-| **Terminal** | Open local shell sessions beside Chat. Chat can run commands in those sessions; tmux and shell integration are supported. |
+| **Terminal** | Open local shell sessions beside Chat. Chat can run commands in those sessions; tmux (macOS) and shell integration are supported. On Windows, Terminal opens PowerShell 7 when it is installed, otherwise Windows PowerShell; set the `SHELL` environment variable to the path of Git Bash's `bash.exe` to use Git Bash instead. |
 | **Local file tools** | Read and search folders you approve, import files, and use authorized files in browser uploads. |
 | **Notifications** | Receive a notification when Chat finishes responding. Clicking it opens that chat. Errors and turns with queued follow-up messages do not produce completion notifications. |
 | **Control Center** | Open recent chats from Sim's menu-bar icon. |
@@ -118,7 +118,7 @@ Use **Revoke** under **Approved apps** to remove a saved permission, or switch C
 
 ### Terminal access
 
-Terminal commands run with your macOS account's permissions. They can modify files outside selected-folder grants; those grants do not confine the shell. Disable **Settings → Account → Terminal → Let Chat run commands** to remove this capability.
+Terminal commands run with your macOS or Windows account's permissions. They can modify files outside selected-folder grants; those grants do not confine the shell. Disable **Settings → Account → Terminal → Let Chat run commands** to remove this capability.
 
 Command confirmation depends on Chat's tool-permission settings and whether the run is interactive. With approvals enabled, command runs can wait for approval unless the tool is auto-allowed. Noninteractive runs do not wait for a per-command decision.
 
