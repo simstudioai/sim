@@ -530,6 +530,24 @@ describe('a workflow tool run past its wait', () => {
     run.settle({ success: true, output: {}, logs: [] })
   })
 
+  it('keeps waiting on a run past its wait when its log cannot be read', async () => {
+    const run = pendingRun()
+    mocks.logStatus.mockReset().mockRejectedValue(new Error('db down'))
+    let answered = false
+    const answer = executeRunWorkflow(
+      { workflowId: 'workflow-1' },
+      { ...context, workflowRunWaitMs: 1_000 }
+    ).then((result) => {
+      answered = true
+      return result
+    })
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(answered).toBe(false)
+    const executionId = run.lifecycle().executionId
+    run.settle({ success: true, output: { value: 3 }, logs: [], metadata: { executionId } })
+    await expect(answer).resolves.toMatchObject({ success: true, output: { output: { value: 3 } } })
+  })
+
   it('answers with the result when the run settles within its wait', async () => {
     const run = pendingRun()
     const answer = executeRunBlock(

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
@@ -261,6 +262,19 @@ function copilotRunLifecycle(context: ExecutionContext) {
 /** How often a run past its wait is re-read for its log before it is answered running. */
 const RUN_LOG_POLL_MS = 1000
 
+/** Whether the run's log exists; a lookup that fails counts as not yet, so the call keeps waiting. */
+async function runIsReadable(executionId: string, workflowId: string): Promise<boolean> {
+  try {
+    return (await getWorkflowExecutionLogStatus(executionId, workflowId)) !== undefined
+  } catch (error) {
+    logger.warn('Could not read a workflow tool run past its wait; still waiting on it', {
+      executionId,
+      error: toError(error).message,
+    })
+    return false
+  }
+}
+
 /**
  * Runs a workflow tool's run and answers with its result. When the call names a wait the run
  * outlasts (`workflowRunWaitMs`), it answers the run still running by the execution id it gave
@@ -284,7 +298,7 @@ async function answerWithinWait(
     let result = await Promise.race([settled, waited(waitMs)])
     // Answered running only once the run is readable by its id; one still starting up (or in
     // preflight) is waited on until its log exists or it settles.
-    while (!result && !(await getWorkflowExecutionLogStatus(executionId, workflowId))) {
+    while (!result && !(await runIsReadable(executionId, workflowId))) {
       result = await Promise.race([settled, waited(RUN_LOG_POLL_MS)])
     }
     if (result) return result
