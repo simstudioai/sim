@@ -1261,14 +1261,14 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     })
   })
 
-  it("leads a killed command's error with its signal, not the warning it printed first", async () => {
+  it("leads a failed command's error with its exit code and the signal it stands for", async () => {
     const warning = 'Warning: You are sending unauthenticated requests to the HF Hub.'
     stubShellCommand(provider, provider === 'daytona' ? warning : '', warning, 137)
 
     const res = await executeShellInSandbox({ code: 'python train.py', envs: {}, timeoutMs: 1000 })
 
     expect(res.error).toBe(
-      `Process exited with code 137 (killed by SIGKILL, usually out of memory): ${warning}`
+      `Process exited with code 137 (the exit code of SIGKILL, usually out of memory): ${warning}`
     )
     expect(res.stdout).toContain(warning)
   })
