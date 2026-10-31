@@ -52,6 +52,7 @@ import { isDispatchingAgentInput } from '@/main/browser-agent/cdp'
 import {
   attachAgentContextMenu,
   BASE_ZOOM_FACTOR,
+  type PageNavigation,
   steppedZoomFactor,
 } from '@/main/browser-agent/context-menu'
 import type { BrowserCookieSignal } from '@/main/browser-agent/known-sessions'
@@ -81,10 +82,11 @@ import {
 import { clearHostVerdictCache } from '@/main/browser-agent/url-guard'
 import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 import { suggestedFilename, uniqueDownloadPath } from '@/main/downloads'
-import { isAppOrigin, isBlankPopupUrl } from '@/main/navigation'
+import { isAppOrigin, isBlankPopupUrl, parseHttpUrl } from '@/main/navigation'
 import {
   type FocusedResourceShortcut,
   isResourceTabSelectionShortcut,
+  type ResourceTabSelectionShortcut,
   resourceTabTargetIndex,
   zoomActionForShortcut,
 } from '@/main/resource-shortcuts'
@@ -232,39 +234,73 @@ export type BrowserShortcut =
   | 'find'
   | 'reload'
   | 'hard-reload'
+  | UserOnlyShortcut
+
+/** Shortcuts that move the user's history, tabs, or load; keystrokes the agent sends never trigger them. */
+const USER_ONLY_SHORTCUTS = ['back', 'forward', 'previous-tab', 'next-tab', 'stop'] as const
+type UserOnlyShortcut = (typeof USER_ONLY_SHORTCUTS)[number]
+
+function isUserOnlyShortcut(shortcut: BrowserShortcut): shortcut is UserOnlyShortcut {
+  return USER_ONLY_SHORTCUTS.some((candidate) => candidate === shortcut)
+}
 
 type BrowserShortcutInput = Pick<
   Input,
-  'type' | 'key' | 'isAutoRepeat' | 'isComposing' | 'shift' | 'control' | 'alt' | 'meta'
+  'type' | 'key' | 'code' | 'isAutoRepeat' | 'isComposing' | 'shift' | 'control' | 'alt' | 'meta'
 >
 
 /**
  * Resolves browser-level shortcuts using Command on macOS and Control
- * elsewhere. Alt, composing, and repeated keystrokes stay with the page.
+ * elsewhere, following Chrome's bindings. Composing and repeated keystrokes,
+ * and every other Alt chord, stay with the page.
  *
  * Reload resolves here, from the page's own keystroke, rather than through the
  * application menu: the menu can only guess which surface owns focus, and a
  * wrong guess reloads all of Sim instead of the page.
+ *
+ * `stop` is any bare Escape; only a loading page acts on it, and the page
+ * still receives the key.
  */
 export function browserShortcutForInput(
   input: BrowserShortcutInput,
   platform: NodeJS.Platform = process.platform
 ): BrowserShortcut | null {
-  if (input.type !== 'keyDown' || input.isAutoRepeat || input.isComposing || input.alt) {
-    return null
-  }
-  const primaryModifier = platform === 'darwin' ? input.meta : input.control
-  const otherModifier = platform === 'darwin' ? input.control : input.meta
+  if (input.type !== 'keyDown' || input.isAutoRepeat || input.isComposing) return null
+  const isMac = platform === 'darwin'
+  const primaryModifier = isMac ? input.meta : input.control
+  const otherModifier = isMac ? input.control : input.meta
 
+  if (input.alt) {
+    if (input.shift || otherModifier) return null
+    const arrow = input.key === 'ArrowLeft' ? 'left' : input.key === 'ArrowRight' ? 'right' : null
+    if (!arrow) return null
+    // As in Chrome, these win even inside a text field.
+    if (isMac) {
+      if (!input.meta) return null
+      return arrow === 'left' ? 'previous-tab' : 'next-tab'
+    }
+    if (input.control) return null
+    return arrow === 'left' ? 'back' : 'forward'
+  }
+  if (input.key === 'Escape' && !input.shift && !input.control && !input.meta) return 'stop'
   if (input.key === 'F5' && !otherModifier) {
     if (input.shift || input.control) return 'hard-reload'
     return input.meta ? null : 'reload'
   }
   if (!primaryModifier || otherModifier) return null
 
+  if (!isMac && !input.shift && (input.key === 'PageUp' || input.key === 'PageDown')) {
+    return input.key === 'PageUp' ? 'previous-tab' : 'next-tab'
+  }
   const key = input.key.toLowerCase()
   if (key === 'r') return input.shift ? 'hard-reload' : 'reload'
-  if (input.shift) return null
+  if (input.shift) {
+    if (!isMac) return null
+    // Physical key: Shift turns the bracket into a brace on most layouts.
+    if (input.code === 'BracketLeft') return 'previous-tab'
+    if (input.code === 'BracketRight') return 'next-tab'
+    return null
+  }
   switch (key) {
     case 'l':
       return 'focus-omnibox'
@@ -1605,6 +1641,12 @@ const browserPermissions: BrowserPermissionHandlers = {
       withBrowserScope(scoped.scopeId, () => publishPageIssue(scoped.tab))
       return
     }
+    // Blink asks only after a click or key, and the view keeps the window as it
+    // is; Electron never settles a refused request, blocking every later one.
+    if (permission === 'fullscreen') {
+      callback(Boolean(scopedTabForContents(contents)))
+      return
+    }
     callback(ALLOWED_SITE_PERMISSIONS.has(permission))
   },
   check: (contents, permission, requestingOrigin, details) => {
@@ -2177,6 +2219,38 @@ function hardReloadPage(contents: WebContents): void {
   contents.reloadIgnoringCache()
 }
 
+/** A browser-chrome history move or reload, held for the page's leave-site question. */
+function userNavigate(contents: WebContents, kind: PageNavigation): void {
+  navigateForUser(contents, () =>
+    kind === 'back'
+      ? goBack(contents)
+      : kind === 'forward'
+        ? goForward(contents)
+        : reloadPage(contents)
+  )
+}
+
+/** Moves one tab's history, or selects a tab relative to it in the strip. */
+function runTabShortcut(
+  tab: AgentTab,
+  shortcut: 'back' | 'forward' | ResourceTabSelectionShortcut
+): void {
+  if (shortcut === 'back' || shortcut === 'forward') {
+    userNavigate(tab.view.webContents, shortcut)
+    return
+  }
+  const targetIndex = resourceTabTargetIndex(
+    shortcut,
+    tabs.length,
+    tabs.findIndex((entry) => entry.id === tab.id)
+  )
+  const target = targetIndex === null ? null : tabs[targetIndex]
+  if (target) {
+    switchTab(target.id)
+    target.view.webContents.focus()
+  }
+}
+
 /** Hands one page selection to the exact app window and chat hosting its tab. */
 function addPageSelectionToChat(contents: WebContents, text: string): void {
   if (!text.trim() || getBrowserScopeId() !== getActiveBrowserScopeId()) return
@@ -2362,7 +2436,7 @@ function openTabWithUrl(
     referrer,
   }: { agentOwned: boolean; background?: boolean; referrer?: Referrer }
 ): void {
-  if (!/^https?:\/\//i.test(url)) return
+  if (!parseHttpUrl(url)) return
   try {
     const tab = openLinkTab(url, { agentOwned, background })
     void tab.view.webContents.loadURL(url, { httpReferrer: referrer }).catch(() => {})
@@ -2417,6 +2491,19 @@ function createTabView(url?: string, popup?: AdoptedPopup): WebContentsView {
   }
 }
 
+/**
+ * Preferences every tab needs, popups Chromium creates included.
+ * `focusOnNavigation`: Electron focuses a page on every main-frame commit, even
+ * a hidden agent tab, which steals the caret from chat; focus follows explicit
+ * user actions instead (see focusPageForUser).
+ * `disableHtmlFullscreenWindowResize`: a page's fullscreen fills the browser
+ * panel, never the Sim window.
+ */
+const AGENT_TAB_WEB_PREFERENCES = {
+  focusOnNavigation: false,
+  disableHtmlFullscreenWindowResize: true,
+} as const
+
 function createFreshTabView(appSession: BrowserAppSession | undefined): WebContentsView {
   return new WebContentsView({
     webPreferences: {
@@ -2437,11 +2524,9 @@ function createFreshTabView(appSession: BrowserAppSession | undefined): WebConte
       // the active tab while a tool waits on it, applied explicitly by
       // applyAutomationTabPolicy — never blanket across every tab.
       backgroundThrottling: true,
-      // Electron focuses a page on every main-frame commit, even a hidden
-      // agent tab, which steals the caret from chat. Focus follows explicit
-      // user actions instead (see focusPageForUser).
-      focusOnNavigation: false,
-      spellcheck: false,
+      ...AGENT_TAB_WEB_PREFERENCES,
+      // Off elsewhere: Chromium would download Hunspell dictionaries.
+      spellcheck: process.platform === 'darwin',
       // The default every origin this tab visits starts at; a per-origin zoom
       // the user sets from the page menu still wins and still persists.
       zoomFactor: getBrowserDefaultZoomFactor(),
@@ -2485,10 +2570,27 @@ function initializeTabView(
   registerAgentNavigation(contents, routeNavigation)
   attachAgentContextMenu(contents, {
     addToChat: (text) => withBrowserScope(scopeId, () => addPageSelectionToChat(contents, text)),
-    openTab: (url) =>
-      withBrowserScope(scopeId, () => openTabWithUrl(url, { agentOwned: false, background: true })),
+    openTab: (url, referrer) =>
+      withBrowserScope(scopeId, () =>
+        openTabWithUrl(url, { agentOwned: false, background: true, referrer })
+      ),
     defaultZoomFactor: getBrowserDefaultZoomFactor,
+    history: () =>
+      withBrowserScope(scopeId, () => ({
+        canGoBack: canGoBack(contents),
+        canGoForward: canGoForward(contents),
+      })),
+    navigate: (kind) => withBrowserScope(scopeId, () => userNavigate(contents, kind)),
   })
+  // Chromium leaves Control-wheel zoom to the embedder; step the page menu's ladder.
+  contents.on(
+    'zoom-changed',
+    bindToBrowserScope(scopeId, (_event, direction) => {
+      contents.setZoomFactor(
+        steppedZoomFactor(contents.getZoomFactor(), direction === 'in' ? 1 : -1)
+      )
+    })
+  )
 
   contents.on(
     'focus',
@@ -2591,9 +2693,8 @@ function initializeTabView(
       return {
         action: 'allow',
         outlivesOpener: true,
-        // A popup's contents are created by Chromium from these preferences, not
-        // from createFreshTabView, so they must opt out of navigation focus here.
-        overrideBrowserWindowOptions: { webPreferences: { focusOnNavigation: false } },
+        // Chromium creates a popup's contents from these, not from createFreshTabView.
+        overrideBrowserWindowOptions: { webPreferences: AGENT_TAB_WEB_PREFERENCES },
         createWindow: (options) =>
           withBrowserScope(scopeId, () =>
             adoptPopupTab(contents, details.url, options, {
@@ -2675,20 +2776,31 @@ function initializeTabView(
     'before-input-event',
     bindToBrowserScope(scopeId, (event, input) => {
       const tab = tabs.find((entry) => entry.view === view)
+      const agentInput = isDispatchingAgentInput(contents)
       if (
-        !isDispatchingAgentInput(contents) &&
+        !agentInput &&
         input.type === 'keyDown' &&
         tab &&
         tab.id === currentScope.automationTabId
       ) {
         noteUserIntervention(tab.id)
       }
-      if (!isDispatchingAgentInput(contents) && tab?.id === currentScope.activeTabId) {
+      if (!agentInput && tab?.id === currentScope.activeTabId) {
         currentScope.visibleTabUserSelected = true
         if (input.type === 'keyDown' && !input.isAutoRepeat) tab.lastRealUserGestureAt = Date.now()
       }
       const shortcut = browserShortcutForInput(input)
       if (!shortcut) return
+      if (isUserOnlyShortcut(shortcut)) {
+        if (agentInput || !tab) return
+        if (shortcut === 'stop') {
+          if (contents.isLoadingMainFrame()) contents.stop()
+          return
+        }
+        event.preventDefault()
+        runTabShortcut(tab, shortcut)
+        return
+      }
 
       event.preventDefault()
       if (shortcut === 'focus-omnibox') {
@@ -2705,7 +2817,7 @@ function initializeTabView(
         return
       }
       if (shortcut === 'reload') {
-        navigateForUser(contents, () => reloadPage(contents))
+        userNavigate(contents, 'reload')
         return
       }
       if (shortcut === 'hard-reload') {
@@ -3697,6 +3809,8 @@ export function handleFocusedShortcut(
   shortcut: FocusedResourceShortcut,
   ownerWindow?: BrowserWindow | null
 ): boolean {
+  // Accelerators and mouse buttons arrive before any chat has opened a browser.
+  if (!getActiveBrowserScopeId()) return false
   // Tab-management accelerators belong to the visible Browser even after
   // focus moves into Sim chrome. Otherwise Cmd-T/L/Shift-T silently stop
   // behaving like browser shortcuts, and Cmd-W becomes especially unsafe.
@@ -3710,17 +3824,8 @@ export function handleFocusedShortcut(
     (visibleBrowserShortcut ? visibleActiveTab(ownerWindow) : null)
   if (!shortcutTab) return false
 
-  if (isResourceTabSelectionShortcut(shortcut)) {
-    const targetIndex = resourceTabTargetIndex(
-      shortcut,
-      tabs.length,
-      tabs.findIndex((tab) => tab.id === shortcutTab.id)
-    )
-    const target = targetIndex === null ? null : tabs[targetIndex]
-    if (target) {
-      switchTab(target.id)
-      target.view.webContents.focus()
-    }
+  if (isResourceTabSelectionShortcut(shortcut) || shortcut === 'back' || shortcut === 'forward') {
+    runTabShortcut(shortcutTab, shortcut)
     return true
   }
 
@@ -3740,24 +3845,12 @@ export function handleFocusedShortcut(
     case 'focus-omnibox':
       focusRendererOmnibox('select')
       return true
-    case 'reload-or-clear': {
-      const contents = shortcutTab.view.webContents
-      navigateForUser(contents, () => reloadPage(contents))
+    case 'reload-or-clear':
+      userNavigate(shortcutTab.view.webContents, 'reload')
       return true
-    }
     case 'hard-reload': {
       const contents = shortcutTab.view.webContents
       navigateForUser(contents, () => hardReloadPage(contents))
-      return true
-    }
-    case 'back': {
-      const contents = shortcutTab.view.webContents
-      navigateForUser(contents, () => goBack(contents))
-      return true
-    }
-    case 'forward': {
-      const contents = shortcutTab.view.webContents
-      navigateForUser(contents, () => goForward(contents))
       return true
     }
   }

@@ -352,6 +352,13 @@ describe('browser-agent session', () => {
     session = freshSession(win)
   })
 
+  it('ignores browser shortcuts and mouse buttons before any chat has opened a browser', () => {
+    session.disposeBrowserScope('chat-test')
+
+    expect(session.handleFocusedShortcut('back', win)).toBe(false)
+    expect(session.handleFocusedShortcut('close-tab', win)).toBe(false)
+  })
+
   it('invalidates only top-frame starts and identifies same-document commits', () => {
     const onTabNavigated = vi.fn()
     session = freshSession(win, { onTabNavigated })
