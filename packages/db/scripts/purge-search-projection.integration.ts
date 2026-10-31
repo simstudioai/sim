@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import { SYNC_EMBEDDING_SEARCH_FUNCTION } from '@sim/db/knowledge-projection'
+import { isCurrentSyncEmbeddingSearchSource } from '@sim/db/knowledge-projection'
 import {
   inspectSearchProjection,
   purgeSearchProjection,
@@ -45,6 +45,19 @@ describe('Search candidate retirement in PostgreSQL', () => {
         (SELECT pg_get_triggerdef(t.oid) FROM pg_trigger t
           WHERE t.tgname = 'embedding_search_source_acl_set' AND t.tgrelid = 'embedding_search'::regclass) AS acl
       FROM pg_proc p WHERE p.oid = 'public.sync_embedding_search'::regproc`
+  }
+
+  /** Applies migration 0449 as the migrator does, in one transaction. */
+  async function applyMigration() {
+    const migration = await readFile(
+      new URL('../migrations/0449_retire_search_projection_writes.sql', import.meta.url),
+      'utf8'
+    )
+    await sql.begin(async (tx) => {
+      for (const statement of migration.split('--> statement-breakpoint')) {
+        if (statement.trim()) await tx.unsafe(statement)
+      }
+    })
   }
 
   async function control<T>(run: (admin: Sql) => Promise<T>): Promise<T> {
@@ -91,17 +104,7 @@ describe('Search candidate retirement in PostgreSQL', () => {
     expect(provision.status, provision.stdout + provision.stderr).toBe(0)
     ;[provisioned] = await definitions()
     // Every behaviour below runs on the function the versioned migration installs, replayed twice.
-    const migration = await readFile(
-      new URL('../migrations/0449_retire_search_projection_writes.sql', import.meta.url),
-      'utf8'
-    )
-    for (let replay = 0; replay < 2; replay++) {
-      await sql.begin(async (tx) => {
-        for (const statement of migration.split('--> statement-breakpoint')) {
-          if (statement.trim()) await tx.unsafe(statement)
-        }
-      })
-    }
+    for (let replay = 0; replay < 2; replay++) await applyMigration()
     await sql`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
       VALUES ('reader', 'Synthetic reader', 'reader@example.test', true, now(), now())`
     await sql`INSERT INTO project (id, name, owner_id) VALUES ('project', 'Synthetic project', 'reader')`
@@ -159,14 +162,10 @@ describe('Search candidate retirement in PostgreSQL', () => {
     return row.n
   }
 
-  const normalized = (text: string) => text.replace(/\s+/g, ' ').trim()
-
   it('installs the provisioning function and leaves both triggers as they were', async () => {
     const [migrated] = await definitions()
-    expect(normalized(migrated.body)).toBe(normalized(provisioned.body))
-    expect(normalized(migrated.body)).toBe(
-      normalized(SYNC_EMBEDDING_SEARCH_FUNCTION.split('$$')[1])
-    )
+    expect(isCurrentSyncEmbeddingSearchSource(provisioned.body)).toBe(true)
+    expect(isCurrentSyncEmbeddingSearchSource(migrated.body)).toBe(true)
     expect(migrated.sync).toBe(provisioned.sync)
     expect(migrated.sync).toContain("current_setting('sim.projection_mode'")
     expect(migrated.acl).toBe(provisioned.acl)
@@ -368,17 +367,47 @@ describe('Search candidate retirement in PostgreSQL', () => {
     })
   })
 
+  function runPurge(...args: string[]) {
+    return spawnSync('bun', ['--no-env-file', './scripts/purge-search-projection.ts', ...args], {
+      cwd: packageRoot,
+      env: { ...process.env, MIGRATION_DATABASE_URL: fixtureUrl.toString() },
+      encoding: 'utf8',
+      timeout: 30_000,
+    })
+  }
+
+  it('refuses --execute until migration 0449 is live, and the dry run reports it', async () => {
+    await seedBase({ id: 'search', width: 1536, model: 'text-embedding-3-small', chunks: 3 }, true)
+    await sql.unsafe(`CREATE OR REPLACE FUNCTION public.sync_embedding_search()
+      RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END; $$`)
+    try {
+      const dryRun = runPurge()
+      expect(dryRun.status, dryRun.stdout + dryRun.stderr).toBe(0)
+      expect(dryRun.stdout).toContain('"projectionRetired":false')
+      const stale = runPurge('--execute', '--pause-ms', '0')
+      expect(stale.status).toBe(1)
+      expect(stale.stdout + stale.stderr).toContain('Migration 0449 is not live')
+      expect(await candidateCount('search')).toBe(3)
+
+      await applyMigration()
+      await sql`ALTER TABLE embedding DISABLE TRIGGER embedding_search_sync`
+      expect(runPurge('--execute', '--pause-ms', '0').status).toBe(1)
+      expect(await candidateCount('search')).toBe(3)
+    } finally {
+      await sql`ALTER TABLE embedding ENABLE TRIGGER embedding_search_sync`
+      await applyMigration()
+    }
+    const dryRun = runPurge()
+    expect(dryRun.stdout).toContain('"projectionRetired":true')
+    const execute = runPurge('--execute', '--pause-ms', '0')
+    expect(execute.status, execute.stdout + execute.stderr).toBe(0)
+    expect(await candidateCount('search')).toBe(0)
+  })
+
   it('runs as an operator command: dry run by default, deletes only with --execute', async () => {
     await seedBase({ id: 'search', width: 1536, model: 'text-embedding-3-small', chunks: 3 }, true)
     await seedBase({ id: 'ordinary', width: 1536, model: 'text-embedding-3-small', chunks: 2 })
-    const run = (...args: string[]) => {
-      return spawnSync('bun', ['--no-env-file', './scripts/purge-search-projection.ts', ...args], {
-        cwd: packageRoot,
-        env: { ...process.env, MIGRATION_DATABASE_URL: fixtureUrl.toString() },
-        encoding: 'utf8',
-        timeout: 30_000,
-      })
-    }
+    const run = runPurge
     const help = run('--help')
     expect(help.status).toBe(0)
     expect(help.stdout).toContain('REINDEX INDEX CONCURRENTLY embedding_search_512_cosine_hnsw_idx')
@@ -401,16 +430,7 @@ describe('Search candidate retirement in PostgreSQL', () => {
     await sql`CREATE TABLE shadow.knowledge_base (id text, is_search_index boolean)`
     await sql.unsafe(`ALTER DATABASE "${database}" SET search_path = shadow, public`)
     try {
-      const execute = spawnSync(
-        'bun',
-        ['--no-env-file', './scripts/purge-search-projection.ts', '--execute', '--pause-ms', '0'],
-        {
-          cwd: packageRoot,
-          env: { ...process.env, MIGRATION_DATABASE_URL: fixtureUrl.toString() },
-          encoding: 'utf8',
-          timeout: 30_000,
-        }
-      )
+      const execute = runPurge('--execute', '--pause-ms', '0')
       expect(execute.status, execute.stdout + execute.stderr).toBe(0)
     } finally {
       await sql.unsafe(`ALTER DATABASE "${database}" RESET search_path`)

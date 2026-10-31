@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { SYNC_EMBEDDING_SEARCH_FUNCTION } from '@sim/db/knowledge-projection'
+import { isCurrentSyncEmbeddingSearchSource } from '@sim/db/knowledge-projection'
 import { backfillEmbeddingSearch } from '@sim/db/script-migrations/0015_backfill_embedding_search'
 import {
   backfillSearchVectors,
@@ -364,9 +364,6 @@ describe('search projection upgrade in PostgreSQL', () => {
     const [installed] = await sql<{ body: string }[]>`
       SELECT prosrc AS body FROM pg_proc
       WHERE oid = ${`"${schemaName}".sync_embedding_search`}::regproc`
-    const normalized = (text: string) => text.replace(/\s+/g, ' ').trim()
-    expect(normalized(installed.body)).toBe(
-      normalized(SYNC_EMBEDDING_SEARCH_FUNCTION.split('$$')[1])
-    )
+    expect(isCurrentSyncEmbeddingSearchSource(installed.body)).toBe(true)
   })
 })

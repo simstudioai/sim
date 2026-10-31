@@ -1,4 +1,5 @@
 import { parseArgs } from 'node:util'
+import { isCurrentSyncEmbeddingSearchSource } from '@sim/db/knowledge-projection'
 import { createLogger, LogLevel } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
@@ -35,8 +36,9 @@ bases (knowledge_base.is_search_index). Canonical embedding and document rows ar
 
 MIGRATION_DATABASE_URL=... bun --no-env-file packages/db/scripts/purge-search-projection.ts [--execute] [options]
 
-Without --execute, prints each Search knowledge base's planner row estimate (≈) and whether any
-candidate row remains, and changes nothing.
+Without --execute, prints whether migration 0449 is live (projectionRetired), each Search knowledge
+base's planner row estimate (≈) and whether any candidate row remains, and changes nothing.
+--execute refuses until migration 0449 is live: wait for the deploy's migrate job to finish.
   --execute         Delete in batches, each its own short transaction; any error stops the run.
   --batch-size N    Rows per batch, 1–${MAX_BATCH_SIZE} (default ${DEFAULT_BATCH_SIZE}).
   --pause-ms N      Pause after each batch, 0–${MAX_PAUSE_MS} (default ${DEFAULT_PAUSE_MS}).
@@ -45,9 +47,13 @@ candidate row remains, and changes nothing.
 MIGRATION_DATABASE_URL must be a direct PlanetScale primary (port 5432, sslmode=verify-full,
 sslrootcert=system); poolers are refused. Rerun until the dry run reports none remaining, then,
 from a direct primary session outside peak traffic (this script never runs them):
+  -- wait while pg_stat_activity shows an anti-wraparound autovacuum of embedding_search
+  SET maintenance_work_mem = '2GB'; SET statement_timeout = 0;
   REINDEX INDEX CONCURRENTLY embedding_search_512_cosine_hnsw_idx;
+  -- if it fails: DROP INDEX CONCURRENTLY embedding_search_512_cosine_hnsw_idx_ccnew; then retry
   VACUUM (ANALYZE) embedding_search;
-The full runbook is in the pull request that added this script.`
+Rebuild each HNSW index a purged Search knowledge base used: text-embedding-3-small and -large
+bases use only the 512 one. The full runbook is in the pull request that added this script.`
 
 /** Deliberate operator messages never include database values, credentials or statement text. */
 export class SearchProjectionPurgeError extends Error {
@@ -143,6 +149,24 @@ export function connectOperatorDatabase(rawUrl: string | undefined): Sql {
     },
     onnotice: () => undefined,
   })
+}
+
+/**
+ * Whether migration 0449 is live: `public.sync_embedding_search` has the body that deletes a
+ * Search chunk's candidate row, and its `embedding_search_sync` trigger is enabled. Before that,
+ * chunk writes keep projecting the rows a purge deletes.
+ */
+async function isProjectionRetired(sql: Sql): Promise<boolean> {
+  const [live] = await sql<{ source: string | null; trigger_enabled: boolean }[]>`
+    SELECT (SELECT prosrc FROM pg_proc WHERE oid = to_regproc('public.sync_embedding_search')) AS source,
+      EXISTS (
+        SELECT 1 FROM pg_trigger
+        WHERE tgrelid = to_regclass('public.embedding') AND tgname = 'embedding_search_sync'
+          AND tgenabled <> 'D'
+      ) AS trigger_enabled`
+  return (
+    live.trigger_enabled && live.source !== null && isCurrentSyncEmbeddingSearchSource(live.source)
+  )
 }
 
 /** Search knowledge bases in id order; the table is small and read once per run. */
@@ -317,6 +341,7 @@ async function main(): Promise<void> {
     if (!values.execute) {
       const states = await inspectSearchProjection(sql)
       logger.info('Search candidate rows (dry run; nothing deleted; estimatedRows is ≈)', {
+        projectionRetired: await isProjectionRetired(sql),
         knowledgeBases: states,
         remaining: states.some((state) => state.remaining),
       })
@@ -327,6 +352,10 @@ async function main(): Promise<void> {
         to_regclass('public.search_retirement_state') IS NOT NULL AS retirement_installed`
     if (!session.writable)
       throw new SearchProjectionPurgeError('The purge requires a writable primary connection')
+    if (!(await isProjectionRetired(sql)))
+      throw new SearchProjectionPurgeError(
+        'Migration 0449 is not live (sync_embedding_search() is not the retiring body, or its trigger is disabled); wait for the migrate job to finish'
+      )
     if (session.retirement_installed)
       throw new SearchProjectionPurgeError(
         'A shadow-copy Search retirement job is still installed; abort it with the release that shipped it first'

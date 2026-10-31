@@ -132,6 +132,18 @@ export const SYNC_EMBEDDING_SEARCH_FUNCTION = `CREATE OR REPLACE FUNCTION sync_e
   END;
   $$`
 
+const comparableSource = (source: string) => source.replace(/\s+/g, ' ').trim()
+
+/**
+ * Whether a live `pg_proc.prosrc` is {@link SYNC_EMBEDDING_SEARCH_FUNCTION}'s body, ignoring
+ * whitespace: PostgreSQL stores the body between the `$$` quotes verbatim.
+ */
+export function isCurrentSyncEmbeddingSearchSource(prosrc: string): boolean {
+  return (
+    comparableSource(prosrc) === comparableSource(SYNC_EMBEDDING_SEARCH_FUNCTION.split('$$')[1])
+  )
+}
+
 export type KnowledgeProjection = 'embedding_search'
 
 /** Active vector projections that mirror document access for legacy synchronous writers. */
