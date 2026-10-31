@@ -400,20 +400,6 @@ export interface IpcDeps {
 }
 
 /**
- * The platform feature a channel belongs to, or null when every platform has it.
- * The preload omits these surfaces where the platform lacks them; main refuses
- * them too, so a renderer that calls one anyway finds no handler.
- */
-function platformFeatureFor(channel: string): keyof DesktopFeatures | null {
-  if (channel.startsWith('terminal-themes:')) return 'terminalThemes'
-  if (channel.startsWith('computer-use:')) return 'computerUse'
-  if (channel.startsWith('browser-import:') || channel === 'browser-credentials:import')
-    return 'browserImport'
-  if (channel === 'browser-credentials:copy') return 'passwordCopy'
-  return null
-}
-
-/**
  * Who may call a channel:
  * - `app-origin`: only the remote app origin (main window pages).
  * - `local-page`: only the bundled pages served from the shell's own scheme
@@ -438,6 +424,12 @@ type ChannelFeature = 'browser' | 'terminal'
 
 interface ChannelSpecBase {
   gate: ChannelGate
+  /**
+   * The platform feature the channel belongs to; absent when every platform has it. The preload
+   * omits these surfaces where the platform lacks them, and main never registers the channel
+   * there, so a renderer that calls one anyway finds no handler.
+   */
+  platformFeature?: keyof DesktopFeatures
   passSender?: boolean
   requires?: ChannelFeature
   /** Account-bearing storage must be readable and writable before this channel can run. */
@@ -727,6 +719,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'computer-use:get-activity': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'computerUse',
       requiresAccountData: true,
       denied: null,
       handler: () => deps.computerUse?.getActivity() ?? null,
@@ -734,6 +727,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'computer-use:status': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'computerUse',
       requiresAccountData: true,
       denied: null,
       handler: () => deps.computerUse?.getStatus(),
@@ -741,6 +735,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'computer-use:set-enabled': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'computerUse',
       requiresAccountData: true,
       needsUserActivation: true,
       denied: null,
@@ -753,6 +748,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'computer-use:request-permission': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'computerUse',
       requiresAccountData: true,
       needsUserActivation: true,
       denied: null,
@@ -765,6 +761,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'computer-use:list-permissions': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'computerUse',
       requiresAccountData: true,
       denied: [],
       handler: () => deps.computerUse?.listAppPermissions() ?? [],
@@ -772,6 +769,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'computer-use:revoke-app': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'computerUse',
       requiresAccountData: true,
       needsUserActivation: true,
       denied: undefined,
@@ -784,6 +782,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'computer-use:cancel': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'computerUse',
       denied: undefined,
       handler: (toolCallId) => {
         if (toolCallId !== undefined && !isDesktopToolCallId(toolCallId))
@@ -794,6 +793,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'computer-use:execute-tool': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'computerUse',
       requiresAccountData: true,
       denied: undefined,
       handler: (scopeId, toolCallId, params) => {
@@ -983,6 +983,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'terminal-themes:list-profiles': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'terminalThemes',
       requires: 'terminal',
       denied: [],
       handler: () => listTerminalThemeProfiles(),
@@ -990,6 +991,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'terminal-themes:select-profile': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'terminalThemes',
       requires: 'terminal',
       needsUserActivation: true,
       denied: null,
@@ -1477,6 +1479,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-import:list-profiles': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'browserImport',
       requires: 'browser',
       denied: [],
       handler: () => listChromeImportProfiles(),
@@ -1484,6 +1487,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-import:cookies': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'browserImport',
       requires: 'browser',
       needsUserActivation: true,
       denied: { cookiesImported: 0, cookiesSkipped: 0, error: 'unknown' },
@@ -1500,6 +1504,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-import:all': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'browserImport',
       requires: 'browser',
       needsUserActivation: true,
       denied: {
@@ -1664,6 +1669,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-import:sites': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'browserImport',
       requiresAccountData: true,
       deviationReason:
         'a read of already-imported data; settings lists these hosts to show what an import brought over, which is what you look at while deciding whether to enable the browser',
@@ -1686,6 +1692,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-credentials:copy': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'passwordCopy',
       deviationReason:
         'OS-authenticated password copying does not require an active browser surface',
       requiresAccountData: true,
@@ -1716,6 +1723,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-credentials:import': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'browserImport',
       deviationReason:
         "unlike its siblings this WRITES new credentials by driving the embedded browser's import path, so it needs the surface the rest of the family deliberately does without",
       requires: 'browser',
@@ -2156,8 +2164,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const features = desktopFeatures(deps.platform ?? process.platform)
 
   for (const [channel, spec] of Object.entries(channels)) {
-    const platformFeature = platformFeatureFor(channel)
-    if (platformFeature && !features[platformFeature]) continue
+    if (spec.platformFeature && !features[spec.platformFeature]) continue
     if (spec.kind === 'invoke') {
       ipcMain.handle(channel, async (event, ...args) => {
         if (
