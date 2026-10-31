@@ -53,6 +53,14 @@ export const MemoryCleanupInput = z.strictObject({
     z.strictObject({ kind: z.literal("private_owner"), userId: z.string().min(1).max(200) }),
     z.strictObject({ kind: z.literal("workspace"), workspaceId: z.uuid() }),
     z.strictObject({ kind: z.literal("project"), projectId: z.uuid() }),
+    // Erase private memory held in an organization: all of it when the organization is
+    // deleted, one person's when they leave it (D106).
+    z.strictObject({ kind: z.literal("organization"), organizationId: z.string().min(1).max(200) }),
+    z.strictObject({
+      kind: z.literal("organization_member"),
+      organizationId: z.string().min(1).max(200),
+      userId: z.string().min(1).max(200),
+    }),
   ]),
 });
 export type MemoryCleanupInput = z.infer<typeof MemoryCleanupInput>;
