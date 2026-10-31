@@ -93,9 +93,10 @@ function namesVfsPath(input: WorkspaceFileTargetInput): boolean {
 
 /**
  * A path becomes an id first, so the canonical load and every authorization check run unchanged.
- * A malformed path is refused before any read and says nothing about the workspace. A path that
- * names no single live file does, so it leaves as an {@link UnresolvedWorkspaceFileVfsPathError},
- * which only a caller the operation admits to the workspace gets to see.
+ * The resolver's `validation` is decided from the reference alone, before any read, and says
+ * nothing about the workspace. Every other refusal it raises was read from the workspace, as is a
+ * path that names no single live file, so each leaves as an
+ * {@link UnresolvedWorkspaceFileVfsPathError} that only a caller the operation admits sees.
  */
 async function resolveFileId(input: WorkspaceFileContextInput): Promise<string> {
   if (!namesVfsPath(input)) return input.fileId
@@ -107,14 +108,15 @@ async function resolveFileId(input: WorkspaceFileContextInput): Promise<string> 
     { entityType: 'workspace', entityId: workspaceId },
     input.fileId
   ).catch((error: unknown) => {
-    if (error instanceof OrchestrationError && error.code === 'conflict') {
+    if (!(error instanceof OrchestrationError) || error.code === 'validation') throw error
+    if (error.code === 'conflict') {
       throw new UnresolvedWorkspaceFileVfsPathError(
         workspaceId,
         'validation',
         `"${input.fileId}" names more than one file whose names display alike; pass the file id instead`
       )
     }
-    throw error
+    throw new UnresolvedWorkspaceFileVfsPathError(workspaceId, error.code, error.message)
   })
   if (!file) {
     throw new UnresolvedWorkspaceFileVfsPathError(workspaceId, 'not_found', 'File not found')

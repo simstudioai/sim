@@ -11,6 +11,7 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/file-manager'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import { readWorkspaceFileMetadataWithVersion } from '@/lib/workspace-files/application/read-workspace-file-metadata'
@@ -21,6 +22,7 @@ const bob = generateId()
 const carol = generateId()
 const workspaceId = generateId()
 const otherWorkspaceId = generateId()
+const overLimitWorkspaceId = generateId()
 const folders = { docs: generateId(), media: generateId(), foreign: generateId() }
 const session = (userId: string) => ({ kind: 'session' as const, userId, sessionId: generateId() })
 
@@ -163,7 +165,10 @@ describe('single-file operations addressed by VFS path', () => {
   })
 
   afterAll(async () => {
-    await deleteWorkspaceFixture(db, inArray(workspace.id, [workspaceId, otherWorkspaceId]))
+    await deleteWorkspaceFixture(
+      db,
+      inArray(workspace.id, [workspaceId, otherWorkspaceId, overLimitWorkspaceId])
+    )
     await db.delete(user).where(inArray(user.id, [alice, bob, carol]))
   })
 
@@ -319,6 +324,37 @@ describe('single-file operations addressed by VFS path', () => {
         .set({ allowPersonalApiKeys: true })
         .where(eq(workspace.id, workspaceId))
     }
+  })
+
+  it('answers a non-member the same for a workspace whose folder tree is too large to read', async () => {
+    await insertWorkspaceFixture(db, [
+      { id: overLimitWorkspaceId, name: 'Over limit', ownerId: alice, billedAccountUserId: alice },
+    ])
+    await db.insert(permissions).values({
+      id: generateId(),
+      userId: alice,
+      entityType: 'workspace',
+      entityId: overLimitWorkspaceId,
+      permissionType: 'admin',
+    })
+    await db.execute(sql`
+      INSERT INTO folder (id, name, user_id, workspace_id, resource_type, parent_id)
+      SELECT ${generateId()} || '-' || g, 'Folder ' || g, ${alice}, ${overLimitWorkspaceId}, 'file', NULL
+      FROM generate_series(1, ${MAX_FOLDERS_PER_WORKSPACE + 1}) AS g`)
+    const answer = (userId: string, fileId: string) =>
+      describeFile(fileId, userId, overLimitWorkspaceId).then(
+        () => null,
+        (error: { code?: string; message?: string }) => ({
+          code: error.code,
+          message: error.message,
+        })
+      )
+    const nested = await answer(carol, 'files/Folder 1/report.csv')
+    expect(nested).toMatchObject({ code: 'forbidden' })
+    expect(await answer(carol, 'files/missing.csv')).toEqual(nested)
+    expect(await answer(alice, 'files/Folder 1/report.csv')).toMatchObject({
+      code: 'payload_too_large',
+    })
   })
 
   it('resolves no path for a caller that did not opt in', async () => {
