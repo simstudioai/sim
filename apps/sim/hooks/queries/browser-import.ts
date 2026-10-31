@@ -67,6 +67,10 @@ export function useStartSignInHandoff(scopeId: string) {
     onSuccess: ({ pending }) => {
       if (pending) queryClient.setQueryData(browserImportKeys.pendingSignIn(scopeId), pending)
     },
+    // A failed or superseded launch can still retire the chat's previous
+    // handoff, so the shell's answer replaces whatever the cache last held.
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: browserImportKeys.pendingSignIn(scopeId) }),
   })
 }
 

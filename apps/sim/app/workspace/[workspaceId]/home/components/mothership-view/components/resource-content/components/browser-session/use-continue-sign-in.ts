@@ -51,14 +51,17 @@ interface UseContinueSignInProps {
 export function useContinueSignIn({ scopeId, pageUrl }: UseContinueSignInProps) {
   const supported = supportsContinueSignIn()
   const { data: profiles = [] } = useBrowserImportProfiles(supported)
-  const { data: pending = null } = usePendingSignIn(scopeId, supported)
+  const { data: pendingData = null } = usePendingSignIn(scopeId, supported)
+  const pending = supported ? pendingData : null
   const { mutateAsync: startHandoff, isPending: starting } = useStartSignInHandoff(scopeId)
   const { mutateAsync: importBack, isPending: importing } = useBringSignInBack(scopeId)
   const { mutate: cancelHandoff } = useCancelSignInHandoff(scopeId)
   useSyncExternalStore(subscribeToDismissals, dismissalCount, dismissalCount)
 
   const page = parseHttpsPage(pageUrl)
-  const canContinue = profiles.length > 0 && page !== null
+  // The profiles cache is shared with the import dialog, which older shells
+  // also support, so cached profiles alone must not reveal this feature.
+  const canContinue = supported && profiles.length > 0 && page !== null
   const hintHost = page ? signInHintHost(page) : null
   const hintVisible =
     canContinue && pending === null && hintHost !== null && !dismissedHintHosts.has(hintHost)
