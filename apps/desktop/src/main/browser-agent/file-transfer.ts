@@ -41,12 +41,12 @@ function directoryName(value: string): string {
 }
 
 /** A file name that cannot leave the staging directory, and that Windows stores as spelled. */
-function stagedFileName(name: string, platform: NodeJS.Platform = process.platform): string {
+function stagedFileName(name: string): string {
   const base = basename(name)
     .replace(/[\x00-\x1f\x7f]/g, '')
     .trim()
     .slice(0, 200)
-  const safe = platform === 'win32' ? toWin32SafeFileName(base) : base
+  const safe = process.platform === 'win32' ? toWin32SafeFileName(base) : base
   return safe && safe !== '.' && safe !== '..' ? safe : 'upload'
 }
 
