@@ -363,11 +363,14 @@ export const workspaceFileIdSchema = requiredFieldSchema('File ID is required')
  */
 export const INT4_MAX = 2147483647
 
+/** Also replaces zod's `expected number, received NaN` for a non-numeric path segment. */
+const VERSION_NUMBER_MESSAGE = 'version must be a positive integer'
+
 /** A version number in a body or cursor, bounded to the range its column can hold. */
 export const versionNumberSchema = z
   .number()
   .int('version must be an integer')
-  .min(1, 'version must be a positive integer')
+  .min(1, VERSION_NUMBER_MESSAGE)
   .max(INT4_MAX, 'version is out of range')
 
 /**
@@ -377,9 +380,9 @@ export const versionNumberSchema = z
  * holds.
  */
 export const versionNumberPathSchema = z.coerce
-  .number()
-  .int()
-  .positive()
+  .number({ error: VERSION_NUMBER_MESSAGE })
+  .int(VERSION_NUMBER_MESSAGE)
+  .positive(VERSION_NUMBER_MESSAGE)
   .max(INT4_MAX, 'version is out of range')
 
 /**
