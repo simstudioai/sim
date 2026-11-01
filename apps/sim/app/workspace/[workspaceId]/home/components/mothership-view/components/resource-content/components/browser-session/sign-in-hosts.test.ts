@@ -50,4 +50,12 @@ describe('continuablePage', () => {
     expect(continuablePage(`${APP_ORIGIN}/workspace/w1/home`, APP_ORIGIN)).toBeNull()
     expect(continuablePage('https://sim.ai/login', APP_ORIGIN)?.hostname).toBe('sim.ai')
   })
+
+  it.each([
+    'https://user@accounts.google.com/signin',
+    'https://user:secret@accounts.google.com/signin',
+    'https://:secret@accounts.google.com/signin',
+  ])('never offers %s, whose embedded credentials the shell refuses', (url) => {
+    expect(continuablePage(url, APP_ORIGIN)).toBeNull()
+  })
 })

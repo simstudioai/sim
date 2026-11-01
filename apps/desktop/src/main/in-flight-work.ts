@@ -62,16 +62,38 @@ export async function countWindowsWithUnsavedChanges(
 export interface InFlightWork {
   /** The command line holding each busy terminal's foreground (`''` when unannounced). */
   terminalCommands: readonly string[]
+  /** Terminals whose foreground could not be read, which may be running a command. */
+  uncheckedTerminalCount: number
   /** The app a computer-use action is driving, `''` when it has no name, or null when idle. */
   computerUseApp: string | null
   /** Whether an agent has a browser action queued or running. */
   browserToolRunning: boolean
   /** Whether a chat has desktop work claimed on this machine. */
   agentWorkRunning: boolean
-  /** Agent-browser downloads still in progress. */
+  /** Agent-browser and app-window downloads still in progress. */
   downloadCount: number
   unsavedWindowCount: number
   unresponsiveWindowCount: number
+}
+
+/**
+ * One sentence for the busy terminals. Commands are named while at most two are running and
+ * at most one is unannounced; past that, two "a command"s would say nothing, so they are counted.
+ */
+function describeTerminalCommands(commands: readonly string[]): string | null {
+  if (commands.length === 0) return null
+  const named = commands.filter((command) => command.trim()).map(describeRunningCommand)
+  const unnamed = commands.length - named.length
+  if (unnamed > 1 || commands.length > MAX_NAMED_TERMINAL_COMMANDS) {
+    return `${commands.length} terminal commands are still running.`
+  }
+  const labels = unnamed === 1 ? [...named, describeRunningCommand('')] : named
+  const sentence =
+    labels.length > 1
+      ? `${labels.join(' and ')} are still running in terminals.`
+      : `${labels[0]} is still running in a terminal.`
+  // Program names keep their own case; only the generic "a command" label is capitalized.
+  return named.length === 0 ? sentence.charAt(0).toUpperCase() + sentence.slice(1) : sentence
 }
 
 /**
@@ -80,13 +102,14 @@ export interface InFlightWork {
  */
 export function describeInFlightWork(work: InFlightWork): string[] {
   const sentences: string[] = []
-  const commands = work.terminalCommands.map(describeRunningCommand)
-  if (commands.length > MAX_NAMED_TERMINAL_COMMANDS) {
-    sentences.push(`${commands.length} terminal commands are still running.`)
-  } else if (commands.length > 1) {
-    sentences.push(`${commands.join(' and ')} are still running in terminals.`)
-  } else if (commands.length === 1) {
-    sentences.push(`${commands[0]} is still running in a terminal.`)
+  const terminalSentence = describeTerminalCommands(work.terminalCommands)
+  if (terminalSentence) sentences.push(terminalSentence)
+  if (work.uncheckedTerminalCount === 1) {
+    sentences.push("A terminal couldn't be checked and may still be running a command.")
+  } else if (work.uncheckedTerminalCount > 1) {
+    sentences.push(
+      `${work.uncheckedTerminalCount} terminals couldn't be checked and may still be running commands.`
+    )
   }
 
   if (work.computerUseApp !== null) {

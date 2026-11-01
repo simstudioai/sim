@@ -6,7 +6,7 @@ interface BrowserNoticeProps {
   actions: ReactNode
 }
 
-/** A one-line, non-modal notice docked under the browser toolbar. */
+/** A non-modal notice docked under the browser toolbar; a long message wraps rather than truncating. */
 export function BrowserNotice({ message, actions }: BrowserNoticeProps) {
   return (
     <Banner className='border-[var(--border)] border-t bg-[var(--surface-3)] px-3 py-1.5'>

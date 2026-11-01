@@ -101,6 +101,8 @@ test.describe('browser page parity with Chrome', () => {
   const held = new Set<ServerResponse>()
   /** The Referer each load of the link target arrived with. */
   const referrers: (string | undefined)[] = []
+  /** The Referer each request for the image arrived with. */
+  const imageReferrers: (string | undefined)[] = []
   const calls = new Map<string, { chatId: string; toolName: BrowserToolName; args: unknown }>()
   const server = createServer(async (request, response) => {
     const path = new URL(request.url ?? '/', 'http://localhost').pathname
@@ -113,7 +115,14 @@ test.describe('browser page parity with Chrome', () => {
       return
     }
     if (path === '/pixel.png') {
-      response.writeHead(200, { 'Content-Type': 'image/png' })
+      imageReferrers.push(request.headers.referer)
+      // Hotlink-protected, like many image hosts: a request without the page as referrer fails.
+      if (!request.headers.referer) {
+        response.writeHead(403)
+        response.end()
+        return
+      }
+      response.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' })
       response.end(PNG)
       return
     }
@@ -358,20 +367,25 @@ test.describe('browser page parity with Chrome', () => {
     await expect.poll(pageUrl).toBe(`${site}/next`)
   })
 
-  checkedTest("the page menu's Save Image lands through the browser's downloads", async () => {
-    for (const file of readdirSync(downloads)) rmSync(join(downloads, file), { force: true })
-    await navigate('/image')
-    await expect
-      .poll(() => inPage({ kind: 'script', script: 'document.getElementById("pic").complete' }))
-      .toBe(true)
-    const labels = await openPageMenu('#pic')
-    expect(labels).toEqual(
-      expect.arrayContaining(['Open Image in New Tab', 'Copy Image', 'Copy Image Address'])
-    )
-    await choosePageMenuItem('Save Image')
-    await expect.poll(() => readdirSync(downloads)).toEqual(['pixel.png'])
-    expect(readFileSync(join(downloads, 'pixel.png')).equals(PNG)).toBe(true)
-  })
+  checkedTest(
+    "the page menu's Save Image lands through the browser's downloads, with the page as referrer",
+    async () => {
+      for (const file of readdirSync(downloads)) rmSync(join(downloads, file), { force: true })
+      await navigate('/image')
+      await expect
+        .poll(() => inPage({ kind: 'script', script: 'document.getElementById("pic").complete' }))
+        .toBe(true)
+      const labels = await openPageMenu('#pic')
+      expect(labels).toEqual(
+        expect.arrayContaining(['Open Image in New Tab', 'Copy Image', 'Copy Image Address'])
+      )
+      imageReferrers.length = 0
+      await choosePageMenuItem('Save Image')
+      await expect.poll(() => readdirSync(downloads)).toEqual(['pixel.png'])
+      expect(readFileSync(join(downloads, 'pixel.png')).equals(PNG)).toBe(true)
+      expect(imageReferrers).toEqual([`${site}/image`])
+    }
+  )
 
   checkedTest("the page menu's Open Link in New Tab sends the page as referrer", async () => {
     referrers.length = 0

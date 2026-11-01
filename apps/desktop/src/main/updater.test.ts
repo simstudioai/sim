@@ -114,6 +114,8 @@ describe('initUpdater state machine', () => {
     setRelaunchPending?: (pending: boolean) => void
     /** Work the restart would interrupt, as the in-flight check names it. */
     withRunningWork?: string
+    /** Overrides the in-flight check, e.g. to make it fail. */
+    describeInFlightWork?: () => Promise<string[]>
   }) {
     const states: DesktopUpdateState[] = []
     const handle = initUpdater({
@@ -129,7 +131,9 @@ describe('initUpdater state machine', () => {
       platform: 'darwin',
       beforeInstall: options?.beforeInstall,
       setRelaunchPending: options?.setRelaunchPending,
-      describeInFlightWork: async () => (options?.withRunningWork ? [options.withRunningWork] : []),
+      describeInFlightWork:
+        options?.describeInFlightWork ??
+        (async () => (options?.withRunningWork ? [options.withRunningWork] : [])),
     })
     // Engine selection (signature detection) resolves asynchronously.
     await vi.advanceTimersByTimeAsync(0)
@@ -215,6 +219,26 @@ describe('initUpdater state machine', () => {
     expect(setRelaunchPending).not.toHaveBeenCalled()
     expect(handle.getState()).toEqual({ status: 'ready', version: '2.0.0' })
     expect(autoUpdaterMock.autoInstallOnAppQuit).toBe(true)
+  })
+
+  it('asks before restarting when the check for running work fails', async () => {
+    const { handle } = await createUpdater({
+      describeInFlightWork: async () => {
+        throw new Error('terminal probe failed')
+      },
+    })
+    await stageUpdate(handle, '2.0.0')
+    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({ response: 1, checkboxChecked: false })
+
+    handle.install()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(dialog.showMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "Sim couldn't check whether restarting would interrupt any work.",
+      })
+    )
+    expect(autoUpdaterMock.quitAndInstall).not.toHaveBeenCalled()
   })
 
   it('installs a required update without offering to wait for running work', async () => {

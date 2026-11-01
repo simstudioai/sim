@@ -75,7 +75,7 @@ import { createDesktopToolRunner } from '@/main/desktop-executor/runner'
 import { createDesktopExecutorService } from '@/main/desktop-executor/service'
 import { createSleepBlocker } from '@/main/desktop-executor/sleep-blocker'
 import { createDesktopSettingsService } from '@/main/desktop-settings'
-import { attachDownloadHandling } from '@/main/downloads'
+import { attachDownloadHandling, countProgressingAppDownloads } from '@/main/downloads'
 import { createAuthFlow, createConnectFlow, createHandoffManager } from '@/main/handoff'
 import {
   installDocumentationHelpSearch,
@@ -610,6 +610,7 @@ function main(): void {
     const routes: unknown = config.get('updateRelaunchRoutes')
     if (routes === undefined) return
     config.set('updateRelaunchRoutes', undefined)
+    config.flush()
     if (!Array.isArray(routes)) return
     for (const route of routes.slice(0, MAX_RELAUNCH_WINDOWS)) {
       if (typeof route === 'string' && decideStartRoute(route) === route) {
@@ -1174,14 +1175,15 @@ function main(): void {
         const windows = await countWindowsWithUnsavedChanges(
           getWindows().map((win) => win.webContents)
         )
-        const terminalCommands = await terminal.runningCommands()
+        const terminalWork = await terminal.runningWork()
         const computerUseActivity = computerUse.getActivity()
         return describeInFlightWork({
-          terminalCommands,
+          terminalCommands: terminalWork.commands,
+          uncheckedTerminalCount: terminalWork.uncheckedCount,
           computerUseApp: computerUseActivity ? (computerUseActivity.appName ?? '') : null,
           browserToolRunning: isBrowserToolRunning(),
           agentWorkRunning,
-          downloadCount: countProgressingBrowserDownloads(),
+          downloadCount: countProgressingBrowserDownloads() + countProgressingAppDownloads(),
           ...windows,
         })
       },

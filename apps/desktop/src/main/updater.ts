@@ -493,6 +493,7 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
             logger.warn('Could not check for work a restart would interrupt', {
               message: getErrorMessage(error, 'unknown'),
             })
+            work = ["Sim couldn't check whether restarting would interrupt any work."]
           }
         }
         if (work.length > 0) {

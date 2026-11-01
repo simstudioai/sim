@@ -102,6 +102,7 @@ void app.whenReady().then(async () => {
     describeInFlightWork: async () =>
       describeInFlightWork({
         terminalCommands,
+        uncheckedTerminalCount: 0,
         computerUseApp: null,
         browserToolRunning,
         agentWorkRunning: false,
