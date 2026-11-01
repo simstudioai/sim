@@ -5,6 +5,8 @@ import {
   checkAttributedUsageLimits,
   resolveBillingAttribution,
 } from '@/lib/billing/core/attribution'
+import { payerHasChatAccess } from '@/lib/billing/core/chat-access'
+import { CHAT_PLAN_REQUIRED_UPGRADE } from '@/lib/billing/usage-upgrade'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
@@ -104,6 +106,11 @@ async function dispatchQueuedOccurrence(executionId: string): Promise<JobDispatc
   try {
     const billingAttribution = await resolveBillingAttribution({ actorUserId: userId, workspaceId })
     if (isHosted) {
+      // Skipped like a spent budget, not blocked: the schedule keeps running once the plan does.
+      if (!(await payerHasChatAccess(billingAttribution))) {
+        await endUnstartedJobRun(executionId, 'skipped_budget', CHAT_PLAN_REQUIRED_UPGRADE.message)
+        return 'skipped_budget'
+      }
       const usage = await checkAttributedUsageLimits(billingAttribution)
       if (usage.isExceeded) {
         // An outage, not a verdict.

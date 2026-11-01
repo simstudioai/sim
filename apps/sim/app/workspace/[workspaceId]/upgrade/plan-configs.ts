@@ -27,6 +27,7 @@ export const ENTERPRISE_PLAN_CREDITS: PlanCredits = {
 }
 
 export const PRO_PLAN_FEATURES: readonly string[] = [
+  'Chat with Sim',
   `${DEFAULT_BILLING_CONCURRENCY_LIMITS.pro.toLocaleString('en-US')} concurrent executions`,
   'Invite teammates',
   'Higher rate limits',
@@ -35,6 +36,7 @@ export const PRO_PLAN_FEATURES: readonly string[] = [
 ]
 
 export const MAX_PLAN_FEATURES: readonly string[] = [
+  'Chat with Sim',
   `${DEFAULT_BILLING_CONCURRENCY_LIMITS.team.toLocaleString('en-US')} concurrent executions`,
   'Invite teammates',
   'Sim Mailer, KB Live Sync & Sandboxes',

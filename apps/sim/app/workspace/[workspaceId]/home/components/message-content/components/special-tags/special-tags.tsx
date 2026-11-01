@@ -33,7 +33,12 @@ import { useParams } from 'next/navigation'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
 import { useSettingsNavigationTarget } from '@/components/settings/settings-navigation-provider'
 import { useSession } from '@/lib/auth/client'
-import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
+import { CHAT_PLAN_REQUIRED_REASON } from '@/lib/billing/chat-plan'
+import {
+  buildHostedUpgradeUrl,
+  buildUpgradeHref,
+  HOSTED_BILLING_SETTINGS_URL,
+} from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { isBrowserAgentAvailable, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -3491,7 +3496,10 @@ interface PlanUsageLimitDisplayProps {
   data: UsageUpgradeTagData
 }
 
-/** The payer's plan limit: the card links to where the plan or the limit can change. */
+/**
+ * The payer's plan limit, or a free plan that does not include Chat: the card links to where
+ * the plan or the limit can change, and a workspace's plan to its upgrade page.
+ */
 function PlanUsageLimitDisplay({ data }: PlanUsageLimitDisplayProps) {
   const { data: session } = useSession()
   const hostContext = useOptionalWorkspaceHostContext()
@@ -3500,6 +3508,7 @@ function PlanUsageLimitDisplay({ data }: PlanUsageLimitDisplayProps) {
   const { hosted } = useDeploymentShape()
   const navigationTarget = useSettingsNavigationTarget()
   const opensInNewTab = !hosted || navigationTarget === '_blank'
+  const planRequired = data.reason === CHAT_PLAN_REQUIRED_REASON
   const buttonLabel = data.action === 'upgrade_plan' ? 'Upgrade Plan' : 'Increase Limit'
 
   // Self-hosted plan and limit both live on the hosted account, so local
@@ -3507,7 +3516,9 @@ function PlanUsageLimitDisplay({ data }: PlanUsageLimitDisplayProps) {
   const href = hosted
     ? organizationContext
       ? getOrganizationSettingsHref(organizationContext.organization.id, 'billing')
-      : getSettingsHref({ section: 'billing' })
+      : planRequired && hostContext
+        ? buildUpgradeHref(hostContext.workspace.id)
+        : getSettingsHref({ section: 'billing' })
     : data.action === 'upgrade_plan'
       ? buildHostedUpgradeUrl()
       : HOSTED_BILLING_SETTINGS_URL
@@ -3519,11 +3530,15 @@ function PlanUsageLimitDisplay({ data }: PlanUsageLimitDisplayProps) {
   const usageGate = useWorkspaceUsageGate(
     data.action === 'increase_limit' && !canManageBilling ? hostContext?.workspace.id : undefined
   )
-  const unavailableMessage = organizationContext
-    ? 'Contact an organization admin to manage usage limits.'
-    : hostContext?.hostOrganizationId
-      ? 'Contact an organization admin to manage this workspace’s usage limits.'
-      : 'Only the workspace owner can manage this workspace’s usage limits.'
+  const action = planRequired
+    ? 'upgrade this workspace’s plan'
+    : 'manage this workspace’s usage limits'
+  const unavailableMessage =
+    organizationContext && !planRequired
+      ? 'Contact an organization admin to manage usage limits.'
+      : organizationContext || hostContext?.hostOrganizationId
+        ? `Contact an organization admin to ${action}.`
+        : `Only the workspace owner can ${action}.`
 
   return (
     <InteractionCard
@@ -3533,7 +3548,7 @@ function PlanUsageLimitDisplay({ data }: PlanUsageLimitDisplayProps) {
             aria-hidden
             className='size-[14px] shrink-0 text-[var(--badge-amber-text)]'
           />
-          Usage Limit Reached
+          {planRequired ? 'Paid Plan Required' : 'Usage Limit Reached'}
         </span>
       }
     >

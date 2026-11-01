@@ -24,7 +24,10 @@ import {
 import { generateId } from '@sim/utils/id'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { scopeProviderToolCallId } from '@/lib/mothership/request/go/tool-call-identity'
-import { handleBillingLimitResponse } from '@/lib/mothership/request/tools/billing'
+import {
+  handleBillingLimitResponse,
+  handleChatPlanRequiredResponse,
+} from '@/lib/mothership/request/tools/billing'
 import type { ExecutionContext, StreamingContext } from '@/lib/mothership/request/types'
 import { executeFunctionExecute } from '@/lib/mothership/tools/handlers/function-execute'
 import { executeRunCode } from '@/lib/mothership/tools/handlers/run-code'
@@ -201,6 +204,12 @@ vi.mock('@/lib/billing/core/attribution', async (original) => ({
 
 vi.mock('@/lib/mothership/request/tools/billing', () => ({
   handleBillingLimitResponse: vi.fn(),
+  handleChatPlanRequiredResponse: vi.fn(),
+}))
+
+const mockPayerHasChatAccess = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/billing/core/chat-access', () => ({
+  payerHasChatAccess: mockPayerHasChatAccess,
 }))
 
 const mockRequestExplicitStreamAbort = vi.hoisted(() => vi.fn())
@@ -275,6 +284,7 @@ describe('runCopilotLifecycle', () => {
     })
     mockCreateRunSegment.mockResolvedValue({ status: 'active' })
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
+    mockPayerHasChatAccess.mockResolvedValue(true)
     continuationAuth.mockResolvedValue(undefined)
     mockEnv.COPILOT_API_KEY = undefined
     mockEnv.MSHIP_SYSPROMPT_OVERRIDE = undefined
@@ -2489,6 +2499,43 @@ describe('runCopilotLifecycle', () => {
     expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(billingAttribution)
     expect(handleBillingLimitResponse).toHaveBeenCalledTimes(1)
     expect(vi.mocked(handleBillingLimitResponse).mock.calls[0][4]).toBe('member')
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
+    expect(result.cancelled).not.toBe(true)
+  })
+
+  it('refuses dispatch at admission when the payer plan excludes Chat', async () => {
+    const billingAttribution = {
+      actorUserId: 'user-1',
+      workspaceId: 'ws-1',
+      organizationId: 'org-1',
+      billedAccountUserId: 'user-1',
+      billingEntity: { type: 'organization' as const, id: 'org-1' },
+      billingPeriod: {
+        start: '2026-07-01T00:00:00.000Z',
+        end: '2026-08-01T00:00:00.000Z',
+      },
+      payerSubscription: null,
+    }
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
+    mockPayerHasChatAccess.mockResolvedValue(false)
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'message-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'execution-1',
+        runId: 'run-1',
+        simRequestId: 'request-1',
+        billingAttribution,
+      }
+    )
+
+    expect(mockPayerHasChatAccess).toHaveBeenCalledWith(billingAttribution)
+    expect(handleChatPlanRequiredResponse).toHaveBeenCalledOnce()
+    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
+    expect(handleBillingLimitResponse).not.toHaveBeenCalled()
     expect(mockRunStreamLoop).not.toHaveBeenCalled()
     expect(result.cancelled).not.toBe(true)
   })

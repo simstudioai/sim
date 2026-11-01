@@ -292,9 +292,23 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     const res = await POST(request(SELF_HOSTED_WORKSPACELESS_VALIDATE_BODY))
 
     expect(res.status).toBe(200)
-    expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith('user-1')
+    expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith('user-1', ACCOUNT_SUBSCRIPTION)
     expect(mockResolveLegacyV0BillingAttribution).not.toHaveBeenCalled()
     expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
+  })
+
+  it('fails account admission closed when its subscription cannot be read', async () => {
+    mockGetHighestPrioritySubscription.mockImplementationOnce(
+      async (_userId: string, options?: { onError?: 'throw' | 'return-null' }) => {
+        if (options?.onError === 'throw') throw new Error('database unavailable')
+        return null
+      }
+    )
+
+    const res = await POST(request(SELF_HOSTED_WORKSPACELESS_VALIDATE_BODY), createRouteContext({}))
+
+    expect(res.status).toBe(500)
+    expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
   })
 
   it('rejects markerless admission on hosted Sim', async () => {

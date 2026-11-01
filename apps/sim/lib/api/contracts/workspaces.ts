@@ -288,6 +288,11 @@ export const workspaceHostContextSchema = z.object({
       knowledgeMemberAccess: z.boolean().optional(),
       /** Optional for rolling compatibility with app versions that predate administrator mode. */
       knowledgeSourceMirroredAccess: z.boolean().optional(),
+      /**
+       * Whether the workspace payer may use Chat. Optional for rolling compatibility; absent
+       * leaves the composer open, and run admission still decides.
+       */
+      chat: z.boolean().optional(),
     })
     .optional(),
   /** Optional for rolling compatibility with app versions that predate deployment projection. */
