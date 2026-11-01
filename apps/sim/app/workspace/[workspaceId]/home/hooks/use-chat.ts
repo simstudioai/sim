@@ -119,6 +119,7 @@ import {
   dispatchStreamEvent,
   finalizeResidualToolCalls,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream'
+import { useChatPlanGate } from '@/app/workspace/[workspaceId]/home/hooks/use-chat-plan-gate'
 import { useNativeActiveTabIds } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
 import { useMothershipChatOlderMessages } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-chat-older-messages'
 import { resolveEffectiveResourceId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
@@ -779,6 +780,7 @@ export function useChat(
   const pathname = usePathname()
   const router = useRouter()
   const queryClient = useQueryClient()
+  const stopSendWithoutChatPlan = useChatPlanGate()
   const [pendingMessages, setPendingMessages] = useState<ChatMessage[]>([])
   const [completedTurn, setCompletedTurn] = useState<CompletedTurn | null>(null)
   const completedTurnRef = useRef<CompletedTurn | null>(null)
@@ -4437,6 +4439,7 @@ export function useChat(
       options?: SendMessageOptions
     ) => {
       if ((!message.trim() && !fileAttachments?.length) || !scopeKey) return
+      if (stopSendWithoutChatPlan()) return
 
       const queueStore = useMothershipQueueStore.getState()
       const activeChatKey = chatKeyRef.current
@@ -4524,6 +4527,7 @@ export function useChat(
     },
     [
       workspaceId,
+      stopSendWithoutChatPlan,
       createQueuedMessage,
       startSendMessage,
       handOffWithdrawnSend,

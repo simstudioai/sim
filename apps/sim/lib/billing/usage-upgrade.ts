@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { UsageUpgradePayload } from '@/lib/api/contracts/subscription'
+import { CHAT_PLAN_REQUIRED_MESSAGE, CHAT_PLAN_REQUIRED_REASON } from '@/lib/billing/chat-plan'
 import type { AttributedUsageLimitsResult } from '@/lib/billing/core/attribution'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
@@ -68,7 +69,21 @@ export async function resolveUsageUpgradePayload(
   return { reason: 'usage_limit', action: 'increase_limit', message }
 }
 
+/**
+ * The card for a payer whose plan does not include Chat. Sim writes it at run admission, before
+ * any worker run exists, so it never crosses the worker billing protocol: its reason widens only
+ * the tag Sim renders, not the worker-shared card.
+ */
+export const CHAT_PLAN_REQUIRED_UPGRADE = {
+  reason: CHAT_PLAN_REQUIRED_REASON,
+  action: 'upgrade_plan',
+  message: `${CHAT_PLAN_REQUIRED_MESSAGE} Upgrade your plan to talk to Sim.`,
+} as const
+
+/** Every card body the usage tag carries: the worker-shared card or Sim's Chat plan card. */
+export type UsageUpgradeTagPayload = UsageUpgradePayload | typeof CHAT_PLAN_REQUIRED_UPGRADE
+
 /** The assistant text that renders {@link payload} as the usage card. */
-export function formatUsageUpgradeTag(payload: UsageUpgradePayload): string {
+export function formatUsageUpgradeTag(payload: UsageUpgradeTagPayload): string {
   return `<usage_upgrade>${JSON.stringify(payload)}</usage_upgrade>`
 }

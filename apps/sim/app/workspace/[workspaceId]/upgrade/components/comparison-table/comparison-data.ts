@@ -177,6 +177,10 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
     title: 'Features',
     rows: [
       {
+        label: 'Chat with Sim',
+        values: [false, true, true, true],
+      },
+      {
         label: 'Sim Mailer (Inbox)',
         values: [false, false, true, true],
       },
