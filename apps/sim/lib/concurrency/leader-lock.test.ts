@@ -136,6 +136,27 @@ describe('withLeaderLock', () => {
       expect(redisConfigMockFns.mockReleaseLock).toHaveBeenCalledOnce()
     })
 
+    it('waits out a dead leader’s lease by default before taking over', async () => {
+      /** A Redis `SET NX EX` lease on fake time: acquiring succeeds only once the holder's lapses. */
+      let leaseExpiresAt = 0
+      redisConfigMockFns.mockAcquireLock.mockImplementation(async (_key, _owner, ttlSec) => {
+        if (Date.now() < leaseExpiresAt) return false
+        leaseExpiresAt = Date.now() + ttlSec * 1000
+        return true
+      })
+      vi.useFakeTimers()
+      try {
+        leaseExpiresAt = Date.now() + 10_000
+        const onLeader = vi.fn(async () => 'took-over')
+        const result = withLeaderLock<string>({ key: 'k', onLeader, onFollower: async () => null })
+        await vi.advanceTimersByTimeAsync(10_200)
+        await expect(result).resolves.toBe('took-over')
+        expect(onLeader).toHaveBeenCalledOnce()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('returns the follower result when a live holder still has the lease', async () => {
       redisConfigMockFns.mockAcquireLock.mockResolvedValue(false)
       const onLeader = vi.fn(async () => 'should-not-run')
