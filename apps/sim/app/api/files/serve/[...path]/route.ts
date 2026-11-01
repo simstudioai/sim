@@ -28,9 +28,13 @@ import {
   workspaceFileCacheControl,
 } from '@/lib/uploads/server/delivery'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
-import { resolveStoredFileContext } from '@/lib/uploads/server/metadata'
+import { getFileMetadataByKey, resolveStoredFileContext } from '@/lib/uploads/server/metadata'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { inferContextFromKey, resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
+import {
+  inferContextFromKey,
+  isRenderableDocumentName,
+  resolveEffectiveMimeType,
+} from '@/lib/uploads/utils/file'
 import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 import { finishFileDelivery } from '@/lib/workspace-files/application/finish-file-delivery'
@@ -225,10 +229,25 @@ function storedObjectContentType(filename: string, options: ServeOptions): strin
 }
 
 /**
+ * The type recorded for an object outside the workspace-file model, read only where it decides the
+ * answer: a document name may be a finished upload or a generation source, and the object's file
+ * record, where it has one, says which. An object with no record is judged by its name.
+ */
+async function recordedDocumentType(
+  key: string,
+  context: StorageContext,
+  filename: string,
+  options: ServeOptions
+): Promise<string | undefined> {
+  if (options.raw || options.preview || !isRenderableDocumentName(filename)) return undefined
+  return (await getFileMetadataByKey(key, context))?.contentType
+}
+
+/**
  * Streams a stored object outside the workspace-file model (execution outputs, chat and copilot
  * attachments, knowledge documents) when the request is answered with it as-is, or returns null
- * for the buffered path. The object is its only record, so storage is asked for its length and
- * version, and the version is what proves a revalidation still holds.
+ * for the buffered path. Storage is asked for the object's length and version, and the version is
+ * what proves a revalidation still holds.
  */
 async function streamStoredObject(params: {
   key: string
@@ -238,7 +257,8 @@ async function streamStoredObject(params: {
   request: NextRequest
 }): Promise<NextResponse | null> {
   const { key, context, filename, options } = params
-  if (!servesStoredObject(filename, undefined, options)) return null
+  const recordedType = await recordedDocumentType(key, context, filename, options)
+  if (!servesStoredObject(filename, recordedType, options)) return null
   const stored = await headObject(key, context)
   if (!stored) throw new FileNotFoundError(`File not found: ${key}`)
 
