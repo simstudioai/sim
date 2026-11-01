@@ -8,12 +8,15 @@ const logger = createLogger('LeaderLock')
 
 const DEFAULT_TTL_SEC = 10
 const DEFAULT_POLL_INTERVAL_MS = 100
-const DEFAULT_MAX_WAIT_MS = 3_000
 
 export interface LeaderLockOptions<T> {
   key: string
   ttlSec?: number
   pollIntervalMs?: number
+  /**
+   * How long a follower polls before its takeover try. Defaults to the lease TTL so that try comes
+   * after a dead leader's lease has lapsed; a shorter wait can only take over a released lease.
+   */
   maxWaitMs?: number
   onLeader: () => Promise<T | null>
   onFollower: () => Promise<T | null>
@@ -31,7 +34,7 @@ export async function withLeaderLock<T>(opts: LeaderLockOptions<T>): Promise<T |
     key,
     ttlSec = DEFAULT_TTL_SEC,
     pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
-    maxWaitMs = DEFAULT_MAX_WAIT_MS,
+    maxWaitMs = ttlSec * 1000,
     onLeader,
     onFollower,
   } = opts
