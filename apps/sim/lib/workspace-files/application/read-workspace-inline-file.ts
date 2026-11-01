@@ -1,19 +1,16 @@
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import {
   type ActiveWorkspaceFileContext,
   getWorkspaceFile,
   loadActiveWorkspaceFileContext,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/file-manager'
-import { downloadFileStream } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
-import { finishFileDelivery } from '@/lib/workspace-files/application/finish-file-delivery'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { createFileReadReceipt } from '@/lib/workspace-files/read-receipt'
+import { streamAuthorizedWorkspaceFile } from '@/lib/workspace-files/application/stream-authorized-workspace-file'
 
 export interface ReadWorkspaceInlineFileInput {
   workspaceId: string
@@ -52,23 +49,11 @@ async function executeReadWorkspaceInlineFile({
   if (!file) throw new OrchestrationError('not_found', 'Not found')
   await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'opaque')
 
-  const stream = nodeReadableToWebStream(
-    await downloadFileStream({ key: file.key, context: 'workspace' })
-  )
-  const provenance = await finishFileDelivery({
+  const stream = await streamAuthorizedWorkspaceFile({
+    file,
     principal,
     authorize: () => readWorkspaceInlineFile.authorize({ principal, input }),
-    receipt: createFileReadReceipt({ entityType: 'workspace', entityId: context.workspaceId }, [
-      { ...file, contentUpdatedAt: file.contentUpdatedAt ?? file.updatedAt },
-    ]),
-    stream,
   })
-  try {
-    await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'opaque', provenance)
-  } catch (error) {
-    await stream.cancel(error).catch(() => undefined)
-    throw error
-  }
   return {
     file,
     stream,

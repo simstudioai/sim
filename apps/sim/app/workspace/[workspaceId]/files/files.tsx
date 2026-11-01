@@ -48,7 +48,7 @@ import {
   isFileBrowserSize,
   isFileBrowserType,
 } from '@/lib/workspace-files/browser'
-import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-content-type'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar/find-bar'
 import { useFindShortcut } from '@/app/workspace/[workspaceId]/components/find-bar/use-find-shortcut'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
@@ -170,6 +170,7 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useResourceListPreferences } from '@/hooks/use-resource-list-preferences'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
+import { useInFlightUploadsStore } from '@/stores/in-flight-uploads/store'
 import type { ResourceListPreference } from '@/stores/resource-list-preferences'
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
@@ -976,10 +977,15 @@ function FilesContent() {
         setUploadProgress({ completed: 0, total: 0, currentPercent: 0 })
       }
     }
-    uploadQueueRef.current = uploadQueueRef.current.then(uploadBatch).catch((error) => {
-      logger.error('Error uploading files:', error)
-      toast.error(getErrorMessage(error, 'Failed to upload files'))
-    })
+    // Counted from the moment it queues, since the batch runs on after this page unmounts.
+    const releaseUpload = useInFlightUploadsStore.getState().begin()
+    uploadQueueRef.current = uploadQueueRef.current
+      .then(uploadBatch)
+      .catch((error) => {
+        logger.error('Error uploading files:', error)
+        toast.error(getErrorMessage(error, 'Failed to upload files'))
+      })
+      .finally(releaseUpload)
     return uploadQueueRef.current
   }
 

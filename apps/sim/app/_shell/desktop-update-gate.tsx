@@ -51,7 +51,7 @@ function gateActionFor(state: DesktopUpdateState): GateAction {
         onClick: () => {},
       }
     case 'ready':
-      return { label: 'Restart to update', onClick: () => updates.install() }
+      return { label: 'Restart to update', onClick: () => updates.install({ mandatory: true }) }
     default:
       // idle, available, and error all advance the same way: check() checks
       // for an update or starts the download of one already found.

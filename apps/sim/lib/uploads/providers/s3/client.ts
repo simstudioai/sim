@@ -30,6 +30,7 @@ import type {
   S3PartUploadUrl,
 } from '@/lib/uploads/providers/s3/types'
 import type {
+  ByteRange,
   FileInfo,
   MultipartCompletionPolicy,
   StoredObjectInfo,
@@ -276,10 +277,15 @@ export async function downloadFromS3(
  */
 export async function downloadFromS3Stream(
   key: string,
-  customConfig?: S3Config
+  customConfig?: S3Config,
+  range?: ByteRange
 ): Promise<Readable> {
   const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
-  const command = new GetObjectCommand({ Bucket: config.bucket, Key: key })
+  const command = new GetObjectCommand({
+    Bucket: config.bucket,
+    Key: key,
+    ...(range ? { Range: `bytes=${range.start}-${range.end}` } : {}),
+  })
   const response = await getS3Client().send(command)
   if (!response.Body) {
     throw new Error(`S3 object has no body: ${key}`)

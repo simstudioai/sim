@@ -68,10 +68,6 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   retireKeywordWritersMigration,
   dropKeywordTinMigration,
   projectMembershipMigration,
-  /**
-   * Search data retirement is an operator-run maintenance command, not a deploy step:
-   * run `packages/db/scripts/retire-indexed-search.ts --help` for usage.
-   */
   validateFileOwnershipMigration,
   backfillPublicShareEntitiesMigration,
   validateFileWorkspaceBindingMigration,

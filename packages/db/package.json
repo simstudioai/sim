@@ -53,7 +53,7 @@
     "db:reconcile-fork-kb-file-ownership": "bun --env-file=.env run ./scripts/reconcile-fork-kb-file-ownership.ts",
     "db:reconcile-workspace-storage": "bun --env-file=.env run ./scripts/reconcile-workspace-storage.ts",
     "db:seal-account-tokens": "bun --env-file=.env run ./scripts/seal-account-tokens.ts",
-    "db:retire-indexed-search": "bun --no-env-file ./scripts/retire-indexed-search.ts",
+    "db:purge-search-projection": "bun --no-env-file ./scripts/purge-search-projection.ts",
     "db:studio": "bunx drizzle-kit studio --config=./drizzle.config.ts",
     "test": "vitest run",
     "type-check": "tsc --noEmit",

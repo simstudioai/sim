@@ -132,6 +132,7 @@ export function createGitHubServiceVerifier(
   return {
     policy,
     partial: false,
+    spendsMemberBudget: true,
     async verify(document: Pick<NativeDocument, 'id' | 'container' | 'kind'>) {
       const repository = document.container?.toLowerCase()
       if (!repository) return false

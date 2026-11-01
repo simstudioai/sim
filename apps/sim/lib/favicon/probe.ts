@@ -1,7 +1,10 @@
 import { sniffImageContentType } from '@/lib/uploads/utils/validation'
 
-/** Favicons are a few kilobytes; anything far larger is not one. */
-export const MAX_ICON_BYTES = 256 * 1024
+/**
+ * Favicons are a few kilobytes; anything far larger is not one, and every icon is cached, so the
+ * cap also bounds what one lookup can store.
+ */
+export const MAX_ICON_BYTES = 64 * 1024
 
 const ICO_MAGIC_BYTES = [0x00, 0x00, 0x01, 0x00]
 

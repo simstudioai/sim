@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, SquareArrowUpRight, ThumbsDown, ThumbsUp } from '@sim/emcn/icons'
+import { ArrowLeft, ArrowRight, SquareArrowUpRight } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { ContentInteractions } from '@/components/docs/content-interactions'
+import { Feedback } from '@/components/docs/feedback'
 import { PageActions } from '@/components/docs/page-actions'
 import { IntegrationIcon } from '@/components/ui/integration-icon'
 import { getNavigation, getNeighbours } from '@/lib/content/catalog'
 import { findNavigationGroup } from '@/lib/content/navigation'
 import type { DocsPage } from '@/lib/content/types'
-import { DOCS_BASE_URL } from '@/lib/urls'
 
 interface ArticleProps {
   page: DocsPage
@@ -24,8 +24,6 @@ export function Article({ page, children, aside }: ArticleProps) {
     ? `apps/sim/lib/api/contracts/v2`
     : `apps/docs/content/docs/${page.sourcePath}`
   const editUrl = `https://github.com/simstudioai/sim/${page.operation ? 'tree' : 'edit'}/staging/${source}`
-  const feedbackUrl = (helpful: boolean) =>
-    `https://github.com/simstudioai/sim/issues/new?${new URLSearchParams({ title: `Docs feedback: ${page.title}`, body: `Page: ${DOCS_BASE_URL}${page.url}\n\n${helpful ? 'What helped:' : 'What could be improved:'}\n` })}`
   return (
     <main
       id='main-content'
@@ -53,25 +51,7 @@ export function Article({ page, children, aside }: ArticleProps) {
         </header>
         <article className='min-w-0'>{children}</article>
         <div className='mt-12 flex flex-wrap items-center justify-between gap-4 border-[var(--docs-border)] border-t pt-5 text-[var(--docs-muted)] text-docs-caption'>
-          <div className='flex items-center gap-2'>
-            <span>Was this helpful?</span>
-            <a
-              href={feedbackUrl(true)}
-              aria-label='Share positive feedback on GitHub'
-              title='Share feedback on GitHub'
-              className='before:-inset-2 relative flex size-7 items-center justify-center rounded-full before:absolute hover:bg-[var(--docs-hover)]'
-            >
-              <ThumbsUp className='size-4' />
-            </a>
-            <a
-              href={feedbackUrl(false)}
-              aria-label='Suggest an improvement on GitHub'
-              title='Suggest an improvement on GitHub'
-              className='before:-inset-2 relative flex size-7 items-center justify-center rounded-full before:absolute hover:bg-[var(--docs-hover)]'
-            >
-              <ThumbsDown className='size-4' />
-            </a>
-          </div>
+          <Feedback key={page.url} page={page.url} />
           <a href={editUrl} className='flex items-center gap-1.5 hover:text-[var(--docs-heading)]'>
             Suggest an edit
             <SquareArrowUpRight className='size-4' />

@@ -2,6 +2,8 @@
 
 The site currently targets `docs.sim.ai`. A move to `sim.ai/docs` is separate infrastructure work, not completed by the docs redesign. Changing `NEXT_PUBLIC_DOCS_URL` alone is insufficient.
 
+The platform's temporary 307 redirects send `/docs` to the introduction and `/docs/*` to the matching path on `docs.sim.ai`, preserving query parameters. Remove these outgoing redirects when mounting the docs at `/docs`; they are not the routing layer for the future move.
+
 ## Required changes
 
 - Build Next.js with `basePath: '/docs'`; an asset prefix alone does not mount the app. Keep canonical catalog IDs such as `/introduction` independent of the public prefix.

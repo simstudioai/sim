@@ -1,3 +1,7 @@
+import {
+  SIM_LINK_SUGGESTIONS_PATH,
+  simLinkSuggestionsSchema,
+} from '@sim/browser-extension-protocol'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
@@ -73,4 +77,12 @@ export const deleteSimLinkContract = defineRouteContract({
   path: '/api/organizations/[id]/sim-links/[linkId]',
   params: linkParams,
   response: { mode: 'json', schema: z.object({ success: z.literal(true) }) },
+})
+
+/** The browser extension's address-bar suggestions, from the organization `sim/` opens in. */
+export const suggestSimLinksContract = defineRouteContract({
+  method: 'GET',
+  path: SIM_LINK_SUGGESTIONS_PATH,
+  query: z.object({ q: z.string().max(200).default('') }),
+  response: { mode: 'json', schema: simLinkSuggestionsSchema },
 })

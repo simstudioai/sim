@@ -113,7 +113,12 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
     expect((await response.json()).error.code).toBe('NOT_FOUND')
     expect(readMetadata).toHaveBeenCalledWith(
       expect.objectContaining({
-        input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID, includeDeleted: false },
+        input: {
+          fileId: FILE_ID,
+          acceptVfsPath: true,
+          assertedWorkspaceId: WORKSPACE_ID,
+          includeDeleted: false,
+        },
       })
     )
   })
@@ -127,7 +132,12 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
     expect((await response.json()).error.code).toBe('NOT_FOUND')
     expect(readMetadata).toHaveBeenCalledWith(
       expect.objectContaining({
-        input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID, includeDeleted: false },
+        input: {
+          fileId: FILE_ID,
+          acceptVfsPath: true,
+          assertedWorkspaceId: WORKSPACE_ID,
+          includeDeleted: false,
+        },
       })
     )
   })
@@ -159,7 +169,12 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
     expect(readMetadata).toHaveBeenCalledWith(
       expect.objectContaining({
         principal: auth.principal,
-        input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID, includeDeleted: true },
+        input: {
+          fileId: FILE_ID,
+          acceptVfsPath: true,
+          assertedWorkspaceId: WORKSPACE_ID,
+          includeDeleted: true,
+        },
       })
     )
   })

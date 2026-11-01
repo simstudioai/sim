@@ -5,6 +5,7 @@ import { exportWorkspaceFileSnapshotContract } from '@/lib/api/contracts/workspa
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { isMarkdownFile } from '@/lib/uploads/utils/file'
 import { normalizeMimeType } from '@/lib/uploads/utils/mime'
+import { servesStoredBytes } from '@/lib/workspace-files/stored-bytes'
 
 /** Action-time content from the mounted viewer, scoped so another file cannot consume it. */
 export interface FileDownloadSource {
@@ -13,10 +14,18 @@ export interface FileDownloadSource {
   getContent: () => string | null
 }
 
-export function saveBlob(blob: Blob, fileName: string): void {
-  const objectUrl = URL.createObjectURL(blob)
+/**
+ * Above this a stored file is handed to the browser's download manager instead of being read into
+ * the page. Holding it as a `Blob` costs its whole size in tab memory and shows no progress until
+ * the last byte lands; the download manager streams it to disk. Below it, and for a file the
+ * server renders first (a page, a generated document), fetching keeps a rejection on screen
+ * rather than as a failed entry in the browser's downloads list.
+ */
+const IN_PAGE_DOWNLOAD_MAX_BYTES = 100 * 1024 * 1024
+
+function clickDownloadLink(href: string, fileName: string): void {
   const anchor = document.createElement('a')
-  anchor.href = objectUrl
+  anchor.href = href
   anchor.download = fileName
   // Attached before clicking: a detached anchor works in current browsers, but every
   // other download helper in the app attaches, and a silent no-op here would look
@@ -24,6 +33,11 @@ export function saveBlob(blob: Blob, fileName: string): void {
   document.body.appendChild(anchor)
   anchor.click()
   document.body.removeChild(anchor)
+}
+
+export function saveBlob(blob: Blob, fileName: string): void {
+  const objectUrl = URL.createObjectURL(blob)
+  clickDownloadLink(objectUrl, fileName)
   // Deferred: revoking synchronously after click() can race the download starting.
   setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
 }
@@ -76,12 +90,28 @@ export async function triggerFileDownload(
     return
   }
 
-  const url =
+  const exportsMarkdown =
     isMarkdown &&
     record.vfsNamespace !== 'uploads' &&
     (record.storageContext ?? 'workspace') === 'workspace'
-      ? `/api/files/export/${encodeURIComponent(record.id)}`
-      : `/api/files/serve/${encodeURIComponent(record.key)}?context=${record.storageContext ?? 'workspace'}&t=${Date.now()}`
+  const url = exportsMarkdown
+    ? `/api/files/export/${encodeURIComponent(record.id)}`
+    : `/api/files/serve/${encodeURIComponent(record.key)}?context=${record.storageContext ?? 'workspace'}&t=${Date.now()}`
+
+  if (
+    !exportsMarkdown &&
+    servesStoredBytes(record.type, record.name) &&
+    record.size > IN_PAGE_DOWNLOAD_MAX_BYTES
+  ) {
+    // A first-byte read opens storage itself, so a missing object is refused here, in place,
+    // rather than as a failed entry in the browser's downloads list.
+    // boundary-raw-fetch: ranged probe of a binary path with no contract
+    const probe = await fetch(url, { headers: { Range: 'bytes=0-0' }, cache: 'no-store' })
+    await probe.body?.cancel()
+    if (!probe.ok) throw new Error(`Failed to download "${record.name}"`)
+    clickDownloadLink(url, record.name)
+    return
+  }
 
   // boundary-raw-fetch: binary download read as a blob; these paths have no contract
   const response = await fetch(url, { cache: 'no-store' })

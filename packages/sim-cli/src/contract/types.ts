@@ -69,6 +69,11 @@ export interface FlagSpec {
    * error, and a literal `#` value can still be passed.
    */
   manifest?: true
+  /**
+   * The list's values may also follow the command as arguments, so `files batch-delete <id>...`
+   * reads like `rm`. Passing both forms is refused. At most one field per command.
+   */
+  trailing?: true
   /** Take a JSON string. Implied for object/array/unknown fields. */
   json?: boolean
   /** Read a scalar string verbatim from `@path` / `@-`; `@@` escapes a literal leading `@`. */
@@ -250,6 +255,11 @@ export interface CommandSpec {
   command?: string
   /** Run this operation when its top-level group is invoked without a subcommand. */
   groupDefault?: boolean
+  /**
+   * Run this leaf when its group is named without a subcommand, as the group's default. The group
+   * keeps no options of its own, so the leaf parses its options in either spelling.
+   */
+  defaultSubcommand?: true
   /** Alternate leaf command names, such as `ls` for `list`. */
   aliases?: readonly string[]
   /**

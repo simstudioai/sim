@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { CAPTURE_INTENT_KEY, captureIntentKey } from '@/config'
 import { captureIntentSchema } from '@/intent'
+import { registerSimLinkOmnibox } from '@/omnibox'
 import { digestUrl } from '@/utils'
 
 const logger = createLogger('BrowserExtension')
@@ -50,6 +51,7 @@ function open(tab: chrome.tabs.Tab, kind: 'page' | 'selection') {
     .catch(() => logger.warn('Could not attach this page; the side panel remains available'))
 }
 
+registerSimLinkOmnibox()
 chrome.runtime.onInstalled.addListener(() => {
   void configure().catch(() => logger.warn('Could not initialize extension controls'))
 })

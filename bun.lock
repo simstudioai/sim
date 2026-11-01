@@ -59,9 +59,11 @@
         "@sim/utils": "workspace:*",
         "@xterm/headless": "6.0.0",
         "electron-updater": "6.8.9",
+        "lru-cache": "11.5.3",
         "micromatch": "4.0.8",
         "pdf-lib": "1.17.1",
         "safe-regex2": "5.1.2",
+        "tldts": "7.4.18",
       },
       "devDependencies": {
         "@electron/fuses": "1.8.0",
@@ -148,12 +150,13 @@
     },
     "apps/extension": {
       "name": "@sim/extension",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "@sim/browser-extension-protocol": "workspace:*",
         "@sim/emcn": "workspace:*",
         "@sim/logger": "workspace:*",
         "@sim/utils": "workspace:*",
+        "lru-cache": "11.5.3",
         "react": "19.2.4",
         "react-dom": "19.2.4",
         "zod": "4.3.6",

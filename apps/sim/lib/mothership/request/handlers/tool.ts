@@ -44,6 +44,7 @@ import { sealClientToolContext } from '@/lib/mothership/request/tools/client-com
 import {
   capToToolDeadline,
   frameToolDeadlineAt,
+  frameWorkflowWaitMs,
   TOOL_DEADLINE_BEFORE_START_MESSAGE,
   TOOL_DEADLINE_EXCEEDED_MESSAGE,
   toDeadlineDate,
@@ -742,6 +743,8 @@ async function handleCallPhase(
   if (parentToolCallId) toolCall.parentToolCallId = parentToolCallId
   if (data.execName) toolCall.execName = data.execName
   toolCall.deadlineAt ??= frameToolDeadlineAt(data.deadlineMs, Date.now())
+  if (isWorkflowToolName(toolName))
+    toolCall.waitTimeoutMs ??= frameWorkflowWaitMs(data.waitTimeoutMs)
 
   const readPath = typeof args?.path === 'string' ? args.path : undefined
   if (toolName === 'read' && readPath?.startsWith('internal/')) return
@@ -1110,6 +1113,9 @@ async function dispatchToolExecution(
               options.clientToolPickupExpected === false
                 ? 0
                 : COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS,
+            ...(toolCall.waitTimeoutMs !== undefined
+              ? { waitTimeoutMs: toolCall.waitTimeoutMs }
+              : {}),
             abortSignal: options.abortSignal,
             registry: execContext.resolvedSecretTraceRegistry,
             runOnServer: (boundExecutionId) => {

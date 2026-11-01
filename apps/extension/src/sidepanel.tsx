@@ -4,7 +4,7 @@ import {
   type ExtensionToAppMessage,
   type PageSnapshot,
 } from '@sim/browser-extension-protocol'
-import { Chip, ChipModal, ChipModalBody, ChipModalHeader } from '@sim/emcn'
+import { Chip, ChipModalBody, ChipModalHeader, ChipModalSurface } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { createRoot } from 'react-dom/client'
 import { captureActivePage } from '@/capture'
@@ -14,6 +14,13 @@ import '@/shell.css'
 
 interface SidePanelProps {
   origin: string
+}
+
+/** Native modality avoids the inline scroll-lock stylesheet blocked by the extension CSP. */
+function mountAccessDialog(dialog: HTMLDialogElement | null) {
+  if (!dialog) return
+  dialog.showModal()
+  return () => dialog.close()
 }
 
 function SidePanel({ origin }: SidePanelProps) {
@@ -279,20 +286,37 @@ function SidePanel({ origin }: SidePanelProps) {
         referrerPolicy='no-referrer'
         sandbox='allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads'
       />
-      <ChipModal open={accessOpen} onOpenChange={setAccessOpen} srTitle='Site access' size='sm'>
-        <ChipModalHeader onClose={() => setAccessOpen(false)}>Site access</ChipModalHeader>
-        <ChipModalBody>
-          {site ? (
-            <Chip className='max-w-full' onClick={() => void toggleSite()}>
-              {`${site.allowed ? 'Remove access to' : 'Allow access to'} ${new URL(site.origin).hostname}`}
-            </Chip>
-          ) : (
-            <p className='text-[var(--text-muted)] text-small'>
-              Open a web page and click the Sim toolbar icon to manage access.
-            </p>
-          )}
-        </ChipModalBody>
-      </ChipModal>
+      {accessOpen && (
+        <dialog
+          ref={mountAccessDialog}
+          aria-labelledby='site-access-title'
+          className='m-auto max-h-[85vh] w-[90vw] max-w-[440px] overflow-visible border-0 bg-transparent p-0 text-inherit backdrop:bg-black/10 backdrop:backdrop-blur-[2px]'
+          onCancel={(event) => {
+            event.preventDefault()
+            setAccessOpen(false)
+          }}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setAccessOpen(false)
+          }}
+        >
+          <ChipModalSurface>
+            <ChipModalHeader onClose={() => setAccessOpen(false)}>
+              <span id='site-access-title'>Site access</span>
+            </ChipModalHeader>
+            <ChipModalBody>
+              {site ? (
+                <Chip className='max-w-full' onClick={() => void toggleSite()}>
+                  {`${site.allowed ? 'Remove access to' : 'Allow access to'} ${new URL(site.origin).hostname}`}
+                </Chip>
+              ) : (
+                <p className='text-[var(--text-muted)] text-small'>
+                  Open a web page and click the Sim toolbar icon to manage access.
+                </p>
+              )}
+            </ChipModalBody>
+          </ChipModalSurface>
+        </dialog>
+      )}
     </main>
   )
 }

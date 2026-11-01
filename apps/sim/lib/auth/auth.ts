@@ -49,6 +49,7 @@ import {
   isSignInProviderAllowed,
 } from '@/lib/auth/constants'
 import { getAuthDatabase } from '@/lib/auth/database-context'
+import { refuseDisposableAccountEmail } from '@/lib/auth/disposable-email-gate'
 import {
   type AuthenticationSecurityAuditSnapshot,
   captureAuthenticationSecurityAudit,
@@ -356,11 +357,12 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
-        before: async (user) => {
+        before: async (user, context) => {
           const accessControl = await getAccessControlConfig()
           if (isEmailBlockedByAccessControl(user.email, accessControl)) {
             throw new Error('Sign-ups from this email are not allowed.')
           }
+          if (isHosted) await refuseDisposableAccountEmail(user.email, context?.path)
           return { data: user }
         },
         after: async (user, context) => {

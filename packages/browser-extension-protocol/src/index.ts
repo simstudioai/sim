@@ -74,3 +74,19 @@ export const extensionToAppMessageSchema = z.discriminatedUnion('type', [
   }),
 ])
 export type ExtensionToAppMessage = z.infer<typeof extensionToAppMessageSchema>
+
+/** The longest Sim link name; the extension asks about nothing longer. */
+export const SIM_LINK_NAME_MAX_LENGTH = 64
+
+/** Where the extension asks for the address-bar suggestions behind its `sim` keyword. */
+export const SIM_LINK_SUGGESTIONS_PATH = '/api/sim-links/suggestions'
+
+/**
+ * Listed Sim links whose name starts with what was typed, most visited first. Not strict: an
+ * installed extension lags the server, so a field added later must not break its parse.
+ */
+export const simLinkSuggestionsSchema = z.object({
+  links: z.array(
+    z.object({ name: z.string(), description: z.string().nullable(), url: z.string() })
+  ),
+})

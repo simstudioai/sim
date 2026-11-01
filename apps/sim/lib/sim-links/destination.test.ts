@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { resolveSimLinkTarget } from '@/lib/sim-links/destination'
-import { simLinkFieldsSchema } from '@/lib/sim-links/validation'
+import {
+  parseTypedSimLink,
+  simLinkFieldsSchema,
+  typedSimLinkPrefix,
+} from '@/lib/sim-links/validation'
 
 const fields = {
   name: 'docs',
@@ -14,8 +18,13 @@ function acceptsDestination(url: string, defaultUrl: string | null = null): bool
   return simLinkFieldsSchema.safeParse({ ...fields, url, defaultUrl }).success
 }
 
-function redirectUrl(url: string, values: string[], defaultUrl: string | null = null): string {
-  const target = resolveSimLinkTarget({ url, defaultUrl }, values)
+function redirectUrl(
+  url: string,
+  values: string[],
+  defaultUrl: string | null = null,
+  query?: string
+): string {
+  const target = resolveSimLinkTarget({ url, defaultUrl }, values, query)
   if (target.kind !== 'redirect') throw new Error(`Expected a redirect, got ${target.kind}`)
   return target.url
 }
@@ -129,5 +138,85 @@ describe('Sim link destinations', () => {
         'no fixed http(s) origin'
       )
     }
+  })
+
+  it.each([
+    [
+      'https://ex.com/p',
+      [],
+      null,
+      'a=1&b=two%20words&edit',
+      'https://ex.com/p?a=1&b=two%20words&edit',
+    ],
+    ['https://ex.com/p', [], null, 'q=a b', 'https://ex.com/p?q=a%20b'],
+    ['https://ex.com/p', [], null, 'q=&flag', 'https://ex.com/p?q=&flag'],
+    ['https://ex.com/p?x=1#top', ['y'], null, 'x=2', 'https://ex.com/p/y?x=1&x=2#top'],
+    [
+      'https://ex.com/search?q={*}',
+      ['links'],
+      null,
+      'page=2',
+      'https://ex.com/search?q=links&page=2',
+    ],
+    ['https://ex.com/{*}', [], 'https://ex.com/home', 'tab=open', 'https://ex.com/home?tab=open'],
+    ['https://ex.com/s?q=a%20b&p=x/y', [], null, 'n=1', 'https://ex.com/s?q=a%20b&p=x/y&n=1'],
+    ['https://ex.com/p', [], null, 'q=a#b', 'https://ex.com/p?q=a%23b'],
+    ['https://ex.com/p', [], null, '', 'https://ex.com/p'],
+  ])('carries the typed query to %s', (url, values, defaultUrl, query, expected) => {
+    expect(redirectUrl(url, values, defaultUrl, query)).toBe(expected)
+  })
+})
+
+describe('typedSimLinkPrefix', () => {
+  it.each([
+    ['', ''],
+    ['sim/Team-Docs/ABC-1?x=1', 'teamdocs'],
+  ])('reads the name prefix of %j', (typed, prefix) => {
+    expect(typedSimLinkPrefix(typed)).toBe(prefix)
+  })
+
+  it.each(['...', '--', '.:-'])('has no prefix for %j, which no link name can match', (typed) => {
+    expect(typedSimLinkPrefix(typed)).toBeNull()
+  })
+})
+
+describe('parseTypedSimLink', () => {
+  it.each([
+    [' onboarding', 'onboarding'],
+    ['onboarding ', 'onboarding'],
+    ['onboarding ).', 'onboarding'],
+  ])('drops the spaces around %j, which no name can hold', (name, trimmed) => {
+    expect(parseTypedSimLink([name]).name).toBe(trimmed)
+  })
+
+  it('trims the name but keeps values verbatim when values follow', () => {
+    expect(parseTypedSimLink([' jira ', ' ABC-1 '])).toEqual({ name: 'jira', values: [' ABC-1 '] })
+  })
+
+  it.each([
+    ['onboarding).', 'onboarding'],
+    ['onboarding,', 'onboarding'],
+    ['onboarding”', 'onboarding'],
+    ["onboarding'", 'onboarding'],
+    ['onboarding]>', 'onboarding'],
+    ['q4-goals?!', 'q4-goals'],
+  ])('drops the prose punctuation pasted after %s', (name, trimmed) => {
+    expect(parseTypedSimLink([name])).toEqual({ name: trimmed, values: [] })
+  })
+
+  it.each(['onboarding', 'q4-goals', 'a~b', 'x_'])('keeps %s, which has none', (name) => {
+    expect(parseTypedSimLink([name]).name).toBe(name)
+  })
+
+  it('keeps a name that is nothing but punctuation, so it fails validation as typed', () => {
+    expect(parseTypedSimLink(['...']).name).toBe('...')
+  })
+
+  it('keeps a name and its values verbatim when values follow, since a value may end in anything', () => {
+    expect(parseTypedSimLink(['jira', 'ABC-1).'])).toEqual({ name: 'jira', values: ['ABC-1).'] })
+  })
+
+  it('reads no name from an empty path', () => {
+    expect(parseTypedSimLink([])).toEqual({ name: '', values: [] })
   })
 })

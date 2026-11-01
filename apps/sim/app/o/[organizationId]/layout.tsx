@@ -12,6 +12,7 @@ import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { canBrowsePeople } from '@/lib/people/feature-flag'
 import { isProjectsEnabled } from '@/lib/projects/rollout.server'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
@@ -64,7 +65,14 @@ export default async function OrganizationLayout({
   if (!context) {
     return <OrganizationAccessDenied />
   }
-  if (!context.mothershipAvailable && !context.searchAccess.memberScoped)
+  const peopleEnabledLookup = canBrowsePeople(organizationId, context.viewer.role)
+  const simLinksEnabledLookup = isSimLinksEnabled(organizationId)
+  if (
+    !context.mothershipAvailable &&
+    !context.searchAccess.memberScoped &&
+    !(await peopleEnabledLookup) &&
+    !(await simLinksEnabledLookup)
+  )
     redirect(WORKSPACE_SETTINGS_PATH)
 
   const [
@@ -77,6 +85,7 @@ export default async function OrganizationLayout({
     changelogEnabled,
     projectsEnabled,
     simLinksEnabled,
+    peopleEnabled,
   ] = await Promise.all([
     prefetchOrganizationSidebar(
       queryClient,
@@ -94,7 +103,8 @@ export default async function OrganizationLayout({
     isWorkflowTestsEnabled(organizationId),
     isChangelogEnabled(organizationId),
     isProjectsEnabled(),
-    isSimLinksEnabled(organizationId),
+    simLinksEnabledLookup,
+    peopleEnabledLookup,
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
@@ -123,6 +133,7 @@ export default async function OrganizationLayout({
                     <OrganizationSidebar
                       benchmarkEnabled={benchmarkEnabled}
                       simLinksEnabled={simLinksEnabled}
+                      peopleEnabled={peopleEnabled}
                     />
                   }
                   initialSidebarCollapsed={initialSidebarCollapsed}

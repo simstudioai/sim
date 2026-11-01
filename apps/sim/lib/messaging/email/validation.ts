@@ -43,7 +43,7 @@ const DISPOSABLE_DOMAINS = new Set([
 /**
  * Checks if email is from a known disposable email provider
  */
-function isDisposableEmail(email: string): boolean {
+function isCommonDisposableEmail(email: string): boolean {
   const domain = email.split('@')[1]?.toLowerCase()
   return domain ? DISPOSABLE_DOMAINS.has(domain) : false
 }
@@ -91,7 +91,7 @@ export function quickValidateEmail(email: string): EmailValidationResult {
     }
   }
 
-  checks.disposable = !isDisposableEmail(email)
+  checks.disposable = !isCommonDisposableEmail(email)
   if (!checks.disposable) {
     return {
       isValid: false,

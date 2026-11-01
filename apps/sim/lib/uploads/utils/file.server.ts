@@ -35,7 +35,8 @@ import {
   type RawFileInput,
   resolveTrustedFileContext,
 } from '@/lib/uploads/utils/file'
-import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { isSimPageSource } from '@/lib/workspace-files/page-compile'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-content-type'
 import { renderSimPageDocumentWithContributors } from '@/lib/workspace-files/page-document.server'
 import { type KnowledgeFileAccess, verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'

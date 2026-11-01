@@ -4,6 +4,7 @@ vi.mock('electron', () => import('@/test/electron-mock'))
 
 import { shell } from 'electron'
 import {
+  appLinkTarget,
   classifyNavigation,
   classifyWindowOpen,
   isSafeExternalUrl,
@@ -61,6 +62,12 @@ describe('classifyNavigation', () => {
     ).toBe('external')
   })
 
+  it('sends mailto links to the mail client', () => {
+    expect(
+      classifyNavigation('mailto:support@sim.ai', { appOrigin: APP, currentUrl: `${APP}/login` })
+    ).toBe('external')
+  })
+
   it('denies non-web schemes everywhere', () => {
     for (const url of [
       'javascript:alert(1)',
@@ -75,6 +82,10 @@ describe('classifyNavigation', () => {
 })
 
 describe('classifyWindowOpen', () => {
+  it('sends mailto popups to the mail client instead of denying them', () => {
+    expect(classifyWindowOpen('mailto:support@sim.ai', '_blank', APP)).toBe('external')
+  })
+
   it('does not let a cross-origin http URL ride the mcp-oauth frame name in-app', () => {
     expect(classifyWindowOpen('http://mcp.example/authorize', 'mcp-oauth-srv1', APP)).toBe(
       'external'
@@ -105,5 +116,71 @@ describe('openExternalSafe', () => {
     await expect(openExternalSafe('javascript:alert(1)')).resolves.toBe(false)
     await expect(openExternalSafe('file:///etc/passwd', true)).resolves.toBe(false)
     expect(shell.openExternal).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    'mailto:support@sim.ai',
+    'MAILTO:support@sim.ai,help@sim.ai?subject=Desktop%20offline&body=Hi%0Athere',
+    'mailto:?to=support@sim.ai&cc=a@b.example',
+  ])('hands the well-formed mailto %s to the system mail client', async (url) => {
+    await expect(openExternalSafe(url)).resolves.toBe(true)
+    expect(shell.openExternal).toHaveBeenCalledWith(url)
+  })
+
+  it.each([
+    ['an attachment field', 'mailto:a@b.example?attach=/etc/passwd'],
+    ['an unlisted header', 'mailto:a@b.example?X-Header=y'],
+    ['a non-address recipient field', 'mailto:a@b.example?cc=file:///etc/passwd'],
+    ['unencoded whitespace', 'mailto:a@b.example?subject=a b'],
+    ['an encoded header injection', 'mailto:a@b.example%0d%0aBcc:c@d.example'],
+    ['a fragment', 'mailto:a@b.example#frag'],
+  ])('refuses a mailto with %s', async (_rule, url) => {
+    await expect(openExternalSafe(url)).resolves.toBe(false)
+    expect(shell.openExternal).not.toHaveBeenCalled()
+  })
+})
+
+describe('appLinkTarget', () => {
+  it.each([
+    'file:///etc/passwd',
+    'javascript:alert(1)',
+    'ms-msdt:id',
+    'search-ms:query=x',
+    'ms-cxh-full://0',
+    'local+app://x',
+    'jnlp://evil.example/app.jnlp',
+    'x-man-page://ls',
+    'c:/Windows/System32/calc.exe',
+    'https://example.com',
+  ])('refuses %s', (url) => {
+    expect(appLinkTarget(url)).toBeNull()
+  })
+
+  it('refuses credentials, control characters, oversize URLs, and unsafe mail links', () => {
+    expect(appLinkTarget('zoommtg://user:pass@zoom.us/join')).toBeNull()
+    expect(appLinkTarget('zoommtg://zoom.us/join?x=1\n')).toBeNull()
+    expect(appLinkTarget('zoommtg://zoom.us/join?x= 1')).toBeNull()
+    expect(appLinkTarget(`zoommtg://zoom.us/join?x=${'a'.repeat(2_048)}`)).toBeNull()
+    expect(appLinkTarget('mailto:a@example.com?attach=/etc/passwd')).toBeNull()
+  })
+
+  it('hands the operating system the parser-rebuilt URL of an app link', () => {
+    expect(appLinkTarget('ZoomMtg://zoom.us/join?confno=123&pwd=abc')).toEqual({
+      url: 'zoommtg://zoom.us/join?confno=123&pwd=abc',
+      scheme: 'zoommtg',
+    })
+    expect(appLinkTarget('mailto:a@example.com?subject=Hi')?.scheme).toBe('mailto')
+  })
+
+  it('opens an app link only on the app-link path, and only in its rebuilt form', async () => {
+    vi.mocked(shell.openExternal).mockClear()
+    await expect(openExternalSafe('zoommtg://zoom.us/join')).resolves.toBe(false)
+    await expect(
+      openExternalSafe('ZoomMtg://zoom.us/join', false, { appLink: true })
+    ).resolves.toBe(false)
+    await expect(
+      openExternalSafe('zoommtg://zoom.us/join', false, { appLink: true })
+    ).resolves.toBe(true)
+    expect(shell.openExternal).toHaveBeenCalledExactlyOnceWith('zoommtg://zoom.us/join')
   })
 })

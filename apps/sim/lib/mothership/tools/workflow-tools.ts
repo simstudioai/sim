@@ -187,6 +187,9 @@ export function createStructuralWorkflowToolCompletionData(
   }
   if (workflowId) data.workflowId = workflowId
   if (executionId) data.executionId = executionId
+  // A detached run is still going: the worker waits on it by these ids (WorkflowToolRunningResult).
+  if (status === ASYNC_TOOL_CONFIRMATION_STATUS.background && workflowId && executionId)
+    data.status = 'running'
   if (status === ASYNC_TOOL_CONFIRMATION_STATUS.error && launchError) {
     data.code = launchError.code
     data.error = launchError.message

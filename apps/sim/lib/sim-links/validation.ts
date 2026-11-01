@@ -1,9 +1,9 @@
+import { SIM_LINK_NAME_MAX_LENGTH } from '@sim/browser-extension-protocol'
 import { z } from 'zod'
 
 const NAME_PATTERN = /^[A-Za-z0-9.:@&~_-]+$/
 const NAME_PUNCTUATION = /[.:@&~_-]/g
 const NAME_DISALLOWED = /[^A-Za-z0-9.:@&~_-]/g
-export const SIM_LINK_NAME_MAX_LENGTH = 64
 export const SIM_LINK_DESCRIPTION_MAX_LENGTH = 500
 const URL_MAX_LENGTH = 2048
 
@@ -19,15 +19,52 @@ export function normalizeSimLinkName(name: string): string {
   return name.toLowerCase().replace(NAME_PUNCTUATION, '')
 }
 
+/** Text as typed after `sim/`, whether or not the prefix itself was typed too. */
+function stripSimLinkPrefix(input: string): string {
+  return input.replace(/^sim\//i, '')
+}
+
 /**
  * Shapes typed or pasted text into a name as it is entered: a leading `sim/` is dropped, spaces
  * and slashes become hyphens, and any other character a name can't hold is removed.
  */
 export function toSimLinkName(input: string): string {
-  return input
-    .replace(/^sim\//i, '')
+  return stripSimLinkPrefix(input)
     .replace(/[\s/]+/g, '-')
     .replace(NAME_DISALLOWED, '')
+}
+
+/** Sentence punctuation and closing quotes or brackets that follow a link pasted from prose. */
+const PASTED_TRAILING_PUNCTUATION = /[.,;:!?'"’”)\]}>]+$/
+
+/**
+ * `sim/<name>/<values…>` split into the name and its values. The name loses surrounding spaces,
+ * which no name can hold, and a name typed alone also loses the punctuation it picked up from the
+ * sentence it was copied out of, so `sim/onboarding).` opens `sim/onboarding`: none of these
+ * characters can end a distinct name, since `.` and `:` are ignored when matching and the rest
+ * are not allowed. Values are kept verbatim, and a name that is only punctuation stays as typed,
+ * so it still fails validation.
+ */
+export function parseTypedSimLink(segments: readonly string[]): {
+  name: string
+  values: string[]
+} {
+  const [typedName = '', ...values] = segments
+  const name = typedName.trim()
+  if (values.length) return { name, values }
+  return { name: name.replace(PASTED_TRAILING_PUNCTUATION, '').trimEnd() || name, values }
+}
+
+/**
+ * The normalized name prefix to suggest links from, out of what was typed after the `sim`
+ * keyword: `sim/jira/ABC-1?x` suggests from `jira`, and nothing typed browses every link. `null`
+ * when a name was typed that no link can match, such as only punctuation.
+ */
+export function typedSimLinkPrefix(query: string): string | null {
+  const [path = ''] = stripSimLinkPrefix(query.trim()).split('?')
+  const { name } = parseTypedSimLink(path.split('/'))
+  const prefix = normalizeSimLinkName(name)
+  return name && !prefix ? null : prefix
 }
 
 export function isVariableSimLinkUrl(url: string): boolean {

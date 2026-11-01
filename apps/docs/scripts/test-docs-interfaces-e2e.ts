@@ -3,6 +3,7 @@ import { dirname } from 'node:path'
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
 import routes from '@/.content/routes.json'
 
@@ -51,6 +52,63 @@ const paths = [
   '/cli',
   '/mcp/overview',
 ]
+const feedback = {
+  submissionId: generateId(),
+  page: '/introduction',
+  helpful: true,
+  comment: '',
+}
+for (const example of [
+  {
+    name: 'foreign origin',
+    origin: 'https://example.com',
+    contentType: 'application/json',
+    body: JSON.stringify(feedback),
+    status: 403,
+  },
+  {
+    name: 'non-JSON content',
+    origin: base.origin,
+    contentType: 'text/plain',
+    body: JSON.stringify(feedback),
+    status: 415,
+  },
+  {
+    name: 'oversized body',
+    origin: base.origin,
+    contentType: 'application/json',
+    body: JSON.stringify({ ...feedback, comment: 'x'.repeat(13000) }),
+    status: 413,
+  },
+  {
+    name: 'invalid vote',
+    origin: base.origin,
+    contentType: 'application/json',
+    body: JSON.stringify({ ...feedback, helpful: 'yes' }),
+    status: 400,
+  },
+  {
+    name: 'unknown page',
+    origin: base.origin,
+    contentType: 'application/json',
+    body: JSON.stringify({ ...feedback, page: '/no-such-document' }),
+    status: 404,
+  },
+]) {
+  await check(`Feedback rejects ${example.name} before forwarding`, async () => {
+    const response = await get('/api/feedback', {
+      method: 'POST',
+      headers: { Origin: example.origin, 'Content-Type': example.contentType },
+      body: example.body,
+    })
+    assert(response.status === example.status, `Expected ${example.status}, got ${response.status}`)
+    assert(
+      response.headers.get('Cache-Control') === 'no-store',
+      'Feedback response must not be cached'
+    )
+  })
+}
+
 for (const path of paths) {
   await check(`Complete JSON and Markdown representations agree: ${path}`, async () => {
     const json = await get(`/api/docs/page?path=${encodeURIComponent(path)}`)

@@ -63,6 +63,7 @@ export const PATCH = defineV2JsonRoute({
   errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
   mapInput: ({ params, body }) => ({
     fileId: params.fileId,
+    acceptVfsPath: true,
     assertedWorkspaceId: body.workspaceId,
     name: body.name,
   }),
@@ -85,6 +86,7 @@ export const DELETE = defineV2JsonRoute({
   errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
   mapInput: ({ params, query }) => ({
     fileId: params.fileId,
+    acceptVfsPath: true,
     assertedWorkspaceId: query.workspaceId,
   }),
   useCase: deleteWorkspaceFileOperation,

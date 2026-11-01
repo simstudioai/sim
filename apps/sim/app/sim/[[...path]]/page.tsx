@@ -2,12 +2,10 @@ import { ChipLink, StatusPageContent } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { organizationRoutes, simLinkPath } from '@/lib/navigation/paths'
-import { resolveOrganizationLanding } from '@/lib/organizations/surface'
+import { resolveSimLinkOrganization } from '@/lib/sim-links/application/organization'
 import { resolveSimLink, type SimLinkResolution } from '@/lib/sim-links/application/use-cases'
-import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
-import { simLinkNameSchema } from '@/lib/sim-links/validation'
+import { parseTypedSimLink, simLinkNameSchema } from '@/lib/sim-links/validation'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { LogoShell } from '@/app/(landing)/components/logo-shell'
 import { serializeSimLinkView } from '@/app/o/[organizationId]/links/search-params'
@@ -19,6 +17,7 @@ export const metadata: Metadata = {
 
 interface SimLinkPageProps {
   params: Promise<{ path?: string[] }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
 /**
@@ -30,6 +29,18 @@ interface SimLinkPageProps {
 function decodeSimLinkPath(path: string[]): string[] {
   const segments = path.map(decodeURIComponent)
   return segments.length === 1 ? segments[0].split('/').filter(Boolean) : segments
+}
+
+/**
+ * The query, from the params Next has already parsed and normalized (it re-serializes every
+ * request's query before app code sees it, so the typed spelling isn't recoverable here).
+ */
+function toQueryString(searchParams: Record<string, string | string[] | undefined>): string {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(searchParams)) {
+    for (const item of [value ?? []].flat()) query.append(key, item)
+  }
+  return query.toString()
 }
 
 /**
@@ -47,32 +58,34 @@ function describeUnresolved(result: SimLinkResolution, validName: boolean, name:
 }
 
 /**
- * Where `sim/<name>/<values…>` lands: the viewer's organization link's destination,
+ * Where `sim/<name>/<values…>?<query>` lands: the viewer's organization link's destination,
  * or a page that offers to create the link when nobody has yet.
  */
-export default async function SimLinkPage({ params }: SimLinkPageProps) {
-  const { path = [] } = await params
+export default async function SimLinkPage({ params, searchParams }: SimLinkPageProps) {
+  const [{ path = [] }, query] = await Promise.all([params, searchParams.then(toQueryString)])
   const segments = decodeSimLinkPath(path)
   const session = await getSession()
   if (!session?.user)
     redirect(
       buildAuthCrossLink('/login', {
-        callbackUrl: simLinkPath(...segments),
+        callbackUrl: `${simLinkPath(...segments)}${query ? `?${query}` : ''}`,
         isInviteFlow: false,
       })
     )
-  const organizationId = await resolveOrganizationLanding(
-    session.user.id,
-    getActiveOrganizationId(session)
-  )
-  if (!organizationId || !(await isSimLinksEnabled(organizationId))) notFound()
+  const principal = {
+    kind: 'session',
+    userId: session.user.id,
+    sessionId: session.session.id,
+  } as const
+  const organizationId = await resolveSimLinkOrganization(principal)
+  if (!organizationId) notFound()
   const library = organizationRoutes(organizationId).simLinks
-  const [name, ...values] = segments
+  const { name, values } = parseTypedSimLink(segments)
   if (!name) redirect(library)
 
   const result = await resolveSimLink.execute({
-    principal: { kind: 'session', userId: session.user.id, sessionId: session.session.id },
-    input: { organizationId, name, values },
+    principal,
+    input: { organizationId, name, values, query },
   })
   if (result.kind === 'redirect') redirect(result.url)
 

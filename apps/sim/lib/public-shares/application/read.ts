@@ -37,11 +37,8 @@ import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import { sniffImageContentType } from '@/lib/uploads/utils/validation'
 import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
-import {
-  isSimPageSource,
-  ProjectPageForeignEmbedError,
-  SIM_PAGE_CONTENT_TYPE,
-} from '@/lib/workspace-files/page-compile'
+import { isSimPageSource, ProjectPageForeignEmbedError } from '@/lib/workspace-files/page-compile'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-content-type'
 import { renderSimPageDocument } from '@/lib/workspace-files/page-document'
 import {
   collectSimPageFileReferences,

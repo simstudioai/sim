@@ -105,3 +105,12 @@ export const SSO_REQUIRED_ERROR_CODE = 'SSO_REQUIRED'
 
 export const SSO_REQUIRED_MESSAGE =
   'Your organization requires single sign-on. Sign in through your identity provider.'
+
+/**
+ * How an account creation refused for a disposable email domain identifies itself, so the OAuth
+ * error page can name the way forward instead of telling the person to try again.
+ */
+export const DISPOSABLE_EMAIL_ERROR_CODE = 'DISPOSABLE_EMAIL'
+
+export const DISPOSABLE_EMAIL_MESSAGE =
+  'Sign-ups from temporary email addresses aren’t supported. Use an account with a permanent email address.'

@@ -18,6 +18,7 @@ import {
   TerminalService,
   type TerminalServiceOptions,
   type TerminalSink,
+  type TerminalWork,
 } from '@/main/terminal'
 import type { RunLedger, RunRecord } from '@/main/terminal/run-ledger'
 import { recordedRunState, stopRecordedRun } from '@/main/terminal/tmux'
@@ -373,6 +374,17 @@ export class TerminalRegistry {
     entry.service.setSink(null)
     entry.service.dispose()
     return true
+  }
+
+  /** What every chat's terminals are running. */
+  async runningWork(): Promise<TerminalWork> {
+    const perService = await Promise.all(
+      [...this.entries.values()].map((entry) => entry.service.runningWork())
+    )
+    return {
+      commands: perService.flatMap((work) => work.commands),
+      uncheckedCount: perService.reduce((total, work) => total + work.uncheckedCount, 0),
+    }
   }
 
   /**

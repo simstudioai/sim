@@ -2,7 +2,7 @@ import { lstat } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
-import type { Session } from 'electron'
+import type { DownloadItem, Session } from 'electron'
 import { app } from 'electron'
 import { isAgentWebContents } from '@/main/browser-agent/registry'
 import type { EventRecorder } from '@/main/observability'
@@ -131,6 +131,17 @@ export async function uniqueDownloadPath(
   return null
 }
 
+const activeAppDownloads = new Set<DownloadItem>()
+
+/** App-window downloads (Files exports and saves) still receiving bytes, which a restart would cut off. */
+export function countProgressingAppDownloads(): number {
+  let count = 0
+  for (const item of activeAppDownloads) {
+    if (item.getState() === 'progressing') count += 1
+  }
+  return count
+}
+
 /**
  * Wires will-download so exports, blob URLs, and presigned-URL downloads all
  * get a native save dialog with a sensible default name, and completed
@@ -139,11 +150,13 @@ export async function uniqueDownloadPath(
 export function attachDownloadHandling(session: Session, events: EventRecorder): void {
   session.on('will-download', (_event, item, contents) => {
     if (contents && isAgentWebContents(contents)) return
+    activeAppDownloads.add(item)
     const filename = suggestedFilename(item.getFilename(), item.getMimeType())
     item.setSaveDialogOptions({
       defaultPath: join(app.getPath('downloads'), filename),
     })
     item.once('done', (_doneEvent, state) => {
+      activeAppDownloads.delete(item)
       if (state === 'completed') {
         logger.info('Download completed', { filename })
         if (process.platform === 'darwin') {

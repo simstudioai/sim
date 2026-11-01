@@ -114,6 +114,7 @@ jobs:
   migrate:
     permissions:
       contents: read
+      id-token: write
     name: migrate
     needs: [checks]
     # Explicit need results instead of the implicit success(): a skipped job
@@ -133,6 +134,8 @@ jobs:
       STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
       MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
       STAGING_MIGRATION_DATABASE_URL: ${{ secrets.STAGING_MIGRATION_DATABASE_URL }}
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
 
   # Same ordering for dev (schema push before the dev image lands in ECR)
   migrate-dev:
@@ -146,6 +149,8 @@ jobs:
       environment: dev
     secrets:
       DEV_DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
 
   # Dev: build immutable images alongside the schema push and Trigger upload.
   image-dev:
@@ -1166,6 +1171,9 @@ jobs:
 
   # Process docs embeddings (only when docs change, after images are promoted)
   docs:
+    permissions:
+      contents: read
+      id-token: write
     name: docs
     needs: [promote, docs-changes]
     # Explicit results: see migrate's comment.
@@ -1178,6 +1186,8 @@ jobs:
     secrets:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
 
   # Create GitHub Release (only for version commits on main, after all builds complete)
   release:

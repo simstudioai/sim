@@ -14,6 +14,7 @@ import {
   closeStreamToolAdmission,
   createRunSegment,
   detachAsyncToolCall,
+  detachedWorkflowExecutionId,
   getClaimedWorkflowExecutionId,
   getUnsettledStreamSandboxProcesses,
   markAsyncToolRunning,
@@ -456,5 +457,65 @@ describe('async tool repository single-row semantics', () => {
     await expect(
       upsertAsyncToolCall({ runId: 'current-run', toolCallId: 'call-race', toolName: 'glob' })
     ).rejects.toThrow('Async tool call belongs to another run')
+  })
+})
+
+describe('the workflow run a settled call left running', () => {
+  const stored = {
+    argv: null,
+    exitCode: null,
+    stdout: null,
+    status: null,
+    executionId: null,
+  }
+  const cli = (argv: string[], exitCode: number, record: Record<string, unknown>) => ({
+    ...stored,
+    executableName: 'sim_cli',
+    argv,
+    exitCode: String(exitCode),
+    stdout: JSON.stringify(record),
+  })
+  const tool = (executableName: string, status: string | null, executionId: string) => ({
+    ...stored,
+    executableName,
+    status,
+    executionId,
+  })
+  const running = { runId: 'run-1', workflowId: 'wf-1', status: 'running' }
+
+  it('is a workflows run the CLI answered still running', () => {
+    expect(
+      detachedWorkflowExecutionId(
+        cli(['workflows', 'run', 'wf-1', '--wait-timeout', '240'], 4, running)
+      )
+    ).toBe('run-1')
+  })
+
+  it('is a workflows run behind global flags', () => {
+    expect(
+      detachedWorkflowExecutionId(
+        cli(['--output', 'json', 'workflows', 'run', 'wf-1', '--wait-timeout', '240'], 4, running)
+      )
+    ).toBe('run-1')
+  })
+
+  it('is a workflow tool answered still running', () => {
+    expect(detachedWorkflowExecutionId(tool('run_workflow', 'running', 'exec-1'))).toBe('exec-1')
+  })
+
+  it.each([
+    [
+      'a run that settled',
+      cli(['workflows', 'run', 'wf-1'], 0, { ...running, status: 'completed' }),
+    ],
+    // Waiting on a run proves nothing about who started it; Stop must not cancel it.
+    ['a wait on a run', cli(['workflows', 'runs', 'wait', 'run-1'], 4, running)],
+    [
+      'an unreadable answer',
+      { ...cli(['workflows', 'run', 'wf-1'], 4, running), stdout: 'not json' },
+    ],
+    ['a workflow tool that settled', tool('run_block', null, 'exec-1')],
+  ])('is not %s', (_label, call) => {
+    expect(detachedWorkflowExecutionId(call)).toBeUndefined()
   })
 })

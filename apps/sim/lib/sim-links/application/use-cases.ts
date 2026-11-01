@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
@@ -10,13 +11,19 @@ import {
 import type { WorkspaceUseCaseAuditEntry } from '@/lib/core/application/authorized-workspace-use-case'
 import type { OrganizationMembershipContext } from '@/lib/core/application/organization-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { defineAuthorizedCredentialUserUseCase } from '@/lib/credentials/application/authorized-user-use-case'
 import type { DbTransaction } from '@/lib/db/types'
 import { simLinkOperations } from '@/lib/sim-links/application/operations'
+import { resolveSimLinkOrganization } from '@/lib/sim-links/application/organization'
 import { resolveSimLinkTarget, type SimLinkTarget } from '@/lib/sim-links/destination'
 import { requireSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import type { SimLinkAccess, SimLinkRecord, SimLinkViewer } from '@/lib/sim-links/repository'
 import * as repository from '@/lib/sim-links/repository'
-import type { SimLinkFields, SimLinkSort } from '@/lib/sim-links/validation'
+import {
+  type SimLinkFields,
+  type SimLinkSort,
+  typedSimLinkPrefix,
+} from '@/lib/sim-links/validation'
 import type { SortDirection } from '@/lib/url-state'
 
 const logger = createLogger('SimLinks')
@@ -228,6 +235,7 @@ async function countVisit(organizationId: string, linkId: string): Promise<void>
 /**
  * Unlisted links resolve for every member: unlisting hides a link from browsing, not from use.
  * Only a redirect counts as a visit; a link opened without the values it needs does not.
+ * `query` is the typed `?…` string, carried to the destination.
  */
 export const resolveSimLink = defineAuthorizedOrganizationUseCase({
   operation: simLinkOperations.resolve,
@@ -235,12 +243,26 @@ export const resolveSimLink = defineAuthorizedOrganizationUseCase({
   async execute({
     input,
   }: OrganizationUseCaseContext<
-    OrganizationInput & { name: string; values: readonly string[] }
+    OrganizationInput & { name: string; values: readonly string[]; query: string }
   >): Promise<SimLinkResolution> {
     const link = await repository.findSimLinkDestination(input.organizationId, input.name)
     if (!link) return { kind: 'not_found' }
-    const target = resolveSimLinkTarget(link, input.values)
+    const target = resolveSimLinkTarget(link, input.values, input.query)
     if (target.kind === 'redirect') await countVisit(input.organizationId, link.id)
     return target
+  },
+})
+
+/**
+ * Address-bar suggestions from the organization `sim/` opens in for this session, so every
+ * suggestion resolves where it is followed. Nothing is suggested where Sim links are off.
+ */
+export const suggestSimLinks = defineAuthorizedCredentialUserUseCase({
+  operation: simLinkOperations.suggest,
+  async execute({ principal, input }: { principal: SessionPrincipal; input: { query: string } }) {
+    const organizationId = await resolveSimLinkOrganization(principal)
+    const prefix = typedSimLinkPrefix(input.query)
+    if (!organizationId || prefix === null) return []
+    return repository.suggestSimLinks(organizationId, prefix)
   },
 })

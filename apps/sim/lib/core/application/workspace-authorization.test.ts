@@ -488,11 +488,11 @@ describe('authorizeWorkspaceOperation personal API key policy', () => {
   })
 
   /**
-   * The workspace column keeps its fail-fast: it is a property of the workspace
-   * rather than of any group, so it is not the organization-configuration
-   * oracle the group key would be, and three call-site suites pin the ordering.
+   * The workspace column follows membership too: the context is loaded before
+   * authorization, so refusing the column first would tell a non-member that the
+   * workspace, and the resource it named in it, exist.
    */
-  it('keeps refusing the workspace personal-key column before the role lookup', async () => {
+  it('conceals the workspace before refusing the workspace personal-key column', async () => {
     mocks.resolvePermission.mockResolvedValue(null)
 
     await expect(
@@ -500,8 +500,7 @@ describe('authorizeWorkspaceOperation personal API key policy', () => {
         ...context,
         allowPersonalApiKeys: false,
       })
-    ).rejects.toBeInstanceOf(PersonalApiKeysDisabledError)
-    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    ).rejects.toBeInstanceOf(NoWorkspaceAccessError)
   })
 })
 

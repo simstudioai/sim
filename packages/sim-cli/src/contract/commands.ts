@@ -1461,6 +1461,8 @@ export const CLI_CONTRACT: CliContract = {
   // `serviceId`, while `credentials create` matches a service-account provider
   // on `providerId`. Each is empty on the kind of row that does not use it.
   listCredentialProviders: {
+    // The providers group holds nothing but this list, so naming the group lists them.
+    defaultSubcommand: true,
     columns: [
       { header: 'type' },
       { header: 'service', path: 'serviceId' },
@@ -1556,7 +1558,7 @@ export const CLI_CONTRACT: CliContract = {
     command: 'files batch-delete',
     describe: 'Delete several files at once',
     flags: {
-      fileIds: { list: true },
+      fileIds: { list: true, trailing: true },
     },
     confirm: 'This archives the listed files; restore them with `files restore`.',
   },

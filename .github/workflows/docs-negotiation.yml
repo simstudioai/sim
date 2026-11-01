@@ -226,9 +226,16 @@ jobs:
         if: always() && steps.build.outcome == 'success'
         run: |
           mkdir -p apps/docs/test-results
+          FEEDBACK_TLS_DIR=$(mktemp -d)
+          export DOCS_FEEDBACK_TEST_CERT="$FEEDBACK_TLS_DIR/cert.pem"
+          export DOCS_FEEDBACK_TEST_KEY="$FEEDBACK_TLS_DIR/key.pem"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' -keyout "$DOCS_FEEDBACK_TEST_KEY" -out "$DOCS_FEEDBACK_TEST_CERT" 2>/dev/null
+          export NODE_EXTRA_CA_CERTS="$DOCS_FEEDBACK_TEST_CERT"
+          export DOCS_FEEDBACK_WEBHOOK_URL=https://127.0.0.1:3443/feedback
+          export DOCS_FEEDBACK_WEBHOOK_TOKEN=$(openssl rand -hex 32)
           bun run --cwd apps/docs start --port 3001 >apps/docs/test-results/docs-server.log 2>&1 &
           DOCS_SERVER_PID=$!
-          trap 'kill "$DOCS_SERVER_PID" 2>/dev/null || true' EXIT
+          trap 'kill "$DOCS_SERVER_PID" 2>/dev/null || true; rm -rf "$FEEDBACK_TLS_DIR"' EXIT
           STATUS=0
           bun run --cwd apps/docs test:negotiation:e2e || STATUS=1
           bun run --cwd apps/docs scripts/test-docs-interfaces-e2e.ts || STATUS=1

@@ -11,7 +11,7 @@ import {
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
-import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-content-type'
 import { restoreSimPageSourceBuffer } from '@/lib/workspace-files/page-source-embed'
 
 interface StagedArchiveEntry {

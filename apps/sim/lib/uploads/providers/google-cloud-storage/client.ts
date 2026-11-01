@@ -17,6 +17,7 @@ import type {
   GcsPartUploadUrl,
 } from '@/lib/uploads/providers/google-cloud-storage/types'
 import type {
+  ByteRange,
   FileInfo,
   MultipartCompletionPolicy,
   StoredObjectInfo,
@@ -362,11 +363,15 @@ export async function downloadFromGcs(
  */
 export async function downloadFromGcsStream(
   key: string,
-  customConfig?: GcsConfig
+  customConfig?: GcsConfig,
+  range?: ByteRange
 ): Promise<Readable> {
   const config = customConfig || { bucket: GCS_CONFIG.bucket }
   const storage = await getGcsClient()
-  return storage.bucket(config.bucket).file(key).createReadStream()
+  return storage
+    .bucket(config.bucket)
+    .file(key)
+    .createReadStream(range ? { start: range.start, end: range.end } : undefined)
 }
 
 /**

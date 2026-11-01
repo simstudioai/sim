@@ -297,6 +297,14 @@ export interface StreamToolReplay {
  */
 export interface StreamToolDeadline {
   deadlineMs?: number | undefined;
+  /**
+   * For a workflow tool (`run_workflow`, `run_workflow_until_block`, `run_from_block`,
+   * `run_block`) on a Sim that declares {@link WORKFLOW_TOOL_WAIT_TIMEOUT_CAPABILITY}: how long
+   * Sim waits for the call's run to settle once it starts waiting on it. A run still going then
+   * keeps going and the call settles with a {@link WorkflowToolRunningResult}. Absent = held
+   * until the run settles.
+   */
+  waitTimeoutMs?: number | undefined;
 }
 
 /**
@@ -321,6 +329,24 @@ export const WORKSPACE_FILE_COPY_CAPABILITY = "workspace-file-copy";
  * its run record and exits 4, so the worker waits on it in slices.
  */
 export const WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY = "workflow-run-wait-timeout";
+
+/**
+ * The `clientCapabilities` token a Sim sends when it honors `StreamToolDeadline.waitTimeoutMs`
+ * on a workflow tool call: a run that outlasts it continues and the call settles with a
+ * {@link WorkflowToolRunningResult}, so the worker waits on the run in slices.
+ */
+export const WORKFLOW_TOOL_WAIT_TIMEOUT_CAPABILITY = "workflow-tool-wait-timeout";
+
+/**
+ * A workflow tool call's output when its run outlasted the call's `waitTimeoutMs`: the run is
+ * still going under `executionId`, readable as a run of `workflowId` (`workflows runs wait`).
+ */
+export interface WorkflowToolRunningResult {
+  status: "running";
+  executionId: string;
+  workflowId: string;
+  message?: string | undefined;
+}
 
 /** POST /api/mothership — the chat request sim sends. */
 export interface ChatRequest extends StreamResponseReceipt {
@@ -367,8 +393,9 @@ export interface ChatRequest extends StreamResponseReceipt {
    * grace windows and run tools server-side immediately. ABSENT = older/unknown caller —
    * dispatch keeps its conservative grace (deploy-skew safe: a stale tab that predates
    * this field still gets waited on). Known capability: "workflow-tool-pickup". Sim also
-   * declares its own {@link TOOL_DEADLINE_CAPABILITY}, {@link WORKSPACE_FILE_COPY_CAPABILITY} and
-   * {@link WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY} here.
+   * declares its own {@link TOOL_DEADLINE_CAPABILITY}, {@link WORKSPACE_FILE_COPY_CAPABILITY},
+   * {@link WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY} and {@link WORKFLOW_TOOL_WAIT_TIMEOUT_CAPABILITY}
+   * here.
    */
   clientCapabilities?: string[] | undefined;
   /**

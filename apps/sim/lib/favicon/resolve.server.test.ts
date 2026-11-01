@@ -5,7 +5,8 @@ import {
 import { createMockRedis } from '@sim/testing/mocks/redis.mock'
 import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { resolveFavicon } from '@/lib/favicon/resolve.server'
+import { MAX_ICON_BYTES } from '@/lib/favicon/probe'
+import { cachedFavicon, resolveFavicon } from '@/lib/favicon/resolve.server'
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
@@ -70,5 +71,31 @@ describe('resolveFavicon', () => {
     answers = { 'acme.example.com': 'icon' }
     expect((await resolveFavicon('acme.example.com')).kind).toBe('hit')
     expect(ttlOf('acme.example.com')).toBe(30 * DAY)
+  })
+
+  it('looks up an icon cached under an earlier, larger cap again instead of serving it', async () => {
+    answers = { 'acme.example.com': 'icon' }
+    const oversized = Buffer.concat([Buffer.from('h'), PNG, Buffer.alloc(MAX_ICON_BYTES)])
+    stored.set('favicon:v3:acme.example.com', { value: oversized, ttl: 30 * DAY })
+    const result = await resolveFavicon('acme.example.com')
+    expect(result.kind === 'hit' && result.bytes.length).toBe(PNG.length)
+    expect(inputValidationMockFns.mockSecureFetchWithValidation).toHaveBeenCalled()
+  })
+
+  it('reports nothing cached until a lookup has stored an answer', async () => {
+    answers = { 'acme.example.com': 'icon' }
+    expect(await cachedFavicon('acme.example.com')).toBeNull()
+    await resolveFavicon('acme.example.com')
+    expect((await cachedFavicon('acme.example.com'))?.kind).toBe('hit')
+  })
+
+  it('shares one lookup between concurrent callers of a host', async () => {
+    answers = { 'acme.example.com': 'icon' }
+    const results = await Promise.all([
+      resolveFavicon('acme.example.com'),
+      resolveFavicon('acme.example.com'),
+    ])
+    expect(results.map((result) => result.kind)).toEqual(['hit', 'hit'])
+    expect(inputValidationMockFns.mockSecureFetchWithValidation).toHaveBeenCalledTimes(1)
   })
 })

@@ -251,10 +251,20 @@ export interface UpdaterDeps {
   platform?: NodeJS.Platform
   /** Flushes desktop-owned state before Squirrel terminates the process. */
   beforeInstall?: () => Promise<void>
-  /** Bypasses renderer unload guards only after the user confirms a relaunch. */
+  /** Bypasses renderer unload guards once a relaunch is committed. */
   setRelaunchPending?: (pending: boolean) => void
+  /**
+   * Names the work a restart would interrupt (running commands, agent
+   * actions, unsaved edits). A restart asks first only when this is non-empty.
+   */
+  describeInFlightWork?: () => Promise<string[]>
   /** Persists the natively staged version so the next process can verify installation. */
   installStatePath?: string
+}
+
+interface UpdateInstallOptions {
+  /** The shell is below the server's minimum version, so waiting is not an option. */
+  mandatory?: boolean
 }
 
 export interface UpdaterHandle {
@@ -270,7 +280,7 @@ export interface UpdaterHandle {
    * Quit and install a downloaded update (`ready`), or open the manual
    * download for an `available` update on a shell that can't self-update.
    */
-  install(): void
+  install(options?: UpdateInstallOptions): void
   /** Main-process state subscription (menu feedback). Returns unsubscribe. */
   onState(callback: (state: DesktopUpdateState) => void): () => void
 }
@@ -338,7 +348,7 @@ interface UpdateEngine {
   /** `interactive` requests must always publish a terminal state for their waiting UI. */
   check(interactive?: boolean): void
   advance(): void
-  install(): void
+  install(options: { mandatory: boolean }): void
   setAutoDownload(enabled: boolean): void
 }
 
@@ -470,35 +480,48 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         })
     }
 
-    const confirmAndInstall = () => {
+    /** Installs at once unless the restart would interrupt nameable work; then asks once. */
+    const installUnlessInterrupting = async ({ mandatory }: { mandatory: boolean }) => {
       if (installInFlight || installConfirmationInFlight || state.status !== 'ready') return
       installConfirmationInFlight = true
-      const version = state.version
-      const options: Electron.MessageBoxOptions = {
-        type: 'question',
-        buttons: ['Later', 'Restart and update'],
-        defaultId: 0,
-        cancelId: 0,
-        message: version ? `Restart to install Sim ${version}?` : 'Restart to update Sim?',
-        detail:
-          'Sim will close all app windows while it updates. Running terminal commands, browser activity, downloads, uploads, and unsaved edits may be interrupted. Choose Later to install the update the next time you quit Sim.',
-      }
-      const win = deps.getWindow()
-      const confirmation = win ? showShellDialog(win, options) : showShellDialog(options)
-      void confirmation
-        .then(({ response }) => {
-          if (response === 1 && state.status === 'ready') {
-            quitAndInstall()
+      try {
+        let work: string[] = []
+        if (!mandatory) {
+          try {
+            work = (await deps.describeInFlightWork?.()) ?? []
+          } catch (error) {
+            logger.warn('Could not check for work a restart would interrupt', {
+              message: getErrorMessage(error, 'unknown'),
+            })
+            work = ["Sim couldn't check whether restarting would interrupt any work."]
           }
+        }
+        if (work.length > 0) {
+          const version = state.version
+          const options: Electron.MessageBoxOptions = {
+            type: 'warning',
+            title: version ? `Restart to install Sim ${version}?` : 'Restart to update Sim?',
+            message: work.join(' '),
+            detail:
+              'Restarting now interrupts this work. Choose Not Now to finish first; the update also installs the next time you quit Sim.',
+            buttons: ['Restart and Update', 'Not Now'],
+            defaultId: 0,
+            cancelId: 1,
+          }
+          const win = deps.getWindow()
+          const { response } = await (win
+            ? showShellDialog(win, options)
+            : showShellDialog(options))
+          if (response !== 0) return
+        }
+        if (state.status === 'ready') quitAndInstall()
+      } catch (error) {
+        logger.warn('Could not show the restart prompt for work in progress', {
+          message: getErrorMessage(error, 'unknown'),
         })
-        .catch((error) => {
-          logger.warn('Could not show update restart confirmation', {
-            message: getErrorMessage(error, 'unknown'),
-          })
-        })
-        .finally(() => {
-          installConfirmationInFlight = false
-        })
+      } finally {
+        installConfirmationInFlight = false
+      }
     }
 
     let activeProbeId: number | null = null
@@ -838,8 +861,8 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       advance() {
         if (acceptedUpdateVersion !== null) download(acceptedUpdateVersion)
       },
-      install() {
-        confirmAndInstall()
+      install(options) {
+        void installUnlessInterrupting(options)
       },
       setAutoDownload(enabled) {
         autoDownloadEnabled = enabled
@@ -1017,12 +1040,12 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       }
       engine.check(true)
     },
-    install() {
+    install({ mandatory = false } = {}) {
       if (!engine) {
         return
       }
       if (state.status === 'ready') {
-        engine.install()
+        engine.install({ mandatory })
         return
       }
       if (state.status === 'available' && state.manual) {
@@ -1094,11 +1117,23 @@ export function checkForUpdatesInteractive(
         void showDialog({
           type: 'info',
           message: state.version ? `Downloading Sim ${state.version}…` : 'Downloading update…',
-          detail: 'You will be prompted to restart when it is ready.',
+          detail: 'When it finishes, choose Restart to update in Sim, or quit Sim to install it.',
         })
         return
       case 'ready':
-        handle.install()
+        // The user asked to check, not to restart: confirm before closing every window.
+        void showDialog({
+          type: 'info',
+          buttons: ['Restart to Update', 'Later'],
+          defaultId: 0,
+          cancelId: 1,
+          message: state.version
+            ? `Sim ${state.version} is ready to install`
+            : 'An update is ready to install',
+          detail: 'Restart Sim now to finish updating, or it installs the next time you quit.',
+        }).then(({ response }) => {
+          if (response === 0) handle.install()
+        })
         return
       case 'error':
         void showDialog({
