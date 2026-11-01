@@ -305,7 +305,7 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
       }
     )
 
-    const res = await POST(request(SELF_HOSTED_WORKSPACELESS_VALIDATE_BODY))
+    const res = await POST(request(SELF_HOSTED_WORKSPACELESS_VALIDATE_BODY), createRouteContext({}))
 
     expect(res.status).toBe(500)
     expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
