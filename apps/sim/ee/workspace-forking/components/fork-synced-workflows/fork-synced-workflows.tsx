@@ -2,9 +2,9 @@
 
 import { useId, useMemo, useState } from 'react'
 import { Checkbox, cn, OverflowText, toast } from '@sim/emcn'
-import { ChevronDown } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { ForkDisclosureTrigger } from '@/ee/workspace-forking/components/fork-disclosure-trigger'
 import { useUpdateForkSyncedWorkflows } from '@/ee/workspace-forking/hooks/workspace-fork'
 import { useFolders } from '@/hooks/queries/folders'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -219,22 +219,14 @@ function SyncFolderRow({ folder, level, syncedIds, onToggle, disabled }: SyncFol
           onCheckedChange={() => onToggle(folder.descendantWorkflowIds, headerState !== true)}
           disabled={disabled}
         />
-        <button
-          type='button'
-          aria-expanded={expanded}
-          className='flex min-w-0 items-center gap-1.5 text-left hover:text-[var(--text-primary)]'
-          onClick={() => setExpanded((value) => !value)}
+        <ForkDisclosureTrigger
+          label={`${folder.name} (${countLabel})`}
+          expanded={expanded}
+          onToggle={() => setExpanded((value) => !value)}
+          className='min-w-0 gap-1.5'
         >
-          <OverflowText label={`${folder.name} (${countLabel})`}>
-            {folder.name} <span className='text-[var(--text-muted)]'>({countLabel})</span>
-          </OverflowText>
-          <ChevronDown
-            className={cn(
-              'size-[14px] shrink-0 text-[var(--text-icon)] transition-transform',
-              expanded && 'rotate-180'
-            )}
-          />
-        </button>
+          {folder.name} <span className='text-[var(--text-muted)]'>({countLabel})</span>
+        </ForkDisclosureTrigger>
       </div>
       {expanded ? (
         <div className='relative'>
