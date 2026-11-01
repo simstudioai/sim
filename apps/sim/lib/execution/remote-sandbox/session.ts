@@ -83,12 +83,14 @@ export async function ensureSessionSandbox(args: {
         true,
         provider
       )
-  signal.throwIfAborted()
+  // Before the abort check: a stopped caller still leaves this machine for the next call to
+  // reuse, and a reused machine without history can never be certified.
   if (!existing)
     await initializeSessionFileProvenance(session.key, {
       providerId: provider.id,
       sandboxId: created.sandbox.sandboxId,
     })
+  signal.throwIfAborted()
   // Measured from before acquisition: any lease the lookup or create granted starts no earlier.
   if (!created.sandbox.outlives?.(lifetimeMs, requestedAtMs))
     await created.sandbox.extendLifetime?.(lifetimeMs)
