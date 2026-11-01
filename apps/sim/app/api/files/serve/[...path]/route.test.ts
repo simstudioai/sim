@@ -571,16 +571,52 @@ describe('File Serve API Route', () => {
     describe('outside the workspace-file model', () => {
       const key = 'workspace/ws/1790000000000-0123456789abcdef-clip.mp4'
 
-      function serveAttachment(headers: Record<string, string> = {}) {
+      function serveAttachment(headers: Record<string, string> = {}, objectKey = key) {
         mockIsUsingCloudStorage.mockReturnValue(true)
         storageServiceMockFns.mockDownloadFileStream.mockImplementation(async () =>
           Readable.from([Buffer.from('attachment')])
         )
         return GET(
-          new NextRequest(`http://localhost:3000/api/files/serve/${key}`, { headers }),
-          createRouteContext({ path: key.split('/') })
+          new NextRequest(`http://localhost:3000/api/files/serve/${objectKey}`, { headers }),
+          createRouteContext({ path: objectKey.split('/') })
         )
       }
+
+      describe('a document name', () => {
+        const documentKey = 'workspace/ws/1790000000000-0123456789abcdef-scan.pdf'
+
+        beforeEach(() => {
+          storageServiceMockFns.mockHeadObject.mockResolvedValue({ size: 10, version: '"v1"' })
+          storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('rendered'))
+        })
+
+        it('streams when its file record says it is a finished upload', async () => {
+          uploadsMetadataMockFns.mockGetFileMetadataByKey.mockResolvedValue({
+            key: documentKey,
+            contentType: 'application/pdf',
+          })
+
+          const response = await serveAttachment({}, documentKey)
+
+          expect(response.status).toBe(200)
+          expect(storageServiceMockFns.mockDownloadFileStream).toHaveBeenCalled()
+          expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+        })
+
+        it.each([
+          ['its record says it is a generation source', { contentType: 'text/x-pdflibjs' }],
+          ['it has no file record', null],
+        ])('stays buffered when %s', async (_label, record) => {
+          uploadsMetadataMockFns.mockGetFileMetadataByKey.mockResolvedValue(
+            record && { key: documentKey, ...record }
+          )
+
+          await serveAttachment({}, documentKey)
+
+          expect(storageServiceMockFns.mockDownloadFileStream).not.toHaveBeenCalled()
+          expect(storageServiceMockFns.mockDownloadFile).toHaveBeenCalled()
+        })
+      })
 
       it('streams a range of an attachment sized by storage, never buffering it', async () => {
         storageServiceMockFns.mockHeadObject.mockResolvedValue({

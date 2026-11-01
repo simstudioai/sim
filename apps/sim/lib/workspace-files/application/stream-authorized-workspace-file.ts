@@ -11,6 +11,10 @@ import { createFileReadReceipt } from '@/lib/workspace-files/read-receipt'
  * Opens an already-authorized workspace file's stored bytes for delivery, whole or as one inclusive
  * span, without reading them into memory.
  *
+ * Callers must already have authorized and admitted the file (`'opaque'`) through their own use
+ * case: storage is opened before this function's own recheck, which only decides whether the
+ * opened stream is handed out.
+ *
  * Access is rechecked once storage has opened and before the stream is handed out, as every
  * streamed read does: a revocation, a content write, or a provenance change landing in between
  * disposes the stream instead of publishing it. `authorize` is the caller's own use-case check, so

@@ -48,7 +48,7 @@ import {
   isFileBrowserSize,
   isFileBrowserType,
 } from '@/lib/workspace-files/browser'
-import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-content-type'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar/find-bar'
 import { useFindShortcut } from '@/app/workspace/[workspaceId]/components/find-bar/use-find-shortcut'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'

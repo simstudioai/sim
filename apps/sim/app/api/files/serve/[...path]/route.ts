@@ -28,11 +28,11 @@ import {
   workspaceFileCacheControl,
 } from '@/lib/uploads/server/delivery'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
-import { resolveStoredFileContext } from '@/lib/uploads/server/metadata'
+import { getFileMetadataByKey, resolveStoredFileContext } from '@/lib/uploads/server/metadata'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import {
   inferContextFromKey,
-  needsRenderedArtifact,
+  isRenderableDocumentName,
   resolveEffectiveMimeType,
 } from '@/lib/uploads/utils/file'
 import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
@@ -40,8 +40,10 @@ import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-file
 import { finishFileDelivery } from '@/lib/workspace-files/application/finish-file-delivery'
 import { readWorkspaceFileRecordByKey } from '@/lib/workspace-files/application/read-workspace-file-record-by-key'
 import { streamAuthorizedWorkspaceFile } from '@/lib/workspace-files/application/stream-authorized-workspace-file'
-import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { isSimPageSource } from '@/lib/workspace-files/page-compile'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-content-type'
 import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
+import { servesStoredBytes } from '@/lib/workspace-files/stored-bytes'
 import { type KnowledgeFileAccess, verifyFileAccess } from '@/app/api/files/authorization'
 import {
   createConditionalFileResponse,
@@ -203,10 +205,10 @@ async function resolveTransformedBytes(params: {
  * Whether a request is answered with the stored object byte-for-byte, so its bytes can stream from
  * storage instead of being read whole and capped at the transfer ceiling.
  *
- * Every other answer is produced from the bytes and stays buffered: a Sim page renders, a generated
- * document compiles, and a `preview` may be a HEIC transcode — sniffed from the content, so no name
- * or type rules it out. What streams is exactly what {@link resolveServableBytes} and the
- * workspace resolver would have passed through unchanged.
+ * Every other answer is produced from the bytes and stays buffered: see {@link servesStoredBytes},
+ * plus a `preview`, which may be a HEIC transcode — sniffed from the content, so no name or type
+ * rules it out. What streams is exactly what {@link resolveServableBytes} and the workspace
+ * resolver would have passed through unchanged.
  */
 function servesStoredObject(
   filename: string,
@@ -215,12 +217,7 @@ function servesStoredObject(
 ): boolean {
   if (options.raw) return true
   if (options.preview) return false
-  if (recordedType === SIM_PAGE_CONTENT_TYPE || filename.toLowerCase().endsWith('.html')) {
-    return false
-  }
-  // A recorded type tells a finished upload from a generation source; without one, every
-  // document name may be a source.
-  return !needsRenderedArtifact(recordedType, filename)
+  return servesStoredBytes(recordedType, filename)
 }
 
 /**
@@ -232,10 +229,25 @@ function storedObjectContentType(filename: string, options: ServeOptions): strin
 }
 
 /**
+ * The type recorded for an object outside the workspace-file model, read only where it decides the
+ * answer: a document name may be a finished upload or a generation source, and the object's file
+ * record, where it has one, says which. An object with no record is judged by its name.
+ */
+async function recordedDocumentType(
+  key: string,
+  context: StorageContext,
+  filename: string,
+  options: ServeOptions
+): Promise<string | undefined> {
+  if (options.raw || options.preview || !isRenderableDocumentName(filename)) return undefined
+  return (await getFileMetadataByKey(key, context))?.contentType
+}
+
+/**
  * Streams a stored object outside the workspace-file model (execution outputs, chat and copilot
  * attachments, knowledge documents) when the request is answered with it as-is, or returns null
- * for the buffered path. The object is its only record, so storage is asked for its length and
- * version, and the version is what proves a revalidation still holds.
+ * for the buffered path. Storage is asked for the object's length and version, and the version is
+ * what proves a revalidation still holds.
  */
 async function streamStoredObject(params: {
   key: string
@@ -245,7 +257,8 @@ async function streamStoredObject(params: {
   request: NextRequest
 }): Promise<NextResponse | null> {
   const { key, context, filename, options } = params
-  if (!servesStoredObject(filename, undefined, options)) return null
+  const recordedType = await recordedDocumentType(key, context, filename, options)
+  if (!servesStoredObject(filename, recordedType, options)) return null
   const stored = await headObject(key, context)
   if (!stored) throw new FileNotFoundError(`File not found: ${key}`)
 

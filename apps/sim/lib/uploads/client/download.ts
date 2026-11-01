@@ -3,8 +3,9 @@ import { requestRaw } from '@/lib/api/client/request'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import { exportWorkspaceFileSnapshotContract } from '@/lib/api/contracts/workspace-files'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { isMarkdownFile, needsRenderedArtifact } from '@/lib/uploads/utils/file'
+import { isMarkdownFile } from '@/lib/uploads/utils/file'
 import { normalizeMimeType } from '@/lib/uploads/utils/mime'
+import { servesStoredBytes } from '@/lib/workspace-files/stored-bytes'
 
 /** Action-time content from the mounted viewer, scoped so another file cannot consume it. */
 export interface FileDownloadSource {
@@ -16,9 +17,9 @@ export interface FileDownloadSource {
 /**
  * Above this a stored file is handed to the browser's download manager instead of being read into
  * the page. Holding it as a `Blob` costs its whole size in tab memory and shows no progress until
- * the last byte lands; the download manager streams it to disk. Below it, and for a generated
- * document, which must compile first, fetching keeps a rejection on screen as an error rather than
- * as a failed entry in the browser's downloads list.
+ * the last byte lands; the download manager streams it to disk. Below it, and for a file the
+ * server renders first (a page, a generated document), fetching keeps a rejection on screen
+ * rather than as a failed entry in the browser's downloads list.
  */
 const IN_PAGE_DOWNLOAD_MAX_BYTES = 100 * 1024 * 1024
 
@@ -99,7 +100,7 @@ export async function triggerFileDownload(
 
   if (
     !exportsMarkdown &&
-    !needsRenderedArtifact(record.type, record.name) &&
+    servesStoredBytes(record.type, record.name) &&
     record.size > IN_PAGE_DOWNLOAD_MAX_BYTES
   ) {
     // A first-byte read opens storage itself, so a missing object is refused here, in place,
