@@ -84,7 +84,6 @@ jobs:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           audience: ${{ secrets.TS_AUDIENCE }}
           tags: tag:ci
-          args: --accept-routes
 
       - name: Process docs embeddings
         working-directory: ./apps/docs
