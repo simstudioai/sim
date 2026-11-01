@@ -16,6 +16,7 @@ import type {
   NavMenuItemData,
   NavMenuPreviewKind,
 } from '@/app/(landing)/components/navbar/components/nav-menu-chip/types'
+import { SearchPreview } from '@/app/(landing)/search/components/search-preview'
 
 interface NavMenuPreviewProps {
   item: NavMenuItemData
@@ -96,6 +97,8 @@ function PreviewGraphic({ kind, details }: ProductGraphicProps) {
       return <EnterpriseMenuPreview />
     case 'team':
       return <TeamGraphic details={details} />
+    case 'search':
+      return <SearchPreview />
     case 'resource':
       return <ResourceGraphic details={details} />
   }
