@@ -146,12 +146,17 @@ export function createPublicFileContentSource(
   contentUrl: string,
   owner?: EditableFileOwner
 ): FileContentSource {
-  return inlineImageSource(
-    (_key, opts) =>
-      opts?.preview ? `${contentUrl}${contentUrl.includes('?') ? '&' : '?'}preview=1` : contentUrl,
-    `/api/files/public/${token}/inline`,
-    owner
-  )
+  return {
+    ...inlineImageSource(
+      (_key, opts) =>
+        opts?.preview
+          ? `${contentUrl}${contentUrl.includes('?') ? '&' : '?'}preview=1`
+          : contentUrl,
+      `/api/files/public/${token}/inline`,
+      owner
+    ),
+    servesByteRanges: true,
+  }
 }
 
 /**
