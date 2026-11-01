@@ -34,11 +34,7 @@ import {
 import { storedObjectEtag } from '@/lib/uploads/server/delivery'
 import { hasEmbeddedFileRef } from '@/lib/uploads/server/embedded-image-refs'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
-import {
-  type ByteRange,
-  getWorkspaceFileSize,
-  MAX_BUFFERED_TRANSFER_BYTES,
-} from '@/lib/uploads/shared/types'
+import { type ByteRange, MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import { sniffImageContentType } from '@/lib/uploads/utils/validation'
 import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
@@ -143,6 +139,8 @@ function recordPublicShareDownload(input: {
   servedFile: WorkspaceFileRow
   operation: PublicFileReadOperation
   bytes: number
+  /** The inclusive span a ranged response carried; absent for the whole file. */
+  range?: ByteRange
   request?: OrchestrationRequestContext
 }) {
   const { servedFile } = input
@@ -164,6 +162,7 @@ function recordPublicShareDownload(input: {
       anonymous: true,
       owner: input.owner,
       bytes: input.bytes,
+      ...(input.range ? { range: `${input.range.start}-${input.range.end}` } : {}),
     },
   })
 }
@@ -299,30 +298,34 @@ export async function checkPublicFileShareContent(
 /**
  * A shared file served as its stored bytes, read from storage only as far as a response needs:
  * the whole object, or one inclusive span. The bytes are never held, so a file of any size is
- * served and a byte range is read on its own.
+ * served and a byte range is read on its own. Storage is asked for the object first, so a missing
+ * object is refused before any header is sent, and every length is measured against the object.
  *
  * `open` rechecks the grant, the revision, and the file's provenance once storage has opened and
- * before the stream is handed out, as a buffered read does after rendering. One view is audited
- * once: a download, or the first span of a player's ranged reads.
+ * before the stream is handed out, as a buffered read does after rendering. Each delivered
+ * response is reported and audited, with the span it carried.
  */
-function streamSharedFile(
+async function streamSharedFile(
   grant: VerifiedPublicFileShareGrant,
   initial: PublicFileShareSnapshot,
   operation: PublicFileReadOperation,
   request?: OrchestrationRequestContext
 ) {
   const { file } = initial
-  const size = getWorkspaceFileSize(file)
+  const context = initial.adapter.storageContext
+  const stored = await headObject(file.key, context)
+  if (!stored) throw new OrchestrationError('not_found', 'File not found')
+  const { size } = stored
   return {
     kind: 'stream' as const,
     filename: file.originalName,
     contentType: resolveEffectiveMimeType(undefined, file.originalName),
     size,
     /** A content write uploads under a fresh key and stamps `contentUpdatedAt`. */
-    etag: storedObjectEtag([file.key, size, file.contentUpdatedAt.getTime()]),
+    etag: storedObjectEtag([file.key, size, file.contentUpdatedAt.getTime(), stored.version ?? '']),
     async open(range: ByteRange | undefined): Promise<ReadableStream<Uint8Array>> {
       const stream = nodeReadableToWebStream(
-        await downloadFileStream({ key: file.key, context: initial.adapter.storageContext, range })
+        await downloadFileStream({ key: file.key, context, range })
       )
       try {
         const provenance = await withPublicFileShareGrant(
@@ -338,18 +341,17 @@ function streamSharedFile(
         await stream.cancel(error).catch(() => undefined)
         throw asOrchestrationError(error) ?? error
       }
-      if (!range || range.start === 0) {
-        recordPublicShareDownload({
-          workspaceId: initial.workspaceId,
-          organizationId: initial.organizationId,
-          owner: initial.owner,
-          sharedFile: file,
-          servedFile: file,
-          operation,
-          bytes: range ? range.end - range.start + 1 : size,
-          request,
-        })
-      }
+      recordPublicShareDownload({
+        workspaceId: initial.workspaceId,
+        organizationId: initial.organizationId,
+        owner: initial.owner,
+        sharedFile: file,
+        servedFile: file,
+        operation,
+        bytes: range ? range.end - range.start + 1 : size,
+        range,
+        request,
+      })
       return stream
     },
   }
@@ -374,7 +376,7 @@ export async function readPublicFileShareContent({
       return snapshot
     })
     if (!preview && servesStoredBytes(initial.file.contentType, initial.file.originalName)) {
-      return streamSharedFile(grant, initial, operation, request)
+      return await streamSharedFile(grant, initial, operation, request)
     }
     const raw = await downloadFile({
       key: initial.file.key,

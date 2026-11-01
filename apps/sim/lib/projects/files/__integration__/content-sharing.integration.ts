@@ -800,71 +800,83 @@ describe('Public file shares against PostgreSQL and private storage', () => {
         '@/lib/public-shares/application'
       )
       const { encryptSecret } = await import('@/lib/core/security/encryption')
-      for (const change of ['disabled', 'password', 'archived', 'provenance'] as const) {
-        const f = await fixture()
-        const { file } = await createProjectFile.execute({
-          principal: f.principal,
-          input: createInput(f.projectId),
-        })
-        const { share } = await updateProjectFileShare.execute({
-          principal: f.principal,
-          input: {
-            projectId: f.projectId,
-            fileId: file.id,
-            isActive: true,
-            authType: 'password',
-            password: 'initial-password',
-          },
-        })
-        const access = await authorizePublicFileShare({
-          token: share.token,
-          credential: { method: 'POST', password: 'initial-password' },
-        })
-        if (!access.authorized) throw new Error('Initial credential rejected')
-        const applyChange = async () => {
-          if (change === 'disabled')
-            await db
-              .update(publicShare)
-              .set({ isActive: false })
-              .where(eq(publicShare.id, share.id))
-          if (change === 'password')
-            await db
-              .update(publicShare)
-              .set({ password: (await encryptSecret('replacement-password')).encrypted })
-              .where(eq(publicShare.id, share.id))
-          if (change === 'provenance')
-            await db
-              .update(workspaceFileSecretProvenance)
-              .set({ status: 'unknown' })
-              .where(eq(workspaceFileSecretProvenance.fileId, file.id))
-          if (change === 'archived')
-            await db
-              .update(workspaceFiles)
-              .set({ deletedAt: new Date() })
-              .where(eq(workspaceFiles.id, file.id))
-        }
-        // The change lands while the object is being read, buffered or streamed alike.
-        const download = storage.downloadFile
-        const downloadStream = storage.downloadFileStream
-        const spies = [
-          vi.spyOn(storage, 'downloadFile').mockImplementation(async (options) => {
-            const result = await download(options)
-            if (options.key === file.key) await applyChange()
-            return result
-          }),
-          vi.spyOn(storage, 'downloadFileStream').mockImplementation(async (options) => {
-            const result = await downloadStream(options)
-            if (options.key === file.key) await applyChange()
-            return result
-          }),
-        ]
-        await expect(
-          sharedBytes(readPublicFileShareContent({ grant: access.grant }))
-        ).rejects.toMatchObject({
-          code: change === 'provenance' ? 'forbidden' : 'not_found',
-        })
-        for (const spy of spies) spy.mockRestore()
+      // A Markdown file streams from storage; a page is rendered whole. Both reads must refuse.
+      const shared = {
+        streamed: (projectId: string) => createInput(projectId),
+        rendered: (projectId: string) => ({
+          ...createInput(projectId, '---\ntitle: Architecture\n---\n\nShared page'),
+          name: 'Architecture',
+          contentType: 'text/x-sim-page',
+        }),
       }
+      for (const [read, input] of Object.entries(shared))
+        for (const change of ['disabled', 'password', 'archived', 'provenance'] as const) {
+          const f = await fixture()
+          const { file } = await createProjectFile.execute({
+            principal: f.principal,
+            input: input(f.projectId),
+          })
+          const { share } = await updateProjectFileShare.execute({
+            principal: f.principal,
+            input: {
+              projectId: f.projectId,
+              fileId: file.id,
+              isActive: true,
+              authType: 'password',
+              password: 'initial-password',
+            },
+          })
+          const access = await authorizePublicFileShare({
+            token: share.token,
+            credential: { method: 'POST', password: 'initial-password' },
+          })
+          if (!access.authorized) throw new Error('Initial credential rejected')
+          const applyChange = async () => {
+            if (change === 'disabled')
+              await db
+                .update(publicShare)
+                .set({ isActive: false })
+                .where(eq(publicShare.id, share.id))
+            if (change === 'password')
+              await db
+                .update(publicShare)
+                .set({ password: (await encryptSecret('replacement-password')).encrypted })
+                .where(eq(publicShare.id, share.id))
+            if (change === 'provenance')
+              await db
+                .update(workspaceFileSecretProvenance)
+                .set({ status: 'unknown' })
+                .where(eq(workspaceFileSecretProvenance.fileId, file.id))
+            if (change === 'archived')
+              await db
+                .update(workspaceFiles)
+                .set({ deletedAt: new Date() })
+                .where(eq(workspaceFiles.id, file.id))
+          }
+          // The change lands while the object is being read, buffered or streamed alike.
+          const download = storage.downloadFile
+          const downloadStream = storage.downloadFileStream
+          const spies = [
+            vi.spyOn(storage, 'downloadFile').mockImplementation(async (options) => {
+              const result = await download(options)
+              if (options.key === file.key) await applyChange()
+              return result
+            }),
+            vi.spyOn(storage, 'downloadFileStream').mockImplementation(async (options) => {
+              const result = await downloadStream(options)
+              if (options.key === file.key) await applyChange()
+              return result
+            }),
+          ]
+          const delivered = readPublicFileShareContent({ grant: access.grant })
+          await expect(sharedBytes(delivered)).rejects.toMatchObject({
+            code: change === 'provenance' ? 'forbidden' : 'not_found',
+          })
+          // Each fixture took the path it names: the stream refuses on open, the page as it renders.
+          if (read === 'streamed') expect(await delivered).toMatchObject({ kind: 'stream' })
+          else await expect(delivered).rejects.toBeDefined()
+          for (const spy of spies) spy.mockRestore()
+        }
     }
   )
 
