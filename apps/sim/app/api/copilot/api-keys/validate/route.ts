@@ -296,7 +296,9 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
     }
   }
 
-  const subscription = await getHighestPrioritySubscription(admission.userId)
+  const subscription = await getHighestPrioritySubscription(admission.userId, {
+    onError: 'throw',
+  })
   const usage = await checkServerSideUsageLimits(admission.userId, subscription)
   return {
     isExceeded: usage.isExceeded,
