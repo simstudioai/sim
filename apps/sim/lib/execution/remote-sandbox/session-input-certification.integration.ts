@@ -52,7 +52,11 @@ import {
   initializeSessionFileProvenance,
   isSessionFileProvenanceClean,
 } from '@/lib/execution/remote-sandbox/session-file-provenance'
-import type { SandboxHandle, SandboxProvider } from '@/lib/execution/remote-sandbox/types'
+import type {
+  SandboxExecutionRequest,
+  SandboxHandle,
+  SandboxProvider,
+} from '@/lib/execution/remote-sandbox/types'
 
 remoteSandboxProviderMockFns.mockResolveProvider.mockImplementation(
   () =>
@@ -92,7 +96,13 @@ function trackHistoryKey(key: string, sandboxId: string) {
   )
 }
 
-function run(kind: 'code' | 'shell', request: Parameters<typeof executeInSandbox>[0]) {
+/** The fields both the code and the shell boundary accept. */
+type SessionRunRequest = Pick<
+  SandboxExecutionRequest,
+  'code' | 'language' | 'timeoutMs' | 'session' | 'signal'
+>
+
+function run(kind: 'code' | 'shell', request: SessionRunRequest) {
   return observeSandboxSessionInputs(
     () => true,
     () =>
