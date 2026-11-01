@@ -7,7 +7,7 @@ import type OpenAI from 'openai'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {
-  isConversationContextError,
+  isPermanentGenerationError,
   prepareConversationGeneration,
 } from '@/providers/conversation-generation'
 import {
@@ -993,7 +993,7 @@ export async function executeResponsesProviderRequest(
       }
     )
 
-    if (isAbortError(error) || request.abortSignal?.aborted || isConversationContextError(error)) {
+    if (isAbortError(error) || request.abortSignal?.aborted || isPermanentGenerationError(error)) {
       throw error
     }
 
