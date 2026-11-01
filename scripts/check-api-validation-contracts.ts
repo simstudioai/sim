@@ -3,10 +3,11 @@ import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
 const ROOT = path.resolve(import.meta.dir, '..')
-const API_DIR = path.join(ROOT, 'apps/sim/app/api')
-const CONTRACTS_DIR = path.join(ROOT, 'apps/sim/lib/api/contracts')
-const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
-const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
+const toPosix = (p: string) => p.replace(/\\/g, '/')
+const API_DIR = toPosix(path.join(ROOT, 'apps/sim/app/api'))
+const CONTRACTS_DIR = toPosix(path.join(ROOT, 'apps/sim/lib/api/contracts'))
+const QUERY_HOOKS_DIR = toPosix(path.join(ROOT, 'apps/sim/hooks/queries'))
+const SELECTOR_HOOKS_DIR = toPosix(path.join(ROOT, 'apps/sim/hooks/selectors'))
 
 /**
  * `totalRoutes` is reported, never gated.
@@ -478,7 +479,7 @@ function findRawFetchFindings(
   exemptions: number
   missingReasons: AnnotationMissingReasonFinding[]
 } {
-  const relativePath = path.relative(ROOT, filePath)
+  const relativePath = toPosix(path.relative(ROOT, filePath))
   const lines = content.split('\n')
   const findings: RawFetchFinding[] = []
   const missingReasons: AnnotationMissingReasonFinding[] = []
@@ -516,7 +517,7 @@ function findDoubleCastFindings(
   exemptions: number
   missingReasons: AnnotationMissingReasonFinding[]
 } {
-  const relativePath = path.relative(ROOT, filePath)
+  const relativePath = toPosix(path.relative(ROOT, filePath))
   const lines = content.split('\n')
   const findings: DoubleCastFinding[] = []
   const missingReasons: AnnotationMissingReasonFinding[] = []
@@ -563,7 +564,7 @@ function findRawJsonFindings(
   exemptions: number
   missingReasons: AnnotationMissingReasonFinding[]
 } {
-  const relativePath = path.relative(ROOT, filePath)
+  const relativePath = toPosix(path.relative(ROOT, filePath))
   const lines = content.split('\n')
   const findings: RawJsonFinding[] = []
   const missingReasons: AnnotationMissingReasonFinding[] = []
@@ -614,7 +615,7 @@ function findUntypedResponseFindings(
   exemptions: number
   missingReasons: AnnotationMissingReasonFinding[]
 } {
-  const relativePath = path.relative(ROOT, filePath)
+  const relativePath = toPosix(path.relative(ROOT, filePath))
   const lines = content.split('\n')
   const findings: UntypedResponseFinding[] = []
   const missingReasons: AnnotationMissingReasonFinding[] = []
@@ -684,7 +685,7 @@ function findSameOriginApiFetchFindings(
   exemptions: number
   missingReasons: AnnotationMissingReasonFinding[]
 } {
-  const relativePath = path.relative(ROOT, filePath)
+  const relativePath = toPosix(path.relative(ROOT, filePath))
   const lines = content.split('\n')
   const findings: SameOriginApiFetchFinding[] = []
   const missingReasons: AnnotationMissingReasonFinding[] = []
@@ -714,7 +715,7 @@ function findSameOriginApiFetchFindings(
 }
 
 function routeFamily(routePath: string): string {
-  const relative = routePath.replace(/^apps\/sim\/app\/api\//, '')
+  const relative = toPosix(routePath).replace(/^apps\/sim\/app\/api\//, '')
   const [first, second] = relative.split('/')
 
   if (first === 'tools') return `tools/${second ?? 'unknown'}`
@@ -768,7 +769,7 @@ function hasZodUsage(relativePath: string, content: string): boolean {
 }
 
 function auditRoute(filePath: string, content: string): RouteAudit {
-  const relativePath = path.relative(ROOT, filePath)
+  const relativePath = toPosix(path.relative(ROOT, filePath))
   const schemaConstructorCount = [...content.matchAll(ZOD_SCHEMA_CONSTRUCTOR_PATTERN)].length
 
   return {
@@ -786,7 +787,7 @@ function auditRoute(filePath: string, content: string): RouteAudit {
 
 function findAdHocWireTypes(filePath: string, content: string): WireTypeFinding[] {
   const findings: WireTypeFinding[] = []
-  const relativePath = path.relative(ROOT, filePath)
+  const relativePath = toPosix(path.relative(ROOT, filePath))
 
   for (const match of content.matchAll(WIRE_TYPE_DECLARATION_PATTERN)) {
     const kind = match[1]
@@ -815,7 +816,7 @@ function findAdHocWireTypes(filePath: string, content: string): WireTypeFinding[
 }
 
 function auditQueryHook(filePath: string, content: string): QueryHookAudit {
-  const relativePath = path.relative(ROOT, filePath)
+  const relativePath = toPosix(path.relative(ROOT, filePath))
   const schemaConstructorCount = [...content.matchAll(ZOD_SCHEMA_CONSTRUCTOR_PATTERN)].length
 
   return {
@@ -1282,13 +1283,13 @@ async function main() {
   let sameOriginApiFetchExemptions = 0
   let doubleCastExemptions = 0
 
-  const appsSimRoot = path.join(ROOT, 'apps/sim')
-  const contractsRoot = path.join(CONTRACTS_DIR, path.sep)
+  const appsSimRoot = toPosix(path.join(ROOT, 'apps/sim'))
+  const contractsRoot = `${toPosix(CONTRACTS_DIR)}/`
 
   for (const filePath of sourceFiles) {
     const content = sourceCache.get(filePath) ?? (await readFile(filePath, 'utf8'))
-    if (filePath.startsWith(contractsRoot)) sourceCache.set(filePath, content)
-    const normalized = filePath.replace(/\\/g, '/')
+    const normalized = toPosix(filePath)
+    if (normalized.startsWith(contractsRoot)) sourceCache.set(filePath, content)
 
     if (isClientHookFile(filePath) && content.includes('fetch')) {
       const rawFetch = findRawFetchFindings(filePath, content)
