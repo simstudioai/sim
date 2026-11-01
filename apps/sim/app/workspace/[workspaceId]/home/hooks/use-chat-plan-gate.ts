@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback } from 'react'
-import { useToast } from '@sim/emcn'
+import { toast } from '@sim/emcn'
 import { useRouter } from 'next/navigation'
 import { useSession } from '@/lib/auth/client'
 import { CHAT_PLAN_REQUIRED_MESSAGE } from '@/lib/billing/chat-plan'
@@ -25,7 +25,6 @@ export function useChatPlanGate(): () => boolean {
   const { data: session } = useSession()
   const viewerId = session?.user?.id
   const router = useRouter()
-  const { toast } = useToast()
 
   return useCallback(() => {
     if (!hostContext || hostContext.features?.chat !== false) return false
@@ -40,5 +39,5 @@ export function useChatPlanGate(): () => boolean {
       )
     }
     return true
-  }, [hostContext, viewerId, router, toast])
+  }, [hostContext, viewerId, router])
 }
