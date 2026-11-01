@@ -82,8 +82,9 @@ jobs:
           fi
 
       # Database IP restrictions admit the tailnet's app connector, never a
-      # runner's address. Linux nodes only use app connector routes with
-      # --accept-routes.
+      # runner's address. The action already passes --accept-routes, which
+      # Linux nodes need to use app connector routes; repeating it in args
+      # makes `tailscale up` reject the duplicate flag.
       - name: Join the tailnet
         if: vars.CI_DB_TAILNET == 'true'
         uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4.2.0
@@ -91,7 +92,6 @@ jobs:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           audience: ${{ secrets.TS_AUDIENCE }}
           tags: tag:ci
-          args: --accept-routes
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
