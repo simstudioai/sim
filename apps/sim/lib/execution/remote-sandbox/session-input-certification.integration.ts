@@ -2,7 +2,7 @@
  * The persistent workbench's input history is what lets a scratch file reach the model. This runs
  * the real code boundary against the real history script in a disposable Redis, so a mount the
  * caller could not classify has to leave the machine uncertified. Only the sandbox provider is a
- * stand-in: it hands back an existing machine that executes nothing.
+ * stand-in: it hands back a machine that executes nothing.
  *
  * Set TEST_REDIS_URL to an isolated local Redis service.
  */
@@ -14,14 +14,23 @@ import {
 import { generateShortId } from '@sim/utils/id'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedRedisUrl, mockFindSessionSandbox } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const url = readTestRedisUrl()
-  const inheritedRedisUrl = process.env.REDIS_URL
-  /** The real Redis module reads this at import. */
-  if (url) process.env.REDIS_URL = url
-  return { redisUrl: url, inheritedRedisUrl, mockFindSessionSandbox: vi.fn() }
-})
+const { redisUrl, inheritedRedisUrl, mockCreate, mockFindSessionSandbox } = await vi.hoisted(
+  async () => {
+    const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
+    const url = readTestRedisUrl()
+    const inheritedRedisUrl = process.env.REDIS_URL
+    /** The real Redis module reads this at import. */
+    if (url) process.env.REDIS_URL = url
+    return {
+      redisUrl: url,
+      inheritedRedisUrl,
+      mockCreate: vi.fn<SandboxProvider['create']>(async () => {
+        throw new Error('The certification fixture only reuses an existing machine')
+      }),
+      mockFindSessionSandbox: vi.fn<NonNullable<SandboxProvider['findSessionSandbox']>>(),
+    }
+  }
+)
 
 vi.mock('@/lib/execution/remote-sandbox/provider', () => remoteSandboxProviderMock)
 vi.mock('@/lib/execution/remote-sandbox/resolve', () => ({
@@ -51,9 +60,7 @@ remoteSandboxProviderMockFns.mockResolveProvider.mockImplementation(
       id: 'e2b',
       dependencyStrategy: 'prebuilt',
       resolveLifetimeMs: (ms: number) => ms,
-      create: async () => {
-        throw new Error('The certification fixture only reuses an existing machine')
-      },
+      create: mockCreate,
       findSessionSandbox: mockFindSessionSandbox,
     }) satisfies SandboxProvider
 )
@@ -77,6 +84,22 @@ function machine(sandboxId: string): SandboxHandle {
 /** Machine-history keys this suite created, so cleanup never touches another suite's state. */
 const createdKeys: string[] = []
 
+function trackHistoryKey(key: string, sandboxId: string) {
+  createdKeys.push(
+    `mothership:workbench-provenance:v2:${createHash('sha256')
+      .update(JSON.stringify([key, 'e2b', sandboxId]))
+      .digest('hex')}`
+  )
+}
+
+function run(kind: 'code' | 'shell', request: Parameters<typeof executeInSandbox>[0]) {
+  return observeSandboxSessionInputs(
+    () => true,
+    () =>
+      kind === 'code' ? executeInSandbox(request) : executeShellInSandbox({ ...request, envs: {} })
+  )
+}
+
 afterAll(async () => {
   if (redisUrl && createdKeys.length) {
     const redis = getRedisClient()
@@ -99,11 +122,7 @@ describe.skipIf(!redisUrl)('workbench certification at the code boundary', () =>
     const sandboxId = `machine-${generateShortId(12)}`
     const key = `certification-${generateShortId(12)}`
     const identity = { providerId: 'e2b', sandboxId } as const
-    createdKeys.push(
-      `mothership:workbench-provenance:v2:${createHash('sha256')
-        .update(JSON.stringify([key, identity.providerId, sandboxId]))
-        .digest('hex')}`
-    )
+    trackHistoryKey(key, sandboxId)
     mockFindSessionSandbox.mockResolvedValue(machine(sandboxId))
     await initializeSessionFileProvenance(key, identity)
     expect(await isSessionFileProvenanceClean(key, identity)).toBe(true)
@@ -114,15 +133,46 @@ describe.skipIf(!redisUrl)('workbench certification at the code boundary', () =>
       timeoutMs: 30_000,
       session: { key, ...(unprovenanced ? { unprovenancedInputs: true } : {}) },
     }
-    const execution = observeSandboxSessionInputs(
-      () => true,
-      () =>
-        kind === 'code'
-          ? executeInSandbox(request)
-          : executeShellInSandbox({ ...request, envs: {} })
-    )
+    const execution = run(kind, request)
     if (unprovenanced) await expect(execution).rejects.toThrow('Workbench output withheld')
     else await expect(execution).resolves.toMatchObject({ sandboxId })
     expect(await isSessionFileProvenanceClean(key, identity)).toBe(!unprovenanced)
   })
+
+  /**
+   * The provider finishes creating a session machine even when the caller stops mid-create, and
+   * the next call reuses that machine. Its history must already exist then: a machine reused with
+   * no history can never be certified, so every later result in the chat would be withheld.
+   */
+  it.each(['code', 'shell'] as const)(
+    '%s certifies a workbench whose creation outlived a stopped caller',
+    async (kind) => {
+      const sandboxId = `machine-${generateShortId(12)}`
+      const key = `stopped-create-${generateShortId(12)}`
+      trackHistoryKey(key, sandboxId)
+      mockCreate.mockClear()
+      const controller = new AbortController()
+      mockFindSessionSandbox.mockResolvedValueOnce(null)
+      mockCreate.mockImplementationOnce(async () => {
+        controller.abort(new Error('User Stop'))
+        return machine(sandboxId)
+      })
+      const request = {
+        code: 'print(1)',
+        language: CodeLanguage.Python,
+        timeoutMs: 30_000,
+        session: { key },
+      }
+
+      await expect(run(kind, { ...request, signal: controller.signal })).rejects.toThrow(
+        'User Stop'
+      )
+      expect(mockCreate).toHaveBeenCalledTimes(1)
+
+      mockFindSessionSandbox.mockResolvedValue(machine(sandboxId))
+      await expect(run(kind, request)).resolves.toMatchObject({ sandboxId })
+      expect(mockCreate).toHaveBeenCalledTimes(1)
+      expect(await isSessionFileProvenanceClean(key, { providerId: 'e2b', sandboxId })).toBe(true)
+    }
+  )
 })
