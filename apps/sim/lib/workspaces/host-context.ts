@@ -1,5 +1,6 @@
 import { cache } from 'react'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
+import { payerHasChatAccess } from '@/lib/billing/core/chat-access'
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 import { resolveDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
@@ -33,7 +34,7 @@ async function resolveWorkspaceHostContextForViewer(
       ? getOrganizationSettingsAccess(hostOrganizationId, userId)
       : Promise.resolve({ role: null, isMember: false, isAdmin: false }),
   ])
-  const [credentialGroupsAvailable, knowledgeAccess, organizationSearch] = await Promise.all([
+  const [credentialGroupsAvailable, knowledgeAccess, organizationSearch, chat] = await Promise.all([
     hostOrganizationId
       ? isScopedCredentialGroupsAvailable({
           kind: 'organization',
@@ -44,6 +45,12 @@ async function resolveWorkspaceHostContextForViewer(
     hostOrganizationId && hostOrganizationAccess.isMember
       ? isKnowledgeMemberAccessAvailable({ organizationId: hostOrganizationId })
       : Promise.resolve(false),
+    payerHasChatAccess({
+      billingEntity: ownerBilling.organizationId
+        ? { type: 'organization', id: ownerBilling.organizationId }
+        : { type: 'user', id: access.workspace.billedAccountUserId },
+      payerSubscription: { plan: ownerBilling.plan },
+    }),
   ])
 
   return {
@@ -67,6 +74,7 @@ async function resolveWorkspaceHostContextForViewer(
       organizationSearch,
       knowledgeMemberAccess: knowledgeAccess.memberScoped,
       knowledgeSourceMirroredAccess: knowledgeAccess.sourceMirrored,
+      chat,
     },
     deployment: resolveDeploymentShape(),
   }

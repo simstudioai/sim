@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
-import { formatUsageUpgradeTag, resolveUsageUpgradePayload } from '@/lib/billing/usage-upgrade'
+import {
+  CHAT_PLAN_REQUIRED_UPGRADE,
+  formatUsageUpgradeTag,
+  resolveUsageUpgradePayload,
+  type UsageUpgradeTagPayload,
+} from '@/lib/billing/usage-upgrade'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -31,6 +36,24 @@ export async function handleBillingLimitResponse(
   scope?: 'actor' | 'payer' | 'member'
 ): Promise<void> {
   const payload = await resolveUsageUpgradePayload(userId, execContext.billingAttribution, scope)
+  await endTurnWithUpgradeCard(payload, context, execContext, options)
+}
+
+/** Ends a free payer's turn at admission with the card offering a plan that includes Chat. */
+export async function handleChatPlanRequiredResponse(
+  context: StreamingContext,
+  execContext: ExecutionContext,
+  options: OrchestratorOptions
+): Promise<void> {
+  await endTurnWithUpgradeCard(CHAT_PLAN_REQUIRED_UPGRADE, context, execContext, options)
+}
+
+async function endTurnWithUpgradeCard(
+  payload: UsageUpgradeTagPayload,
+  context: StreamingContext,
+  execContext: ExecutionContext,
+  options: OrchestratorOptions
+): Promise<void> {
   const syntheticContent = formatUsageUpgradeTag(payload)
   // The card is this turn's terminal even when the refused leg follows one that already ended.
   context.streamComplete = false

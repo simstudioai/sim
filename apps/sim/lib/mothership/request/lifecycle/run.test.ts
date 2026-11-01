@@ -201,6 +201,7 @@ vi.mock('@/lib/billing/core/attribution', async (original) => ({
 
 vi.mock('@/lib/mothership/request/tools/billing', () => ({
   handleBillingLimitResponse: vi.fn(),
+  handleChatPlanRequiredResponse: vi.fn(),
 }))
 
 const mockRequestExplicitStreamAbort = vi.hoisted(() => vi.fn())
@@ -2310,6 +2311,17 @@ describe('runCopilotLifecycle', () => {
     expect(capturedExecContext?.userPermission).toBe('read')
   })
 
+  /** A paid organization payer, which the free-plan Chat gate admits. */
+  const paidOrganizationPayer = {
+    id: 'sub-org-1',
+    referenceId: 'org-1',
+    plan: 'team',
+    status: 'active',
+    seats: 2,
+    periodStart: null,
+    periodEnd: null,
+  }
+
   it.each([
     { workspaceId: 'ws-1', organizationId: undefined },
     { workspaceId: undefined, organizationId: 'org-1' },
@@ -2324,7 +2336,7 @@ describe('runCopilotLifecycle', () => {
         start: '2026-07-01T00:00:00.000Z',
         end: '2026-08-01T00:00:00.000Z',
       },
-      payerSubscription: null,
+      payerSubscription: paidOrganizationPayer,
     }
     setEnvFlags({ isHosted: true, isBillingEnabled: true })
     mockEnv.COPILOT_API_KEY = 'sim-agent-key'
@@ -2464,7 +2476,7 @@ describe('runCopilotLifecycle', () => {
         start: '2026-07-01T00:00:00.000Z',
         end: '2026-08-01T00:00:00.000Z',
       },
-      payerSubscription: null,
+      payerSubscription: paidOrganizationPayer,
     }
     setEnvFlags({ isHosted: true, isBillingEnabled: true })
     mockCheckAttributedUsageLimits.mockResolvedValue({
@@ -2517,7 +2529,7 @@ describe('runCopilotLifecycle', () => {
       billedAccountUserId: 'user-1',
       billingEntity: { type: 'organization' as const, id: 'org-1' },
       billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2099-01-01T00:00:00.000Z' },
-      payerSubscription: null,
+      payerSubscription: paidOrganizationPayer,
     }
     setEnvFlags({ isHosted: true, isBillingEnabled: true })
     resetUsageGateCache()
