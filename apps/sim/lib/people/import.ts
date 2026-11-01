@@ -56,10 +56,35 @@ function findColumn(headers: readonly string[], aliases: readonly string[]): str
   return undefined
 }
 
+const RECOGNIZED_KEYS = new Set<string>([
+  ...Object.values(COLUMN_ALIASES).flat(),
+  ...LOCATION_PARTS,
+])
+
+/** Two headers that spell the same recognized column differently (`Email`, `e-mail`), if any. */
+function repeatedColumn(headers: readonly string[]): [string, string] | null {
+  const seen = new Map<string, string>()
+  for (const header of headers) {
+    const key = headerKey(header)
+    if (!RECOGNIZED_KEYS.has(key)) continue
+    const earlier = seen.get(key)
+    if (earlier !== undefined) return [earlier, header]
+    seen.set(key, header)
+  }
+  return null
+}
+
 /** Which header holds each field, or why the file can't be imported. */
 export function matchPeopleColumns(
   headers: readonly string[]
 ): { ok: true; columns: PeopleColumns } | { ok: false; message: string } {
+  const repeated = repeatedColumn(headers)
+  if (repeated) {
+    return {
+      ok: false,
+      message: `The ${repeated[0]} and ${repeated[1]} columns name the same field; keep one`,
+    }
+  }
   const email = findColumn(headers, COLUMN_ALIASES.email)
   if (!email) {
     return { ok: false, message: 'Add an email column so each row can be matched to a member' }

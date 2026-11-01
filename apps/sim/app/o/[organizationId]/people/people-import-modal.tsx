@@ -47,6 +47,8 @@ async function readPeopleSheet(file: File): Promise<PeopleSheet> {
     type: 'array',
     raw: /\.(csv|tsv)$/i.test(file.name),
     dense: true,
+    // Keeps each cell's number format, which is how a date cell is told from a number.
+    cellNF: true,
   })
   const sheet = workbook.Sheets[workbook.SheetNames[0] ?? '']
   if (!sheet?.['!ref']) throw new Error('The file has no rows')
