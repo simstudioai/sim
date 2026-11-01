@@ -107,6 +107,13 @@ function isPitchbookUnauthorized(errorInfo?: ErrorInfo): boolean {
 
 const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
   {
+    id: 'companyenrich-errors',
+    description: 'CompanyEnrich status-only failures without account data or credential echoes',
+    explicitOnly: true,
+    extract: (errorInfo) => `CompanyEnrich request failed (HTTP ${errorInfo?.status ?? 'unknown'})`,
+    redactData: () => null,
+  },
+  {
     id: 'atlassian-errors',
     description:
       'Atlassian REST API error formats (errorMessage, errorMessages, errors[].title, message)',
@@ -706,6 +713,7 @@ export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string)
 }
 
 export const ErrorExtractorId = {
+  COMPANYENRICH: 'companyenrich-errors',
   ATLASSIAN_ERRORS: 'atlassian-errors',
   MICROSOFT_GRAPH_ERRORS: 'microsoft-graph-errors',
   GRAPHQL_ERRORS: 'graphql-errors',

@@ -46,6 +46,7 @@ import { CloudTrailBlock, CloudTrailBlockMeta } from '@/blocks/blocks/cloudtrail
 import { CloudWatchBlock, CloudWatchBlockMeta } from '@/blocks/blocks/cloudwatch'
 import { CodaBlock, CodaBlockMeta } from '@/blocks/blocks/coda'
 import { CodePipelineBlock, CodePipelineBlockMeta } from '@/blocks/blocks/codepipeline'
+import { CompanyEnrichBlock, CompanyEnrichBlockMeta } from '@/blocks/blocks/companyenrich'
 import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock, ConfluenceBlockMeta, ConfluenceV2Block } from '@/blocks/blocks/confluence'
 import { ContextDevBlock, ContextDevBlockMeta } from '@/blocks/blocks/context_dev'
@@ -449,6 +450,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   cloudwatch: CloudWatchBlock,
   coda: CodaBlock,
   codepipeline: CodePipelineBlock,
+  companyenrich: CompanyEnrichBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
   confluence_v2: ConfluenceV2Block,
@@ -829,6 +831,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   cloudwatch: CloudWatchBlockMeta,
   coda: CodaBlockMeta,
   codepipeline: CodePipelineBlockMeta,
+  companyenrich: CompanyEnrichBlockMeta,
   confluence: ConfluenceBlockMeta,
   context_dev: ContextDevBlockMeta,
   convex: ConvexBlockMeta,

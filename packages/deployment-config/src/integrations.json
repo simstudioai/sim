@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-28",
+  "updatedAt": "2026-10-31",
   "integrations": [
     {
       "type": "onepassword",
@@ -6527,6 +6527,78 @@
       "integrationType": "devops",
       "tags": ["cloud", "ci-cd"],
       "updatedAt": "2026-10-14"
+    },
+    {
+      "type": "companyenrich",
+      "slug": "companyenrich",
+      "name": "CompanyEnrich",
+      "description": "Enrich and discover companies and people",
+      "longDescription": "Enrich companies, search companies and people, look up profiles, retrieve workforce data, and count matches. Advanced Request exposes 42 documented data and job operations. Data requests can consume credits; each execution makes one request.",
+      "bgColor": "#1488CC",
+      "iconName": "CompanyEnrichIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/companyenrich",
+      "operations": [
+        {
+          "name": "Enrich Company",
+          "description": "Enrich Company with CompanyEnrich. One request per execution; data requests can consume credits."
+        },
+        {
+          "name": "Search Companies",
+          "description": "Search Companies with CompanyEnrich. One request per execution; data requests can consume credits."
+        },
+        {
+          "name": "Find Similar Companies",
+          "description": "Find Similar Companies with CompanyEnrich. One request per execution; data requests can consume credits."
+        },
+        {
+          "name": "Search People",
+          "description": "Search People with CompanyEnrich. One request per execution; data requests can consume credits."
+        },
+        {
+          "name": "Lookup Person",
+          "description": "Lookup Person with CompanyEnrich. One request per execution; data requests can consume credits."
+        },
+        {
+          "name": "Get Company Workforce",
+          "description": "Get Company Workforce with CompanyEnrich. One request per execution; data requests can consume credits."
+        },
+        {
+          "name": "Enrich by Properties",
+          "description": "Enrich by Properties with CompanyEnrich. One request per execution; data requests can consume credits."
+        },
+        {
+          "name": "Batch Enrich Companies",
+          "description": "Batch Enrich Companies with CompanyEnrich. One request per execution; data requests can consume credits."
+        },
+        {
+          "name": "Get Company",
+          "description": "Get Company with CompanyEnrich. One request per execution; data requests can consume credits."
+        },
+        {
+          "name": "Get Person",
+          "description": "Get Person with CompanyEnrich. One request per execution; data requests can consume credits."
+        },
+        {
+          "name": "Count Companies",
+          "description": "Count Companies with CompanyEnrich. One request per execution; data requests can consume credits."
+        },
+        {
+          "name": "Count Similar Companies",
+          "description": "Count Similar Companies with CompanyEnrich. One request per execution; data requests can consume credits."
+        },
+        {
+          "name": "Advanced Request",
+          "description": "Execute one of 42 allowlisted CompanyEnrich data, lookup or job operations. No retries, pagination, polling or result downloads. Email beta requires explicit opt-in; saved-list administration and account responses are excluded."
+        }
+      ],
+      "operationCount": 13,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"],
+      "updatedAt": "2026-10-31"
     },
     {
       "type": "confluence_v2",
