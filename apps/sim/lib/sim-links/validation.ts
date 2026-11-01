@@ -20,7 +20,7 @@ export function normalizeSimLinkName(name: string): string {
 }
 
 /** Text as typed after `sim/`, whether or not the prefix itself was typed too. */
-export function stripSimLinkPrefix(input: string): string {
+function stripSimLinkPrefix(input: string): string {
   return input.replace(/^sim\//i, '')
 }
 
@@ -53,6 +53,18 @@ export function parseTypedSimLink(segments: readonly string[]): {
   const name = typedName.trim()
   if (values.length) return { name, values }
   return { name: name.replace(PASTED_TRAILING_PUNCTUATION, '').trimEnd() || name, values }
+}
+
+/**
+ * The normalized name prefix to suggest links from, out of what was typed after the `sim`
+ * keyword: `sim/jira/ABC-1?x` suggests from `jira`, and nothing typed browses every link. `null`
+ * when a name was typed that no link can match, such as only punctuation.
+ */
+export function typedSimLinkPrefix(query: string): string | null {
+  const [path = ''] = stripSimLinkPrefix(query.trim()).split('?')
+  const { name } = parseTypedSimLink(path.split('/'))
+  const prefix = normalizeSimLinkName(name)
+  return name && !prefix ? null : prefix
 }
 
 export function isVariableSimLinkUrl(url: string): boolean {

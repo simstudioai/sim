@@ -20,11 +20,9 @@ import { requireSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import type { SimLinkAccess, SimLinkRecord, SimLinkViewer } from '@/lib/sim-links/repository'
 import * as repository from '@/lib/sim-links/repository'
 import {
-  normalizeSimLinkName,
-  parseTypedSimLink,
   type SimLinkFields,
   type SimLinkSort,
-  stripSimLinkPrefix,
+  typedSimLinkPrefix,
 } from '@/lib/sim-links/validation'
 import type { SortDirection } from '@/lib/url-state'
 
@@ -255,12 +253,6 @@ export const resolveSimLink = defineAuthorizedOrganizationUseCase({
   },
 })
 
-/** The name in what was typed after the `sim` keyword: `sim/jira/ABC-1?x` suggests from `jira`. */
-function typedNamePrefix(query: string): string {
-  const [path = ''] = stripSimLinkPrefix(query.trim()).split('?')
-  return normalizeSimLinkName(parseTypedSimLink(path.split('/')).name)
-}
-
 /**
  * Address-bar suggestions from the organization `sim/` opens in for this session, so every
  * suggestion resolves where it is followed. Nothing is suggested where Sim links are off.
@@ -269,7 +261,8 @@ export const suggestSimLinks = defineAuthorizedCredentialUserUseCase({
   operation: simLinkOperations.suggest,
   async execute({ principal, input }: { principal: SessionPrincipal; input: { query: string } }) {
     const organizationId = await resolveSimLinkOrganization(principal)
-    if (!organizationId) return []
-    return repository.suggestSimLinks(organizationId, typedNamePrefix(input.query))
+    const prefix = typedSimLinkPrefix(input.query)
+    if (!organizationId || prefix === null) return []
+    return repository.suggestSimLinks(organizationId, prefix)
   },
 })

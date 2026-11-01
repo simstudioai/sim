@@ -53,9 +53,16 @@ function escapeXml(text: string): string {
     .replace(/[&<>"']/g, (character) => `&#${character.charCodeAt(0)};`)
 }
 
-/** `encodeURIComponent`, except a lone surrogate (which it refuses) is dropped. */
+/**
+ * A typed value encoded for the path as the address bar would send it: raw characters are
+ * escaped, an escape already typed (`a%2Fb`) is kept rather than escaped again, and a lone
+ * surrogate (which `encodeURIComponent` refuses) is dropped.
+ */
 function encodeSegment(segment: string): string {
-  return encodeURIComponent(segment.replace(LONE_SURROGATE, ''))
+  return encodeURIComponent(segment.replace(LONE_SURROGATE, '')).replace(
+    /%25([0-9A-Fa-f]{2})/g,
+    '%$1'
+  )
 }
 
 /**

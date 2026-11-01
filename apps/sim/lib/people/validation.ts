@@ -2,9 +2,12 @@ import { z } from 'zod'
 
 export const PROFILE_TEXT_MAX_LENGTH = 200
 
-/** A date, optionally with a time of day and offset, which are dropped. */
+/**
+ * A date with one separator throughout, optionally followed by a real time of day and offset,
+ * which are checked and then dropped.
+ */
 const ISO_DATE =
-  /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/
+  /^(\d{4})([-/])(\d{1,2})\2(\d{1,2})(?:[T ](?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|[+-](?:[01]\d|2[0-3]):?[0-5]\d)?)?$/
 const US_DATE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
 
 function calendarDate(year: number, month: number, day: number): string | null {
@@ -22,7 +25,7 @@ function calendarDate(year: number, month: number, day: number): string | null {
  */
 export function parseStartDate(value: string): string | null {
   const iso = ISO_DATE.exec(value.trim())
-  if (iso) return calendarDate(Number(iso[1]), Number(iso[2]), Number(iso[3]))
+  if (iso) return calendarDate(Number(iso[1]), Number(iso[3]), Number(iso[4]))
   const us = US_DATE.exec(value.trim())
   if (us) return calendarDate(Number(us[3]), Number(us[1]), Number(us[2]))
   return null

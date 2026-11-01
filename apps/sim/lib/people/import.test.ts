@@ -65,6 +65,13 @@ describe('matchPeopleColumns', () => {
     })
   })
 
+  it('refuses two columns that name the same field, rather than ignoring one', () => {
+    expect(matchPeopleColumns(['Email', 'e-mail', 'Title'])).toEqual({
+      ok: false,
+      message: 'The Email and e-mail columns name the same field; keep one',
+    })
+  })
+
   it('refuses a file without an email column, which is how people are matched', () => {
     expect(matchPeopleColumns(['name', 'title'])).toEqual({
       ok: false,
@@ -215,6 +222,7 @@ describe('planPeopleImport', () => {
     ['2021/3/4', '2021-03-04'],
     ['3/4/2021', '2021-03-04'],
     ['2021-03-04T09:00:00Z', '2021-03-04'],
+    ['2021-03-04T09:00:00.123+02:00', '2021-03-04'],
     ['2021-03-04 09:00', '2021-03-04'],
   ])('reads the start date %s', (value, startDate) => {
     const result = plan(
@@ -224,22 +232,30 @@ describe('planPeopleImport', () => {
     expect(result.changes).toEqual([{ memberId: 'm-ada', profile: profile({ startDate }) }])
   })
 
-  it.each(['2021-02-30', '13/45/2021', '04.03.2021', 'March 4', '1/2/21', '2021-03-04Tsoon'])(
-    'skips the row with the unreadable start date %s instead of guessing',
-    (value) => {
-      const result = plan(
-        ['email', 'start date'],
-        [{ email: 'ada@example.com', 'start date': value }]
-      )
-      expect(result.changes).toEqual([])
-      expect(result.issues).toEqual([
-        expect.objectContaining({
-          severity: 'skipped',
-          message: 'Use a start date like 2024-01-31 or 1/31/2024',
-        }),
-      ])
-    }
-  )
+  it.each([
+    '2021-02-30',
+    '13/45/2021',
+    '04.03.2021',
+    'March 4',
+    '1/2/21',
+    '2021-03-04Tsoon',
+    '2021-03-04T99:99',
+    '2021-03-04T24:00',
+    '2021-03-04T09:00+99:99',
+    '2021-03/04',
+  ])('skips the row with the unreadable start date %s instead of guessing', (value) => {
+    const result = plan(
+      ['email', 'start date'],
+      [{ email: 'ada@example.com', 'start date': value }]
+    )
+    expect(result.changes).toEqual([])
+    expect(result.issues).toEqual([
+      expect.objectContaining({
+        severity: 'skipped',
+        message: 'Use a start date like 2024-01-31 or 1/31/2024',
+      }),
+    ])
+  })
 
   it('leaves the manager as it was when the manager is not a member, and says so', () => {
     const result = plan(

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { resolveSimLinkTarget } from '@/lib/sim-links/destination'
-import { parseTypedSimLink, simLinkFieldsSchema } from '@/lib/sim-links/validation'
+import {
+  parseTypedSimLink,
+  simLinkFieldsSchema,
+  typedSimLinkPrefix,
+} from '@/lib/sim-links/validation'
 
 const fields = {
   name: 'docs',
@@ -160,6 +164,19 @@ describe('Sim link destinations', () => {
     ['https://ex.com/p', [], null, '', 'https://ex.com/p'],
   ])('carries the typed query to %s', (url, values, defaultUrl, query, expected) => {
     expect(redirectUrl(url, values, defaultUrl, query)).toBe(expected)
+  })
+})
+
+describe('typedSimLinkPrefix', () => {
+  it.each([
+    ['', ''],
+    ['sim/Team-Docs/ABC-1?x=1', 'teamdocs'],
+  ])('reads the name prefix of %j', (typed, prefix) => {
+    expect(typedSimLinkPrefix(typed)).toBe(prefix)
+  })
+
+  it.each(['...', '--', '.:-'])('has no prefix for %j, which no link name can match', (typed) => {
+    expect(typedSimLinkPrefix(typed)).toBeNull()
   })
 })
 
