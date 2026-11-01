@@ -11,7 +11,7 @@ import {
 } from '@/lib/mothership/resources/types'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import { getFileExtension } from '@/lib/uploads/utils/file'
-import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-content-type'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
   isCsvStreamOnly,

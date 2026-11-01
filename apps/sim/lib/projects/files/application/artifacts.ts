@@ -56,11 +56,8 @@ import {
   textExtractionUnsupportedError,
 } from '@/lib/workspace-files/application/read-workspace-file-text'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
-import {
-  isSimPageSource,
-  ProjectPageForeignEmbedError,
-  SIM_PAGE_CONTENT_TYPE,
-} from '@/lib/workspace-files/page-compile'
+import { isSimPageSource, ProjectPageForeignEmbedError } from '@/lib/workspace-files/page-compile'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-content-type'
 import { renderSimPageDocument } from '@/lib/workspace-files/page-document'
 import {
   collectSimPageFileReferences,

@@ -30,18 +30,16 @@ import {
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { resolveStoredFileContext } from '@/lib/uploads/server/metadata'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import {
-  inferContextFromKey,
-  needsRenderedArtifact,
-  resolveEffectiveMimeType,
-} from '@/lib/uploads/utils/file'
+import { inferContextFromKey, resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 import { finishFileDelivery } from '@/lib/workspace-files/application/finish-file-delivery'
 import { readWorkspaceFileRecordByKey } from '@/lib/workspace-files/application/read-workspace-file-record-by-key'
 import { streamAuthorizedWorkspaceFile } from '@/lib/workspace-files/application/stream-authorized-workspace-file'
-import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { isSimPageSource } from '@/lib/workspace-files/page-compile'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-content-type'
 import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
+import { servesStoredBytes } from '@/lib/workspace-files/stored-bytes'
 import { type KnowledgeFileAccess, verifyFileAccess } from '@/app/api/files/authorization'
 import {
   createConditionalFileResponse,
@@ -203,10 +201,10 @@ async function resolveTransformedBytes(params: {
  * Whether a request is answered with the stored object byte-for-byte, so its bytes can stream from
  * storage instead of being read whole and capped at the transfer ceiling.
  *
- * Every other answer is produced from the bytes and stays buffered: a Sim page renders, a generated
- * document compiles, and a `preview` may be a HEIC transcode — sniffed from the content, so no name
- * or type rules it out. What streams is exactly what {@link resolveServableBytes} and the
- * workspace resolver would have passed through unchanged.
+ * Every other answer is produced from the bytes and stays buffered: see {@link servesStoredBytes},
+ * plus a `preview`, which may be a HEIC transcode — sniffed from the content, so no name or type
+ * rules it out. What streams is exactly what {@link resolveServableBytes} and the workspace
+ * resolver would have passed through unchanged.
  */
 function servesStoredObject(
   filename: string,
@@ -215,12 +213,7 @@ function servesStoredObject(
 ): boolean {
   if (options.raw) return true
   if (options.preview) return false
-  if (recordedType === SIM_PAGE_CONTENT_TYPE || filename.toLowerCase().endsWith('.html')) {
-    return false
-  }
-  // A recorded type tells a finished upload from a generation source; without one, every
-  // document name may be a source.
-  return !needsRenderedArtifact(recordedType, filename)
+  return servesStoredBytes(recordedType, filename)
 }
 
 /**

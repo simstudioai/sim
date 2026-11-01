@@ -161,7 +161,7 @@ import {
   resolveFileOwner,
 } from '@/lib/workspace-files/ownership'
 import { fileFolderOwnerCondition, fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
-import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-content-type'
 import {
   MAX_SIM_PAGE_UPLOAD_SNIFF_BYTES,
   restoreSimPageSourceBuffer,

@@ -169,11 +169,18 @@ describe('large file downloads', () => {
     expect(createObjectURL).toHaveBeenCalledOnce()
   })
 
-  it('keeps fetching a large generated document, which must compile before it can be served', async () => {
-    await triggerFileDownload({ ...video, name: 'report.pdf', type: 'text/x-pdflibjs' })
+  it.each([
+    ['a generated document', { name: 'report.pdf', type: 'text/x-pdflibjs' }],
+    ['a page recorded as one', { name: 'guide', type: 'text/x-sim-page' }],
+    ['an .html page', { name: 'guide.html', type: 'text/html' }],
+  ])(
+    'keeps fetching %s, which the server renders before it can be served',
+    async (_label, kind) => {
+      await triggerFileDownload({ ...video, ...kind })
 
-    expect(fetchMock).toHaveBeenCalledOnce()
-    expect(fetchMock.mock.calls[0]?.[1]).not.toHaveProperty('headers')
-    expect(createObjectURL).toHaveBeenCalledOnce()
-  })
+      expect(fetchMock).toHaveBeenCalledOnce()
+      expect(fetchMock.mock.calls[0]?.[1]).not.toHaveProperty('headers')
+      expect(createObjectURL).toHaveBeenCalledOnce()
+    }
+  )
 })
