@@ -39,8 +39,10 @@ export async function readPeopleSheet(file: File): Promise<PeopleSheet> {
     const cell = grid[row]?.[column]
     if (!cell || cell.v === undefined || cell.v === null) return ''
     if (cell.t === 'n' && XLSX.SSF.is_date(cell.z ?? '')) {
+      // A serial outside Excel's calendar has no date; its text goes on for the server to refuse.
       const date = XLSX.SSF.parse_date_code(Number(cell.v), dateSystem)
-      return `${date.y}-${String(date.m).padStart(2, '0')}-${String(date.d).padStart(2, '0')}`
+      if (date)
+        return `${date.y}-${String(date.m).padStart(2, '0')}-${String(date.d).padStart(2, '0')}`
     }
     return String(cell.w ?? cell.v).trim()
   }

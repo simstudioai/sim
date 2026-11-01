@@ -50,6 +50,17 @@ describe('readPeopleSheet', () => {
     expect(sheet.rows).toEqual([['ada@example.com', '2024-01-31']])
   })
 
+  it('passes an out-of-range date serial through as text for the server to refuse', async () => {
+    const sheet = await readPeopleSheet(
+      workbookFile([
+        ['email', 'start date'],
+        ['ada@example.com', -5],
+      ])
+    )
+    expect(sheet.rows[0]?.[0]).toBe('ada@example.com')
+    expect(sheet.rows[0]?.[1]).not.toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+
   it('keeps blank rows in place so issue row numbers match the sheet', async () => {
     const sheet = await readPeopleSheet(
       workbookFile([
