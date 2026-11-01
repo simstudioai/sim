@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { existsSync, mkdtempSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -39,8 +39,11 @@ import {
   createProjectFile,
   updateProjectFileContent,
 } from '@/lib/projects/files/application/content'
+import type { readPublicFileShareContent } from '@/lib/public-shares/application'
 import * as shareManager from '@/lib/public-shares/manager'
 import * as storage from '@/lib/uploads/core/storage-service'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
+import { sanitizeFileKey } from '@/lib/uploads/utils/file'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
@@ -127,6 +130,16 @@ async function fixture() {
   const ids = { ownerId, editorId, organizationId, workspaceId, projectId: binding.projectId }
   fixtures.push(ids)
   return { ...ids, principal: createSessionPrincipal({ userId: editorId }) }
+}
+
+type PublicShareContent = Awaited<ReturnType<typeof readPublicFileShareContent>>
+
+/** The bytes a public read delivers, whether streamed from storage or built whole. */
+async function sharedBytes(read: PublicShareContent | Promise<PublicShareContent>) {
+  const result = await read
+  return result.kind === 'stream'
+    ? Buffer.from(await new Response(await result.open(undefined)).arrayBuffer())
+    : result.buffer
 }
 
 function createInput(projectId: string, content = 'Project architecture') {
@@ -410,9 +423,9 @@ describe('Public file shares against PostgreSQL and private storage', () => {
         credential: { method: 'POST', password: 'correct-password' },
       })
       if (!accepted.authorized) throw new Error('Correct share password rejected')
-      expect((await readPublicFileShareContent({ grant: accepted.grant })).buffer.toString()).toBe(
-        'Shared architecture'
-      )
+      expect(
+        (await sharedBytes(readPublicFileShareContent({ grant: accepted.grant }))).toString()
+      ).toBe('Shared architecture')
       const [passwordShare] = await db
         .select()
         .from(publicShare)
@@ -654,6 +667,74 @@ describe('Public file shares against PostgreSQL and private storage', () => {
   )
 
   check(
+    'public share streams stored bytes past the buffered ceiling and refuses once the share is disabled',
+    async () => {
+      const { updateProjectFileShare } = await import('@/lib/projects/files/application/shares')
+      const { authorizePublicFileShare, readPublicFileShareContent } = await import(
+        '@/lib/public-shares/application'
+      )
+      const f = await fixture()
+      const share = async (name: string, contentType: string) => {
+        const { file } = await createProjectFile.execute({
+          principal: f.principal,
+          input: { ...createInput(f.projectId, 'placeholder'), name, contentType },
+        })
+        const { share } = await updateProjectFileShare.execute({
+          principal: f.principal,
+          input: { projectId: f.projectId, fileId: file.id, isActive: true },
+        })
+        const access = await authorizePublicFileShare({
+          token: share.token,
+          credential: { method: 'GET' },
+        })
+        if (!access.authorized) throw new Error(`Public ${name} fixture rejected`)
+        return { file, grant: access.grant }
+      }
+
+      const recording = await share('recording.mp4', 'video/mp4')
+      const size = MAX_BUFFERED_TRANSFER_BYTES + 1024
+      const bytes = Buffer.alloc(size)
+      bytes.write('tail', size - 4)
+      const [row] = await db
+        .select()
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.id, recording.file.id))
+      const objectPath = join(localStorageRoot, sanitizeFileKey(row.key))
+      expect(existsSync(objectPath)).toBe(true)
+      await writeFile(objectPath, bytes)
+      await db
+        .update(workspaceFiles)
+        .set({ sizeBytes: size })
+        .where(eq(workspaceFiles.id, recording.file.id))
+
+      const stored = await readPublicFileShareContent({ grant: recording.grant })
+      if (stored.kind !== 'stream') throw new Error('A stored recording was buffered')
+      expect(stored.size).toBe(size)
+      const whole = Buffer.from(await new Response(await stored.open(undefined)).arrayBuffer())
+      expect(whole.length).toBe(size)
+      expect(whole.subarray(size - 4).toString()).toBe('tail')
+      const span = await stored.open({ start: size - 4, end: size - 1 })
+      expect(Buffer.from(await new Response(span).arrayBuffer()).toString()).toBe('tail')
+
+      await updateProjectFileShare.execute({
+        principal: f.principal,
+        input: { projectId: f.projectId, fileId: recording.file.id, isActive: false },
+      })
+      await expect(stored.open({ start: 0, end: 3 })).rejects.toMatchObject({ code: 'not_found' })
+
+      const page = await share('notes.html', 'text/html')
+      expect(await readPublicFileShareContent({ grant: page.grant })).toMatchObject({
+        kind: 'buffer',
+      })
+      // A generation source is compiled, never streamed: with no cached artifact it refuses.
+      const source = await share('report.pptx', 'text/x-pptxgenjs')
+      await expect(readPublicFileShareContent({ grant: source.grant })).rejects.toMatchObject({
+        code: 'conflict',
+      })
+    }
+  )
+
+  check(
     'public share Office artifacts require the current owner-qualified dependency cache without compilation',
     async () => {
       const { updateProjectFileShare } = await import('@/lib/projects/files/application/shares')
@@ -693,7 +774,7 @@ describe('Public file shares against PostgreSQL and private storage', () => {
         principal: f.principal,
         input: { projectId: f.projectId, fileId: source.file.id, maxBytes: 1024 },
       })
-      expect((await readPublicFileShareContent({ grant: access.grant })).buffer).toEqual(
+      expect(await sharedBytes(readPublicFileShareContent({ grant: access.grant }))).toEqual(
         rendered.buffer
       )
       await updateProjectFileContent.execute({
@@ -719,31 +800,38 @@ describe('Public file shares against PostgreSQL and private storage', () => {
         '@/lib/public-shares/application'
       )
       const { encryptSecret } = await import('@/lib/core/security/encryption')
-      for (const change of ['disabled', 'password', 'archived', 'provenance'] as const) {
-        const f = await fixture()
-        const { file } = await createProjectFile.execute({
-          principal: f.principal,
-          input: createInput(f.projectId),
-        })
-        const { share } = await updateProjectFileShare.execute({
-          principal: f.principal,
-          input: {
-            projectId: f.projectId,
-            fileId: file.id,
-            isActive: true,
-            authType: 'password',
-            password: 'initial-password',
-          },
-        })
-        const access = await authorizePublicFileShare({
-          token: share.token,
-          credential: { method: 'POST', password: 'initial-password' },
-        })
-        if (!access.authorized) throw new Error('Initial credential rejected')
-        const download = storage.downloadFile
-        const spy = vi.spyOn(storage, 'downloadFile').mockImplementation(async (options) => {
-          const result = await download(options)
-          if (options.key === file.key) {
+      // A Markdown file streams from storage; a page is rendered whole. Both reads must refuse.
+      const shared = {
+        streamed: (projectId: string) => createInput(projectId),
+        rendered: (projectId: string) => ({
+          ...createInput(projectId, '---\ntitle: Architecture\n---\n\nShared page'),
+          name: 'Architecture',
+          contentType: 'text/x-sim-page',
+        }),
+      }
+      for (const [read, input] of Object.entries(shared))
+        for (const change of ['disabled', 'password', 'archived', 'provenance'] as const) {
+          const f = await fixture()
+          const { file } = await createProjectFile.execute({
+            principal: f.principal,
+            input: input(f.projectId),
+          })
+          const { share } = await updateProjectFileShare.execute({
+            principal: f.principal,
+            input: {
+              projectId: f.projectId,
+              fileId: file.id,
+              isActive: true,
+              authType: 'password',
+              password: 'initial-password',
+            },
+          })
+          const access = await authorizePublicFileShare({
+            token: share.token,
+            credential: { method: 'POST', password: 'initial-password' },
+          })
+          if (!access.authorized) throw new Error('Initial credential rejected')
+          const applyChange = async () => {
             if (change === 'disabled')
               await db
                 .update(publicShare)
@@ -765,13 +853,30 @@ describe('Public file shares against PostgreSQL and private storage', () => {
                 .set({ deletedAt: new Date() })
                 .where(eq(workspaceFiles.id, file.id))
           }
-          return result
-        })
-        await expect(readPublicFileShareContent({ grant: access.grant })).rejects.toMatchObject({
-          code: change === 'provenance' ? 'forbidden' : 'not_found',
-        })
-        spy.mockRestore()
-      }
+          // The change lands while the object is being read, buffered or streamed alike.
+          const download = storage.downloadFile
+          const downloadStream = storage.downloadFileStream
+          const spies = [
+            vi.spyOn(storage, 'downloadFile').mockImplementation(async (options) => {
+              const result = await download(options)
+              if (options.key === file.key) await applyChange()
+              return result
+            }),
+            vi.spyOn(storage, 'downloadFileStream').mockImplementation(async (options) => {
+              const result = await downloadStream(options)
+              if (options.key === file.key) await applyChange()
+              return result
+            }),
+          ]
+          const delivered = readPublicFileShareContent({ grant: access.grant })
+          await expect(sharedBytes(delivered)).rejects.toMatchObject({
+            code: change === 'provenance' ? 'forbidden' : 'not_found',
+          })
+          // Each fixture took the path it names: the stream refuses on open, the page as it renders.
+          if (read === 'streamed') expect(await delivered).toMatchObject({ kind: 'stream' })
+          else await expect(delivered).rejects.toBeDefined()
+          for (const spy of spies) spy.mockRestore()
+        }
     }
   )
 
@@ -836,7 +941,7 @@ describe('Public file shares against PostgreSQL and private storage', () => {
       })
       if (!legacyAccess.authorized) throw new Error('Existing workspace share rejected')
       expect(
-        (await readPublicFileShareContent({ grant: legacyAccess.grant })).buffer.toString()
+        (await sharedBytes(readPublicFileShareContent({ grant: legacyAccess.grant }))).toString()
       ).toBe('Workspace link')
     }
   )
@@ -892,7 +997,7 @@ describe('Public file shares against PostgreSQL and private storage', () => {
       if (!access.authorized) throw new Error('Public page rejected')
       const rendered = await readPublicFileShareContent({ grant: access.grant })
       expect(rendered.contentType).toBe('text/html')
-      expect(rendered.buffer.toString()).toContain(
+      expect((await sharedBytes(rendered)).toString()).toContain(
         `data:image/png;base64,${image.toString('base64')}`
       )
       expect(

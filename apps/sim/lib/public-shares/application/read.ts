@@ -7,6 +7,7 @@ import {
   OrchestrationError,
   type OrchestrationRequestContext,
 } from '@/lib/core/orchestration/types'
+import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { DbTransaction } from '@/lib/db/types'
 import {
@@ -23,16 +24,17 @@ import {
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
-import { downloadFile, headObject } from '@/lib/uploads/core/storage-service'
+import { downloadFile, downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
 import {
   collectReferencedFileIds,
   getDocumentSourceLanguage,
   getE2BDocFormat,
   isCompiledDocumentBuffer,
 } from '@/lib/uploads/documents/compile'
+import { storedObjectEtag } from '@/lib/uploads/server/delivery'
 import { hasEmbeddedFileRef } from '@/lib/uploads/server/embedded-image-refs'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
-import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
+import { type ByteRange, MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import { sniffImageContentType } from '@/lib/uploads/utils/validation'
 import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
@@ -44,6 +46,7 @@ import {
   collectSimPageFileReferences,
   inlineSimPageImages,
 } from '@/lib/workspace-files/page-document.server'
+import { servesStoredBytes } from '@/lib/workspace-files/stored-bytes'
 
 interface PublicReadInput {
   grant: VerifiedPublicFileShareGrant
@@ -127,6 +130,42 @@ async function dependencies(
   await admitPublicFiles(tx, rows)
   return rows
 }
+/** Audits one anonymous delivery of a shared file, or of a document input it embedded. */
+function recordPublicShareDownload(input: {
+  workspaceId: string | null
+  organizationId: string | null
+  owner: PublicFileShareSnapshot['owner']
+  sharedFile: WorkspaceFileRow
+  servedFile: WorkspaceFileRow
+  operation: PublicFileReadOperation
+  bytes: number
+  /** The inclusive span a ranged response carried; absent for the whole file. */
+  range?: ByteRange
+  request?: OrchestrationRequestContext
+}) {
+  const { servedFile } = input
+  recordAudit({
+    actorId: null,
+    workspaceId: input.workspaceId,
+    action: AuditAction.FILE_DOWNLOADED,
+    resourceType: AuditResourceType.FILE,
+    resourceId: servedFile.id,
+    resourceName: servedFile.originalName,
+    description: `Public share download of "${servedFile.originalName}"`,
+    request: input.request,
+    metadata: {
+      organizationId: input.organizationId,
+      operation: input.operation.id,
+      sharedDocumentId: input.sharedFile.id,
+      sharedByUserId: input.sharedFile.userId,
+      access: 'public_share',
+      anonymous: true,
+      owner: input.owner,
+      bytes: input.bytes,
+      ...(input.range ? { range: `${input.range.start}-${input.range.end}` } : {}),
+    },
+  })
+}
 async function finish(
   grant: VerifiedPublicFileShareGrant,
   manifest: PublicManifest,
@@ -165,25 +204,15 @@ async function finish(
     }
   })
   await reportWorkspaceFileDelivery(result.secretProvenance, servedFile.id)
-  recordAudit({
-    actorId: null,
+  recordPublicShareDownload({
     workspaceId: manifest.snapshot.workspaceId,
-    action: AuditAction.FILE_DOWNLOADED,
-    resourceType: AuditResourceType.FILE,
-    resourceId: servedFile.id,
-    resourceName: servedFile.originalName,
-    description: `Public share download of "${servedFile.originalName}"`,
+    organizationId: result.organizationId,
+    owner: result.owner,
+    sharedFile: manifest.snapshot.file,
+    servedFile,
+    operation,
+    bytes: buffer.length,
     request,
-    metadata: {
-      organizationId: result.organizationId,
-      operation: operation.id,
-      sharedDocumentId: result.file.id,
-      sharedByUserId: manifest.snapshot.file.userId,
-      access: 'public_share',
-      anonymous: true,
-      owner: result.owner,
-      bytes: buffer.length,
-    },
   })
   return result
 }
@@ -207,8 +236,10 @@ export async function checkPublicFileShareContent(
     })
     const stored = await headObject(initial.file.key, initial.adapter.storageContext)
     if (!stored) throw new OrchestrationError('not_found', 'File not found')
-    assertKnownSizeWithinLimit(stored.size, MAX_BUFFERED_TRANSFER_BYTES, 'File')
-    const format = await getE2BDocFormat(initial.file.originalName)
+    // Stored bytes stream at any size; only a representation built from them is held whole.
+    const streamed = servesStoredBytes(initial.file.contentType, initial.file.originalName)
+    if (!streamed) assertKnownSizeWithinLimit(stored.size, MAX_BUFFERED_TRANSFER_BYTES, 'File')
+    const format = streamed ? null : await getE2BDocFormat(initial.file.originalName)
     let inputs: WorkspaceFileRow[] = []
     if (format) {
       const source = await downloadFile({
@@ -264,7 +295,75 @@ export async function checkPublicFileShareContent(
   }
 }
 
-/** A public read never executes generated document code; it serves current cached artifacts only. */
+/**
+ * A shared file served as its stored bytes, read from storage only as far as a response needs:
+ * the whole object, or one inclusive span. The bytes are never held, so a file of any size is
+ * served and a byte range is read on its own. Storage is asked for the object first, so a missing
+ * object is refused before any header is sent, and every length is measured against the object.
+ *
+ * `open` rechecks the grant, the revision, and the file's provenance once storage has opened and
+ * before the stream is handed out, as a buffered read does after rendering. Each delivered
+ * response is reported and audited, with the span it carried.
+ */
+async function streamSharedFile(
+  grant: VerifiedPublicFileShareGrant,
+  initial: PublicFileShareSnapshot,
+  operation: PublicFileReadOperation,
+  request?: OrchestrationRequestContext
+) {
+  const { file } = initial
+  const context = initial.adapter.storageContext
+  const stored = await headObject(file.key, context)
+  if (!stored) throw new OrchestrationError('not_found', 'File not found')
+  const { size } = stored
+  return {
+    kind: 'stream' as const,
+    filename: file.originalName,
+    contentType: resolveEffectiveMimeType(undefined, file.originalName),
+    size,
+    /** A content write uploads under a fresh key and stamps `contentUpdatedAt`. */
+    etag: storedObjectEtag([file.key, size, file.contentUpdatedAt.getTime(), stored.version ?? '']),
+    async open(range: ByteRange | undefined): Promise<ReadableStream<Uint8Array>> {
+      const stream = nodeReadableToWebStream(
+        await downloadFileStream({ key: file.key, context, range })
+      )
+      try {
+        const provenance = await withPublicFileShareGrant(
+          grant,
+          operation,
+          async (tx, snapshot) => {
+            requireRevision(snapshot.file, file)
+            return admitPublicFiles(tx, [snapshot.file])
+          }
+        )
+        await reportWorkspaceFileDelivery(provenance, file.id)
+      } catch (error) {
+        await stream.cancel(error).catch(() => undefined)
+        throw asOrchestrationError(error) ?? error
+      }
+      recordPublicShareDownload({
+        workspaceId: initial.workspaceId,
+        organizationId: initial.organizationId,
+        owner: initial.owner,
+        sharedFile: file,
+        servedFile: file,
+        operation,
+        bytes: range ? range.end - range.start + 1 : size,
+        range,
+        request,
+      })
+      return stream
+    },
+  }
+}
+
+/**
+ * Reads a shared file for delivery. A file served as its stored bytes comes back as a stream of any
+ * size (see {@link servesStoredBytes}); a page or generated document is rendered, and a `preview`
+ * may be a HEIC transcode sniffed from the bytes, so those are built whole under the buffered
+ * ceiling. A public read never executes generated document code; it serves current cached
+ * artifacts only.
+ */
 export async function readPublicFileShareContent({
   grant,
   preview,
@@ -276,6 +375,9 @@ export async function readPublicFileShareContent({
       await admitPublicFiles(tx, [snapshot.file])
       return snapshot
     })
+    if (!preview && servesStoredBytes(initial.file.contentType, initial.file.originalName)) {
+      return await streamSharedFile(grant, initial, operation, request)
+    }
     const raw = await downloadFile({
       key: initial.file.key,
       context: initial.adapter.storageContext,
@@ -361,7 +463,10 @@ export async function readPublicFileShareContent({
       const image = await resolveServableImageBytes(raw, initial.file.key, { owner: initial.owner })
       if (image) ({ buffer, contentType } = image)
     }
-    return await finish(grant, manifest, operation, buffer, contentType, request)
+    return {
+      kind: 'buffer' as const,
+      ...(await finish(grant, manifest, operation, buffer, contentType, request)),
+    }
   } catch (error) {
     throw asOrchestrationError(error) ?? error
   }
