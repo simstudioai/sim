@@ -51,7 +51,7 @@ interface UseContinueSignInProps {
 export function useContinueSignIn({ scopeId, pageUrl }: UseContinueSignInProps) {
   const supported = supportsContinueSignIn()
   const { data: profiles = [] } = useBrowserImportProfiles(supported)
-  const { data: pendingData = null } = usePendingSignIn(scopeId, supported)
+  const { data: pendingData = null, isSuccess: pendingKnown } = usePendingSignIn(scopeId, supported)
   const pending = supported ? pendingData : null
   const { mutateAsync: startHandoff, isPending: starting } = useStartSignInHandoff(scopeId)
   const { mutateAsync: importBack, isPending: importing } = useBringSignInBack(scopeId)
@@ -64,8 +64,13 @@ export function useContinueSignIn({ scopeId, pageUrl }: UseContinueSignInProps) 
   // also support, so cached profiles alone must not reveal this feature.
   const canContinue = supported && profiles.length > 0 && page !== null
   const hintHost = page ? signInHintHost(page) : null
+  // Until the shell answers, an existing handoff may be pending; the hint's Continue would replace it.
   const hintVisible =
-    canContinue && pending === null && hintHost !== null && !dismissedHintHosts.has(hintHost)
+    canContinue &&
+    pendingKnown &&
+    pending === null &&
+    hintHost !== null &&
+    !dismissedHintHosts.has(hintHost)
 
   const continueIn = useCallback(
     async (profile: BrowserImportProfile) => {

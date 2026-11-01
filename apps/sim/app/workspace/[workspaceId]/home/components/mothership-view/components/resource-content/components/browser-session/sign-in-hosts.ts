@@ -27,13 +27,15 @@ const SIGN_IN_HOSTS: readonly SignInHost[] = [
 ]
 
 /**
- * The page as a URL when another browser can continue it: https, and not one of
- * Sim's own pages on `appOrigin`, which the shell refuses to hand off.
+ * The page as a URL when another browser can continue it: https without embedded
+ * credentials, and not one of Sim's own pages on `appOrigin`, all of which the
+ * shell refuses to hand off.
  */
 export function continuablePage(url: string | undefined, appOrigin: string): URL | null {
   if (!url) return null
   try {
     const parsed = new URL(url)
+    if (parsed.username || parsed.password) return null
     return parsed.protocol === 'https:' && parsed.origin !== appOrigin ? parsed : null
   } catch {
     return null

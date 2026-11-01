@@ -37,7 +37,11 @@ import {
   isResourceTabSelectionShortcut,
   resourceTabTargetIndex,
 } from '@/main/resource-shortcuts'
-import { readForegroundProcessGroup, signalProcessGroup } from '@/main/terminal/process-group'
+import {
+  type ForegroundProcessGroup,
+  readForegroundProcessGroup,
+  signalProcessGroup,
+} from '@/main/terminal/process-group'
 import type { RunLedger } from '@/main/terminal/run-ledger'
 import { elide, type ShellStartupBounds, TerminalSession } from '@/main/terminal/session'
 import {
@@ -167,13 +171,29 @@ export interface TerminalServiceOptions {
 }
 
 interface TerminalProcessGroups {
-  foreground(shellPid: number): Promise<number | null>
+  foreground(shellPid: number): Promise<ForegroundProcessGroup>
   signal(pgid: number, signal: NodeJS.Signals): void
 }
 
 const OS_PROCESS_GROUPS: TerminalProcessGroups = {
   foreground: readForegroundProcessGroup,
   signal: signalProcessGroup,
+}
+
+/** The terminal work a restart would cut off. */
+export interface TerminalWork {
+  /** The command line holding each busy terminal's foreground, `''` when unannounced. */
+  commands: string[]
+  /** Terminals whose foreground could not be read, which may be running anything. */
+  uncheckedCount: number
+}
+
+async function foregroundGroupId(
+  groups: TerminalProcessGroups,
+  shellPid: number
+): Promise<number | null> {
+  const foreground = await groups.foreground(shellPid)
+  return foreground.kind === 'group' ? foreground.pgid : null
 }
 
 /**
@@ -304,21 +324,29 @@ export class TerminalService {
   }
 
   /**
-   * The command line holding each busy terminal's foreground, `''` when unannounced. A shell
-   * without integration (fish, sh) announces nothing, so the OS's foreground process group
-   * answers for it; an unreadable group (null) counts as idle.
+   * What each terminal is running. A shell without integration (fish, sh) announces nothing, so
+   * the OS's foreground process group answers for it; one the OS could not be asked about is
+   * reported as unchecked rather than idle.
    */
-  async runningCommands(): Promise<string[]> {
+  async runningWork(): Promise<TerminalWork> {
     const groups = this.options.processGroups ?? OS_PROCESS_GROUPS
-    const commands = await Promise.all(
-      [...this.sessions.values()].map(async (session) => {
-        if (session.isBusy) return [session.foreground ?? '']
-        if (session.hasShellIntegration) return []
-        const pgid = await groups.foreground(session.pid)
-        return pgid !== null && pgid !== session.pid ? [''] : []
-      })
+    const perSession = await Promise.all(
+      [...this.sessions.values()].map(
+        async (session): Promise<{ command: string | null; unchecked: boolean }> => {
+          if (session.isBusy) return { command: session.foreground ?? '', unchecked: false }
+          if (session.hasShellIntegration) return { command: null, unchecked: false }
+          const foreground = await groups.foreground(session.pid)
+          return {
+            command: foreground.kind === 'group' ? '' : null,
+            unchecked: foreground.kind === 'unknown',
+          }
+        }
+      )
     )
-    return commands.flat()
+    return {
+      commands: perSession.flatMap(({ command }) => (command === null ? [] : [command])),
+      uncheckedCount: perSession.filter(({ unchecked }) => unchecked).length,
+    }
   }
 
   getTabs(): TerminalTabsState {
@@ -991,12 +1019,12 @@ export class TerminalService {
   private async stopCommand(session: TerminalSession, toolCallId: string): Promise<void> {
     if (session.agentCommandToolCallId !== toolCallId) return
     const groups = this.options.processGroups ?? OS_PROCESS_GROUPS
-    const pgid = await groups.foreground(session.pid)
+    const pgid = await foregroundGroupId(groups, session.pid)
     if (session.agentCommandToolCallId !== toolCallId) return
     session.kill('SIGINT')
     for (const escalation of ['SIGTERM', 'SIGKILL'] as const) {
       if (await this.commandEnds(session, toolCallId, STOP_ESCALATION_MS)) return
-      if (pgid === null || (await groups.foreground(session.pid)) !== pgid) return
+      if (pgid === null || (await foregroundGroupId(groups, session.pid)) !== pgid) return
       if (session.agentCommandToolCallId !== toolCallId) return
       logger.info('Stopped command ignored the previous signal; escalating', {
         toolCallId,

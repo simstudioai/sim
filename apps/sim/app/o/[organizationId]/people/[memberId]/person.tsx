@@ -163,7 +163,7 @@ export function Person({ organizationId, memberId }: PersonProps) {
             <PersonRows
               organizationId={organizationId}
               people={data.chain}
-              empty='No manager recorded.'
+              empty={data.person.managerMemberId ? 'Manager is suspended.' : 'No manager recorded.'}
             />
           </DetailSection>
           <DetailSection

@@ -22,6 +22,7 @@ import {
   consumeAgentContextMenu,
   isDispatchingAgentInput,
 } from '@/main/browser-agent/cdp'
+import { menuReferrer, referrerForRequest } from '@/main/browser-agent/referrer'
 import { spellingItems } from '@/main/context-menu'
 import { parseHttpUrl } from '@/main/navigation'
 
@@ -138,33 +139,6 @@ export interface AgentContextMenuHost {
 }
 
 const isWebUrl = (url: string) => parseHttpUrl(url) !== null
-
-const REFERRER_POLICIES: ReadonlySet<unknown> = new Set<Referrer['policy']>([
-  'default',
-  'unsafe-url',
-  'no-referrer-when-downgrade',
-  'no-referrer',
-  'origin',
-  'strict-origin-when-cross-origin',
-  'same-origin',
-  'strict-origin',
-])
-
-function isReferrerPolicy(value: unknown): value is Referrer['policy'] {
-  return REFERRER_POLICIES.has(value)
-}
-
-/** Electron types `referrerPolicy` as a Referrer, but it arrives as the bare policy string. */
-function menuReferrer(
-  params: Pick<ContextMenuParams, 'referrerPolicy' | 'frameURL' | 'pageURL'>
-): Referrer {
-  const policy: unknown = params.referrerPolicy
-  const url = params.frameURL || params.pageURL
-  return {
-    url: isWebUrl(url) ? url : '',
-    policy: isReferrerPolicy(policy) ? policy : 'default',
-  }
-}
 
 /** Ends the template with one separator, never two in a row or one at the top. */
 function endGroup(template: MenuItemConstructorOptions[]): void {
@@ -314,8 +288,12 @@ export function attachAgentContextMenu(contents: WebContents, host: AgentContext
         openTab: (url) => host.openTab(url, menuReferrer(params)),
         copyLink: (url) => clipboard.writeText(url),
         copyImage: () => contents.copyImageAt(params.x, params.y),
-        // A download, so the browser's download limits and request guards apply.
-        saveImage: (url) => contents.downloadURL(url),
+        // A download, so the browser's download limits and request guards apply. Electron maps a
+        // Referer header into the download's referrer, so referrer-protected images still save.
+        saveImage: (url) => {
+          const referrer = referrerForRequest(menuReferrer(params), url)
+          contents.downloadURL(url, referrer ? { headers: { Referer: referrer } } : undefined)
+        },
         setZoomFactor: (factor) => contents.setZoomFactor(factor),
       }
     )

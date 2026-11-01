@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { sleep } from '@sim/utils/helpers'
 import { describe, expect, it, vi } from 'vitest'
 import { TerminalService } from '@/main/terminal'
+import type { ForegroundProcessGroup } from '@/main/terminal/process-group'
 import { createRunLedger } from '@/main/terminal/run-ledger'
 
 /**
@@ -487,7 +488,7 @@ describe('a shell that ends by itself', () => {
 })
 
 describe('running work before a restart', () => {
-  function serviceWithForeground(read: (shellPid: number) => Promise<number | null>) {
+  function serviceWithForeground(read: (shellPid: number) => Promise<ForegroundProcessGroup>) {
     const terminal = new TerminalService({
       loadCwd: () => '/tmp',
       processGroups: { foreground: vi.fn(read), signal: vi.fn() },
@@ -499,22 +500,24 @@ describe('running work before a restart', () => {
   }
 
   it('asks the OS about a shell that announces nothing, and trusts one that does', async () => {
-    const { terminal, session } = serviceWithForeground(async () => 4242)
+    const { terminal, session } = serviceWithForeground(async () => ({ kind: 'group', pgid: 4242 }))
     session.setShellIntegration(false)
-    await expect(terminal.runningCommands()).resolves.toEqual([''])
+    await expect(terminal.runningWork()).resolves.toEqual({ commands: [''], uncheckedCount: 0 })
 
     session.setShellIntegration(true)
-    await expect(terminal.runningCommands()).resolves.toEqual([])
+    await expect(terminal.runningWork()).resolves.toEqual({ commands: [], uncheckedCount: 0 })
   })
 
-  it('counts a shell at its own prompt, or an unreadable foreground, as idle', async () => {
-    let read: () => Promise<number | null> = async () => null
-    const { terminal, session } = serviceWithForeground(() => read())
+  it('counts a shell at its own prompt as idle', async () => {
+    const { terminal, session } = serviceWithForeground(async () => ({ kind: 'shell' }))
     session.setShellIntegration(false)
-    await expect(terminal.runningCommands()).resolves.toEqual([])
+    await expect(terminal.runningWork()).resolves.toEqual({ commands: [], uncheckedCount: 0 })
+  })
 
-    read = async () => session.pid
-    await expect(terminal.runningCommands()).resolves.toEqual([])
+  it('reports a terminal whose foreground could not be read as unchecked, never idle', async () => {
+    const { terminal, session } = serviceWithForeground(async () => ({ kind: 'unknown' }))
+    session.setShellIntegration(false)
+    await expect(terminal.runningWork()).resolves.toEqual({ commands: [], uncheckedCount: 1 })
   })
 })
 
@@ -525,7 +528,10 @@ describe('stopping a tool call', () => {
     /** The tty's foreground group as the OS would report it at each read. */
     let foreground: number | null = COMMAND_GROUP
     const processGroups = {
-      foreground: vi.fn(async (_shellPid: number) => foreground),
+      foreground: vi.fn(
+        async (_shellPid: number): Promise<ForegroundProcessGroup> =>
+          foreground === null ? { kind: 'unknown' } : { kind: 'group', pgid: foreground }
+      ),
       signal: vi.fn((_pgid: number, _signal: NodeJS.Signals) => {}),
     }
     const terminal = new TerminalService({ loadCwd: () => '/tmp', processGroups })
@@ -574,6 +580,20 @@ describe('stopping a tool call', () => {
 
     expect(processGroups.signal).toHaveBeenCalledWith(COMMAND_GROUP, 'SIGTERM')
     await expect(running).resolves.toMatchObject({ ok: true, result: { exitCode: 143 } })
+  })
+
+  it('interrupts but never escalates when the foreground cannot be read', async () => {
+    const { terminal, session, processGroups, setForeground } = cancellableService()
+    session.setInterruptible(false)
+    const { running } = await startRun(terminal, session, 'call-unreadable')
+    setForeground(null)
+
+    await terminal.cancelTool('call-unreadable')
+
+    expect(session.kill).toHaveBeenCalledWith('SIGINT')
+    expect(processGroups.signal).not.toHaveBeenCalled()
+    session.finishRun(0)
+    await running
   })
 
   it('never signals a different command that took the foreground meanwhile', async () => {
