@@ -169,6 +169,7 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
         draftScopeKey={`extension:${userId}:${workspaceId}:${selectedChatId ?? 'new'}`}
         composerAttachments={composer.attachments}
         composerResourceActions={composer.resourceActions}
+        composerToolbarActions={composer.toolbarActions}
         composerModelSelectorOptions={composer.modelSelectorOptions}
         layout='copilot-view'
         className={cn(

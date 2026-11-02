@@ -23,12 +23,13 @@ export async function captureActivePage(
   }
   if (
     !['http:', 'https:'].includes(url.protocol) ||
-    url.origin === SIM_ORIGIN ||
+    (url.origin === SIM_ORIGIN &&
+      (url.pathname === '/extension' || url.pathname.startsWith('/extension/'))) ||
     url.username ||
     url.password ||
     tab.incognito
   ) {
-    throw new Error('Choose a regular web page outside Sim to attach.')
+    throw new Error('Choose a regular web page to attach.')
   }
   const results = await chrome.scripting.executeScript({
     target: expected

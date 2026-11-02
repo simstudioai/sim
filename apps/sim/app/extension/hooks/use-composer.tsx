@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import { DropdownMenuItem, toast } from '@sim/emcn'
+import { Chip, DropdownMenuItem, Tooltip, toast } from '@sim/emcn'
 import { Globe, Highlighter, Settings } from '@sim/emcn/icons'
 import { getPageContextBudgetError } from '@/lib/mothership/chat/page-context'
 import { usePageContext } from '@/app/extension/hooks/use-page-context'
@@ -77,9 +77,27 @@ export function useExtensionComposer(scopeKey: string) {
     },
     [snapshots]
   )
+  const toolbarActions = useMemo(
+    () =>
+      connected ? (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Chip
+              shape='round'
+              leftIcon={Globe}
+              onClick={() => requestAction('capture-page')}
+              aria-label='Attach current page'
+            />
+          </Tooltip.Trigger>
+          <Tooltip.Content side='top'>Attach current page</Tooltip.Content>
+        </Tooltip.Root>
+      ) : undefined,
+    [connected, requestAction]
+  )
   return {
     attachments,
     resourceActions,
+    toolbarActions,
     modelSelectorOptions: MODEL_SELECTOR_OPTIONS,
     prepareSubmission,
     onSubmitted: clearSnapshots,

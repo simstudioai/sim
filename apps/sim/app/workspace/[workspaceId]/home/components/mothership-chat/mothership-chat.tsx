@@ -88,6 +88,7 @@ interface MothershipChatProps {
   composer?: ReactNode
   composerAttachments?: ReactNode
   composerResourceActions?: ReactNode
+  composerToolbarActions?: ReactNode
   composerModelSelectorOptions?: ModelSelectorOptions
   messages: ChatMessage[]
   isSending: boolean
@@ -393,6 +394,7 @@ export function MothershipChat({
   composer,
   composerAttachments,
   composerResourceActions,
+  composerToolbarActions,
   composerModelSelectorOptions,
   messages: messagesProp,
   isSending,
@@ -1052,6 +1054,7 @@ export function MothershipChat({
                   onSubmit={onSubmit}
                   attachments={composerAttachments}
                   resourceActions={composerResourceActions}
+                  toolbarActions={composerToolbarActions}
                   modelSelectorOptions={composerModelSelectorOptions}
                   isSending={isStreamActive}
                   onStopGeneration={onStopGeneration}

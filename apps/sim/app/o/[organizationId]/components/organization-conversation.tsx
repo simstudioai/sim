@@ -94,6 +94,7 @@ interface OrganizationConversationProps {
     header: ReactNode
     attachments?: ReactNode
     resourceActions?: ReactNode
+    toolbarActions?: ReactNode
     modelSelectorOptions?: ModelSelectorOptions
     onChatIdResolved: (chatId: string) => void
     onNavigateToChat: (chatId: string) => void
@@ -453,6 +454,7 @@ function OrganizationConversationContent({
       compact={Boolean(panelOptions)}
       attachments={panelOptions?.attachments}
       resourceActions={panelOptions?.resourceActions}
+      toolbarActions={panelOptions?.toolbarActions}
       modelSelectorOptions={panelOptions?.modelSelectorOptions}
       onPlanChange={
         !hasChat && destinationMode === 'agent' && planEnabled

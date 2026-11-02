@@ -446,16 +446,20 @@ try {
       })
     }, base.origin)
   await observeCaptureReceipts()
-  const capture = async (mode: 'page' | 'selection' = 'page') => {
+  const capture = async (mode: 'page' | 'selection' | 'shortcut' = 'page') => {
     await source.bringToFront()
     const before = Number(await shell.locator('body').getAttribute('data-capture-receipts'))
-    await frame().getByRole('button', { name: 'Add resources', exact: true }).press('Enter')
-    await frame()
-      .getByRole('menuitem', {
-        name: mode === 'page' ? 'Current page' : 'Selected text',
-        exact: true,
-      })
-      .press('Enter')
+    if (mode === 'shortcut') {
+      await frame().getByRole('button', { name: 'Attach current page', exact: true }).press('Enter')
+    } else {
+      await frame().getByRole('button', { name: 'Add resources', exact: true }).press('Enter')
+      await frame()
+        .getByRole('menuitem', {
+          name: mode === 'page' ? 'Current page' : 'Selected text',
+          exact: true,
+        })
+        .press('Enter')
+    }
     await expect(shell.locator('body')).toHaveAttribute('data-capture-receipts', String(before + 1))
   }
   const attachments = () => frame().getByRole('group', { name: 'Page attached to next message' })
@@ -772,7 +776,51 @@ try {
     async () => {
       await capture()
       await attachFile()
+      await shell.setViewportSize({ width: 320, height: 844 })
+      await capture()
+      await capture()
+      const geometry = await attachments()
+        .first()
+        .evaluate((chip) => {
+          const strip = chip.parentElement?.parentElement
+          if (!strip) throw new Error('Missing attachment strip')
+          return { height: strip.clientHeight, contentHeight: strip.scrollHeight }
+        })
+      assert(geometry.contentHeight > 102, 'The fixture did not exercise multiple attachment rows')
+      assert(
+        geometry.contentHeight <= geometry.height + 1,
+        'Desktop attachments require nested scrolling'
+      )
       await screenshot('mixed-attachments')
+      const device = await browserContext.newCDPSession(frame())
+      try {
+        await device.send('Emulation.setTouchEmulationEnabled', {
+          enabled: true,
+          maxTouchPoints: 1,
+        })
+        await expect
+          .poll(() => frame().evaluate(() => matchMedia('(pointer: coarse)').matches))
+          .toBe(true)
+        const touchGeometry = await attachments()
+          .first()
+          .evaluate((chip) => {
+            const strip = chip.parentElement?.parentElement
+            if (!strip) throw new Error('Missing attachment strip')
+            return { height: strip.clientHeight, contentHeight: strip.scrollHeight }
+          })
+        assert(touchGeometry.height <= 102, 'Touch attachments lost their height limit')
+        assert(
+          touchGeometry.contentHeight > touchGeometry.height,
+          'Touch overflow fixture did not wrap'
+        )
+        await screenshot('touch-attachments')
+      } finally {
+        await device.send('Emulation.setTouchEmulationEnabled', { enabled: false })
+        await device.detach()
+      }
+      await attachments().last().getByRole('button', { name: 'Remove page context' }).click()
+      await attachments().last().getByRole('button', { name: 'Remove page context' }).click()
+      await shell.setViewportSize({ width: 390, height: 844 })
       await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
       await expect(
         frame().getByRole('button', { name: 'Remove extension-notes.txt', exact: true })
@@ -1223,6 +1271,25 @@ try {
       await screenshot('organization-first-open-capture')
     }
   )
+  await checkNative('The current-page shortcut attaches in both shared composers', async () => {
+    for (const path of [`/extension/${alphaId}`, `/extension/o/${organizationId}`]) {
+      await navigate(`${base.origin}${path}`)
+      await expect(attachments()).toHaveCount(0)
+      await capture('shortcut')
+      await expect(attachments()).toHaveCount(1)
+      await attachments()
+        .first()
+        .getByRole('button', { name: /^Review page context:/ })
+        .click()
+      const preview = frame().getByRole('dialog', { name: 'Page context', exact: true })
+      await expect(preview.locator('pre')).toContainText(captureText)
+      await preview.getByRole('button', { name: 'Close', exact: true }).click()
+      await frame().getByRole('button', { name: 'Attach current page', exact: true }).hover()
+      await expect(frame().getByRole('tooltip', { name: 'Attach current page' })).toBeVisible()
+      await screenshot(path.includes('/o/') ? 'shortcut-organization-agent' : 'shortcut-workspace')
+      await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
+    }
+  })
   if (liveChat) {
     await checkNative(
       'Organization live admission preserves queued pages, files, and the admitted conversation mode',
@@ -1379,6 +1446,9 @@ try {
       await screenshot('organization-mode-file-recovery')
       await frame().getByRole('button', { name: 'Remove extension-notes.txt', exact: true }).click()
       await expect(frame().getByText(/Remove unsupported files/)).not.toBeVisible()
+      await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
+      await capture('shortcut')
+      await expect(attachments()).toHaveCount(1)
       await screenshot('organization-assistant-page')
       if (!liveChat)
         await shell.route('**/api/mothership/chat', (route) =>
