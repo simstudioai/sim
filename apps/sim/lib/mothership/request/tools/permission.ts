@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { TERMINAL_TOOL_NAME } from '@sim/terminal-protocol'
+import { TERMINAL_TOOL_NAME, type TerminalOperation } from '@sim/terminal-protocol'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { AsyncCompletionSignal } from '@/lib/mothership/async-runs/lifecycle'
 import { PERMISSION_WAIT_TIMEOUT_MS } from '@/lib/mothership/constants'
@@ -38,16 +38,32 @@ import { getToolEntry, toolRequiresApproval } from '@/lib/mothership/tool-execut
 const logger = createLogger('CopilotToolPermissionGate')
 
 /**
- * Whether a `terminal` call is one worth stopping for.
+ * `terminal` operations that never deliver keystrokes to a shell, so they run
+ * without a prompt.
  *
  * The catalog's approval flag is per tool, but the terminal tool covers both
- * running commands and merely looking at the screen. Only running one is
- * consequential; gating `read` or `list` would put a card in front of the user
- * every time the agent glanced at a terminal, which trains them to click
- * through the ones that matter.
+ * running commands and merely looking at the screen; gating `read` or `list`
+ * would put a card in front of the user every time the agent glanced at a
+ * terminal, which trains them to click through the ones that matter. `input`
+ * is not here: in a tmux pane it is typed at the shell prompt and Enter submits
+ * it, so it runs commands just as `run` does. Anything not listed, including an
+ * operation added later, is gated.
  */
+const UNGATED_TERMINAL_OPERATIONS: ReadonlySet<string> = new Set<TerminalOperation>([
+  'read',
+  'list',
+  'cwd',
+  'panes',
+  'new',
+  'switch',
+  'close',
+  'kill',
+  'handoff',
+])
+
 function terminalOperationNeedsApproval(args: Record<string, unknown> | undefined): boolean {
-  return args?.operation === 'run'
+  const operation = args?.operation
+  return typeof operation !== 'string' || !UNGATED_TERMINAL_OPERATIONS.has(operation)
 }
 
 export const TOOL_AWAITING_APPROVAL_STATUS = MothershipStreamV1ToolStatus.awaiting_approval
