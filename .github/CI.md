@@ -34,6 +34,10 @@ Every HTTP and browser group consumes the same production build in an isolated j
 
 Desktop inbox protocol, assistant actions UI, and organization search UI run as three parallel HTTP jobs with isolated databases, apps, and reports. They retain one acceptance task boundary, so changing any of their harnesses selects all three jobs. Desktop inbox needs no browser. The UI jobs and browser extension install Chromium while their app starts, waiting for both before executing assertions; browser-install failures still fail the job and preserve the install log. No acceptance assertions are removed by the split.
 
+Browser extension acceptance keeps native streaming and first-open capture checks on real timers. Its access-revalidation scenarios then reopen the persistent browser profile and install Playwright's clock before the app mounts. Advancing the production polling timers preserves real HTTP and database authorization checks without waiting through each polling interval. Capture timestamps originate in Chromium's isolated world, so the harness restores wall time after each advance. Live-provider runs retain native timing throughout.
+
+Integration shard weights come from successful reports for both push and migration provisioning paths. Refresh them with `scripts/update-integration-durations.ts`, then check the new partition against a separate complete run before adopting it. Weights only change scheduling; discovery still owns coverage. The current refresh uses runs [41348786822](https://github.com/simstudioai/sim/actions/runs/41348786822) and [41377145857](https://github.com/simstudioai/sim/actions/runs/41377145857), with [41377810718](https://github.com/simstudioai/sim/actions/runs/41377810718) held out for validation.
+
 SCIM's production app uses a `sim.ai` fixture hostname mapped to loopback, since `NEXT_PUBLIC_FORCE_HOSTED` is ignored in production. Readiness, HTTP tests, and internal API requests still connect to loopback. The SCIM suite verifies that ending an Enterprise subscription rejects both owner administration and an existing bearer token, and that restoring it restores access.
 
 ## Coverage removed or consolidated
