@@ -1014,7 +1014,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
         value: 'Not documented under the current remote-execution model',
         detail:
           'Earlier documentation described a notification only when a scheduled run was skipped due to sleep/closed app, but that premise now applies only to tasks that work on local files or apps, since other scheduled tasks run remotely. The current schedule-recurring-tasks article is silent on failure/retry alerting for task errors, so this behavior should be treated as unverified pending updated Anthropic documentation.',
-        shortValue: 'Not documented; prior skipped-run notification premise is outdated',
+        shortValue: 'Not documented; skipped runs now affect only local-file/app tasks',
         confidence: 'unknown',
         sources: [
           {
