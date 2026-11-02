@@ -1478,7 +1478,7 @@ describe('MCP Serve Route', () => {
     async function connectSdkClient() {
       dbChainMockFns.limit.mockResolvedValue([PUBLIC_SERVER])
       const routeFetch = async (url: string | URL, init?: RequestInit) => {
-        const request = new NextRequest(url, init)
+        const request = new NextRequest(new Request(url, init))
         const context = createRouteContext({ serverId: 'server-1' })
         return request.method === 'GET' ? GET(request, context) : POST(request, context)
       }
