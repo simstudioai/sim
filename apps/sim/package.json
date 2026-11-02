@@ -51,6 +51,8 @@
     "ci:e2e-cli": "bash ../../.github/scripts/http-e2e.sh cli",
     "ci:e2e-stop-after": "bash ../../.github/scripts/http-e2e.sh stop-after",
     "ci:e2e-desktop-inbox": "bash ../../.github/scripts/http-e2e.sh desktop-inbox",
+    "ci:e2e-assistant-actions": "bash ../../.github/scripts/http-e2e.sh assistant-actions",
+    "ci:e2e-organization-search": "bash ../../.github/scripts/http-e2e.sh organization-search",
     "ci:e2e-project-files": "bash ../../.github/scripts/http-e2e.sh project-files",
     "ci:e2e-mobile": "bash ../../.github/scripts/http-e2e.sh mobile",
     "ci:e2e-seo": "bash ../../.github/scripts/http-e2e.sh seo",
