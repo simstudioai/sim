@@ -19,9 +19,8 @@ inputs:
     required: false
     default: ''
 
-# Cache keys are scoped by event name, and fork PRs get their own namespace on
-# top: untrusted fork runs must never share a cache with push runs (whose caches
-# feed production image builds) or with trusted internal-PR runs.
+# Writes stay scoped by event and fork status. Trusted GitHub PRs can read the
+# default branch's push caches; push jobs never read PR caches.
 #
 # node_modules also keys on the lockfile hash: a sticky disk is a mutable volume,
 # and `bun install --frozen-lockfile` adds what the lockfile needs without
@@ -45,6 +44,7 @@ runs:
         registry-url: ${{ inputs.registry-url }}
 
     - name: Mount Bun cache
+      if: inputs.provider == '' || inputs.provider == 'blacksmith'
       uses: ./.github/actions/cache
       with:
         provider: ${{ inputs.provider }}
@@ -52,18 +52,47 @@ runs:
         path: ~/.bun/install/cache
 
     - name: Mount node_modules
+      if: inputs.provider == '' || inputs.provider == 'blacksmith'
       uses: ./.github/actions/cache
       with:
         provider: ${{ inputs.provider }}
         key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ hashFiles('bun.lock') }}
         path: ./node_modules
 
+    - name: Restore Bun cache
+      if: inputs.provider != '' && inputs.provider != 'blacksmith'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+      with:
+        key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ github.run_id }}
+        restore-keys: |
+          ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-
+          ${{ github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && format('{0}-bun-cache-push-', github.repository) || '' }}
+        path: ~/.bun/install/cache
+
+    - name: Restore node_modules
+      if: inputs.provider != '' && inputs.provider != 'blacksmith'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+      with:
+        key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ hashFiles('bun.lock') }}-${{ github.run_id }}
+        restore-keys: |
+          ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ hashFiles('bun.lock') }}-
+          ${{ github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && format('{0}-node-modules-push-{1}-', github.repository, hashFiles('bun.lock')) || '' }}
+        path: ./node_modules
+
     - name: Mount Turbo cache
-      if: inputs.turbo-cache-key != ''
+      if: inputs.turbo-cache-key != '' && (inputs.provider == '' || inputs.provider == 'blacksmith')
       uses: ./.github/actions/cache
       with:
         provider: ${{ inputs.provider }}
         key: ${{ github.repository }}-${{ inputs.turbo-cache-key }}-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+        path: ./.turbo
+
+    - name: Restore and save Turbo cache
+      if: inputs.turbo-cache-key != '' && inputs.provider != '' && inputs.provider != 'blacksmith'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+      with:
+        key: ${{ github.repository }}-${{ inputs.turbo-cache-key }}-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ github.run_id }}
+        restore-keys: ${{ github.repository }}-${{ inputs.turbo-cache-key }}-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-
         path: ./.turbo
 
     # Bun retries a failed request itself, but a registry connection that stalls
@@ -83,3 +112,17 @@ runs:
         done
         echo "::error title=bun install stalled::both attempts ran past 3 minutes"
         exit 1
+
+    - name: Save Bun cache
+      if: inputs.provider != '' && inputs.provider != 'blacksmith'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+      with:
+        key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ github.run_id }}
+        path: ~/.bun/install/cache
+
+    - name: Save node_modules
+      if: inputs.provider != '' && inputs.provider != 'blacksmith'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+      with:
+        key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ hashFiles('bun.lock') }}-${{ github.run_id }}
+        path: ./node_modules
