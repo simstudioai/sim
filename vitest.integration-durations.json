@@ -215,7 +215,7 @@
   "apps/sim/lib/mothership/tools/client/desktop-tool-authorization.integration.ts": 13.7,
   "apps/sim/lib/mothership/tools/client/desktop-tool-chat-view-lease.integration.ts": 12.3,
   "apps/sim/lib/mothership/tools/client/desktop-tool-executor.integration.ts": 5.6,
-  "apps/sim/lib/mothership/tools/client/desktop-tool-pickup.integration.ts": 89.4,
+  "apps/sim/lib/mothership/tools/client/desktop-tool-pickup.integration.ts": 30,
   "apps/sim/lib/mothership/tools/server/media/write-target-precheck.integration.ts": 1.7,
   "apps/sim/lib/oauth/credential-revocation.integration.ts": 4.8,
   "apps/sim/lib/oauth/shopify.integration.ts": 3.1,
