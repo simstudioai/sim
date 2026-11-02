@@ -543,7 +543,7 @@ export const langflowProfile: CompetitorProfile = {
       integrationCount: {
         value:
           "100+ integrations, per IBM's Langflow product page. Langflow organizes third-party integrations as component bundles grouped by provider, such as Google, OpenAI, LangChain, Elastic, and Composio. The docs site documents about 80 bundles, but some bundles have no documentation, so the full current list is only visible in the app's Bundles panel.",
-        shortValue: '100+ integrations as provider bundles',
+        shortValue: '100+ integrations per IBM; about 80 documented bundles',
         confidence: 'estimated',
         sources: [
           {
