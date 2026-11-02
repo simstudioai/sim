@@ -4,8 +4,10 @@ exact = true
 # (blocks freshly published, potentially compromised releases).
 minimumReleaseAge = 604800
 # Explicit framework pins must install before their release reaches the age threshold: a
-# security release of Next.js is pinned exactly the day it ships.
-minimumReleaseAgeExcludes = ["next", "@next/env"]
+# security release of Next.js is pinned exactly the day it ships. The Trigger.dev packages are
+# excluded only until 4.8.3 (published 2026-10-30, the first release with workload identity)
+# clears the threshold on 2026-11-06; drop them then.
+minimumReleaseAgeExcludes = ["next", "@next/env", "@trigger.dev/sdk", "@trigger.dev/core", "@trigger.dev/build", "trigger.dev"]
 
 [run]
 env = { NEXT_PUBLIC_APP_URL = "http://localhost:3000" }

@@ -30,7 +30,8 @@ import {
 } from '@aws-sdk/client-cloudwatch'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { getAwsCredentials, hasExplicitAwsCredentials } from '@/lib/core/config/aws'
+import { getAwsCredentials } from '@/lib/core/config/aws'
+import { isHosted } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('HostedKeyMetrics')
 
@@ -45,10 +46,10 @@ type QueueReason = 'actor_requests' | 'dimension' | 'queue_position'
 /** `metering` marks a provider call that succeeded but could not be priced. */
 type FailureReason = 'rate_limited' | 'auth' | 'other' | 'metering'
 
-// Deployed envs (app + trigger worker) carry AWS credentials of their own;
-// local dev does not. No creds → no-op, so recorders stay always-safe to call
-// (same contract as the previous no-op-meter behavior).
-const ENABLED = hasExplicitAwsCredentials()
+// Hosted keys exist only on Sim Cloud, whose app and workers can always reach
+// CloudWatch (task role or workload identity). Elsewhere recorders are no-ops,
+// so they stay always-safe to call.
+const ENABLED = isHosted
 
 const ENVIRONMENT =
   process.env.OTEL_DEPLOYMENT_ENVIRONMENT ||
