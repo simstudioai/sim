@@ -1,6 +1,9 @@
 {
   "extends": ["//"],
   "tasks": {
+    "ci:runtime": {
+      "inputs": ["$TURBO_EXTENDS$", "!e2e-durations.json"]
+    },
     "build": {
       "inputs": [
         "$TURBO_DEFAULT$",
