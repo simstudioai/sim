@@ -45,6 +45,7 @@ const MEDIA_DEMUXERS = [
   'amr',
   'caf',
   'png_pipe',
+  'apng',
   'jpeg_pipe',
   'webp_pipe',
   'bmp_pipe',
