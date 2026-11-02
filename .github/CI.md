@@ -4,6 +4,8 @@ GitHub-hosted jobs restore their event-specific dependency caches first. Trusted
 
 The `changes` job runs Turborepo 2.9.14's `affectedTasks` query before installing application dependencies or provisioning services. `turbo.json` records package dependency propagation; `apps/sim/turbo.json` partitions the app into shared runtime, server, workspace UI, and acceptance tasks. `.github/ci-suites.json` turns those tasks into job matrices. The uploaded `ci-plan` artifact names changed files, selected tasks, attribution reasons, and any fallback.
 
+The integration matrix's `push/db` job owns dependency-cache uploads; the other integration jobs only restore. Exact hits skip uploads. This avoids concurrently compressing the same dependency trees across all shards merely to lose the shared-key reservation race.
+
 A PR compares its merge base with the checked-out merge commit. Main/staging pushes execute all checks; the parent `ci` workflow skips checks on `dev` pushes, while PRs targeting `dev` still run checks. A manual `checks` run executes all checks unless supplied a full base commit SHA to reproduce a scoped plan. Missing history, an empty diff, unknown files outside the workspace graph, root script/CI changes, or a planner error run every check. Missing selection outputs fail the aggregate gate. The gate also rejects an omitted dependency, any failed/cancelled job, and any skip that its explicit selection flag did not authorize.
 
 | Change | Expensive checks selected |

@@ -18,6 +18,10 @@ inputs:
     description: npm registry to write an .npmrc for, so `npm publish` reads NODE_AUTH_TOKEN. Empty writes none.
     required: false
     default: ''
+  save-dependency-cache:
+    description: Save GitHub dependency caches after installation. Parallel matrices can elect one writer.
+    required: false
+    default: 'true'
 
 # Writes stay scoped by event and fork status. Trusted GitHub PRs can read the
 # default branch's push caches; push jobs never read PR caches.
@@ -60,6 +64,7 @@ runs:
         path: ./node_modules
 
     - name: Restore Bun cache
+      id: bun-cache
       if: inputs.provider != '' && inputs.provider != 'blacksmith'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
       with:
@@ -70,6 +75,7 @@ runs:
         path: ~/.bun/install/cache
 
     - name: Restore node_modules
+      id: node-modules-cache
       if: inputs.provider != '' && inputs.provider != 'blacksmith'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
       with:
@@ -114,14 +120,14 @@ runs:
         exit 1
 
     - name: Save Bun cache
-      if: inputs.provider != '' && inputs.provider != 'blacksmith'
+      if: inputs.provider != '' && inputs.provider != 'blacksmith' && inputs.save-dependency-cache == 'true' && steps.bun-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
       with:
         key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ github.run_id }}
         path: ~/.bun/install/cache
 
     - name: Save node_modules
-      if: inputs.provider != '' && inputs.provider != 'blacksmith'
+      if: inputs.provider != '' && inputs.provider != 'blacksmith' && inputs.save-dependency-cache == 'true' && steps.node-modules-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
       with:
         key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ hashFiles('bun.lock') }}-${{ github.run_id }}

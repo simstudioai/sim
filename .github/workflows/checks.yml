@@ -136,6 +136,7 @@ jobs:
         uses: ./.github/actions/setup
         with:
           provider: github
+          save-dependency-cache: ${{ matrix.provision == 'push' && matrix.shard == 'db' }}
 
       - name: Provision a fresh database through the supported command
         working-directory: packages/db
