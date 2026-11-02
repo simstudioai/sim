@@ -206,7 +206,7 @@
   "apps/sim/lib/mothership/request/lifecycle/file-owner-protocol.integration.ts": 2.2,
   "apps/sim/lib/mothership/request/lifecycle/unattended.integration.ts": 13.6,
   "apps/sim/lib/mothership/request/session/buffer-ttl.integration.ts": 12.4,
-  "apps/sim/lib/mothership/request/session/recovery-storm.integration.ts": 259.1,
+  "apps/sim/lib/mothership/request/session/recovery-storm.integration.ts": 100,
   "apps/sim/lib/mothership/request/session/replay-budget.integration.ts": 73.6,
   "apps/sim/lib/mothership/request/session/replay-gap.integration.ts": 36.9,
   "apps/sim/lib/mothership/request/session/stream-recovery.integration.ts": 13,
