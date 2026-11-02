@@ -828,7 +828,7 @@ export const makeProfile: CompetitorProfile = {
       freeTier: {
         value: 'Yes: Free plan with 1,000 credits/month',
         detail:
-          'Free tier limits: 2 active scenarios max, 15-minute minimum execution interval, 5-minute max execution time, 5MB max file size, 512MB data transfer, 3,500+ standard apps (enterprise apps require an Enterprise plan) and basic routers/filters, basic customer support with 90-day expert access.',
+          'Free tier limits: 2 active scenarios max, 15-minute minimum execution interval, 5-minute max execution time, 5MB max file size, 512MB data transfer, all standard apps (enterprise apps require an Enterprise plan) and basic routers/filters, basic customer support with 90-day expert access.',
         shortValue: '1,000 credits/month, 2 active scenarios',
         confidence: 'verified',
         sources: [
