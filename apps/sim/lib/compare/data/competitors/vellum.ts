@@ -17,7 +17,7 @@ export const vellumProfile: CompetitorProfile = {
   oneLiner:
     'Vellum is an enterprise AI development platform for building, evaluating, and deploying LLM prompts, workflows, and agents.',
   leadAnswer: [
-    "Vellum's enterprise platform is a hosted AI development product for building, evaluating, and deploying LLM prompts, workflows, and agents through a visual builder, a code SDK, or natural language, with self-hosted and VPC installs for enterprises; its public website instead led with a separate consumer assistant, which Vellum shut down on November 2, 2026, and the platform's pricing is not published. Sim is an open-source AI workspace with an Apache 2.0-licensed core for building, deploying, and managing agents visually, conversationally, or with code, with a Free plan, a $25 per user/month Pro plan, and self-hosting via Docker Compose or Kubernetes. Choose Vellum when test-suite evaluations, HIPAA coverage with a signed BAA, or a vendor-managed single-tenant VPC are requirements. Choose Sim when you want published self-serve pricing, an open-source core, or live multiplayer editing of the same workflow.",
+    "Vellum's enterprise platform is a hosted AI development product for building, evaluating, and deploying LLM prompts, workflows, and agents through a visual builder, a code SDK, or natural language, with self-hosted and VPC installs for enterprises; its public website instead led with a separate consumer assistant, which Vellum announced it would shut down on November 2, 2026, and the platform's pricing is not published. Sim is an open-source AI workspace with an Apache 2.0-licensed core for building, deploying, and managing agents visually, conversationally, or with code, with a Free plan, a $25 per user/month Pro plan, and self-hosting via Docker Compose or Kubernetes. Choose Vellum when test-suite evaluations, HIPAA coverage with a signed BAA, or a vendor-managed single-tenant VPC are requirements. Choose Sim when you want published self-serve pricing, an open-source core, or live multiplayer editing of the same workflow.",
   ],
   faqs: [
     {
@@ -33,7 +33,7 @@ export const vellumProfile: CompetitorProfile = {
     {
       question: 'Is Vellum still an enterprise agent platform or a personal assistant?',
       answer:
-        "Vellum ran both under one brand until November 2, 2026, when it shut down its consumer 'Personal Intelligence' assistant platform; vellum.ai had presented that assistant, with $30 to $200 monthly packages, in place of the enterprise product. docs.vellum.ai still documents the enterprise workflow and evaluation platform. The most recent entries in those platform docs are a February 2026 changelog and a self-hosted release dated February 6, 2026. Sim is a single product, an AI workspace for building and deploying agents, with its plans published on its own pricing page.",
+        "Vellum has run both under one brand, but it announced that its consumer 'Personal Intelligence' assistant platform shuts down on November 2, 2026; vellum.ai presents that assistant, with $30 to $200 monthly packages, in place of the enterprise product. docs.vellum.ai still documents the enterprise workflow and evaluation platform. The most recent entries in those platform docs are a February 2026 changelog and a self-hosted release dated February 6, 2026. Sim is a single product, an AI workspace for building and deploying agents, with its plans published on its own pricing page.",
     },
   ],
   standoutFeatures: [
@@ -64,7 +64,7 @@ export const vellumProfile: CompetitorProfile = {
     {
       title: 'Brand/product ambiguity as of mid-2026',
       description:
-        "Vellum's homepage, pricing page, security docs, and several product pages serve content for a consumer 'Personal Intelligence' assistant (an open-source, MIT-licensed Mac app), which Vellum shut down on November 2, 2026, instead of the original enterprise workflow, evaluations, and prompt-engineering platform. That makes enterprise-specific details, like environment promotion, version-control depth, tracing, alerting, and integration counts, harder to verify from the public site alone.",
+        "Vellum's homepage, pricing page, security docs, and several product pages serve content for a consumer 'Personal Intelligence' assistant (an open-source, MIT-licensed Mac app), which Vellum announced it would shut down on November 2, 2026, instead of the original enterprise workflow, evaluations, and prompt-engineering platform. That makes enterprise-specific details, like environment promotion, version-control depth, tracing, alerting, and integration counts, harder to verify from the public site alone.",
       shortDescription:
         'Public site now foregrounds a consumer product over the enterprise platform.',
       source: {

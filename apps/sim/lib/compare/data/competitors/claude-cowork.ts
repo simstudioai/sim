@@ -746,7 +746,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
       freeTier: {
         value: 'Free plan exists but does not include Claude Cowork',
         detail:
-          "The Free plan's feature list does not mention Cowork; Cowork requires a paid plan (Pro, Max, Team, or Enterprise).",
+          "The Free plan's feature list does not mention Cowork; Cowork requires a paid plan (Pro, Max, Ultra, Team, or Enterprise).",
         shortValue: 'Free plan excludes Cowork',
         confidence: 'verified',
         sources: [

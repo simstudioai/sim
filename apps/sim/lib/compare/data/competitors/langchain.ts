@@ -772,11 +772,11 @@ export const langchainProfile: CompetitorProfile = {
       },
       byok: {
         value:
-          "Yes, by default: every model call in LangChain/LangGraph requires the developer's own provider API credentials (OpenAI, Anthropic, etc.) configured directly in application code or environment variables; LangSmith's optional LLM Gateway also supports a BYO model API key, or pay-as-you-go model usage via Gateway Credits on the Developer and Plus plans",
+          "Yes, by default: direct model calls from the open-source LangChain/LangGraph libraries use the developer's own provider API credentials (OpenAI, Anthropic, etc.) configured directly in application code or environment variables; LangSmith's optional LLM Gateway also supports a BYO model API key, or pay-as-you-go model usage via Gateway Credits on the Developer and Plus plans",
         detail:
-          'This is the inherent architecture of a code library calling out to providers directly, not a named "BYOK" toggle in a UI.',
+          'This is the inherent architecture of a code library calling out to providers directly, not a named "BYOK" toggle in a UI. The exception is the optional LangSmith LLM Gateway, where Gateway Credits pay for hosted model usage without a provider key.',
         shortValue:
-          'Yes, de facto by architecture; every model call uses your own provider credentials',
+          'Yes, by architecture for direct library calls; Gateway Credits are an optional hosted alternative',
         confidence: 'verified',
         sources: [
           {

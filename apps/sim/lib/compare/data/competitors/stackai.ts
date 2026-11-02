@@ -541,10 +541,10 @@ export const stackaiProfile: CompetitorProfile = {
     },
     integrations: {
       integrationCount: {
-        value: '514 provider integrations in the StackAI catalog',
+        value: '514 provider entries in the StackAI integrations catalog',
         detail:
           'The StackAI Provider Catalog says to "Browse the 514 provider entries under Integrations," including Notion, Airtable, BigQuery, GitHub, HubSpot, MongoDB, Salesforce, and Slack. Each provider page lists its connection methods, actions, and triggers, and deprecated or unavailable integrations are marked on their pages.',
-        shortValue: '514 provider integrations',
+        shortValue: '514 catalog provider entries',
         confidence: 'verified',
         sources: [
           {

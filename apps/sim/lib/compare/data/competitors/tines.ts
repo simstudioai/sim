@@ -361,15 +361,16 @@ export const tinesProfile: CompetitorProfile = {
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          'Yes: default AI runs on Anthropic Claude via AWS Bedrock (Tines-hosted), and customers can bring their own AI provider/key: OpenAI, Anthropic direct, or a custom AWS Bedrock account with any enabled model',
-        shortValue: 'Bedrock-hosted Claude by default, BYO OpenAI/Anthropic/Bedrock',
+          'Yes: default AI runs on Anthropic Claude via AWS Bedrock (Tines-hosted), and customers can bring their own AI provider/key: OpenAI, Anthropic direct, a custom AWS Bedrock account with any enabled model, Mistral, or any OpenAI- or Anthropic-spec-compatible provider',
+        shortValue:
+          'Bedrock-hosted Claude by default; BYO OpenAI, Anthropic, Bedrock, Mistral, or compatible',
         confidence: 'verified',
         sources: [
           { url: 'https://www.tines.com/docs/admin/ai/', label: 'AI docs', asOf: '2026-07-02' },
           {
             url: 'https://explained.tines.com/en/articles/10371885-use-a-preferred-ai-provider-in-tines-stories',
             label: 'Use a preferred AI provider in Tines Stories',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -745,8 +746,8 @@ export const tinesProfile: CompetitorProfile = {
       },
       entryPaidPlan: {
         value:
-          'Business Edition. No public price; starts around 30 flows / 1 team / 100 users / 1.5M daily events per the pricing explainer, with self-hosting available',
-        shortValue: 'Business Edition, price on request',
+          'Tines Stories Business Edition. No public price; starts around 30 flows / 1 team / 100 users / 1.5M daily events per the pricing explainer, with self-hosting available',
+        shortValue: 'Tines Stories Business Edition, price on request',
         confidence: 'verified',
         sources: [
           {
@@ -758,7 +759,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       freeTier: {
         value:
-          'Community Edition is free forever: 1 user, 3 flows, 3 apps, 1 team, 25,000 monthly events, 50 AI runtime credits/month, SSO included',
+          'Tines Stories Community Edition is free forever: 1 user, 3 flows, 3 apps, 1 team, 25,000 monthly events, 50 AI runtime credits/month, SSO included',
         shortValue: 'Community Edition free forever, limited usage',
         confidence: 'verified',
         sources: [

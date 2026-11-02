@@ -818,18 +818,28 @@ export const makeProfile: CompetitorProfile = {
             label: 'Make Pricing page',
             asOf: '2026-10-25',
           },
+          {
+            url: 'https://web.archive.org/web/20261025101514/https://www.make.com/en/pricing',
+            label: 'Make Pricing page (archived October 25, 2026)',
+            asOf: '2026-10-25',
+          },
         ],
       },
       freeTier: {
         value: 'Yes: Free plan with 1,000 credits/month',
         detail:
-          'Free tier limits: 2 active scenarios max, 15-minute minimum execution interval, 5-minute max execution time, 5MB max file size, 512MB data transfer, access to every app integration and basic routers/filters, basic customer support with 90-day expert access.',
+          'Free tier limits: 2 active scenarios max, 15-minute minimum execution interval, 5-minute max execution time, 5MB max file size, 512MB data transfer, 3,500+ standard apps (enterprise apps require an Enterprise plan) and basic routers/filters, basic customer support with 90-day expert access.',
         shortValue: '1,000 credits/month, 2 active scenarios',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.make.com/en/pricing',
             label: 'Make Pricing page',
+            asOf: '2026-10-25',
+          },
+          {
+            url: 'https://web.archive.org/web/20261025101514/https://www.make.com/en/pricing',
+            label: 'Make Pricing page (archived October 25, 2026)',
             asOf: '2026-10-25',
           },
         ],

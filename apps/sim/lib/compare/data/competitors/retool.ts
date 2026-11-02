@@ -814,7 +814,7 @@ export const retoolProfile: CompetitorProfile = {
       byok: {
         value:
           'Partial: Retool AI supports "bring your own" model connections for chat/completion models (OpenAI, Anthropic, Google, AWS, Azure, or custom), but Retool Vectors\' embedding calls always go through OpenAI\'s API regardless of the chosen chat model. The pricing page lists bringing your own AI provider key as an Enterprise-only feature.',
-        shortValue: 'BYO chat model, but embeddings always use OpenAI',
+        shortValue: 'BYO chat model on Enterprise only; embeddings always use OpenAI',
         confidence: 'verified',
         sources: [
           { url: 'https://retool.com/ai', label: 'Retool AI', asOf: '2026-11-02' },
