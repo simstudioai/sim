@@ -62,7 +62,7 @@ export const vellumProfile: CompetitorProfile = {
   ],
   limitations: [
     {
-      title: 'Brand/product ambiguity as of mid-2026',
+      title: 'Brand/product ambiguity in 2026',
       description:
         "Vellum's homepage, pricing page, security docs, and several product pages serve content for a consumer 'Personal Intelligence' assistant (an open-source, MIT-licensed Mac app), which Vellum announced it would shut down on November 2, 2026, instead of the original enterprise workflow, evaluations, and prompt-engineering platform. That makes enterprise-specific details, like environment promotion, version-control depth, tracing, alerting, and integration counts, harder to verify from the public site alone.",
       shortDescription:

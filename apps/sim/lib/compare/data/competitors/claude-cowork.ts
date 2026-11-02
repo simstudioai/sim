@@ -15,7 +15,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    "Claude Cowork is Anthropic's autonomous desktop agent, built into the Claude Desktop app. Give it a goal in plain language and it works across your local files, folders, and apps (via connectors, a browser, and direct screen control) to finish a multi-step task end-to-end. It is not a visual workflow builder or automation/integration platform like Sim, n8n, or Zapier. Since September 16, 2026, Cowork and chat are one Claude app, and scheduled tasks run remotely, but tasks that work on local files or apps still need the desktop app open and the computer awake.",
+    "Claude Cowork is Anthropic's autonomous desktop agent, built into the Claude Desktop app. Give it a goal in plain language and it works across your local files, folders, and apps (via connectors, a browser, and direct screen control) to finish a multi-step task end-to-end. It is not a visual workflow builder or automation/integration platform like Sim, n8n, or Zapier. Since September 16, 2026, Anthropic has been rolling out Cowork and chat as one Claude app, and scheduled tasks run remotely, but tasks that work on local files or apps still need the desktop app open and the computer awake.",
   standoutFeatures: [
     {
       title: 'Dynamic, runtime tool selection (no pre-wiring)',
@@ -619,7 +619,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
       triggerTypes: {
         value: 'Manual (on-demand) or schedule-based only. No external event/webhook triggers',
         detail:
-          'Tasks start either by user prompt (desktop or mobile) or on a defined schedule (hourly/daily/weekly/weekdays); scheduled tasks run remotely, so they keep their cadence while the computer is asleep or the desktop app is closed. There is no capability to trigger a task from an inbound webhook or other external event.',
+          'Tasks start either by user prompt (desktop or mobile) or on a defined schedule (hourly/daily/weekly/weekdays); scheduled tasks run remotely, so they keep their cadence while the computer is asleep or the desktop app is closed, except tasks that work on local files or apps, which still need the desktop app open and the computer awake. There is no capability to trigger a task from an inbound webhook or other external event.',
         shortValue: 'Manual or scheduled only, no webhooks',
         confidence: 'verified',
         sources: [
@@ -1183,7 +1183,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
       },
       companyMaturity: {
         value:
-          'Anthropic. Major frontier AI lab; Cowork research preview Jan 12, 2026 → GA April 9, 2026; merged with chat into one Claude from Sep 16, 2026',
+          'Anthropic. Major frontier AI lab; Cowork research preview Jan 12, 2026 → GA April 9, 2026; merging with chat into one Claude, rolling out from Sep 16, 2026',
         detail:
           'Claude Cowork launched January 12, 2026 as a research preview limited to Max plan subscribers; it reached General Availability on April 9, 2026 across all paid plans (Pro, Max, Team, Enterprise) on macOS and Windows, alongside new enterprise controls. Linux support is in beta. On September 16, 2026, Anthropic announced that Cowork and chat are merging into one Claude, rolling out on Pro, Max, and Ultra plans with more plans to follow.',
         shortValue: 'Anthropic; reached GA April 2026',
