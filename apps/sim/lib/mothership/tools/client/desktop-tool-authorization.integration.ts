@@ -186,9 +186,10 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
   async function desktopIsRunning(
     runId: string,
     toolName: string,
+    args: Record<string, unknown> = {},
     registry?: ResolvedSecretTraceRegistry
   ) {
-    const toolCallId = await agentCalls(runId, toolName, {}, registry)
+    const toolCallId = await agentCalls(runId, toolName, args, registry)
     const claim = await desktopClaims(toolCallId)
     expect(claim.status).toBe(200)
     return toolCallId
@@ -349,7 +350,7 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
   it('wakes the waiting turn with what Stop did to a call the desktop already claimed', async () => {
     const { runId, streamId } = await startRun()
     const registry = new ResolvedSecretTraceRegistry([])
-    const toolCallId = await desktopIsRunning(runId, 'terminal', registry)
+    const toolCallId = await desktopIsRunning(runId, 'terminal', { operation: 'read' }, registry)
     const agentAnswer = waitForClientToolCompletion({
       toolCallId,
       runId,
