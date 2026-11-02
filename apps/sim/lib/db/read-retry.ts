@@ -47,8 +47,8 @@ export function isTransientDatabaseReadError(error: unknown): boolean {
  * Whether a failed read is temporary for the caller: a retryable driver error, an exhausted read
  * deadline, or a statement or transaction timeout. Surfaces present these as retry-later responses;
  * the timeouts stay out of {@link isTransientDatabaseReadError} because re-running a cancelled
- * scan in-process only repeats its cost. Narrower than `isRetryableInfrastructureError`, which
- * also treats a user-requested cancel as retryable.
+ * scan in-process only repeats its cost. Not interchangeable with `isRetryableInfrastructureError`:
+ * that one treats every 57014 cancel as retryable, including a user-requested one.
  */
 export function isDatabaseReadUnavailable(error: unknown): boolean {
   if (error instanceof DatabaseReadDeadlineError || isTransientDatabaseReadError(error)) return true
