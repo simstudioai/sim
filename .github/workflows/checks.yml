@@ -219,7 +219,7 @@ jobs:
           --health-retries 10
       # Desktop inbox, browser extension, and Project Files use Redis.
       redis:
-        image: ${{ (matrix.group == 'desktop-inbox' || matrix.group == 'browser-extension' || matrix.group == 'project-files') && 'redis:8.2-alpine' || '' }}
+        image: ${{ (matrix.group == 'desktop-inbox' || matrix.group == 'assistant-actions' || matrix.group == 'organization-search' || matrix.group == 'browser-extension' || matrix.group == 'project-files') && 'redis:8.2-alpine' || '' }}
         ports:
           - 6379:6379
         options: >-
