@@ -603,7 +603,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://www.langchain.com/langchain',
             label: 'LangChain: Open Source AI Agent Framework',
-            asOf: '2026-07-08',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -727,22 +727,22 @@ export const langchainProfile: CompetitorProfile = {
     pricing: {
       pricingModel: {
         value:
-          'The LangChain/LangGraph libraries themselves are free and open source (MIT); LangSmith (observability, evaluation, deployment) is a separate commercial product billed per-seat plus usage (traces, deployment uptime-minutes, compute units, sandbox resources)',
+          'The LangChain/LangGraph libraries themselves are free and open source (MIT); LangSmith (observability, evaluation, deployment) is a separate commercial product billed per-seat plus usage metered in LangChain Standard Units (LSUs, $1.00 each)',
         detail:
-          'Usage-based components include base/extended trace pricing (different retention windows), dev vs. production deployment uptime rates, LangChain Compute Units (LCUs) for the underlying execution engine, and sandbox CPU/memory/storage rates.',
+          'Usage beyond plan allowances is metered in LSUs: traces beyond the included base traces, deployment runtime and database compute/memory (per vCPU-hour and GiB-hour), Fleet, Engine, Tuned Evaluators, and sandbox CPU/memory/storage.',
         shortValue: 'Free OSS libraries; LangSmith is per-seat plus usage-based billing',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.langchain.com/pricing',
             label: 'LangSmith Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
       entryPaidPlan: {
         value:
-          'LangSmith Plus: $39/seat/month, up to 10,000 base traces/month included, then pay-as-you-go, unlimited seats, one complimentary dev deployment, email support',
+          'LangSmith Plus: $39/seat/month, up to 10,000 base traces/month included, then pay-as-you-go, unlimited seats, one free Serverless (Small) deployment, access to Deployment and Engine',
         detail:
           'The Developer plan below it is $0/seat/month (single seat, up to 5,000 base traces/month, community support only), so Plus is the first genuinely paid tier.',
         shortValue: '$39/seat/month, 10,000 base traces included',
@@ -751,7 +751,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://www.langchain.com/pricing',
             label: 'LangSmith Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -766,19 +766,25 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://www.langchain.com/pricing',
             label: 'LangSmith Pricing',
-            asOf: '2026-07-08',
+            asOf: '2026-11-02',
           },
         ],
       },
       byok: {
         value:
-          "Yes, by default: every model call in LangChain/LangGraph requires the developer's own provider API credentials (OpenAI, Anthropic, etc.) configured directly in application code or environment variables; LangSmith itself does not resell or proxy model access",
+          "Yes, by default: every model call in LangChain/LangGraph requires the developer's own provider API credentials (OpenAI, Anthropic, etc.) configured directly in application code or environment variables; LangSmith's optional LLM Gateway also supports a BYO model API key, or pay-as-you-go model usage via Gateway Credits on the Developer and Plus plans",
         detail:
           'This is the inherent architecture of a code library calling out to providers directly, not a named "BYOK" toggle in a UI.',
         shortValue:
           'Yes, de facto by architecture; every model call uses your own provider credentials',
         confidence: 'verified',
-        sources: [],
+        sources: [
+          {
+            url: 'https://www.langchain.com/pricing',
+            label: 'LangSmith Pricing (LLM Gateway: BYO model API key, Gateway Credits)',
+            asOf: '2026-11-02',
+          },
+        ],
       },
     },
     security: {

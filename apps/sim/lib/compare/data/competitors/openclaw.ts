@@ -673,12 +673,12 @@ export const openClawProfile: CompetitorProfile = {
           {
             url: 'https://openclaw.ai/',
             label: 'OpenClaw homepage',
-            asOf: '2026-07-08',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://clawhub.ai/',
             label: 'ClawHub registry',
-            asOf: '2026-07-08',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -794,7 +794,7 @@ export const openClawProfile: CompetitorProfile = {
           {
             url: 'https://github.com/openclaw/openclaw/blob/main/LICENSE',
             label: 'openclaw/openclaw LICENSE file',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -809,7 +809,7 @@ export const openClawProfile: CompetitorProfile = {
           {
             url: 'https://github.com/openclaw/openclaw/blob/main/LICENSE',
             label: 'openclaw/openclaw LICENSE file',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -824,7 +824,7 @@ export const openClawProfile: CompetitorProfile = {
           {
             url: 'https://github.com/openclaw/openclaw/blob/main/LICENSE',
             label: 'openclaw/openclaw LICENSE file',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -839,12 +839,12 @@ export const openClawProfile: CompetitorProfile = {
           {
             url: 'https://docs.openclaw.ai/concepts/model-providers',
             label: 'OpenClaw Docs: Model providers',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://openclaw.ai/',
             label: 'OpenClaw homepage',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -1232,8 +1232,8 @@ export const openClawProfile: CompetitorProfile = {
         value:
           'Not a company: OpenClaw is a community open-source project created by developer Peter Steinberger, first published November 2025 (as "Warelay," later "Clawdbot"). It was renamed "Moltbot" on January 27, 2026 after an Anthropic trademark dispute, then "OpenClaw" three days later. Steinberger joined OpenAI in February 2026 and handed governance to the newly formed, independent, non-profit OpenClaw Foundation, which OpenAI sponsors with multi-year funding and security support.',
         detail:
-          'This is a markedly different maturity profile than an incorporated vendor: under nine months old under its current name, extremely fast user/star growth, one primary original author, and governance now vested in a young non-profit foundation rather than an operating company with a multi-year track record.',
-        shortValue: 'Community/non-profit project, <9 months old under current name',
+          'This is a markedly different maturity profile than an incorporated vendor: under a year old under its current name, extremely fast user/star growth, one primary original author, and governance now vested in a young non-profit foundation rather than an operating company with a multi-year track record.',
+        shortValue: 'Community/non-profit project, <1 year old under current name',
         confidence: 'verified',
         sources: [
           {

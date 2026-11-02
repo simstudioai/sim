@@ -81,14 +81,14 @@ export const workatoProfile: CompetitorProfile = {
   ],
   limitations: [
     {
-      title: 'No published self-serve pricing',
+      title: 'Enterprise editions are sales-quoted; self-serve Pro is capped at 3 users',
       description:
-        "Workato's pricing page contains no plan names, prices, or free-tier terms, and routes every visitor to a sales demo or trial request, making cost comparison and self-serve adoption difficult versus vendors with transparent pricing.",
-      shortDescription: 'Pricing page has no figures. Every visitor is routed to sales.',
+        'Workato publishes self-serve prices only for Workato Free and Workato Pro, and Pro allows up to 3 users per workspace. Unlimited users and workspaces, platform API access, and enterprise security and governance require an Enterprise edition, which is priced by quote.',
+      shortDescription: 'Pro caps at 3 users per workspace; Enterprise editions are quote-only.',
       source: {
-        url: 'https://www.workato.com/pricing',
-        label: 'Workato Pricing Model | Workato',
-        asOf: '2026-07-02',
+        url: 'https://www.workato.com/pricing/tiers',
+        label: 'Workato AI Plans (Free, Pro, Enterprise)',
+        asOf: '2026-11-02',
       },
     },
     {
@@ -686,14 +686,29 @@ export const workatoProfile: CompetitorProfile = {
     integrations: {
       integrationCount: {
         value:
-          'Workato\'s integrations page cites "thousands of SaaS apps, databases, and ERPs" without a precise total; its on-prem docs cite 300+ cloud and on-premise applications for out-of-the-box on-prem connectivity. Third-party sources put the broader library above 1,200 connectors, though Workato does not publish that figure directly.',
-        shortValue: 'Thousands of connectors; 300+ documented for on-prem',
-        confidence: 'estimated',
+          "Workato's pricing page and integration library cite 1,200+ pre-built connectors; its plans page cites 10,000+ app and system integrations, and its homepage says it connects to 17,000+ apps, APIs, databases, files, and MCP servers. Its on-prem docs cite 300+ cloud and on-premise applications for out-of-the-box on-prem connectivity.",
+        shortValue: '1,200+ pre-built connectors',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://www.workato.com/integrations',
             label: 'Workato Integration Library | Pre-Built Connectors for Apps | Workato',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
+          },
+          {
+            url: 'https://www.workato.com/pricing',
+            label: 'Workato Pricing Model | Workato',
+            asOf: '2026-11-02',
+          },
+          {
+            url: 'https://www.workato.com/pricing/tiers',
+            label: 'Workato AI Plans (Free, Pro, Enterprise)',
+            asOf: '2026-11-02',
+          },
+          {
+            url: 'https://www.workato.com/',
+            label: 'Workato homepage (17,000+ apps, APIs, databases, files, MCP servers)',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://www.workato.com/the-connector/workato-on-premise-integration/',
@@ -847,40 +862,62 @@ export const workatoProfile: CompetitorProfile = {
     pricing: {
       pricingModel: {
         value:
-          'Custom, sales-quoted, consumption-based pricing combining a platform/edition subscription fee with usage charges metered mainly in "tasks"/"Workload Units" (individual automated actions); no self-serve list prices are published',
-        shortValue: 'Custom quoted pricing metered in tasks/Workload Units',
-        confidence: 'estimated',
+          'Usage-based pricing metered in Workato credits: self-serve Workato Free and Workato Pro plans with published prices, plus sales-quoted Enterprise editions (Standard, Business MCP, Enterprise MCP, Workato ONE)',
+        shortValue: 'Credit-based; self-serve Pro plus quoted Enterprise editions',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://www.workato.com/pricing',
             label: 'Workato Pricing Model | Workato',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
+          },
+          {
+            url: 'https://www.workato.com/pricing/tiers',
+            label: 'Workato AI Plans (Free, Pro, Enterprise)',
+            asOf: '2026-11-02',
+          },
+          {
+            url: 'https://docs.workato.com/en/pricing/self-service/self-service.html',
+            label: 'Self-service (Workato Free and Workato Pro) billing | Workato docs',
+            asOf: '2026-11-02',
           },
         ],
       },
       entryPaidPlan: {
         value:
-          "No published starting price; Workato's pricing page is sales-led (demo/trial request only). Third-party pricing-intelligence sites report a Standard/Starter tier around $2,000 to $10,000/month, unconfirmed by Workato.",
-        shortValue: 'No published price; sales-quoted only',
-        confidence: 'unknown',
+          'Workato Pro: from $75/month for 2,500 credits/month, billed monthly by credit card; Enterprise editions are sales-quoted',
+        detail:
+          "Workato's billing docs list Pro credit limits from $75/month for 2,500 credits up to $1,275/month for 50,000 credits, and unused Pro credits expire at the end of the billing month. Workato's plans page displays Pro at $100/month for 3,500 credits, with up to 3 users per workspace.",
+        shortValue: 'Pro from $75/mo for 2,500 credits',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.workato.com/pricing',
-            label: 'Workato Pricing Model | Workato',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/en/pricing/self-service/self-service.html',
+            label: 'Self-service (Workato Free and Workato Pro) billing | Workato docs',
+            asOf: '2026-11-02',
+          },
+          {
+            url: 'https://www.workato.com/pricing/tiers',
+            label: 'Workato AI Plans (Free, Pro, Enterprise)',
+            asOf: '2026-11-02',
           },
         ],
       },
       freeTier: {
         value:
-          "No self-serve free tier is documented. Workato's pricing page is sales-gated (demo/trial request only) and does not confirm a permanent free plan",
-        shortValue: 'No documented free tier',
-        confidence: 'unknown',
+          'Yes: Workato Free, a one-time grant of 50,000 credits with the same core platform capabilities as Workato Pro',
+        shortValue: '50,000 one-time credits',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.workato.com/pricing',
-            label: 'Workato Pricing Model | Workato',
-            asOf: '2026-07-02',
+            url: 'https://www.workato.com/pricing/tiers',
+            label: 'Workato AI Plans (Free, Pro, Enterprise)',
+            asOf: '2026-11-02',
+          },
+          {
+            url: 'https://docs.workato.com/en/pricing/self-service/self-service.html',
+            label: 'Self-service (Workato Free and Workato Pro) billing | Workato docs',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -893,7 +930,7 @@ export const workatoProfile: CompetitorProfile = {
           {
             url: 'https://www.workato.com/product-hub/changelog/bring-your-own-llm-byollm-support-for-agent-studio/',
             label: 'Bring Your Own LLM (BYOLLM) Support for Agent Studio | Workato Product Hub',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },

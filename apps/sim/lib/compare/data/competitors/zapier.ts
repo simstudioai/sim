@@ -59,7 +59,7 @@ export const zapierProfile: CompetitorProfile = {
       title: '9,000+ pre-built app integrations',
       description: "Zapier's app directory lists 9,000+ supported apps and connectors.",
       shortDescription: 'Connects to 9,000+ apps.',
-      source: { url: 'https://zapier.com/apps', label: 'Zapier App Directory', asOf: '2026-07-02' },
+      source: { url: 'https://zapier.com/apps', label: 'Zapier App Directory', asOf: '2026-11-02' },
     },
     {
       title: 'Hosted MCP server',
@@ -114,9 +114,9 @@ export const zapierProfile: CompetitorProfile = {
         'The free plan is capped at 100 tasks/month and limited to two-step Zaps (one trigger, one action), so multi-step automations or agents require an upgrade.',
       shortDescription: 'Capped at 100 tasks/month and two-step Zaps only.',
       source: {
-        url: 'https://www.activepieces.com/blog/zapier-pricing',
-        label: 'Zapier Pricing Breakdown (third-party analysis)',
-        asOf: '2026-07-02',
+        url: 'https://zapier.com/pricing',
+        label: 'Zapier Pricing',
+        asOf: '2026-11-02',
       },
     },
     {
@@ -461,9 +461,9 @@ export const zapierProfile: CompetitorProfile = {
             asOf: '2026-07-08',
           },
           {
-            url: 'https://docs.zapier.com/mcp/usage/overview',
-            label: 'Zapier MCP docs — Usage overview (2 tasks per tool call)',
-            asOf: '2026-07-08',
+            url: 'https://docs.zapier.com/mcp/overview/usage',
+            label: 'Zapier MCP docs — Usage and billing (2 tasks per tool call)',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -662,7 +662,7 @@ export const zapierProfile: CompetitorProfile = {
         shortValue: '9,000+ apps',
         confidence: 'verified',
         sources: [
-          { url: 'https://zapier.com/apps', label: 'Zapier App Directory', asOf: '2026-07-02' },
+          { url: 'https://zapier.com/apps', label: 'Zapier App Directory', asOf: '2026-11-02' },
         ],
       },
       triggerTypes: {
@@ -777,17 +777,17 @@ export const zapierProfile: CompetitorProfile = {
             url: 'https://zapier.com/pricing',
             label:
               'Zapier Pricing (task tiers from 100 to 2M/month; seat limits on Team/Enterprise)',
-            asOf: '2026-07-08',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://help.zapier.com/hc/en-us/articles/8496196837261-How-is-task-usage-measured-in-Zapier',
             label: 'How is task usage measured in Zapier? (Zap triggers never use tasks)',
-            asOf: '2026-07-08',
+            asOf: '2026-11-02',
           },
           {
-            url: 'https://docs.zapier.com/mcp/usage/overview',
+            url: 'https://docs.zapier.com/mcp/overview/usage',
             label: 'Zapier MCP usage overview (task cost per tool call)',
-            asOf: '2026-07-08',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -797,24 +797,24 @@ export const zapierProfile: CompetitorProfile = {
         detail:
           "Includes unlimited Zaps, multi-step Zaps, and premium app access, beyond the free tier's 2-step limit.",
         shortValue: 'Professional plan from $19.99/mo for 750 tasks',
-        confidence: 'estimated',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.activepieces.com/blog/zapier-pricing',
-            label: 'Zapier Pricing Breakdown (third-party)',
-            asOf: '2026-07-02',
+            url: 'https://zapier.com/pricing',
+            label: 'Zapier Pricing',
+            asOf: '2026-11-02',
           },
         ],
       },
       freeTier: {
         value: 'Yes: 100 tasks/month, limited to 2-step Zaps (one trigger, one action)',
         shortValue: '100 tasks/month, two-step Zaps only',
-        confidence: 'estimated',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.activepieces.com/blog/zapier-pricing',
-            label: 'Zapier Pricing Breakdown (third-party)',
-            asOf: '2026-07-02',
+            url: 'https://zapier.com/pricing',
+            label: 'Zapier Pricing',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -828,7 +828,7 @@ export const zapierProfile: CompetitorProfile = {
           {
             url: 'https://help.zapier.com/hc/en-us/articles/21959873616013-Use-your-own-API-key-with-a-Zapier-Chatbot',
             label: 'Use your own API key with a Zapier Chatbot',
-            asOf: '2026-07-08',
+            asOf: '2026-11-02',
           },
         ],
       },

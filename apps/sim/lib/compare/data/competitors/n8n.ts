@@ -57,7 +57,7 @@ export const n8nProfile: CompetitorProfile = {
       description:
         'n8n includes unlimited users on every plan, including the €20/month Starter tier, and bills by monthly workflow executions rather than by user seat: a full run start-to-finish counts once no matter how many nodes it contains.',
       shortDescription: 'Unlimited users on every tier, billed by monthly executions, not by seat.',
-      source: { url: 'https://n8n.io/pricing/', label: 'n8n Pricing', asOf: '2026-07-02' },
+      source: { url: 'https://n8n.io/pricing/', label: 'n8n Pricing', asOf: '2026-11-02' },
     },
     {
       title: 'Native MCP Client Tool and MCP Server Trigger nodes',
@@ -678,16 +678,16 @@ export const n8nProfile: CompetitorProfile = {
     },
     integrations: {
       integrationCount: {
-        value: '1,936 integrations (per n8n.io/integrations)',
+        value: '2,000+ integrations (per n8n.io/integrations)',
         detail:
-          "The n8n.io integrations directory page lists 1,936 integrations. n8n's GitHub repo description separately advertises a rounder '400+ integrations,' so the two vendor sources disagree slightly.",
-        shortValue: '1,936 listed integrations',
+          "The n8n.io integrations directory page advertises 2,000+ integrations, and its unfiltered listing counts 2,615 entries, including partner-built nodes. n8n's GitHub repo description separately advertises a rounder '400+ integrations,' so the two vendor sources disagree.",
+        shortValue: '2,000+ listed integrations',
         confidence: 'verified',
         sources: [
           {
             url: 'https://n8n.io/integrations/',
             label: 'n8n.io Integrations directory',
-            asOf: '2026-07-08',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -842,7 +842,7 @@ export const n8nProfile: CompetitorProfile = {
           {
             url: 'https://n8n.io/pricing/',
             label: 'n8n Pricing',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -856,7 +856,7 @@ export const n8nProfile: CompetitorProfile = {
           {
             url: 'https://n8n.io/pricing/',
             label: 'n8n Pricing',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -871,12 +871,12 @@ export const n8nProfile: CompetitorProfile = {
           {
             url: 'https://docs.n8n.io/choose-how-to-use-n8n.md',
             label: 'n8n docs: Choose how to use n8n',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://n8n.io/pricing/',
             label: 'n8n Pricing',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -891,12 +891,12 @@ export const n8nProfile: CompetitorProfile = {
           {
             url: 'https://n8n.io/pricing/',
             label: 'n8n Pricing',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://docs.n8n.io/deploy/use-n8n-cloud/gateway-credits.md',
             label: 'n8n docs: Gateway credits',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://docs.n8n.io/integrations/builtin/credentials/openai',

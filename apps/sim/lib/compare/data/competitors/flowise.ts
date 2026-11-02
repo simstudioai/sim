@@ -102,7 +102,7 @@ export const flowiseProfile: CompetitorProfile = {
       source: {
         url: 'https://flowiseai.com/sunset',
         label: 'Flowise: The Future of Flowise',
-        asOf: '2026-10-19',
+        asOf: '2026-11-02',
       },
     },
     {
@@ -679,7 +679,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://flowiseai.com',
             label: 'Flowise: Pricing',
-            asOf: '2026-10-19',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -692,7 +692,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://flowiseai.com',
             label: 'Flowise: Pricing',
-            asOf: '2026-10-19',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -705,7 +705,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://flowiseai.com',
             label: 'Flowise: Pricing',
-            asOf: '2026-10-19',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -719,7 +719,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/configuration/environment-variables',
             label: 'Flowise Docs: Environment Variables',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },

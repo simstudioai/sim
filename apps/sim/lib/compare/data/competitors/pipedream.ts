@@ -84,7 +84,7 @@ export const pipedreamProfile: CompetitorProfile = {
       source: {
         url: 'https://pipedream.com/docs/workflows',
         label: 'Pipedream Docs: Workflows',
-        asOf: '2026-10-15',
+        asOf: '2026-11-02',
       },
     },
     {
@@ -571,13 +571,14 @@ export const pipedreamProfile: CompetitorProfile = {
     },
     integrations: {
       integrationCount: {
-        value: '3,000+ integrated apps; 10,000+ pre-built tools',
+        value: '3,000+ integrated APIs; 10,000+ pre-built tools and triggers',
         detail:
-          "Homepage states: '3,000+ integrated apps. Use managed authentication across 3,000+ apps and build agents to solve any use case' and 'Access 10k tools. Embed pre-built tools (triggers and actions) directly in your application or AI agent.'",
-        shortValue: '3,000+ apps, 10,000+ pre-built tools',
+          "Homepage states: 'Managed auth and 10,000+ tools across 3,000+ APIs' and lists '10,000+ Prebuilt tools & triggers' and '3,000+ Integrated APIs'; the pricing page lists 3,000+ connectors on every plan.",
+        shortValue: '3,000+ APIs, 10,000+ pre-built tools',
         confidence: 'verified',
         sources: [
-          { url: 'https://pipedream.com/', label: 'Pipedream homepage', asOf: '2026-07-02' },
+          { url: 'https://pipedream.com/', label: 'Pipedream homepage', asOf: '2026-11-02' },
+          { url: 'https://pipedream.com/pricing', label: 'Pipedream Pricing', asOf: '2026-11-02' },
         ],
       },
       triggerTypes: {
@@ -726,17 +727,17 @@ export const pipedreamProfile: CompetitorProfile = {
           {
             url: 'https://pipedream.com/pricing',
             label: 'Pipedream Pricing',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://pipedream.com/docs/pricing',
             label: 'Pipedream Docs: Plans and Pricing',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://pipedream.com/docs/workflows',
             label: 'Pipedream Docs: Workflows',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -751,12 +752,12 @@ export const pipedreamProfile: CompetitorProfile = {
           {
             url: 'https://pipedream.com/pricing',
             label: 'Pipedream Pricing',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://pipedream.com/docs/workflows',
             label: 'Pipedream Docs: Workflows',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -770,12 +771,12 @@ export const pipedreamProfile: CompetitorProfile = {
           {
             url: 'https://pipedream.com/pricing',
             label: 'Pipedream Pricing',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://pipedream.com/docs/pricing',
             label: 'Pipedream Docs: Plans and Pricing',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },

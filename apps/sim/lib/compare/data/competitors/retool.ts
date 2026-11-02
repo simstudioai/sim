@@ -133,7 +133,7 @@ export const retoolProfile: CompetitorProfile = {
       description:
         'Retool Agents usage is metered and billed hourly, separate from the monthly AI-credit allocation used for app-building and AI actions. This adds a second, less predictable usage-based cost on top of seat pricing.',
       shortDescription: 'Agents usage is billed hourly, separate from the AI-credit pool.',
-      source: { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-07-02' },
+      source: { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-11-02' },
     },
   ],
   facts: {
@@ -663,16 +663,16 @@ export const retoolProfile: CompetitorProfile = {
     integrations: {
       integrationCount: {
         value:
-          '90+ listed integrations/connectors on the public integrations page, plus generic REST API, GraphQL, and gRPC connectivity for anything without a native connector.',
+          '74 listed integrations/connectors on the public integrations page, plus generic REST API, GraphQL, and gRPC connectivity for anything without a native connector.',
         detail:
           'Categories include databases, cloud platforms, CRMs, messaging, and AI services (OpenAI, Anthropic, Google Gemini, etc.).',
-        shortValue: '90+ connectors plus REST/GraphQL/gRPC',
+        shortValue: '74 connectors plus REST/GraphQL/gRPC',
         confidence: 'verified',
         sources: [
           {
             url: 'https://retool.com/integrations',
             label: 'Retool Integrations',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -790,7 +790,7 @@ export const retoolProfile: CompetitorProfile = {
         shortValue: 'Seat-based plus AI credits and hourly Agents billing',
         confidence: 'verified',
         sources: [
-          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-07-02' },
+          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-11-02' },
         ],
       },
       entryPaidPlan: {
@@ -799,30 +799,31 @@ export const retoolProfile: CompetitorProfile = {
         shortValue: '$10/builder + $5/user per month (Team plan)',
         confidence: 'verified',
         sources: [
-          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-07-02' },
+          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-11-02' },
         ],
       },
       freeTier: {
         value:
-          'Yes: Free plan: unlimited web/mobile apps, 500 workflow runs/month, 5GB database capacity, 5GB file storage, up to 5 users, 20 hours/month of Agents, 250 AI credits/month.',
+          'Yes: Free plan: unlimited web/mobile apps, 500 workflow runs/month, 5GB database capacity, up to 5 users, 20 hours/month of Agents, 250 AI credits/month.',
         shortValue: 'Yes, up to 5 users with limited usage',
         confidence: 'verified',
         sources: [
-          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-07-02' },
+          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-11-02' },
         ],
       },
       byok: {
         value:
-          'Partial: Retool AI supports "bring your own" model connections for chat/completion models (OpenAI, Anthropic, Google, AWS, Azure, or custom), but Retool Vectors\' embedding calls always go through OpenAI\'s API regardless of the chosen chat model.',
+          'Partial: Retool AI supports "bring your own" model connections for chat/completion models (OpenAI, Anthropic, Google, AWS, Azure, or custom), but Retool Vectors\' embedding calls always go through OpenAI\'s API regardless of the chosen chat model. The pricing page lists bringing your own AI provider key as an Enterprise-only feature.',
         shortValue: 'BYO chat model, but embeddings always use OpenAI',
         confidence: 'verified',
         sources: [
-          { url: 'https://retool.com/ai', label: 'Retool AI', asOf: '2026-07-02' },
+          { url: 'https://retool.com/ai', label: 'Retool AI', asOf: '2026-11-02' },
           {
             url: 'https://docs.retool.com/data-sources/guides/vectors/embeddings',
             label: 'Manage embeddings in Retool-managed Vectors | Retool Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
+          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-11-02' },
         ],
       },
     },
@@ -866,7 +867,7 @@ export const retoolProfile: CompetitorProfile = {
             label: 'Configure role-based access control | Retool Docs',
             asOf: '2026-07-02',
           },
-          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-07-02' },
+          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-11-02' },
         ],
       },
       auditLogging: {
@@ -877,7 +878,7 @@ export const retoolProfile: CompetitorProfile = {
         shortValue: 'From Business plan up; continuous export limited to Datadog/stdout',
         confidence: 'verified',
         sources: [
-          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-07-02' },
+          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-11-02' },
           {
             url: 'https://docs.retool.com/changelog/audit-logs-in-datadog',
             label: 'Send audit log events to Datadog',
@@ -949,7 +950,7 @@ export const retoolProfile: CompetitorProfile = {
           {
             url: 'https://retool.com/pricing',
             label: 'Retool Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://docs.retool.com/apps/mobile/guides/whitelabel',
@@ -1007,7 +1008,7 @@ export const retoolProfile: CompetitorProfile = {
           {
             url: 'https://retool.com/pricing',
             label: 'Retool Pricing',
-            asOf: '2026-07-08',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -1039,7 +1040,7 @@ export const retoolProfile: CompetitorProfile = {
       },
       thirdPartyVetting: {
         value:
-          "Yes: Retool's built-in integrations (Resources) are a first-party catalog of roughly 90+ databases, APIs, AI services, and cloud tools built and maintained by Retool, not an open marketplace of third-party-submitted connectors. Custom Component Libraries let a customer's own developers pull in npm packages to build custom UI components, but these are private to the authoring organization by default, not a shared registry of code from unrelated third parties.",
+          "Yes: Retool's built-in integrations (Resources) are a first-party catalog of roughly 70+ databases, APIs, AI services, and cloud tools built and maintained by Retool, not an open marketplace of third-party-submitted connectors. Custom Component Libraries let a customer's own developers pull in npm packages to build custom UI components, but these are private to the authoring organization by default, not a shared registry of code from unrelated third parties.",
         detail:
           "A custom component loads into a sandboxed iframe, and Retool's custom-component-guide plus a community forum thread ('Custom Component Vulnerabilities') flag that developers should run npm audit on dependencies pulled into their own component libraries. This is a supply-chain caution for self-authored code, not an incident involving a shared marketplace, since no public component marketplace exists.",
         shortValue: 'Yes, first-party integration catalog, no public component marketplace',
@@ -1048,7 +1049,7 @@ export const retoolProfile: CompetitorProfile = {
           {
             url: 'https://retool.com/integrations',
             label: 'Retool Integrations',
-            asOf: '2026-07-08',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://docs.retool.com/apps/guides/custom/custom-component-libraries/',

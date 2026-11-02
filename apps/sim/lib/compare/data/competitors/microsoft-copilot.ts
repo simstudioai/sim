@@ -77,7 +77,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       source: {
         url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management',
         label: 'Billing rates and management - Microsoft Copilot Studio | Microsoft Learn',
-        asOf: '2026-07-02',
+        asOf: '2026-11-02',
       },
     },
     {
@@ -251,7 +251,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
           {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management',
             label: 'Billing rates and management - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -423,7 +423,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/bring-your-own-model-prompts',
             label:
               'Bring your own model for your prompts - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -731,7 +731,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-connectors',
             label:
               'Use connectors in Copilot Studio agents - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-08',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -853,22 +853,27 @@ export const microsoftCopilotProfile: CompetitorProfile = {
           {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management',
             label: 'Billing rates and management - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
       entryPaidPlan: {
         value:
-          'Copilot Studio Pre-Purchase Plan: $200/month for a 25,000 Copilot Credit capacity pack (roughly 20% cheaper than pay-as-you-go), or pay-as-you-go at $0.01 per Copilot Credit with no upfront commitment',
+          'Copilot Studio capacity pack: $200/month for 25,000 Copilot Credits, or pay-as-you-go at $0.01 per Copilot Credit with no upfront commitment; a separate Pre-purchase plan of Copilot Credit Commit Units saves up to 20%',
         detail:
-          'Both require an active Azure subscription for billing; a $200 free Azure credit is available for new accounts to trial the pay-as-you-go meter.',
+          'Pay-as-you-go and the Pre-purchase plan require an active Azure subscription for billing; a $200 free Azure credit is available for new accounts to trial the pay-as-you-go meter.',
         shortValue: '$200/month for 25,000 credits, or $0.01/credit pay-as-you-go',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.microsoft.com/en-us/microsoft-365-copilot/pricing/copilot-studio',
-            label: 'Microsoft 365 Copilot Pricing - AI Agents | Copilot Studio',
-            asOf: '2026-07-02',
+            url: 'https://www.microsoft.com/en-us/copilot/pricing/copilot-studio',
+            label: 'Microsoft Copilot Studio Plans and Pricing',
+            asOf: '2026-11-02',
+          },
+          {
+            url: 'https://azure.microsoft.com/en-us/pricing/details/copilot-studio/',
+            label: 'Copilot Studio pricing (Azure pay-as-you-go meter)',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -881,9 +886,9 @@ export const microsoftCopilotProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.microsoft.com/en-us/microsoft-365-copilot/pricing/copilot-studio',
-            label: 'Microsoft 365 Copilot Pricing - AI Agents | Copilot Studio',
-            asOf: '2026-07-02',
+            url: 'https://www.microsoft.com/en-us/copilot/pricing/copilot-studio',
+            label: 'Microsoft Copilot Studio Plans and Pricing',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -899,7 +904,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/bring-your-own-model-prompts',
             label:
               'Bring your own model for your prompts - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
