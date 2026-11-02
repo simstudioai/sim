@@ -30,6 +30,7 @@ import {
 } from '@aws-sdk/client-cloudwatch'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { getAwsCredentials, hasExplicitAwsCredentials } from '@/lib/core/config/aws'
 
 const logger = createLogger('HostedKeyMetrics')
 
@@ -44,10 +45,10 @@ type QueueReason = 'actor_requests' | 'dimension' | 'queue_position'
 /** `metering` marks a provider call that succeeded but could not be priced. */
 type FailureReason = 'rate_limited' | 'auth' | 'other' | 'metering'
 
-// Deployed envs (app + trigger worker) carry static AWS creds; local dev does
-// not. No creds → no-op, so recorders stay always-safe to call (same contract
-// as the previous no-op-meter behavior).
-const ENABLED = Boolean(process.env.AWS_ACCESS_KEY_ID)
+// Deployed envs (app + trigger worker) carry AWS credentials of their own;
+// local dev does not. No creds → no-op, so recorders stay always-safe to call
+// (same contract as the previous no-op-meter behavior).
+const ENABLED = hasExplicitAwsCredentials()
 
 const ENVIRONMENT =
   process.env.OTEL_DEPLOYMENT_ENVIRONMENT ||
@@ -63,7 +64,10 @@ let handlersRegistered = false
 
 function getClient(): CloudWatchClient {
   if (!client) {
-    client = new CloudWatchClient({ region: process.env.AWS_REGION || 'us-east-1' })
+    client = new CloudWatchClient({
+      region: process.env.AWS_REGION || 'us-east-1',
+      credentials: getAwsCredentials(),
+    })
   }
   return client
 }

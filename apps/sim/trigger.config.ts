@@ -162,6 +162,11 @@ export default defineConfig({
    * subscribe, and they are a minority of runs, so that connection is warmed
    * on intent at the execution entry point instead.
    *
+   * Also refreshes workload-identity AWS credentials, alongside the Redis
+   * warm-up, while the attempt is executing and a token can still be minted,
+   * so work a run leaves behind (the hosted-key metrics flush) has credentials
+   * after the attempt ends. Never throws, like the warm-up.
+   *
    * @see https://trigger.dev/docs/config/config-file#lifecycle-functions
    */
   init: async () => {
@@ -173,7 +178,8 @@ export default defineConfig({
     const { reportAccountTokenSealing } = await import('@sim/db/sealed-text')
     reportAccountTokenSealing()
     const { warmRedisConnection } = await import('./lib/core/config/redis')
-    await warmRedisConnection()
+    const { refreshAwsCredentialsForRun } = await import('./lib/core/config/aws')
+    await Promise.all([warmRedisConnection(), refreshAwsCredentialsForRun()])
   },
   ...(grafanaTelemetry ? { telemetry: grafanaTelemetry } : {}),
   build: {
