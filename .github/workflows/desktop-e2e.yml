@@ -11,6 +11,7 @@ on:
     paths:
       - '.github/workflows/desktop-e2e.yml'
       - '.github/workflows/desktop-release.yml'
+      - '.github/actions/desktop-native-cache/**'
       - 'apps/desktop/**'
       - 'apps/sim/app/_shell/desktop-update-*.tsx'
       - 'apps/sim/app/workspace/**/home/hooks/use-mothership-resize.ts'
@@ -49,6 +50,17 @@ on:
       - 'package.json'
       - 'scripts/desktop-e2e.ts'
       - 'scripts/duration-shards.ts'
+  push:
+    branches: [main, staging]
+    paths:
+      - '.github/workflows/desktop-e2e.yml'
+      - '.github/actions/desktop-native-cache/**'
+      - 'apps/desktop/native/**'
+      - 'apps/desktop/scripts/build.ts'
+      - 'apps/desktop/scripts/build-native.ts'
+      - 'apps/desktop/scripts/native-build-cache.ts'
+      - 'apps/desktop/tsconfig.json'
+      - 'bun.lock'
   schedule:
     - cron: '23 9 * * 1'
   workflow_dispatch:
@@ -61,9 +73,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  native-cache:
+    name: native-cache (Node ${{ matrix.node }})
+    if: github.event_name == 'push'
+    runs-on: macos-26
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24.22.1']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          persist-credentials: false
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.4
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Restore native compilation
+        uses: ./.github/actions/desktop-native-cache
+      - name: Build desktop native outputs
+        working-directory: apps/desktop
+        run: bun run scripts/build-native.ts --computer-use
+
   e2e:
     name: e2e (${{ matrix.shard }}/3)
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && github.event_name != 'push'
     runs-on: macos-26
     timeout-minutes: 30
     strategy:
@@ -81,6 +123,11 @@ jobs:
         with:
           bun-version: 1.4.4
 
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: 24.22.1
+
       # Electron, electron-builder and Playwright download their binaries on every cold install. All
       # three caches are keyed by version inside, so an older entry restored by prefix is harmless.
       - name: Cache Electron and Playwright downloads
@@ -95,6 +142,9 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Restore native compilation
+        uses: ./.github/actions/desktop-native-cache
 
       - name: Bundle main and preload
         working-directory: apps/desktop
@@ -154,6 +204,11 @@ jobs:
         with:
           bun-version: 1.4.4
 
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: 24.22.1
+
       # Electron, electron-builder and Playwright download their binaries on every cold install. All
       # three caches are keyed by version inside, so an older entry restored by prefix is harmless.
       - name: Cache Electron and Playwright downloads
@@ -174,6 +229,9 @@ jobs:
       - name: Switch to electron@latest
         working-directory: apps/desktop
         run: bun add --no-save -d --minimum-release-age=0 electron@latest
+
+      - name: Restore native compilation
+        uses: ./.github/actions/desktop-native-cache
 
       - name: Bundle main and preload
         working-directory: apps/desktop
@@ -205,7 +263,7 @@ jobs:
 
   package-smoke:
     name: package-smoke
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && github.event_name != 'push'
     runs-on: macos-26
     timeout-minutes: 20
     steps:
@@ -238,6 +296,9 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Restore native compilation
+        uses: ./.github/actions/desktop-native-cache
 
       - name: Bundle and package unsigned
         working-directory: apps/desktop
