@@ -7,17 +7,17 @@ date: 2026-11-02
 updated: 2026-11-02
 authors:
   - andrew
-readingTime: 9
+readingTime: 10
 tags: [AI Agents, Web Search, No-Code, Serper, Sim]
 ogImage: /library/connect-serper-search-api-ai-agent-without-code/cover.jpg
 draft: false
 faq:
   - q: "How do you connect the Serper Search API to an AI agent without code?"
-    a: "Sim connects Serper to an AI agent without code by using a Serper integration step, an API-key credential, a mapped search query, and an AI model step that receives the search results."
+    a: "Sim connects Serper to an AI agent without code by using a Serper integration step, a mapped search query, and an AI model step that receives the search results. Self-hosted deployments accept the key in the block, while Sim Cloud can use a workspace BYOK key or a shared hosted key."
   - q: "Does connecting Serper to Sim require coding?"
     a: "Sim does not require coding for the standard Serper connection because authentication, query mapping, and result handoff can be configured in the visual builder."
   - q: "Do you need a Serper API key to use Serper in Sim?"
-    a: "Serper requires an API key for authenticated search requests, and the key should be stored as a Sim credential rather than placed in a prompt or public input."
+    a: "Serper requires an API key for authenticated search requests. Self-hosted deployments accept it in the Serper block’s API Key field, while Sim Cloud can use a key from workspace BYOK settings or a shared hosted key."
   - q: "What is the simplest no-code Serper AI agent workflow?"
     a: "Sim’s simplest Serper workflow is user input followed by Serper Search, an AI model, and a sourced response."
   - q: "Can a Serper AI agent return citations?"
@@ -33,11 +33,11 @@ faq:
   - q: "How do you stop a Serper AI agent from inventing sources?"
     a: "Sim reduces invented sources by passing the original search output to the model, requiring titles and URLs, forbidding fabricated links, and returning an insufficient-evidence response when necessary."
   - q: "What should you do if Serper returns no results in Sim?"
-    a: "Sim users should inspect the incoming query, credential, mapping, and Serper account status before changing the downstream AI prompt."
+    a: "Sim builders should inspect the incoming query, API key setup, mapping, and Serper account status before changing the downstream AI prompt."
   - q: "Is Sim better than n8n for connecting Serper to an AI agent?"
     a: "Sim fits searches that primarily feed AI reasoning and a sourced agent response, while n8n fits tasks centered on general workflow automation."
   - q: "Can self-hosted Sim connect to Serper?"
-    a: "Sim can make outbound integration requests from a correctly configured self-hosted deployment, provided the deployment can reach Serper and the workflow has a valid Serper credential."
+    a: "Sim can make outbound integration requests from a correctly configured self-hosted deployment, provided the deployment can reach Serper and the Serper block has a valid API key."
   - q: "Is Sim open source?"
     a: "Sim’s core is Apache 2.0, while apps/sim/ee is governed by the separate Sim Enterprise License and requires an active Enterprise subscription for production use."
   - q: "Where can you learn how to connect a different search API to Sim?"
@@ -46,20 +46,20 @@ faq:
 
 ## TL;DR
 
-Sim connects the Serper Search API to an AI agent without code by letting you add a Serper search step, authenticate it with an API key, map a dynamic query into it, and pass the results to an AI model in the visual builder.
+Sim connects the Serper Search API to an AI agent without code by letting you add a Serper search step, choose the appropriate API key path for your deployment, map a dynamic query into it, and pass the results to an AI model in the visual builder.
 
 The basic workflow is:
 
 **Trigger or user input → Serper Search → AI model → response or action**
 
-This gives the agent current web search results instead of limiting it to information in the model’s training data. You still need a Serper account and API key, but you do not need to write a request, authentication header, or response parser.
+This gives the agent current web search results instead of limiting it to information in the model’s training data. A self-hosted deployment needs your Serper API key, while Sim Cloud can use a key from workspace BYOK settings or a shared hosted key. You do not need to write a request, authentication header, or response parser.
 
 ## What do you need to connect Serper Search API to an AI agent without code?
 
-Sim and Serper require five setup inputs for a no-code search agent: a Sim workspace, a Serper API key, an AI model connection, a sample query, and a clear definition of the expected output.
+Sim and Serper require a Sim workspace, an API key path, an AI model connection, a sample query, and a clear definition of the expected output.
 
 - A Sim workspace for building and deploying the workflow
-- A Serper account and API key from the [official Serper website](https://serper.dev/)
+- A Serper account and API key from the [official Serper website](https://serper.dev/) for self-hosted Sim or workspace BYOK on Sim Cloud, unless the workflow uses a shared hosted key
 - Access to an AI model in Sim
 - A sample query for testing the workflow
 - An expected output format, such as a sourced answer, research summary, lead list, or monitoring report
@@ -78,14 +78,14 @@ These facts are current as of November 2026. Changing account terms, usage limit
 
 ## How do you get a Serper API key?
 
-Serper issues the API key that Sim uses to authenticate search requests on your behalf.
+Serper issues an API key for teams that want to supply their own key to Sim.
 
 1. Create or sign in to your account on the [official Serper website](https://serper.dev/).
 2. Open the Serper dashboard and locate the API key for your account.
 3. Copy the key without adding spaces or quotation marks.
-4. Store the key as a Sim credential when the Serper integration asks you to connect an account.
+4. On a self-hosted deployment, enter the key in the Serper block’s API Key field. On Sim Cloud, add it in the workspace BYOK settings.
 
-Treat the API key as a secret. Do not paste it into an agent prompt, a query field, a public workflow description, or a response sent to an end user.
+Sim Cloud can use a shared hosted key when the workspace does not supply a BYOK key, so the API Key field is hidden there. Treat your own API key as a secret. Do not paste it into an agent prompt, a query field, a public workflow description, or a response sent to an end user.
 
 ## How do you build a no-code Serper AI agent in Sim?
 
@@ -105,7 +105,7 @@ Sim exposes Serper through its integration, allowing you to add a search step wi
 
 1. Add the Serper integration to the workflow.
 2. Select its search operation.
-3. Create or choose the Serper credential.
+3. On self-hosted Sim, enter your key in the block’s API Key field. On Sim Cloud, use a workspace BYOK key or the shared hosted key.
 4. Map the workflow’s `search_query` input into the query field.
 5. Configure optional country, language, search type, or result-count settings only when the use case requires them.
 
@@ -152,7 +152,7 @@ Check whether the agent answers the original question, keeps source URLs attache
 
 Sim deploys the tested workflow through the channel appropriate to the use case, such as an interactive agent, an application endpoint, or a scheduled workflow.
 
-Deployment should happen only after the workflow has a defined input, controlled output, error handling, and a tested credential. Keep the Serper key in the credential system rather than exposing it as an end-user input.
+Deployment should happen only after the workflow has a defined input, controlled output, error handling, and a tested API key path. Keep a self-hosted key in the block’s API Key field or a Sim Cloud key in workspace BYOK settings rather than exposing it as an end-user input.
 
 ## What prompt should you use for a Serper search agent?
 
@@ -209,11 +209,11 @@ Live search improves freshness, but it does not guarantee that a result is accur
 
 ## What should you do when the Serper integration does not work?
 
-Sim and Serper errors are usually resolved by checking the credential, input mapping, available usage, and downstream handling in that order.
+Sim and Serper errors are usually resolved by checking the API key path, input mapping, available usage, and downstream handling in that order.
 
 | Problem | Likely cause | Recommended fix |
 |---|---|---|
-| Authentication error | The Serper key is missing, invalid, or attached to the wrong credential | Reconnect the Serper credential and rerun a simple test query |
+| Authentication error | The self-hosted API Key field or Sim Cloud BYOK key is missing or invalid | Re-enter the self-hosted key or check workspace BYOK settings, then rerun a simple test query |
 | Empty results | The query is blank, overly narrow, or mapped from the wrong input | Inspect the value entering the Serper step and test a broader query |
 | Irrelevant results | The query is too broad or lacks context | Add distinguishing terms such as company, product, location, or date |
 | Model ignores results | The Serper output was not inserted into the model instructions | Use the variable picker to map the search output into the AI step |
@@ -226,7 +226,7 @@ Inspect the output at each step rather than debugging the complete workflow at o
 
 Sim fits teams whose primary job is building an AI agent that searches, reasons over evidence, and returns a sourced response, while n8n remains a practical incumbent for teams centered on general workflow automation.
 
-Sim provides a visual path from the Serper integration to an AI model and agent output. [n8n can connect APIs through its HTTP Request node](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.httprequest), but a generic API connection may require users to configure request details and map the response themselves.
+Sim provides a visual path from the Serper integration to an AI model and agent output. [n8n can connect APIs through its HTTP Request node](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.httprequest), but a generic API connection may require teams to configure request details and map the response themselves.
 
 Choose based on the workflow’s center of gravity:
 
