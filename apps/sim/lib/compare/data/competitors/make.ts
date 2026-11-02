@@ -801,35 +801,46 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/pricing',
             label: 'Make Pricing page',
-            asOf: '2026-07-02',
+            asOf: '2026-10-25',
           },
         ],
       },
       entryPaidPlan: {
-        value: 'Core plan. $12/month for 10,000 credits/month (lowest listed price point)',
+        value:
+          'Core plan. $9/month billed annually for 10,000 credits/month (lowest listed price point)',
         detail:
           'Core adds over Free: unlimited active scenarios, scheduled scenarios down to 1-minute intervals, increased data transfer/file-size limits (5GB/100MB), and access to the Make API.',
-        shortValue: 'Core plan, $12/mo for 10,000 credits',
+        shortValue: 'Core plan, $9/mo billed annually for 10,000 credits',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.make.com/en/pricing',
             label: 'Make Pricing page',
-            asOf: '2026-07-02',
+            asOf: '2026-10-25',
+          },
+          {
+            url: 'https://web.archive.org/web/20261025101514/https://www.make.com/en/pricing',
+            label: 'Make Pricing page (archived October 25, 2026)',
+            asOf: '2026-10-25',
           },
         ],
       },
       freeTier: {
         value: 'Yes: Free plan with 1,000 credits/month',
         detail:
-          'Free tier limits: 2 active scenarios max, 15-minute minimum execution interval, 5-minute max execution time, 5MB max file size, 512MB data transfer, 3,000+ apps and basic routers/filters available, basic customer support with 90-day expert access.',
+          'Free tier limits: 2 active scenarios max, 15-minute minimum execution interval, 5-minute max execution time, 5MB max file size, 512MB data transfer, 3,500+ standard apps (enterprise apps require an Enterprise plan) and basic routers/filters, basic customer support with 90-day expert access.',
         shortValue: '1,000 credits/month, 2 active scenarios',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.make.com/en/pricing',
             label: 'Make Pricing page',
-            asOf: '2026-07-02',
+            asOf: '2026-10-25',
+          },
+          {
+            url: 'https://web.archive.org/web/20261025101514/https://www.make.com/en/pricing',
+            label: 'Make Pricing page (archived October 25, 2026)',
+            asOf: '2026-10-25',
           },
         ],
       },
@@ -844,7 +855,7 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/pricing',
             label: 'Make Pricing page',
-            asOf: '2026-07-02',
+            asOf: '2026-10-25',
           },
         ],
       },

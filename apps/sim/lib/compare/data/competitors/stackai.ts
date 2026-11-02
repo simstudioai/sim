@@ -541,16 +541,16 @@ export const stackaiProfile: CompetitorProfile = {
     },
     integrations: {
       integrationCount: {
-        value: '70+ enterprise integrations',
+        value: '514 provider entries in the StackAI integrations catalog',
         detail:
-          'StackAI documentation states it connects to 70+ apps and services, including Notion, Airtable, AWS, BigQuery, GitHub, Google Workspace, HubSpot, MongoDB, and MCP. Some marketing pages cite a higher "100+" figure, but the documented apps list supports 70+.',
-        shortValue: '70+ integrations',
-        confidence: 'estimated',
+          'The StackAI Provider Catalog says to "Browse the 514 provider entries under Integrations," including Notion, Airtable, BigQuery, GitHub, HubSpot, MongoDB, Salesforce, and Slack. Each provider page lists its connection methods, actions, and triggers, and deprecated or unavailable integrations are marked on their pages.',
+        shortValue: '514 catalog provider entries',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.stackai.com/workflow-builder/apps',
-            label: 'StackAI Apps documentation (70+ apps and services)',
-            asOf: '2026-07-02',
+            url: 'https://docs.stackai.com/integrations/catalog',
+            label: 'StackAI docs: Provider Catalog',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -667,7 +667,7 @@ export const stackaiProfile: CompetitorProfile = {
         shortValue: 'Freemium plus custom Enterprise quote',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.stackai.com/pricing', label: 'StackAI Pricing', asOf: '2026-07-02' },
+          { url: 'https://www.stackai.com/pricing', label: 'StackAI Pricing', asOf: '2026-11-02' },
         ],
       },
       entryPaidPlan: {
@@ -677,7 +677,7 @@ export const stackaiProfile: CompetitorProfile = {
         shortValue: 'No mid-tier, Enterprise is quote-only',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.stackai.com/pricing', label: 'StackAI Pricing', asOf: '2026-07-02' },
+          { url: 'https://www.stackai.com/pricing', label: 'StackAI Pricing', asOf: '2026-11-02' },
         ],
       },
       freeTier: {
@@ -685,7 +685,7 @@ export const stackaiProfile: CompetitorProfile = {
         shortValue: '500 runs/mo, 2 projects, 1 seat',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.stackai.com/pricing', label: 'StackAI Pricing', asOf: '2026-07-02' },
+          { url: 'https://www.stackai.com/pricing', label: 'StackAI Pricing', asOf: '2026-11-02' },
         ],
       },
       byok: {

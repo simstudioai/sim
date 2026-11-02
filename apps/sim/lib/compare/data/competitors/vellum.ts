@@ -17,7 +17,7 @@ export const vellumProfile: CompetitorProfile = {
   oneLiner:
     'Vellum is an enterprise AI development platform for building, evaluating, and deploying LLM prompts, workflows, and agents.',
   leadAnswer: [
-    "Vellum's enterprise platform is a hosted AI development product for building, evaluating, and deploying LLM prompts, workflows, and agents through a visual builder, a code SDK, or natural language, with self-hosted and VPC installs for enterprises; its public website now leads with a separate consumer assistant, and the platform's pricing is not published. Sim is an open-source AI workspace with an Apache 2.0-licensed core for building, deploying, and managing agents visually, conversationally, or with code, with a Free plan, a $25 per user/month Pro plan, and self-hosting via Docker Compose or Kubernetes. Choose Vellum when test-suite evaluations, HIPAA coverage with a signed BAA, or a vendor-managed single-tenant VPC are requirements. Choose Sim when you want published self-serve pricing, an open-source core, or live multiplayer editing of the same workflow.",
+    "Vellum's enterprise platform is a hosted AI development product for building, evaluating, and deploying LLM prompts, workflows, and agents through a visual builder, a code SDK, or natural language, with self-hosted and VPC installs for enterprises; its public website instead led with a separate consumer assistant, which Vellum announced it would shut down on November 2, 2026, and the platform's pricing is not published. Sim is an open-source AI workspace with an Apache 2.0-licensed core for building, deploying, and managing agents visually, conversationally, or with code, with a Free plan, a $25 per user/month Pro plan, and self-hosting via Docker Compose or Kubernetes. Choose Vellum when test-suite evaluations, HIPAA coverage with a signed BAA, or a vendor-managed single-tenant VPC are requirements. Choose Sim when you want published self-serve pricing, an open-source core, or live multiplayer editing of the same workflow.",
   ],
   faqs: [
     {
@@ -33,7 +33,7 @@ export const vellumProfile: CompetitorProfile = {
     {
       question: 'Is Vellum still an enterprise agent platform or a personal assistant?',
       answer:
-        "Both exist under one brand: vellum.ai, including its pricing page, now presents a consumer 'Personal Intelligence' assistant with $30 to $200 monthly packages, while docs.vellum.ai still documents the enterprise workflow and evaluation platform. The most recent entries in those platform docs are a February 2026 changelog and a self-hosted release dated February 6, 2026. Sim is a single product, an AI workspace for building and deploying agents, with its plans published on its own pricing page.",
+        "Vellum has run both under one brand, but it announced that its consumer 'Personal Intelligence' assistant platform shuts down on November 2, 2026; vellum.ai presents that assistant, with $30 to $200 monthly packages, in place of the enterprise product. docs.vellum.ai still documents the enterprise workflow and evaluation platform. The most recent entries in those platform docs are a February 2026 changelog and a self-hosted release dated February 6, 2026. Sim is a single product, an AI workspace for building and deploying agents, with its plans published on its own pricing page.",
     },
   ],
   standoutFeatures: [
@@ -62,15 +62,15 @@ export const vellumProfile: CompetitorProfile = {
   ],
   limitations: [
     {
-      title: 'Brand/product ambiguity as of mid-2026',
+      title: 'Brand/product ambiguity in 2026',
       description:
-        "Vellum's homepage, pricing page, security docs, and several product pages now serve content for a new consumer 'Personal Intelligence' assistant (an open-source, MIT-licensed Mac app) instead of the original enterprise workflow, evaluations, and prompt-engineering platform. That makes enterprise-specific details, like environment promotion, version-control depth, tracing, alerting, and integration counts, harder to verify from the public site alone.",
+        "Vellum's homepage, pricing page, security docs, and several product pages serve content for a consumer 'Personal Intelligence' assistant (an open-source, MIT-licensed Mac app), which Vellum announced it would shut down on November 2, 2026, instead of the original enterprise workflow, evaluations, and prompt-engineering platform. That makes enterprise-specific details, like environment promotion, version-control depth, tracing, alerting, and integration counts, harder to verify from the public site alone.",
       shortDescription:
         'Public site now foregrounds a consumer product over the enterprise platform.',
       source: {
         url: 'https://www.vellum.ai/',
         label: 'Vellum: Your Personal Intelligence',
-        asOf: '2026-07-02',
+        asOf: '2026-11-02',
       },
     },
     {
@@ -584,19 +584,19 @@ export const vellumProfile: CompetitorProfile = {
     integrations: {
       integrationCount: {
         value:
-          "Via a Composio partnership (August 2025), Vellum connects to Composio's library of 10,000+ tools directly inside Agent Nodes (Google Sheets, Slack, Salesforce, Notion, Jira, Linear, Trello, etc.). Vellum separately advertises 100+ of its own native integrations.",
+          "Via a Composio partnership (August 2025), Vellum connects to Composio's library of 10,000+ tools directly inside Agent Nodes (Google Drive, Notion, Jira, Linear, Trello, etc.). Vellum separately advertises 100+ of its own native integrations.",
         shortValue: '10,000+ tools via Composio, 100+ native',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.vellum.ai/blog/introducing-vellum-for-agents',
             label: 'Introducing Vellum for Agents',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://www.vellum.ai/blog/vellum-composio-new-partnership-for-ai-agent-building',
             label: 'Vellum Blog',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -717,19 +717,24 @@ export const vellumProfile: CompetitorProfile = {
         value:
           "Not publicly listed for the B2B enterprise platform: Vellum's current pricing page has been fully replaced by the unrelated consumer 'Personal Intelligence' product's plans. A September 2025 third-party pricing analysis, published before that switch, described the enterprise platform as execution-credit-based with per-tier seat caps (Free, Pro, Enterprise) rather than the prepaid-credit model now shown.",
         detail:
-          "Current pricing pages (vellum.ai/pricing, vellum.ai/docs/pricing) describe the consumer 'Personal Intelligence' assistant: a free Base plan and Pro packages at $30, $100, and $200 per month or a Custom configuration from $50/month. None of this covers the enterprise workflow platform. The last third-party description of the enterprise platform (ZenML, September 2025) states Vellum 'does not publicly list pricing details on its website,' so the figures below are third-party estimates, not Vellum-published prices.",
+          "Current pricing pages (vellum.ai/pricing, vellum.ai/docs/pricing) describe the consumer 'Personal Intelligence' assistant: a free Base plan and Pro packages at $30, $100, and $200 per month or a Custom configuration from $50/month. Vellum has announced that this Personal Assistant Platform shuts down on November 2nd, 2026, after which cloud-hosted assistants stop working and their data is deleted. None of this covers the enterprise workflow platform. The last third-party description of the enterprise platform (ZenML, September 2025) states Vellum 'does not publicly list pricing details on its website,' so the figures below are third-party estimates, not Vellum-published prices.",
         shortValue: 'Not publicly listed; third-party analysis describes credit-based tiers',
         confidence: 'unknown',
         sources: [
           {
             url: 'https://www.zenml.io/blog/vellum-ai-pricing',
             label: 'Vellum AI Pricing: ZenML Blog',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://www.vellum.ai/pricing',
             label: 'Vellum Pricing (now shows the consumer product)',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
+          },
+          {
+            url: 'https://www.vellum.ai/vellum-assistant-platform-shutdown',
+            label: 'Vellum: Personal Assistant Platform Shutdown',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -744,7 +749,7 @@ export const vellumProfile: CompetitorProfile = {
           {
             url: 'https://www.zenml.io/blog/vellum-ai-pricing',
             label: 'Vellum AI Pricing: ZenML Blog',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -759,7 +764,7 @@ export const vellumProfile: CompetitorProfile = {
           {
             url: 'https://www.zenml.io/blog/vellum-ai-pricing',
             label: 'Vellum AI Pricing: ZenML Blog',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -774,12 +779,12 @@ export const vellumProfile: CompetitorProfile = {
           {
             url: 'https://docs.vellum.ai/product/prompts/custom-models',
             label: 'Vellum Docs: Custom Models',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://www.vellum.ai/pricing',
             label: 'Vellum Pricing (now shows the consumer product)',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
