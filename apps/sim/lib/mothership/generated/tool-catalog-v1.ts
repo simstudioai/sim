@@ -5440,6 +5440,7 @@ export const RunBlock: ToolCatalogEntry = {
     required: ['workflowId', 'blockId'],
   },
   clientExecutable: true,
+  requiresApproval: true,
 }
 
 export const RunCode: ToolCatalogEntry = {
@@ -5618,6 +5619,7 @@ export const RunFromBlock: ToolCatalogEntry = {
     required: ['workflowId', 'startBlockId'],
   },
   clientExecutable: true,
+  requiresApproval: true,
 }
 
 export const RunFunction: ToolCatalogEntry = {

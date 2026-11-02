@@ -199,6 +199,22 @@ describe('gated tools are askable', () => {
 
     expect(ungatable).toEqual([])
   })
+
+  it('gates every tool that runs a workflow', async () => {
+    // They all reach the same executor: run_from_block runs everything
+    // downstream of its start block, so an ungated sibling would run what
+    // run_workflow asks about without asking.
+    const { TOOL_CATALOG } = await vi.importActual<
+      typeof import('@/lib/mothership/generated/tool-catalog-v1')
+    >('@/lib/mothership/generated/tool-catalog-v1')
+    const { WORKFLOW_TOOL_NAMES } = await vi.importActual<
+      typeof import('@/lib/mothership/tools/client-executed-tools')
+    >('@/lib/mothership/tools/client-executed-tools')
+
+    const ungated = WORKFLOW_TOOL_NAMES.filter((name) => !TOOL_CATALOG[name]?.requiresApproval)
+
+    expect(ungated).toEqual([])
+  })
 })
 
 describe('runGatedToolExecution', () => {
