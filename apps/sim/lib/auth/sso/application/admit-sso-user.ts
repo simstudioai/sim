@@ -148,7 +148,7 @@ async function runAdmissionTransaction(
       await tx
         .update(user)
         .set({ emailVerified: true, updatedAt: new Date() })
-        .where(eq(user.id, userId))
+        .where(and(eq(user.id, userId), eq(user.email, userRow.email)))
     }
 
     const attribution = { providerId, userName: userRow.name, userEmail: userRow.email }
