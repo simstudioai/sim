@@ -4,11 +4,6 @@ import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('AwsCredentials')
 
-interface StaticAwsCredentials {
-  accessKeyId: string
-  secretAccessKey: string
-}
-
 type AwsCredentialsProvider = () => Promise<AWSCredentials>
 
 /**
@@ -76,27 +71,20 @@ function resolveWorkloadCredentials(
 }
 
 /**
- * Credentials for Sim's own AWS clients: file storage (S3), AppConfig, hosted-key metrics and
- * hosted Bedrock. Never for a user's integration, which brings its own keys.
+ * Credentials for Sim's own AWS clients: file storage (S3), AppConfig, email (SES), hosted-key
+ * metrics and hosted Bedrock. Never for a user's integration, which brings its own keys.
  *
- * - `TRIGGER_AWS_ROLE_ARN` set (deployed Trigger.dev runs): temporary credentials for that role,
- *   exchanged for the run's Trigger.dev workload-identity token. Takes precedence over static
- *   keys, so a failed exchange surfaces instead of silently falling back to a stored key.
- * - `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` set: those keys (self-hosted deployments).
- * - Neither: `undefined`, deferring to the AWS default provider chain (the ECS task role).
+ * With `TRIGGER_AWS_ROLE_ARN` set (deployed Trigger.dev runs), temporary credentials for that
+ * role, exchanged for the run's Trigger.dev workload-identity token. It takes precedence over any
+ * static keys in the environment, so a failed exchange surfaces instead of silently falling back
+ * to a stored key. Otherwise `undefined`: the AWS SDK's default chain, which reads
+ * `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`, then shared profiles, then
+ * the ECS task role.
  */
-export function getAwsCredentials(): StaticAwsCredentials | AwsCredentialsProvider | undefined {
+export function getAwsCredentials(): AwsCredentialsProvider | undefined {
   const roleArn = env.TRIGGER_AWS_ROLE_ARN
-  if (roleArn) {
-    return () => resolveWorkloadCredentials(roleArn, REFRESH_BEFORE_EXPIRY_MS)
-  }
-  if (env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY) {
-    return {
-      accessKeyId: env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-    }
-  }
-  return undefined
+  if (!roleArn) return undefined
+  return () => resolveWorkloadCredentials(roleArn, REFRESH_BEFORE_EXPIRY_MS)
 }
 
 /** Whether Sim's own AWS clients have credentials of their own rather than the default chain. */
