@@ -736,11 +736,6 @@ export const claudeCoworkProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           { url: 'https://claude.com/pricing', label: 'Plans & Pricing', asOf: '2026-11-02' },
-          {
-            url: 'https://claude.com/product/cowork',
-            label: 'Claude Cowork product page (Claude)',
-            asOf: '2026-11-02',
-          },
         ],
       },
       freeTier: {
