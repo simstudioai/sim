@@ -30,7 +30,7 @@ Database integration uses 4-vCPU Blacksmith runners with sticky dependency disks
 
 GitHub runners install dependencies directly rather than transferring Bun and `node_modules` archives. In a same-source paired comparison, those restores took 26.2 seconds before an 82-millisecond install, while a clean install took 12.42 seconds. This is one paired observation; retain the policy only while repeated CI timings support it. Blacksmith keeps its sticky dependency disks. GitHub Turbo output caches remain enabled for jobs that request them, with a commit-specific key and a task/event/fork-scoped restore prefix, so a rerun can reuse an exact entry without creating another archive. Push jobs never restore pull-request entries.
 
-Closing a pull request deletes only its GitHub merge-ref caches. The cleanup runs the base branch's workflow without checking out PR code; it never selects a branch-wide or default-branch cache. Blacksmith sticky disks retain their separate lifecycle.
+Closing a same-repository pull request deletes only its GitHub merge-ref caches after verifying that it remains closed or merged. The regular `pull_request` workflow skips forks and Dependabot because their tokens cannot delete caches; those entries retain GitHub's normal cache eviction. Cleanup checks out no code and never selects a branch-wide or default-branch cache. Blacksmith sticky disks retain their separate lifecycle.
 
 Memory-heavy builds and browser jobs retain appropriately sized Blacksmith runners. Electron uses 4-vCPU Blacksmith: both shards passed within 14 seconds of the 8-vCPU control; the free GitHub rest shard was slower and its lease run stalled.
 
