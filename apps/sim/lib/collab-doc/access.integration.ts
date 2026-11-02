@@ -175,7 +175,8 @@ check(
             ...(secret ? { 'x-api-key': secret } : {}),
           },
           body: JSON.stringify({ fileId, userId: memberId }),
-        })
+        }),
+        { params: Promise.resolve({}) }
       )
     const secret = process.env.INTERNAL_API_SECRET
     expect((await request(undefined)).status).toBe(401)
