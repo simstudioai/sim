@@ -20,18 +20,64 @@ const FFMPEG_BASE_ARGS = ['-y', '-nostdin'] as const
  */
 const INPUT_PROTOCOL_WHITELIST = ['-protocol_whitelist', 'file,pipe'] as const
 
-/** FFmpeg argv: base flags, then `args` with the protocol whitelist before every input. */
+/**
+ * Demuxers an input may probe as: media containers that read only the bytes
+ * they are given. FFmpeg picks the demuxer from content, not the file name, and
+ * the bytes are user-supplied, so without this an upload can select a demuxer
+ * that opens further local paths (`concat`, `hls`, `dash`, `imf`) and the only
+ * barrier left is that demuxer's own upstream defaults. Any other input fails
+ * with "Format not on whitelist" before the demuxer opens anything.
+ */
+const MEDIA_DEMUXERS = [
+  'mov',
+  'matroska',
+  'avi',
+  'flv',
+  'asf',
+  'mpegts',
+  'mpeg',
+  'mp3',
+  'wav',
+  'ogg',
+  'flac',
+  'aac',
+  'aiff',
+  'amr',
+  'caf',
+  'png_pipe',
+  'jpeg_pipe',
+  'webp_pipe',
+  'gif',
+  'image2',
+].join(',')
+
+/**
+ * FFmpeg argv: base flags, then `args` with the protocol and format whitelists
+ * before every input. A demuxer the caller forces with `-f` (the concat list,
+ * the `lavfi` silence source) is added to that input's format whitelist, so
+ * the inputs it opens in turn are still held to media demuxers.
+ */
 export function ffmpegArgs(args: readonly string[]): string[] {
-  return [
-    ...FFMPEG_BASE_ARGS,
-    ...args.flatMap((arg) => (arg === '-i' ? [...INPUT_PROTOCOL_WHITELIST, arg] : [arg])),
-  ]
+  const argv: string[] = [...FFMPEG_BASE_ARGS]
+  let forcedDemuxer: string | undefined
+  for (const [index, arg] of args.entries()) {
+    if (arg === '-f') forcedDemuxer = args[index + 1]
+    if (arg === '-i') {
+      const formats = forcedDemuxer ? `${forcedDemuxer},${MEDIA_DEMUXERS}` : MEDIA_DEMUXERS
+      argv.push(...INPUT_PROTOCOL_WHITELIST, '-format_whitelist', formats)
+      forcedDemuxer = undefined
+    }
+    argv.push(arg)
+  }
+  return argv
 }
 
 /** FFprobe argv that prints the format and streams of `filePath` as JSON. */
 export function ffprobeJsonArgs(filePath: string): string[] {
   return [
     ...INPUT_PROTOCOL_WHITELIST,
+    '-format_whitelist',
+    MEDIA_DEMUXERS,
     '-v',
     'error',
     '-print_format',
