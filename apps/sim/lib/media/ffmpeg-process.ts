@@ -47,6 +47,9 @@ const MEDIA_DEMUXERS = [
   'png_pipe',
   'jpeg_pipe',
   'webp_pipe',
+  'bmp_pipe',
+  'tiff_pipe',
+  'ico',
   'gif',
   'image2',
 ].join(',')
