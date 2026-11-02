@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { CHAT_PLAN_REQUIRED_UPGRADE } from '@/lib/billing/chat-plan'
 import {
-  CHAT_PLAN_REQUIRED_UPGRADE,
   formatUsageUpgradeTag,
   resolveUsageUpgradePayload,
   type UsageUpgradeTagPayload,
