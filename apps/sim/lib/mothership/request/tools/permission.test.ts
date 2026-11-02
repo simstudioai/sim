@@ -395,6 +395,22 @@ describe('runGatedToolExecution', () => {
     expect(context.toolPermissions.autoAllowed.has('terminal')).toBe(true)
   })
 
+  it('lets one allow-for-this-chat cover every browser action, not just the one asked about', async () => {
+    const context = makeContext()
+    const toolCall = makeToolCall()
+    toolCall.name = 'browser_click'
+    toolCall.params = { elementId: 4 }
+    waitForToolPermissionDecision.mockResolvedValue({
+      toolCallId: 'call-1',
+      decision: 'allow_chat',
+    })
+
+    await gate(context, toolCall, () => Promise.resolve({ status: 'success' }), [])
+
+    expect(toolCallNeedsApproval('browser_type', context, {}, false, { text: 'hi' })).toBe(false)
+    expect(toolCallNeedsApproval('terminal', context, {}, false, { operation: 'run' })).toBe(true)
+  })
+
   it('accepts the normal chat-level decision for code with a secret reference', async () => {
     const context = makeContext()
     const toolCall = makeToolCall()

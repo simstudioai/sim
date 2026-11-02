@@ -18,6 +18,7 @@ import {
   decisionSuppressesFuturePrompts,
   waitForToolPermissionDecision,
 } from '@/lib/mothership/persistence/tool-permission'
+import { toolApprovalKey } from '@/lib/mothership/persistence/tool-permission/approval-key'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { markToolResultSeen } from '@/lib/mothership/request/sse-utils'
 import { setTerminalToolCallState } from '@/lib/mothership/request/tool-call-state'
@@ -117,7 +118,7 @@ export function toolCallNeedsApproval(
    */
   if (!context.toolPermissions.autoAllowPermitted) return true
 
-  return !context.toolPermissions.autoAllowed.has(toolName)
+  return !context.toolPermissions.autoAllowed.has(toolApprovalKey(toolName))
 }
 
 function skipOutput(toolName: string) {
@@ -332,7 +333,7 @@ export function runGatedToolExecution(
          * endpoint reads the capability on its own request and refuses the
          * durable write.
          */
-        context.toolPermissions.autoAllowed.add(toolName)
+        context.toolPermissions.autoAllowed.add(toolApprovalKey(toolName))
       }
 
       if (!decisionAllowsExecution(decision.decision)) {
