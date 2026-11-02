@@ -147,7 +147,8 @@ describe('CI task attribution through real Turborepo', () => {
     expect(plan.fallback).toBeUndefined()
     expect(groups(plan)).toEqual([
       'assistant-actions',
-      'browser-extension',
+      'browser-extension-access',
+      'browser-extension-native',
       'desktop-inbox',
       'mobile',
       'organization-search',
@@ -237,7 +238,6 @@ describe('CI task attribution through real Turborepo', () => {
   })
   it.each([
     ['test-mobile-e2e.ts', 'mobile'],
-    ['test-browser-extension-e2e.ts', 'browser-extension'],
     ['test-project-file-sharing-e2e.ts', 'project-files'],
     ['test-scim-e2e.ts', 'scim'],
     ['test-landing-seo-e2e.ts', 'seo'],
@@ -254,12 +254,26 @@ describe('CI task attribution through real Turborepo', () => {
       e2e_build: true,
     })
   })
+  it('selects both isolated extension groups for an extension harness change', () => {
+    const plan = classifyFiles(['apps/sim/scripts/test-browser-extension-e2e.ts'])
+    expect(plan.fallback).toBeUndefined()
+    expect(groups(plan)).toEqual(['browser-extension-access', 'browser-extension-native'])
+    expect(plan.flags).toMatchObject({
+      http: true,
+      production: false,
+      integration: false,
+      test: false,
+      build: false,
+      e2e_build: true,
+    })
+  })
   it('propagates a transitive security dependency to every affected boundary', () => {
     const plan = classifyFiles(['packages/security/src/index.ts'])
     expect(plan.fallback).toBeUndefined()
     expect(groups(plan)).toEqual([
       'assistant-actions',
-      'browser-extension',
+      'browser-extension-access',
+      'browser-extension-native',
       'cli',
       'desktop-inbox',
       'mobile',

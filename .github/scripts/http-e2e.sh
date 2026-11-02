@@ -3,7 +3,7 @@
 # CI groups, which reuse the production build from `e2e-build`.
 # The job extracts it into apps/sim/.next before running these suites.
 #
-# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|project-files|mobile|seo>   (run from apps/sim)
+# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-access|project-files|mobile|seo>   (run from apps/sim)
 #
 # The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
@@ -20,7 +20,7 @@
 # telemetry flush runs detached and still writes .next/dev).
 set -euo pipefail
 
-group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|project-files|mobile|seo>}
+group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-access|project-files|mobile|seo>}
 report_dir="$RUNNER_TEMP/e2e"
 ready_timeout_seconds=600
 mkdir -p "$report_dir"
@@ -264,13 +264,18 @@ case "$group" in
     esac
     ;;
 
-  browser-extension)
+  browser-extension|browser-extension-native|browser-extension-access)
+    extension_group=all
+    case "$group" in
+      browser-extension-native) extension_group=native ;;
+      browser-extension-access) extension_group=access ;;
+    esac
     export REDIS_URL=redis://127.0.0.1:6379
     export NEXT_PUBLIC_FORCE_HOSTED=false
     export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
     export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true
     export API_ENCRYPTION_KEY="$ENCRYPTION_KEY"
-    start_browser_install browser-extension chromium
+    start_browser_install "$group" chromium
     extension_identity=$(bun - <<'JS'
       import { generateKeyPairSync, createHash } from 'node:crypto'
       const { publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
@@ -282,11 +287,12 @@ JS
     )
     export SIM_EXTENSION_KEY="${extension_identity%%$'\n'*}"
     export BROWSER_EXTENSION_IDS="${extension_identity#*$'\n'}"
-    start_app browser-extension 3007 'browser extension' record-http-status
+    start_app "$group" 3007 'browser extension' record-http-status
     wait_for_browsers
     EXTENSION_APP_E2E_BASE_URL="$local_app_url" \
     EXTENSION_APP_E2E_DATABASE_URL="$DATABASE_URL" \
-    EXTENSION_APP_E2E_REPORT_PATH="$report_dir/browser-extension/report.json" \
+    EXTENSION_APP_E2E_GROUP="$extension_group" \
+    EXTENSION_APP_E2E_REPORT_PATH="$report_dir/$group/report.json" \
       bun run test:browser-extension:e2e
     ;;
 
