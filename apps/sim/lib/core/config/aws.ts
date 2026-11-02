@@ -45,16 +45,25 @@ function getWorkloadProvider(roleArn: string): AwsCredentialsProvider {
   return workloadProvider
 }
 
+/** Credentials this close to expiry are treated as expired, so a signed request never outlives them. */
+const EXPIRY_SKEW_MS = 60_000
+
+function remainingMs(credentials: AWSCredentials | null): number {
+  return credentials ? credentials.expiration.getTime() - Date.now() : 0
+}
+
 /**
  * The cached workload credentials while they have more than `minRemainingMs` left, otherwise a
- * fresh exchange. Concurrent callers share one exchange.
+ * fresh exchange. Concurrent callers share one exchange. When the exchange fails, still-valid
+ * cached credentials are served instead: outside an executing attempt no token can be minted, and
+ * work a run leaves behind (the metrics flush) must not lose credentials that have not expired.
  */
 function resolveWorkloadCredentials(
   roleArn: string,
   minRemainingMs: number
 ): Promise<AWSCredentials> {
   const current = currentWorkloadCredentials
-  if (current && current.expiration.getTime() - Date.now() > minRemainingMs) {
+  if (current && remainingMs(current) > minRemainingMs) {
     return Promise.resolve(current)
   }
   if (!pendingWorkloadCredentials) {
@@ -62,6 +71,15 @@ function resolveWorkloadCredentials(
       .then((credentials) => {
         currentWorkloadCredentials = credentials
         return credentials
+      })
+      .catch((error: unknown) => {
+        const cached = currentWorkloadCredentials
+        if (!cached || remainingMs(cached) <= EXPIRY_SKEW_MS) throw error
+        logger.warn('Workload-identity exchange failed; serving cached credentials until expiry', {
+          error,
+          remainingMs: remainingMs(cached),
+        })
+        return cached
       })
       .finally(() => {
         pendingWorkloadCredentials = null
