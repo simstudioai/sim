@@ -97,7 +97,7 @@ export const PATCH = withRouteHandler(
   )(
     async (
       request: NextRequest,
-      { userId, userName, userEmail, workspaceId, requestId },
+      { userId, userName, userEmail, workspaceId, requestId, permission },
       { params }
     ) => {
       try {
@@ -122,6 +122,7 @@ export const PATCH = withRouteHandler(
           name: body.name,
           description: body.description,
           isPublic: body.isPublic,
+          allowVisibilityChange: permission === 'admin',
         })
         if (!result.success || !result.server) {
           const status = mcpOrchestrationStatus(result.errorCode)

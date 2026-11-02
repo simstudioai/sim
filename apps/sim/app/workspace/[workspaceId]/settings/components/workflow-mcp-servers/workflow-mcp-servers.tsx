@@ -67,6 +67,7 @@ const logger = createLogger('WorkflowMcpServers')
 
 interface ServerDetailViewProps {
   canManage: boolean
+  canChangeVisibility: boolean
   workspaceId: string
   serverId: string
   onBack: () => void
@@ -80,6 +81,7 @@ type McpClientType = 'sim' | 'cursor' | 'codex' | 'claude-code' | 'claude-deskto
 
 function ServerDetailView({
   canManage,
+  canChangeVisibility,
   workspaceId,
   serverId,
   onBack,
@@ -854,6 +856,7 @@ function ServerDetailView({
                 <ChipButtonGroup
                   value={editServerIsPublic ? 'public' : 'private'}
                   onValueChange={(value) => setEditServerIsPublic(value === 'public')}
+                  disabled={!canChangeVisibility}
                 >
                   <ChipButtonGroupItem value='private'>Private</ChipButtonGroupItem>
                   <ChipButtonGroupItem value='public'>Public</ChipButtonGroupItem>
@@ -1002,6 +1005,7 @@ export function WorkflowMcpServers() {
       <>
         <ServerDetailView
           canManage={canAdmin}
+          canChangeVisibility={workspacePermissions.canAdmin}
           workspaceId={workspaceId}
           serverId={selectedServerId}
           onBack={() => {
@@ -1094,6 +1098,7 @@ export function WorkflowMcpServers() {
           onOpenChange={setShowAddModal}
           workspaceId={workspaceId}
           workflowOptions={workflowOptions}
+          canChangeVisibility={workspacePermissions.canAdmin}
         />
       )}
 
