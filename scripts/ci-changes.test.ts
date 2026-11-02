@@ -145,7 +145,14 @@ describe('CI task attribution through real Turborepo', () => {
       'apps/sim/app/workspace/[workspaceId]/home/hooks/stream/dispatch-stream-event.ts',
     ])
     expect(plan.fallback).toBeUndefined()
-    expect(groups(plan)).toEqual(['browser-extension', 'desktop-inbox', 'mobile', 'seo'])
+    expect(groups(plan)).toEqual([
+      'assistant-actions',
+      'browser-extension',
+      'desktop-inbox',
+      'mobile',
+      'organization-search',
+      'seo',
+    ])
     expect(plan.flags).toMatchObject({
       desktop_live: true,
       integration: true,
@@ -214,6 +221,21 @@ describe('CI task attribution through real Turborepo', () => {
     expect(plan.flags.integration).toBe(true)
   })
   it.each([
+    'test-desktop-inbox-e2e.ts',
+    'test-assistant-actions-e2e.ts',
+    'test-organization-search-e2e.ts',
+  ])('selects every isolated organization acceptance job for %s', (file) => {
+    const plan = classifyFiles([`apps/sim/scripts/${file}`])
+    expect(plan.fallback).toBeUndefined()
+    expect(groups(plan)).toEqual(['assistant-actions', 'desktop-inbox', 'organization-search'])
+    expect(plan.flags).toMatchObject({
+      http: true,
+      production: false,
+      integration: false,
+      e2e_build: true,
+    })
+  })
+  it.each([
     ['test-mobile-e2e.ts', 'mobile'],
     ['test-browser-extension-e2e.ts', 'browser-extension'],
     ['test-project-file-sharing-e2e.ts', 'project-files'],
@@ -236,10 +258,12 @@ describe('CI task attribution through real Turborepo', () => {
     const plan = classifyFiles(['packages/security/src/index.ts'])
     expect(plan.fallback).toBeUndefined()
     expect(groups(plan)).toEqual([
+      'assistant-actions',
       'browser-extension',
       'cli',
       'desktop-inbox',
       'mobile',
+      'organization-search',
       'project-files',
       'scim',
       'seo',
