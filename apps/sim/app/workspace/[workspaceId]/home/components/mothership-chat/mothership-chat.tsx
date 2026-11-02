@@ -34,6 +34,7 @@ import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components/message-actions'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import { ComposerScrollArea } from '@/app/workspace/[workspaceId]/home/components/composer-scroll-area'
 import {
   assistantMessageHasRenderableContent,
   getOrchestratorMessageText,
@@ -87,6 +88,7 @@ interface MothershipChatProps {
   composer?: ReactNode
   composerAttachments?: ReactNode
   composerResourceActions?: ReactNode
+  composerToolbarActions?: ReactNode
   composerModelSelectorOptions?: ModelSelectorOptions
   messages: ChatMessage[]
   isSending: boolean
@@ -173,7 +175,7 @@ const LAYOUT_STYLES = {
     userBubble:
       'max-w-[85%] md:max-w-[70%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2',
     assistantRow: 'group/msg',
-    footer: 'shrink-0 px-3 pb-[max(12px,env(safe-area-inset-bottom))] md:px-[24px] md:pb-[16px]',
+    footer: 'px-3 pb-[max(12px,env(safe-area-inset-bottom))] md:px-[24px] md:pb-[16px]',
     footerInner: 'mx-auto max-w-chat',
   },
   'copilot-view': {
@@ -185,7 +187,7 @@ const LAYOUT_STYLES = {
     attachmentWidth: 'max-w-[85%]',
     userBubble: 'max-w-[85%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3 py-2',
     assistantRow: 'group/msg',
-    footer: 'shrink-0 px-3 pb-3',
+    footer: 'px-3 pb-3',
     footerInner: '',
   },
 } as const
@@ -392,6 +394,7 @@ export function MothershipChat({
   composer,
   composerAttachments,
   composerResourceActions,
+  composerToolbarActions,
   composerModelSelectorOptions,
   messages: messagesProp,
   isSending,
@@ -1027,7 +1030,7 @@ export function MothershipChat({
           )}
         </div>
 
-        <div
+        <ComposerScrollArea
           className={cn(styles.footer, animateInput && 'animate-slide-in-bottom')}
           onAnimationEnd={animateInput ? onInputAnimationEnd : undefined}
         >
@@ -1050,6 +1053,7 @@ export function MothershipChat({
                   onSubmit={onSubmit}
                   attachments={composerAttachments}
                   resourceActions={composerResourceActions}
+                  toolbarActions={composerToolbarActions}
                   modelSelectorOptions={composerModelSelectorOptions}
                   isSending={isStreamActive}
                   onStopGeneration={onStopGeneration}
@@ -1061,7 +1065,7 @@ export function MothershipChat({
                 />
               ))}
           </div>
-        </div>
+        </ComposerScrollArea>
       </div>
     </ChatSurfaceProvider>
   )

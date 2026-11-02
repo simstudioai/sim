@@ -169,12 +169,10 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
         draftScopeKey={`extension:${userId}:${workspaceId}:${selectedChatId ?? 'new'}`}
         composerAttachments={composer.attachments}
         composerResourceActions={composer.resourceActions}
+        composerToolbarActions={composer.toolbarActions}
         composerModelSelectorOptions={composer.modelSelectorOptions}
         layout='copilot-view'
-        className={cn(
-          'h-auto min-h-0',
-          selectedChatId || chat.messages.length > 0 ? 'flex-1' : 'shrink-0'
-        )}
+        className={cn('h-auto min-h-0', (selectedChatId || chat.messages.length > 0) && 'flex-1')}
       />
       <ChipModal
         open={Boolean(sourceMessage)}
