@@ -81,7 +81,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
     {
       title: 'No webhook/external-event-triggered automation',
       description:
-        "Task initiation is manual (prompt via desktop or mobile) or on a user-defined schedule (hourly/daily/weekly/weekdays). Scheduled tasks now run remotely in the cloud on their set cadence, independent of whether the user's computer is awake or the Claude Desktop app is open. There is still no external event/webhook trigger capability — only time-based scheduling.",
+        "Task initiation is manual (prompt via desktop or mobile) or on a user-defined schedule (hourly/daily/weekly/weekdays). Scheduled tasks now run remotely in the cloud on their set cadence, independent of whether the user's computer is awake or the Claude Desktop app is open, except tasks that work on local files or apps, which still need the desktop app open and the computer awake. There is still no external event/webhook trigger capability — only time-based scheduling.",
       shortDescription:
         'Tasks run manually or on a schedule (now remote); no external event/webhook trigger.',
       source: {
@@ -999,8 +999,8 @@ export const claudeCoworkProfile: CompetitorProfile = {
       durabilityModel: {
         value: 'Durable server-side execution for scheduled tasks',
         detail:
-          "Scheduled tasks in Claude Cowork now run remotely on Anthropic's infrastructure, independent of whether the user's computer is awake or the Desktop app is open — this is durable server-side execution, not client-dependent.",
-        shortValue: 'Server-durable: runs remotely regardless of device state',
+          "Scheduled tasks in Claude Cowork now run remotely on Anthropic's infrastructure, independent of whether the user's computer is awake or the Desktop app is open — this is durable server-side execution, not client-dependent. Tasks that work on local files or apps are the exception and still need the desktop app open and the computer awake.",
+        shortValue: 'Server-durable, except tasks on local files or apps',
         confidence: 'verified',
         sources: [
           {
@@ -1013,7 +1013,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
       failureAlerting: {
         value: 'Not documented under the current remote-execution model',
         detail:
-          'Earlier documentation described a notification only when a scheduled run was skipped due to sleep/closed app, but that premise no longer applies now that scheduled tasks run remotely regardless of device state. The current schedule-recurring-tasks article is silent on failure/retry alerting for task errors, so this behavior should be treated as unverified pending updated Anthropic documentation.',
+          'Earlier documentation described a notification only when a scheduled run was skipped due to sleep/closed app, but that premise now applies only to tasks that work on local files or apps, since other scheduled tasks run remotely. The current schedule-recurring-tasks article is silent on failure/retry alerting for task errors, so this behavior should be treated as unverified pending updated Anthropic documentation.',
         shortValue: 'Not documented; prior skipped-run notification premise is outdated',
         confidence: 'unknown',
         sources: [
@@ -1129,10 +1129,10 @@ export const claudeCoworkProfile: CompetitorProfile = {
       },
       unattendedExecution: {
         value:
-          "Yes: scheduled tasks execute server-side/remotely on Anthropic's infrastructure, independent of whether the Claude Desktop app is open or the device is awake, per Anthropic's current documentation",
+          "Yes: scheduled tasks execute server-side/remotely on Anthropic's infrastructure, independent of whether the Claude Desktop app is open or the device is awake, except tasks that work on local files or apps, per Anthropic's current documentation",
         detail:
           "Scheduled/recurring tasks now run on their cadence on Anthropic's infrastructure regardless of client device state. Tasks that require local file or browser access remain the exception and still need the desktop app open and the machine awake.",
-        shortValue: 'Yes: runs remotely regardless of desktop app/device state',
+        shortValue: 'Yes, except tasks on local files or apps',
         confidence: 'verified',
         sources: [
           {
