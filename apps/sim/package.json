@@ -203,7 +203,7 @@
     "decimal.js": "10.6.0",
     "diff": "9.0.0",
     "docx": "^9.6.1",
-    "docx-preview": "^0.3.7",
+    "docx-preview": "^0.4.1",
     "drizzle-orm": "^0.45.4",
     "echarts": "6.1.0",
     "es-toolkit": "1.52.0",
