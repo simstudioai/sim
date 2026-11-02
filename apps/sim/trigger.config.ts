@@ -160,12 +160,8 @@ export default defineConfig({
    * because a throw here fails the run. The execution-signal subscriber is
    * deliberately not warmed here: only the tasks that execute a workflow ever
    * subscribe, and they are a minority of runs, so that connection is warmed
-   * on intent at the execution entry point instead.
-   *
-   * Also refreshes workload-identity AWS credentials, alongside the Redis
-   * warm-up, while the attempt is executing and a token can still be minted,
-   * so work a run leaves behind (the hosted-key metrics flush) has credentials
-   * after the attempt ends. Never throws, like the warm-up.
+   * on intent at the execution entry point instead. The same step refreshes
+   * workload-identity AWS credentials (`prepareTriggerAttempt`).
    *
    * @see https://trigger.dev/docs/config/config-file#lifecycle-functions
    */
@@ -177,9 +173,8 @@ export default defineConfig({
     markInsideTriggerRun()
     const { reportAccountTokenSealing } = await import('@sim/db/sealed-text')
     reportAccountTokenSealing()
-    const { warmRedisConnection } = await import('./lib/core/config/redis')
-    const { refreshAwsCredentialsForRun } = await import('./lib/core/config/aws')
-    await Promise.all([warmRedisConnection(), refreshAwsCredentialsForRun()])
+    const { prepareTriggerAttempt } = await import('./lib/core/config/trigger-attempt')
+    await prepareTriggerAttempt()
   },
   ...(grafanaTelemetry ? { telemetry: grafanaTelemetry } : {}),
   build: {
