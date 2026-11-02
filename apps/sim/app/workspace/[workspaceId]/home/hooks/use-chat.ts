@@ -5302,6 +5302,7 @@ export function useChat(
       const msg = id === undefined ? queue?.[0] : queue?.find((queued) => queued.id === id)
       if (!msg || queueState.editing[chatKey] === msg.id) return
       if (queuedMessageDispatchIds.has(msg.id)) return
+      if (chatPlanRequired) return
       /* Sent by hand, it still must not run a second turn: if the history shows it
          accepted, it is already in the chat. A history that cannot be read does not
          hold it back here; the user asked to send it, and the server deduplicates it
@@ -5373,6 +5374,7 @@ export function useChat(
       })
     },
     [
+      chatPlanRequired,
       dispatchQueuedMessage,
       queryClient,
       stopGeneration,
@@ -5463,7 +5465,7 @@ export function useChat(
   const [sendRetryWakeup, setSendRetryWakeup] = useState(0)
   useEffect(() => {
     if (!scopeKey) return
-    if (messageQueue.length === 0 || queueHeadHeld) return
+    if (messageQueue.length === 0 || queueHeadHeld || chatPlanRequired) return
     if (queueHeadNotBefore !== undefined && queueHeadNotBefore > Date.now()) {
       const timer = setTimeout(
         () => setSendRetryWakeup((wakeups) => wakeups + 1),
@@ -5482,6 +5484,7 @@ export function useChat(
     scopeKey,
     messageQueue.length,
     queueHeadHeld,
+    chatPlanRequired,
     queueHeadNotBefore,
     sendRetryWakeup,
     resolvedChatId,
