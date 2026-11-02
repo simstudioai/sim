@@ -1,6 +1,6 @@
 name: desktop-e2e
 
-# Smoke coverage of the real Electron shell on desktop changes. Three isolated runners
+# Smoke coverage of the real Electron shell on desktop changes. Isolated runners
 # partition complete test files by measured duration; workers remain serial per runner.
 # The weekly
 # advisory canary against electron@latest so Chromium-cadence breakage surfaces
@@ -104,14 +104,14 @@ jobs:
         run: bun run scripts/build-native.ts --computer-use
 
   e2e:
-    name: e2e (${{ matrix.shard }}/3)
+    name: e2e (${{ matrix.shard }}/${{ strategy.job-total }})
     if: github.event_name != 'schedule' && github.event_name != 'push'
     runs-on: macos-26
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4]
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
@@ -160,7 +160,7 @@ jobs:
 
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
-        run: bun run ../../scripts/desktop-e2e.ts ${{ matrix.shard }}/3
+        run: bun run ../../scripts/desktop-e2e.ts ${{ matrix.shard }}/${{ strategy.job-total }}
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/desktop-smoke.json
           BACKGROUND_EXECUTOR_REPORT_PATH: test-results/background-executor-report.json
