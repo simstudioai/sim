@@ -3682,6 +3682,7 @@ export function useChat(
       )
 
       if ((!message.trim() && !fileAttachments?.length) || !scopeKey) return false
+      if (chatPlanRequired) return false
       const { onOptimisticSendApplied } = options ?? {}
       const pendingStop = options?.pendingStop ?? pendingStopPromiseRef.current
       let queuedSendHandoff = options?.queuedSendHandoff
@@ -4392,6 +4393,7 @@ export function useChat(
       workspaceId,
       organizationId,
       scopeKey,
+      chatPlanRequired,
       queryClient,
       upsertChatHistory,
       modelSelectorEnabled,
