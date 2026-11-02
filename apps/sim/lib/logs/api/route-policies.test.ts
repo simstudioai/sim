@@ -3,6 +3,7 @@ import {
   authInternalDelegationMock,
   authInternalDelegationMockFns,
 } from '@sim/testing/mocks/auth-internal-delegation.mock'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,7 +11,47 @@ vi.mock('@/lib/auth/internal-delegation', () => authInternalDelegationMock)
 vi.unmock('@/lib/auth/internal')
 
 import { generateInternalDelegationToken } from '@/lib/auth/internal'
-import { internalLogsSessionOrExecutorAuth } from '@/lib/logs/api/route-policies'
+import {
+  internalLogsSessionOrExecutorAuth,
+  v2LogErrorPolicies,
+} from '@/lib/logs/api/route-policies'
+
+function failedQuery(code: string, message: string): DrizzleQueryError {
+  return new DrizzleQueryError('select', [], Object.assign(new Error(message), { code }))
+}
+
+describe('v2 logs error policies', () => {
+  const policies = Object.entries(v2LogErrorPolicies)
+
+  it.each(policies)(
+    '%s answers a replica recovery conflict with a retryable 503',
+    async (_, policy) => {
+      const response = policy.render(
+        failedQuery('40001', 'canceling statement due to conflict with recovery')
+      )
+
+      expect(response?.status).toBe(503)
+      expect(response?.headers.get('Retry-After')).toBeTruthy()
+      expect(await response?.json()).toMatchObject({ error: { code: 'SERVICE_UNAVAILABLE' } })
+    }
+  )
+
+  it.each(policies)('%s answers a statement timeout with a retryable 503', (_, policy) => {
+    const response = policy.render(
+      failedQuery('57014', 'canceling statement due to statement timeout')
+    )
+
+    expect(response?.status).toBe(503)
+    expect(response?.headers.get('Retry-After')).toBeTruthy()
+  })
+
+  it.each(policies)('%s leaves a permanent database failure unhandled', (_, policy) => {
+    expect(policy.render(failedQuery('42P01', 'relation does not exist'))).toBeNull()
+    expect(
+      policy.render(failedQuery('57014', 'canceling statement due to user request'))
+    ).toBeNull()
+  })
+})
 
 const mockGetSession = authMockFns.mockGetSession
 const mockBindDelegation = authInternalDelegationMockFns.mockBindInternalExecutorDelegation

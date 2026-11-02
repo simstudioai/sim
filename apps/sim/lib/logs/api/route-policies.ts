@@ -1,9 +1,11 @@
 import {
   createInternalSessionOrExecutorAuth,
   createV2ResourceConcealmentPolicy,
-  v2OrchestrationErrorPolicy,
+  type V2ErrorPolicy,
 } from '@/lib/api/server/routes'
+import { isDatabaseReadUnavailable } from '@/lib/db/read-retry'
 import { LOGS_DELEGATION_AUDIENCE } from '@/lib/logs/application/authorization'
+import { v2CaughtOrchestrationError, v2Error } from '@/app/api/v2/lib/response'
 
 const internalLogsSessionOrExecutorAuthBase = createInternalSessionOrExecutorAuth({
   audience: LOGS_DELEGATION_AUDIENCE,
@@ -25,6 +27,12 @@ export const internalLogsSessionOrExecutorAuth = {
       ? { ...principal, resourceScope: { ...principal.resourceScope, executionId } }
       : principal
   },
+}
+
+const renderV2LogError: V2ErrorPolicy['render'] = (error) => {
+  if (isDatabaseReadUnavailable(error))
+    return v2Error('SERVICE_UNAVAILABLE', 'Logs are temporarily unavailable. Please try again.')
+  return v2CaughtOrchestrationError(error)
 }
 
 /**
@@ -49,8 +57,9 @@ export const internalLogsSessionOrExecutorAuth = {
  * inconsistency for a larger one.
  */
 export const v2LogErrorPolicies = {
-  default: v2OrchestrationErrorPolicy,
+  default: { render: renderV2LogError },
   concealDetailAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Log not found',
+    render: renderV2LogError,
   }),
-} as const
+} as const satisfies Record<string, V2ErrorPolicy>
