@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { TERMINAL_TOOL_NAME, type TerminalOperation } from '@sim/terminal-protocol'
 import { getErrorMessage } from '@sim/utils/errors'
+import { cliCommandToolName } from '@/lib/mothership/agent-cli/approval'
 import type { AsyncCompletionSignal } from '@/lib/mothership/async-runs/lifecycle'
 import { PERMISSION_WAIT_TIMEOUT_MS } from '@/lib/mothership/constants'
 import {
@@ -91,13 +92,19 @@ export function toolCallNeedsApproval(
    */
   frameRequestsApproval = false,
   /** The call's arguments, for a tool whose gate depends on what it is doing. */
-  args?: Record<string, unknown>
+  args?: Record<string, unknown>,
+  /**
+   * The tool that executes the call, when the frame names it apart from its display
+   * name: a `sim_cli` call is shown as the command it runs (`cli_workflows_deploy`),
+   * and always-allow is saved under that name.
+   */
+  executableName = toolName
 ): boolean {
   if (!context.toolPermissions.enabled) return false
   if (options.interactive === false) return false
 
   if (!frameRequestsApproval) {
-    if (!toolRequiresApproval(toolName)) return false
+    if (!toolRequiresApproval(executableName, args)) return false
     if (toolName === TERMINAL_TOOL_NAME && !terminalOperationNeedsApproval(args)) return false
     // A go-routed tool executes inside mothership and never reaches Sim's
     // dispatch, so there is nothing here to hold. Stamping the frame anyway
@@ -117,8 +124,9 @@ export function toolCallNeedsApproval(
    * leave every entry saved before the policy changed still silencing prompts.
    */
   if (!context.toolPermissions.autoAllowPermitted) return true
+  if (!context.toolPermissions.autoAllowed.has(toolApprovalKey(toolName))) return true
 
-  return !context.toolPermissions.autoAllowed.has(toolApprovalKey(toolName))
+  return executableName === 'sim_cli' && cliCommandToolName(args?.request) !== toolName
 }
 
 function skipOutput(toolName: string) {
