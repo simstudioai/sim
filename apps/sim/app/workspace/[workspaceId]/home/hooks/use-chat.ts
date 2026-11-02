@@ -119,7 +119,7 @@ import {
   dispatchStreamEvent,
   finalizeResidualToolCalls,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream'
-import { useChatPlanGate } from '@/app/workspace/[workspaceId]/home/hooks/use-chat-plan-gate'
+import { useChatPlanRequired } from '@/app/workspace/[workspaceId]/home/hooks/use-chat-plan-required'
 import { useNativeActiveTabIds } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
 import { useMothershipChatOlderMessages } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-chat-older-messages'
 import { resolveEffectiveResourceId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
@@ -780,7 +780,7 @@ export function useChat(
   const pathname = usePathname()
   const router = useRouter()
   const queryClient = useQueryClient()
-  const stopSendWithoutChatPlan = useChatPlanGate()
+  const chatPlanRequired = useChatPlanRequired()
   const [pendingMessages, setPendingMessages] = useState<ChatMessage[]>([])
   const [completedTurn, setCompletedTurn] = useState<CompletedTurn | null>(null)
   const completedTurnRef = useRef<CompletedTurn | null>(null)
@@ -3682,6 +3682,7 @@ export function useChat(
       )
 
       if ((!message.trim() && !fileAttachments?.length) || !scopeKey) return false
+      if (chatPlanRequired) return false
       const { onOptimisticSendApplied } = options ?? {}
       const pendingStop = options?.pendingStop ?? pendingStopPromiseRef.current
       let queuedSendHandoff = options?.queuedSendHandoff
@@ -4392,6 +4393,7 @@ export function useChat(
       workspaceId,
       organizationId,
       scopeKey,
+      chatPlanRequired,
       queryClient,
       upsertChatHistory,
       modelSelectorEnabled,
@@ -4439,7 +4441,7 @@ export function useChat(
       options?: SendMessageOptions
     ) => {
       if ((!message.trim() && !fileAttachments?.length) || !scopeKey) return
-      if (stopSendWithoutChatPlan()) return
+      if (chatPlanRequired) return
 
       const queueStore = useMothershipQueueStore.getState()
       const activeChatKey = chatKeyRef.current
@@ -4527,7 +4529,7 @@ export function useChat(
     },
     [
       workspaceId,
-      stopSendWithoutChatPlan,
+      chatPlanRequired,
       createQueuedMessage,
       startSendMessage,
       handOffWithdrawnSend,
@@ -5300,6 +5302,7 @@ export function useChat(
       const msg = id === undefined ? queue?.[0] : queue?.find((queued) => queued.id === id)
       if (!msg || queueState.editing[chatKey] === msg.id) return
       if (queuedMessageDispatchIds.has(msg.id)) return
+      if (chatPlanRequired) return
       /* Sent by hand, it still must not run a second turn: if the history shows it
          accepted, it is already in the chat. A history that cannot be read does not
          hold it back here; the user asked to send it, and the server deduplicates it
@@ -5371,6 +5374,7 @@ export function useChat(
       })
     },
     [
+      chatPlanRequired,
       dispatchQueuedMessage,
       queryClient,
       stopGeneration,
@@ -5461,7 +5465,7 @@ export function useChat(
   const [sendRetryWakeup, setSendRetryWakeup] = useState(0)
   useEffect(() => {
     if (!scopeKey) return
-    if (messageQueue.length === 0 || queueHeadHeld) return
+    if (messageQueue.length === 0 || queueHeadHeld || chatPlanRequired) return
     if (queueHeadNotBefore !== undefined && queueHeadNotBefore > Date.now()) {
       const timer = setTimeout(
         () => setSendRetryWakeup((wakeups) => wakeups + 1),
@@ -5480,6 +5484,7 @@ export function useChat(
     scopeKey,
     messageQueue.length,
     queueHeadHeld,
+    chatPlanRequired,
     queueHeadNotBefore,
     sendRetryWakeup,
     resolvedChatId,

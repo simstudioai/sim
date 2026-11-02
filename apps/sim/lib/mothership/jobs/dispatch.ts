@@ -1,12 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
+import { CHAT_PLAN_REQUIRED_UPGRADE } from '@/lib/billing/chat-plan'
 import {
   checkAttributedUsageLimits,
   resolveBillingAttribution,
 } from '@/lib/billing/core/attribution'
 import { payerHasChatAccess } from '@/lib/billing/core/chat-access'
-import { CHAT_PLAN_REQUIRED_UPGRADE } from '@/lib/billing/usage-upgrade'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'

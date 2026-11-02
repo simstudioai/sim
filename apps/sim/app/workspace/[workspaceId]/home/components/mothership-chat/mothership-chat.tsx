@@ -33,6 +33,7 @@ import { inter } from '@/app/_styles/fonts/inter/inter'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components/message-actions'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
+import { ChatPlanNotice } from '@/app/workspace/[workspaceId]/home/components/chat-plan-notice'
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
   assistantMessageHasRenderableContent,
@@ -1033,6 +1034,7 @@ export function MothershipChat({
         >
           <div className={styles.footerInner}>
             <ComputerUseActivity />
+            {!isLoading && <ChatPlanNotice />}
             <QueuedMessages
               messageQueue={messageQueue}
               editingQueuedId={editingQueuedId}
