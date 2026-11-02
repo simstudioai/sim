@@ -31,6 +31,7 @@ import { MOTHERSHIP_CHAT_ID_HEADER } from '@/lib/mothership/constants'
 const logger = createLogger('BrowserExtensionAppE2E')
 const expect = browserExpect.configure({ timeout: 30_000 })
 const ACCESS_REVALIDATION_TIMEOUT_MS = 35_000
+const ACCESS_POLL_INTERVAL_MS = 30_000
 function required(name: string): string {
   const value = process.env[name]
   assert(value, `${name} must be explicitly provided`)
@@ -83,7 +84,6 @@ function trackUploadedFile(key: string) {
 }
 let context: BrowserContext | undefined
 let panel: Page | undefined
-let acceleratedClock = false
 let userId: string | undefined
 let releaseHeldRequest = () => {}
 const alphaId = generateId()
@@ -131,23 +131,17 @@ async function check(name: string, run: () => Promise<void>) {
 async function screenshot(name: string) {
   if (!panel) return
   for (const frame of panel.frames()) {
-    await frame.evaluate(
-      (finishAnimations) =>
-        Promise.all(
-          document
-            .getAnimations()
-            .filter(
-              (animation) =>
-                animation.playState === 'running' &&
-                animation.effect?.getComputedTiming().iterations !== Number.POSITIVE_INFINITY
-            )
-            .map((animation) => {
-              // Mocked performance time can put native Web Animations far ahead of their timeline.
-              if (finishAnimations) animation.finish()
-              return animation.finished.catch(() => {})
-            })
-        ),
-      acceleratedClock
+    await frame.evaluate(() =>
+      Promise.all(
+        document
+          .getAnimations()
+          .filter(
+            (animation) =>
+              animation.playState === 'running' &&
+              animation.effect?.getComputedTiming().iterations !== Number.POSITIVE_INFINITY
+          )
+          .map((animation) => animation.finished.catch(() => {}))
+      )
     )
     for (const element of await frame
       .getByRole('menu')
@@ -1220,7 +1214,6 @@ try {
     panel = await openPanel()
     shell = panel
     await shell.clock.install()
-    acceleratedClock = true
     await browserContext.addInitScript(() => {
       const animate = Element.prototype.animate
       Element.prototype.animate = function (
@@ -1244,9 +1237,12 @@ try {
     await shell.goto(`chrome-extension://${extensionId}/sidepanel.html`)
     await observeCaptureReceipts()
   }
+  const revalidationTimeout = liveChat
+    ? ACCESS_REVALIDATION_TIMEOUT_MS
+    : ACCESS_REVALIDATION_TIMEOUT_MS - ACCESS_POLL_INTERVAL_MS
   const advanceAccessRevalidation = async () => {
     if (liveChat) return
-    await shell.clock.fastForward(ACCESS_REVALIDATION_TIMEOUT_MS)
+    await shell.clock.fastForward(ACCESS_POLL_INTERVAL_MS)
     // Capture timestamps come from Chromium's isolated world, outside Playwright's clock.
     await shell.clock.setSystemTime(Date.now())
   }
@@ -1281,13 +1277,13 @@ try {
           assert.equal(policy.status(), 200)
           assert.equal(toRecord(toRecord(await policy.json()).config).hideCopilot, true)
           await advanceAccessRevalidation()
-          await expect(input).toHaveCount(0, { timeout: ACCESS_REVALIDATION_TIMEOUT_MS })
+          await expect(input).toHaveCount(0, { timeout: revalidationTimeout })
           await expect(attachments()).toHaveCount(0)
           await expect(frame().getByText('Access required', { exact: true })).toBeVisible()
           await screenshot(`workspace-chat-revoked-requests-${allowRequests}`)
           await sql`delete from permission_group where id=${permissionGroupId}`
           await advanceAccessRevalidation()
-          await expect(input).toBeVisible({ timeout: ACCESS_REVALIDATION_TIMEOUT_MS })
+          await expect(input).toBeVisible({ timeout: revalidationTimeout })
           await expect(input).toHaveValue(
             'Keep text, but discard the page when Chat access is revoked.'
           )
@@ -1331,7 +1327,7 @@ try {
       ${sql.json({ disableWorkspaceCreation: true })}, ${userId}, true)`
       await advanceAccessRevalidation()
       await expect(frame().getByRole('button', { name: 'Attach image', exact: true })).toBeVisible({
-        timeout: ACCESS_REVALIDATION_TIMEOUT_MS,
+        timeout: revalidationTimeout,
       })
       await expect(input).toHaveValue('Keep this draft when Build access changes.')
       await expect(attachments()).toHaveCount(1)
@@ -1405,7 +1401,7 @@ try {
           (response) =>
             new URL(response.url()).pathname === `/api/organizations/${organizationId}` &&
             [401, 403, 404].includes(response.status()),
-          { timeout: ACCESS_REVALIDATION_TIMEOUT_MS }
+          { timeout: revalidationTimeout }
         ),
         sql`delete from member where organization_id=${organizationId} and user_id=${userId}`.then(
           advanceAccessRevalidation
@@ -1432,7 +1428,7 @@ try {
             (response) =>
               new URL(response.url()).pathname === `/api/workspaces/${alphaId}/host-context` &&
               response.status() === 403,
-            { timeout: ACCESS_REVALIDATION_TIMEOUT_MS }
+            { timeout: revalidationTimeout }
           ),
           sql`delete from permissions where user_id=${userId} and entity_type='workspace' and entity_id=${alphaId}`.then(
             advanceAccessRevalidation
