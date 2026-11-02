@@ -59,6 +59,7 @@ interface ComposerProps {
   compact?: boolean
   attachments?: ReactNode
   resourceActions?: ReactNode
+  toolbarActions?: ReactNode
   modelSelectorOptions?: ModelSelectorOptions
 }
 
@@ -80,6 +81,7 @@ export function Composer({
   compact = false,
   attachments,
   resourceActions,
+  toolbarActions,
   modelSelectorOptions,
 }: ComposerProps) {
   const attachedFilesRef = useRef(files.attachedFiles)
@@ -257,6 +259,7 @@ export function Composer({
         </Tooltip.Root>
       )}
       {!imagesOnly && contextPicker('skills', Slash, 'Skills')}
+      {toolbarActions}
       {onPlanChange && (
         <Chip
           shape='round'

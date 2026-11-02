@@ -60,6 +60,7 @@ const logger = createLogger('UserInput')
 interface UserInputProps {
   attachments?: React.ReactNode
   resourceActions?: React.ReactNode
+  toolbarActions?: React.ReactNode
   modelSelectorOptions?: ModelSelectorOptions
   requestMode?: 'agent' | 'plan'
   onPlanChange?: () => void
@@ -98,6 +99,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   {
     attachments,
     resourceActions,
+    toolbarActions,
     modelSelectorOptions,
     requestMode = 'agent',
     onPlanChange,
@@ -679,6 +681,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>Skills</Tooltip.Content>
             </Tooltip.Root>
+            {toolbarActions}
             {onPlanChange && (
               <Chip
                 shape='round'
