@@ -76,7 +76,7 @@ jobs:
     name: integration (${{ matrix.provision }}, ${{ matrix.shard == 'db' && 'db' || format('{0}/8', matrix.shard) }})
     needs: changes
     if: needs.changes.outputs.integration == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-24.04' }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -135,7 +135,7 @@ jobs:
       - name: Setup workspace
         uses: ./.github/actions/setup
         with:
-          provider: github
+          provider: ${{ vars.CI_PROVIDER }}
 
       - name: Provision a fresh database through the supported command
         working-directory: packages/db
@@ -219,7 +219,7 @@ jobs:
           --health-retries 10
       # Desktop inbox, browser extension, and Project Files use Redis.
       redis:
-        image: ${{ (matrix.group == 'desktop-inbox' || matrix.group == 'assistant-actions' || matrix.group == 'organization-search' || matrix.group == 'browser-extension' || matrix.group == 'project-files') && 'redis:8.2-alpine' || '' }}
+        image: ${{ (matrix.group == 'desktop-inbox' || matrix.group == 'assistant-actions' || matrix.group == 'organization-search' || startsWith(matrix.group, 'browser-extension-') || matrix.group == 'project-files') && 'redis:8.2-alpine' || '' }}
         ports:
           - 6379:6379
         options: >-
@@ -298,7 +298,7 @@ jobs:
           name: e2e-reports-${{ matrix.group }}
           path: |
             ${{ runner.temp }}/e2e/**/*.json
-            ${{ runner.temp }}/e2e/browser-extension/**/*.png
+            ${{ runner.temp }}/e2e/browser-extension*/**/*.png
             ${{ runner.temp }}/e2e/*-ui-report.json.artifacts/*.png
           if-no-files-found: ignore
           retention-days: 7

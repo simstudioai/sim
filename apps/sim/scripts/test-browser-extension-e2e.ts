@@ -41,6 +41,9 @@ const base = new URL(required('EXTENSION_APP_E2E_BASE_URL'))
 const database = assertDisposableTestDatabaseUrl(required('EXTENSION_APP_E2E_DATABASE_URL'))
 const report = resolve(required('EXTENSION_APP_E2E_REPORT_PATH'))
 const liveChat = process.env.EXTENSION_APP_E2E_LIVE_CHAT === '1'
+const group = process.env.EXTENSION_APP_E2E_GROUP ?? 'all'
+assert(group === 'all' || group === 'native' || group === 'access', 'Unknown extension E2E group')
+assert(!liveChat || group === 'all', 'Live-provider acceptance requires the complete suite')
 const loopback = ['127.0.0.1', 'localhost', '[::1]']
 assert(
   loopback.includes(base.hostname) &&
@@ -112,7 +115,8 @@ await once(fixture, 'listening')
 const fixtureAddress = fixture.address()
 assert(fixtureAddress && typeof fixtureAddress !== 'string')
 
-async function check(name: string, run: () => Promise<void>) {
+async function check(owner: 'native' | 'access', name: string, run: () => Promise<void>) {
+  if (group !== 'all' && group !== owner) return
   const started = performance.now()
   try {
     await run()
@@ -128,6 +132,9 @@ async function check(name: string, run: () => Promise<void>) {
     throw error
   }
 }
+const checkNative = (name: string, run: () => Promise<void>) => check('native', name, run)
+const checkAccess = (name: string, run: () => Promise<void>) => check('access', name, run)
+
 async function screenshot(name: string) {
   if (!panel) return
   for (const frame of panel.frames()) {
@@ -255,6 +262,24 @@ async function seed() {
   })
 }
 
+async function seedViewerOrganization() {
+  assert(userId)
+  await sql`insert into organization (id, name, slug, created_at) values (${organizationId}, 'Extension QA organization', ${organizationId}, now())`
+  await sql`insert into member (id, user_id, organization_id, role) values (${generateId()}, ${userId}, ${organizationId}, 'owner')`
+}
+async function seedOtherOrganization() {
+  assert(userId)
+  await sql`insert into organization (id, name, slug, created_at) values (${otherOrganizationId}, 'Other QA organization', ${otherOrganizationId}, now())`
+  await sql`insert into member (id, user_id, organization_id, role) values (${generateId()}, ${otherUserId}, ${otherOrganizationId}, 'owner')`
+  await sql`insert into copilot_chats (id, user_id, organization_id, type, title, config) values (${otherOrganizationChatId}, ${userId}, ${otherOrganizationId}, 'mothership', 'Other organization history', ${sql.json({ conversationMode: 'agent' })})`
+}
+async function seedHostedWorkspace() {
+  assert(userId)
+  await sql`insert into project (id, name, owner_id, organization_id) values (${hostProjectId}, 'Hosted QA project', ${otherUserId}, ${otherOrganizationId})`
+  await sql`insert into workspace (id, project_id, organization_id, name, owner_id, billed_account_user_id) values (${hostedWorkspaceId}, ${hostProjectId}, ${otherOrganizationId}, 'Hosted QA workspace', ${otherUserId}, ${otherUserId})`
+  await sql`insert into permissions (id, user_id, entity_type, entity_id, permission_type) values (${generateId()}, ${userId}, 'workspace', ${hostedWorkspaceId}, 'admin')`
+}
+
 try {
   await mkdir(dirname(report), { recursive: true })
   const extensionPath = resolve(temporary, 'extension')
@@ -351,7 +376,7 @@ try {
     await frame().evaluate((destination) => window.location.assign(destination), url)
     await navigation
   }
-  await check('Signed-out users get the real top-level Sim sign-in flow', async () => {
+  await checkNative('Signed-out users get the real top-level Sim sign-in flow', async () => {
     await expect(frame().getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
     await screenshot('signed-out')
     const link = frame().getByRole('link', { name: 'Sign in', exact: true })
@@ -362,7 +387,7 @@ try {
     assert.equal(new URL(login.url()).origin, base.origin)
     await login.close()
   })
-  await check('A real Better Auth session reaches the extension iframe', async () => {
+  const signInAndSeed = async () => {
     const signup = await browserContext.request.post(`${base.origin}/api/auth/sign-up/email`, {
       headers: { origin: base.origin },
       data: {
@@ -377,6 +402,9 @@ try {
     assert.equal(typeof id, 'string')
     userId = String(id)
     await seed()
+  }
+  await checkNative('A real Better Auth session reaches the extension iframe', async () => {
+    await signInAndSeed()
     await shell.reload()
     await expect(
       frame().getByRole('link', { name: 'Extension QA alpha', exact: true })
@@ -397,6 +425,7 @@ try {
       timeout: 120_000,
     })
   })
+  if (group === 'access') await signInAndSeed()
   let source = await context.newPage()
   await source.goto(`${fixtureOrigin}/page?private=QUERY_SECRET#FRAGMENT_SECRET`)
   const observeCaptureReceipts = () =>
@@ -454,7 +483,7 @@ try {
       frame().getByRole('button', { name: 'Remove extension-notes.txt', exact: true })
     ).toBeEnabled()
   }
-  await check(
+  await checkNative(
     'Capture, preview, removal, and the three-page cap use the real composer',
     async () => {
       await capture()
@@ -487,7 +516,7 @@ try {
       )
     }
   )
-  await check(
+  await checkNative(
     'Toolbar and authenticated chat align at 320/390 pixels in light and dark themes',
     async () => {
       for (const theme of ['light', 'dark'] as const) {
@@ -564,31 +593,34 @@ try {
       }
     }
   )
-  await check('Workspace and conversation navigation clear pending page context', async () => {
-    await capture()
-    await expect(attachments()).toHaveCount(1)
-    await frame().getByRole('button', { name: 'Extension QA alpha', exact: true }).click()
-    await screenshot('workspace-menu')
-    await expect(
-      frame().getByRole('menuitem', { name: 'Extension QA alpha', exact: true })
-    ).toBeDisabled()
-    await frame().getByRole('menuitem', { name: 'Extension QA beta', exact: true }).click()
-    await expect(
-      frame().getByRole('button', { name: 'Extension QA beta', exact: true })
-    ).toBeVisible()
-    await expect(attachments()).toHaveCount(0)
-    await navigate(`${base.origin}/extension/${alphaId}`)
-    await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
-    await capture()
-    await frame().getByRole('button', { name: 'Chat history' }).click()
-    await screenshot('chat-history')
-    await frame().getByRole('menu').press('End')
-    await screenshot('chat-history-end')
-    await frame().getByRole('menuitem', { name: 'Extension QA history' }).click()
-    await expect(attachments()).toHaveCount(0)
-    await expect(frame().getByText('QA history response.', { exact: false })).toBeVisible()
-  })
-  await check(
+  await checkNative(
+    'Workspace and conversation navigation clear pending page context',
+    async () => {
+      await capture()
+      await expect(attachments()).toHaveCount(1)
+      await frame().getByRole('button', { name: 'Extension QA alpha', exact: true }).click()
+      await screenshot('workspace-menu')
+      await expect(
+        frame().getByRole('menuitem', { name: 'Extension QA alpha', exact: true })
+      ).toBeDisabled()
+      await frame().getByRole('menuitem', { name: 'Extension QA beta', exact: true }).click()
+      await expect(
+        frame().getByRole('button', { name: 'Extension QA beta', exact: true })
+      ).toBeVisible()
+      await expect(attachments()).toHaveCount(0)
+      await navigate(`${base.origin}/extension/${alphaId}`)
+      await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
+      await capture()
+      await frame().getByRole('button', { name: 'Chat history' }).click()
+      await screenshot('chat-history')
+      await frame().getByRole('menu').press('End')
+      await screenshot('chat-history-end')
+      await frame().getByRole('menuitem', { name: 'Extension QA history' }).click()
+      await expect(attachments()).toHaveCount(0)
+      await expect(frame().getByText('QA history response.', { exact: false })).toBeVisible()
+    }
+  )
+  await checkNative(
     'Page chips protect draft history and support page-only Enter at the HTTP boundary',
     async () => {
       const editor = frame().getByRole('textbox', { name: 'Message', exact: true })
@@ -647,7 +679,7 @@ try {
       contentType: 'application/javascript',
     })
   )
-  await check('Saved page previews stay out of session replay in the full app', async () => {
+  await checkNative('Saved page previews stay out of session replay in the full app', async () => {
     const opened = browserContext.waitForEvent('page')
     await frame().getByRole('link', { name: 'Open in Sim', exact: true }).click()
     const app = await opened
@@ -678,7 +710,7 @@ try {
       await app.close()
     }
   })
-  await check('Sources and resource actions preserve their real destinations', async () => {
+  await checkNative('Sources and resource actions preserve their real destinations', async () => {
     await frame().getByRole('button', { name: '1 source', exact: true }).click()
     await frame().getByRole('button', { name: 'View all sources' }).click()
     const dialog = frame().getByRole('dialog', { name: 'Cited sources' })
@@ -717,7 +749,7 @@ try {
     await frame().getByRole('button', { name: 'New chat', exact: true }).click()
     await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('')
   })
-  await check(
+  await checkNative(
     'The extension blocks microphone capture even when the Sim origin has permission',
     async () => {
       await browserContext.grantPermissions(['microphone'], { origin: base.origin })
@@ -735,7 +767,7 @@ try {
       await browserContext.clearPermissions()
     }
   )
-  await check(
+  await checkNative(
     'Files and pages share the attachment row, remove independently, and reach the submission boundary together',
     async () => {
       await capture()
@@ -787,7 +819,7 @@ try {
       await expect(attachments()).toHaveCount(0)
     }
   )
-  await check(
+  await checkNative(
     'Selected text attaches only the selected excerpt through the shared plus menu',
     async () => {
       await source.evaluate(() => {
@@ -1046,7 +1078,7 @@ try {
     assert.equal(toRecord(submitted[0]).workspaceId, scope.organizationId ? undefined : alphaId)
   }
   if (liveChat) {
-    await check(
+    await checkNative(
       'Workspace live admission preserves queued pages, files, and the active draft',
       () =>
         verifyLiveChat({
@@ -1056,9 +1088,9 @@ try {
           draftKey: `extension:${userId}:${alphaId}:new`,
         })
     )
-  } else
+  } else if (group !== 'access')
     checks.push({ name: 'Live Mothership send and admission', status: 'skipped', durationMs: 0 })
-  await check(
+  await checkNative(
     'Another user’s existing workspace fails closed and returns to an authorized workspace',
     async () => {
       await navigate(`${base.origin}/extension/${deniedId}`)
@@ -1069,12 +1101,10 @@ try {
       await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
     }
   )
-  await check(
+  await checkNative(
     'Organization default landing binds page-only submissions to the organization',
     async () => {
-      assert(userId)
-      await sql`insert into organization (id, name, slug, created_at) values (${organizationId}, 'Extension QA organization', ${organizationId}, now())`
-      await sql`insert into member (id, user_id, organization_id, role) values (${generateId()}, ${userId}, ${organizationId}, 'owner')`
+      await seedViewerOrganization()
       await navigate(`${base.origin}/extension`)
       await expect
         .poll(() => new URL(frame().url()).pathname)
@@ -1107,9 +1137,7 @@ try {
       } finally {
         await shell.unroute('**/api/mothership/chat')
       }
-      await sql`insert into organization (id, name, slug, created_at) values (${otherOrganizationId}, 'Other QA organization', ${otherOrganizationId}, now())`
-      await sql`insert into member (id, user_id, organization_id, role) values (${generateId()}, ${otherUserId}, ${otherOrganizationId}, 'owner')`
-      await sql`insert into copilot_chats (id, user_id, organization_id, type, title, config) values (${otherOrganizationChatId}, ${userId}, ${otherOrganizationId}, 'mothership', 'Other organization history', ${sql.json({ conversationMode: 'agent' })})`
+      await seedOtherOrganization()
       await navigate(
         `${base.origin}/extension/o/${otherOrganizationId}?chat=${otherOrganizationChatId}`
       )
@@ -1122,11 +1150,7 @@ try {
       await screenshot('organization-wrong-scope-history')
     }
   )
-  await check('A shared workspace returns to the viewer’s own organization chat', async () => {
-    assert(userId)
-    await sql`insert into project (id, name, owner_id, organization_id) values (${hostProjectId}, 'Hosted QA project', ${otherUserId}, ${otherOrganizationId})`
-    await sql`insert into workspace (id, project_id, organization_id, name, owner_id, billed_account_user_id) values (${hostedWorkspaceId}, ${hostProjectId}, ${otherOrganizationId}, 'Hosted QA workspace', ${otherUserId}, ${otherUserId})`
-    await sql`insert into permissions (id, user_id, entity_type, entity_id, permission_type) values (${generateId()}, ${userId}, 'workspace', ${hostedWorkspaceId}, 'admin')`
+  const setActiveOrganization = async () => {
     const active = await browserContext.request.post(
       `${base.origin}/api/auth/organization/set-active`,
       {
@@ -1135,22 +1159,33 @@ try {
       }
     )
     assert.equal(active.status(), 200)
-    await navigate(`${base.origin}/extension`)
-    await expect.poll(() => new URL(frame().url()).pathname).toBe(`/extension/o/${organizationId}`)
-    await navigate(`${base.origin}/extension/${hostedWorkspaceId}`)
-    await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
-    await capture()
-    await frame()
-      .getByRole('textbox', { name: 'Message', exact: true })
-      .fill('Workspace-specific draft')
-    await frame().getByRole('button', { name: 'Hosted QA workspace', exact: true }).click()
-    await frame().getByRole('menuitem', { name: 'Organization chat', exact: true }).click()
-    await expect.poll(() => new URL(frame().url()).pathname).toBe(`/extension/o/${organizationId}`)
-    await expect(frame().getByRole('textbox', { name: 'Ask Sim', exact: true })).toHaveValue('')
-    await expect(attachments()).toHaveCount(0)
-    await screenshot('shared-workspace-organization-navigation')
-  })
-  await check(
+  }
+  await checkNative(
+    'A shared workspace returns to the viewer’s own organization chat',
+    async () => {
+      await seedHostedWorkspace()
+      await setActiveOrganization()
+      await navigate(`${base.origin}/extension`)
+      await expect
+        .poll(() => new URL(frame().url()).pathname)
+        .toBe(`/extension/o/${organizationId}`)
+      await navigate(`${base.origin}/extension/${hostedWorkspaceId}`)
+      await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
+      await capture()
+      await frame()
+        .getByRole('textbox', { name: 'Message', exact: true })
+        .fill('Workspace-specific draft')
+      await frame().getByRole('button', { name: 'Hosted QA workspace', exact: true }).click()
+      await frame().getByRole('menuitem', { name: 'Organization chat', exact: true }).click()
+      await expect
+        .poll(() => new URL(frame().url()).pathname)
+        .toBe(`/extension/o/${organizationId}`)
+      await expect(frame().getByRole('textbox', { name: 'Ask Sim', exact: true })).toHaveValue('')
+      await expect(attachments()).toHaveCount(0)
+      await screenshot('shared-workspace-organization-navigation')
+    }
+  )
+  await checkNative(
     'A first-open toolbar capture survives authenticated organization landing',
     async () => {
       await source.bringToFront()
@@ -1189,7 +1224,7 @@ try {
     }
   )
   if (liveChat) {
-    await check(
+    await checkNative(
       'Organization live admission preserves queued pages, files, and the admitted conversation mode',
       () =>
         verifyLiveChat({
@@ -1201,7 +1236,13 @@ try {
         })
     )
   }
-  if (!liveChat) {
+  if (group === 'access') {
+    await seedViewerOrganization()
+    await seedOtherOrganization()
+    await seedHostedWorkspace()
+    await setActiveOrganization()
+  }
+  if (group !== 'native' && !liveChat) {
     // Install timers before app code in a fresh context; live provider checks keep native timing.
     await browserContext.close()
     context = await launchBrowserContext()
@@ -1247,7 +1288,7 @@ try {
     await shell.clock.setSystemTime(Date.now())
   }
   for (const allowRequests of [false, true]) {
-    await check(
+    await checkAccess(
       `Workspace Chat policy revocation and regrant work with access requests ${allowRequests ? 'enabled' : 'disabled'}`,
       async () => {
         assert(userId)
@@ -1310,7 +1351,7 @@ try {
       }
     )
   }
-  await check(
+  await checkAccess(
     'Organization permission changes switch a new chat to Assistant without losing its draft',
     async () => {
       assert(userId)
@@ -1387,7 +1428,7 @@ try {
       } else await shell.unroute('**/api/mothership/chat')
     }
   )
-  await check(
+  await checkAccess(
     'Revoking organization membership removes the live composer and pending captures',
     async () => {
       assert(userId)
@@ -1415,7 +1456,7 @@ try {
       await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
     }
   )
-  await check(
+  await checkAccess(
     'Revoking workspace access removes the live composer and pending captures',
     async () => {
       assert(userId)
@@ -1460,7 +1501,7 @@ try {
     [404, 'A missing workspace-list refetch removes cached choices'],
     [400, 'An invalid workspace-list request removes cached choices'],
   ] as const) {
-    await check(name, async () => {
+    await checkAccess(name, async () => {
       await navigate(`${base.origin}/extension`)
       const choices = frame().getByRole('navigation', { name: 'Workspaces', exact: true })
       await expect(choices).toBeVisible()
@@ -1521,7 +1562,7 @@ try {
       }
     })
   }
-  await check('An initial workspace-list 401 opens sign-in recovery', async () => {
+  await checkAccess('An initial workspace-list 401 opens sign-in recovery', async () => {
     await browserContext.route(workspaceListUrl, async (route) => {
       injectedRequests.add(route.request())
       await route.fulfill({ status: 401, json: { error: 'QA workspace-list session expired' } })
@@ -1537,7 +1578,7 @@ try {
       await browserContext.unroute(workspaceListUrl)
     }
   })
-  await check(
+  await checkAccess(
     'Transient session, workspace, and permission-policy refetch failures preserve the mounted composer and page draft',
     async () => {
       for (const [path, attempts, scope] of [
@@ -1587,7 +1628,7 @@ try {
       await navigate(`${base.origin}/extension/${alphaId}`)
     }
   )
-  await check(
+  await checkAccess(
     'Explicit session, workspace, and permission-policy failures clear captured context after refetch',
     async () => {
       for (const [path, status, scope] of [
@@ -1634,7 +1675,7 @@ try {
       await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
     }
   )
-  await check('An initial permission-policy outage keeps chat inaccessible', async () => {
+  await checkAccess('An initial permission-policy outage keeps chat inaccessible', async () => {
     const endpoint = `${base.origin}/api/permission-groups/user*`
     await browserContext.route(endpoint, async (route) => {
       injectedRequests.add(route.request())
@@ -1651,20 +1692,27 @@ try {
     await navigate(`${base.origin}/extension/${alphaId}`)
     await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
   })
-  await check('Signing out removes authenticated chat and captured page context', async () => {
-    await capture()
-    const response = await browserContext.request.post(`${base.origin}/api/auth/sign-out`, {
-      headers: { origin: base.origin },
-      data: {},
-    })
-    assert.equal(response.status(), 200)
-    await shell.clock.setFixedTime(Date.now() + 360_000)
-    await reconnect()
-    await expect(frame().getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
-    await screenshot('expired-session')
-    await expect(attachments()).toHaveCount(0)
-    await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toHaveCount(0)
-  })
+  await checkAccess(
+    'Signing out removes authenticated chat and captured page context',
+    async () => {
+      await capture()
+      const response = await browserContext.request.post(`${base.origin}/api/auth/sign-out`, {
+        headers: { origin: base.origin },
+        data: {},
+      })
+      assert.equal(response.status(), 200)
+      await shell.clock.setFixedTime(Date.now() + 360_000)
+      await reconnect()
+      await expect(frame().getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
+      await screenshot('expired-session')
+      await expect(attachments()).toHaveCount(0)
+      await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toHaveCount(0)
+    }
+  )
+  assert(
+    checks.some((entry) => entry.status === 'passed'),
+    'The selected group ran no acceptance checks'
+  )
   assert.deepEqual(browserErrors, [], 'Browser raised uncaught application errors')
   assert.deepEqual(
     httpErrors.filter((entry) => entry.status >= 500 && !entry.injected),
@@ -1704,7 +1752,7 @@ try {
   for (const path of uploadedPaths) await rm(path, { force: true })
   fixture.closeAllConnections()
   fixture.close()
-  await check('Disposable database fixtures are removed', async () => {
+  const cleanupFixtures = async () => {
     if (!userId) return
     const owner = userId
     await sql.begin(async (tx) => {
@@ -1719,7 +1767,19 @@ try {
     })
     const remaining = await sql`select id from "user" where id=${owner}`
     assert.equal(remaining.length, 0)
-  }).catch((error) => {
+  }
+  const cleanup =
+    group === 'access'
+      ? cleanupFixtures()
+      : checkNative('Disposable database fixtures are removed', cleanupFixtures)
+  await cleanup.catch((error) => {
+    if (group === 'access')
+      checks.push({
+        name: 'Fixture cleanup',
+        status: 'failed',
+        durationMs: 0,
+        error: getErrorMessage(error),
+      })
     logger.error('Fixture cleanup failed', { error: getErrorMessage(error) })
     process.exitCode = 1
   })
@@ -1729,6 +1789,7 @@ try {
     JSON.stringify(
       {
         suite: 'browser-extension-real-app',
+        group,
         liveChat,
         checks,
         screenshots,
