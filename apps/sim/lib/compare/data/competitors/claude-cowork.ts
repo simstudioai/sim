@@ -1056,9 +1056,9 @@ export const claudeCoworkProfile: CompetitorProfile = {
       },
       asyncExecution: {
         value:
-          "Yes: Claude Cowork now supports true server-side background execution: remote sessions and scheduled tasks continue running on Anthropic's infrastructure even when the Desktop app is closed or the computer is asleep, except for tasks that require local file or browser access, which still need the app open.",
+          "Yes: Claude Cowork now supports true server-side background execution: remote sessions and scheduled tasks continue running on Anthropic's infrastructure even when the Desktop app is closed or the computer is asleep, except tasks that work on local files or apps, which still need the app open.",
         detail:
-          "The phrase 'assign a task and step away' now more closely matches a real cloud job: remote sessions and scheduled/recurring tasks (set up via the /schedule skill) run on their cadence independent of device state. Tasks that need local file system or browser access are the exception and still require the desktop app open on an awake machine.",
+          "The phrase 'assign a task and step away' now more closely matches a real cloud job: remote sessions and scheduled/recurring tasks (set up via the /schedule skill) run on their cadence independent of device state. Tasks that work on local files or apps are the exception and still require the desktop app open on an awake machine.",
         shortValue:
           'Yes: remote sessions/tasks run without the app open, with local-access exceptions',
         confidence: 'verified',
@@ -1131,7 +1131,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
         value:
           "Yes: scheduled tasks execute server-side/remotely on Anthropic's infrastructure, independent of whether the Claude Desktop app is open or the device is awake, except tasks that work on local files or apps, per Anthropic's current documentation",
         detail:
-          "Scheduled/recurring tasks now run on their cadence on Anthropic's infrastructure regardless of client device state. Tasks that require local file or browser access remain the exception and still need the desktop app open and the machine awake.",
+          "Scheduled/recurring tasks now run on their cadence on Anthropic's infrastructure regardless of client device state. Tasks that work on local files or apps remain the exception and still need the desktop app open and the machine awake.",
         shortValue: 'Yes, except tasks on local files or apps',
         confidence: 'verified',
         sources: [
