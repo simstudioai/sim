@@ -1,5 +1,7 @@
+import { isPermissionType } from '@sim/platform-authz/predicates'
 import type { RoomAuthorizationResult } from '@sim/platform-authz/rooms'
 import { FILE_DOC_INTERNAL_HEADERS, FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-doc'
+import { toRecord } from '@sim/utils/object'
 import { env, getBaseUrl } from '@/env'
 
 /**
@@ -30,6 +32,41 @@ function postToApp(
     body: JSON.stringify(payload),
     signal: AbortSignal.timeout(timeoutMs),
   })
+}
+
+/**
+ * Resolve a user's access to a workspace file's document room through the app. Only a decision in
+ * the body denies; any other answer throws, so an outage is never read as a revocation.
+ */
+export async function fetchFileDocAccess(
+  fileId: string,
+  userId: string
+): Promise<RoomAuthorizationResult> {
+  const response = await postToApp(
+    '/api/internal/file-doc/access',
+    { fileId, userId },
+    FILE_DOC_TIMEOUTS.seedRequestMs
+  )
+  if (!response.ok) {
+    await response.body?.cancel()
+    throw new Error(`Document authorization failed: ${response.status}`)
+  }
+  const body = toRecord(await response.json())
+  if (body.allowed === false && (body.status === 403 || body.status === 404))
+    return { allowed: false, status: body.status, workspaceId: null, workspacePermission: null }
+  if (
+    body.allowed !== true ||
+    typeof body.workspaceId !== 'string' ||
+    !body.workspaceId ||
+    !isPermissionType(body.workspacePermission)
+  )
+    throw new Error('Malformed document authorization')
+  return {
+    allowed: true,
+    status: 200,
+    workspaceId: body.workspaceId,
+    workspacePermission: body.workspacePermission,
+  }
 }
 
 /**

@@ -18,11 +18,11 @@
     },
     {
       "group": "assistant-actions",
-      "task": "ci:e2e-desktop-inbox"
+      "task": "ci:e2e-assistant-actions"
     },
     {
       "group": "organization-search",
-      "task": "ci:e2e-desktop-inbox"
+      "task": "ci:e2e-organization-search"
     },
     {
       "group": "browser-extension-native",

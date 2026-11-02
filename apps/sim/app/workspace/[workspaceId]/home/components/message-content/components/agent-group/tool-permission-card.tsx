@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { isBrowserToolName } from '@sim/browser-protocol'
 import {
   ChevronDown,
   Chip,
@@ -102,6 +103,8 @@ export function ToolPermissionCard({
   // Only the first outstanding card offers the bulk action, so N cards do not
   // each render their own "Allow all".
   const showBulkActions = outstandingIds.length > 1 && outstandingIds[0] === toolCallId
+  // The server remembers one answer for every browser action, so say so.
+  const isBrowserTool = isBrowserToolName(toolName)
 
   const submit = useCallback(
     async (decision: Decision, ids: string[]) => {
@@ -198,10 +201,10 @@ export function ToolPermissionCard({
             </DropdownMenuTrigger>
             <DropdownMenuContent align='start'>
               <DropdownMenuItem onSelect={() => void submit('allow_chat', [toolCallId])}>
-                For this chat
+                {isBrowserTool ? 'Browser actions in this chat' : 'For this chat'}
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => void submit('always_allow', [toolCallId])}>
-                For every chat
+                {isBrowserTool ? 'Browser actions in every chat' : 'For every chat'}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

@@ -391,6 +391,41 @@ def custom_operators(patterns: list[CustomPattern] | None) -> dict[str, dict[str
     }
 
 
+# Seconds one request may spend matching its custom patterns, summed over every
+# pattern and text. REGEX_TIMEOUT_SECONDS bounds only one pattern on one text, so
+# without this a batch could cost texts x patterns x that timeout.
+CUSTOM_PATTERN_BUDGET_SECONDS = 60
+
+
+class _MatchBudget:
+    """Custom-pattern matching seconds left for one request, shared by its
+    recognizers. A request is analyzed on a single thread, so no lock is needed."""
+
+    def __init__(self, seconds: float) -> None:
+        self.remaining = seconds
+
+
+class BudgetedPatternRecognizer(PatternRecognizer):
+    """Custom-pattern recognizer that charges its matching time to the request's
+    budget and fails the request with a 400 once the budget is spent."""
+
+    def __init__(self, budget: _MatchBudget, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._budget = budget
+
+    def analyze(self, *args: Any, **kwargs: Any) -> list[RecognizerResult]:
+        started = time.perf_counter()
+        results = super().analyze(*args, **kwargs)
+        self._budget.remaining -= time.perf_counter() - started
+        if self._budget.remaining < 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Custom patterns exceeded the {CUSTOM_PATTERN_BUDGET_SECONDS}s "
+                "matching budget for this request",
+            )
+        return results
+
+
 def build_custom_recognizers(
     patterns: list[CustomPattern] | None, language: str
 ) -> tuple[list[PatternRecognizer], list[str]]:
@@ -398,6 +433,7 @@ def build_custom_recognizers(
 
     Each regex is precompiled so a malformed pattern fails fast as a 400 rather
     than surfacing later as an opaque analyze-time 500."""
+    budget = _MatchBudget(CUSTOM_PATTERN_BUDGET_SECONDS)
     recognizers: list[PatternRecognizer] = []
     entity_ids: list[str] = []
     for i, p in enumerate(patterns or []):
@@ -409,7 +445,8 @@ def build_custom_recognizers(
             ) from exc
         entity = f"{CUSTOM_ENTITY_PREFIX}{i}"
         recognizers.append(
-            PatternRecognizer(
+            BudgetedPatternRecognizer(
+                budget,
                 supported_entity=entity,
                 # Score 1.0 so a user's explicit pattern wins any overlap with a
                 # built-in detector (e.g. spaCy tagging "EMP-123456" as ORGANIZATION

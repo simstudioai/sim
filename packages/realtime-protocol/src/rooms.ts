@@ -90,24 +90,36 @@ export interface RoomRef {
   id: string
 }
 
+/**
+ * `workspace` rooms gate on the workspace role alone, which the relay reads itself. The other
+ * authorities belong to the app: a workspace file document also answers to the permission group's
+ * Files capability, and a Project room to Project membership.
+ */
+type RoomAuthority = 'workspace' | 'workspace-file-doc' | 'project'
+
 const ROOM_AUTHORIZATION_OWNERS = {
   [ROOM_TYPES.WORKFLOW]: 'workspace',
   [ROOM_TYPES.WORKSPACE_FILES]: 'workspace',
   [ROOM_TYPES.WORKSPACE_TABLES]: 'workspace',
   [ROOM_TYPES.WORKSPACE_WORKFLOWS]: 'workspace',
-  [ROOM_TYPES.WORKSPACE_FILE_DOC]: 'workspace',
+  [ROOM_TYPES.WORKSPACE_FILE_DOC]: 'workspace-file-doc',
   [ROOM_TYPES.TABLE]: 'workspace',
   [ROOM_TYPES.PROJECT_FILE_DOC]: 'project',
   [ROOM_TYPES.PROJECT_FILES]: 'project',
-} as const satisfies Record<RoomType, 'workspace' | 'project'>
+} as const satisfies Record<RoomType, RoomAuthority>
+
+/** Every room declares the authority that both admission and revalidation must consult. */
+export function roomAuthority(room: RoomRef): RoomAuthority {
+  return ROOM_AUTHORIZATION_OWNERS[room.type]
+}
 
 export type ProjectRoomRef = RoomRef & {
   type: typeof ROOM_TYPES.PROJECT_FILE_DOC | typeof ROOM_TYPES.PROJECT_FILES
 }
 
-/** Every room declares the authority that both admission and revalidation must consult. */
+/** Narrows a room whose authority is Project membership. */
 export function isProjectRoom(room: RoomRef): room is ProjectRoomRef {
-  return ROOM_AUTHORIZATION_OWNERS[room.type] === 'project'
+  return roomAuthority(room) === 'project'
 }
 
 /** Type guard: whether an arbitrary string is a known {@link RoomType}. */

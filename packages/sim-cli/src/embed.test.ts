@@ -1,6 +1,6 @@
 import { sleep } from '@sim/utils/helpers'
 import { describe, expect, it, vi } from 'vitest'
-import { runEmbeddedCli } from './embed'
+import { resolveEmbeddedCliCommand, runEmbeddedCli } from './embed'
 
 const IDENTITY = {
   endpoint: 'https://sim.internal.test',
@@ -187,5 +187,46 @@ describe('embedded request defaults', () => {
     expect(requests.map((request) => request.url.searchParams.get('includeWorkflowState'))).toEqual(
       ['false', 'true']
     )
+  })
+})
+
+describe('resolveEmbeddedCliCommand', () => {
+  it('names the command argv would run and what it may call, however it is spelled', () => {
+    expect(
+      resolveEmbeddedCliCommand([
+        '-w',
+        'ws-1',
+        'workflows',
+        'activate',
+        'create',
+        'wf-1',
+        '1',
+        '--yes',
+      ])
+    ).toEqual({
+      path: ['workflows', 'activate', 'create'],
+      operations: ['activateWorkflowVersion'],
+    })
+    expect(resolveEmbeddedCliCommand(['workflows', '-P', 'default', 'undeploy', 'wf-1'])).toEqual({
+      path: ['workflows', 'undeploy'],
+      operations: ['undeployWorkflow'],
+    })
+    expect(resolveEmbeddedCliCommand(['kb', 'list'])).toEqual({
+      path: ['knowledge', 'list'],
+      operations: ['listKnowledgeBases'],
+    })
+  })
+
+  it.each([
+    [['--help']],
+    [['workflows', 'no-such-command']],
+    [['workflows', 'activate', 'create']],
+    [['workflows', 'activate', 'create', 'wf-1', '1', '--dry-run']],
+    [['workflows', 'run', 'wf-1', '--help']],
+  ])('reports no command for %j, and running it calls nothing', async (argv) => {
+    expect(resolveEmbeddedCliCommand(argv)).toBeNull()
+    const transport = vi.fn(async () => jsonResponse({ data: {} }))
+    await runEmbeddedCli(argv, { ...IDENTITY, transport })
+    expect(transport).not.toHaveBeenCalled()
   })
 })

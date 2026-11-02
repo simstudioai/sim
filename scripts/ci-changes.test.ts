@@ -15,6 +15,7 @@ interface Plan {
   production: { group: string }[]
   typecheckPackages: string[]
   testPackages: string[]
+  docsGroups: string[]
 }
 function git(cwd: string, ...args: string[]) {
   const result = spawnSync('git', args, { cwd, encoding: 'utf8' })
@@ -48,12 +49,18 @@ function fixture() {
     ['apps/realtime', '@sim/realtime', { '@sim/auth': 'workspace:*' }],
     ['apps/desktop', '@sim/desktop', {}],
     ['apps/extension', '@sim/extension', {}],
-    ['apps/docs', 'docs', {}],
+    ['apps/docs', 'docs', { '@sim/workflow-renderer': 'workspace:*' }],
     ['packages/auth', '@sim/auth', { '@sim/security': 'workspace:*' }],
     ['packages/security', '@sim/security', {}],
     ['packages/db', '@sim/db', {}],
     ['packages/ts-sdk', 'simstudio-ts-sdk', {}],
     ['packages/sim-cli', 'sim', {}],
+    [
+      'packages/workflow-renderer',
+      '@sim/workflow-renderer',
+      { '@sim/workflow-types': 'workspace:*' },
+    ],
+    ['packages/workflow-types', '@sim/workflow-types', {}],
   ] as const
   const appScripts = JSON.parse(
     readFileSync(resolve(root, 'apps/sim/package.json'), 'utf8')
@@ -84,6 +91,7 @@ function fixture() {
   for (const file of [
     'turbo.json',
     'apps/sim/turbo.json',
+    'apps/desktop/turbo.json',
     '.github/ci-suites.json',
     '.github/scripts/ci-plan.gql',
   ]) {
@@ -138,6 +146,7 @@ describe('CI task attribution through real Turborepo', () => {
       build: false,
       desktop_live: false,
       e2e_build: false,
+      docs: false,
     })
   })
   it('selects integration and browser checks for workspace code shared with desktop execution', () => {
@@ -149,7 +158,6 @@ describe('CI task attribution through real Turborepo', () => {
       'assistant-actions',
       'browser-extension-access',
       'browser-extension-native',
-      'desktop-inbox',
       'mobile',
       'organization-search',
       'seo',
@@ -191,8 +199,52 @@ describe('CI task attribution through real Turborepo', () => {
       build: false,
       integration: false,
       desktop_live: false,
+      docs: true,
     })
     expect(plan.testPackages).toEqual(['docs'])
+  })
+  it('selects docs acceptance for a transitive rendering dependency', () => {
+    const plan = classifyFiles(['packages/workflow-types/src/index.ts'])
+    expect(plan.fallback).toBeUndefined()
+    expect(plan.flags.docs).toBe(true)
+    expect(plan.docsGroups).toEqual(['http', 'corpus', 'chromium', 'webkit'])
+  })
+  it('keeps docs unit-only edits out of production acceptance', () => {
+    const plan = classifyFiles(['apps/docs/lib/content/links.test.ts'])
+    expect(plan.fallback).toBeUndefined()
+    expect(plan.flags.docs).toBe(false)
+    expect(plan.testPackages).toEqual(['docs'])
+  })
+  it('selects docs acceptance for its standalone browser harness', () => {
+    const plan = classifyFiles(['apps/docs/scripts/test-navigation-e2e.ts'])
+    expect(plan.fallback).toBeUndefined()
+    expect(plan.flags.docs).toBe(true)
+  })
+  it('selects only the platform docs boundary for a consumer harness change', () => {
+    const plan = classifyFiles(['apps/sim/scripts/test-docs-search-provider-e2e.ts'])
+    expect(plan.fallback).toBeUndefined()
+    expect(groups(plan)).toEqual([])
+    expect(plan.docsGroups).toEqual(['platform'])
+    expect(plan.flags).toMatchObject({
+      docs: true,
+      docs_site: false,
+      docs_platform: true,
+      test_app: false,
+      e2e_build: false,
+      integration: false,
+      desktop_live: false,
+    })
+  })
+  it('selects platform docs for backend changes without site browser checks', () => {
+    const plan = classifyFiles(['apps/sim/lib/mothership/docs/search.ts'])
+    expect(plan.fallback).toBeUndefined()
+    expect(plan.flags).toMatchObject({ docs: true, docs_site: false, docs_platform: true })
+    expect(plan.docsGroups).toEqual(['platform'])
+  })
+  it('keeps desktop smoke weights out of live runtime attribution', () => {
+    const plan = classifyFiles(['apps/desktop/e2e-durations.json'])
+    expect(plan.fallback).toBeUndefined()
+    expect(plan.flags).toMatchObject({ desktop_live: false, e2e_build: false })
   })
   it('does not build or run E2E for an app unit-test-only edit', () => {
     const plan = classifyFiles(['apps/sim/lib/auth/session.test.ts'])
@@ -222,13 +274,13 @@ describe('CI task attribution through real Turborepo', () => {
     expect(plan.flags.integration).toBe(true)
   })
   it.each([
-    'test-desktop-inbox-e2e.ts',
-    'test-assistant-actions-e2e.ts',
-    'test-organization-search-e2e.ts',
-  ])('selects every isolated organization acceptance job for %s', (file) => {
+    ['test-desktop-inbox-e2e.ts', 'desktop-inbox'],
+    ['test-assistant-actions-e2e.ts', 'assistant-actions'],
+    ['test-organization-search-e2e.ts', 'organization-search'],
+  ])('selects the owning organization acceptance job for %s', (file, group) => {
     const plan = classifyFiles([`apps/sim/scripts/${file}`])
     expect(plan.fallback).toBeUndefined()
-    expect(groups(plan)).toEqual(['assistant-actions', 'desktop-inbox', 'organization-search'])
+    expect(groups(plan)).toEqual([group])
     expect(plan.flags).toMatchObject({
       http: true,
       production: false,
@@ -348,6 +400,26 @@ describe('CI task attribution through real Turborepo', () => {
       build: false,
     })
     expect(plan.testPackages).toEqual(['@sim/desktop'])
+  })
+  it('keeps shell-only smoke edits out of the live Sim execution gate', () => {
+    const plan = classifyFiles(['apps/desktop/e2e/browser-tools.spec.ts'])
+    expect(plan.fallback).toBeUndefined()
+    expect(groups(plan)).toEqual([])
+    expect(plan.flags).toMatchObject({
+      desktop_live: false,
+      e2e_build: false,
+      integration: false,
+      build: false,
+    })
+  })
+  it.each([
+    'apps/desktop/e2e/desktop-tools-live-sim.spec.ts',
+    'apps/desktop/e2e/fixtures/live-sim.ts',
+    'apps/desktop/playwright.config.ts',
+  ])('keeps live execution coverage when its harness changes: %s', (file) => {
+    const plan = classifyFiles([file])
+    expect(plan.fallback).toBeUndefined()
+    expect(plan.flags).toMatchObject({ desktop_live: true, e2e_build: true })
   })
   it('runs everything if the real task query cannot parse configuration', () => {
     const { repo, base } = fixture()

@@ -1,6 +1,36 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
+/**
+ * Internal, `x-api-key`-gated: the realtime relay asks the app whether `userId` may occupy a file's
+ * collaborative document room, at join and on every revalidation. The app owns the decision because
+ * it alone resolves the permission group that can withhold the Files module; the relay cannot.
+ *
+ * A refusal is a `200` decision rather than an HTTP status, so the relay can tell "denied" (`403`:
+ * no workspace access or no Files capability; `404`: the file is gone) from an app that cannot
+ * answer — including one deployed before this route existed, whose `404` must read as an outage
+ * that holds writes, not as a revocation that evicts every editor.
+ */
+export const authorizeFileDocAccessContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/internal/file-doc/access',
+  body: z.object({
+    fileId: z.string().min(1, 'fileId is required'),
+    userId: z.string().min(1, 'userId is required'),
+  }),
+  response: {
+    mode: 'json',
+    schema: z.discriminatedUnion('allowed', [
+      z.object({
+        allowed: z.literal(true),
+        workspaceId: z.string(),
+        workspacePermission: z.enum(['read', 'write', 'admin']),
+      }),
+      z.object({ allowed: z.literal(false), status: z.union([z.literal(403), z.literal(404)]) }),
+    ]),
+  },
+})
+
 export const buildFileDocSeedBodySchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId is required'),
   fileId: z.string().min(1, 'fileId is required'),

@@ -1,7 +1,7 @@
 import { execFileSync, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, watch } from 'node:fs'
-import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { createLogger } from '@sim/logger'
 import { compareStrings, escapeRegExp } from '@sim/utils/string'
@@ -224,11 +224,13 @@ async function generate() {
     const sourceHash = hash(raw)
     const stem = hash(`${relative}:${sourceHash}:${pipelineHash}`).slice(0, 24)
     const javascriptPath = path.join(OUTPUT_ROOT, 'pages', `${stem}.js`)
+    const declarationPath = javascriptPath.replace(/\.js$/, '.d.ts')
     const prior = previous.files[relative]
     if (
       previous.pipeline === pipelineHash &&
       prior?.hash === sourceHash &&
-      existsSync(javascriptPath)
+      existsSync(javascriptPath) &&
+      existsSync(declarationPath)
     ) {
       validateMedia(relative, prior.media)
       const { lastModified: _previousDate, ...content } = prior.page
@@ -269,7 +271,7 @@ async function generate() {
     validateMedia(relative, result.media)
     await writeFile(javascriptPath, result.javascript)
     await writeFile(
-      javascriptPath.replace(/\.js$/, '.d.ts'),
+      declarationPath,
       "import type { MDXContent } from 'mdx/types'\ndeclare const Content: MDXContent\nexport default Content\n"
     )
     cache.files[relative] = {
@@ -401,6 +403,16 @@ async function generate() {
   ]) {
     await writeFile(path.join(OUTPUT_ROOT, `${name}.tmp`), data)
     await rename(path.join(OUTPUT_ROOT, `${name}.tmp`), path.join(OUTPUT_ROOT, name))
+  }
+  if (process.argv.includes('--prune')) {
+    const currentModules = new Set(
+      Object.entries(cache.files).flatMap(([source, entry]) => {
+        const stem = hash(`${source}:${entry.hash}:${pipelineHash}`).slice(0, 24)
+        return [`${stem}.js`, `${stem}.d.ts`]
+      })
+    )
+    for (const file of await readdir(path.join(OUTPUT_ROOT, 'pages')))
+      if (!currentModules.has(file)) await rm(path.join(OUTPUT_ROOT, 'pages', file))
   }
   logger.info(
     `Catalog ready: ${pages.length} pages (${compiled} recompiled), ${Buffer.byteLength(serialized)} bytes`

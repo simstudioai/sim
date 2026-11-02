@@ -77,8 +77,8 @@ describe('release commit lookup', () => {
   })
 
   it('finds the release boundaries when older history exceeds the subprocess buffer', () => {
-    for (let index = 0; index < 40; index++) {
-      commit(`chore: historical change ${index} ${'x'.repeat(32_000)}`)
+    for (let index = 0; index < 4; index++) {
+      commit(`chore: historical change ${index} ${'x'.repeat(320_000)}`)
     }
     const previous = commit('v0.8.30: previous release')
     commit('fix(search): improve indexing (#7720)')

@@ -34,42 +34,6 @@ rmSync(generatedIcon, { force: true, recursive: true })
 cpSync(appIcon, generatedIcon, { recursive: true })
 console.log(`• Selecting desktop icon: ${appIcon}`)
 
-/** Bundle the native helper; packaged builds sign it with the desktop distribution identity. */
-function compileComputerUse(): void {
-  if (process.platform !== 'darwin') return
-  const bundle = 'dist/native/Sim Computer Use.app'
-  const binaryDirectory = join(bundle, 'Contents', 'MacOS')
-  mkdirSync(binaryDirectory, { recursive: true })
-  cpSync('native/computer-use/Info.plist', join(bundle, 'Contents', 'Info.plist'))
-  const parts: string[] = []
-  for (const arch of ['arm64', 'x86_64']) {
-    const output = join('dist/native', `computer-use-${arch}`)
-    execFileSync(
-      'xcrun',
-      [
-        'swiftc',
-        '-parse-as-library',
-        '-O',
-        '-target',
-        `${arch}-apple-macosx14.0`,
-        'native/computer-use/ComputerUse.swift',
-        '-o',
-        output,
-      ],
-      { stdio: 'inherit' }
-    )
-    parts.push(output)
-  }
-  execFileSync(
-    'xcrun',
-    ['lipo', '-create', ...parts, '-output', join(binaryDirectory, 'SimComputerUse')],
-    { stdio: 'inherit' }
-  )
-  for (const part of parts) rmSync(part)
-  execFileSync('codesign', ['--force', '--sign', '-', bundle], { stdio: 'inherit' })
-  console.log('• Compiled native macOS Computer Use helper')
-}
-
 const common = {
   bundle: true,
   platform: 'node' as const,
@@ -131,8 +95,9 @@ const renderer: BuildOptions = {
 }
 
 async function run(): Promise<void> {
-  execFileSync(process.execPath, ['run', 'scripts/build-native.ts'], { stdio: 'inherit' })
-  compileComputerUse()
+  execFileSync(process.execPath, ['run', 'scripts/build-native.ts', '--computer-use'], {
+    stdio: 'inherit',
+  })
   mkdirSync('dist/renderer', { recursive: true })
   for (const font of ['geist-variable.woff2', 'geist-mono-variable.woff2']) {
     cpSync(resolve('../../packages/auth-ui/src/assets', font), join('dist/renderer', font))

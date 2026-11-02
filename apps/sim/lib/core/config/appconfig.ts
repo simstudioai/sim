@@ -8,7 +8,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecordOrNull } from '@sim/utils/object'
 import { LRUCache } from 'lru-cache'
-import { getAwsCredentialsFromEnv } from '@/lib/core/config/aws'
+import { getAwsCredentials } from '@/lib/core/config/aws'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('AppConfig')
@@ -121,7 +121,7 @@ function getClient(): AppConfigDataClient {
   if (!client) {
     client = new AppConfigDataClient({
       region: env.AWS_REGION,
-      credentials: getAwsCredentialsFromEnv(),
+      credentials: getAwsCredentials(),
     })
   }
   return client

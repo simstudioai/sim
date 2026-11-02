@@ -134,7 +134,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
        * where the gate lives. Inert while copilot tool permissions are disabled, which keeps
        * enabling the flag from silently leaving background lanes ungated.
        */
-      if (toolRequiresApprovalLane(toolName)) {
+      if (toolRequiresApprovalLane(toolName, params)) {
         logger.warn('Refusing an approval-gated tool on the in-band lane', {
           toolName,
           toolCallId,

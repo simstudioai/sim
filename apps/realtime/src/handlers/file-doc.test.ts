@@ -16,19 +16,22 @@ import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
 import type { IRoomManager } from '@/rooms'
 
-const { mockAuthorizeRoom, mockFetchFileDocSeed, mockFetchFileDocMerge, mockFetchFileDocPersist } =
-  vi.hoisted(() => ({
-    mockAuthorizeRoom: vi.fn(),
-    mockFetchFileDocSeed: vi.fn(),
-    mockFetchFileDocMerge: vi.fn(),
-    mockFetchFileDocPersist: vi.fn(),
-  }))
-
-vi.mock('@sim/platform-authz/rooms', () => ({
-  authorizeRoom: mockAuthorizeRoom,
+const {
+  mockFetchFileDocAccess,
+  mockFetchFileDocSeed,
+  mockFetchFileDocMerge,
+  mockFetchFileDocPersist,
+} = vi.hoisted(() => ({
+  mockFetchFileDocAccess: vi.fn(),
+  mockFetchFileDocSeed: vi.fn(),
+  mockFetchFileDocMerge: vi.fn(),
+  mockFetchFileDocPersist: vi.fn(),
 }))
 
+vi.mock('@sim/platform-authz/rooms', () => ({ authorizeRoom: vi.fn() }))
+
 vi.mock('@/handlers/file-doc-app', () => ({
+  fetchFileDocAccess: mockFetchFileDocAccess,
   fetchFileDocSeed: mockFetchFileDocSeed,
   fetchFileDocMerge: mockFetchFileDocMerge,
   fetchFileDocPersist: mockFetchFileDocPersist,
@@ -213,7 +216,7 @@ function joinSuccessFileId(socket: { emit: ReturnType<typeof vi.fn> }) {
 
 describe('setupWorkspaceFileDocHandlers', () => {
   beforeEach(() => {
-    mockAuthorizeRoom.mockResolvedValue({
+    mockFetchFileDocAccess.mockResolvedValue({
       allowed: true,
       status: 200,
       workspaceId: 'ws-1',
@@ -251,7 +254,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
   })
 
   it('fails closed when authorization does not resolve a workspace context', async () => {
-    mockAuthorizeRoom.mockResolvedValueOnce({
+    mockFetchFileDocAccess.mockResolvedValueOnce({
       allowed: true,
       status: 200,
       workspacePermission: 'write',
@@ -445,7 +448,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const { io } = createIo()
     const { socket, handlers } = setup('socket-race', io, { userId: 'user-race' })
 
-    mockAuthorizeRoom.mockImplementation(async () => {
+    mockFetchFileDocAccess.mockImplementation(async () => {
       // Simulate the revocation landing between this join's authorize and its commit,
       // exactly as the sweep would record it.
       commitRoomPermission(
@@ -479,16 +482,21 @@ describe('setupWorkspaceFileDocHandlers', () => {
       const { io } = createIo()
       const { socket, handlers } = setup('socket-stale', io, { userId: 'user-stale' })
 
-      mockAuthorizeRoom.mockImplementation(async ({ action }: { action: string }) => {
-        // The authoritative current answer: access is gone.
-        if (action !== 'write')
-          return { allowed: false, status: 403, workspaceId: 'ws-1', workspacePermission: null }
+      mockFetchFileDocAccess
         // This join's own authorize saw the pre-revocation state, and the sweep records
         // the revocation (later read ticket) while it is still in flight.
-        commitRoomPermission('user-stale', room, null, beginRoomPermissionRead())
-        await sleep(31_000)
-        return { allowed: true, status: 200, workspaceId: 'ws-1', workspacePermission: 'write' }
-      })
+        .mockImplementationOnce(async () => {
+          commitRoomPermission('user-stale', room, null, beginRoomPermissionRead())
+          await sleep(31_000)
+          return { allowed: true, status: 200, workspaceId: 'ws-1', workspacePermission: 'write' }
+        })
+        // The authoritative current answer: access is gone.
+        .mockResolvedValue({
+          allowed: false,
+          status: 403,
+          workspaceId: 'ws-1',
+          workspacePermission: null,
+        })
 
       const joining = handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-stale', clientId: 1 })
       await vi.advanceTimersByTimeAsync(31_000)
@@ -597,7 +605,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
       await vi.advanceTimersByTimeAsync(0)
 
       // Access is downgraded to read-only, and the cached join-time decision expires.
-      mockAuthorizeRoom.mockResolvedValue({
+      mockFetchFileDocAccess.mockResolvedValue({
         allowed: false,
         status: 403,
         workspaceId: 'ws-1',
@@ -663,7 +671,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
           .filter(([event]) => event === FILE_DOC_EVENTS.PERMISSION)
           .map(([, payload]) => (payload as { canWrite: boolean }).canWrite)
       const changeRole = async (workspacePermission: 'read' | 'write') => {
-        mockAuthorizeRoom.mockResolvedValue({
+        mockFetchFileDocAccess.mockResolvedValue({
           allowed: true,
           status: 200,
           workspaceId: 'ws-1',
@@ -1144,7 +1152,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
   it('aborts a join superseded by a newer join during authorization (no cross-binding)', async () => {
     const { io } = createIo()
     let resolveFirst: (v: unknown) => void = () => {}
-    mockAuthorizeRoom
+    mockFetchFileDocAccess
       .mockReturnValueOnce(new Promise((resolve) => (resolveFirst = resolve)))
       .mockResolvedValueOnce({
         allowed: true,
@@ -1172,7 +1180,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
   it('cancels an in-flight join when the client leaves that same file (no ghost owner)', async () => {
     const { io, sent } = createIo()
     let resolveAuth: (v: unknown) => void = () => {}
-    mockAuthorizeRoom.mockReturnValueOnce(new Promise((resolve) => (resolveAuth = resolve)))
+    mockFetchFileDocAccess.mockReturnValueOnce(new Promise((resolve) => (resolveAuth = resolve)))
     const s = setup('socket-a', io)
 
     // Join file-1 is awaiting authorization when the client leaves file-1 (fast open→close).

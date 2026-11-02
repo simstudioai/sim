@@ -1,20 +1,22 @@
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2'
 import nodemailer from 'nodemailer'
 import type SESTransport from 'nodemailer/lib/ses-transport'
+import { getAwsCredentials } from '@/lib/core/config/aws'
 import { env } from '@/lib/core/config/env'
 import { sendViaNodemailer } from '@/lib/messaging/email/providers/send-via-nodemailer'
 import type { MailProvider } from '@/lib/messaging/email/types'
 
 /**
  * AWS SES via nodemailer's SES transport using the AWS SDK v3 client.
- * Credentials resolve through the SDK's default provider chain (env vars,
- * shared config, ECS/EKS task role, EC2 instance profile, SSO).
+ * Credentials come from `getAwsCredentials()`: workload identity in Trigger.dev
+ * runs, otherwise the SDK's default provider chain (env vars, shared config,
+ * ECS/EKS task role, EC2 instance profile, SSO).
  */
 export function createSesProvider(): MailProvider | null {
   const region = env.AWS_SES_REGION
   if (!region) return null
 
-  const sesClient = new SESv2Client({ region })
+  const sesClient = new SESv2Client({ region, credentials: getAwsCredentials() })
   const sesOptions: SESTransport.Options = {
     SES: { sesClient, SendEmailCommand },
   }

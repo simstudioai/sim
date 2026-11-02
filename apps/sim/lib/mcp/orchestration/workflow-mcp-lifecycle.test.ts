@@ -29,6 +29,7 @@ describe('workflow MCP lifecycle orchestration', () => {
     const result = await performCreateWorkflowMcpServer({
       workspaceId: 'workspace-1',
       userId: 'user-1',
+      allowVisibilityChange: false,
       name: 'Too Many Tools',
       workflowIds: Array.from(
         { length: MAX_MCP_TOOLS_PER_SERVER + 1 },
@@ -47,6 +48,7 @@ describe('workflow MCP lifecycle orchestration', () => {
     const result = await performCreateWorkflowMcpServer({
       workspaceId: 'workspace-1',
       userId: 'user-1',
+      allowVisibilityChange: false,
       name: 'Duplicate Tools',
       workflowIds: ['wf-1', 'wf-1'],
     })
@@ -86,6 +88,7 @@ describe('workflow MCP lifecycle orchestration', () => {
     const result = await performCreateWorkflowMcpServer({
       workspaceId: 'workspace-1',
       userId: 'user-1',
+      allowVisibilityChange: false,
       name: 'Server',
       workflowIds: ['wf-1'],
     })
@@ -121,6 +124,7 @@ describe('workflow MCP lifecycle orchestration', () => {
     const result = await performCreateWorkflowMcpServer({
       workspaceId: 'workspace-1',
       userId: 'user-1',
+      allowVisibilityChange: false,
       name: 'Server',
       workflowIds: ['wf-1'],
     })
@@ -158,6 +162,7 @@ describe('workflow MCP lifecycle orchestration', () => {
     const result = await performCreateWorkflowMcpServer({
       workspaceId: 'workspace-1',
       userId: 'user-1',
+      allowVisibilityChange: false,
       name: 'Server',
       workflowIds: ['wf-1'],
     })
