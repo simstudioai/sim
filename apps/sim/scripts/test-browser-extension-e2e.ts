@@ -83,6 +83,7 @@ function trackUploadedFile(key: string) {
 }
 let context: BrowserContext | undefined
 let panel: Page | undefined
+let acceleratedClock = false
 let userId: string | undefined
 let releaseHeldRequest = () => {}
 const alphaId = generateId()
@@ -130,17 +131,23 @@ async function check(name: string, run: () => Promise<void>) {
 async function screenshot(name: string) {
   if (!panel) return
   for (const frame of panel.frames()) {
-    await frame.evaluate(() =>
-      Promise.all(
-        document
-          .getAnimations()
-          .filter(
-            (animation) =>
-              animation.playState === 'running' &&
-              animation.effect?.getComputedTiming().iterations !== Number.POSITIVE_INFINITY
-          )
-          .map((animation) => animation.finished.catch(() => {}))
-      )
+    await frame.evaluate(
+      (finishAnimations) =>
+        Promise.all(
+          document
+            .getAnimations()
+            .filter(
+              (animation) =>
+                animation.playState === 'running' &&
+                animation.effect?.getComputedTiming().iterations !== Number.POSITIVE_INFINITY
+            )
+            .map((animation) => {
+              // Mocked performance time can put native Web Animations far ahead of their timeline.
+              if (finishAnimations) animation.finish()
+              return animation.finished.catch(() => {})
+            })
+        ),
+      acceleratedClock
     )
     for (const element of await frame
       .getByRole('menu')
@@ -1213,6 +1220,7 @@ try {
     panel = await openPanel()
     shell = panel
     await shell.clock.install()
+    acceleratedClock = true
     source = await browserContext.newPage()
     await source.goto(`${fixtureOrigin}/page?private=QUERY_SECRET#FRAGMENT_SECRET`)
     await shell.goto(`chrome-extension://${extensionId}/sidepanel.html`)
