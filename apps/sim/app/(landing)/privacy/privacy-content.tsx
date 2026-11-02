@@ -44,7 +44,7 @@ function richText(content: string): ReactNode {
 export const PRIVACY_CONFIG: LegalPageConfig = {
   title: 'Privacy Policy',
   description: 'Sim Studio, Inc. · Operating the Sim platform (sim.ai)',
-  lastUpdated: 'October 31, 2026',
+  lastUpdated: 'November 2, 2026',
   intro: [
     {
       kind: 'paragraph',
@@ -831,6 +831,12 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
           kind: 'paragraph',
           content: richText(
             'The hosted chat uses Your normal Sim Account and authenticated session, together with the operational diagnostics and consent controls described in this Privacy Policy. The extension document and its page attachments are excluded from session replay. Captured page content is not used for advertising.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'When You use the sim address-bar keyword, the extension sends the typed link name, before any path values or query, to Sim with Your authenticated session to suggest Your organization’s links. Suggestions are cached in memory and are not written to extension storage. Opening a sim/ shortcut sends its path and query to Sim to resolve the destination, then opens that destination. Sim records each link’s visit count and last-visited time. These requests also use the operational diagnostics described in this Privacy Policy. The extension does not read Your browser history or unrelated address-bar input.'
           ),
         },
         {
