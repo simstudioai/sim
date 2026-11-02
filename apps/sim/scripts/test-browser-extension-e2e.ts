@@ -1221,6 +1221,24 @@ try {
     shell = panel
     await shell.clock.install()
     acceleratedClock = true
+    await browserContext.addInitScript(() => {
+      const animate = Element.prototype.animate
+      Element.prototype.animate = function (
+        this: Element,
+        ...args: Parameters<Element['animate']>
+      ) {
+        const animation = animate.apply(this, args)
+        // Callers set startTime synchronously from the advanced clock, ahead of the native timeline.
+        queueMicrotask(() => {
+          if (
+            animation.playState === 'running' &&
+            Number.isFinite(animation.effect?.getComputedTiming().endTime)
+          )
+            animation.finish()
+        })
+        return animation
+      }
+    })
     source = await browserContext.newPage()
     await source.goto(`${fixtureOrigin}/page?private=QUERY_SECRET#FRAGMENT_SECRET`)
     await shell.goto(`chrome-extension://${extensionId}/sidepanel.html`)
