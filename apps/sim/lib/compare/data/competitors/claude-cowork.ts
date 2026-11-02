@@ -83,7 +83,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
       description:
         "Task initiation is manual (prompt via desktop or mobile) or on a user-defined schedule (hourly/daily/weekly/weekdays). Scheduled tasks now run remotely in the cloud on their set cadence, independent of whether the user's computer is awake or the Claude Desktop app is open, except tasks that work on local files or apps, which still need the desktop app open and the computer awake. There is still no external event/webhook trigger capability — only time-based scheduling.",
       shortDescription:
-        'Tasks run manually or on a schedule (now remote); no external event/webhook trigger.',
+        'Tasks run manually or on a schedule (remote, except tasks on local files or apps); no external event/webhook trigger.',
       source: {
         url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
         label: 'Anthropic/Claude documentation',
