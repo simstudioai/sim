@@ -4,6 +4,8 @@ The `changes` job runs Turborepo 2.9.14's `affectedTasks` query before installin
 
 A PR compares its merge base with the checked-out merge commit. Main/staging pushes execute all checks; the parent `ci` workflow skips checks on `dev` pushes, while PRs targeting `dev` still run checks. A manual `checks` run executes all checks unless supplied a full base commit SHA to reproduce a scoped plan. Missing history, an empty diff, unknown files outside the workspace graph, root script/CI changes, or a planner error run every check. Missing selection outputs fail the aggregate gate. The gate also rejects an omitted dependency, any failed/cancelled job, and any skip that its explicit selection flag did not authorize.
 
+Dedicated docs verification uses the same planner, comparing pushes with their previous commit and PRs with their merge base. Site acceptance follows `docs#build` and its transitive package dependencies. The app's docs-consumer task depends on server runtime and that docs build: backend-only changes run the platform consumer against the docs app, while site changes also run corpus and browser checks. Independent SDK and unit-only edits skip those production jobs. The required `docs HTTP` gate verifies explicit site/platform selections before accepting any skip.
+
 | Change | Expensive checks selected |
 | --- | --- |
 | Independent SDK | That workspace's tests and type-check; no app build, services, or browsers |
@@ -37,6 +39,8 @@ Every HTTP and browser group consumes the same production build in an isolated j
 Desktop inbox protocol, assistant actions UI, and organization search UI run as three parallel HTTP jobs with isolated databases, apps, and reports. Each harness owns its acceptance task, so an edit selects its own job. The inbox protocol task depends on server and realtime code; the browser tasks also depend on workspace UI. Desktop inbox needs no browser. The UI jobs and browser extension install Chromium while their app starts, waiting for both before executing assertions; browser-install failures still fail the job and preserve the install log. No acceptance assertions are removed by the split.
 
 Live Electron acceptance tracks its live-app suite, fixtures, and Playwright configuration separately from shell-only smoke tests. Changing a shell-only smoke case runs the dedicated desktop workflow without starting the app's production build and live lease checks.
+
+Desktop smoke weights also stay outside the desktop runtime task. Editing weights reruns desktop partition coverage without selecting live-app acceptance.
 
 Browser extension acceptance runs native interaction and access-revalidation groups in parallel jobs with isolated databases, apps, browser profiles, and reports. Both retain the same task boundary, so an affected extension harness selects both groups. Native streaming and first-open capture checks retain real timers. Access checks install Playwright's clock before the app mounts: advancing production polling timers preserves real HTTP and database authorization checks without waiting through each polling interval. Capture timestamps originate in Chromium's isolated world, so the harness restores wall time after each advance. The local `browser-extension` group still runs the complete suite; live-provider runs require this complete mode and retain native timing throughout.
 
