@@ -5,11 +5,14 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createElement } from 'react'
 import { type BrowserContext, chromium, expect, type Frame, type Page } from '@playwright/test'
 import { pageSnapshotSchema } from '@sim/browser-extension-protocol'
+import { SecretReveal } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { renderToStaticMarkup } from 'react-dom/server'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const logger = createLogger('BrowserExtensionE2E')
@@ -18,6 +21,9 @@ if (!reportPath) throw new Error('Set EXTENSION_REPORT_PATH to the output JSON r
 const output = resolve(root, reportPath)
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
+const secretReveal = renderToStaticMarkup(
+  createElement(SecretReveal, { value: 'SECRET_REVEAL_SENTINEL' })
+)
 const fixture = Bun.serve({
   hostname: '127.0.0.1',
   port: 0,
@@ -55,6 +61,7 @@ const fixture = Bun.serve({
       <input type="password" value="PASSWORD_SENTINEL"/><textarea>TEXTAREA_SENTINEL</textarea>
       <div contenteditable="true" id="editable">EDITABLE_SENTINEL</div><div hidden>HIDDEN_SENTINEL</div>
       <div style="display:none">CSS_HIDDEN_SENTINEL</div><div aria-hidden="true">ARIA_SENTINEL</div>
+      <section id="secret-reveal"><p>Credential instructions</p>${secretReveal}<code>visible-code-control</code></section>
       <script>const secret='SCRIPT_SENTINEL'</script>
     </body></html>`,
       { headers: { 'content-type': 'text/html' } }
@@ -236,9 +243,11 @@ try {
     'A typed sim/ link opens the Sim link resolver on the configured origin',
     async () => {
       const tab = await page.context().newPage()
-      for (const path of ['handbook', 'jira/123?view=board']) {
-        await tab.goto(`http://sim/${path}`)
-        assert(tab.url() === `${origin}/sim/${path}`, `sim/${path} reached ${tab.url()}`)
+      for (const scheme of ['http', 'https']) {
+        for (const path of ['handbook', 'jira/123?view=board', 'jira/a%2Fb?view=board%20view']) {
+          await tab.goto(`${scheme}://sim/${path}`)
+          assert(tab.url() === `${origin}/sim/${path}`, `sim/${path} reached ${tab.url()}`)
+        }
       }
       await tab.close()
     }
@@ -315,6 +324,7 @@ try {
   await check('Page extraction excludes secrets and strips URL query and fragment', async () => {
     const [snapshot] = await snapshots()
     assert(snapshot.text.includes('visible-reference-482'), 'Visible page content missing')
+    assert(snapshot.text.includes('visible-code-control'), 'Ordinary code was excluded')
     for (const sentinel of [
       'PASSWORD_SENTINEL',
       'TEXTAREA_SENTINEL',
@@ -323,6 +333,7 @@ try {
       'CSS_HIDDEN_SENTINEL',
       'ARIA_SENTINEL',
       'SCRIPT_SENTINEL',
+      'SECRET_REVEAL_SENTINEL',
     ]) {
       assert(!snapshot.text.includes(sentinel), `Captured ${sentinel}`)
     }
@@ -715,6 +726,45 @@ try {
       assert((await snapshots()).length === before, 'An excluded Sim path was captured')
     }
   })
+  await check(
+    'Revealed credentials stay excluded from exact and surrounding selections',
+    async () => {
+      await page.goto(`${origin}/workspace/example`)
+      await page.bringToFront()
+      const before = (await snapshots()).length
+      await capture()
+      await expect.poll(async () => (await snapshots()).length).toBe(before + 1)
+      await expect(panel.getByRole('status')).toHaveText('')
+      await page
+        .locator('#secret-reveal code')
+        .first()
+        .evaluate((element) => {
+          const range = document.createRange()
+          range.selectNodeContents(element)
+          window.getSelection()?.removeAllRanges()
+          window.getSelection()?.addRange(range)
+        })
+      await capture('Selection')
+      await expect(panel.getByRole('status')).toContainText('could not be read')
+      assert((await snapshots()).length === before + 1, 'A revealed credential was attached')
+      await page.locator('#secret-reveal').evaluate((element) => {
+        const range = document.createRange()
+        range.selectNodeContents(element)
+        window.getSelection()?.removeAllRanges()
+        window.getSelection()?.addRange(range)
+      })
+      await capture('Selection')
+      await expect.poll(async () => (await snapshots()).length).toBe(before + 2)
+      const snapshot = (await snapshots()).at(-1)
+      assert(snapshot, 'Missing surrounding selection snapshot')
+      assert(snapshot.text.includes('Credential instructions'), 'Public selection text is missing')
+      assert(snapshot.text.includes('visible-code-control'), 'Ordinary selected code was excluded')
+      assert(
+        !snapshot.text.includes('SECRET_REVEAL_SENTINEL'),
+        'A surrounding selection leaked the credential'
+      )
+    }
+  )
   await check(
     'Site access stays modal without violating the packaged security policy',
     async () => {

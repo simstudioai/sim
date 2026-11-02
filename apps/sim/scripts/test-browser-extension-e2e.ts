@@ -365,6 +365,17 @@ try {
   }
   panel = await openPanel()
   let shell = panel
+  const setPanelViewport = async (width: number, height: number) => {
+    await shell.setViewportSize({ width, height })
+    const session = await browserContext.newCDPSession(shell)
+    try {
+      const { windowId } = await session.send('Browser.getWindowForTarget')
+      // OOPIF hit testing uses the native content bounds, including below the browser toolbar.
+      await session.send('Browser.setContentsSize', { windowId, width, height })
+    } finally {
+      await session.detach()
+    }
+  }
   await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`)
   const frame = () => {
     const app = shell.frames().find((candidate) => candidate.url().startsWith(base.origin))
@@ -463,7 +474,7 @@ try {
     await expect(shell.locator('body')).toHaveAttribute('data-capture-receipts', String(before + 1))
   }
   const attachments = () => frame().getByRole('group', { name: 'Page attached to next message' })
-  const attachFile = async () => {
+  const attachFile = async (name = 'extension-notes.txt') => {
     const completion = shell.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&
@@ -473,7 +484,7 @@ try {
     await frame()
       .locator('input[type="file"]')
       .setInputFiles({
-        name: 'extension-notes.txt',
+        name,
         mimeType: 'text/plain',
         buffer: Buffer.from('This synthetic file belongs only to extension QA.'),
       })
@@ -483,9 +494,7 @@ try {
     const asset = toRecord(toRecord(toRecord(body).data).result)
     assert.equal(typeof asset.key, 'string')
     trackUploadedFile(String(asset.key))
-    await expect(
-      frame().getByRole('button', { name: 'Remove extension-notes.txt', exact: true })
-    ).toBeEnabled()
+    await expect(frame().getByRole('button', { name: `Remove ${name}`, exact: true })).toBeEnabled()
   }
   await checkNative(
     'Capture, preview, removal, and the three-page cap use the real composer',
@@ -532,7 +541,7 @@ try {
         await navigate(`${base.origin}/extension/${alphaId}`)
         await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
         for (const width of [320, 390]) {
-          await shell.setViewportSize({ width, height: 844 })
+          await setPanelViewport(width, 844)
           await expect
             .poll(() =>
               shell.evaluate(
@@ -776,7 +785,7 @@ try {
     async () => {
       await capture()
       await attachFile()
-      await shell.setViewportSize({ width: 320, height: 844 })
+      await setPanelViewport(320, 844)
       await capture()
       await capture()
       const geometry = await attachments()
@@ -820,7 +829,7 @@ try {
       }
       await attachments().last().getByRole('button', { name: 'Remove page context' }).click()
       await attachments().last().getByRole('button', { name: 'Remove page context' }).click()
-      await shell.setViewportSize({ width: 390, height: 844 })
+      await setPanelViewport(390, 844)
       await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
       await expect(
         frame().getByRole('button', { name: 'Remove extension-notes.txt', exact: true })
@@ -1290,6 +1299,117 @@ try {
       await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
     }
   })
+  await checkNative(
+    'Large attachment stacks keep the composer reachable without nested desktop scrolling',
+    async () => {
+      const names = Array.from(
+        { length: 20 },
+        (_, index) => `extension-qa-long-attachment-name-${index + 1}.txt`
+      )
+      const endpoint = `${base.origin}/api/mothership/chat`
+      for (const [name, path, inputLabel, sendLabel] of [
+        ['workspace-new', `/extension/${alphaId}`, 'Message', 'Send message'],
+        ['workspace-history', `/extension/${alphaId}?chat=${historyId}`, 'Message', 'Send message'],
+        ['organization-new', `/extension/o/${organizationId}`, 'Ask Sim', 'Send'],
+      ] as const) {
+        await navigate(`${base.origin}${path}`)
+        await setPanelViewport(320, 844)
+        await capture('shortcut')
+        for (const filename of names) await attachFile(filename)
+        const geometry = await attachments()
+          .first()
+          .evaluate((chip) => {
+            const strip = chip.parentElement?.parentElement
+            if (!strip) throw new Error('Missing attachment strip')
+            return { height: strip.clientHeight, contentHeight: strip.scrollHeight }
+          })
+        assert(geometry.contentHeight > 844, 'The fixture did not exceed the panel height')
+        assert(
+          geometry.contentHeight <= geometry.height + 1,
+          'Desktop attachments gained nested scrolling'
+        )
+        await shell.bringToFront()
+        await shell.mouse.move(160, 760)
+        await expect
+          .poll(() =>
+            attachments()
+              .first()
+              .evaluate((chip) => chip.getBoundingClientRect().top)
+          )
+          .toBeGreaterThanOrEqual(0)
+        await screenshot(`large-attachments-${name}-top`)
+        await shell.mouse.wheel(0, 2000)
+        const send = frame().getByRole('button', { name: sendLabel, exact: true })
+        await expect
+          .poll(
+            () =>
+              send.evaluate((button) => {
+                const rect = button.getBoundingClientRect()
+                return (
+                  rect.top >= 0 &&
+                  rect.bottom <= innerHeight &&
+                  button.contains(
+                    document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)
+                  )
+                )
+              }),
+            { message: `${name}: scrolling must expose Send inside the panel` }
+          )
+          .toBe(true)
+        const editor = frame().getByRole('textbox', { name: inputLabel, exact: true })
+        assert(
+          await editor.evaluate((element) => {
+            const rect = element.getBoundingClientRect()
+            return (
+              rect.top >= 0 &&
+              rect.bottom <= innerHeight &&
+              element.contains(
+                document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)
+              )
+            )
+          }),
+          `${name}: the editor is clipped`
+        )
+        assert(
+          await frame()
+            .getByRole('button', { name: 'New chat', exact: true })
+            .evaluate((button) => {
+              const rect = button.getBoundingClientRect()
+              return rect.top >= 0 && rect.bottom <= innerHeight
+            }),
+          `${name}: scrolling hid the extension header`
+        )
+        await screenshot(`large-attachments-${name}-bottom`)
+        await browserContext.route(endpoint, (route) =>
+          route.fulfill({ status: 403, json: { error: 'QA attachment capacity admission check' } })
+        )
+        try {
+          const request = browserContext.waitForEvent('request', {
+            predicate: (entry) => entry.url() === endpoint && entry.method() === 'POST',
+          })
+          await editor.fill('Use all attached context.')
+          await send.click()
+          const payload = toRecord((await request).postDataJSON())
+          assert(Array.isArray(payload.fileAttachments), 'Missing file attachments')
+          assert.deepEqual(
+            payload.fileAttachments.map((file) => toRecord(file).filename).sort(),
+            [...names].sort()
+          )
+          assert(
+            Array.isArray(payload.contexts) && payload.contexts.length === 1,
+            'The attached page was lost'
+          )
+          await expect(
+            frame().getByText('QA attachment capacity admission check', { exact: false })
+          ).toBeVisible()
+        } finally {
+          await browserContext.unroute(endpoint)
+        }
+      }
+      await setPanelViewport(390, 844)
+      await navigate(`${base.origin}/extension/o/${organizationId}`)
+    }
+  )
   if (liveChat) {
     await checkNative(
       'Organization live admission preserves queued pages, files, and the admitted conversation mode',
