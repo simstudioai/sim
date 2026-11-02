@@ -35,6 +35,7 @@ import {
   organizationSearchUrlKeys,
 } from '@/app/o/[organizationId]/search/search-params'
 import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
+import { ComposerScrollArea } from '@/app/workspace/[workspaceId]/home/components/composer-scroll-area'
 import { useSearchHistoryActions } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
@@ -94,6 +95,7 @@ interface OrganizationConversationProps {
     header: ReactNode
     attachments?: ReactNode
     resourceActions?: ReactNode
+    toolbarActions?: ReactNode
     modelSelectorOptions?: ModelSelectorOptions
     onChatIdResolved: (chatId: string) => void
     onNavigateToChat: (chatId: string) => void
@@ -453,6 +455,7 @@ function OrganizationConversationContent({
       compact={Boolean(panelOptions)}
       attachments={panelOptions?.attachments}
       resourceActions={panelOptions?.resourceActions}
+      toolbarActions={panelOptions?.toolbarActions}
       modelSelectorOptions={panelOptions?.modelSelectorOptions}
       onPlanChange={
         !hasChat && destinationMode === 'agent' && planEnabled
@@ -535,7 +538,7 @@ function OrganizationConversationContent({
           <div className='flex flex-1 items-center justify-center px-5'>
             <h1 className='text-lg'>How can I help?</h1>
           </div>
-          <div className='px-3 pb-3'>{composer}</div>
+          <ComposerScrollArea className='px-3 pb-3'>{composer}</ComposerScrollArea>
         </>
       ) : (
         <OrganizationLanding
