@@ -1,3 +1,4 @@
+import { BROWSER_TOOL_OBSERVES_ONLY, isBrowserToolName } from '@sim/browser-protocol'
 import { isCopilotToolPermissionsEnabled } from '@/lib/core/config/env-flags'
 import { TOOL_CATALOG, type ToolCatalogEntry } from '@/lib/mothership/generated/tool-catalog-v1'
 
@@ -21,8 +22,17 @@ export function isKnownTool(toolId: string): boolean {
   return isToolInCatalog(toolId)
 }
 
-/** Declared in the mothership tool catalog; Go carries the flag but never enforces it. */
+/**
+ * Whether a call must wait for the user's approval.
+ *
+ * Declared in the mothership tool catalog, which Go carries but never enforces,
+ * except for browser tools: Sim owns their split between acting on a page and
+ * only observing it. One that acts does so as the user, in a browser signed in
+ * to their accounts, so it is gated like a terminal command. Reading the split
+ * from `BROWSER_TOOL_OBSERVES_ONLY` gates a browser tool added later by default.
+ */
 export function toolRequiresApproval(toolId: string): boolean {
+  if (isBrowserToolName(toolId)) return !BROWSER_TOOL_OBSERVES_ONLY[toolId]
   return getToolEntry(toolId)?.requiresApproval === true
 }
 
