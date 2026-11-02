@@ -62,6 +62,7 @@ import {
   MothershipStreamV1ResourceOp,
   MothershipStreamV1RunKind,
   MothershipStreamV1TextChannel,
+  type MothershipStreamV1ToolCallDescriptor,
   MothershipStreamV1ToolExecutor,
   MothershipStreamV1ToolMode,
   MothershipStreamV1ToolOutcome,
@@ -434,7 +435,11 @@ describe('sse-handlers tool lifecycle', () => {
   describe('sim_cli approval', () => {
     const activate = ['workflows', 'activate', 'create', 'wf-1', '1', '--yes']
 
-    function cliFrame(toolCallId: string, toolName: string, argv: string[]): StreamEvent {
+    function cliFrame(
+      toolCallId: string,
+      toolName: string,
+      argv: string[]
+    ): StreamEvent & { payload: MothershipStreamV1ToolCallDescriptor } {
       return {
         type: MothershipStreamV1EventType.tool,
         payload: {
