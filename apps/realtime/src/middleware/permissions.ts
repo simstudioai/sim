@@ -1,7 +1,11 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { authorizeRoom, type PermissionType } from '@sim/platform-authz/rooms'
+import {
+  authorizeRoom,
+  type PermissionType,
+  type RoomAuthorizationResult,
+} from '@sim/platform-authz/rooms'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import {
   BLOCK_OPERATIONS,
@@ -13,8 +17,15 @@ import {
   VARIABLE_OPERATIONS,
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
-import { isProjectRoom, ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
+import {
+  isProjectRoom,
+  ROOM_TYPES,
+  type RoomRef,
+  roomAuthority,
+  roomName,
+} from '@sim/realtime-protocol/rooms'
 import { and, eq, isNull } from 'drizzle-orm'
+import { fetchFileDocAccess } from '@/handlers/file-doc-app'
 import { fetchProjectRoomAccess } from '@/handlers/file-list-app'
 
 const logger = createLogger('SocketPermissions')
@@ -207,10 +218,28 @@ function commitRoleDecision(key: string, role: string | null, readSeq: number): 
 }
 
 /**
+ * Asks a non-workflow room's declared {@link roomAuthority}, at join and on every
+ * revalidation, so the two can never disagree. Only `workspace` rooms resolve in
+ * the relay; the app answers the rest.
+ */
+export async function authorizeRoomAccess(
+  userId: string,
+  room: RoomRef,
+  action: PermissionType,
+  connectionId?: string
+): Promise<RoomAuthorizationResult & { docId?: string | null }> {
+  if (isProjectRoom(room)) {
+    if (!connectionId) throw new Error('Project room requires a socket identity')
+    return fetchProjectRoomAccess(room, { userId, connectionId })
+  }
+  if (roomAuthority(room) === 'workspace-file-doc') return fetchFileDocAccess(room.id, userId)
+  return authorizeRoom({ userId, room, action })
+}
+
+/**
  * Reads a user's authoritative effective workspace permission for a room, or
  * `null` when they have none. Workflow rooms go through their own dedicated
- * authorizer; every other room type resolves through the shared
- * {@link authorizeRoom} (resource → owning workspace → effective permission).
+ * authorizer; every other room type resolves through {@link authorizeRoomAccess}.
  *
  * Always asks for the LOWEST level (`read`) so the resolved permission itself is
  * returned rather than a boolean — callers compare it against whatever level the
@@ -223,11 +252,6 @@ async function readAuthoritativeRoomPermission(
   room: RoomRef,
   connectionId?: string
 ): Promise<PermissionType | null> {
-  if (isProjectRoom(room)) {
-    if (!connectionId) throw new Error('Project room requires a socket identity')
-    const authorization = await fetchProjectRoomAccess(room, { userId, connectionId })
-    return authorization.allowed ? authorization.workspacePermission : null
-  }
   if (room.type === ROOM_TYPES.WORKFLOW) {
     const authorization = await authorizeWorkflowByWorkspacePermission({
       workflowId: room.id,
@@ -237,7 +261,7 @@ async function readAuthoritativeRoomPermission(
     return authorization.allowed ? (authorization.workspacePermission ?? null) : null
   }
 
-  const authorization = await authorizeRoom({ userId, room, action: 'read' })
+  const authorization = await authorizeRoomAccess(userId, room, 'read', connectionId)
   if (!authorization.allowed && authorization.status === 400) {
     throw new Error(`Room type not authorizable: ${room.type}`)
   }
@@ -265,7 +289,7 @@ async function resolveRoleUncached(
     // instead of reverting to the stale join-time role. Only trust `fallbackRole` when
     // nothing has been recorded for this (user, workflow) yet.
     const lastKnown = roleCache.get(key)
-    if (isProjectRoom(room) || room.type === ROOM_TYPES.WORKSPACE_FILE_DOC) {
+    if (roomAuthority(room) !== 'workspace') {
       if (lastKnown?.role === null) return null
       throw error
     }
