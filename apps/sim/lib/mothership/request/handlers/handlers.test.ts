@@ -9,7 +9,7 @@ import {
   mothershipClientToolWaiterMockFns,
 } from '@sim/testing/mocks/mothership-client-tool-waiter.mock'
 import { sleep } from '@sim/utils/helpers'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import { restoreStreamingContext } from '@/lib/mothership/request/context/restore'
 import { TraceCollector } from '@/lib/mothership/request/trace'
@@ -62,6 +62,7 @@ import {
   MothershipStreamV1ResourceOp,
   MothershipStreamV1RunKind,
   MothershipStreamV1TextChannel,
+  type MothershipStreamV1ToolCallDescriptor,
   MothershipStreamV1ToolExecutor,
   MothershipStreamV1ToolMode,
   MothershipStreamV1ToolOutcome,
@@ -429,6 +430,83 @@ describe('sse-handlers tool lifecycle', () => {
       permissionRequested: true,
     })
     expect(event.payload.status).toBe('awaiting_approval')
+  })
+
+  describe('sim_cli approval', () => {
+    const activate = ['workflows', 'activate', 'create', 'wf-1', '1', '--yes']
+
+    function cliFrame(
+      toolCallId: string,
+      toolName: string,
+      argv: string[]
+    ): StreamEvent & { payload: MothershipStreamV1ToolCallDescriptor } {
+      return {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId,
+          toolName,
+          execName: 'sim_cli',
+          arguments: { args: argv, request: { invocation: { kind: 'cli', argv } } },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      }
+    }
+
+    beforeEach(async () => {
+      const router = await vi.importActual<typeof import('@/lib/mothership/tool-executor/router')>(
+        '@/lib/mothership/tool-executor/router'
+      )
+      toolRequiresApproval.mockImplementation(router.toolRequiresApproval)
+      context.runId = 'run-1'
+      context.toolPermissions = {
+        enabled: true,
+        autoAllowed: new Set(),
+        autoAllowPermitted: true,
+      }
+    })
+
+    afterEach(() => {
+      toolRequiresApproval.mockReset()
+      toolRequiresApproval.mockReturnValue(false)
+    })
+
+    it('holds a command that performs a gated capability, though its argv says --yes', async () => {
+      const event = cliFrame('cli-activate', 'cli_workflows_activate_create', activate)
+
+      await prePersistClientExecutableToolCall(event, context, {})
+
+      expect(event.payload.status).toBe('awaiting_approval')
+      expect(upsertAsyncToolCall).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolName: 'cli_workflows_activate_create',
+          executableName: 'sim_cli',
+          permissionRequested: true,
+        })
+      )
+    })
+
+    it('lets always-allow cover only the command it was granted for', async () => {
+      context.toolPermissions.autoAllowed.add('cli_workflows_list')
+      context.toolPermissions.autoAllowed.add('sim_cli')
+      const held = cliFrame('cli-held', 'cli_workflows_activate_create', activate)
+      await prePersistClientExecutableToolCall(held, context, {})
+      expect(held.payload.status).toBe('awaiting_approval')
+
+      // A row named for an allowed command, or for none, does not carry its consent
+      // to the command the CLI would actually run.
+      for (const name of ['cli_workflows_list', 'sim_cli']) {
+        const mislabeled = cliFrame(`cli-${name}`, name, activate)
+        await prePersistClientExecutableToolCall(mislabeled, context, {})
+        expect(mislabeled.payload.status).toBe('awaiting_approval')
+      }
+
+      context.toolPermissions.autoAllowed.add('cli_workflows_activate_create')
+      const allowed = cliFrame('cli-allowed', 'cli_workflows_activate_create', activate)
+      await prePersistClientExecutableToolCall(allowed, context, {})
+      expect(allowed.payload.status).toBeUndefined()
+    })
   })
 
   it('clears a Go-stamped approval frame when the gate is off', async () => {

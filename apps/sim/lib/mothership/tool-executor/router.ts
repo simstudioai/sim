@@ -1,5 +1,6 @@
 import { BROWSER_TOOL_OBSERVES_ONLY, isBrowserToolName } from '@sim/browser-protocol'
 import { isCopilotToolPermissionsEnabled } from '@/lib/core/config/env-flags'
+import { cliRequestRequiresApproval } from '@/lib/mothership/agent-cli/approval'
 import { TOOL_CATALOG, type ToolCatalogEntry } from '@/lib/mothership/generated/tool-catalog-v1'
 
 export function isToolInCatalog(toolId: string): boolean {
@@ -30,9 +31,11 @@ export function isKnownTool(toolId: string): boolean {
  * only observing it. One that acts does so as the user, in a browser signed in
  * to their accounts, so it is gated like a terminal command. Reading the split
  * from `BROWSER_TOOL_OBSERVES_ONLY` gates a browser tool added later by default.
+ * `sim_cli` has no entry: each call answers for the command its arguments would run.
  */
-export function toolRequiresApproval(toolId: string): boolean {
+export function toolRequiresApproval(toolId: string, args?: Record<string, unknown>): boolean {
   if (isBrowserToolName(toolId)) return !BROWSER_TOOL_OBSERVES_ONLY[toolId]
+  if (toolId === 'sim_cli') return cliRequestRequiresApproval(args?.request)
   return getToolEntry(toolId)?.requiresApproval === true
 }
 
@@ -46,8 +49,8 @@ export function toolRequiresApproval(toolId: string): boolean {
  * must never hang on a prompt with no row behind it.
  *
  * Lives here rather than beside the dispatch gate so that asking the question
- * costs only the catalog. The gate module reaches the permission persistence
- * layer, which opens a pub/sub channel when it loads.
+ * costs only the catalog and the CLI's parser. The gate module reaches the
+ * permission persistence layer, which opens a pub/sub channel when it loads.
  *
  * Deliberately blind to the stored auto-allow list. Consulting it here would add
  * a database read to every in-band call to reach the same place by a longer
@@ -56,6 +59,6 @@ export function toolRequiresApproval(toolId: string): boolean {
  * leaves the one implementation of "has the user allowed this" on the lane that
  * already owns it.
  */
-export function toolRequiresApprovalLane(toolId: string): boolean {
-  return isCopilotToolPermissionsEnabled && toolRequiresApproval(toolId)
+export function toolRequiresApprovalLane(toolId: string, args?: Record<string, unknown>): boolean {
+  return isCopilotToolPermissionsEnabled && toolRequiresApproval(toolId, args)
 }
