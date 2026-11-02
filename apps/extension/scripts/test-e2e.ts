@@ -673,21 +673,34 @@ try {
       await parentCdp.detach()
     }
   )
-  await check('Ordinary Sim pages attach without capturing sensitive fields', async () => {
-    for (const path of ['/workspace/example', '/extension-notes']) {
+  await check('Ordinary Sim and encoded remote pages attach without sensitive fields', async () => {
+    for (const url of [
+      `${origin}/workspace/example`,
+      `${origin}/extension-notes`,
+      `${origin}/workspace/%E2%9C%93`,
+      `${pageOrigin}/ticket/100%done`,
+    ]) {
       const before = (await snapshots()).length
-      await page.goto(`${origin}${path}?token=URL_SECRET#FRAGMENT_SECRET`)
+      await page.goto(`${url}?token=URL_SECRET#FRAGMENT_SECRET`)
       await page.bringToFront()
       await capture()
       await expect.poll(async () => (await snapshots()).length).toBe(before + 1)
       const snapshot = (await snapshots()).at(-1)
-      assert(snapshot?.url === `${origin}${path}`, 'Sim page URL retained private parameters')
-      assert(snapshot.text.includes('visible-reference-482'), 'Visible Sim page content is missing')
-      assert(!snapshot.text.includes('SENTINEL'), 'Sensitive Sim page content was captured')
+      assert(snapshot?.url === url, 'Page URL retained private parameters')
+      assert(snapshot.text.includes('visible-reference-482'), 'Visible page content is missing')
+      assert(!snapshot.text.includes('SENTINEL'), 'Sensitive page content was captured')
     }
   })
-  await check('Embedded Sim chat pages cannot capture themselves', async () => {
-    for (const path of ['/extension', '/extension/workspace', '/extension/o/organization']) {
+  await check('Embedded chat and malformed Sim paths fail closed', async () => {
+    for (const path of [
+      '/extension',
+      '/extension/workspace',
+      '/extension/o/organization',
+      '/%65xtension',
+      '/%65xtension/workspace',
+      '/extension%2fworkspace',
+      '/extension%ZZ/workspace',
+    ]) {
       await page.goto(`${origin}/workspace/example`)
       await page.bringToFront()
       const previous = (await snapshots()).length
@@ -698,8 +711,8 @@ try {
       await page.goto(`${origin}${path}`)
       await page.bringToFront()
       await capture()
-      await panel.getByRole('status').filter({ hasText: 'Choose a regular web page' }).waitFor()
-      assert((await snapshots()).length === before, 'Embedded chat was captured')
+      await panel.getByRole('status').filter({ hasText: 'This page cannot be attached.' }).waitFor()
+      assert((await snapshots()).length === before, 'An excluded Sim path was captured')
     }
   })
   await check(

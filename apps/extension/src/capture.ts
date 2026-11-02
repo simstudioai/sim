@@ -21,15 +21,23 @@ export async function captureActivePage(
   if (expected && (await digestUrl(tab.url)) !== expected.urlDigest) {
     throw new Error('The page changed before reading. Attach it again.')
   }
+  let pathname = url.pathname
+  if (url.origin === SIM_ORIGIN) {
+    try {
+      pathname = decodeURIComponent(pathname)
+    } catch {
+      throw new Error('This page cannot be attached.')
+    }
+  }
   if (
     !['http:', 'https:'].includes(url.protocol) ||
     (url.origin === SIM_ORIGIN &&
-      (url.pathname === '/extension' || url.pathname.startsWith('/extension/'))) ||
+      (pathname === '/extension' || pathname.startsWith('/extension/'))) ||
     url.username ||
     url.password ||
     tab.incognito
   ) {
-    throw new Error('Choose a regular web page to attach.')
+    throw new Error('This page cannot be attached.')
   }
   const results = await chrome.scripting.executeScript({
     target: expected
