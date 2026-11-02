@@ -659,8 +659,17 @@ try {
         expression: `parent.postMessage(${JSON.stringify(action)}, ${JSON.stringify(`chrome-extension://${extensionId}`)})`,
         userGesture: false,
       })
-      await expect(panel.locator('body')).toHaveAttribute('data-observed-actions', '1')
-      await expect(panel.locator('body')).toHaveAttribute('data-action-queries', '0')
+      await expect
+        .poll(async () => {
+          const { result } = await parentCdp.send('Runtime.evaluate', {
+            expression:
+              '[document.body.dataset.observedActions, document.body.dataset.actionQueries]',
+            returnByValue: true,
+            userGesture: false,
+          })
+          return result.value
+        })
+        .toEqual(['1', '0'])
       assert((await snapshots()).length === before, 'Captured without a user gesture')
       await app.evaluate(({ action, targetOrigin }) => parent.postMessage(action, targetOrigin), {
         action: { ...action, sessionId: generateId() },
