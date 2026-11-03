@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import {
-  ACCESS_REQUEST_PAGE_SIZE,
+  ACCESS_REQUEST_STATUSES,
   accessRequestParamsSchema,
   listOrganizationAccessRequestsQuerySchema,
 } from '@/lib/api/contracts/access-requests'
@@ -19,15 +19,17 @@ import type { ResolveAccessRequestDecision } from '@/ee/access-requests/lib/type
 
 const requestTarget = { requestId: accessRequestParamsSchema.shape.requestId }
 const [applyDecisionSchema, declineDecisionSchema] = v2ResolveAccessRequestBodySchema.options
+const listQuerySchema = listOrganizationAccessRequestsQuerySchema.extend({
+  status: z
+    .enum(ACCESS_REQUEST_STATUSES)
+    .default('pending')
+    .describe('Request status to list; defaults to pending.'),
+})
 
 /** The first page of pending requests, or the page `query` selects. */
 export function readSettingsAccessRequests(
   context: SettingsContext,
-  query: z.output<typeof listOrganizationAccessRequestsQuerySchema> = {
-    status: 'pending',
-    limit: ACCESS_REQUEST_PAGE_SIZE,
-    offset: 0,
-  }
+  query: z.output<typeof listQuerySchema> = listQuerySchema.parse({})
 ) {
   return listOrganizationAccessRequests.execute({
     principal: context.principal,
@@ -49,11 +51,7 @@ async function resolve(
 
 /** Admin role, fingerprint freshness, grants, audit and the requester's notice stay in the use cases. */
 export const accessRequestSettingsActions = {
-  list: settingsOperation(
-    'read',
-    listOrganizationAccessRequestsQuerySchema,
-    readSettingsAccessRequests
-  ),
+  list: settingsOperation('read', listQuerySchema, readSettingsAccessRequests),
   preview: settingsOperation('read', z.strictObject(requestTarget), (context, input) =>
     previewAccessRequest.execute({
       principal: context.principal,

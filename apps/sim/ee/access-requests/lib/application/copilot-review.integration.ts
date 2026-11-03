@@ -254,6 +254,9 @@ describe('organization Chat review of access requests', () => {
     expect(await readGroupConfig()).toMatchObject({ hideTablesTab: false, hideFilesTab: true })
     expect(await decidedEvents(requestIds.tables)).toHaveLength(1)
     await waitForAudit(requestIds.tables, 'permission_access_request.fulfilled')
+
+    const { result: pending } = await asAdmin('list', {})
+    expect((pending.requests as { id: string }[]).map(({ id }) => id)).toEqual([requestIds.files])
   })
 
   it("lets an admin's Chat deny a request with a reason, changing no policy", async () => {
