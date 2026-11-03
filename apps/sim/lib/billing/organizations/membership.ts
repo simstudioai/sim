@@ -76,6 +76,7 @@ import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import { reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx } from '@/lib/workspaces/resource-handoff'
 import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
 import { endDirectoryMembershipTx } from '@/ee/scim/lib/identity/end-directory-membership'
+import { assertSelfLeaveNotScimManaged } from '@/ee/scim/lib/managed-membership'
 
 export { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 export { WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR } from '@/lib/workspaces/utils'
@@ -1384,8 +1385,11 @@ export async function removeUserFromOrganization(
     const result = await withInvitationSafeOrganizationAccessMutation(
       { userId, organizationId, scope: 'all' },
       async (tx, { workspaceIds, invitationIds }) => {
-        if (actorUserId)
+        if (actorUserId) {
           await requireMemberManagementAuthority(tx, organizationId, actorUserId, userId)
+          if (actorUserId === userId)
+            await assertSelfLeaveNotScimManaged({ organizationId, userId, executor: tx })
+        }
         if (requireNoOrgWorkspaceAccess && workspaceIds.length > 0) {
           const [remainingAccess] = await tx
             .select({ id: permissions.id })
