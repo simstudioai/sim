@@ -51,6 +51,7 @@ export interface VideoGenerationResult {
 }
 
 export interface VideoGenerationContext {
+  onFalCost?: (receipt: FalAICostMetadata) => void
   requestId: string
   signal?: AbortSignal
 }
@@ -820,6 +821,12 @@ async function generateWithFalAI(
 
       logger.info(`[${requestId}] Fal.ai generation completed after ${attempts * 5}s`)
 
+      const falaiCost = useHostedCostTracking
+        ? await getFalAICostMetadata({ apiKey, endpointId: endpoint, requestId: requestIdFal })
+        : undefined
+      if (falaiCost) context.onFalCost?.(falaiCost)
+      signal?.throwIfAborted()
+
       const resultResponse = await fetch(
         falQueueUrl(getStringProperty(statusData, 'response_url') || responseUrl),
         {
@@ -870,14 +877,7 @@ async function generateWithFalAI(
           getNumberProperty(resultData, 'duration') ??
           duration ??
           (legacyMetadata ? 5 : undefined),
-        falaiCost: useHostedCostTracking
-          ? await getFalAICostMetadata({
-              apiKey,
-              endpointId: endpoint,
-              requestId: requestIdFal,
-              signal,
-            })
-          : undefined,
+        falaiCost,
       }
     }
 

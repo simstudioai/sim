@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
 
 import { generateVideo } from '@/lib/internal/video/client'
+import { executeVideoOperation } from '@/lib/internal/video/operations'
+import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
 
 executionLimitsMockFns.mockGetMaxExecutionTimeout.mockReturnValue(5000)
 
@@ -115,6 +117,60 @@ describe('Video provider client', () => {
     expect(mockFetch.mock.calls.map(([url]) => new URL(url).origin)).not.toContain(
       'https://untrusted.example'
     )
+  })
+
+  it('preserves the completed hosted receipt for reconciliation when Stop interrupts delivery', async () => {
+    const controller = new AbortController()
+    const requestId = 'completed-video'
+    const endpoint = 'fal-ai/veo3.1'
+    vi.stubGlobal('fetch', async (url: string | URL, init?: RequestInit) => {
+      init?.signal?.throwIfAborted()
+      const path = new URL(url).pathname
+      if (path === `/${endpoint}`) return jsonResponse({ request_id: requestId })
+      if (path.endsWith('/status')) {
+        controller.abort(new Error('Stopped'))
+        return jsonResponse({ status: 'COMPLETED' })
+      }
+      if (path.endsWith('/billing-events')) {
+        return jsonResponse({
+          billing_events: [
+            { request_id: requestId, endpoint_id: endpoint, cost_estimate_nano_usd: 400000000 },
+          ],
+        })
+      }
+      throw new Error('Unexpected provider request')
+    })
+    const pending: string[] = []
+    const result = observeServiceCosts(
+      async () => {
+        throw new Error('Unexpected successful charge')
+      },
+      () =>
+        executeVideoOperation(
+          {
+            provider: 'falai',
+            model: 'veo-3.1',
+            prompt: 'A sunrise',
+            apiKey: 'key',
+            useHostedCostTracking: true,
+          },
+          {
+            requestId: 'trace-id',
+            userId: 'user',
+            headers: new Headers(),
+            signal: controller.signal,
+          }
+        ),
+      async (receipt) => {
+        pending.push(receipt)
+      }
+    )
+    const rejection = expect(result).rejects.toThrow('Stopped')
+    await vi.advanceTimersByTimeAsync(5000)
+    await rejection
+    expect(pending).toHaveLength(1)
+    expect(pending[0]).toContain(requestId)
+    expect(pending[0]).toContain('0.4')
   })
 
   it('cancels during the provider wait without polling or resubmitting', async () => {
