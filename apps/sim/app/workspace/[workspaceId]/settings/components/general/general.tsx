@@ -64,6 +64,14 @@ const AuthorizedApps = dynamic(
   { loading: () => null }
 )
 
+const OrganizationAccounts = dynamic(
+  () =>
+    import(
+      '@/app/workspace/[workspaceId]/settings/components/organization-accounts/organization-accounts'
+    ).then((module) => module.OrganizationAccounts),
+  { loading: () => null }
+)
+
 const logger = createLogger('General')
 
 /** Human-friendly timezone options for the picker, common zones first. */
@@ -287,6 +295,10 @@ export function General() {
 
   if (view === 'authorized-apps' && !isAuthDisabled) {
     return <AuthorizedApps onBack={() => setView(null, { history: 'replace' })} />
+  }
+
+  if (view === 'organization-accounts' && !isAuthDisabled) {
+    return <OrganizationAccounts onBack={() => setView(null, { history: 'replace' })} />
   }
 
   const actions: SettingsAction[] = [
@@ -618,6 +630,10 @@ export function General() {
               <div className='flex items-center justify-between'>
                 <Label>Authorized apps</Label>
                 <Chip onClick={() => setView('authorized-apps')}>Manage</Chip>
+              </div>
+              <div className='flex items-center justify-between'>
+                <Label>Connected organization accounts</Label>
+                <Chip onClick={() => setView('organization-accounts')}>Manage</Chip>
               </div>
               <div className='flex items-center justify-between'>
                 <Label>Delete account</Label>
