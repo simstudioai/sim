@@ -454,7 +454,7 @@ const v2WorkflowLintSchema = z
       })
       .nullable()
       .describe(
-        "Why a manual run from the editor's Run button would be refused before it starts: no enabled trigger it can start from, more than one API trigger, or a selected trigger with no outgoing connection. `null` when a manual run can begin. Not raised for a workflow only a chat trigger can start."
+        "Why a manual run from the editor's Run button would be refused before it starts: no enabled trigger it can start from, more than one API trigger, or a selected trigger with no outgoing connection. `null` when no manual-run issue is reported: the run can begin, only a chat trigger can start the workflow, or the graph is empty (reported in `notes` instead)."
       ),
     notes: z.array(z.string()).describe('Advisory notes about the report itself.'),
   })
