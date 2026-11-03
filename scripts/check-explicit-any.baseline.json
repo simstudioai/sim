@@ -1353,7 +1353,6 @@
     "apps/sim/hooks/use-permission-config.test.tsx": 10,
     "apps/sim/hooks/use-permission-config.ts": 1,
     "apps/sim/hooks/use-voice-input.test.tsx": 1,
-    "apps/sim/lib/admin/dashboard.ts": 2,
     "apps/sim/lib/api/contracts/mothership-assistant-tools.test.ts": 2,
     "apps/sim/lib/api/contracts/mothership-management-tools.test.ts": 1,
     "apps/sim/lib/api/contracts/v2/tables.test.ts": 1,

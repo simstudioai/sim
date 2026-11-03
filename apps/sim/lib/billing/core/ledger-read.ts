@@ -16,16 +16,16 @@ import type { DbClient, DbTransaction } from '@/lib/db/types'
  */
 export function readLedgerBounded<T>(
   executor: DbClient,
-  read: (tx: DbTransaction) => Promise<T>
+  read: (tx: DbTransaction) => Promise<T>,
+  /** A tighter bound for a read that can do without its answer, such as a staff-only count. */
+  budgetMs: number = USAGE_LEDGER_STATEMENT_TIMEOUT_MS
 ): Promise<T> {
   return withDatabaseReadRetry(
     (remainingMs) => {
       const attemptStartedAt = Date.now()
       return executor.transaction(
         async (tx) => {
-          const timeoutMs = Math.floor(
-            (remainingMs ?? USAGE_LEDGER_STATEMENT_TIMEOUT_MS) - (Date.now() - attemptStartedAt)
-          )
+          const timeoutMs = Math.floor((remainingMs ?? budgetMs) - (Date.now() - attemptStartedAt))
           if (timeoutMs <= 0) throw new DatabaseReadDeadlineError()
           await tx.execute(sql.raw(`SET LOCAL statement_timeout = '${timeoutMs}ms'`))
           return read(tx)
@@ -33,6 +33,6 @@ export function readLedgerBounded<T>(
         { accessMode: 'read only' }
       )
     },
-    { label: 'usage ledger', maxAttempts: 2, maxElapsedMs: USAGE_LEDGER_STATEMENT_TIMEOUT_MS }
+    { label: 'usage ledger', maxAttempts: 2, maxElapsedMs: budgetMs }
   )
 }

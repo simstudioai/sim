@@ -28,6 +28,12 @@ const positiveCreditAlignedDollarAmountSchema = creditAlignedDollarAmountSchema.
   }
 )
 
+/**
+ * Billable workflow runs over a usage period, or `null` where they are not counted:
+ * list pages, the reporting-period preview, and an organization detail past its run budget.
+ */
+const adminDashboardWorkflowRunsSchema = z.number().int().min(0).nullable()
+
 export const adminDashboardUserSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -35,7 +41,7 @@ export const adminDashboardUserSchema = z.object({
   activeOrganization: z.object({ id: z.string(), name: z.string() }).nullable(),
   usageDollars: dollarAmountSchema,
   usageCredits: z.number().int().min(0),
-  workflowRuns: z.number().int().min(0),
+  workflowRuns: adminDashboardWorkflowRunsSchema,
 })
 
 const adminDashboardBillingIntervalSchema = z.enum(['month', 'year'])
@@ -51,7 +57,7 @@ const adminDashboardUsageSchema = z.object({
   limitDollars: dollarAmountSchema,
   usedCredits: z.number().int().min(0),
   limitCredits: z.number().int().min(0),
-  workflowRuns: z.number().int().min(0),
+  workflowRuns: adminDashboardWorkflowRunsSchema,
 })
 const adminDashboardWorkspaceMoveProgressSchema = z.object({
   selected: z.number().int().min(0),
@@ -184,7 +190,7 @@ export const adminDashboardOrganizationDetailSchema =
     historicalActorUsage: z.object({
       usedDollars: dollarAmountSchema,
       usedCredits: z.number().int().min(0),
-      workflowRuns: z.number().int().min(0),
+      workflowRuns: adminDashboardWorkflowRunsSchema,
       actorCount: z.number().int().min(0),
     }),
     members: z.array(
@@ -197,7 +203,7 @@ export const adminDashboardOrganizationDetailSchema =
         usageLimitDollars: dollarAmountSchema.nullable(),
         usageDollars: dollarAmountSchema,
         usageCredits: z.number().int().min(0),
-        workflowRuns: z.number().int().min(0),
+        workflowRuns: adminDashboardWorkflowRunsSchema,
       })
     ),
     externalCollaborators: z.array(
@@ -209,7 +215,7 @@ export const adminDashboardOrganizationDetailSchema =
         usageLimitDollars: dollarAmountSchema.nullable(),
         usageDollars: dollarAmountSchema,
         usageCredits: z.number().int().min(0),
-        workflowRuns: z.number().int().min(0),
+        workflowRuns: adminDashboardWorkflowRunsSchema,
       })
     ),
     workspaces: z.array(z.object({ id: z.string(), name: z.string() })),
