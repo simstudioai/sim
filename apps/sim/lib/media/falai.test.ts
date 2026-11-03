@@ -13,6 +13,7 @@ import { downloadFalMedia, type FalCostRecorder, runFalQueue } from '@/lib/media
 import { generateFalAudio } from '@/lib/media/falai-audio'
 import { generateFalVideo } from '@/lib/media/falai-video'
 
+const FAL_KEY_USE = { tool: 'generate_video', envVarName: 'FALAI_API_KEY' } as const
 const CANCEL_URL = 'https://queue.fal.run/fal-ai/model/requests/req-1/cancel'
 const STATUS_URL = 'https://queue.fal.run/fal-ai/model/requests/req-1/status'
 
@@ -71,7 +72,7 @@ describe('runFalQueue on a request that never finishes', () => {
       'fal-ai/model',
       { prompt: 'p' },
       'key',
-      'generate_video',
+      FAL_KEY_USE,
       caller.signal
     )
     const outcome = generation.then(
@@ -97,7 +98,7 @@ describe('runFalQueue on a request that never finishes', () => {
       'fal-ai/model',
       { prompt: 'p' },
       'key',
-      'generate_video',
+      FAL_KEY_USE,
       caller.signal
     )
     const outcome = generation.then(
@@ -116,7 +117,7 @@ describe('runFalQueue on a request that never finishes', () => {
 
   it('fails and cancels after its own ceiling even when nothing aborts it', async () => {
     const fal = stubStuckFalQueue()
-    const generation = runFalQueue('fal-ai/model', { prompt: 'p' }, 'key', 'generate_video')
+    const generation = runFalQueue('fal-ai/model', { prompt: 'p' }, 'key', FAL_KEY_USE)
     const outcome = generation.then(
       () => 'resolved',
       (error: unknown) => String(error)
@@ -135,7 +136,7 @@ describe('runFalQueue on a request that never finishes', () => {
       'fal-ai/model',
       { prompt: 'p' },
       'key',
-      'generate_video',
+      FAL_KEY_USE,
       caller.signal
     ).catch(() => undefined)
     await vi.advanceTimersByTimeAsync(3_500)
@@ -153,7 +154,7 @@ describe('runFalQueue on a request that never finishes', () => {
     const fal = stubStuckFalQueue()
 
     await expect(
-      runFalQueue('fal-ai/model', { prompt: 'p' }, 'key', 'generate_video', AbortSignal.abort())
+      runFalQueue('fal-ai/model', { prompt: 'p' }, 'key', FAL_KEY_USE, AbortSignal.abort())
     ).rejects.toThrow()
     expect(fal.calls).toEqual([])
   })
@@ -180,7 +181,7 @@ describe('runFalQueue on a request that never finishes', () => {
       'fal-ai/model',
       { prompt: 'p' },
       'key',
-      'generate_video',
+      FAL_KEY_USE,
       caller.signal
     ).catch(() => 'rejected')
 
@@ -199,7 +200,7 @@ describe('runFalQueue on a request that never finishes', () => {
       'fal-ai/model',
       { prompt: 'p' },
       'key',
-      'generate_video',
+      FAL_KEY_USE,
       caller.signal
     ).catch(() => undefined)
     await vi.advanceTimersByTimeAsync(0)

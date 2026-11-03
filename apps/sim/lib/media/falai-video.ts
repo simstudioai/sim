@@ -148,7 +148,7 @@ export async function generateFalVideo(params: GenerateFalVideoParams): Promise<
     )
   }
 
-  const apiKey = getFalApiKey()
+  const { apiKey, envVarName } = getFalApiKey()
 
   let endpoint = config.endpoint
   const input: Record<string, unknown> = { prompt: params.prompt }
@@ -181,7 +181,7 @@ export async function generateFalVideo(params: GenerateFalVideoParams): Promise<
     endpoint,
     input,
     apiKey,
-    'generate_video',
+    { tool: 'generate_video', envVarName },
     params.signal
   )
   const cost = await recordFalCost(apiKey, endpoint, requestId, params.onCost)

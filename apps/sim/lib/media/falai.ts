@@ -34,8 +34,11 @@ const FAL_CANCEL_TIMEOUT_MS = 5000
  */
 const FAL_SUBMIT_TIMEOUT_MS = 60_000
 
-/** The Mothership tools that generate media on Sim's hosted Fal.ai keys. */
-type FalMediaTool = 'generate_audio' | 'generate_video'
+/** Who spent a hosted Fal.ai key: the Mothership tool and the env var the key came from. */
+interface FalKeyUse {
+  tool: 'generate_audio' | 'generate_video'
+  envVarName: string
+}
 
 /**
  * Statuses fal answers when the hosted account itself refuses the call (a revoked key, or an
@@ -48,15 +51,16 @@ const FAL_ACCOUNT_REFUSAL_STATUSES = new Set([401, 402, 403])
  * (FALAI_API_KEY_COUNT + FALAI_API_KEY_1..N), round-robined by minute,
  * mirroring getRotatingApiKey. Falls back to a single FALAI_API_KEY for dev.
  */
-export function getFalApiKey(): string {
+export function getFalApiKey(): { apiKey: string; envVarName: string } {
   const count = Number.parseInt(process.env.FALAI_API_KEY_COUNT || '0', 10)
-  const keys: string[] = []
+  const keys: Array<{ apiKey: string; envVarName: string }> = []
   for (let i = 1; i <= count; i++) {
-    const key = process.env[`FALAI_API_KEY_${i}`]
-    if (key) keys.push(key)
+    const envVarName = `FALAI_API_KEY_${i}`
+    const apiKey = process.env[envVarName]
+    if (apiKey) keys.push({ apiKey, envVarName })
   }
   if (keys.length === 0 && process.env.FALAI_API_KEY) {
-    keys.push(process.env.FALAI_API_KEY)
+    keys.push({ apiKey: process.env.FALAI_API_KEY, envVarName: 'FALAI_API_KEY' })
   }
   if (keys.length === 0) {
     throw new Error(
@@ -111,7 +115,7 @@ export async function runFalQueue(
   endpoint: string,
   input: Record<string, unknown>,
   apiKey: string,
-  tool: FalMediaTool,
+  keyUse: FalKeyUse,
   signal?: AbortSignal
 ): Promise<FalQueueResult> {
   const ceiling = new AbortController()
@@ -121,7 +125,7 @@ export async function runFalQueue(
   )
   const queueSignal = signal ? AbortSignal.any([signal, ceiling.signal]) : ceiling.signal
   try {
-    return await submitAndPollFalQueue(endpoint, input, apiKey, tool, queueSignal)
+    return await submitAndPollFalQueue(endpoint, input, apiKey, keyUse, queueSignal)
   } finally {
     clearTimeout(ceilingTimer)
   }
@@ -131,7 +135,7 @@ async function submitAndPollFalQueue(
   endpoint: string,
   input: Record<string, unknown>,
   apiKey: string,
-  tool: FalMediaTool,
+  keyUse: FalKeyUse,
   queueSignal: AbortSignal
 ): Promise<FalQueueResult> {
   // Only a submit already under way outlives its caller; a stopped call never starts one.
@@ -150,8 +154,8 @@ async function submitAndPollFalQueue(
     if (FAL_ACCOUNT_REFUSAL_STATUSES.has(createResponse.status)) {
       hostedKeyMetrics.recordFailed({
         provider: 'falai',
-        tool,
-        key: 'FALAI_API_KEY',
+        tool: keyUse.tool,
+        key: keyUse.envVarName,
         reason: 'auth',
       })
     }

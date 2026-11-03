@@ -141,7 +141,7 @@ function buildInput(
 
 export async function generateFalAudio(params: GenerateFalAudioParams): Promise<GeneratedAudio> {
   const type: AudioType = params.type || 'speech'
-  const apiKey = getFalApiKey()
+  const { apiKey, envVarName } = getFalApiKey()
 
   // Voice cloning: a reference sample routes to a zero-shot clone model (F5-TTS),
   // which conditions on the sample (ref_audio_url) and speaks the prompt in that voice.
@@ -156,7 +156,7 @@ export async function generateFalAudio(params: GenerateFalAudioParams): Promise<
       model,
       input,
       apiKey,
-      'generate_audio',
+      { tool: 'generate_audio', envVarName },
       params.signal
     )
     const cost = await recordFalCost(apiKey, model, requestId, params.onCost)
@@ -182,7 +182,7 @@ export async function generateFalAudio(params: GenerateFalAudioParams): Promise<
     model,
     input,
     apiKey,
-    'generate_audio',
+    { tool: 'generate_audio', envVarName },
     params.signal
   )
   const cost = await recordFalCost(apiKey, model, requestId, params.onCost)
