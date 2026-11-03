@@ -175,18 +175,24 @@ describe('dashboard ledger usage', () => {
       connection: { search_path: schemaName },
       onnotice: () => undefined,
     })
-    const released = Promise.withResolvers<void>()
-    const lockHeld = Promise.withResolvers<void>()
+    let release: () => void = () => undefined
+    const released = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let markLocked: () => void = () => undefined
+    const locked = new Promise<void>((resolve) => {
+      markLocked = resolve
+    })
     const holder = locker.begin(async (tx) => {
       await tx.unsafe('LOCK TABLE usage_log IN ACCESS EXCLUSIVE MODE')
-      lockHeld.resolve()
-      await released.promise
+      markLocked()
+      await released
     })
     try {
-      await lockHeld.promise
+      await locked
       expect(await readDashboardWorkflowRuns(organizationWindow('org-a', stampedPeriod))).toBeNull()
     } finally {
-      released.resolve()
+      release()
       await holder
       await locker.end()
     }
