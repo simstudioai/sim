@@ -403,8 +403,20 @@ const declaredRoutes = [
               inputValidationErrors: [],
               mintedBlockIds: { 'agent-1': 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77' },
               lint: {
-                sources: [],
-                sinks: [],
+                sources: [
+                  {
+                    blockId: 'start-1',
+                    blockName: 'Start',
+                    blockType: 'start_trigger',
+                  },
+                ],
+                sinks: [
+                  {
+                    blockId: 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77',
+                    blockName: 'Triage',
+                    blockType: 'agent',
+                  },
+                ],
                 orphanBlocks: [],
                 emptyOutgoingPorts: [],
                 invalidBranchPorts: [],
