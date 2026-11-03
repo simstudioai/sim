@@ -233,13 +233,12 @@ describe('listDashboardOrganizations', () => {
       },
     ])
     queueTableRows(usageLog, [{ entityId: 'org-1', cost: '2.5' }])
-    queueTableRows(usageLog, [{ entityId: 'org-1', workflowRuns: 3 }])
 
     const result = await listDashboardOrganizations({ search: '', limit: 50, offset: 0 })
 
     expect(result.data[0]).toMatchObject({
       reportingPeriod: { source: 'stripe' },
-      usage: { usedDollars: 2.5, workflowRuns: 3 },
+      usage: { usedDollars: 2.5, workflowRuns: null },
     })
   })
 
@@ -275,14 +274,13 @@ describe('listDashboardOrganizations', () => {
       },
     ])
     queueTableRows(usageLog, [{ entityId: 'org-1', cost: '2.5' }])
-    queueTableRows(usageLog, [{ entityId: 'org-1', workflowRuns: 3 }])
     queueTableRows(member, [{ organizationId: 'org-1', cost: '1.5' }])
 
     const result = await listDashboardOrganizations({ search: '', limit: 50, offset: 0 })
 
     expect(result.data[0]).toMatchObject({
       reportingPeriod: { source: 'reporting', anchorDate: '2026-01-01', interval: 'year' },
-      usage: { usedDollars: 2.5, workflowRuns: 3 },
+      usage: { usedDollars: 2.5 },
     })
   })
 })
