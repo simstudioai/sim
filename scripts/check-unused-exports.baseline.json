@@ -1005,7 +1005,6 @@
   "apps/sim/hooks/queries/kb/connectors.ts#ViewerConnectorMembership",
   "apps/sim/hooks/queries/kb/connectors.ts#connectorDocumentKeys",
   "apps/sim/hooks/queries/kb/connectors.ts#searchIndexKeys",
-  "apps/sim/hooks/queries/kb/connectors.ts#useStartConnectorMemberEnrollment",
   "apps/sim/hooks/queries/kb/knowledge.ts#KNOWLEDGE_CHUNK_LIST_STALE_TIME",
   "apps/sim/hooks/queries/kb/knowledge.ts#KNOWLEDGE_CHUNK_SEARCH_STALE_TIME",
   "apps/sim/hooks/queries/kb/knowledge.ts#KNOWLEDGE_DOCUMENT_DETAIL_STALE_TIME",
