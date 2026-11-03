@@ -99,6 +99,17 @@ async function expandProjects(mode: 'fresh' | 'resume'): Promise<void> {
   }
 }
 
+/** Migration SQL and the script runner name tables unqualified; pin them to `public`, as the migrator's default session does. */
+async function inPublicSchema(run: () => Promise<void>): Promise<void> {
+  const [settings] = await sql<{ search_path: string }[]>`SHOW search_path`
+  await sql`SELECT set_config('search_path', 'public, pg_temp', false)`
+  try {
+    await run()
+  } finally {
+    await sql`SELECT set_config('search_path', ${settings.search_path}, false)`
+  }
+}
+
 function assertProjectMembershipComplete(state: ProjectSchemaState): void {
   if (state.workspace && (state.connector || !state.projectIdNotNull || !state.project)) {
     throw new Error(REFUSAL)
@@ -117,13 +128,13 @@ try {
   if (process.argv.includes('--prepare')) {
     const bootstrap = await classifyProjectBootstrap(state)
     if (bootstrap) {
-      await expandProjects(bootstrap)
+      await inPublicSchema(() => expandProjects(bootstrap))
       state = await readProjectSchemaState()
     }
     if ((await classifyProjectBootstrap(state)) !== 'resume') assertProjectMembershipComplete(state)
   } else if (process.argv.includes('--bootstrap')) {
     if ((await classifyProjectBootstrap(state)) !== 'resume') throw new Error(REFUSAL)
-    await runScriptMigrations(sql, [projectMembershipMigration])
+    await inPublicSchema(() => runScriptMigrations(sql, [projectMembershipMigration]))
     assertProjectMembershipComplete(await readProjectSchemaState())
   } else {
     assertProjectMembershipComplete(state)

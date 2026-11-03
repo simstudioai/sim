@@ -69,6 +69,8 @@ async function retainedState(sql: Sql) {
   return {
     schema,
     workspaces: await sql`SELECT to_jsonb(w) AS row FROM workspace w ORDER BY id`,
+    folders: await sql`SELECT to_jsonb(f) AS row FROM folder f ORDER BY id`,
+    projects: schema.project ? await sql`SELECT to_jsonb(p) AS row FROM project p ORDER BY id` : [],
     connector: schema.connector
       ? await sql`SELECT * FROM project_workspace ORDER BY workspace_id`
       : [],
@@ -258,6 +260,20 @@ describe('development schema push of a database that predates Projects', () => {
       const pushed = runPush(url, true)
       expect(pushed.status, pushed.output).toBe(0)
       await expectBootstrapped(sql)
+    })
+  }, 240_000)
+
+  it('bootstraps into public when the connection search path lists another schema first', async () => {
+    await preProjectDatabase(async (sql, url) => {
+      await sql`CREATE SCHEMA shadow`
+      const shadowed = new URL(url)
+      shadowed.searchParams.set('options', '-c search_path=shadow,public')
+      const pushed = runPush(shadowed.toString(), true)
+      expect(pushed.status, pushed.output).toBe(0)
+      const shadowTables = await sql`SELECT tablename FROM pg_tables WHERE schemaname = 'shadow'
+        AND tablename IN ('project', 'project_workspace', 'project_membership_rollout')`
+      await expectBootstrapped(sql)
+      expect(shadowTables).toEqual([])
     })
   }, 240_000)
 
