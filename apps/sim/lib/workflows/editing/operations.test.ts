@@ -1455,6 +1455,38 @@ describe('connection shape validation', () => {
       }),
     ])
   })
+
+  it('charges a connection refused after the handler pass to the operation that queued it', () => {
+    const blockB = '88888888-8888-4888-8888-888888888888'
+    const { skippedItems, declinedOperationCount } = applyOperationsToWorkflowState(
+      workflowWithStart(),
+      [
+        {
+          operation_type: 'add',
+          block_id: BLOCK_A,
+          params: {
+            type: 'function',
+            name: 'Block A',
+            inputs: { code: 'return 1' },
+            connections: { incoming: 'start-1', outgoing: 'start-1' },
+          },
+        },
+        {
+          operation_type: 'add',
+          block_id: blockB,
+          params: {
+            type: 'function',
+            name: 'Block B',
+            inputs: { code: 'return 2' },
+            connections: { success: 'start-1' },
+          },
+        },
+      ]
+    )
+
+    expect(skippedItems.filter((item) => item.type === 'invalid_source_handle')).toHaveLength(2)
+    expect(declinedOperationCount).toBe(1)
+  })
 })
 
 describe('conditional input validation through workflow operations', () => {
