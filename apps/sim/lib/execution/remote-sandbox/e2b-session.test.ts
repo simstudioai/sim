@@ -51,6 +51,7 @@ import {
   stopE2BSessionProcess,
 } from '@/lib/execution/remote-sandbox/e2b'
 import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/observer'
+import { SessionCliStaleError } from '@/lib/execution/remote-sandbox/session-cli'
 
 setEnv({ E2B_API_KEY: 'test', MOTHERSHIP_E2B_TEMPLATE_ID: 'mothership-template' })
 
@@ -643,6 +644,36 @@ describe('E2B session recovery', () => {
       stderr: 'slow frame\n',
     })
   })
+  it.each([
+    ['stale', SessionCliStaleError],
+    ['failed', Error],
+  ] as const)(
+    'rejects a launch whose receipt reports a %s CLI, whatever its process returned',
+    async (cli, expected) => {
+      runCommand.mockResolvedValue({
+        pid: 9,
+        wait: async () => ({ stdout: '', stderr: '', exitCode: 0 }),
+      })
+      stopCommand.mockResolvedValue({
+        stdout: JSON.stringify({ settled: true, cli }),
+        stderr: '',
+        exitCode: 0,
+      })
+      const sandbox = await sessionSandbox('reconnected')
+      const launched = sandbox?.runCommand('touch /tmp/marker', {
+        timeoutMs: 1000,
+        verifyCli: { path: '/home/user/.sim-cli/r/cli.mjs', artifacts: { a: 'b' } },
+      })
+      await expect(launched).rejects.toBeInstanceOf(expected)
+      await expect(launched).rejects.toThrow(cli === 'stale' ? 'changed' : 'verification failed')
+      const [command] = runCommand.mock.calls.at(-1) ?? []
+      expect(command).toContain(
+        Buffer.from(
+          JSON.stringify({ path: '/home/user/.sim-cli/r/cli.mjs', artifacts: { a: 'b' } })
+        ).toString('base64')
+      )
+    }
+  )
 })
 
 describe('E2B session lease', () => {
