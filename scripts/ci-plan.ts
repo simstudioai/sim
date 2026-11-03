@@ -44,12 +44,22 @@ try {
     throw new Error('No comparison base; push and unscoped dispatch run the full suite')
   if (!/^[0-9a-f]{40}$/.test(sourceBase))
     throw new Error('Comparison base must be a full commit SHA')
-  try {
-    command('git', ['cat-file', '-e', `${sourceBase}^{commit}`])
-  } catch {
-    command('git', ['fetch', '--quiet', '--depth=2', 'origin', sourceBase])
+  if (process.env.GITHUB_EVENT_NAME === 'pull_request') {
+    if (!/^refs\/pull\/[1-9]\d*\/merge$/.test(process.env.GITHUB_REF ?? ''))
+      throw new Error('PR attribution requires the GitHub merge ref')
+    if (process.env.GITHUB_SHA !== command('git', ['rev-parse', 'HEAD']))
+      throw new Error('PR attribution requires the checked-out GitHub merge SHA')
+    const parents = command('git', ['show', '--no-patch', '--format=%P', 'HEAD']).split(' ')
+    if (parents.length !== 2) throw new Error('PR attribution requires a two-parent merge')
+    base = parents[0]
+  } else {
+    try {
+      command('git', ['cat-file', '-e', `${sourceBase}^{commit}`])
+    } catch {
+      command('git', ['fetch', '--quiet', '--depth=2', 'origin', sourceBase])
+    }
+    base = command('git', ['merge-base', sourceBase, 'HEAD'])
   }
-  base = command('git', ['merge-base', sourceBase, 'HEAD'])
   files = command('git', ['diff', '--no-renames', '--name-only', '-z', base, 'HEAD'])
     .split('\0')
     .filter(Boolean)

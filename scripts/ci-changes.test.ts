@@ -2,13 +2,15 @@ import { spawnSync } from 'node:child_process'
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 const script = resolve(root, '.github/scripts/ci-changes.sh')
 const fixtures: string[] = []
 interface Plan {
+  base: string
+  files: string[]
   flags: Record<string, boolean>
   fallback?: string
   http: { group: string }[]
@@ -102,13 +104,17 @@ function fixture() {
   git(repo, 'commit', '--quiet', '-m', 'base')
   return { repo, base: git(repo, 'rev-parse', 'HEAD') }
 }
-function classify(repo: string, base: string): Plan {
+function classify(repo: string, base: string, environment: Record<string, string> = {}): Plan {
   const report = join(repo, 'plan.json')
   const result = spawnSync('bash', [script, base], {
     cwd: repo,
     encoding: 'utf8',
     env: {
       ...process.env,
+      GITHUB_EVENT_NAME: 'workflow_dispatch',
+      GITHUB_REF: 'refs/heads/fixture',
+      GITHUB_SHA: '',
+      ...environment,
       PATH: `${resolve(root, 'node_modules/.bin')}:${process.env.PATH}`,
       CI_PLAN_PATH: report,
     },
@@ -118,6 +124,39 @@ function classify(repo: string, base: string): Plan {
   for (const [flag, value] of Object.entries(plan.flags))
     expect(result.stdout).toContain(`${flag}=${value}\n`)
   return plan
+}
+function pullRequestFixture(files: string[], depth = 2) {
+  const { repo: source, base } = fixture()
+  git(source, 'checkout', '--quiet', '-b', 'contribution')
+  for (const file of files) {
+    write(source, file, `${file}\n`)
+    git(source, 'add', '-A')
+    git(source, 'commit', '--quiet', '-m', `contribute ${file}`)
+  }
+  git(source, 'checkout', '--quiet', '-b', 'target', base)
+  write(source, 'apps/sim/lib/upstream.ts', 'export const upstream = true\n')
+  git(source, 'add', '-A')
+  git(source, 'commit', '--quiet', '-m', 'advance target')
+  const target = git(source, 'rev-parse', 'HEAD')
+  git(source, 'merge', '--quiet', '--no-ff', '-m', 'synthetic PR merge', 'contribution')
+  const head = git(source, 'rev-parse', 'HEAD')
+  const repo = mkdtempSync(join(tmpdir(), 'ci-pr-merge-'))
+  fixtures.push(repo)
+  git(repo, 'init', '--quiet')
+  git(repo, 'remote', 'add', 'origin', pathToFileURL(source).href)
+  git(repo, 'fetch', '--quiet', `--depth=${depth}`, 'origin', head)
+  git(repo, 'checkout', '--quiet', '--detach', 'FETCH_HEAD')
+  expect(git(repo, 'rev-parse', '--is-shallow-repository')).toBe('true')
+  return {
+    repo,
+    base,
+    target,
+    environment: {
+      GITHUB_EVENT_NAME: 'pull_request',
+      GITHUB_REF: 'refs/pull/42/merge',
+      GITHUB_SHA: head,
+    },
+  }
 }
 function classifyFiles(files: string[]): Plan {
   const { repo, base } = fixture()
@@ -133,6 +172,71 @@ afterEach(() => {
   for (const repo of fixtures.splice(0)) rmSync(repo, { recursive: true, force: true })
 })
 describe('CI task attribution through real Turborepo', () => {
+  it('scopes a shallow multi-commit PR against its tested target after the event base goes stale', () => {
+    const files = ['packages/ts-sdk/src/index.ts', 'packages/ts-sdk/src/second.ts']
+    const { repo, base, target, environment } = pullRequestFixture(files)
+    const plan = classify(repo, base, environment)
+    expect(plan.fallback).toBeUndefined()
+    expect(plan.base).toBe(target)
+    expect(plan.files).toEqual(files)
+    expect(groups(plan)).toEqual([])
+    expect(plan.testPackages).toEqual(['simstudio-ts-sdk'])
+    expect(plan.typecheckPackages).toEqual(['simstudio-ts-sdk'])
+    expect(plan.flags).toMatchObject({
+      test: true,
+      test_app: false,
+      integration: false,
+      build: false,
+      desktop_live: false,
+      e2e_build: false,
+      docs: false,
+    })
+  })
+  it('keeps an earlier server change when the final PR commit only changes the SDK', () => {
+    const files = ['apps/sim/lib/server.ts', 'packages/ts-sdk/src/second.ts']
+    const { repo, base, target, environment } = pullRequestFixture(files)
+    const plan = classify(repo, base, environment)
+    expect(plan.fallback).toBeUndefined()
+    expect(plan.base).toBe(target)
+    expect(plan.files).toEqual(files)
+    expect(plan.testPackages).toContain('simstudio-ts-sdk')
+    expect(plan.flags).toMatchObject({
+      test_app: true,
+      integration: true,
+      build: true,
+      desktop_live: true,
+      e2e_build: true,
+    })
+  })
+  it.each<[string, Record<string, string>]>([
+    ['a branch ref', { GITHUB_REF: 'refs/heads/staging' }],
+    ['a missing ref', { GITHUB_REF: '' }],
+    ['a different triggering SHA', { GITHUB_SHA: 'f'.repeat(40) }],
+    ['a missing triggering SHA', { GITHUB_SHA: '' }],
+  ])('runs everything for a PR checkout with %s', (_label, invalid) => {
+    const { repo, target, environment } = pullRequestFixture(['packages/ts-sdk/src/index.ts'])
+    const plan = classify(repo, target, { ...environment, ...invalid })
+    expect(plan.fallback).toBeDefined()
+    expect(Object.values(plan.flags).every(Boolean)).toBe(true)
+  })
+  it('runs everything if a PR event checks out a non-merge commit', () => {
+    const { repo, base } = fixture()
+    write(repo, 'packages/ts-sdk/src/index.ts', 'export const value = 2\n')
+    git(repo, 'commit', '--quiet', '-am', 'SDK change')
+    const plan = classify(repo, base, {
+      GITHUB_EVENT_NAME: 'pull_request',
+      GITHUB_REF: 'refs/pull/42/merge',
+      GITHUB_SHA: git(repo, 'rev-parse', 'HEAD'),
+    })
+    expect(plan.fallback).toBeDefined()
+    expect(Object.values(plan.flags).every(Boolean)).toBe(true)
+  })
+  it('runs everything if a shallow PR checkout does not contain its merge parents', () => {
+    const { repo, base, environment } = pullRequestFixture(['packages/ts-sdk/src/index.ts'], 1)
+    const plan = classify(repo, base, environment)
+    expect(plan.fallback).toBeDefined()
+    expect(Object.values(plan.flags).every(Boolean)).toBe(true)
+  })
   it('runs SDK tests without provisioning the app, browsers, or database', () => {
     const plan = classifyFiles(['packages/ts-sdk/src/index.ts'])
     expect(plan.fallback).toBeUndefined()
