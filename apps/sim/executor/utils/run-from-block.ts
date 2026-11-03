@@ -201,6 +201,9 @@ export function validateRunFromBlock(
     }
   }
 
+  const container = findOutermostContainer(blockId, dag)
+  if (container) return insideSubflow(container.id, container.type)
+
   const node = dag.nodes.get(blockId)
   const isLoopContainer = dag.loopConfigs.has(blockId)
   const isParallelContainer = dag.parallelConfigs.has(blockId)
@@ -216,12 +219,6 @@ export function validateRunFromBlock(
   }
 
   if (isContainer) {
-    const parentLoopId = findParentLoop(blockId, dag)
-    if (parentLoopId) return insideSubflow(parentLoopId, 'loop')
-
-    const parentParallelId = findParentParallel(blockId, dag)
-    if (parentParallelId) return insideSubflow(parentParallelId, 'parallel')
-
     const sentinelStartId = resolveContainerToSentinelStart(blockId, dag)
     if (!sentinelStartId || !dag.nodes.has(sentinelStartId)) {
       return {
@@ -263,6 +260,33 @@ export function validateRunFromBlock(
   }
 
   return { valid: true }
+}
+
+/**
+ * The top-level loop or parallel a block sits in, however deeply nested. A nested container
+ * is refused as a start too, so naming the immediate parent would point at another refusal.
+ * Parallel children are matched by their workflow id, which the DAG only holds as branch clones.
+ */
+function findOutermostContainer(
+  blockId: string,
+  dag: DAG
+): { id: string; type: 'loop' | 'parallel' } | undefined {
+  let outermost: { id: string; type: 'loop' | 'parallel' } | undefined
+  const visited = new Set([blockId])
+  let current = blockId
+  while (true) {
+    const loopId = findParentLoop(current, dag)
+    const parallelId = loopId ? undefined : findParentParallel(current, dag)
+    const parent = loopId
+      ? { id: loopId, type: 'loop' as const }
+      : parallelId
+        ? { id: parallelId, type: 'parallel' as const }
+        : undefined
+    if (!parent || visited.has(parent.id)) return outermost
+    visited.add(parent.id)
+    outermost = parent
+    current = parent.id
+  }
 }
 
 function findParentLoop(blockId: string, dag: DAG): string | undefined {
