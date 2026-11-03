@@ -333,6 +333,53 @@ describe('validateRunFromBlock', () => {
     expect(result.error).toContain(outerParallelId)
   })
 
+  it('names the outermost container for a block in a nested loop, since the inner loop is refused too', () => {
+    const dag = createDAG([
+      createNode('B', [], { isLoopNode: true, subflowId: 'inner-loop', subflowType: 'loop' }),
+    ])
+    dag.loopConfigs.set('outer-loop', {
+      id: 'outer-loop',
+      nodes: ['inner-loop'],
+      iterations: 2,
+      loopType: 'for',
+    })
+    dag.loopConfigs.set('inner-loop', {
+      id: 'inner-loop',
+      nodes: ['B'],
+      iterations: 2,
+      loopType: 'for',
+    })
+
+    const result = validateRunFromBlock('B', dag, new Set())
+
+    expect(result.valid).toBe(false)
+    expect(result.refusal).toEqual({
+      kind: 'inside_subflow',
+      blockId: 'B',
+      subflowId: 'outer-loop',
+      subflowType: 'loop',
+    })
+  })
+
+  it('refuses a parallel child by its workflow id as inside the parallel, not as missing', () => {
+    // The DAG holds parallel children only as branch clones, never under the workflow id.
+    const dag = createDAG([
+      createNode('P₍0₎', [], { isParallelBranch: true, subflowId: 'par', subflowType: 'parallel' }),
+    ])
+    dag.parallelConfigs.set('par', { id: 'par', nodes: ['P'], count: 2 })
+
+    const result = validateRunFromBlock('P', dag, new Set(), new Map([['par', 'Fan out']]))
+
+    expect(result.valid).toBe(false)
+    expect(result.error).toContain('inside parallel: Fan out')
+    expect(result.refusal).toEqual({
+      kind: 'inside_subflow',
+      blockId: 'P',
+      subflowId: 'par',
+      subflowType: 'parallel',
+    })
+  })
+
   it('rejects container when sentinel-start upstream dependency was not executed', () => {
     const loopId = 'loop-container-1'
     const sentinelStartId = `loop-${loopId}-sentinel-start`
