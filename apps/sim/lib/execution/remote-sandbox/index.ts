@@ -60,7 +60,12 @@ import {
   ensureSessionSandbox,
   SESSION_SANDBOX_IDLE_MS,
 } from '@/lib/execution/remote-sandbox/session'
-import { sessionCommandPath } from '@/lib/execution/remote-sandbox/session-cli'
+import {
+  ensureSessionCli,
+  SessionCliStaleError,
+  sessionCliVerification,
+  sessionCommandPath,
+} from '@/lib/execution/remote-sandbox/session-cli'
 import {
   readSessionSecretProvenance,
   recordSessionFileInput,
@@ -87,6 +92,7 @@ import type {
   SandboxProviderId,
   SandboxSessionRequest,
   SandboxShellExecutionRequest,
+  SessionCliVerification,
 } from '@/lib/execution/remote-sandbox/types'
 
 export type {
@@ -256,6 +262,42 @@ async function withSandboxExecutionBudget<T>(
     return await (joinOnAbort ? execution : raceSandboxAbort(execution, controller.signal))
   } finally {
     controller.cleanup()
+  }
+}
+
+/**
+ * Launches a session command that verifies the deployment CLI as it starts. A launch that found
+ * the CLI changed started nothing, so the CLI is repaired under the session lock and the command
+ * launched once more; a second refusal means something keeps changing it, and the call fails.
+ */
+async function launchWithVerifiedCli<T>(
+  sandbox: SandboxHandle,
+  lease: SandboxLease,
+  session: SandboxSessionRequest | undefined,
+  signal: AbortSignal,
+  phases: SandboxPhaseTimer,
+  launch: (verifyCli: SessionCliVerification | undefined) => Promise<T>
+): Promise<T> {
+  const cli = lease.session && sandbox.verifiesCliAtLaunch ? session?.cli : undefined
+  if (!session || !cli) return launch(undefined)
+  const verifyCli = sessionCliVerification(cli)
+  try {
+    return await launch(verifyCli)
+  } catch (error) {
+    if (!(error instanceof SessionCliStaleError)) throw error
+  }
+  const endCli = phases.start('cli')
+  await withSandboxSessionLock(session.key, signal, (lockSignal) =>
+    ensureSessionCli(sandbox, cli, lockSignal, remainingSandboxBudgetMs(signal))
+  )
+  endCli()
+  try {
+    return await launch(verifyCli)
+  } catch (error) {
+    if (error instanceof SessionCliStaleError) {
+      throw new Error('Workbench CLI installation could not be verified')
+    }
+    throw error
   }
 }
 
@@ -1008,16 +1050,27 @@ async function executeInSandboxWithinBudget(
       Object.keys(privateInputFiles.environment).length > 0
 
     let execution: SandboxCodeResult
-    const runTimeoutMs = codeBudgetMs(req, signal)
+    let runTimeoutMs = 0
     try {
       const endRun = phases.start('run')
-      execution = await sandbox.runCode(code, {
-        timeoutMs: runTimeoutMs,
-        javascriptPreload: buildJavaScriptRuntimeBindingsSource(req.runtimeBindings ?? []),
-        maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+      execution = await launchWithVerifiedCli(
+        sandbox,
+        lease,
+        req.session,
         signal,
-        ...(hasExecutionEnvironment ? { envs: executionEnvironment } : {}),
-      })
+        phases,
+        (verifyCli) => {
+          runTimeoutMs = codeBudgetMs(req, signal)
+          return sandbox.runCode(code, {
+            timeoutMs: runTimeoutMs,
+            javascriptPreload: buildJavaScriptRuntimeBindingsSource(req.runtimeBindings ?? []),
+            maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+            signal,
+            ...(hasExecutionEnvironment ? { envs: executionEnvironment } : {}),
+            verifyCli,
+          })
+        }
+      )
       endRun()
     } catch (error) {
       throwIfAborted(signal)
@@ -1212,24 +1265,36 @@ async function executeShellInSandboxWithinBudget(
     endPrepare()
 
     let result: SandboxCommandResult
-    const runTimeoutMs = codeBudgetMs(req, signal)
+    let runTimeoutMs = 0
     try {
       const endRun = phases.start('run')
-      result = await sandbox.runCommand(code, {
-        envs: {
-          ...selected?.envs,
-          ...envs,
-          ...req.session?.envs,
-          PATH: sessionCommandPath(req.session, selected?.envs?.PATH ?? SANDBOX_SYSTEM_PATH),
-          ...privateInputFiles.environment,
-          ...(req.session && req.outputSandboxDir ? { SIM_OUTPUT_DIR: req.outputSandboxDir } : {}),
-        },
-        timeoutMs: runTimeoutMs,
-        maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+      const commandEnvironment = {
+        ...selected?.envs,
+        ...envs,
+        ...req.session?.envs,
+        PATH: sessionCommandPath(req.session, selected?.envs?.PATH ?? SANDBOX_SYSTEM_PATH),
+        ...privateInputFiles.environment,
+        ...(req.session && req.outputSandboxDir ? { SIM_OUTPUT_DIR: req.outputSandboxDir } : {}),
+      }
+      result = await launchWithVerifiedCli(
+        sandbox,
+        lease,
+        req.session,
         signal,
-        rootUser: !lease.session,
-        atMostOnce: true,
-      })
+        phases,
+        (verifyCli) => {
+          runTimeoutMs = codeBudgetMs(req, signal)
+          return sandbox.runCommand(code, {
+            envs: commandEnvironment,
+            timeoutMs: runTimeoutMs,
+            maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+            signal,
+            rootUser: !lease.session,
+            atMostOnce: true,
+            verifyCli,
+          })
+        }
+      )
       endRun()
     } catch (error) {
       throwIfAborted(signal)

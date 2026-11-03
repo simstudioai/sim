@@ -99,7 +99,8 @@ export async function ensureSessionSandbox(args: {
   if (!created.sandbox.outlives?.(lifetimeMs, requestedAtMs))
     await created.sandbox.extendLifetime?.(lifetimeMs)
   signal.throwIfAborted()
-  if (session.cli) {
+  // A reused machine's commands verify the CLI as they launch, so only a new one installs it here.
+  if (session.cli && !(existing && created.sandbox.verifiesCliAtLaunch)) {
     const endCli = args.phases?.start('cli')
     await ensureSessionCli(created.sandbox, session.cli, signal, args.bootstrapTimeoutMs)
     endCli?.()

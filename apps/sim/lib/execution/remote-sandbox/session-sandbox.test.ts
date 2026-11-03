@@ -14,12 +14,14 @@ import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { SANDBOX_OUTPUT_DIR_SENTINEL } from '@/lib/execution/remote-sandbox/paths'
+import { SessionCliStaleError } from '@/lib/execution/remote-sandbox/session-cli'
 import type {
   SandboxCodeResult,
   SandboxCommandResult,
   SandboxHandle,
   SandboxProvider,
   SandboxSessionRequest,
+  SessionCliVerification,
 } from '@/lib/execution/remote-sandbox/types'
 
 const { mockCreate, mockFindSessionSandbox, mockResolveWorkspaceSandbox } = vi.hoisted(() => ({
@@ -165,6 +167,46 @@ function slowDown(handle: SandboxHandle): void {
 }
 
 const CLI = { path: '/home/user/.sim-cli/release/cli.mjs', content: 'deployment-code' }
+
+/**
+ * A session handle whose launches verify the CLI first, as E2B's supervisor does: a launch whose
+ * CLI no longer matches starts nothing and rejects.
+ */
+function launchVerifyingSandbox(id: string, options: { alwaysStale?: boolean } = {}) {
+  const { handle: base, calls } = fakeSandbox(id)
+  const ran: string[] = []
+  const unverifiedLaunches: string[] = []
+  const verify = async (launched: string, verifyCli: SessionCliVerification | undefined) => {
+    if (!verifyCli) {
+      unverifiedLaunches.push(launched)
+      return
+    }
+    const check = await base.runCommand('verify', {
+      timeoutMs: 1_000,
+      envs: {
+        SIM_CLI_PATH: verifyCli.path,
+        SIM_CLI_ARTIFACTS: JSON.stringify(verifyCli.artifacts),
+      },
+    })
+    calls.runCommand.pop()
+    if (options.alwaysStale || check.exitCode !== 0) throw new SessionCliStaleError()
+  }
+  const handle: SandboxHandle = {
+    ...base,
+    verifiesCliAtLaunch: true,
+    async runCommand(command, runOptions) {
+      await verify(command, runOptions.verifyCli)
+      ran.push(command)
+      return base.runCommand(command, runOptions)
+    },
+    async runCode(code, runOptions) {
+      await verify(code, runOptions.verifyCli)
+      ran.push(code)
+      return base.runCode(code, runOptions)
+    },
+  }
+  return { handle, calls, ran, unverifiedLaunches }
+}
 
 const CODE_REQUEST = {
   code: 'print(1)',
@@ -809,6 +851,56 @@ describe('session sandbox lease', () => {
     } finally {
       clock.mockRestore()
     }
+  })
+
+  describe('a reused workbench that verifies its CLI at launch', () => {
+    it.each(['code', 'shell'] as const)(
+      'runs %s with no separate CLI check command',
+      async (kind) => {
+        const { handle, calls, ran, unverifiedLaunches } = launchVerifyingSandbox(`launch-${kind}`)
+        mockFindSessionSandbox.mockResolvedValue(handle)
+        const request = { ...CODE_REQUEST, session: { key: `launch-${kind}`, cli: CLI } }
+        const execute = () =>
+          kind === 'code'
+            ? executeInSandbox(request)
+            : executeShellInSandbox({ ...request, envs: {} })
+        await execute()
+        calls.runCommand.length = 0
+        ran.length = 0
+        await execute()
+        expect(calls.runCommand.filter(({ envs }) => envs?.SIM_CLI_PATH)).toEqual([])
+        expect(ran).toEqual([CODE_REQUEST.code])
+        expect(unverifiedLaunches).not.toContain(CODE_REQUEST.code)
+      }
+    )
+
+    it.each(['code', 'shell'] as const)(
+      'repairs a changed CLI and runs the %s exactly once',
+      async (kind) => {
+        const { handle, calls, ran, unverifiedLaunches } = launchVerifyingSandbox(`repair-${kind}`)
+        mockFindSessionSandbox.mockResolvedValue(handle)
+        const request = { ...CODE_REQUEST, session: { key: `repair-${kind}`, cli: CLI } }
+        await (kind === 'code'
+          ? executeInSandbox(request)
+          : executeShellInSandbox({ ...request, envs: {} }))
+        expect(ran.filter((launched) => launched === CODE_REQUEST.code)).toHaveLength(1)
+        expect(calls.runCommand.some(({ envs }) => envs?.SIM_FILE_TARGET === CLI.path)).toBe(true)
+        expect(unverifiedLaunches).not.toContain(CODE_REQUEST.code)
+      }
+    )
+
+    it('fails without running the code when the CLI cannot be kept verified', async () => {
+      const { handle, ran } = launchVerifyingSandbox('stale', { alwaysStale: true })
+      mockFindSessionSandbox.mockResolvedValue(handle)
+      await expect(
+        executeShellInSandbox({
+          ...CODE_REQUEST,
+          envs: {},
+          session: { key: 'stale', cli: CLI },
+        })
+      ).rejects.toThrow('Workbench CLI installation could not be verified')
+      expect(ran).not.toContain(CODE_REQUEST.code)
+    })
   })
 
   it('does not rewrite an unchanged executable while earlier code can still use it', async () => {

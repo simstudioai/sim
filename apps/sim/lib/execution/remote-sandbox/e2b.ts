@@ -55,6 +55,10 @@ import {
   tailStreamedSandboxOutput,
 } from '@/lib/execution/remote-sandbox/output-limits'
 import { resolveSandboxDirectoryEntryPath } from '@/lib/execution/remote-sandbox/paths'
+import {
+  SessionCliStaleError,
+  SessionCliVerificationError,
+} from '@/lib/execution/remote-sandbox/session-cli'
 import { withSandboxSessionLock } from '@/lib/execution/remote-sandbox/session-lock'
 import {
   type SessionProcessIdentity,
@@ -82,6 +86,7 @@ import type {
   SandboxImageMaterialization,
   SandboxKind,
   SandboxProvider,
+  SessionCliVerification,
 } from '@/lib/execution/remote-sandbox/types'
 
 const logger = createLogger('E2BSandboxProvider')
@@ -319,11 +324,17 @@ async function listAllSandboxes(paginator: SandboxPaginator): Promise<SandboxInf
   return sandboxes
 }
 
+/** What a session command's launch found when it verified the deployment CLI; absent when it matched. */
+interface SessionCommandReceipt {
+  cli?: 'stale' | 'failed'
+}
+
+/** Settles the command; the receipt is the only proof that a refused launch started nothing. */
 async function stopSessionCommand(
   sandbox: E2BSandbox,
   processId: string,
   signal = AbortSignal.timeout(10_000)
-): Promise<void> {
+): Promise<SessionCommandReceipt> {
   signal.throwIfAborted()
   const result = await sandbox.commands.run(sessionProcessStopCommand(processId), {
     user: 'root',
@@ -335,6 +346,7 @@ async function stopSessionCommand(
   if (result.exitCode !== 0 || !isRecordLike(receipt) || receipt.settled !== true) {
     throw new Error('Sandbox command namespace exit is unconfirmed')
   }
+  return receipt.cli === 'stale' || receipt.cli === 'failed' ? { cli: receipt.cli } : {}
 }
 
 /** Recovers the exact recorded workbench; expiry is absence, while lookup failure stays unresolved. */
@@ -413,6 +425,10 @@ class E2BSandboxHandle implements SandboxHandle {
     return this.sandbox.sandboxId
   }
 
+  get verifiesCliAtLaunch(): boolean {
+    return this.sessionKey !== undefined
+  }
+
   outlives(lifetimeMs: number, fromMs: number): boolean {
     return (
       this.sessionDeadlineAtMs !== undefined &&
@@ -441,6 +457,7 @@ class E2BSandboxHandle implements SandboxHandle {
       javascriptPreload?: string
       maxOutputBytes?: number
       signal?: AbortSignal
+      verifyCli?: SessionCliVerification
     }
   ): Promise<SandboxCodeResult> {
     const runId = generateShortId(12)
@@ -467,6 +484,7 @@ class E2BSandboxHandle implements SandboxHandle {
           maxOutputBytes: options.maxOutputBytes,
           signal: options.signal,
           atMostOnce: true,
+          verifyCli: options.verifyCli,
           envs: {
             ...options.envs,
             SIM_CODE_PATH: codePath,
@@ -520,6 +538,25 @@ class E2BSandboxHandle implements SandboxHandle {
     options: RunCommandOptions,
     operation: 'code' | 'command'
   ): Promise<SandboxCommandResult> {
+    let refusal: SessionCommandReceipt['cli']
+    const outcome = await this.runOwnedCommand(command, options, operation, (receipt) => {
+      refusal = receipt.cli
+    }).then(
+      (result) => ({ result }),
+      (error: unknown) => ({ error })
+    )
+    if (refusal === 'stale') throw new SessionCliStaleError()
+    if (refusal === 'failed') throw new SessionCliVerificationError()
+    if ('error' in outcome) throw outcome.error
+    return outcome.result
+  }
+
+  private async runOwnedCommand(
+    command: string,
+    options: RunCommandOptions,
+    operation: 'code' | 'command',
+    onReceipt: (receipt: SessionCommandReceipt) => void
+  ): Promise<SandboxCommandResult> {
     if (this.sessionKey !== undefined) options.signal?.throwIfAborted()
     let commandDeadlineAtMs: number | undefined
     const outputBudget = new SandboxProcessOutputBudget(
@@ -537,9 +574,9 @@ class E2BSandboxHandle implements SandboxHandle {
     let observedStderr = ''
     const processId = this.sessionKey !== undefined ? generateId() : undefined
     let processRecorded = false
-    let stopping: Promise<void> | undefined
-    const stopCommand = (): Promise<void> => {
-      if (!processId || !processRecorded) return Promise.resolve()
+    let stopping: Promise<SessionCommandReceipt> | undefined
+    const stopCommand = (): Promise<SessionCommandReceipt | undefined> => {
+      if (!processId || !processRecorded) return Promise.resolve(undefined)
       stopping ??= stopSessionCommand(this.sandbox, processId).catch((error: unknown) => {
         logger.warn('Failed to stop sandbox process', {
           sandboxId: this.sandboxId,
@@ -595,7 +632,12 @@ class E2BSandboxHandle implements SandboxHandle {
         commandDeadlineAtMs = Date.now() + processOptions.timeoutMs
         started = await this.sandbox.commands.run(
           processId
-            ? sessionProcessCommand(processId, prepared.command, options.rootUser)
+            ? sessionProcessCommand(
+                processId,
+                prepared.command,
+                options.rootUser,
+                options.verifyCli
+              )
             : prepared.command,
           {
             ...processOptions,
@@ -753,11 +795,12 @@ class E2BSandboxHandle implements SandboxHandle {
       options.signal?.removeEventListener('abort', onAbort)
       /** The named SDK process can exit before its namespace; only the kernel receipt settles it. */
       if (processId && processRecorded) {
-        await stopCommand().catch((error: unknown) => {
+        const receipt = await stopCommand().catch((error: unknown) => {
           reportUnsettledSandboxProcess(processId)
           throw error
         })
         await settleSandboxProcess(processId)
+        if (receipt) onReceipt(receipt)
       }
     }
   }
