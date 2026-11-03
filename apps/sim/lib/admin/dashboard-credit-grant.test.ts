@@ -21,7 +21,7 @@ const hoistedMocks = vi.hoisted(() => ({
   billingSubscriptions: [] as unknown[],
   idempotencyCalls: [] as { namespace: string; requestFingerprint: string }[],
   moveWorkspace: vi.fn(),
-  userHasDeletedAccountIdentity: vi.fn(async () => false),
+  identityHadFreeAllowance: vi.fn(async () => false),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -54,8 +54,8 @@ vi.mock('@/lib/billing/enterprise-outbox', () => ({
   resolveEnterpriseMetadataIntent: vi.fn(),
 }))
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
-vi.mock('@/lib/users/deleted-identity', () => ({
-  userHasDeletedAccountIdentity: hoistedMocks.userHasDeletedAccountIdentity,
+vi.mock('@/lib/users/free-allowance', () => ({
+  identityHadFreeAllowance: hoistedMocks.identityHadFreeAllowance,
 }))
 
 import { grantDashboardOrganizationBalance, grantDashboardUserBalance } from '@/lib/admin/dashboard'
@@ -154,8 +154,8 @@ describe('grantDashboardUserBalance', () => {
     )
   })
 
-  it('creates a missing stats row without the free allowance for a returning deleted identity', async () => {
-    mocks.userHasDeletedAccountIdentity.mockResolvedValueOnce(true)
+  it('creates a missing stats row without the free allowance for an identity that already had it', async () => {
+    mocks.identityHadFreeAllowance.mockResolvedValueOnce(true)
     queueTableRows(user, [{ id: 'user-1' }])
     queueTableRows(userStats, [
       { creditBalance: '0', currentUsageLimit: '0', freeTierEligible: false },

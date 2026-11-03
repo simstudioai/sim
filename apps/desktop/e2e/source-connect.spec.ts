@@ -94,6 +94,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
       json({
         credentialGroup: null,
         availableProviders: [],
+        assistantProviders: [],
         availableMcpConnectors: [],
         canManage: false,
         indexingAvailable: true,

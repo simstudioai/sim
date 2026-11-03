@@ -18,6 +18,7 @@ export const codaResolveBrowserLinkTool: ToolConfig<
   CodaResolveBrowserLinkResponse
 > = {
   id: 'coda_resolve_browser_link',
+  assistant: { effect: 'read', version: 1 },
   name: 'Coda Resolve Browser Link',
   description:
     'Resolve a Coda browser URL (doc, page, table, row, etc.) into its resource type and ID for use in other Coda operations',

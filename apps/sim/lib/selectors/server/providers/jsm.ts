@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { getScopesForService } from '@/lib/oauth/utils'
+import { getDefaultToolScopesForProvider } from '@/lib/oauth/utils'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import {
   SelectorContextUnavailableError,
@@ -18,7 +18,7 @@ import { getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 type JsmSelectorKey = Extract<ServerSelectorKey, 'jsm.serviceDesks' | 'jsm.requestTypes'>
 
-const JIRA_SCOPES = getScopesForService('jira')
+const JIRA_SCOPES = getDefaultToolScopesForProvider('jira')
 const JSM_PAGE_SIZE = 100
 const MAX_JSM_PAGES = 50
 

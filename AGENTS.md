@@ -127,6 +127,8 @@ Build order: **Tools** → **Block** → **Icon** → optional **Trigger**, star
 - **Tool IDs are `snake_case`** (`service_action`), registered in `tools/registry.ts`; blocks register in `blocks/registry-maps.ts` (`BLOCK_REGISTRY` + `BLOCK_META_REGISTRY`, alphabetically).
 - **Type coercions go in `tools.config.params`** (runs at execution, after variable resolution), never in `tools.config.tool` (runs at serialization, where `Number()` destroys dynamic `<Block.output>` references).
 
+A surface that lists integrations to a viewer (a catalog, picker, or `@` menu) reads `useIntegrationAccess` (`hooks/use-integration-access.ts`): the one verdict across permission group, deployment allowlist, and deployment OAuth configuration, which fails closed until the viewer's policy loads. Never map over a raw catalog (`INTEGRATIONS`, `listIntegrations()`, `INTEGRATION_METADATA`) there; `check:integration-access` fails the build.
+
 Remaining block/tool/trigger rules: `.claude/rules/sim-integrations.md`. Canvas sentences: `apps/sim/blocks/AGENTS.md`.
 
 ## Tables

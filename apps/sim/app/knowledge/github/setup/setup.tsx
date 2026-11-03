@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipCombobox } from '@sim/emcn'
+import { AuthButton as Chip, AuthSelect as ChipCombobox } from '@sim/auth-ui'
 import { getErrorMessage } from '@sim/utils/errors'
 import type {
   GitHubSearchSetupScope,
@@ -66,7 +66,7 @@ export function GitHubSetup({ scope }: GitHubSetupProps) {
   return (
     <>
       <AuthHeader title='Choose GitHub account' />
-      <div className='mt-6 flex flex-col gap-3'>
+      <div className='au:mt-6 au:flex au:flex-col au:gap-3'>
         <ChipCombobox
           aria-label='GitHub account'
           options={result.installations.map((installation) => ({
@@ -81,7 +81,7 @@ export function GitHubSetup({ scope }: GitHubSetupProps) {
           Connect another organization
         </Chip>
         {error && (
-          <p role='alert' className='text-[var(--text-error)] text-sm'>
+          <p role='alert' className='au:text-[var(--auth-error)] au:text-body'>
             {error}
           </p>
         )}

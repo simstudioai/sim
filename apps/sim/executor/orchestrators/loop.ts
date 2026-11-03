@@ -53,6 +53,14 @@ async function replaceLoopConditionReferences(
   return result + condition.slice(cursor)
 }
 
+/** While loops, and Do While loops given a condition, stop only when their condition does. */
+function isConditionDriven(scope: LoopScope): boolean {
+  return (
+    scope.loopType === 'while' ||
+    (scope.loopType === 'doWhile' && scope.maxIterations === undefined)
+  )
+}
+
 export type LoopRoute = typeof EDGE.LOOP_CONTINUE | typeof EDGE.LOOP_EXIT
 
 export interface LoopContinuationResult {
@@ -312,6 +320,10 @@ export class LoopOrchestrator {
       return await this.createExitResult(ctx, loopId, scope)
     }
 
+    if (isConditionDriven(scope) && scope.iteration + 1 >= DEFAULTS.MAX_CONDITION_LOOP_ITERATIONS) {
+      await this.failConditionLoopCeiling(ctx, loopId, scope)
+    }
+
     scope.iteration++
 
     if (scope.items && scope.iteration < scope.items.length) {
@@ -330,6 +342,28 @@ export class LoopOrchestrator {
       return false
     }
     return nextIteration >= scope.maxIterations
+  }
+
+  /**
+   * Fails the run once a condition-driven loop has used its iteration ceiling with the condition
+   * still true. Exiting quietly instead would hand downstream blocks a truncated result as if
+   * the condition had ended the loop.
+   */
+  private async failConditionLoopCeiling(
+    ctx: ExecutionContext,
+    loopId: string,
+    scope: LoopScope
+  ): Promise<never> {
+    const loopType = scope.loopType === 'doWhile' ? 'doWhile' : 'while'
+    const label = loopType === 'doWhile' ? 'Do While' : 'While'
+    const limit = DEFAULTS.MAX_CONDITION_LOOP_ITERATIONS
+    const errorMessage = `${label} loop stopped after ${limit.toLocaleString('en-US')} iterations with its condition still true. Make sure the loop body changes what the condition checks.`
+    logger.error('Condition loop reached the iteration ceiling', { loopId, loopType, limit })
+    await this.addLoopErrorLog(ctx, loopId, loopType, errorMessage, {
+      iterations: scope.iteration + 1,
+    })
+    scope.validationError = errorMessage
+    throw new Error(errorMessage)
   }
 
   private async createExitResult(

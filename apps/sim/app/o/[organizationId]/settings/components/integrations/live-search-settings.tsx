@@ -20,6 +20,8 @@ import {
   liveSearchMcpConnector,
   liveSearchMemberAccountProvider,
 } from '@/lib/sim-search/live/source-catalog'
+import { AssistantAccountIntegrations } from '@/app/o/[organizationId]/integrations/assistant-account-integrations'
+import { assistantAccountOptions } from '@/app/o/[organizationId]/integrations/utils'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { AddOrganizationSourceModal } from '@/app/o/[organizationId]/settings/components/integrations/add-organization-source-modal'
 import {
@@ -130,6 +132,15 @@ export function LiveSearchSettings() {
       ]}
       search={{ value: search, onChange: setSearch, placeholder: 'Search sources' }}
     >
+      {accounts.data && (
+        <AssistantAccountIntegrations
+          organizationId={organization.id}
+          search={search}
+          data={accounts.data}
+          policies={policies.error ? undefined : policies.data}
+          admin
+        />
+      )}
       {policies.error || secrets.error ? (
         <SettingsQueryErrorState
           error={policies.error ?? secrets.error}
@@ -143,7 +154,10 @@ export function LiveSearchSettings() {
         />
       ) : !policies.data || !secrets.data ? (
         <SettingsEmptyState variant='inline'>Loading sources</SettingsEmptyState>
-      ) : added.length === 0 && !secretSource && !search ? (
+      ) : added.length === 0 &&
+        !secretSource &&
+        !search &&
+        !(accounts.data && assistantAccountOptions(accounts.data, search).visible.length) ? (
         <SettingsEmptyState>No sources yet. Add a source to get started.</SettingsEmptyState>
       ) : (
         <>
@@ -266,9 +280,12 @@ export function LiveSearchSettings() {
               )
             })}
           </div>
-          {search && visible.length === 0 && !showSecrets && (
-            <SettingsEmptyState variant='inline'>No matching sources</SettingsEmptyState>
-          )}
+          {search &&
+            visible.length === 0 &&
+            !showSecrets &&
+            !(accounts.data && assistantAccountOptions(accounts.data, search).visible.length) && (
+              <SettingsEmptyState variant='inline'>No matching sources</SettingsEmptyState>
+            )}
         </>
       )}
       {editing && (

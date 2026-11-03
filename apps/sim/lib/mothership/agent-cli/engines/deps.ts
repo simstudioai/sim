@@ -1,6 +1,9 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
+import { MCP_STRUCTURED_CONTENT_OUTPUT } from '@/lib/mcp/output-schema'
 import { fetchWorkflowState } from '@/lib/mothership/agent-cli/engines/workflow-state'
 import { type AgentCliEngine, agentCliFail, agentCliOk } from '@/lib/mothership/agent-cli/types'
+import { getMcpStructuredContentOutputs } from '@/lib/workflows/blocks/outputs'
+import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { normalizeName, SPECIAL_REFERENCE_PREFIXES } from '@/executor/constants'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
@@ -100,6 +103,82 @@ function skeletonFromPaths(paths: readonly string[]): MockShape {
     ])
   )
   return { value, omittedArrayPaths }
+}
+
+/** A null-leaved value in the shape a declared output tree describes, arrays with one item. */
+function skeletonFromDeclaredOutput(node: unknown, depth = 0): unknown {
+  if (!isRecordLike(node) || depth > MAX_DEPENDENCY_PATH_DEPTH) return null
+  if (isRecordLike(node.properties)) {
+    return Object.fromEntries(
+      Object.entries(node.properties).map(([name, child]) => [
+        name,
+        skeletonFromDeclaredOutput(child, depth + 1),
+      ])
+    )
+  }
+  if (node.type === 'array' && isRecordLike(node.items)) {
+    return [skeletonFromDeclaredOutput(node.items, depth + 1)]
+  }
+  return null
+}
+
+/** A dependency path as the segments the mock skeleton is built from. */
+function pathSegments(path: string): string[] {
+  return path
+    .split('.')
+    .filter(Boolean)
+    .flatMap((part) => {
+      const { property, pathParts } = splitLeadingBracketPath(part)
+      return [property, ...pathParts]
+    })
+}
+
+/**
+ * Fills an MCP block's mocked `structuredContent` from its operation's declared
+ * output schema, so a mock of a declaring operation starts from the reply's real
+ * fields rather than from whatever names the consuming block guessed. Where the
+ * consumer reads a value whole, every declared field below it is added beside
+ * the ones it reads by name; an undeclared path it reads stays as read.
+ */
+function fillDeclaredStructuredContent(
+  mock: Record<string, unknown>,
+  block: Record<string, unknown> | undefined,
+  paths: readonly string[]
+): void {
+  if (block?.type !== 'mcp' || !Object.hasOwn(mock, MCP_STRUCTURED_CONTENT_OUTPUT)) return
+  // An invalid mode makes resolveMcpBlockConfig throw, which reads as no typed output.
+  const modes = toRecord(toRecord(block.data).canonicalModes) as CanonicalModeOverrides
+  const outputs = getMcpStructuredContentOutputs(toRecord(block.subBlocks), modes)
+  const declared = outputs?.[MCP_STRUCTURED_CONTENT_OUTPUT]
+  if (!declared) return
+  const readWhole = new Set(paths.map((path) => pathSegments(path).join('.')))
+
+  /** `within` holds once a value at or above `at` is read whole: then every declared field below it belongs in the mock. */
+  const fill = (value: unknown, node: unknown, at: string, within: boolean): unknown => {
+    if (value === null) return skeletonFromDeclaredOutput(node)
+    if (!isRecordLike(node)) return value
+    const whole = within || readWhole.has(at)
+    if (Array.isArray(value))
+      return value.map((item, index) => fill(item, node.items, `${at}.${index}`, whole))
+    if (!isRecordLike(value) || !isRecordLike(node.properties)) return value
+    const properties = node.properties
+    const read = Object.entries(value).map(([key, child]): [string, unknown] => [
+      key,
+      Object.hasOwn(properties, key) ? fill(child, properties[key], `${at}.${key}`, whole) : child,
+    ])
+    const added = whole
+      ? Object.entries(properties)
+          .filter(([key]) => !Object.hasOwn(value, key))
+          .map(([key, child]): [string, unknown] => [key, skeletonFromDeclaredOutput(child)])
+      : []
+    return Object.fromEntries([...added, ...read])
+  }
+  mock[MCP_STRUCTURED_CONTENT_OUTPUT] = fill(
+    mock[MCP_STRUCTURED_CONTENT_OUTPUT],
+    declared,
+    MCP_STRUCTURED_CONTENT_OUTPUT,
+    false
+  )
 }
 
 interface DepView {
@@ -274,10 +353,15 @@ export const workflowDepsCommand: AgentCliEngine = {
     // Paste-ready skeleton for run_block's variableInputs: mock each upstream
     // block's output at the paths this block actually reads, and every graph
     // parent it never reads at all — run_block refuses to start without them.
-    const shapes = blockDeps.map((d) => ({
-      name: d.blockName ?? d.blockId ?? d.token,
-      ...skeletonFromPaths(d.paths ?? []),
-    }))
+    const shapes = blockDeps.map((d) => {
+      const shape = skeletonFromPaths(d.paths ?? [])
+      fillDeclaredStructuredContent(
+        shape.value,
+        d.blockId ? blocks[d.blockId] : undefined,
+        d.paths ?? []
+      )
+      return { name: d.blockName ?? d.blockId ?? d.token, ...shape }
+    })
     const mock: Record<string, Record<string, unknown>> = Object.fromEntries(
       shapes.map((shape) => [shape.name, shape.value])
     )

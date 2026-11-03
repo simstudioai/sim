@@ -1,13 +1,16 @@
-import { Skeleton } from '@sim/emcn'
+import { AuthSkeleton, AuthStack } from '@sim/auth-ui'
+import { InviteLayout } from '@/app/invite/components'
 
 export default function UnsubscribeLoading() {
   return (
-    <div className='flex flex-col items-center justify-center'>
-      <Skeleton className='size-[48px] rounded-[12px]' />
-      <Skeleton className='mt-[16px] h-[24px] w-[180px] rounded-[4px]' />
-      <Skeleton className='mt-[8px] h-[14px] w-[300px] rounded-[4px]' />
-      <Skeleton className='mt-[4px] h-[14px] w-[260px] rounded-[4px]' />
-      <Skeleton className='mt-[24px] h-[44px] w-[200px] rounded-[10px]' />
-    </div>
+    <InviteLayout>
+      <AuthStack>
+        <div className='au:space-y-1'>
+          <AuthSkeleton shape='title' className='au:w-[180px]' />
+          <AuthSkeleton shape='label' className='au:w-[300px]' />
+        </div>
+        <AuthSkeleton />
+      </AuthStack>
+    </InviteLayout>
   )
 }

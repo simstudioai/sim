@@ -195,6 +195,15 @@ export const organizationChatDelegationOperations = {
     delegationAudience: 'sim:knowledge',
     delegatedServices: ['copilot'],
   }),
+  assistantActions: defineOrganizationOperation({
+    id: 'organization.chats.assistant_actions',
+    contentDelivery: 'none',
+    minimumRole: 'member',
+    principalKinds: ['organization_delegated'],
+    delegatedServices: ['copilot'],
+    delegationAudience: 'sim:assistant-actions',
+    capability: 'copilot.use',
+  }),
   secrets: defineOrganizationOperation({
     id: 'organization.chats.secrets',
     contentDelivery: 'none',

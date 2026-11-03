@@ -1,5 +1,5 @@
 /**
- * Vercel builds from a `--depth=10` clone, and `source.config.ts` refuses to date pages from a
+ * Vercel builds from a `--depth=10` clone, and `compile-content.ts` refuses to date pages from a
  * shallow clone (every file untouched since the boundary commit would get that commit's date), so
  * the docs sitemap shipped with no `lastModified` at all. Fetch the commit history before the
  * build. `--filter=blob:none` skips file contents: `git log --name-only` needs commits and trees.

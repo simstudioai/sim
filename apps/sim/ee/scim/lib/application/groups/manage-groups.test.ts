@@ -77,6 +77,7 @@ describe('replaceScimGroup', () => {
     queueTableRows(scimConnection, [
       { id: 'conn-1', organizationId: 'org-1', status: 'active', settings: {} },
     ])
+    queueTableRows(scimConnection, [{ status: 'active', settings: {} }])
     let group = { ...initialGroup }
     const memberIds = new Set(['user-1'])
     mocks.findGroup.mockImplementation(async () => group)

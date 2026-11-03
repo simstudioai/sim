@@ -86,8 +86,16 @@ export interface NativeClient {
       signal?: AbortSignal
     }
   ): Promise<unknown>
-  text(path: string, query?: Record<string, string>): Promise<string>
-  bytes(path: string, query?: Record<string, string>): Promise<Buffer>
+  text(
+    path: string,
+    query?: Record<string, string>,
+    options?: { signal?: AbortSignal }
+  ): Promise<string>
+  bytes(
+    path: string,
+    query?: Record<string, string>,
+    options?: { signal?: AbortSignal }
+  ): Promise<Buffer>
 }
 
 export interface NativeSearchInput {

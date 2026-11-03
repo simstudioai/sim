@@ -16,6 +16,13 @@ import { isProjectsEnabled } from '@/lib/projects/rollout.server'
 
 const logger = createLogger('MothershipSandboxResources')
 const CONTEXT_TTL_SECONDS = 600
+/** A running call renews its scope well inside the TTL; the TTL only bounds a crashed owner. */
+const CONTEXT_RENEW_MS = (CONTEXT_TTL_SECONDS * 1000) / 3
+/**
+ * Outlives the longest code call (15 minutes plus its settle margin). State keyed by a scope token
+ * is reachable only through that token's live context, so outliving the context widens nothing.
+ */
+export const SANDBOX_SCOPE_STATE_TTL_SECONDS = 20 * 60
 const POLL_MS = 200
 const scopeSchema = z
   .object({
@@ -233,10 +240,23 @@ export async function withSandboxResourceScope<T>(
     () => {},
     () => {}
   )
+  const renew = async () => {
+    if (!active.token || signal.aborted) return
+    try {
+      await redisClient().expire(contextKey(active.token), CONTEXT_TTL_SECONDS)
+    } catch {
+      logger.warn('Sandbox resource scope renewal deferred', { toolCallId: identity.toolCallId })
+    }
+  }
+  let renewedAt = Date.now()
   try {
     while (running) {
       await Promise.race([settled, sleep(POLL_MS)])
       await drain()
+      if (Date.now() - renewedAt >= CONTEXT_RENEW_MS) {
+        renewedAt = Date.now()
+        await renew()
+      }
     }
     return await execution
   } finally {

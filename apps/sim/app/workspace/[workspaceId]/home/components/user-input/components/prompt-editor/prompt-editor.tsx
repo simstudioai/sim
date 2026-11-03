@@ -23,6 +23,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 
 export interface PromptEditorProps extends PromptEditorKeyPolicy {
+  resourceActions?: React.ReactNode
   /** Editor instance from {@link usePromptEditor}. */
   editor: PromptEditorInstance
   /** Placeholder shown while the editor is empty. */
@@ -64,6 +65,7 @@ export interface PromptEditorProps extends PromptEditorKeyPolicy {
  */
 export function PromptEditor({
   editor,
+  resourceActions,
   placeholder,
   autoFocus = false,
   readOnly = false,
@@ -225,6 +227,7 @@ export function PromptEditor({
         <>
           <PlusMenuDropdown
             ref={editor.plusMenuRef}
+            actions={resourceActions}
             workspaceId={editor.workspaceId}
             organizationId={editor.organizationId}
             warm={hasFocused}

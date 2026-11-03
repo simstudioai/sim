@@ -1728,6 +1728,10 @@ async function executeToolImplementation(
       const { getToolMetadata } = await import('@/tools/metadata')
       const { _context, ...modelParams } = params
       assertAssistantIntegrationCall(getToolMetadata(toolId), modelParams)
+      const { requireAssistantActionExecution } = await import(
+        '@/lib/assistant-actions/execution-scope'
+      )
+      await requireAssistantActionExecution(operationContext, toolId, modelParams)
       scope.envReferenceMode = 'off'
       scope.userId = operationContext.userId
       scope.workspaceId = operationContext.workspaceId
@@ -1899,7 +1903,7 @@ async function executeToolImplementation(
         if (tool?.oauth?.provider) {
           const scopesForProvider =
             tool.oauth.requiredScopes ??
-            (await import('@/lib/oauth/utils')).getCanonicalScopesForProvider(tool.oauth.provider)
+            (await import('@/lib/oauth/utils')).getDefaultToolScopesForProvider(tool.oauth.provider)
           if (scopesForProvider.length > 0) {
             providerScopes = scopesForProvider
           }
@@ -2025,7 +2029,11 @@ async function executeToolImplementation(
           }
         }
         await resolveCredential(effectiveSignal)
-        if (tool.oauth?.retryOnUnauthorized && tool.operation) {
+        if (
+          tool.oauth?.retryOnUnauthorized &&
+          tool.operation &&
+          !(operationContext?.requestMode === 'assistant' && tool.assistant?.effect === 'write')
+        ) {
           refreshCredential = resolveCredential
         }
 
@@ -2644,9 +2652,16 @@ async function executeDeclaredInternalOperation({
     Boolean(context.organizationId && context.chatId && context.userId) &&
     !context.workspaceId &&
     !context.workflowId
+  const organizationAssistantIntegration =
+    context?.copilotToolExecution === true &&
+    context.requestMode === 'assistant' &&
+    Boolean(context.organizationId && context.chatId && context.toolCallId && context.userId) &&
+    !context.workspaceId &&
+    !context.workflowId &&
+    Boolean(tool.assistant && tool.oauth?.required)
   if (
     !context ||
-    (!context.workspaceId && !organizationScratch) ||
+    (!context.workspaceId && !organizationScratch && !organizationAssistantIntegration) ||
     (!context.executorDelegationOrigin && !context.userId && !context.copilotToolExecution)
   ) {
     throw new Error('Internal tool execution requires trusted execution scope')
@@ -2884,7 +2899,10 @@ async function executeToolRequest(
       headersRecord[key] = value
     })
 
-    const retryConfig = getRetryConfig(tool.request.retry, params, requestParams.method)
+    const retryConfig =
+      context?.requestMode === 'assistant' && tool.assistant?.effect === 'write'
+        ? null
+        : getRetryConfig(tool.request.retry, params, requestParams.method)
     const maxAttempts = retryConfig ? 1 + retryConfig.maxRetries : 1
 
     let response: Response | undefined

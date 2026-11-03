@@ -51,7 +51,12 @@ function manifest(overrides: Record<string, unknown> = {}, document: Record<stri
   }
 }
 
-const CHUNKS = { chunks: `chunks/${DOCUMENT_ID}.ndjson`, chunkCount: 2, characterCount: 10 }
+const CHUNKS = {
+  chunks: `chunks/${DOCUMENT_ID}.ndjson`,
+  chunkCount: 2,
+  characterCount: 10,
+  tokenCount: 4,
+}
 
 function chunkLine(index: number, extra: Record<string, unknown> = {}): string {
   return JSON.stringify({
@@ -138,6 +143,11 @@ describe('openKnowledgeBundle', () => {
         return zipOf(validEntries(undefined, manifest({ documents: [listed, listed] })))
       },
       'duplicate document id doc-1',
+    ],
+    [
+      'a document count no integer column can hold',
+      () => zipOf(validEntries(undefined, manifest({}, { tokenCount: 2_147_483_648 }))),
+      'manifest documents.0.tokenCount',
     ],
     [
       'a manifest naming an entry the archive lacks',

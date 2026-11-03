@@ -107,6 +107,7 @@ describe('organization member managers', () => {
         chatId: 'chat',
         desktopDeviceId: null,
         clientWorkflowExecutionIds: ['execution'],
+        detachedWorkflowExecutionIds: [],
         sandboxProcesses: [],
       },
     ]

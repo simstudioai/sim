@@ -56,7 +56,7 @@ import {
   type UploadSessionRecord,
 } from '@/lib/uploads/upload-session/service'
 import type { WorkspaceFileUploadSource } from '@/lib/uploads/upload-session/workspace-file-provenance'
-import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-content-type'
 import {
   MAX_SIM_PAGE_UPLOAD_SNIFF_BYTES,
   restoreSimPageSourceBuffer,

@@ -663,7 +663,7 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
         userId,
         ownerToken: generateId(),
       }
-      expect(await claimToolExecution(owner)).toEqual({ outcome: 'claimed' })
+      expect(await claimToolExecution(owner)).toMatchObject({ outcome: 'claimed' })
       await expect(
         prepareWorkbenchAccess({ ...owner, sessionKey: chatSandboxSessionKey(run.chatId) })
       ).resolves.toMatchObject({ handlersPending: false })

@@ -59,7 +59,7 @@ import {
 } from '@/lib/workspace-files/download-selection'
 import { MAX_ZIP_DOWNLOAD_BYTES, MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
-import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-content-type'
 import {
   createFileReadReceipt,
   type FileReadReceipt,

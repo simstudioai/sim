@@ -1,11 +1,20 @@
 import { createLogger } from '@sim/logger'
+import { toRecordOrNull } from '@sim/utils/object'
 import {
   extractFieldsFromSchema,
   parseResponseFormatSafely,
 } from '@/lib/core/utils/response-format'
+import {
+  MCP_STRUCTURED_CONTENT_OUTPUT,
+  MCP_TOOL_OUTPUT_SCHEMA_SUBBLOCK,
+  type McpToolOutputShape,
+  parseMcpToolOutputSnapshot,
+} from '@/lib/mcp/output-schema'
+import { resolveMcpBlockConfig } from '@/lib/mcp/workflow-config'
 import { getJevAnswerOutput } from '@/lib/workflows/blocks/jev-outputs'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { containsReference } from '@/lib/workflows/sanitization/references'
+import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import { classifyStartBlockType, StartBlockPath } from '@/lib/workflows/triggers/triggers'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/types'
 import {
@@ -20,6 +29,7 @@ import {
   isHiddenFromDisplay,
   type OutputCondition,
   type OutputFieldDefinition,
+  type PrimitiveValueType,
 } from '@/blocks/types'
 import { isHumanInTheLoopBlock } from '@/executor/constants'
 import { isEvaluationModel } from '@/providers/models'
@@ -38,6 +48,8 @@ interface EffectiveOutputOptions {
   triggerMode?: boolean
   preferToolOutputs?: boolean
   includeHidden?: boolean
+  /** The block's saved canonical modes, which pick the active member of a basic/advanced pair. */
+  canonicalModes?: CanonicalModeOverrides
 }
 
 type ConditionValue = string | number | boolean
@@ -422,6 +434,69 @@ export function getEvaluatorMetricOutputs(
   return outputs
 }
 
+interface DeclaredOutputNode {
+  type: PrimitiveValueType
+  properties?: Record<string, DeclaredOutputNode>
+  /** Fields beyond `properties` are allowed: a reference to one checks like any `json` path. */
+  open?: true
+  items?: DeclaredOutputNode
+}
+
+function toOutputNode(shape: McpToolOutputShape): DeclaredOutputNode {
+  switch (shape.type) {
+    case 'object':
+      return shape.properties
+        ? {
+            type: 'json',
+            properties: Object.fromEntries(
+              Object.entries(shape.properties).map(([name, child]) => [name, toOutputNode(child)])
+            ),
+            ...(shape.open && { open: true }),
+          }
+        : { type: 'json' }
+    case 'array':
+      return shape.items ? { type: 'array', items: toOutputNode(shape.items) } : { type: 'array' }
+    default:
+      return { type: shape.type }
+  }
+}
+
+/**
+ * The `structuredContent` output of an MCP block whose operation declares an
+ * output schema. Only a snapshot taken for the server and operation the block
+ * targets now applies; anything else leaves the block's outputs as declared.
+ */
+export function getMcpStructuredContentOutputs(
+  subBlocks?: Record<string, unknown>,
+  canonicalModes?: CanonicalModeOverrides
+): OutputDefinition | undefined {
+  if (!subBlocks) return undefined
+  const values = Object.fromEntries(
+    Object.entries(subBlocks).map(([id, subBlock]) => [id, toRecordOrNull(subBlock)?.value])
+  )
+  const snapshot = parseMcpToolOutputSnapshot(values[MCP_TOOL_OUTPUT_SCHEMA_SUBBLOCK])
+  if (!snapshot?.schema) return undefined
+  let target: ReturnType<typeof resolveMcpBlockConfig>
+  try {
+    target = resolveMcpBlockConfig(values, canonicalModes)
+  } catch {
+    return undefined
+  }
+  if (
+    target.action === 'list' ||
+    target.server !== snapshot.server ||
+    target.tool !== snapshot.tool
+  ) {
+    return undefined
+  }
+  return {
+    [MCP_STRUCTURED_CONTENT_OUTPUT]: {
+      ...toOutputNode(snapshot.schema),
+      description: "Structured reply, typed by the operation's declared output schema",
+    },
+  }
+}
+
 export function getEffectiveBlockOutputs(
   blockType: string,
   subBlocks?: Record<string, SubBlockWithValue>,
@@ -469,6 +544,11 @@ export function getEffectiveBlockOutputs(
     if (metricOutputs) {
       return { ...baseOutputs, ...metricOutputs }
     }
+  }
+
+  if (blockType === 'mcp' && !triggerMode) {
+    const structuredOutputs = getMcpStructuredContentOutputs(subBlocks, options?.canonicalModes)
+    if (structuredOutputs) return { ...baseOutputs, ...structuredOutputs }
   }
 
   return baseOutputs

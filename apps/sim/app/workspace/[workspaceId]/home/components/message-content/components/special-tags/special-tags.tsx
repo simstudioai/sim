@@ -31,8 +31,14 @@ import {
 import { isRecordLike, omit } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
+import { useSettingsNavigationTarget } from '@/components/settings/settings-navigation-provider'
 import { useSession } from '@/lib/auth/client'
-import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
+import { CHAT_PLAN_REQUIRED_REASON } from '@/lib/billing/chat-plan'
+import {
+  buildHostedUpgradeUrl,
+  buildUpgradeHref,
+  HOSTED_BILLING_SETTINGS_URL,
+} from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { isBrowserAgentAvailable, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -112,9 +118,8 @@ import {
 } from '@/hooks/queries/environment'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
-import { findWorkspaceFileByPath } from '@/hooks/queries/utils/find-workspace-file-by-src'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useWorkspaceFileAtPath, useWorkspaceFileLookup } from '@/hooks/queries/workspace-files'
 import { useWorkspaceUsageGate } from '@/hooks/queries/workspace-usage'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
@@ -1992,12 +1997,20 @@ function WorkspaceResourceDisplayContent({
 }: WorkspaceResourceDisplayProps & { workspaceId: string; addressed?: boolean }) {
   const { data: workflows = [] } = useWorkflows(workspaceId)
   const { data: tables = [] } = useTablesList(workspaceId)
-  const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const { data: knowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId)
+  const isFile = data.type === 'file'
+  const idLookup = useWorkspaceFileLookup(workspaceId, 'id', isFile ? data.id : undefined)
+  const fileById = idLookup.data
+  /** Only when the id names no file (or there is none): a path is the chip's fallback identity. */
+  const { file: fileFromPath } = useWorkspaceFileAtPath(
+    workspaceId,
+    isFile ? data.path : undefined,
+    {
+      enabled: !data.id || fileById === null || idLookup.isError,
+    }
+  )
 
   const resource = useMemo<WorkspaceResourceRef>(() => {
-    const fileFromPath =
-      data.type === 'file' ? findWorkspaceFileByPath(files, data.path) : undefined
     const title =
       data.type === 'workflow'
         ? (workflows.find((workflow) => workflow.id === data.id)?.name ??
@@ -2008,7 +2021,7 @@ function WorkspaceResourceDisplayContent({
           : data.type === 'dashboard'
             ? (data.title ?? fallbackWorkspaceResourceTitle(data.type))
             : data.type === 'file'
-              ? (files.find((file) => file.id === data.id)?.name ??
+              ? (fileById?.name ??
                 fileFromPath?.name ??
                 data.title ??
                 fallbackWorkspaceResourceTitle(data.type))
@@ -2028,7 +2041,8 @@ function WorkspaceResourceDisplayContent({
     data.path,
     data.title,
     data.type,
-    files,
+    fileById,
+    fileFromPath,
     knowledgeBases,
     tables,
     workflows,
@@ -3482,13 +3496,19 @@ interface PlanUsageLimitDisplayProps {
   data: UsageUpgradeTagData
 }
 
-/** The payer's plan limit: the card links to where the plan or the limit can change. */
-function PlanUsageLimitDisplay({ data }: PlanUsageLimitDisplayProps) {
+/**
+ * The payer's plan limit, or a free plan that does not include Chat: the card links to where
+ * the plan or the limit can change, and a workspace's plan to its upgrade page.
+ */
+export function PlanUsageLimitDisplay({ data }: PlanUsageLimitDisplayProps) {
   const { data: session } = useSession()
   const hostContext = useOptionalWorkspaceHostContext()
   const organizationContext = useOptionalOrganizationContext()
   const { getSettingsHref } = useSettingsNavigation()
   const { hosted } = useDeploymentShape()
+  const navigationTarget = useSettingsNavigationTarget()
+  const opensInNewTab = !hosted || navigationTarget === '_blank'
+  const planRequired = data.reason === CHAT_PLAN_REQUIRED_REASON
   const buttonLabel = data.action === 'upgrade_plan' ? 'Upgrade Plan' : 'Increase Limit'
 
   // Self-hosted plan and limit both live on the hosted account, so local
@@ -3496,7 +3516,9 @@ function PlanUsageLimitDisplay({ data }: PlanUsageLimitDisplayProps) {
   const href = hosted
     ? organizationContext
       ? getOrganizationSettingsHref(organizationContext.organization.id, 'billing')
-      : getSettingsHref({ section: 'billing' })
+      : planRequired && hostContext
+        ? buildUpgradeHref(hostContext.workspace.id)
+        : getSettingsHref({ section: 'billing' })
     : data.action === 'upgrade_plan'
       ? buildHostedUpgradeUrl()
       : HOSTED_BILLING_SETTINGS_URL
@@ -3508,11 +3530,15 @@ function PlanUsageLimitDisplay({ data }: PlanUsageLimitDisplayProps) {
   const usageGate = useWorkspaceUsageGate(
     data.action === 'increase_limit' && !canManageBilling ? hostContext?.workspace.id : undefined
   )
-  const unavailableMessage = organizationContext
-    ? 'Contact an organization admin to manage usage limits.'
-    : hostContext?.hostOrganizationId
-      ? 'Contact an organization admin to manage this workspace’s usage limits.'
-      : 'Only the workspace owner can manage this workspace’s usage limits.'
+  const action = planRequired
+    ? 'upgrade this workspace’s plan'
+    : 'manage this workspace’s usage limits'
+  const unavailableMessage =
+    organizationContext && !planRequired
+      ? 'Contact an organization admin to manage usage limits.'
+      : organizationContext || hostContext?.hostOrganizationId
+        ? `Contact an organization admin to ${action}.`
+        : `Only the workspace owner can ${action}.`
 
   return (
     <InteractionCard
@@ -3522,7 +3548,7 @@ function PlanUsageLimitDisplay({ data }: PlanUsageLimitDisplayProps) {
             aria-hidden
             className='size-[14px] shrink-0 text-[var(--badge-amber-text)]'
           />
-          Usage Limit Reached
+          {planRequired ? 'Paid Plan Required' : 'Usage Limit Reached'}
         </span>
       }
     >
@@ -3533,10 +3559,10 @@ function PlanUsageLimitDisplay({ data }: PlanUsageLimitDisplayProps) {
             href={href}
             onNavigate={() => rememberSettingsReturnUrl(href)}
             variant='border'
-            rightIcon={hosted ? ArrowRight : SquareArrowUpRight}
-            target={hosted ? undefined : '_blank'}
-            rel={hosted ? undefined : 'noopener noreferrer'}
-            aria-label={hosted ? undefined : `${buttonLabel} (opens in a new tab)`}
+            rightIcon={opensInNewTab ? SquareArrowUpRight : ArrowRight}
+            target={opensInNewTab ? '_blank' : undefined}
+            rel={opensInNewTab ? 'noopener noreferrer' : undefined}
+            aria-label={opensInNewTab ? `${buttonLabel} (opens in a new tab)` : undefined}
             className='mt-2'
           >
             {buttonLabel}

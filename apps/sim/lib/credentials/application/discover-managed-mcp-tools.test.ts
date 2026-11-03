@@ -201,6 +201,33 @@ describe('discoverManagedMcpToolsUseCase', () => {
       }),
     ])
   })
+  it('persists a declared output schema with the snapshot a connection lists from', async () => {
+    const outputSchema = { type: 'object' as const, properties: { hits: { type: 'array' } } }
+    mocks.discoverTools.mockResolvedValueOnce([
+      {
+        name: 'search_transcripts',
+        inputSchema: { type: 'object', properties: {} },
+        outputSchema,
+        serverId: context.mcpServerId,
+        serverName: context.mcpServerName,
+      },
+      {
+        name: 'ping',
+        inputSchema: { type: 'object' },
+        serverId: context.mcpServerId,
+        serverName: context.mcpServerName,
+      },
+    ])
+    await discoverManagedMcpToolsUseCase.execute({
+      principal,
+      input: { workspaceId: context.workspaceId, credentialId: context.credentialId },
+    })
+    expect(hoisted.saveToolSnapshot.mock.calls[0]?.[1]).toEqual([
+      { name: 'search_transcripts', inputSchema: { type: 'object', properties: {} }, outputSchema },
+      { name: 'ping', inputSchema: { type: 'object' } },
+    ])
+  })
+
   it.each(['draft', 'deployment'] as const)(
     'catalog preserves managed executor authority and %s operation policy',
     async (mode) => {

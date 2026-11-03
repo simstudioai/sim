@@ -26,6 +26,7 @@ export const AuditAction = {
 
   CHAT_DEPLOYED: 'chat.deployed',
   CHAT_UPDATED: 'chat.updated',
+  ASSISTANT_ACTION_REVIEWED: 'assistant_action.reviewed',
   CHAT_DELETED: 'chat.deleted',
   CHAT_PASSWORD_VIEWED: 'chat.password_viewed',
 
@@ -173,6 +174,8 @@ export const AuditAction = {
   ORG_MEMBER_REMOVED: 'org_member.removed',
   ORG_MEMBER_ROLE_CHANGED: 'org_member.role_changed',
   ORG_MEMBER_USAGE_LIMIT_CHANGED: 'org_member.usage_limit_changed',
+  ORG_MEMBER_PROFILE_UPDATED: 'org_member.profile_updated',
+  ORG_PEOPLE_IMPORTED: 'org_people.imported',
   ORG_INVITATION_CREATED: 'org_invitation.created',
   ORG_INVITATION_UPDATED: 'org_invitation.updated',
   ORG_INVITATION_ACCEPTED: 'org_invitation.accepted',
@@ -213,6 +216,9 @@ export const AuditAction = {
   SCHEDULE_CREATED: 'schedule.created',
   SCHEDULE_UPDATED: 'schedule.updated',
   SCHEDULE_DELETED: 'schedule.deleted',
+  SIM_LINK_CREATED: 'sim_link.created',
+  SIM_LINK_UPDATED: 'sim_link.updated',
+  SIM_LINK_DELETED: 'sim_link.deleted',
 
   TABLE_CREATED: 'table.created',
   TABLE_UPDATED: 'table.updated',
@@ -307,6 +313,7 @@ export const AuditResourceType = {
   SCIM_GROUP: 'scim_group',
   /** Not a stored resource: the workspace's secrets, as the thing put at risk. */
   SECRET_PROVENANCE: 'secret_provenance',
+  SIM_LINK: 'sim_link',
   SKILL: 'skill',
   SUBSCRIPTION: 'subscription',
   TABLE: 'table',

@@ -144,6 +144,33 @@ describe('resolveBlockReference', () => {
       expect(result).toEqual({ value: undefined, blockId: 'block-1' })
     })
 
+    it('rejects an undeclared field under a json field that declares its properties', () => {
+      const ctx = createContext({
+        blockData: { 'block-1': { result: { summary: 'hello' } } },
+        blockOutputSchemas: {
+          'block-1': { result: { type: 'json', properties: { summary: { type: 'string' } } } },
+        },
+      })
+
+      expect(resolveBlockReference('start', ['result', 'summary'], ctx)?.value).toBe('hello')
+      expect(() => resolveBlockReference('start', ['result', 'typo'], ctx)).toThrow(
+        InvalidFieldError
+      )
+    })
+
+    it('accepts an undeclared field under an open json field that declares its properties', () => {
+      const ctx = createContext({
+        blockData: { 'block-1': { result: { summary: 'hello' } } },
+        blockOutputSchemas: {
+          'block-1': {
+            result: { type: 'json', properties: { summary: { type: 'string' } }, open: true },
+          },
+        },
+      })
+
+      expect(resolveBlockReference('start', ['result', 'extra'], ctx)?.value).toBeUndefined()
+    })
+
     it('should resolve values nested under json field on executed block', () => {
       const ctx = createContext({
         blockData: { 'block-1': { result: { summary: 'hello' } } },

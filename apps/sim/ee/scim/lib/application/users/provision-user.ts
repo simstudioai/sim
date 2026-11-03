@@ -10,6 +10,8 @@ import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { ensureUserInOrganizationTx } from '@/lib/billing/organizations/membership'
 import { resolveOrganizationSeatPolicyTx } from '@/lib/billing/organizations/seat-policy'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
+import type { StoppedRun } from '@/lib/mothership/async-runs/repository'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import {
   getInstanceOrganizationId,
   isInstanceOrganizationMode,
@@ -155,6 +157,7 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
     }
 
     let provisioned: {
+      stoppedRuns: StoppedRun[]
       scimUserId: string
       joinedOrganization: boolean
       subscriptionId: string | undefined
@@ -205,12 +208,14 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
          * so a create can arrive already inactive and must land suspended rather
          * than briefly usable.
          */
+        let stoppedRuns: StoppedRun[] = []
         if (!attributes.active) {
-          await suspendMemberTx(tx, {
+          const suspension = await suspendMemberTx(tx, {
             userId,
             organizationId: context.organizationId,
             source: 'scim',
           })
+          stoppedRuns = suspension.stoppedRuns
         }
 
         await consumeTombstone(tx, {
@@ -222,13 +227,13 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
           connectionId: context.connection.id,
           organizationId: context.organizationId,
           scimUserId: inserted.id,
-          settings: context.connection.settings,
         })
         const record = await findScimUserById(tx, context.connection.id, inserted.id)
         if (!record) {
           throw new ScimError(500, undefined, 'The provisioned user could not be read back')
         }
         return {
+          stoppedRuns,
           scimUserId: inserted.id,
           joinedOrganization: !membership.alreadyMember,
           subscriptionId: seatPolicy.organizationSubscriptionId,
@@ -253,8 +258,10 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
       }
       throw error
     }
+    const { stoppedRuns, ...result } = provisioned
+    deliverRunStops(stoppedRuns)
     return {
-      ...provisioned,
+      ...result,
       userId,
       createdAccount,
       organizationId: context.organizationId,

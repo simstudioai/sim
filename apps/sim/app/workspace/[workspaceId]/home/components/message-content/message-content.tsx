@@ -13,6 +13,7 @@ import {
 import { cn } from '@sim/emcn'
 import { CircleStop } from '@sim/emcn/icons'
 import { isPlainRecord } from '@sim/utils/object'
+import { useAssistantActionLayout } from '@/components/assistant-actions'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { PrepareFileEdit, Read as ReadTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import type { TaskBlockInfo } from '@/lib/mothership/request/types'
@@ -895,11 +896,13 @@ export function assistantMessageHasRenderableContent(
 /** The turn's live indicators, decided once by {@link getTurnLiveIndicators} for every lane. */
 function getMessageLiveIndicators(
   segments: MessageSegment[],
-  isStreaming: boolean
+  isStreaming: boolean,
+  actionLayout: ReturnType<typeof useAssistantActionLayout>
 ): TurnLiveIndicators {
   return getTurnLiveIndicators(
     segments.flatMap((segment) => (segment.type === 'agent_group' ? [segment] : [])),
-    isStreaming
+    isStreaming,
+    actionLayout
   )
 }
 
@@ -953,6 +956,8 @@ interface MessageContentProps {
    * place without ever changing height.
    */
   isLast?: boolean
+  /** Pending review controls own the tail until the user decides. */
+  awaitingInteraction?: boolean
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
   /** Transcript-derived status payload for this message's credential card. */
@@ -980,6 +985,7 @@ function MessageContentInner({
   requestMode,
   isStreaming = false,
   isLast = false,
+  awaitingInteraction = false,
   questionAnswers,
   credentialSubmission,
   credentialAbandoned,
@@ -1039,9 +1045,10 @@ function MessageContentInner({
   )
   const visibleStreamActivityKey = getVisibleStreamActivityKey(segments)
   /** Decided once per parse, not on every idle-timer or text-reveal render. */
+  const actionLayout = useAssistantActionLayout()
   const liveIndicators = useMemo(
-    () => getMessageLiveIndicators(segments, isStreaming),
-    [segments, isStreaming]
+    () => getMessageLiveIndicators(segments, isStreaming, actionLayout),
+    [segments, isStreaming, actionLayout]
   )
 
   // Every visible stream update restarts the quiet-period clock. A layout
@@ -1082,7 +1089,8 @@ function MessageContentInner({
   // trailing text keeps visually revealing on a timer after the network stream
   // closes, and collapsing under a still-growing reveal reads as the blob
   // winking out early while everything shifts.
-  const thinkingExpanded = phase !== 'settled' && lastSegment?.type !== 'stopped'
+  const thinkingExpanded =
+    !awaitingInteraction && phase !== 'settled' && lastSegment?.type !== 'stopped'
 
   if (segments.length === 0 && !isLast) return null
 

@@ -30,6 +30,8 @@ import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 interface LiveServiceSession {
   policy: LiveSearchPolicy
   partial: boolean
+  /** True when verification also spends requests from the member client's budget. */
+  spendsMemberBudget?: boolean
   verify(document: Pick<NativeDocument, 'id' | 'container' | 'kind'>): Promise<boolean>
   scopeSearch?(input: NativeSearchInput): NativeSearchInput | null
 }

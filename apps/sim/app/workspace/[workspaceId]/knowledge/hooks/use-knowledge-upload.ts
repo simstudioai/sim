@@ -12,6 +12,7 @@ import { runWithConcurrency, WHOLE_FILE_PARALLEL_UPLOADS } from '@/lib/uploads/c
 import { uploadKnowledgeDocumentSession } from '@/lib/uploads/client/session-upload'
 import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+import { useInFlightUploadsStore } from '@/stores/in-flight-uploads/store'
 
 const logger = createLogger('KnowledgeUpload')
 
@@ -204,6 +205,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       throw new KnowledgeUploadError('Knowledge base ID is required', 'INVALID_KB_ID')
     }
 
+    const releaseUpload = useInFlightUploadsStore.getState().begin()
     try {
       assertMultiFileUploadAdmission(files)
       setUploadError(null)
@@ -246,6 +248,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       options.onError?.(error)
       throw err
     } finally {
+      releaseUpload()
       setUploadProgress({ stage: 'idle', filesCompleted: 0, totalFiles: 0 })
     }
   }

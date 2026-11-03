@@ -61,6 +61,12 @@ export function shouldSkipToolCallEvent(scope: DedupeScope, event: StreamEvent):
   return false
 }
 
+/** Let a retry reapply an authoritative call whose durable preparation failed. */
+export function forgetToolCallEvent(scope: DedupeScope, event: StreamEvent): void {
+  if (isToolCallStreamEvent(event))
+    scope.seenToolCalls.delete(toolCallDedupeKey(event.payload.toolCallId, event.payload.toolName))
+}
+
 function isPathlessVfsGeneratingEvent(event: ToolCallStreamEvent): boolean {
   if (event.payload.status !== TOOL_CALL_STATUS.generating) return false
   if (event.payload.toolName !== 'read' && event.payload.toolName !== 'glob') return false

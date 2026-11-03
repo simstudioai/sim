@@ -931,6 +931,8 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
       source: 'stripe' as const,
     },
   }
+  const PAID_SUBSCRIPTION = { id: 'sub-1', plan: 'team', status: 'active', seats: 4 }
+  const PAID_ATTRIBUTION = { ...CURRENT_ATTRIBUTION, payerSubscription: PAID_SUBSCRIPTION }
 
   function attributedCallback() {
     callbackSequence += 1
@@ -1005,7 +1007,8 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     })
   })
 
-  it('serves a cached admission to every step and re-reads a refusal', async () => {
+  it('serves a paid payer a cached admission to every step and re-reads a refusal', async () => {
+    mockRequireBillingAttributionHeader.mockReturnValue(PAID_ATTRIBUTION)
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
 
     expect((await (await POST(attributedCallback())).json()).usageExceeded).toBe(false)
@@ -1020,6 +1023,17 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     expect((await (await POST(attributedCallback())).json()).usageExceeded).toBe(true)
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
     expect((await (await POST(attributedCallback())).json()).usageExceeded).toBe(false)
+  })
+
+  it('reads a free payer standing past its cached admission after every charge', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
+    expect((await (await POST(attributedCallback(), {})).json()).usageExceeded).toBe(false)
+
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
+    await expect((await POST(attributedCallback(), {})).json()).resolves.toMatchObject({
+      usageExceeded: true,
+      usageUpgrade: { action: 'upgrade_plan' },
+    })
   })
 
   it('answers a duplicate retry with the verdict its lost first answer carried', async () => {
@@ -1209,13 +1223,50 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
   it.each([
     ['an unreadable ledger', { isExceeded: true, reason: 'usage_unavailable' }],
     ['a blocked account', { isExceeded: true, reason: 'billing_blocked', scope: 'payer' }],
-  ])('does not pause a run for %s', async (_case, verdict) => {
+  ])('does not pause a paid run for %s', async (_case, verdict) => {
+    mockRequireBillingAttributionHeader.mockReturnValue(PAID_ATTRIBUTION)
     mockCheckAttributedUsageLimits.mockResolvedValue(verdict)
 
     const body = await (await POST(attributedCallback())).json()
 
     expect(body.usageExceeded).toBe(false)
     expect(body).not.toHaveProperty('usageUpgrade')
+  })
+
+  it.each([
+    [
+      'an unreadable ledger',
+      () =>
+        mockCheckAttributedUsageLimits.mockResolvedValue({
+          isExceeded: true,
+          reason: 'usage_unavailable',
+        }),
+    ],
+    [
+      'a failed gate read',
+      () => mockCheckAttributedUsageLimits.mockRejectedValue(new Error('ledger read timed out')),
+    ],
+  ])('pauses a free run for %s, keeping the recorded charge', async (_case, answer) => {
+    answer()
+
+    const res = await POST(attributedCallback(), {})
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({
+      success: true,
+      usageExceeded: true,
+      usageUpgrade: { action: 'upgrade_plan' },
+    })
+  })
+
+  it('does not pause a free run for a blocked account', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      reason: 'billing_blocked',
+      scope: 'payer',
+    })
+
+    expect((await (await POST(attributedCallback(), {})).json()).usageExceeded).toBe(false)
   })
 
   it('tells a member over the cap their organization set who can raise it', async () => {
@@ -1284,8 +1335,11 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     expect(body.usageExceeded).toBe(true)
   })
 
-  it('keeps a run going when its current period cannot be read', async () => {
-    mockRequireBillingAttributionHeader.mockReturnValue(STRIPE_ATTRIBUTION)
+  it('keeps a paid run going when its current period cannot be read', async () => {
+    mockRequireBillingAttributionHeader.mockReturnValue({
+      ...STRIPE_ATTRIBUTION,
+      payerSubscription: PAID_SUBSCRIPTION,
+    })
     mockRefreshAttributionPeriod.mockRejectedValue(new Error('subscription read timed out'))
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
 
@@ -1304,31 +1358,39 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
       vi.useRealTimers()
     })
 
-    it('answers not exceeded when the standing read outlasts the callback budget', async () => {
-      mockCheckAttributedUsageLimits.mockImplementation(async () => {
-        await sleep(1500)
-        return { isExceeded: true, scope: 'payer' }
-      })
+    it.each([
+      ['a paid', PAID_ATTRIBUTION, false],
+      ['a free', CURRENT_ATTRIBUTION, true],
+    ])(
+      'answers %s payer whose standing read outlasts the callback budget',
+      async (_case, attribution, exceeded) => {
+        mockRequireBillingAttributionHeader.mockReturnValue(attribution)
+        mockCheckAttributedUsageLimits.mockImplementation(async () => {
+          await sleep(1500)
+          return { isExceeded: false }
+        })
 
-      const pending = POST(attributedCallback())
-      await vi.advanceTimersByTimeAsync(1000)
-      const res = await pending
+        const pending = POST(attributedCallback(), {})
+        await vi.advanceTimersByTimeAsync(1000)
+        const res = await pending
 
-      expect(res.status).toBe(200)
-      await expect(res.json()).resolves.toMatchObject({ success: true, usageExceeded: false })
-      // Settle the abandoned read so no later test coalesces onto it.
-      await vi.advanceTimersByTimeAsync(500)
-    })
+        expect(res.status).toBe(200)
+        await expect(res.json()).resolves.toMatchObject({ success: true, usageExceeded: exceeded })
+        // Settle the abandoned read so no later test coalesces onto it.
+        await vi.advanceTimersByTimeAsync(500)
+      }
+    )
 
-    it('does not pause a run on a verdict read across the end of its period', async () => {
+    it('does not pause a paid run on a verdict read across the end of its period', async () => {
       const straddling = {
-        ...CURRENT_ATTRIBUTION,
+        ...PAID_ATTRIBUTION,
         billingPeriod: {
           start: '2026-07-01T00:00:00.000Z',
           end: new Date(Date.now() + 40).toISOString(),
           source: 'stripe' as const,
         },
       }
+      mockRequireBillingAttributionHeader.mockReturnValue(PAID_ATTRIBUTION)
       mockRefreshAttributionPeriod.mockResolvedValue(straddling)
       mockCheckAttributedUsageLimits.mockImplementation(async () => {
         await sleep(80)
@@ -1363,7 +1425,8 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     })
   })
 
-  it('keeps a recorded charge successful when the gate read fails', async () => {
+  it('keeps a paid recorded charge successful and unpaused when the gate read fails', async () => {
+    mockRequireBillingAttributionHeader.mockReturnValue(PAID_ATTRIBUTION)
     mockCheckAttributedUsageLimits.mockRejectedValue(new Error('ledger read timed out'))
 
     const res = await POST(attributedCallback())

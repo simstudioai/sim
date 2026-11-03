@@ -1,5 +1,5 @@
 import type { ClipboardContent } from '@sim/emcn'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import type { MothershipResource, WorkspaceResourceRef } from '@/lib/mothership/resources/types'
 import { sanitizeChatDisplayContent } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/chat-sanitize'
 import {
   type ContentSegment,
@@ -12,6 +12,19 @@ import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/
 interface CopyableMarkdownResult {
   markdown: string
   hasUnresolvedFile: boolean
+}
+
+/**
+ * Resolves a chip to the resource it addresses: the resource, `null` when nothing answers to it,
+ * or `undefined` when that is not known yet. Either way an unresolved chip is copied as plain text.
+ */
+type ResolveResourceRef = (ref: WorkspaceResourceRef) => MothershipResource | null | undefined
+
+/** Non-file chips carry their own id; resolving a file chip needs the caller's reads. */
+const resolveWithoutFiles: ResolveResourceRef = (ref) => resolveWorkspaceResourceRef(ref, [])
+
+function toResourceRef(data: WorkspaceResourceTagData): WorkspaceResourceRef {
+  return { ...data, title: data.title ?? '' }
 }
 
 function workspaceResourceLabel(data: WorkspaceResourceTagData): string {
@@ -38,10 +51,9 @@ function appendInlineReferenceMarkdown(
 
 function portableWorkspaceResourceMarkdown(
   data: WorkspaceResourceTagData,
-  workspaceFiles: readonly WorkspaceFileRecord[]
+  resource: MothershipResource | null | undefined
 ): CopyableMarkdownResult {
   const label = workspaceResourceLabel(data)
-  const resource = resolveWorkspaceResourceRef({ ...data, title: data.title ?? '' }, workspaceFiles)
   return {
     markdown: resource
       ? serializePortableChipLink(data.type, resource.id, resource.title || label, data.workspaceId)
@@ -50,19 +62,21 @@ function portableWorkspaceResourceMarkdown(
   }
 }
 
+function parseCopyableSegments(raw: string): ContentSegment[] {
+  return parseSpecialTags(sanitizeChatDisplayContent(raw), false).segments
+}
+
 function serializeCopyableMarkdown(
-  raw: string,
-  workspaceFiles: readonly WorkspaceFileRecord[] = []
+  segments: ContentSegment[],
+  resolve: (data: WorkspaceResourceTagData) => MothershipResource | null | undefined
 ): CopyableMarkdownResult {
-  const displayContent = sanitizeChatDisplayContent(raw)
-  const { segments } = parseSpecialTags(displayContent, false)
   let hasUnresolvedFile = false
 
   const markdown = segments
     .reduce((markdown, segment, index) => {
       if (segment.type === 'text') return markdown + segment.content
       if (segment.type === 'workspace_resource') {
-        const portable = portableWorkspaceResourceMarkdown(segment.data, workspaceFiles)
+        const portable = portableWorkspaceResourceMarkdown(segment.data, resolve(segment.data))
         hasUnresolvedFile ||= portable.hasUnresolvedFile
         return appendInlineReferenceMarkdown(markdown, portable.markdown, segments[index + 1])
       }
@@ -75,24 +89,41 @@ function serializeCopyableMarkdown(
 
 export function toCopyableMarkdown(
   raw: string,
-  workspaceFiles: readonly WorkspaceFileRecord[] = []
+  resolve: ResolveResourceRef = resolveWithoutFiles
 ): string {
-  return serializeCopyableMarkdown(raw, workspaceFiles).markdown
+  return serializeCopyableMarkdown(parseCopyableSegments(raw), (data) =>
+    resolve(toResourceRef(data))
+  ).markdown
 }
 
+/**
+ * The message as portable Markdown, with chips resolved from what is cached. When a file chip
+ * is not, the copy resolves its file chips fresh (`resolveFresh`) on demand, and keeps the
+ * plain-text copy if that fails.
+ */
 export function prepareCopyableMarkdown(
   raw: string,
-  workspaceFiles: readonly WorkspaceFileRecord[],
-  refreshWorkspaceFiles: () => Promise<readonly WorkspaceFileRecord[]>
+  resolveCached: ResolveResourceRef,
+  resolveFresh: (ref: WorkspaceResourceRef) => Promise<MothershipResource | null>
 ): ClipboardContent {
-  const initial = serializeCopyableMarkdown(raw, workspaceFiles)
+  const segments = parseCopyableSegments(raw)
+  const initial = serializeCopyableMarkdown(segments, (data) => resolveCached(toResourceRef(data)))
   if (!initial.hasUnresolvedFile) return initial.markdown
 
   return {
     fallback: initial.markdown,
     prepare: async () => {
       try {
-        return toCopyableMarkdown(raw, await refreshWorkspaceFiles())
+        const fresh = new Map<WorkspaceResourceTagData, MothershipResource | null>()
+        await Promise.all(
+          segments.map(async (segment) => {
+            if (segment.type !== 'workspace_resource' || segment.data.type !== 'file') return
+            fresh.set(segment.data, await resolveFresh(toResourceRef(segment.data)))
+          })
+        )
+        return serializeCopyableMarkdown(segments, (data) =>
+          data.type === 'file' ? fresh.get(data) : resolveWithoutFiles(toResourceRef(data))
+        ).markdown
       } catch {
         return initial.markdown
       }

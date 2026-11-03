@@ -121,3 +121,66 @@ describe('file download snapshots', () => {
     }
   )
 })
+
+describe('large file downloads', () => {
+  const video: WorkspaceFileRecord = {
+    ...file,
+    name: 'clip.mp4',
+    key: 'workspace/workspace-1/clip.mp4',
+    type: 'video/mp4',
+    size: 300_000_000,
+  }
+  let downloadedHref = ''
+
+  beforeEach(() => {
+    downloadedHref = ''
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement
+    ) {
+      downloadedHref = this.getAttribute('href') ?? ''
+      downloadedName = this.download
+      click()
+    })
+  })
+
+  it('hands a file too large to hold in the tab to the browser instead of buffering it', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 200 }))
+
+    await triggerFileDownload(video)
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ headers: { Range: 'bytes=0-0' } })
+    expect(createObjectURL).not.toHaveBeenCalled()
+    expect(downloadedHref).toMatch(/^\/api\/files\/serve\/workspace%2Fworkspace-1%2Fclip\.mp4\?/)
+    expect(downloadedName).toBe('clip.mp4')
+  })
+
+  it('surfaces a refused download in place rather than starting one that fails', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 404 }))
+
+    await expect(triggerFileDownload(video)).rejects.toThrow('Failed to download "clip.mp4"')
+    expect(click).not.toHaveBeenCalled()
+  })
+
+  it('keeps fetching a file small enough to hold, so a rejection still surfaces as an error', async () => {
+    await triggerFileDownload({ ...video, size: 1024 })
+
+    expect(fetchMock.mock.calls[0]?.[1]).not.toHaveProperty('headers')
+    expect(createObjectURL).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['a generated document', { name: 'report.pdf', type: 'text/x-pdflibjs' }],
+    ['a page recorded as one', { name: 'guide', type: 'text/x-sim-page' }],
+    ['an .html page', { name: 'guide.html', type: 'text/html' }],
+  ])(
+    'keeps fetching %s, which the server renders before it can be served',
+    async (_label, kind) => {
+      await triggerFileDownload({ ...video, ...kind })
+
+      expect(fetchMock).toHaveBeenCalledOnce()
+      expect(fetchMock.mock.calls[0]?.[1]).not.toHaveProperty('headers')
+      expect(createObjectURL).toHaveBeenCalledOnce()
+    }
+  )
+})

@@ -45,6 +45,7 @@ import {
 import { connectCredentialGroupInPopup } from '@/lib/credential-groups/oauth-popup'
 import { isDesktopApp } from '@/lib/desktop'
 import { connectDesktopSource } from '@/lib/desktop/source-connect'
+import { assistantActionKeys } from '@/hooks/queries/assistant-actions'
 import { personalCredentialKeys } from '@/hooks/queries/personal-credentials'
 import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
@@ -249,6 +250,7 @@ export function useUpdateOrganizationAccounts() {
 async function refreshAccounts(client: ReturnType<typeof useQueryClient>) {
   await Promise.all([
     client.invalidateQueries({ queryKey: organizationAccountsKeys.all }),
+    client.invalidateQueries({ queryKey: assistantActionKeys.permissions() }),
     client.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
     client.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
     invalidateSelectorQueries(client),

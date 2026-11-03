@@ -100,6 +100,8 @@ describe('audio FFmpeg execution', () => {
       '-nostdin',
       '-protocol_whitelist',
       'file,pipe',
+      '-format_whitelist',
+      expect.any(String),
       '-i',
       expect.stringMatching(/input\.mp4$/),
       '-f',

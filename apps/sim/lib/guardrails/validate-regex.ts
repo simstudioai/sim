@@ -32,8 +32,10 @@ export interface RegexPatternValidation {
  *
  * Nor could a screen here be made sound: these patterns execute in Presidio's
  * Python engine, which backtracks on shapes RE2 accepts, so RE2-representability
- * says nothing about their runtime there. Presidio's own request timeout is the
- * real bound — note it fails open on timeout, leaving PII unredacted.
+ * says nothing about their runtime there. Presidio bounds them instead: a
+ * per-match timeout, which fails open (the timed-out pattern is skipped, leaving
+ * its PII unredacted), and a per-request matching budget, which rejects the
+ * request.
  *
  * Anything that matches a caller-supplied pattern *in this process* must use
  * `compileLinearRegex` from `@/lib/core/security/linear-regex` instead.

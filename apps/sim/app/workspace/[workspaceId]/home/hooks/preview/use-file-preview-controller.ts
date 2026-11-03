@@ -26,7 +26,8 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/preview/use-file-preview-sessions'
 import { resolveFileResourceSelectionId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
+import { findCachedWorkspaceFile } from '@/hooks/queries/utils/workspace-file-cache'
+import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-keys'
 
 interface FilePreviewControllerDeps {
   workspaceId?: string
@@ -119,10 +120,11 @@ export function useFilePreviewController({
         previewText
       )
 
-      const activeFiles = queryClient.getQueryData<Array<{ id: string; key: string }>>(
-        workspaceFilesKeys.list(workspaceId, 'active')
-      )
-      const fileKey = activeFiles?.find((file) => file.id === fileId)?.key
+      const fileKey = findCachedWorkspaceFile(
+        queryClient,
+        workspaceId,
+        (file) => file.id === fileId
+      )?.file.key
       if (fileKey) {
         queryClient.setQueryData(
           [...workspaceFilesKeys.content(workspaceId, fileId, 'text'), fileKey],

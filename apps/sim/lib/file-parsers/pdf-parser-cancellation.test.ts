@@ -176,32 +176,41 @@ describe('PdfParser cancellation', () => {
   })
 
   it('shares one event-loop slice across concurrent parses instead of giving each its own', async () => {
+    // Isolate the shared scheduler so the simulated clock cannot affect later parses.
+    vi.resetModules()
+    const { PdfParser: ConcurrentPdfParser } = await import('@/lib/file-parsers/pdf-parser')
+    let simulatedTime = 0
+    let workSinceProbe = 0
+    let longestSlice = 0
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => simulatedTime)
     const parseCount = 8
     for (let i = 0; i < parseCount; i++) {
       const { pdf } = pdfWithPageText(20, () => {
-        const busyUntil = performance.now() + 2
-        while (performance.now() < busyUntil) {}
+        simulatedTime += 2
+        workSinceProbe += 2
+        longestSlice = Math.max(longestSlice, workSinceProbe)
         return 'page text'
       })
       mockOpenPdfDocument.mockResolvedValueOnce(pdf)
     }
-    let longestTimerWait = 0
-    let probing = true
-    let lastTick = performance.now()
+    let probeHandle: ReturnType<typeof setImmediate>
     const probe = () => {
-      const now = performance.now()
-      longestTimerWait = Math.max(longestTimerWait, now - lastTick)
-      lastTick = now
-      if (probing) setTimeout(probe, 0)
+      workSinceProbe = 0
+      probeHandle = setImmediate(probe)
     }
-    setTimeout(probe, 0)
-
-    await Promise.all(
-      Array.from({ length: parseCount }, () => new PdfParser().parseBuffer(Buffer.from('%PDF-1.4')))
-    )
-    probing = false
-
-    expect(longestTimerWait).toBeLessThan(40)
+    probeHandle = setImmediate(probe)
+    try {
+      await Promise.all(
+        Array.from({ length: parseCount }, () =>
+          new ConcurrentPdfParser().parseBuffer(Buffer.from('%PDF-1.4'))
+        )
+      )
+      expect(simulatedTime).toBe(parseCount * 20 * 2)
+      expect(longestSlice).toBeLessThanOrEqual(12)
+    } finally {
+      clearImmediate(probeHandle)
+      clock.mockRestore()
+    }
   })
 
   it('lets timers run while one page streams a huge content stream', async () => {

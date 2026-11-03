@@ -1152,7 +1152,7 @@ export const simProfile: CompetitorProfile = {
       },
       executionLimits: {
         value:
-          'Plan-gated: synchronous runs time out at 5 minutes on the free plan and 50 minutes on paid plans; async runs default to 90 minutes, while Enterprise policy can be configured up to 7 days; concurrency ranges from 10 to 1,000 executions per billing account depending on plan',
+          'Plan-gated: synchronous runs time out at 5 minutes on the free plan and 50 minutes on paid plans; async runs default to 90 minutes, while Enterprise policy can be configured up to 7 days; concurrency ranges from 2 to 1,000 executions per billing account depending on plan',
         detail:
           'A direct async API request can shorten the account policy for that request, but cannot extend it. Concurrency limits are published in the platform cost docs, where the Enterprise limit is 1,000 by default and customizable. A run that exceeds its time limit is terminated and marked failed with a timeout error.',
         shortValue: '5-50 min sync; async defaults to 90 min, Enterprise up to 7 days',

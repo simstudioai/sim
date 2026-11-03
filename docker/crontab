@@ -71,6 +71,9 @@ SHELL=/bin/sh
 # Reclaims sandbox images
 30 4 * * * curl -fsS -m 300 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/cleanup-sandbox-images"
 
+# Kills chat workbenches paused past their retention window
+*/5 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/cleanup-session-sandboxes"
+
 # Deletes idempotency records past the seven-day dedupe window
 0 5 * * * curl -fsS -m 300 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/webhooks/cleanup/idempotency"
 

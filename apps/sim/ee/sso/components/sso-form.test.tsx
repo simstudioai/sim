@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { apiClientRequestMock } from '@sim/testing/mocks/api-client-request.mock'
 import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
 import { envMockFns, resetEnvMock } from '@sim/testing/mocks/env.mock'
@@ -13,26 +13,10 @@ vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 vi.mock('next/navigation', () => nextNavigationMock)
 
-vi.mock('next/link', () => ({
-  default: ({ href, children }: { href: string; children?: ReactNode }) => (
-    <a href={href}>{children}</a>
-  ),
-}))
-
-vi.mock('@sim/emcn', () => ({
-  Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button type='button' {...props}>
-      {children}
-    </button>
-  ),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
-  Label: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-  cn: (...values: unknown[]) => values.filter(Boolean).join(' '),
-}))
-
 vi.mock('@/lib/auth/client', () => authClientMock)
 
 vi.mock('@/app/(auth)/components', () => ({
+  AuthLegalFooter: () => null,
   AuthFormMessage: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   AuthSubmitButton: ({
     children,

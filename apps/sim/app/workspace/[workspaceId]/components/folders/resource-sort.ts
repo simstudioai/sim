@@ -36,19 +36,26 @@ export function sortResources<T>(
   entries: SortableResource<T>[],
   direction: SortDirection
 ): SortableResource<T>[] {
-  return entries.sort((a, b) => {
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+  return entries.sort((a, b) => compareSortableResources(a, b, direction))
+}
 
-    if (a.key === null || b.key === null) {
-      if (a.key !== b.key) return a.key === null ? 1 : -1
-    } else {
-      const cmp =
-        typeof a.key === 'number' && typeof b.key === 'number'
-          ? a.key - b.key
-          : String(a.key).localeCompare(String(b.key))
-      if (cmp !== 0) return direction === 'asc' ? cmp : -cmp
-    }
+/** The order {@link sortResources} applies: negative when `a` sorts before `b`. */
+export function compareSortableResources(
+  a: Omit<SortableResource<unknown>, 'item'>,
+  b: Omit<SortableResource<unknown>, 'item'>,
+  direction: SortDirection
+): number {
+  if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
 
-    return a.name.localeCompare(b.name)
-  })
+  if (a.key === null || b.key === null) {
+    if (a.key !== b.key) return a.key === null ? 1 : -1
+  } else {
+    const cmp =
+      typeof a.key === 'number' && typeof b.key === 'number'
+        ? a.key - b.key
+        : String(a.key).localeCompare(String(b.key))
+    if (cmp !== 0) return direction === 'asc' ? cmp : -cmp
+  }
+
+  return a.name.localeCompare(b.name)
 }

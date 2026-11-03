@@ -22,6 +22,7 @@ const CHIP_SURFACE =
   'relative cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--surface-5)] transition-colors hover-hover:bg-[var(--surface-active)] dark:hover-hover:bg-[var(--surface-6)]'
 
 interface AttachedFilesListProps {
+  additionalAttachments?: React.ReactNode
   attachedFiles: AttachedFile[]
   onFileClick: (file: AttachedFile) => void
   onRemoveFile: (id: string) => void
@@ -155,23 +156,27 @@ const AttachedFileChip = React.memo(function AttachedFileChip({
 
 export const AttachedFilesList = React.memo(function AttachedFilesList({
   attachedFiles,
+  additionalAttachments,
   onFileClick,
   onRemoveFile,
 }: AttachedFilesListProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
-  const edges = useScrollEdges(scrollRef, { enabled: attachedFiles.length > 0 })
-  if (attachedFiles.length === 0) return null
+  const edges = useScrollEdges(scrollRef, {
+    enabled: attachedFiles.length > 0 || Boolean(additionalAttachments),
+  })
+  if (attachedFiles.length === 0 && !additionalAttachments) return null
 
   return (
     <div
       ref={scrollRef}
       className={cn(
-        'mb-1.5 max-md:max-h-[102px] max-md:overflow-y-auto max-md:overscroll-contain',
+        'mb-1.5 max-md:pointer-coarse:max-h-[102px] max-md:pointer-coarse:overflow-y-auto max-md:pointer-coarse:overscroll-contain',
         scrollFadeClass
       )}
       {...scrollFadeAttributes(edges)}
     >
       <div className='flex flex-wrap items-center gap-1.5'>
+        {additionalAttachments}
         {attachedFiles.map((file) => (
           <AttachedFileChip
             key={file.id}

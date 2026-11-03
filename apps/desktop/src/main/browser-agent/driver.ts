@@ -81,6 +81,11 @@ import {
   setFocusedInputValue,
   typeIntoElement,
 } from '@/main/browser-agent/page-functions'
+import {
+  appLaunchNoticeForContents,
+  pagePromptForContents,
+  respondToPagePrompt,
+} from '@/main/browser-agent/page-prompts'
 import { isPanelVisible, panelWindow } from '@/main/browser-agent/panel'
 import {
   withFailedPostActionObservation,
@@ -457,6 +462,11 @@ function releaseBrowserToolAdmission(state: DriverScopeState, admission: symbol)
   activeBrowserToolAdmissions.delete(admission)
 }
 
+/** Whether any chat has a browser action queued or running in this process. */
+export function isBrowserToolRunning(): boolean {
+  return activeBrowserToolAdmissions.size > 0 || pendingBrowserToolQueueBoundaries.size > 0
+}
+
 function retireDriverScopeState(state: DriverScopeState): void {
   state.disposed = true
   state.toolQueueCancellationEpoch++
@@ -555,6 +565,8 @@ function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
   const issue = session.pageIssueForContents(contents)
   const mediaPermissionRequest = session.mediaPermissionRequestForContents(contents)
   const dialog = session.pageDialogForContents(contents)
+  const prompt = pagePromptForContents(contents)
+  const appLaunchNotice = appLaunchNoticeForContents(contents)
   return {
     scopeId: session.getBrowserScopeId(),
     tabId,
@@ -566,6 +578,8 @@ function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
     ...(issue ? { issue } : {}),
     ...(mediaPermissionRequest ? { mediaPermissionRequest } : {}),
     ...(dialog ? { dialog } : {}),
+    ...(prompt ? { prompt } : {}),
+    ...(appLaunchNotice ? { appLaunchNotice } : {}),
   }
 }
 
@@ -804,6 +818,7 @@ export function initDriver(
         })
       },
       onDownloadsChanged: (state) => callbacks.onDownloadsChanged?.(state),
+      onAgentNotice: recordNotice,
     },
     getMainWindow,
     persistence,
@@ -5500,6 +5515,11 @@ export async function handlePanelAction(
     }
     if (action.action === 'enable-page-dialogs') {
       session.enablePageDialogs()
+      if (action.pagePrompts === true) session.enablePagePrompts()
+      return
+    }
+    if (action.action === 'respond-prompt') {
+      respondToPagePrompt(session.getBrowserScopeId(), action)
       return
     }
     if (action.action === 'respond-dialog') {

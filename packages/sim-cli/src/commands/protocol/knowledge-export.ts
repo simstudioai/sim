@@ -80,7 +80,7 @@ export function attachKnowledgeExport(knowledge: Command): void {
           await response.body.cancel()
           throw new SimApiError(
             embedded
-              ? `Refusing to put ${contentType ?? 'unknown content'} in a text result. Use --output-file <path>.`
+              ? `Refusing to put ${contentType ?? 'unknown content'} in a text result. Use --output-file <path>, or run \`sim knowledge get ${knowledgeBaseId}\` for its metadata.`
               : `Refusing to write ${contentType ?? 'unknown content'} to an interactive terminal. Use --output-file <path> or pipe stdout.`,
             0
           )

@@ -2,6 +2,7 @@ import { existsSync } from 'fs'
 import { mkdir } from 'fs/promises'
 import path, { join } from 'path'
 import { createLogger } from '@sim/logger'
+import { hasExplicitAwsCredentials } from '@/lib/core/config/aws'
 import { env } from '@/lib/core/config/env'
 import {
   getStorageProvider,
@@ -88,7 +89,7 @@ if (typeof process !== 'undefined') {
     if (!env.S3_BUCKET_NAME || !env.AWS_REGION) {
       logger.warn('S3 storage configuration is incomplete')
       logger.warn('Set S3_BUCKET_NAME and AWS_REGION for S3 storage')
-    } else if (!env.AWS_ACCESS_KEY_ID || !env.AWS_SECRET_ACCESS_KEY) {
+    } else if (!hasExplicitAwsCredentials()) {
       logger.warn('AWS credentials are not set in environment variables')
       logger.warn('Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY for S3 storage')
     } else {

@@ -14,6 +14,7 @@ interface GoogleDriveGetFileResponse extends ToolResponse {
 
 export const getFileTool: ToolConfig<GoogleDriveGetFileParams, GoogleDriveGetFileResponse> = {
   id: 'google_drive_get_file',
+  assistant: { effect: 'read', version: 1 },
   name: 'Get Google Drive File',
   description: 'Get metadata for a specific file in Google Drive by its ID',
   version: '1.0.0',

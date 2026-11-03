@@ -23,11 +23,10 @@ import {
   type ListSortOrder,
   listOrderBy,
   numberKey,
-  preciseTimestampKey,
   preciseTimestampText,
+  resumableTimestampKey,
   resumeKeyset,
   textKey,
-  timestampKey,
 } from '@/lib/api/list-query'
 import { MATERIALIZE_CONCURRENCY } from '@/lib/core/utils/concurrency'
 import { MAX_DURABLE_LARGE_VALUE_BYTES } from '@/lib/execution/payloads/limits'
@@ -250,27 +249,22 @@ type PublicLogKeysetRow = Pick<
  * Both log tables are ordered by it, and both spell it identically, so the
  * merged sequence a unioned page returns resumes from one set of cursor keys.
  *
- * It orders on the raw column so the `(workspace_id, started_at)` and
- * `(workflow_id, started_at)` indexes serve the sort and a page reads only its
- * own rows. A cursor minted before that carries a date rather than the precise
- * form (see {@link classifyTimestampCursor}) and was read under
- * millisecond-truncated ordering, where rows sharing a millisecond
- * fall in `id` order rather than stored order. Resuming one under the raw
- * ordering would skip or repeat rows inside that millisecond, so it keeps the
- * truncated keyset it was minted under, and so does every cursor that page
- * mints, until the walk ends.
+ * It orders on the raw column (see {@link resumableTimestampKey}) so the
+ * `(workspace_id, started_at)` and `(workflow_id, started_at)` indexes serve the
+ * sort and a page reads only its own rows.
  */
 function startedAtKeyset<Row extends { id: string; startedAt: Date; startedAtCursor: string }>(
   startedAtColumn: Column,
   idColumn: Column,
   cursorKeys: CursorKey[] | undefined
 ): KeysetKey<Row>[] {
-  const resumesDateCursor =
-    cursorKeys !== undefined && classifyTimestampCursor(cursorKeys[0]) === 'date'
   return [
-    resumesDateCursor
-      ? timestampKey<Row>(startedAtColumn, (row) => row.startedAt)
-      : preciseTimestampKey<Row>(startedAtColumn, (row) => row.startedAtCursor),
+    resumableTimestampKey<Row>(
+      startedAtColumn,
+      (row) => row.startedAt,
+      (row) => row.startedAtCursor,
+      cursorKeys
+    ),
     textKey<Row>(idColumn, (row) => row.id),
   ]
 }

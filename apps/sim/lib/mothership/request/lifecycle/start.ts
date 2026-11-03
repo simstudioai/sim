@@ -13,6 +13,7 @@ import {
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
 } from '@/lib/billing/core/attribution'
+import { payerHasChatAccess } from '@/lib/billing/core/chat-access'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { createRunSegment, recordRunBillingAdmission } from '@/lib/mothership/async-runs/repository'
 import { buildChatTitleContext } from '@/lib/mothership/chat/title-context'
@@ -771,6 +772,8 @@ export async function requestChatTitle(params: {
         throw new Error('Title billing attribution does not match its actor and workspace')
       }
 
+      // A title is a Chat model call; a payer whose plan excludes Chat gets none.
+      if (!(await payerHasChatAccess(attribution))) return null
       const admission = await checkAttributedUsageLimits(attribution)
       if (admission.isExceeded) return null
 

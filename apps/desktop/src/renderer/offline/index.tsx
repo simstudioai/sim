@@ -1,9 +1,15 @@
 import { useState } from 'react'
+import {
+  AuthRoot,
+  AuthShellView,
+  AuthTextLink,
+  AuthWordmark,
+  AuthButton as Chip,
+  AuthStatusContent as StatusPageContent,
+} from '@sim/auth-ui'
 import { observeDesktopTitleBar, type SimDesktopApi } from '@sim/desktop-bridge'
-import { Chip, LogoPage, SimWordmark, StatusPageContent } from '@sim/emcn'
 import { createRoot } from 'react-dom/client'
-import { initializeShellPage } from '@/renderer/shell'
-import '@/renderer/shell.css'
+import '@/renderer/auth.css'
 
 const ERROR_COPY = {
   offline: {
@@ -57,51 +63,55 @@ function OfflinePage({ isSimCloud }: OfflinePageProps) {
   }
 
   return (
-    <LogoPage
-      center
-      className='desktop-title-bar-page'
-      titleBar={
-        <div aria-hidden className='desktop-login-window-drag-region desktop-window-drag-region' />
-      }
-      logo={
-        <span role='img' aria-label='Sim' className='flex h-[30px] items-center'>
-          <SimWordmark />
-        </span>
-      }
-    >
-      <StatusPageContent
-        titleId='title'
-        title={copy.title}
-        description={copy.message}
-        detail={
-          <p
-            id='detail'
-            role='status'
-            className='max-w-full break-words text-[var(--text-muted)] text-caption'
+    <AuthRoot>
+      <AuthShellView
+        homeHref='https://sim.ai'
+        logo={<AuthWordmark />}
+        titlebar={<div data-auth-titlebar='' aria-hidden='true' />}
+        footer={
+          <AuthTextLink
+            onClick={() => {
+              void bridge?.openExternal('mailto:support@sim.ai')
+            }}
           >
-            {actionError || detail}
-          </p>
+            Contact support
+          </AuthTextLink>
         }
       >
-        <Chip id='retry' variant='primary' onClick={() => bridge?.offlineRetry()}>
-          Retry
-        </Chip>
-        {isSimCloud ? (
-          <Chip id='status' onClick={checkStatus}>
-            Check status
+        <StatusPageContent
+          titleId='title'
+          title={copy.title}
+          description={copy.message}
+          detail={
+            <p
+              id='detail'
+              role='status'
+              className='au:max-w-full au:break-words au:text-[var(--auth-secondary)] au:text-caption'
+            >
+              {actionError || detail}
+            </p>
+          }
+        >
+          <Chip fullWidth id='retry' variant='primary' onClick={() => bridge?.offlineRetry()}>
+            Retry
           </Chip>
-        ) : null}
-        <Chip id='server' onClick={() => bridge?.server?.open()}>
-          Change server
-        </Chip>
-      </StatusPageContent>
-    </LogoPage>
+          {isSimCloud ? (
+            <Chip fullWidth id='status' onClick={checkStatus}>
+              Check status
+            </Chip>
+          ) : null}
+          <Chip fullWidth variant='ghost' id='server' onClick={() => bridge?.server?.open()}>
+            Change server
+          </Chip>
+        </StatusPageContent>
+      </AuthShellView>
+    </AuthRoot>
   )
 }
 
 const container = document.getElementById('root')
 if (!container) throw new Error('Offline page root is missing')
-void initializeShellPage().then(() => {
+{
   observeDesktopTitleBar(document.documentElement, navigator.userAgent, bridge)
   const root = createRoot(container)
   root.render(<OfflinePage isSimCloud={false} />)
@@ -111,4 +121,4 @@ void initializeShellPage().then(() => {
       root.render(<OfflinePage isSimCloud={isSimCloud} />)
     })
     .catch(() => {})
-})
+}

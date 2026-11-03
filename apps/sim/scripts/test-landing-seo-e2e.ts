@@ -14,6 +14,7 @@ import {
   gumloopProfile,
   langflowProfile,
   n8nProfile,
+  openaiAgentkitProfile,
   openClawProfile,
   pipedreamProfile,
   vellumProfile,
@@ -401,6 +402,7 @@ async function run() {
       langflowProfile,
       pipedreamProfile,
       openClawProfile,
+      openaiAgentkitProfile,
     ]) {
       const { status, body } = await get(`/comparisons/${profile.id}`)
       if (status !== 200) {
@@ -418,6 +420,20 @@ async function run() {
       const questions = faqQuestions(body).slice(0, expected.length)
       if (expected.length === 0 || questions.join('|') !== expected.join('|')) {
         failures.push(`${profile.id}: FAQPage does not open with the profile FAQs`)
+      }
+      const migration = profile.migration
+      if (migration) {
+        const comparisonAt = text.indexOf('feature-by-feature comparison')
+        if (comparisonAt < 0) {
+          failures.push(`${profile.id}: feature-by-feature comparison heading missing`)
+        } else if (
+          [migration.heading, migration.stepsHeading].some((heading) => {
+            const at = text.indexOf(heading)
+            return at < 0 || at > comparisonAt
+          })
+        ) {
+          failures.push(`${profile.id}: migration section missing or below the feature comparison`)
+        }
       }
     }
     assert.deepEqual(failures, [])

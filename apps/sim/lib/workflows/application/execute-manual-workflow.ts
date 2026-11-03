@@ -23,8 +23,7 @@ import {
   validateTriggerInput,
 } from '@/lib/workflows/triggers/run-options'
 
-interface ManualExecutionInput
-  extends Omit<ExecuteWorkflowInput, 'input' | 'mode' | 'requestedTimeoutSeconds'> {
+interface ManualExecutionInput extends Omit<ExecuteWorkflowInput, 'input' | 'mode'> {
   input?: unknown
   mode: 'sync' | 'stream' | 'sync-result-stream'
   stopAfterBlockId?: string
@@ -146,8 +145,10 @@ function executionServiceInput(params: {
     selectedOutputs: params.input.selectedOutputs,
     stopAfterBlockId: params.input.stopAfterBlockId,
     rateLimitCounter: 'sync' as const,
+    requestedTimeoutSeconds: params.input.requestedTimeoutSeconds,
     abortSignal: params.input.abortSignal,
     mode: params.input.mode,
+    detachable: params.input.detachable,
     requestHeaders: params.input.requestHeaders,
     includeThinking: params.input.includeThinking,
     includeToolCalls: params.input.includeToolCalls,

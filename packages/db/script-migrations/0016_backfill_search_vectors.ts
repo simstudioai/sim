@@ -1,3 +1,4 @@
+import { SYNC_EMBEDDING_SEARCH_FUNCTION } from '@sim/db/knowledge-projection'
 import { resolveMigrationDatabaseUrl } from '@sim/db/script-migrations/database-url'
 import type { ScriptMigration } from '@sim/db/script-migrations/types'
 import { createLogger } from '@sim/logger'
@@ -30,29 +31,7 @@ export async function backfillSearchVectors(sql: Sql): Promise<number> {
     await tx.unsafe(
       `ALTER TABLE embedding_search ${['id', 'knowledge_base_id', 'document_id', ...columns].map((column) => `ALTER COLUMN ${column} SET STORAGE PLAIN`).join(', ')}`
     )
-    await tx.unsafe(`CREATE OR REPLACE FUNCTION sync_embedding_search()
-      RETURNS trigger LANGUAGE plpgsql AS $$
-      DECLARE shortened boolean;
-      BEGIN
-        SELECT embedding_model IN ('text-embedding-3-small', 'text-embedding-3-large')
-          AND NEW.embedding_384 IS NULL INTO STRICT shortened
-        FROM knowledge_base WHERE id = NEW.knowledge_base_id;
-        INSERT INTO embedding_search
-          (id, knowledge_base_id, document_id, enabled,
-            "binary", binary_384, binary_768, binary_1024, binary_3072, ${columns.join(', ')})
-        VALUES (NEW.id, NEW.knowledge_base_id, NEW.document_id, NEW.enabled,
-          binary_quantize(NEW.embedding)::bit(1536), binary_quantize(NEW.embedding_384)::bit(384),
-          binary_quantize(NEW.embedding_768)::bit(768), binary_quantize(NEW.embedding_1024)::bit(1024),
-          binary_quantize(NEW.embedding_3072)::bit(3072), ${projections('NEW', 'shortened')})
-        ON CONFLICT (id) DO UPDATE SET
-          knowledge_base_id = EXCLUDED.knowledge_base_id, document_id = EXCLUDED.document_id,
-          enabled = EXCLUDED.enabled, "binary" = EXCLUDED."binary", binary_384 = EXCLUDED.binary_384,
-          binary_768 = EXCLUDED.binary_768, binary_1024 = EXCLUDED.binary_1024,
-          binary_3072 = EXCLUDED.binary_3072,
-          ${columns.map((column) => `${column} = EXCLUDED.${column}`).join(', ')};
-        RETURN NEW;
-      END;
-      $$`)
+    await tx.unsafe(SYNC_EMBEDDING_SEARCH_FUNCTION)
     await tx.unsafe(`CREATE OR REPLACE TRIGGER embedding_search_sync
       AFTER INSERT OR UPDATE OF knowledge_base_id, document_id, enabled,
         embedding, embedding_384, embedding_768, embedding_1024, embedding_3072 ON embedding
@@ -82,6 +61,7 @@ export async function backfillSearchVectors(sql: Sql): Promise<number> {
               AND e.embedding_384 IS NULL AS shortened
           FROM missing m INNER JOIN embedding e ON e.id = m.id
           INNER JOIN knowledge_base k ON k.id = e.knowledge_base_id
+          WHERE NOT k.is_search_index
           ORDER BY e.id FOR KEY SHARE OF e
         ), inserted AS (
           INSERT INTO embedding_search AS s
@@ -160,7 +140,11 @@ export const backfillSearchVectorsMigration: ScriptMigration = {
   },
 }
 
-/** Records the dev push backfill only after success, so later deploys skip the full scan. */
+/**
+ * Records the dev push backfill only after success, so later deploys skip the full scan. A push
+ * runs no versioned migration, so an already-backfilled database still reinstalls the trigger
+ * function, which takes no table lock, to pick up a changed body.
+ */
 export async function runDevSearchBackfill(sql: Sql): Promise<void> {
   await sql`
     CREATE TABLE IF NOT EXISTS script_migrations (
@@ -172,7 +156,8 @@ export async function runDevSearchBackfill(sql: Sql): Promise<void> {
     SELECT name FROM script_migrations WHERE name = ${backfillSearchVectorsMigration.name}
   `
   if (applied) {
-    logger.info('Dev search backfill already applied; skipping')
+    await sql.unsafe(SYNC_EMBEDDING_SEARCH_FUNCTION)
+    logger.info('Dev search backfill already applied; refreshed the projection function only')
     return
   }
 

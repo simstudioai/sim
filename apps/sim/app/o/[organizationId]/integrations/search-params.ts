@@ -1,4 +1,16 @@
-import { createLoader, parseAsString } from 'nuqs/server'
+import { createLoader, createSerializer, parseAsString } from 'nuqs/server'
+import { organizationPageParsers } from '@/app/o/[organizationId]/components/organization-page/search-params'
+
+export const integrationViewParsers = {
+  integration: parseAsString,
+  account: parseAsString,
+  tools: parseAsString.withDefault(''),
+} as const
+
+export const serializeIntegrationView = createSerializer({
+  ...organizationPageParsers,
+  ...integrationViewParsers,
+})
 
 export const integrationConnectionParams = {
   connectorType: parseAsString.withDefault(''),

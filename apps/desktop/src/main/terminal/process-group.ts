@@ -11,11 +11,25 @@ const logger = createLogger('DesktopTerminalProcessGroup')
 const LOOKUP_TIMEOUT_MS = 2_000
 
 /**
- * The tty's foreground process group, read from `ps`. Null when it cannot be read, or when the
- * shell itself holds the foreground (it is sitting at its prompt).
+ * Who holds a terminal's foreground: the shell at its prompt (or a shell that has already
+ * exited), another process group, or `unknown` when the OS could not be asked.
  */
-export function readForegroundProcessGroup(shellPid: number): Promise<number | null> {
-  if (!Number.isInteger(shellPid) || shellPid <= 0) return Promise.resolve(null)
+export type ForegroundProcessGroup =
+  | { kind: 'shell' }
+  | { kind: 'group'; pgid: number }
+  | { kind: 'unknown' }
+
+const SHELL: ForegroundProcessGroup = { kind: 'shell' }
+const UNKNOWN: ForegroundProcessGroup = { kind: 'unknown' }
+
+/**
+ * The tty's foreground process group, read from `ps`. A pid `ps` no longer knows is a shell
+ * that has exited, so nothing can be running in it. Windows has no `ps` or tty process groups,
+ * so a Windows shell always reads as holding its own foreground.
+ */
+export function readForegroundProcessGroup(shellPid: number): Promise<ForegroundProcessGroup> {
+  if (process.platform === 'win32') return Promise.resolve(SHELL)
+  if (!Number.isInteger(shellPid) || shellPid <= 0) return Promise.resolve(UNKNOWN)
   return new Promise((resolve) => {
     let child: ReturnType<typeof spawn>
     try {
@@ -23,12 +37,12 @@ export function readForegroundProcessGroup(shellPid: number): Promise<number | n
         stdio: ['ignore', 'pipe', 'ignore'],
       })
     } catch {
-      resolve(null)
+      resolve(UNKNOWN)
       return
     }
     let stdout = ''
     let settled = false
-    const finish = (value: number | null) => {
+    const finish = (value: ForegroundProcessGroup) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
@@ -36,15 +50,22 @@ export function readForegroundProcessGroup(shellPid: number): Promise<number | n
     }
     const timer = setTimeout(() => {
       child.kill('SIGKILL')
-      finish(null)
+      finish(UNKNOWN)
     }, LOOKUP_TIMEOUT_MS)
     child.stdout?.on('data', (chunk: Buffer) => {
       stdout += chunk.toString()
     })
-    child.on('error', () => finish(null))
-    child.on('close', () => {
-      const pgid = Number.parseInt(stdout.trim(), 10)
-      finish(Number.isInteger(pgid) && pgid > 0 && pgid !== shellPid ? pgid : null)
+    child.on('error', () => finish(UNKNOWN))
+    child.on('close', (code) => {
+      const output = stdout.trim()
+      if (code !== 0 || !output) {
+        finish(code === 1 && !output ? SHELL : UNKNOWN)
+        return
+      }
+      const pgid = Number.parseInt(output, 10)
+      if (!Number.isInteger(pgid)) finish(UNKNOWN)
+      else if (pgid <= 0 || pgid === shellPid) finish(SHELL)
+      else finish({ kind: 'group', pgid })
     })
   })
 }

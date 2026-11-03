@@ -128,6 +128,7 @@ function toRawPersistedContentBlockBody(block: ContentBlock): PersistedContentBl
 
 export function buildAssistantSnapshotMessage(params: {
   id: string
+  streamId?: string
   content: string
   contentBlocks: ContentBlock[]
   requestId?: string
@@ -138,6 +139,7 @@ export function buildAssistantSnapshotMessage(params: {
 
   return normalizeMessage({
     id: params.id,
+    ...(params.streamId ? { streamId: params.streamId } : {}),
     role: 'assistant',
     content: params.content,
     timestamp: new Date().toISOString(),

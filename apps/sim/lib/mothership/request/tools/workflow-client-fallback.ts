@@ -1,16 +1,30 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep, sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import type {
   AsyncCompletionSignal,
   AsyncTerminalCompletionSnapshot,
 } from '@/lib/mothership/async-runs/lifecycle'
-import { claimWorkflowToolExecution } from '@/lib/mothership/async-runs/repository'
+import {
+  ASYNC_TOOL_CONFIRMATION_STATUS,
+  ASYNC_TOOL_STATUS,
+} from '@/lib/mothership/async-runs/lifecycle'
+import {
+  claimWorkflowToolExecution,
+  getAsyncToolCall,
+  getClaimedWorkflowExecutionId,
+} from '@/lib/mothership/async-runs/repository'
 import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { waitForWorkflowToolCompletion } from '@/lib/mothership/request/tools/client'
+import { settleClientToolCall } from '@/lib/mothership/request/tools/client-settlement.server'
 import { toolStartWindowClosed } from '@/lib/mothership/request/tools/deadline'
+import {
+  createStructuralWorkflowToolCompletionData,
+  getWorkflowToolCompletionMessage,
+} from '@/lib/mothership/tools/workflow-tools'
+import { getWorkflowExecutionLogStatus } from '@/lib/workflows/executor/execution-state'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('CopilotWorkflowClientFallback')
@@ -36,10 +50,73 @@ interface RaceWorkflowToolClientPickupParams {
   /** When the call's deadline passes: past it the server does not take the call over. */
   deadlineAt?: number
   graceMs: number
+  /**
+   * How long to wait for a browser's run before settling the call still running (the frame's
+   * `waitTimeoutMs`); the browser's run goes on. Undefined waits until it settles.
+   */
+  waitTimeoutMs?: number
   abortSignal?: AbortSignal
   registry?: ResolvedSecretTraceRegistry
   /** Runs the tool in-process; only invoked after the execution claim is won. */
   runOnServer: (boundExecutionId: string) => Promise<AsyncCompletionSignal>
+}
+
+/** How often a lapsed wait re-reads the call for the browser's claim. */
+const CLIENT_CLAIM_POLL_MS = 5000
+
+/**
+ * Once `waitTimeoutMs` has passed, settles a browser-run workflow call as running in the
+ * background, the same detach a browser sends on `pagehide`: its waiter answers the call with
+ * the run's ids and the browser's run goes on, bound to the call, so a Stop still cancels it.
+ * A call no browser has claimed yet, or whose run has no log yet, is re-read until it does or the
+ * wait ends.
+ */
+async function detachClientRunAfterWait(params: {
+  toolCallId: string
+  workflowId?: string
+  waitTimeoutMs: number
+  signal: AbortSignal
+}): Promise<void> {
+  const { toolCallId, workflowId, signal } = params
+  if (!workflowId) return
+  let delayMs = params.waitTimeoutMs
+  while (!signal.aborted) {
+    await interruptibleSleep(delayMs, signal)
+    delayMs = CLIENT_CLAIM_POLL_MS
+    if (signal.aborted) return
+    // A failed read is retried on the next poll.
+    const row = await getAsyncToolCall(toolCallId).catch(() => undefined)
+    if (row === undefined) continue
+    if (!row) return
+    // A call awaiting approval or pickup is re-read; one that settled or detached ends the watch.
+    if (row.status === ASYNC_TOOL_STATUS.pending) continue
+    if (row.status !== ASYNC_TOOL_STATUS.running) return
+    const executionId = getClaimedWorkflowExecutionId(row.claimedBy)
+    if (!executionId || row.clientWorkflowExecutionId !== executionId) continue
+    // The claim precedes the run's log: answer running only once the run is readable by its id
+    // and still going. A run that already ended is reported by its own settlement.
+    const logged = await getWorkflowExecutionLogStatus(executionId, workflowId).catch(
+      () => undefined
+    )
+    if (logged !== 'running') continue
+    const status = ASYNC_TOOL_CONFIRMATION_STATUS.background
+    const settled = await settleClientToolCall({
+      toolCallId,
+      status,
+      message: getWorkflowToolCompletionMessage(status),
+      data: createStructuralWorkflowToolCompletionData(status, workflowId, executionId),
+      executionId,
+      guard: { kind: 'open' },
+    }).catch((error) => {
+      logger.warn('Could not settle a lapsed browser workflow wait as running; retrying', {
+        toolCallId,
+        error: toError(error).message,
+      })
+      return undefined
+    })
+    // A write that failed is retried on the next poll; one another transition beat ends the watch.
+    if (settled !== undefined) return
+  }
 }
 
 /**
@@ -81,6 +158,23 @@ export async function raceWorkflowToolClientPickup(
     abortSignal: clientWaitSignal,
     registry,
   })
+  if (params.waitTimeoutMs !== undefined) {
+    const stopDetach = new AbortController()
+    const stop = () => stopDetach.abort()
+    void clientWait.then(stop, stop)
+    detachClientRunAfterWait({
+      toolCallId,
+      workflowId,
+      waitTimeoutMs: params.waitTimeoutMs,
+      signal: AbortSignal.any([clientWaitSignal, stopDetach.signal]),
+    }).catch((error) => {
+      logger.warn('Could not settle a lapsed browser workflow wait as running', {
+        toolCallId,
+        workflowId,
+        error: toError(error).message,
+      })
+    })
+  }
 
   // A caller-supplied timeout shorter than the grace must win, or the grace
   // would outlive the wait it is supposed to bound.

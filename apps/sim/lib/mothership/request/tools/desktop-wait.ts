@@ -136,7 +136,6 @@ async function waitForChatViewDesktopToolCall(
     toolCallId,
     runId: params.runId,
     userId: params.userId,
-    registry: params.registry,
     ...notStarted,
     unclaimedOnly: true,
   })
@@ -181,7 +180,6 @@ async function waitForBoundDesktopToolCall(
     toolCallId,
     runId,
     userId: params.userId,
-    registry: params.registry,
     ...notStarted,
     unclaimedOnly: true,
   })

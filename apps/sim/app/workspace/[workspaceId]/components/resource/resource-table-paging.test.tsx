@@ -1,0 +1,101 @@
+/**
+ * @vitest-environment jsdom
+ *
+ * The table's load-more footer keeps two concerns apart: its spinner shows only while the next
+ * page loads, and its sentinel waits out any request for the list — a background refetch
+ * included — then asks again once it settles, so reaching the bottom mid-refetch never stalls.
+ */
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
+
+/** The live observers, so a test can move the sentinel out of view and back. */
+const observers = new Set<OnScreenObserver>()
+
+/** Each observed sentinel, reported as on screen the moment it is observed. */
+class OnScreenObserver {
+  private target: Element | null = null
+  constructor(private readonly report: IntersectionObserverCallback) {
+    observers.add(this)
+  }
+  observe(target: Element) {
+    this.target = target
+    this.emit(true)
+  }
+  emit(isIntersecting: boolean) {
+    this.report(
+      [{ isIntersecting, target: this.target } as unknown as IntersectionObserverEntry],
+      this as unknown as IntersectionObserver
+    )
+  }
+  disconnect() {
+    observers.delete(this)
+  }
+  unobserve() {}
+  takeRecords() {
+    return []
+  }
+}
+
+const columns = [{ id: 'name', header: 'Name' }]
+const rows = [{ id: 'a', cells: { name: { label: 'a.md' } } }]
+
+describe('Resource.Table paging footer', () => {
+  let root: Root
+  let container: HTMLDivElement
+
+  beforeEach(() => {
+    vi.stubGlobal('IntersectionObserver', OnScreenObserver)
+    container = document.createElement('div')
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+  })
+
+  function render(props: {
+    isLoadingMore: boolean
+    isFetching: boolean
+    loadMoreFailed?: boolean
+    onLoadMore: () => void
+  }) {
+    act(() => {
+      root.render(<Resource.Table columns={columns} rows={rows} hasMore {...props} />)
+    })
+  }
+
+  it('asks for the next page once a background refetch it reached the bottom during settles', () => {
+    const onLoadMore = vi.fn()
+    render({ isLoadingMore: false, isFetching: true, onLoadMore })
+    expect(onLoadMore).not.toHaveBeenCalled()
+
+    render({ isLoadingMore: false, isFetching: false, onLoadMore })
+    expect(onLoadMore).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the bottom spinner for a next page, never for a background refetch', () => {
+    const onLoadMore = vi.fn()
+    /** The footer is the sentinel the table mounts below its rows while more pages remain. */
+    const footer = () => container.querySelector('.py-3')
+    render({ isLoadingMore: false, isFetching: true, onLoadMore })
+    expect(footer()).not.toBeNull()
+    expect(footer()?.childElementCount).toBe(0)
+
+    render({ isLoadingMore: true, isFetching: true, onLoadMore })
+    expect(footer()?.childElementCount).toBe(1)
+  })
+
+  it('does not retry a failed page on its own, only once the bottom is scrolled back to', () => {
+    const onLoadMore = vi.fn()
+    render({ isLoadingMore: true, isFetching: true, onLoadMore })
+    render({ isLoadingMore: false, isFetching: false, loadMoreFailed: true, onLoadMore })
+    expect(onLoadMore).not.toHaveBeenCalled()
+
+    const sentinel = () => [...observers][0]
+    act(() => sentinel().emit(false))
+    act(() => sentinel().emit(true))
+    expect(onLoadMore).toHaveBeenCalledTimes(1)
+  })
+})

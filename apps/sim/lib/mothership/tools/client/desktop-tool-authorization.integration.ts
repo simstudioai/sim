@@ -6,7 +6,7 @@
  * durable Stop write, and results arrive through the confirm route.
  */
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const { redisUrl, inheritedEnv } = await vi.hoisted(async () => {
   const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
@@ -36,6 +36,7 @@ import {
   closeStreamToolAdmission,
   requestRunStop,
 } from '@/lib/mothership/async-runs/repository'
+import { getAutoAllowedTools } from '@/lib/mothership/persistence/tool-permission/auto-allow'
 import { prePersistClientExecutableToolCall } from '@/lib/mothership/request/handlers'
 import { waitForClientToolCompletion } from '@/lib/mothership/request/tools/client'
 import { TraceCollector } from '@/lib/mothership/request/trace'
@@ -72,7 +73,7 @@ const reportsResult = (toolCallId: string, status: 'success' | 'error' = 'succes
     data: { ok: true },
   })
 
-const userAnswers = (toolCallId: string, decision: 'allow' | 'skip') =>
+const userAnswers = (toolCallId: string, decision: 'allow' | 'allow_chat' | 'skip') =>
   post(toolPermissionPOST, '/api/copilot/tool-permission', {
     decisions: [{ toolCallId, decision }],
   })
@@ -160,7 +161,11 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
       streamComplete: false,
       wasAborted: false,
       errors: [],
-      toolPermissions: { enabled: true, autoAllowed: new Set(), autoAllowPermitted: true },
+      toolPermissions: {
+        enabled: true,
+        autoAllowed: await getAutoAllowedTools(userId, chatId),
+        autoAllowPermitted: true,
+      },
     }
     await prePersistClientExecutableToolCall(
       {
@@ -186,9 +191,10 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
   async function desktopIsRunning(
     runId: string,
     toolName: string,
+    args: Record<string, unknown> = {},
     registry?: ResolvedSecretTraceRegistry
   ) {
-    const toolCallId = await agentCalls(runId, toolName, {}, registry)
+    const toolCallId = await agentCalls(runId, toolName, args, registry)
     const claim = await desktopClaims(toolCallId)
     expect(claim.status).toBe(200)
     return toolCallId
@@ -221,6 +227,11 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
       user: { id: userId, email: `${userId}@desktop-authorization.test`, name: 'Desktop' },
       session: { id: generateId(), userId },
     })
+  })
+
+  /** Turns read the chat's stored allow list, so one test's "don't ask again" must not leak. */
+  afterEach(async () => {
+    await db.update(copilotChats).set({ autoAllowedTools: [] }).where(eq(copilotChats.id, chatId))
   })
 
   afterAll(async () => {
@@ -259,6 +270,37 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
     expect((await userAnswers(toolCallId, 'skip')).status).toBe(200)
     expect((await desktopClaims(toolCallId)).status).toBe(403)
     expect(await storedCall(toolCallId)).toMatchObject({ status: 'pending', claimedBy: null })
+  })
+
+  it('refuses to act in the signed-in browser until the user approves it', async () => {
+    const { runId } = await startRun()
+    const toolCallId = await agentCalls(runId, 'browser_click', { elementId: 4 })
+
+    expect((await desktopClaims(toolCallId)).status).toBe(403)
+    expect(await storedCall(toolCallId)).toMatchObject({ status: 'pending', claimedBy: null })
+
+    expect((await userAnswers(toolCallId, 'allow')).status).toBe(200)
+    expect((await desktopClaims(toolCallId)).status).toBe(200)
+  })
+
+  it('remembers allowing the browser for this chat across every browser action, and only those', async () => {
+    const { runId } = await startRun()
+    const clickId = await agentCalls(runId, 'browser_click', { elementId: 4 })
+    expect((await userAnswers(clickId, 'allow_chat')).status).toBe(200)
+
+    const nextTurn = await startRun()
+    const typeId = await agentCalls(nextTurn.runId, 'browser_type', { elementId: 4, text: 'hi' })
+    expect((await desktopClaims(typeId)).status).toBe(200)
+
+    const commandId = await agentCalls(nextTurn.runId, 'terminal', {
+      operation: 'run',
+      args: { command: 'ls' },
+    })
+    const commandClaim = await desktopClaims(commandId)
+    expect(commandClaim.status).toBe(403)
+    expect(await commandClaim.json()).toMatchObject({
+      error: 'The user has not approved this tool call',
+    })
   })
 
   it('refuses a call the user declined before its gate was recorded on the row', async () => {
@@ -349,7 +391,7 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
   it('wakes the waiting turn with what Stop did to a call the desktop already claimed', async () => {
     const { runId, streamId } = await startRun()
     const registry = new ResolvedSecretTraceRegistry([])
-    const toolCallId = await desktopIsRunning(runId, 'terminal', registry)
+    const toolCallId = await desktopIsRunning(runId, 'terminal', { operation: 'read' }, registry)
     const agentAnswer = waitForClientToolCompletion({
       toolCallId,
       runId,
@@ -370,7 +412,9 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
 
   it('acknowledges a desktop result that lands after Stop without reviving the call', async () => {
     const { runId, streamId } = await startRun()
-    const toolCallId = await desktopIsRunning(runId, 'browser_click')
+    const toolCallId = await agentCalls(runId, 'browser_click', { elementId: 4 })
+    expect((await userAnswers(toolCallId, 'allow')).status).toBe(200)
+    expect((await desktopClaims(toolCallId)).status).toBe(200)
     await requestRunStop({ userId, workspaceId, streamId, chatId })
     expect(await storedCall(toolCallId)).toMatchObject({
       status: 'cancelled',

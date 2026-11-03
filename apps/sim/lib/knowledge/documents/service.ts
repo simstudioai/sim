@@ -1459,12 +1459,17 @@ export interface PreparedDocumentIndex {
   readonly vectors?: readonly number[][]
   /** Characters in the document's source text; chunks overlap, so their lengths do not sum to it. */
   readonly characterCount: number
+  /**
+   * The document total its chunker estimated for these chunks. Chunkers estimate
+   * differently from the embedding tokenizer the pass applies to each chunk, so
+   * summing per-chunk counts would not match the source document.
+   */
+  readonly tokenCount: number
 }
 
 /**
- * The processor's result shape for chunks that were never parsed here. Token
- * counts are left to the pass, which estimates every chunk against this
- * base's model whichever way the chunks arrived.
+ * The processor's result shape for chunks that were never parsed here. The
+ * pass still estimates each chunk against this base's model.
  */
 function preparedProcessingResult(prepared: PreparedDocumentIndex) {
   return {
@@ -1474,7 +1479,7 @@ function preparedProcessingResult(prepared: PreparedDocumentIndex) {
     })),
     metadata: {
       chunkCount: prepared.chunks.length,
-      tokenCount: null,
+      tokenCount: prepared.tokenCount,
       characterCount: prepared.characterCount,
     },
   }
@@ -2037,7 +2042,9 @@ export async function processDocumentAsync(
               const now = new Date()
 
               logger.info(
-                `[${documentId}] Document parsed successfully, generating embeddings for ${processed.chunks.length} chunks`
+                prepared?.vectors
+                  ? `[${documentId}] Indexing ${processed.chunks.length} chunks with their bundled vectors`
+                  : `[${documentId}] Document parsed successfully, generating embeddings for ${processed.chunks.length} chunks`
               )
 
               const chunkTexts = processed.chunks.map((chunk) => chunk.text)
@@ -2297,9 +2304,7 @@ export async function processDocumentAsync(
                     .update(document)
                     .set({
                       chunkCount: processed.metadata.chunkCount,
-                      tokenCount:
-                        processed.metadata.tokenCount ??
-                        chunkTokenCounts.reduce((sum, count) => sum + count, 0),
+                      tokenCount: processed.metadata.tokenCount,
                       characterCount: processed.metadata.characterCount,
                       processingStatus: 'completed',
                       processingCompletedAt: now,

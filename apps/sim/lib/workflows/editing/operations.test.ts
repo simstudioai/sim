@@ -120,6 +120,17 @@ const MOCK_REGISTRY_BLOCKS: Record<string, any> = {
       },
     ],
   },
+  table: {
+    type: 'table',
+    name: 'Table (Legacy)',
+    sunset: { status: 'legacy', replacedBy: 'table_v2' },
+    subBlocks: [{ id: 'tableId', type: 'short-input' }],
+  },
+  table_v2: {
+    type: 'table_v2',
+    name: 'Table',
+    subBlocks: [{ id: 'tableId', type: 'short-input' }],
+  },
 }
 const mockGetAllBlocks = getAllBlocks as Mock
 const mockGetBlock = getBlock as Mock
@@ -872,6 +883,128 @@ describe('minted block ids', () => {
     expect(mintedId).not.toBe('triage')
     expect(state.blocks[mintedId]).toBeDefined()
     expect(state.blocks.triage).toBeUndefined()
+  })
+})
+
+describe('sunset block types', () => {
+  const legacyId = '44444444-4444-4444-8444-444444444444'
+  const newId = '55555555-5555-4555-8555-555555555555'
+  const loopId = '66666666-6666-4666-8666-666666666666'
+  const insertedId = '77777777-7777-4777-8777-777777777777'
+
+  function tableBlock(id: string, type: string, name: string, parentId?: string) {
+    return {
+      id,
+      type,
+      name,
+      position: { x: 0, y: 0 },
+      enabled: true,
+      subBlocks: { tableId: { id: 'tableId', type: 'short-input', value: 'tbl_old' } },
+      outputs: {},
+      data: parentId ? { parentId } : {},
+    }
+  }
+
+  it('updates a placed legacy child but refuses a new one when a container edit merges children', () => {
+    const workflow = {
+      blocks: {
+        [loopId]: { ...tableBlock(loopId, 'loop', 'Each'), subBlocks: {} },
+        [legacyId]: tableBlock(legacyId, 'table', 'Rows', loopId),
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+
+    const { state, skippedItems } = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: loopId,
+        params: {
+          nestedNodes: {
+            [legacyId]: { type: 'table', name: 'Rows', inputs: { tableId: 'tbl_new' } },
+            [newId]: { type: 'table', name: 'Fresh rows' },
+          },
+        },
+      },
+    ])
+
+    expect(state.blocks[legacyId].subBlocks.tableId.value).toBe('tbl_new')
+    expect(state.blocks[newId]).toBeUndefined()
+    expect(skippedItems).toEqual([
+      expect.objectContaining({
+        type: 'block_not_allowed',
+        operationType: 'add_nested_node',
+        blockId: newId,
+      }),
+    ])
+  })
+
+  it('refuses a new legacy block, top-level or nested, and names its successor', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      { blocks: {}, edges: [], loops: {}, parallels: {} },
+      [
+        { operation_type: 'add', block_id: newId, params: { type: 'table', name: 'Rows' } },
+        {
+          operation_type: 'add',
+          block_id: loopId,
+          params: {
+            type: 'loop',
+            name: 'Each',
+            nestedNodes: { [legacyId]: { type: 'table', name: 'Nested rows' } },
+          },
+        },
+        {
+          operation_type: 'insert_into_subflow',
+          block_id: insertedId,
+          params: { type: 'table', name: 'Inserted rows', subflowId: loopId },
+        },
+      ]
+    )
+
+    expect(state.blocks[newId]).toBeUndefined()
+    expect(state.blocks[legacyId]).toBeUndefined()
+    expect(state.blocks[insertedId]).toBeUndefined()
+    expect(state.blocks[loopId]).toBeDefined()
+    expect(skippedItems).toHaveLength(3)
+    expect(skippedItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'block_not_allowed',
+          operationType: 'add',
+          reason: expect.stringContaining('use "table_v2" instead'),
+          details: { requestedType: 'table', replacedBy: 'table_v2' },
+        }),
+        expect.objectContaining({ type: 'block_not_allowed', operationType: 'add_nested_node' }),
+        expect.objectContaining({
+          type: 'block_not_allowed',
+          operationType: 'insert_into_subflow',
+        }),
+      ])
+    )
+  })
+
+  it('keeps an existing legacy block editable but refuses switching another block to it', () => {
+    const workflow = {
+      blocks: {
+        [legacyId]: tableBlock(legacyId, 'table', 'Rows'),
+        [newId]: tableBlock(newId, 'table_v2', 'V2'),
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+
+    const { state, skippedItems } = applyOperationsToWorkflowState(workflow, [
+      { operation_type: 'edit', block_id: legacyId, params: { inputs: { tableId: 'tbl_new' } } },
+      { operation_type: 'edit', block_id: newId, params: { type: 'table' } },
+    ])
+
+    expect(state.blocks[legacyId].subBlocks.tableId.value).toBe('tbl_new')
+    expect(state.blocks[newId].type).toBe('table_v2')
+    expect(skippedItems).toEqual([
+      expect.objectContaining({ type: 'block_not_allowed', operationType: 'edit', blockId: newId }),
+    ])
   })
 })
 

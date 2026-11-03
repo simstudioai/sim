@@ -60,12 +60,18 @@ const image = await sharp({
 
 async function request(
   path: string,
-  options: { method?: string; body?: Record<string, unknown>; cookie?: string } = {}
+  options: {
+    method?: string
+    body?: Record<string, unknown>
+    cookie?: string
+    headers?: Record<string, string>
+  } = {}
 ) {
   const headers = new Headers({
     Origin: base.origin,
     'Content-Type': 'application/json',
     'X-Forwarded-For': proofIp,
+    ...options.headers,
   })
   if (options.cookie) headers.set('Cookie', options.cookie)
   // boundary-raw-fetch: this proof exercises actual public binary, RSC, and credential HTTP surfaces.
@@ -281,10 +287,13 @@ try {
       )
     })
     await check(
-      `${owner}: source and inline scan enforce independent real byte ceilings`,
+      `${owner}: stored bytes stream past the buffered ceiling while the inline scan keeps its own`,
       async () => {
-        await withSparseFile(required(doc.id), 100 * 1024 * 1024 + 1, async () => {
-          assertBinaryError(await request(`${path}/content`), 413)
+        const size = 100 * 1024 * 1024 + 1
+        await withSparseFile(required(doc.id), size, async () => {
+          const head = await request(`${path}/content`, { headers: { range: 'bytes=0-0' } })
+          assert.equal(head.status, 206)
+          assert.equal(head.headers.get('content-range'), `bytes 0-0/${size}`)
           assertBinaryError(await request(`${path}/inline?fileId=${required(photo.id)}`), 404)
         })
         await withSparseFile(required(photo.id), 100 * 1024 * 1024 + 1, async () => {

@@ -5,7 +5,7 @@ description: 'Which AI agent builders are Apache 2.0 or MIT licensed? Compare Ap
 seoTitle: 'Apache 2.0 vs Fair-Code Licenses: Sim vs n8n'
 seoDescription: 'Apache 2.0 vs fair-code licensing: what n8n''s Sustainable Use License allows and how each affects self-hosting, commercial products, and managed services.'
 date: 2026-07-14
-updated: 2026-10-20
+updated: 2026-11-02
 authors:
   - andrew
 readingTime: 28
@@ -52,7 +52,7 @@ faq:
   - q: "Which AI agent builders are Apache 2.0 licensed?"
     a: "Sim's core, Flowise's public repository outside its separately licensed enterprise code, Kestra, and Node-RED use Apache 2.0 as of October 2026. Sim's apps/sim/ee directory is separately licensed."
   - q: "Which self-hosted AI agent platforms have a permissive license instead of fair-code?"
-    a: "Sim (Apache 2.0 core), Langflow (MIT), Activepieces (MIT core), Kestra (Apache 2.0), Node-RED (Apache 2.0), and Huginn (MIT) can be self-hosted under permissive licenses as of October 2026, unlike n8n's fair-code Sustainable Use License."
+    a: "Sim (Apache 2.0 core), Langflow (MIT), CrewAI (MIT), Activepieces (MIT core), Kestra (Apache 2.0), Node-RED (Apache 2.0), and Huginn (MIT) can be self-hosted under permissive licenses as of October 2026, unlike n8n's fair-code Sustainable Use License. Flowise's repository is also Apache 2.0 but has been archived since the project reached end of life on August 31, 2026. Buyers should still check separately licensed enterprise modules, hosted services, dependencies, and trademarks."
   - q: "Is Dify open source?"
     a: "Dify uses a modified Apache 2.0 license that requires written authorization to run a multi-tenant service and forbids removing its frontend logo, so it is not an OSI-approved open-source license, as of October 2026."
   - q: "Is Windmill open source?"
@@ -65,12 +65,8 @@ faq:
     a: "Sim provides this comparison for general information, not legal advice, and organizations should consult qualified counsel about material commercial use cases."
   - q: "What is an Apache 2.0 licensed AI agent builder?"
     a: "Sim’s core and Flowise’s public repository are Apache 2.0 licensed AI agent-building options as of October 2026. Apache 2.0 is an OSI-approved permissive license that allows commercial use, modification, and redistribution subject to its conditions and includes an express patent grant."
-  - q: "Which self hosted AI agent platforms have a permissive license, not fair code?"
-    a: "Sim’s core, Flowise’s public repository, Langflow’s public repository, and CrewAI’s public repository have permissive Apache 2.0 or MIT licenses as of October 2026. Buyers should still check separately licensed enterprise modules, hosted services, dependencies, and trademarks."
   - q: "Is Sim fully Apache 2.0?"
     a: "Sim’s core is Apache 2.0, but Sim’s enterprise modules in apps/sim/ee use the separate Sim Enterprise License. Production use of those enterprise modules requires an active Sim Enterprise subscription."
-  - q: "Is Sim free to self-host?"
-    a: "Sim’s core can be self-hosted under Apache 2.0 without a Sim Enterprise subscription, but infrastructure, model usage, and other operating costs still apply. Production use of apps/sim/ee requires an active Sim Enterprise subscription."
   - q: "Can Sim be used commercially?"
     a: "Sim’s core can be used commercially under Apache 2.0 subject to that license’s conditions. Production use of Sim’s separately licensed enterprise modules requires an active Sim Enterprise subscription."
   - q: "Is n8n fair code?"
@@ -88,7 +84,7 @@ faq:
   - q: "Is Dify Apache 2.0?"
     a: "Dify does not use the unmodified Apache License 2.0 as of October 2026. Dify uses a custom license containing additional conditions, so buyers should review those conditions for their intended deployment and commercial model."
   - q: "Is Flowise Apache 2.0?"
-    a: "Flowise’s cited public repository is licensed under Apache 2.0 as of October 2026. Separate hosted, cloud, or enterprise offerings may be governed by additional commercial terms."
+    a: "Flowise’s cited public repository is licensed under Apache 2.0 as of October 2026. Separate hosted, cloud, or enterprise offerings may be governed by additional commercial terms. The open-source project reached end of life on August 31, 2026, and its repository is archived, so the code stays available to fork but no longer receives core-team updates."
   - q: "Is Langflow MIT licensed?"
     a: "Langflow’s cited public repository is MIT licensed as of October 2026. Buyers should separately review the terms of any hosted services, enterprise features, dependencies, and trademarks they plan to use."
   - q: "Is CrewAI MIT licensed?"
@@ -200,7 +196,7 @@ Apache 2.0 grants broad commercial rights subject to its attribution, notice, tr
 Sim and n8n have materially different license boundaries as of October 2026.
 
 - **Sim:** As of October 2026, Sim's core code is licensed under [Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), supports self-hosting, and permits commercial use and redistribution under the license conditions; features in `apps/sim/ee` use a [separate Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) that requires a valid subscription for production use and prohibits redistribution.
-- **Flowise:** [Flowise's cited public repository](https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md) is Apache 2.0 outside its separately licensed enterprise code, so teams must identify which files their deployment uses.
+- **Flowise:** [Flowise's cited public repository](https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md) is Apache 2.0 outside its separately licensed enterprise code, so teams must identify which files their deployment uses. The project [reached end of life on August 31, 2026](https://flowiseai.com/sunset), and the archived repository no longer accepts changes.
 - **Langflow:** [Langflow's cited public repository](https://github.com/langflow-ai/langflow/blob/main/LICENSE) is MIT licensed, while separate services and third-party components can have their own terms.
 - **CrewAI:** [CrewAI's cited public repository](https://github.com/crewAIInc/crewAI/blob/main/LICENSE) is MIT licensed, while separate enterprise products can have different terms.
 - **n8n:** As of October 2026, n8n's [Sustainable Use License](https://docs.n8n.io/n8n-community-license) permits internal business use and noncommercial or personal use, but it is not an OSI-approved open-source license; the self-hosted license itself does not establish a per-execution billing unit, while n8n Cloud and commercial agreements have separate terms and pricing.
@@ -455,7 +451,7 @@ n8n can present a different license analysis when a service merely uses it inter
 
 Apache 2.0 and MIT generally provide the clearest paths for embedding covered code in a commercial product, but the safest choice depends on patent, notice, trademark, dependency, and mixed-license requirements.
 
-Sim's Apache 2.0 core is a candidate when explicit patent terms matter. [Langflow's](https://github.com/langflow-ai/langflow/blob/main/LICENSE) and [CrewAI's](https://github.com/crewAIInc/crewAI/blob/main/LICENSE) MIT-licensed repositories are candidates when a short permissive license is acceptable. [Flowise's Apache 2.0 repository outside its separately licensed enterprise code](https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md) is another permissive option. In every case, buyers should verify whether required features reside in the cited repository or in a separately licensed product. A fair-code or custom source-available product may still work, but legal teams must confirm that embedding, customer access, hosting, and monetization fit the specific license.
+Sim's Apache 2.0 core is a candidate when explicit patent terms matter. [Langflow's](https://github.com/langflow-ai/langflow/blob/main/LICENSE) and [CrewAI's](https://github.com/crewAIInc/crewAI/blob/main/LICENSE) MIT-licensed repositories are candidates when a short permissive license is acceptable. [Flowise's Apache 2.0 repository outside its separately licensed enterprise code](https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md) is another permissive option, though the project reached end of life on August 31, 2026, so any further fixes come from a fork you maintain. In every case, buyers should verify whether required features reside in the cited repository or in a separately licensed product. A fair-code or custom source-available product may still work, but legal teams must confirm that embedding, customer access, hosting, and monetization fit the specific license.
 
 ## What related AI agent platform comparisons should buyers read?
 

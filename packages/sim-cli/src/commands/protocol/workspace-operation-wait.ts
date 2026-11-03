@@ -1,6 +1,7 @@
 import { sleep } from '@sim/utils/helpers'
 import type { Command } from 'commander'
 import { CLI_CONTRACT } from '../../contract/commands'
+import { STILL_RUNNING_EXIT_CODE } from '../../exit-codes'
 import type { GetWorkspaceOperationResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
@@ -55,7 +56,7 @@ export function assertWorkspaceOperationOutcome(
   report: WorkspaceOperation,
   timedOut = false
 ): void {
-  const exitCode = timedOut ? 4 : EXIT_CODES[report.status]
+  const exitCode = timedOut ? STILL_RUNNING_EXIT_CODE : EXIT_CODES[report.status]
   if (!exitCode) return
   throw new SimApiError(
     timedOut

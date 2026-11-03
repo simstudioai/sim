@@ -12,6 +12,14 @@ export const writeChatTool: InternalToolConfig<
   name: 'Write to Microsoft Teams Chat',
   description: 'Write or update content in a Microsoft Teams chat',
   version: '1.0',
+  assistant: {
+    effect: 'write',
+    version: 1,
+    reviewFields: [
+      { name: 'chatId', label: 'Chat', target: true },
+      { name: 'content', label: 'Message', format: 'multiline', editable: true },
+    ],
+  },
   errorExtractor: 'nested-error-object',
   oauth: {
     required: true,

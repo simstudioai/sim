@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { buildFlyoutEntries } from '@/app/workspace/[workspaceId]/components/folders/flyout-entries'
+import {
+  buildFlyoutEntries,
+  flyoutLevelFolders,
+} from '@/app/workspace/[workspaceId]/components/folders/flyout-entries'
 
 function folder(id: string, name: string, parentId: string | null, updatedAt: string) {
   return { id, name, parentId, updatedAt: new Date(updatedAt) }
@@ -47,5 +50,23 @@ describe('buildFlyoutEntries', () => {
     )
 
     expect(entries.map((entry) => entry.id)).toEqual(['root'])
+  })
+})
+
+describe('flyoutLevelFolders', () => {
+  const folders = [
+    folder('docs', 'Docs', null, '2026-01-01'),
+    folder('sub', 'Sub', 'docs', '2026-01-01'),
+    folder('orphan', 'Orphan', 'archived-parent', '2026-01-01'),
+  ]
+
+  it('lists the root children and the folders whose parent is gone at the root', () => {
+    expect(flyoutLevelFolders(folders, null).map((entry) => entry.id)).toEqual(['docs', 'orphan'])
+  })
+
+  it("lists only a folder's own children one level down", () => {
+    expect(flyoutLevelFolders(folders, 'docs').map((entry) => [entry.id, entry.parentId])).toEqual([
+      ['sub', null],
+    ])
   })
 })

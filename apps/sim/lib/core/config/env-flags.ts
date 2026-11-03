@@ -291,7 +291,7 @@ export const isTriggerDevEnabled = isTruthy(env.TRIGGER_DEV_ENABLED)
  * `NEXT_PUBLIC_ENTERPRISE_ENABLED` twin (see {@link isBillingEnabled}).
  * Deployments must set both together.
  */
-export const isEnterpriseEnabled =
+const isEnterpriseEnabled =
   typeof window === 'undefined'
     ? isTruthy(env.ENTERPRISE_ENABLED)
     : isTruthy(getEnv('NEXT_PUBLIC_ENTERPRISE_ENABLED'))

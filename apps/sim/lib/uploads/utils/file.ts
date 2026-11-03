@@ -110,20 +110,6 @@ export function isImageFileType(mimeType: string): boolean {
 }
 
 /**
- * Check if a MIME type is an audio type
- */
-export function isAudioFileType(mimeType: string): boolean {
-  return getContentType(mimeType) === 'audio'
-}
-
-/**
- * Check if a MIME type is a video type
- */
-export function isVideoFileType(mimeType: string): boolean {
-  return getContentType(mimeType) === 'video'
-}
-
-/**
  * Convert a file buffer to base64
  */
 export function bufferToBase64(buffer: Buffer): string {
@@ -413,7 +399,10 @@ const GENERIC_MIME_TYPE = 'application/octet-stream'
 const DUAL_CONTAINER_MIME: Record<string, string> = { webm: 'video/webm' }
 
 /** Every MIME type that identifies no format, including the legacy `binary/` spelling. */
-const GENERIC_MIME_TYPES = new Set([GENERIC_MIME_TYPE, 'binary/octet-stream'])
+export const GENERIC_MIME_TYPES: ReadonlySet<string> = new Set([
+  GENERIC_MIME_TYPE,
+  'binary/octet-stream',
+])
 
 /** Whether a declared MIME type names an actual format, rather than "some bytes". */
 function identifiesFormat(declared: string | undefined): declared is string {
@@ -424,7 +413,9 @@ function identifiesFormat(declared: string | undefined): declared is string {
  * Get MIME type from file extension (fallback if not provided)
  */
 export function getMimeTypeFromExtension(extension: string): string {
-  return EXTENSION_TO_MIME[extension.toLowerCase()] || GENERIC_MIME_TYPE
+  const key = extension.toLowerCase()
+  // Own keys only: an extension such as `constructor` must not read an `Object.prototype` member.
+  return (Object.hasOwn(EXTENSION_TO_MIME, key) && EXTENSION_TO_MIME[key]) || GENERIC_MIME_TYPE
 }
 
 /**
@@ -446,7 +437,9 @@ export function resolveEffectiveMimeType(
   if (identifiesFormat(declared)) return declared
 
   const extension = getFileExtension(filename)
-  return DUAL_CONTAINER_MIME[extension] ?? getMimeTypeFromExtension(extension)
+  return Object.hasOwn(DUAL_CONTAINER_MIME, extension)
+    ? DUAL_CONTAINER_MIME[extension]
+    : getMimeTypeFromExtension(extension)
 }
 
 const MEDIA_FALLBACK_MIME = { audio: 'audio/mpeg', video: 'video/mp4' } as const
@@ -695,6 +688,21 @@ export function extractStorageKey(filePath: string): string {
     return key
   }
   return pathWithoutQuery
+}
+
+/**
+ * The storage key a stored file value names: a serve URL's key (see {@link isInternalFileUrl}),
+ * else the value itself — a name or path may hold `?` or `#`, which only a URL reads as its query.
+ * `undefined` for a serve URL whose percent-encoding cannot be decoded, rather than throwing.
+ */
+export function storageKeyOfStoredValue(value: string): string | undefined {
+  if (!isInternalFileUrl(value)) return value
+  try {
+    // The key is the path alone: a URL's query and fragment are no part of it.
+    return extractStorageKey(value.split(/[?#]/, 1)[0])
+  } catch {
+    return undefined
+  }
 }
 
 /**

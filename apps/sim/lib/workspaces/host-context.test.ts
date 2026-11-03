@@ -104,6 +104,7 @@ describe('getWorkspaceHostContextForViewer', () => {
         organizationSearch,
         knowledgeMemberAccess: workspaceKnowledge,
         knowledgeSourceMirroredAccess: workspaceKnowledge,
+        chat: true,
       })
       expect(mockIsKnowledgeMemberAccessAvailable).toHaveBeenCalledExactlyOnceWith({
         organizationId: 'org-host',

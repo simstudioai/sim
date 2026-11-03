@@ -2827,6 +2827,7 @@ export async function executeFunctionRequest(
         collectedFiles: shellCollectedFiles,
         cost: shellCost,
         sandboxSession: shellSandboxSession,
+        phaseMs: shellPhaseMs,
       } = await executeShellInSandbox({
         code: resolvedCode,
         envs: shellEnvs,
@@ -2851,6 +2852,8 @@ export async function executeFunctionRequest(
         sandboxId,
         succeeded: !shellError,
         executionTime,
+        sandboxSession: shellSandboxSession,
+        phaseMs: shellPhaseMs,
       })
 
       if (shellError) {
@@ -2981,6 +2984,7 @@ export async function executeFunctionRequest(
           collectedFiles: jsCollectedFiles,
           cost: sandboxCost,
           sandboxSession: jsSandboxSession,
+          phaseMs: jsPhaseMs,
         } = await executeInSandbox({
           code: codeForE2B,
           language: CodeLanguage.JavaScript,
@@ -3006,6 +3010,9 @@ export async function executeFunctionRequest(
         logger.info(`[${requestId}] E2B JS sandbox`, {
           sandboxId,
           succeeded: !e2bError,
+          executionTime,
+          sandboxSession: jsSandboxSession,
+          phaseMs: jsPhaseMs,
         })
 
         if (e2bError) {
@@ -3110,6 +3117,7 @@ export async function executeFunctionRequest(
         collectedFiles: pythonCollectedFiles,
         cost: sandboxCost,
         sandboxSession: pythonSandboxSession,
+        phaseMs: pythonPhaseMs,
       } = await executeInSandbox({
         code: codeForE2B,
         language: CodeLanguage.Python,
@@ -3134,6 +3142,9 @@ export async function executeFunctionRequest(
       logger.info(`[${requestId}] E2B Py sandbox`, {
         sandboxId,
         succeeded: !e2bError,
+        executionTime,
+        sandboxSession: pythonSandboxSession,
+        phaseMs: pythonPhaseMs,
       })
 
       if (e2bError) {

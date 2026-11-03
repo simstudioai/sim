@@ -47,6 +47,7 @@ import {
   type ExecuteWorkflowServicePendingRun,
   type ExecuteWorkflowServiceResult,
   type ExecuteWorkflowServiceRun,
+  type ExecuteWorkflowServiceTerminalResult,
   executeWorkflowService,
 } from '@/lib/workflows/executor/execute-service'
 import {
@@ -132,49 +133,113 @@ function presentRun(result: ExecuteWorkflowServiceRun) {
   }
 }
 
+/** Where a run that continues past its response is followed: the v2 runs resource. */
+function runReceipt(workflowId: string, runId: string) {
+  return { runId, statusUrl: `${getBaseUrl()}/api/v2/workflows/${workflowId}/runs/${runId}` }
+}
+
+/** A run that may outlive its response: past `afterMs` (never, when null) only its receipt is sent. */
+interface RunDetachment {
+  afterMs: number | null
+  receipt: ReturnType<typeof runReceipt>
+}
+
+function terminalRunResponse(result: ExecuteWorkflowServiceTerminalResult): Response {
+  if (!result.ok) return serviceFailureResponse(result.failure)
+  if (result.aborted === 'client') {
+    return v2Error('CLIENT_CLOSED_REQUEST', 'Client cancelled request', {
+      details: { runId: result.executionId },
+    })
+  }
+  return v2Data(presentRun(result), {
+    headers: { [V2_WORKFLOW_RUN_ID_HEADER]: result.executionId },
+  })
+}
+
+/**
+ * The run's result, or null once it may detach: `afterMs` has passed (never, when null)
+ * and the run can be found by its id, so the receipt handed out always resolves. The run
+ * itself is never cancelled here.
+ */
+async function settledBeforeDetach(
+  run: ExecuteWorkflowServicePendingRun,
+  afterMs: number | null
+): Promise<ExecuteWorkflowServiceTerminalResult | null> {
+  if (afterMs === null) return run.pending
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), afterMs)
+  })
+  try {
+    const settled = await Promise.race([run.pending, deadline])
+    if (settled) return settled
+  } finally {
+    clearTimeout(timer)
+  }
+  return Promise.race([run.pending, run.logged.then(() => null)])
+}
+
 /**
  * Presents an ordinary synchronous run as heartbeat-delimited NDJSON. The
  * execution promise is the same one used by the JSON path; only its response
  * framing changes, so manual draft selection and cancellation keep their
- * existing semantics.
+ * existing semantics. A detachable run ends the stream with a `detached` frame
+ * carrying its receipt once the wait elapses, and a reader that goes away
+ * leaves it running instead of cancelling it.
  */
 function streamPendingRun(
   pendingRun: ExecuteWorkflowServicePendingRun,
   requestId: string,
-  onSettled: () => void
+  onSettled: () => void,
+  detachment?: RunDetachment
 ): Response {
-  let cancelled = false
+  let closed = false
   let heartbeatId: ReturnType<typeof setInterval> | undefined
-  const stopHeartbeat = () => {
-    if (heartbeatId) {
-      clearInterval(heartbeatId)
-      heartbeatId = undefined
-    }
+  const stopTimers = () => {
+    clearInterval(heartbeatId)
+    heartbeatId = undefined
+  }
+  const abandon = () => {
+    if (closed) return
+    closed = true
+    stopTimers()
+    if (!detachment) pendingRun.cancel()
   }
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      const cancel = () => {
-        if (cancelled) return
-        cancelled = true
-        stopHeartbeat()
-        pendingRun.cancel()
-      }
       const send = (event: unknown): boolean => {
-        if (cancelled) return false
+        if (closed) return false
         try {
           controller.enqueue(encodeNdjson(event))
           return true
         } catch {
-          cancel()
+          abandon()
           return false
         }
+      }
+      const finish = () => {
+        if (closed) return
+        closed = true
+        stopTimers()
+        controller.close()
       }
 
       if (send({ type: 'heartbeat', timestamp: new Date().toISOString() })) {
         heartbeatId = setInterval(() => {
           send({ type: 'heartbeat', timestamp: new Date().toISOString() })
         }, WORKFLOW_RESULT_HEARTBEAT_INTERVAL_MS)
+        if (detachment) {
+          const { receipt } = detachment
+          void settledBeforeDetach(pendingRun, detachment.afterMs).then(
+            (settled) => {
+              if (settled) return
+              send({ type: 'detached', data: receipt })
+              finish()
+            },
+            () => {}
+          )
+        }
       }
 
       void pendingRun.pending
@@ -206,15 +271,13 @@ function streamPendingRun(
           send({ type: 'error', error: 'Internal server error', status: 500 })
         })
         .finally(() => {
-          stopHeartbeat()
+          stopTimers()
           onSettled()
-          if (!cancelled) controller.close()
+          finish()
         })
     },
     cancel() {
-      cancelled = true
-      stopHeartbeat()
-      pendingRun.cancel()
+      abandon()
     },
   })
 
@@ -376,16 +439,27 @@ export const POST = withRouteHandler(
         return v2Error('BAD_REQUEST', 'input and run.entry.useMockPayload cannot be combined')
       }
 
+      const detachable = body.waitTimeoutSeconds !== undefined
+      if (detachable && (body.async || body.stream)) {
+        return v2Error('BAD_REQUEST', 'waitTimeoutSeconds cannot be combined with async or stream')
+      }
+      if (detachable && isPublicApiAccess) {
+        return v2Error(
+          'BAD_REQUEST',
+          'waitTimeoutSeconds requires an OAuth access token or API key'
+        )
+      }
+
       if (body.async && isPublicApiAccess) {
         return v2Error('BAD_REQUEST', 'Async execution requires an OAuth access token or API key')
       }
       if (body.async && body.stream) {
         return v2Error('BAD_REQUEST', 'async and stream cannot be combined')
       }
-      if (body.executionTimeoutSeconds !== undefined && !body.async) {
+      if (body.executionTimeoutSeconds !== undefined && !body.async && !detachable) {
         return v2Error(
           'BAD_REQUEST',
-          'executionTimeoutSeconds is supported only for async execution'
+          'executionTimeoutSeconds is supported only for async execution or with waitTimeoutSeconds'
         )
       }
       if (
@@ -416,6 +490,8 @@ export const POST = withRouteHandler(
       }
 
       const resultStream = !body.async && !body.stream && wantsResultStream(req)
+      const syncMode = resultStream || detachable ? 'sync-result-stream' : 'sync'
+      const detachAfterMs = body.waitTimeoutSeconds ? body.waitTimeoutSeconds * 1000 : null
 
       /** Caller-supplied run IDs are a keyed-caller feature; anonymous callers must not probe the claim table. */
       let requestedExecutionId: string | undefined
@@ -433,7 +509,9 @@ export const POST = withRouteHandler(
           includeFileBase64: body.includeFileBase64,
           base64MaxBytes: body.base64MaxBytes,
           selectedOutputs: body.selectedOutputs,
-          abortSignal: req.signal,
+          requestedTimeoutSeconds: body.executionTimeoutSeconds,
+          abortSignal: detachable ? undefined : req.signal,
+          detachable,
           requestHeaders: req.headers,
           includeThinking: body.includeThinking,
           includeToolCalls: body.includeToolCalls,
@@ -445,7 +523,7 @@ export const POST = withRouteHandler(
             input: {
               ...commonInput,
               input: body.input,
-              mode: body.stream ? 'stream' : resultStream ? 'sync-result-stream' : 'sync',
+              mode: body.stream ? 'stream' : syncMode,
               blockId: manualRun.entry.blockId,
               sourceRunId: manualRun.entry.sourceRunId,
               stopAfterBlockId: manualRun.stopAfterBlockId,
@@ -458,7 +536,7 @@ export const POST = withRouteHandler(
             input: {
               ...commonInput,
               input: body.input,
-              mode: body.stream ? 'stream' : resultStream ? 'sync-result-stream' : 'sync',
+              mode: body.stream ? 'stream' : syncMode,
               triggerBlockId: manualRun.entry?.blockId,
               useMockPayload: manualRun.entry?.useMockPayload === true,
               stopAfterBlockId: manualRun.stopAfterBlockId,
@@ -471,14 +549,7 @@ export const POST = withRouteHandler(
             input: {
               ...commonInput,
               input: body.input ?? {},
-              requestedTimeoutSeconds: body.executionTimeoutSeconds,
-              mode: body.async
-                ? 'async'
-                : body.stream
-                  ? 'stream'
-                  : resultStream
-                    ? 'sync-result-stream'
-                    : 'sync',
+              mode: body.async ? 'async' : body.stream ? 'stream' : syncMode,
             },
             request: req,
           })
@@ -540,9 +611,26 @@ export const POST = withRouteHandler(
       }
 
       if ('pending' in result) {
-        const response = streamPendingRun(result, requestId, ticket.release)
+        const detachment: RunDetachment | undefined = detachable
+          ? { afterMs: detachAfterMs, receipt: runReceipt(workflowId, result.executionId) }
+          : undefined
+        if (resultStream) {
+          const response = streamPendingRun(result, requestId, ticket.release, detachment)
+          ticketTransferred = true
+          return response
+        }
+        if (!detachment) {
+          throw new Error('Only a detachable run answers JSON from a pending result')
+        }
+        /** The ticket holds this server's capacity for as long as the run, not the response. */
         ticketTransferred = true
-        return response
+        void result.pending.then(ticket.release, ticket.release)
+        const settled = await settledBeforeDetach(result, detachment.afterMs)
+        if (settled) return terminalRunResponse(settled)
+        return v2Data(detachment.receipt, {
+          status: 202,
+          headers: { [V2_WORKFLOW_RUN_ID_HEADER]: result.executionId },
+        })
       }
 
       if ('stream' in result) {
@@ -556,24 +644,13 @@ export const POST = withRouteHandler(
       }
 
       if ('queued' in result) {
-        return v2Data(
-          {
-            runId: result.executionId,
-            statusUrl: `${getBaseUrl()}/api/v2/workflows/${workflowId}/runs/${result.executionId}`,
-          },
-          { status: 202, headers: { [V2_WORKFLOW_RUN_ID_HEADER]: result.executionId } }
-        )
-      }
-
-      if (result.aborted === 'client') {
-        return v2Error('CLIENT_CLOSED_REQUEST', 'Client cancelled request', {
-          details: { runId: result.executionId },
+        return v2Data(runReceipt(workflowId, result.executionId), {
+          status: 202,
+          headers: { [V2_WORKFLOW_RUN_ID_HEADER]: result.executionId },
         })
       }
 
-      return v2Data(presentRun(result), {
-        headers: { [V2_WORKFLOW_RUN_ID_HEADER]: result.executionId },
-      })
+      return terminalRunResponse(result)
     } catch (error) {
       const classified = v2WorkflowErrorPolicies.concealWorkflowAuthorization.render(error)
       if (classified) return classified

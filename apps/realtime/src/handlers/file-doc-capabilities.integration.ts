@@ -13,7 +13,7 @@ import {
   type JoinFileDocSuccess,
 } from '@sim/realtime-protocol/file-doc'
 import { type FileDocOwner, fileDocRoom } from '@sim/realtime-protocol/file-doc-target'
-import { roomName } from '@sim/realtime-protocol/rooms'
+import { ROOM_TYPES, roomName } from '@sim/realtime-protocol/rooms'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
@@ -56,7 +56,9 @@ let http: HttpServer
 let io: Server
 let manager: MemoryRoomManager
 let socketUrl: string
-let failProjectAccess = false
+let failAccessStatus: number | null = null
+/** Users whose permission group withholds the Files module, as the app's access route decides. */
+const filesWithheld = new Set<string>()
 
 async function listen(server: HttpServer) {
   await new Promise<void>((done) => server.listen(0, '127.0.0.1', done))
@@ -113,8 +115,28 @@ beforeAll(async () => {
     const fileId = project ? path.split('/')[5] : body.fileId
     const actor = project ? request.headers['x-sim-subject-user-id'] : body.userId
     if (path.endsWith('/access')) {
-      if (failProjectAccess) {
-        response.writeHead(503).end('{}')
+      if (failAccessStatus !== null) {
+        response.writeHead(failAccessStatus).end('{}')
+        return
+      }
+      if (!project) {
+        const authorization = await roomAuthorization.authorizeRoom({
+          userId: actor,
+          room: { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: fileId },
+        })
+        if (!authorization.allowed || filesWithheld.has(actor)) {
+          response.end(
+            JSON.stringify({ allowed: false, status: authorization.status === 404 ? 404 : 403 })
+          )
+          return
+        }
+        response.end(
+          JSON.stringify({
+            allowed: true,
+            workspaceId: authorization.workspaceId,
+            workspacePermission: authorization.workspacePermission,
+          })
+        )
         return
       }
       response.end(
@@ -380,13 +402,7 @@ for (const scope of ['workspace', 'project'] as const)
         const writer = await join(target, writerId)
         const now = Date.now()
         const clock = vi.spyOn(Date, 'now').mockReturnValue(now + ROLE_REVALIDATION_TTL_MS + 1)
-        const authorization =
-          scope === 'workspace'
-            ? vi
-                .spyOn(roomAuthorization, 'authorizeRoom')
-                .mockRejectedValue(new Error('Fixture authorization outage'))
-            : null
-        failProjectAccess = true
+        failAccessStatus = 503
         try {
           expect(
             await writer.socket.timeout(3000).emitWithAck(FILE_DOC_EVENTS.UPDATE, {
@@ -400,13 +416,59 @@ for (const scope of ['workspace', 'project'] as const)
             io.sockets.sockets.get(writer.socket.id ?? '')?.rooms.has(roomName(fileDocRoom(target)))
           ).toBe(true)
         } finally {
-          authorization?.mockRestore()
           clock.mockRestore()
-          failProjectAccess = false
+          failAccessStatus = null
         }
       }
     )
   })
+
+describe('workspace document rooms answer to the Files capability', () => {
+  check('a member whose permission group withholds Files is refused the room', async () => {
+    const target = await fixture('workspace')
+    filesWithheld.add(writerId)
+    try {
+      await expect(join(target, writerId)).rejects.toThrow('ACCESS_DENIED')
+    } finally {
+      filesWithheld.delete(writerId)
+    }
+  })
+
+  check('an app that predates the access route holds the room instead of revoking it', async () => {
+    const target = await fixture('workspace')
+    const writer = await join(target, writerId)
+    const room = fileDocRoom(target)
+    failAccessStatus = 404
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + ROLE_REVALIDATION_TTL_MS + 1)
+    const sweep = startAccessRevalidationSweep(manager)
+    try {
+      await expect(join(target, readerId)).rejects.toThrow('VERIFY_ACCESS_FAILED')
+      await sweep.runOnce()
+      expect(io.sockets.sockets.get(writer.socket.id ?? '')?.rooms.has(roomName(room))).toBe(true)
+    } finally {
+      sweep.stop()
+      clock.mockRestore()
+      failAccessStatus = null
+    }
+  })
+
+  check('withdrawing Files mid-session evicts the member on the next revalidation', async () => {
+    const target = await fixture('workspace')
+    const writer = await join(target, writerId)
+    const room = fileDocRoom(target)
+    filesWithheld.add(writerId)
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + ROLE_REVALIDATION_TTL_MS + 1)
+    const sweep = startAccessRevalidationSweep(manager)
+    try {
+      await sweep.runOnce()
+      expect(io.sockets.sockets.get(writer.socket.id ?? '')?.rooms.has(roomName(room))).toBe(false)
+    } finally {
+      sweep.stop()
+      clock.mockRestore()
+      filesWithheld.delete(writerId)
+    }
+  })
+})
 
 afterAll(async () => {
   for (const socket of clients) socket.disconnect()

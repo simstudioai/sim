@@ -1036,7 +1036,7 @@ describe('Copilot Confirm API Route', () => {
       status: 'background',
       message: 'Workflow execution is continuing in the background.',
       timestamp: expect.any(String),
-      data: { workflowId: 'workflow-1', executionId: 'unbound-execution' },
+      data: { workflowId: 'workflow-1', executionId: 'unbound-execution', status: 'running' },
     })
   })
 

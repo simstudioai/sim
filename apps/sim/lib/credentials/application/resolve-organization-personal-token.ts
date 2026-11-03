@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
+import { requireAssistantProviderAccess } from '@/lib/assistant-actions/catalog'
 import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
@@ -9,16 +10,18 @@ import {
   isManagedCredentialGroupBindingLive,
   loadManagedCredentialGroupBinding,
 } from '@/lib/credential-groups/credentials'
+import {
+  CREDENTIAL_GROUP_PROVIDER_IDS,
+  findCredentialGroupProviderFromProviderId,
+  getCredentialGroupProviderService,
+} from '@/lib/credential-groups/providers'
 import { resolveManagedOAuthToken } from '@/lib/credentials/managed-oauth'
+import { getOwnOrganizationManagedOAuthCredentials } from '@/lib/credentials/organization-managed'
 import { projectIntegrationToolsForViewer } from '@/lib/integrations/tool-projection'
 import { listPersonalSearchIntegrations } from '@/lib/knowledge/application/personal-search-integrations'
-import { requireOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
 import { providerIdsForService } from '@/lib/oauth/utils'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
-import { listLiveAccounts } from '@/lib/sim-search/live/accounts'
-import { requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
-import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
 
 /** Search's organization delegation can use only the member's currently available personal grant. */
 export const organizationPersonalCredentialOperation = defineOrganizationOperation({
@@ -67,12 +70,7 @@ export const resolveOrganizationPersonalToken = {
         'Select your own active connected account for this integration.'
       )
     }
-    const connector = SEARCH_CONNECTORS.find((entry) =>
-      providerIdsForService(entry.providerId).includes(binding.providerId)
-    )
-    if (!connector)
-      throw new OrchestrationError('forbidden', 'This integration is unavailable in Search.')
-    await requireOrganizationSearchApproval(context.organizationId, connector.type)
+    await requireAssistantProviderAccess(context.organizationId, binding.providerId)
     const [visibility, config] = await Promise.all([
       getBlockVisibility({ userId: context.userId, orgId: context.organizationId }),
       getUserPermissionConfigForOrganization(context.organizationId),
@@ -85,23 +83,16 @@ export const resolveOrganizationPersonalToken = {
       throw new OrchestrationError('forbidden', 'This integration operation is unavailable.')
     }
     const owned = (
-      await listLiveAccounts({ organizationId: context.organizationId }, context.userId)
-    ).some(
-      (account) =>
-        account.id === input.credentialId &&
-        account.type === 'managed_oauth' &&
-        account.providerId === binding.providerId
-    )
+      await getOwnOrganizationManagedOAuthCredentials({
+        organizationId: context.organizationId,
+        userId: context.userId,
+        credentialId: input.credentialId,
+      })
+    ).some((account) => account.providerId === binding.providerId)
     if (!owned)
       throw new OrchestrationError(
         'forbidden',
         'Assistant can only use your own connected account for this integration.'
-      )
-    const policies = await loadLiveSearchPolicies({ organizationId: context.organizationId })
-    if (requiresScopedRetrieval(connector.type, livePolicyFor(policies, connector.type)))
-      throw new OrchestrationError(
-        'forbidden',
-        'This organization restricts search scope for this app. Use search_workspace with nativeQueries and read_document so those restrictions are enforced.'
       )
     const token = await resolveManagedOAuthToken({
       ...input,
@@ -165,18 +156,30 @@ export const prepareOrganizationPersonalConnection = {
         ...providerIdsForService(entry.providerId),
       ].some((name) => name.toLowerCase() === requested)
     )
-    if (!connector)
-      throw new OrchestrationError('validation', 'This integration is unavailable in Search.')
+    const provider = connector
+      ? findCredentialGroupProviderFromProviderId(connector.providerId)
+      : CREDENTIAL_GROUP_PROVIDER_IDS.find((id) =>
+          [id, getCredentialGroupProviderService(id).name].some(
+            (name) => name.toLowerCase() === requested
+          )
+        )
+    if (!provider)
+      throw new OrchestrationError('validation', 'This integration is unavailable in Assistant.')
     const inventory = await listPersonalSearchIntegrations.execute({
       principal,
-      input: { organizationId: context.organizationId, connectorType: connector.type },
+      input: { organizationId: context.organizationId, connectorType: connector?.type ?? provider },
     })
     const target = input.credentialId
       ? inventory.connections
           .flatMap((connection) => connection.accounts)
           .find((account) => account.credentialId === input.credentialId)?.action
       : inventory.available[0]?.target
-    if (target) return { provider: connector.meta.name, providerId: connector.providerId, target }
+    if (target)
+      return {
+        provider: connector?.meta.name ?? getCredentialGroupProviderService(provider).name,
+        providerId: connector?.providerId ?? provider,
+        target,
+      }
     throw new OrchestrationError(
       'validation',
       'No connection action is currently available. Check your integration connection status.'

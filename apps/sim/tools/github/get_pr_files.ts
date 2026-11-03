@@ -140,6 +140,7 @@ ${files
 
 export const getPRFilesV2Tool: ToolConfig<GetPRFilesParams, any> = {
   id: 'github_get_pr_files_v2',
+  assistant: { effect: 'read', version: 1 },
   name: getPRFilesTool.name,
   description: getPRFilesTool.description,
   version: '2.0.0',

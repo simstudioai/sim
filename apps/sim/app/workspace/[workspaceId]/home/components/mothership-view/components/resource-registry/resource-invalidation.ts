@@ -9,9 +9,10 @@ import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workfl
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
+import { invalidateWorkspaceFileReads } from '@/hooks/queries/utils/workspace-file-cache'
+import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-keys'
 import { workflowTestKeys } from '@/hooks/queries/workflow-tests'
 import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 function invalidate(client: QueryClient, key: QueryKey): void {
   void client.invalidateQueries({ queryKey: key })
@@ -34,8 +35,7 @@ const RESOURCE_INVALIDATORS: Record<
     invalidate(qc, workflowTestKeys.details())
   },
   file: (qc, wId, id) => {
-    invalidate(qc, workspaceFilesKeys.lists())
-    invalidate(qc, id ? workspaceFilesKeys.record(wId, id) : workspaceFilesKeys.records())
+    void invalidateWorkspaceFileReads(qc, wId)
     invalidate(qc, id ? workspaceFilesKeys.contentFile(wId, id) : workspaceFilesKeys.contents())
     invalidate(qc, workspaceFilesKeys.storageInfo())
   },
@@ -54,7 +54,7 @@ const RESOURCE_INVALIDATORS: Record<
   },
   filefolder: (qc, wId) => {
     invalidate(qc, workspaceFileFolderKeys.workspaceLists(wId))
-    invalidate(qc, workspaceFilesKeys.workspaceLists(wId))
+    void invalidateWorkspaceFileReads(qc, wId)
     invalidate(qc, workspaceFilesKeys.storageInfo())
   },
   task: (qc, wId, id) => {

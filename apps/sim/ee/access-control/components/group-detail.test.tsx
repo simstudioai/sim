@@ -92,14 +92,26 @@ function render(currentGroup = group) {
   )
 }
 
+function providerControl(provider: string) {
+  return container.querySelector<HTMLButtonElement>(`button[aria-label^="${provider}: "]`)
+}
+
+function setProviderState(provider: string, state: 'Allowed' | 'Can request' | 'Unavailable') {
+  const trigger = providerControl(provider)
+  if (!trigger) throw new Error(`Missing ${provider} access control`)
+  act(() => trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+  const option = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+    (node) => node.textContent?.trim() === state
+  )
+  if (!option) throw new Error(`Missing ${state} option`)
+  act(() => option.click())
+}
+
 function expectNoProviderControls() {
-  expect(container.querySelector('[id^="provider-"]')).toBeNull()
+  for (const provider of ['openai', 'anthropic', 'google'])
+    expect(providerControl(provider)).toBeNull()
   expect(container.querySelector('input[placeholder="Search providers..."]')).toBeNull()
-  expect(
-    [...container.querySelectorAll('button')].some((button) =>
-      /^(De)?select All$/i.test(button.textContent ?? '')
-    )
-  ).toBe(false)
+  expect(container.querySelector('button[aria-label="Set shown permissions to"]')).toBeNull()
 }
 
 async function settle() {
@@ -135,9 +147,7 @@ describe('permission group settings availability', () => {
         )
       )
       await settle()
-      const toggle = container.querySelector<HTMLButtonElement>('#provider-openai')
-      if (!toggle) throw new Error('Authorized group editor was blocked by an unrelated read')
-      act(() => toggle.click())
+      setProviderState('openai', 'Can request')
       let left = false
       act(() =>
         useSettingsDirtyStore.getState().requestLeave(() => {
@@ -149,9 +159,7 @@ describe('permission group settings availability', () => {
         await client.invalidateQueries({ queryKey: permissionGroupKeys.list('org-1') })
       })
       await settle()
-      const refreshedToggle = container.querySelector<HTMLButtonElement>('#provider-openai')
-      if (!refreshedToggle) throw new Error('Group editor disappeared after refresh')
-      expect(refreshedToggle.getAttribute('aria-checked')).toBe('false')
+      expect(providerControl('openai')?.getAttribute('aria-label')).toBe('openai: Can request')
       left = false
       act(() =>
         useSettingsDirtyStore.getState().requestLeave(() => {
@@ -172,9 +180,7 @@ describe('provider permission policy availability', () => {
       ...group,
       config: { ...group.config, allowedModelProviders: ['openai', 'anthropic'] },
     })
-    const toggle = container.querySelector<HTMLButtonElement>('#provider-openai')
-    if (!toggle) throw new Error('Missing provider toggle')
-    act(() => toggle.click())
+    setProviderState('openai', 'Can request')
     let left = false
     act(() =>
       useSettingsDirtyStore.getState().requestLeave(() => {
@@ -182,7 +188,7 @@ describe('provider permission policy availability', () => {
       })
     )
     expect(left).toBe(false)
-    act(() => toggle.click())
+    setProviderState('openai', 'Allowed')
     act(() =>
       useSettingsDirtyStore.getState().requestLeave(() => {
         left = true
@@ -235,13 +241,12 @@ describe('provider permission policy availability', () => {
       })
       await settle()
       expect(container.querySelector('[role="alert"]')).toBeNull()
-      const anthropic = container.querySelector<HTMLButtonElement>('#provider-anthropic')
-      expect(anthropic?.getAttribute('aria-checked')).toBe('true')
-      expect(Boolean(container.querySelector('#provider-openai'))).toBe(
-        !blacklist.includes('openai')
+      expect(providerControl('anthropic')?.getAttribute('aria-label')).toBe('anthropic: Allowed')
+      expect(Boolean(providerControl('openai'))).toBe(!blacklist.includes('openai'))
+      setProviderState('anthropic', 'Can request')
+      expect(providerControl('anthropic')?.getAttribute('aria-label')).toBe(
+        'anthropic: Can request'
       )
-      act(() => anthropic!.click())
-      expect(anthropic?.getAttribute('aria-checked')).toBe('false')
     }
   )
 })

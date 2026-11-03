@@ -783,12 +783,12 @@ export const gumloopProfile: CompetitorProfile = {
           {
             url: 'https://www.gumloop.com/pricing',
             label: 'Gumloop Pricing',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://docs.gumloop.com/core-concepts/credits',
             label: 'Gumloop Docs: Credits',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -801,12 +801,12 @@ export const gumloopProfile: CompetitorProfile = {
           {
             url: 'https://www.gumloop.com/pricing',
             label: 'Gumloop Pricing',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://docs.gumloop.com/core-concepts/credits',
             label: 'Gumloop Docs: Credits',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -820,12 +820,12 @@ export const gumloopProfile: CompetitorProfile = {
           {
             url: 'https://docs.gumloop.com/core-concepts/credits',
             label: 'Gumloop Docs: Credits (plans and trial)',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://www.gumloop.com/pricing',
             label: 'Gumloop Pricing',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -838,12 +838,12 @@ export const gumloopProfile: CompetitorProfile = {
           {
             url: 'https://www.gumloop.com/pricing',
             label: 'Gumloop Pricing (BYOK FAQ)',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://docs.gumloop.com/core-concepts/credits',
             label: 'Gumloop Docs: Credits (How BYOK works)',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },

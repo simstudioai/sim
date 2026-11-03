@@ -246,6 +246,7 @@ export const instancesV2Tool: ToolConfig<
   GoogleCalendarInstancesV2Response
 > = {
   id: 'google_calendar_instances_v2',
+  assistant: { effect: 'read', version: 1 },
   name: 'Google Calendar Get Instances',
   description: 'Get instances of a recurring event from Google Calendar.',
   version: '2.0.0',

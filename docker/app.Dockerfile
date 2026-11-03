@@ -7,7 +7,8 @@ FROM oven/bun:1.4.4-slim AS base
 # Node runs the isolated-vm sandbox worker and the Oracle Database worker (the
 # app itself runs under Bun); the version is kept in lockstep with the
 # `isolated-vm` pin in apps/sim/package.json — Node 24 (ABI 137) requires
-# isolated-vm 6.x.
+# isolated-vm 6.x — and with NODE_VERSION in apps/sim/trigger.config.ts, which
+# copies the same Node into the Bun-based Trigger.dev task image.
 #
 # NODE_VERSION pins the exact NodeSource build: this layer is cached, so an
 # unpinned `nodejs` changed only when an unrelated edit forced a rebuild. The

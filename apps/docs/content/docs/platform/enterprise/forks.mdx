@@ -3,7 +3,7 @@ title: Workspace forks
 description: Create a linked workspace and push or pull deployed workflow changes between environments
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
+import { Callout } from '@/components/ui/callout'
 import { Image } from '@/components/ui/image'
 
 A fork creates a child workspace linked to its source. Later, push or pull deployed workflow changes across that direct parent–child relationship. One workspace has at most one parent, and a parent can have many children. Siblings and grandparents cannot sync directly.
@@ -32,7 +32,7 @@ Billing-enabled deployments require Enterprise, including when self-hosted. Bill
 4. Review the cleared-reference warning and click **Fork**.
 5. Open the child, configure credentials and secrets, and check **Activity** for background-copy results. Deploy its workflows when they are ready.
 
-<Image src="/static/enterprise/forks-create-warning.png" alt="Fork dialog warning that deselected resources clear references in copied workflows" width={1018} height={1078} className="mx-auto h-auto w-full max-w-md" />
+<Image src="/static/enterprise/forks-create-warning.png" alt="Fork dialog warning that deselected resources clear references in copied workflows" width={1018} height={1078} maxWidth="md" className="mx-auto h-auto w-full" />
 
 Deployed workflows arrive as drafts. Undeployed workflows and uncommitted drafts stay in the source. If no eligible workflow is copied, the child receives a blank starter workflow. Deselecting a referenced resource clears the corresponding child fields.
 
@@ -72,7 +72,7 @@ Environment-variable mapping does not sanitize every literal value. Review inlin
 
 Mapping a credential or parent resource can invalidate choices such as Gmail labels, Slack channels, or knowledge documents. Pick those fields again for the target; required fields block **Sync** until configured.
 
-<Image src="/static/enterprise/forks-reconfigure.png" alt="A mapped resource's dependent Document field marked required for sync" width={1662} height={446} className="mx-auto h-auto w-full max-w-xl" />
+<Image src="/static/enterprise/forks-reconfigure.png" alt="A mapped resource's dependent Document field marked required for sync" width={1662} height={446} maxWidth="xl" className="mx-auto h-auto w-full" />
 
 Resolve **Blocking sync** entries by mapping, selecting a supported resource for copy, deploying a referenced source workflow, or fixing its source reference. For a resource deleted at the source, you may explicitly drop its reference. That choice clears every occurrence of that resource in the sync, rather than only the displayed field. Live source resources cannot be dropped this way.
 

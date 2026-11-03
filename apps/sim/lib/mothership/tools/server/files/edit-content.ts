@@ -21,8 +21,8 @@ import {
   HAND_WRITTEN_PAGE_MESSAGE,
   isHandWrittenCompiledPage,
   isSimPageSource,
-  SIM_PAGE_CONTENT_TYPE,
 } from '@/lib/workspace-files/page-compile'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-content-type'
 import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
 import { waitForLatestFileIntent } from './intent-store'
 import { compileDocForWrite, getDocumentFormatInfo, inferContentType } from './workspace-file'

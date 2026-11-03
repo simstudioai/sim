@@ -1,6 +1,6 @@
 import { propagation, trace } from '@opentelemetry/api'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
-import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
+import { TracerProvider } from '@opentelemetry/sdk-trace'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 
@@ -27,7 +27,7 @@ function createLifecycleResult(overrides?: Partial<OrchestratorResult>): Orchest
 
 describe('runHeadlessCopilotLifecycle', () => {
   beforeEach(() => {
-    trace.setGlobalTracerProvider(new BasicTracerProvider())
+    trace.setGlobalTracerProvider(new TracerProvider())
     propagation.setGlobalPropagator(new W3CTraceContextPropagator())
   })
 

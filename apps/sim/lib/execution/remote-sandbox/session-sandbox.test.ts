@@ -50,6 +50,7 @@ import {
   observeSandboxExecution,
   observeSandboxSessionInputs,
 } from '@/lib/execution/remote-sandbox/observer'
+import { SESSION_SANDBOX_IDLE_MS } from '@/lib/execution/remote-sandbox/session'
 import {
   initializeSessionFileProvenance,
   recordSessionFileInput,
@@ -797,7 +798,7 @@ describe('session sandbox lease', () => {
       })
 
       expect(result.sandboxSession).toBe('reused')
-      expect(grantedUntilMs).toBeGreaterThanOrEqual(Date.now() + 20 * 60_000)
+      expect(grantedUntilMs).toBeGreaterThanOrEqual(Date.now() + SESSION_SANDBOX_IDLE_MS)
       expect(calls.extendLifetime).toHaveLength(0)
     } finally {
       clock.mockRestore()
@@ -818,6 +819,46 @@ describe('session sandbox lease', () => {
     await executeInSandbox({ ...CODE_REQUEST, session })
     expect(firstWrites).toBeGreaterThan(0)
     expect(writes).toHaveBeenCalledTimes(firstWrites)
+  })
+
+  it('attributes a warm shell call’s wall time to the phase that spent it', async () => {
+    const { handle } = fakeSandbox('phase-timing')
+    mockFindSessionSandbox.mockResolvedValue(handle)
+    const request = {
+      code: 'true',
+      envs: {},
+      timeoutMs: 10_000,
+      session: { key: 'phase-timing', cli: CLI },
+    }
+    await executeShellInSandbox(request)
+
+    let nowMs = 0
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => nowMs)
+    const writes = vi.fn(handle.writeFile.bind(handle))
+    handle.writeFile = writes
+    const runCommand = handle.runCommand.bind(handle)
+    handle.runCommand = async (command, options) => {
+      nowMs += options.envs?.SIM_CLI_PATH ? 30 : 60
+      return runCommand(command, options)
+    }
+    mockFindSessionSandbox.mockImplementation(async () => {
+      nowMs += 40
+      return handle
+    })
+
+    try {
+      const result = await executeShellInSandbox(request)
+
+      const phases = result.phaseMs ?? {}
+      expect(result.sandboxSession).toBe('reused')
+      expect(writes).not.toHaveBeenCalled()
+      expect(phases.lookup).toBe(40)
+      expect(phases.cli).toBe(30)
+      expect(phases.run).toBe(60)
+      expect(phases.lease).toBeGreaterThanOrEqual(70)
+    } finally {
+      clock.mockRestore()
+    }
   })
 
   it('pins shell CLI resolution ahead of caller environment paths', async () => {

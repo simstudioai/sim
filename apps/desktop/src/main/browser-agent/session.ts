@@ -34,6 +34,7 @@ import type {
   DownloadItem,
   Input,
   MenuItemConstructorOptions,
+  Referrer,
   Session,
   WebContents,
   WebContentsViewConstructorOptions,
@@ -51,9 +52,17 @@ import { isDispatchingAgentInput } from '@/main/browser-agent/cdp'
 import {
   attachAgentContextMenu,
   BASE_ZOOM_FACTOR,
+  type PageNavigation,
   steppedZoomFactor,
 } from '@/main/browser-agent/context-menu'
 import type { BrowserCookieSignal } from '@/main/browser-agent/known-sessions'
+import {
+  cancelPagePrompts,
+  handleSelectPasskeyAccount,
+  noteMainFrameNavigation,
+  resetPagePromptDecisions,
+  setPagePromptHost,
+} from '@/main/browser-agent/page-prompts'
 import {
   activatePanelScope,
   detachIfAttached,
@@ -80,10 +89,12 @@ import {
 import { clearHostVerdictCache } from '@/main/browser-agent/url-guard'
 import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 import { suggestedFilename, uniqueDownloadPath } from '@/main/downloads'
-import { isAppOrigin } from '@/main/navigation'
+import { withinWindow } from '@/main/input-activity'
+import { isAppOrigin, isBlankPopupUrl, parseHttpUrl } from '@/main/navigation'
 import {
   type FocusedResourceShortcut,
   isResourceTabSelectionShortcut,
+  type ResourceTabSelectionShortcut,
   resourceTabTargetIndex,
   zoomActionForShortcut,
 } from '@/main/resource-shortcuts'
@@ -101,6 +112,7 @@ export interface BrowserAppSession {
 
 let browserAppSession: BrowserAppSession | undefined
 const configuredDownloadSessions = new WeakSet<Session>()
+const configuredPasskeySessions = new WeakSet<Session>()
 const routedNavigations = new WeakMap<WebContents, AgentTab>()
 
 class SessionError extends Error {}
@@ -118,8 +130,19 @@ export interface AgentTab {
   pendingMediaPermission?: PendingMediaPermission
   mediaPermissionGrant?: MediaPermissionGrant
   lastRealUserGestureAt?: number
+  /**
+   * Last real click or keypress in this tab. Unlike the media gesture, navigation keeps it: a
+   * click on an app link starts a navigation, clearing that one, before the launch request.
+   */
+  lastUserActivationAt?: number
+  /** When the current document committed; activation before it belonged to another page. */
+  documentCommittedAt?: number
+  /** Last click or keypress the agent dispatched; activation belongs to whoever acted last. */
+  lastAgentInputAt?: number
   /** The tab whose page opened this one; agent work returns there when this tab closes. */
   openerTabId?: string
+  /** Closing this tab while active shows its opener, until the user switches tabs (as in Chrome). */
+  returnToOpenerOnClose?: boolean
   /** A user action asked for this page to take focus once it is on screen. */
   pendingUserFocus?: boolean
   /** Electron owns the native alert or confirm until CDP reports it closed. */
@@ -190,6 +213,8 @@ export interface AgentSessionEvents {
   onTabThemeChanged: (contents: WebContents, theme: BrowserTheme) => void
   /** A download started, progressed, or finished inside one chat's browser. */
   onDownloadsChanged?: (state: BrowserDownloadsState) => void
+  /** Something a page tried that the agent should learn from its next result in this chat. */
+  onAgentNotice?: (notice: string) => void
 }
 
 /**
@@ -221,6 +246,8 @@ const BACKGROUND_TAB_RESTORE_TIMEOUT_MS = 15_000
 const FOREGROUND_TAB_RESTORE_TIMEOUT_MS = 20_000
 const MEDIA_PERMISSION_GESTURE_WINDOW_MS = 10_000
 const MEDIA_PERMISSION_PROMPT_TIMEOUT_MS = 30_000
+/** Chromium's transient user activation lifetime. */
+const USER_ACTIVATION_WINDOW_MS = 5_000
 
 export type BrowserShortcut =
   | 'focus-omnibox'
@@ -229,39 +256,79 @@ export type BrowserShortcut =
   | 'find'
   | 'reload'
   | 'hard-reload'
+  | UserOnlyShortcut
+
+type UserOnlyShortcut = 'back' | 'forward' | 'previous-tab' | 'next-tab' | 'stop'
+/** Shortcuts that move the user's history, tabs, or load; keystrokes the agent sends never trigger them. */
+const USER_ONLY_SHORTCUTS: ReadonlySet<BrowserShortcut> = new Set<UserOnlyShortcut>([
+  'back',
+  'forward',
+  'previous-tab',
+  'next-tab',
+  'stop',
+])
+
+function isUserOnlyShortcut(shortcut: BrowserShortcut): shortcut is UserOnlyShortcut {
+  return USER_ONLY_SHORTCUTS.has(shortcut)
+}
 
 type BrowserShortcutInput = Pick<
   Input,
-  'type' | 'key' | 'isAutoRepeat' | 'isComposing' | 'shift' | 'control' | 'alt' | 'meta'
+  'type' | 'key' | 'code' | 'isAutoRepeat' | 'isComposing' | 'shift' | 'control' | 'alt' | 'meta'
 >
 
 /**
  * Resolves browser-level shortcuts using Command on macOS and Control
- * elsewhere. Alt, composing, and repeated keystrokes stay with the page.
+ * elsewhere, following Chrome's bindings. Composing and repeated keystrokes,
+ * and every other Alt chord, stay with the page.
  *
  * Reload resolves here, from the page's own keystroke, rather than through the
  * application menu: the menu can only guess which surface owns focus, and a
  * wrong guess reloads all of Sim instead of the page.
+ *
+ * `stop` is any bare Escape; only a loading page acts on it, and the page
+ * still receives the key.
  */
 export function browserShortcutForInput(
   input: BrowserShortcutInput,
   platform: NodeJS.Platform = process.platform
 ): BrowserShortcut | null {
-  if (input.type !== 'keyDown' || input.isAutoRepeat || input.isComposing || input.alt) {
-    return null
-  }
-  const primaryModifier = platform === 'darwin' ? input.meta : input.control
-  const otherModifier = platform === 'darwin' ? input.control : input.meta
+  if (input.type !== 'keyDown' || input.isAutoRepeat || input.isComposing) return null
+  const isMac = platform === 'darwin'
+  const primaryModifier = isMac ? input.meta : input.control
+  const otherModifier = isMac ? input.control : input.meta
 
+  if (input.alt) {
+    if (input.shift || otherModifier) return null
+    const arrow = input.key === 'ArrowLeft' ? 'left' : input.key === 'ArrowRight' ? 'right' : null
+    if (!arrow) return null
+    // As in Chrome, these win even inside a text field.
+    if (isMac) {
+      if (!input.meta) return null
+      return arrow === 'left' ? 'previous-tab' : 'next-tab'
+    }
+    if (input.control) return null
+    return arrow === 'left' ? 'back' : 'forward'
+  }
+  if (input.key === 'Escape' && !input.shift && !input.control && !input.meta) return 'stop'
   if (input.key === 'F5' && !otherModifier) {
     if (input.shift || input.control) return 'hard-reload'
     return input.meta ? null : 'reload'
   }
   if (!primaryModifier || otherModifier) return null
 
+  if (!isMac && !input.shift && (input.key === 'PageUp' || input.key === 'PageDown')) {
+    return input.key === 'PageUp' ? 'previous-tab' : 'next-tab'
+  }
   const key = input.key.toLowerCase()
   if (key === 'r') return input.shift ? 'hard-reload' : 'reload'
-  if (input.shift) return null
+  if (input.shift) {
+    if (!isMac) return null
+    // Physical key: Shift turns the bracket into a brace on most layouts.
+    if (input.code === 'BracketLeft') return 'previous-tab'
+    if (input.code === 'BracketRight') return 'next-tab'
+    return null
+  }
   switch (key) {
     case 'l':
       return 'focus-omnibox'
@@ -298,6 +365,8 @@ interface BrowserScopeState {
   browserChromeFocused: boolean
   /** The renderer shows page dialogs, so the user can be asked instead of the shell answering. */
   pageDialogsEnabled: boolean
+  /** The renderer shows sign-in and app-launch prompts; until then the shell refuses them. */
+  pagePromptsEnabled: boolean
   automationActive: boolean
   automationNeedsAttention: boolean
   /**
@@ -332,6 +401,7 @@ function createBrowserScopeState(): BrowserScopeState {
     focusedBrowserClearTimer: null,
     browserChromeFocused: false,
     pageDialogsEnabled: false,
+    pagePromptsEnabled: false,
     automationActive: false,
     automationNeedsAttention: false,
     findingTabId: null,
@@ -568,6 +638,15 @@ function activeBrowserDownloadCount(scopeId?: string): number {
   let count = 0
   for (const active of activeBrowserDownloads) {
     if (resolveBrowserScopeId(active.scopeId) === resolved) count += 1
+  }
+  return count
+}
+
+/** Agent-browser downloads still receiving bytes, which a restart would cut off. */
+export function countProgressingBrowserDownloads(): number {
+  let count = 0
+  for (const active of activeBrowserDownloads) {
+    if (active.download.state === 'progressing') count += 1
   }
   return count
 }
@@ -1066,6 +1145,47 @@ export function initSession(
   getMainWindow = mainWindowProvider
   browserSessionPersistence = persistence ?? null
   browserDownloadSettings = downloadSettings ?? null
+  setPagePromptHost({
+    tabContext: (contents) => {
+      const scoped = scopedTabForContents(contents)
+      if (!scoped) return null
+      const { scopeId, tab } = scoped
+      const onScreen = tabIsOnScreen(scopeId, tab)
+      const agentActedLast =
+        isDispatchingAgentInput(contents) ||
+        (tab.lastAgentInputAt !== undefined &&
+          tab.lastAgentInputAt >= (tab.lastUserActivationAt ?? 0) &&
+          withinWindow(tab.lastAgentInputAt, USER_ACTIVATION_WINDOW_MS))
+      const userAt = tab.lastUserActivationAt
+      return {
+        scopeId,
+        promptsEnabled: browserScopeStates.get(scopeId)?.pagePromptsEnabled === true,
+        onScreen,
+        userActivated:
+          onScreen &&
+          userAt !== undefined &&
+          userAt > Math.max(tab.documentCommittedAt ?? 0, tab.lastAgentInputAt ?? 0) &&
+          withinWindow(userAt, USER_ACTIVATION_WINDOW_MS),
+        agentActedLast,
+        agentDrives: withBrowserScope(scopeId, () => agentOwnsPopupFrom(contents)),
+      }
+    },
+    publish: (contents) => {
+      const scopeId = browserScopeIdForContents(contents)
+      if (scopeId) withBrowserScope(scopeId, () => events?.onPageStateChanged(contents))
+    },
+    focus: (contents) => {
+      const scoped = scopedTabForContents(contents)
+      const win = panelWindow()
+      if (scoped && tabIsOnScreen(scoped.scopeId, scoped.tab) && win && !win.isDestroyed()) {
+        win.webContents.focus()
+      }
+    },
+    noticeForAgent: (contents, notice) => {
+      const scopeId = browserScopeIdForContents(contents)
+      if (scopeId) withBrowserScope(scopeId, () => events?.onAgentNotice?.(notice))
+    },
+  })
   initPanel({
     onGeometryChanged: () => events?.onPanelGeometryChanged?.(),
     getMainWindow: () => getMainWindow(),
@@ -1457,16 +1577,22 @@ function scopedTabForContents(contents: WebContents): { scopeId: string; tab: Ag
   return tab ? { scopeId, tab } : null
 }
 
-function mediaRequestIsUserInitiated(scopeId: string, tab: AgentTab): boolean {
-  const win = panelWindow()
+function tabIsOnScreen(scopeId: string, tab: AgentTab): boolean {
   return (
     resolveBrowserScopeId(scopeId) === getActiveBrowserScopeId() &&
     browserScopeStates.get(scopeId)?.activeTabId === tab.id &&
-    isPanelVisible() &&
+    isPanelVisible()
+  )
+}
+
+function mediaRequestIsUserInitiated(scopeId: string, tab: AgentTab): boolean {
+  const win = panelWindow()
+  return (
+    tabIsOnScreen(scopeId, tab) &&
     Boolean(win && !win.isDestroyed() && win.isFocused()) &&
     tab.view.webContents.isFocused() &&
     typeof tab.lastRealUserGestureAt === 'number' &&
-    Date.now() - tab.lastRealUserGestureAt <= MEDIA_PERMISSION_GESTURE_WINDOW_MS
+    withinWindow(tab.lastRealUserGestureAt, MEDIA_PERMISSION_GESTURE_WINDOW_MS)
   )
 }
 
@@ -1602,6 +1728,12 @@ const browserPermissions: BrowserPermissionHandlers = {
       withBrowserScope(scoped.scopeId, () => publishPageIssue(scoped.tab))
       return
     }
+    // Blink asks only after a click or key, and the view keeps the window as it
+    // is; Electron never settles a refused request, blocking every later one.
+    if (permission === 'fullscreen') {
+      callback(Boolean(scopedTabForContents(contents)))
+      return
+    }
     callback(ALLOWED_SITE_PERMISSIONS.has(permission))
   },
   check: (contents, permission, requestingOrigin, details) => {
@@ -1649,12 +1781,23 @@ function configureAgentPartition(ses: Session): void {
   if (configuredPartitions.has(ses)) return
   configuredPartitions.add(ses)
   keepSessionCookiesAcrossRestarts(ses)
+  configureBrowserPasskeys(ses)
   ses.setPermissionRequestHandler(browserPermissions.request)
   ses.setPermissionCheckHandler(browserPermissions.check)
   ses.webRequest.onBeforeRequest((details, callback) => {
     handleBrowserRequest(details, callback)
   })
   configureBrowserDownloads(ses)
+}
+
+/**
+ * Passkey account choice for browser tabs. The borrowed app session gets the
+ * listener too, so the handler cancels requests from any non-browser contents.
+ */
+function configureBrowserPasskeys(ses: Session): void {
+  if (configuredPasskeySessions.has(ses)) return
+  configuredPasskeySessions.add(ses)
+  ses.on('select-webauthn-account', handleSelectPasskeyAccount)
 }
 
 /** Borrowing app authentication must not replace its permission or request handlers. */
@@ -1891,6 +2034,11 @@ export function enablePageDialogs(): void {
   currentScope.pageDialogsEnabled = true
 }
 
+/** Lets this scope's renderer show sign-in and app-launch prompts from now on. */
+export function enablePagePrompts(): void {
+  currentScope.pagePromptsEnabled = true
+}
+
 /**
  * Whether a dialog on this tab is the user's to answer: the renderer can show
  * it, the page is on screen, and it is the user's page rather than the agent's.
@@ -2053,6 +2201,7 @@ export function recordPageLoadFailure(
   contents: WebContents,
   issue: Extract<BrowserPageIssue, { kind: 'load-error' }>
 ): void {
+  noteMainFrameNavigation(contents, null)
   if ((issue.code === -2 || issue.code === -3) && routedNavigations.has(contents)) return
   const tab = tabForContents(contents)
   if (!tab) return
@@ -2174,6 +2323,38 @@ function hardReloadPage(contents: WebContents): void {
   contents.reloadIgnoringCache()
 }
 
+/** A browser-chrome history move or reload, held for the page's leave-site question. */
+function userNavigate(contents: WebContents, kind: PageNavigation): void {
+  navigateForUser(contents, () =>
+    kind === 'back'
+      ? goBack(contents)
+      : kind === 'forward'
+        ? goForward(contents)
+        : reloadPage(contents)
+  )
+}
+
+/** Moves one tab's history, or selects a tab relative to it in the strip. */
+function runTabShortcut(
+  tab: AgentTab,
+  shortcut: 'back' | 'forward' | ResourceTabSelectionShortcut
+): void {
+  if (shortcut === 'back' || shortcut === 'forward') {
+    userNavigate(tab.view.webContents, shortcut)
+    return
+  }
+  const targetIndex = resourceTabTargetIndex(
+    shortcut,
+    tabs.length,
+    tabs.findIndex((entry) => entry.id === tab.id)
+  )
+  const target = targetIndex === null ? null : tabs[targetIndex]
+  if (target) {
+    switchTab(target.id)
+    target.view.webContents.focus()
+  }
+}
+
 /** Hands one page selection to the exact app window and chat hosting its tab. */
 function addPageSelectionToChat(contents: WebContents, text: string): void {
   if (!text.trim() || getBrowserScopeId() !== getActiveBrowserScopeId()) return
@@ -2292,12 +2473,11 @@ export function stopFindInActiveTab(focusPage: boolean): void {
   if (tab) tab.view.webContents.focus()
 }
 
-/**
- * Whether a page's popup can become a tab that keeps its opener: http(s), within the tab
- * limits, and in the opener's own session (a session boundary needs a separate, opener-less tab).
- */
+/** Whether a popup can become an opener-keeping tab: blank (Chromium puts it in the opener's session) or same-session http(s), within the tab limits. */
 function canAdoptPopup(opener: WebContents, url: string): boolean {
-  if (!/^https?:\/\//i.test(url) || !hasTabCapacity()) return false
+  if (!hasTabCapacity()) return false
+  if (isBlankPopupUrl(url)) return true
+  if (!/^https?:\/\//i.test(url)) return false
   return (
     !browserAppSession ||
     isAppOrigin(url, browserAppSession.origin) === Boolean(agentAppOrigin(opener))
@@ -2309,14 +2489,21 @@ function adoptPopupTab(
   opener: WebContents,
   url: string,
   popup: PopupWindowOptions,
-  { agentOwned, background }: { agentOwned: boolean; background: boolean }
+  {
+    agentOwned,
+    background,
+    referrer,
+  }: { agentOwned: boolean; background: boolean; referrer?: Referrer }
 ): WebContents {
   const openerTabId = tabForContents(opener)?.id
-  const tab = openLinkTab(url, { agentOwned, background }, popup)
+  const tab = openLinkTab(url, { agentOwned, background }, { opener, options: popup })
   tab.openerTabId = openerTabId
+  tab.returnToOpenerOnClose = true
   const contents = tab.view.webContents
   // A background-tab disposition defers creation, so Chromium supplies no contents to adopt.
-  if (!popup.webContents) void contents.loadURL(url).catch(() => {})
+  if (!popup.webContents && !isBlankPopupUrl(url)) {
+    void contents.loadURL(url, { httpReferrer: referrer }).catch(() => {})
+  }
   return contents
 }
 
@@ -2327,7 +2514,7 @@ function adoptPopupTab(
 function openLinkTab(
   url: string,
   { agentOwned, background }: { agentOwned: boolean; background: boolean },
-  popup?: PopupWindowOptions
+  popup?: AdoptedPopup
 ): AgentTab {
   if (agentOwned) return addAutomationTab(url, popup)
   if (background) {
@@ -2347,12 +2534,16 @@ function openLinkTab(
  */
 function openTabWithUrl(
   url: string,
-  { agentOwned, background = false }: { agentOwned: boolean; background?: boolean }
+  {
+    agentOwned,
+    background = false,
+    referrer,
+  }: { agentOwned: boolean; background?: boolean; referrer?: Referrer }
 ): void {
-  if (!/^https?:\/\//i.test(url)) return
+  if (!parseHttpUrl(url)) return
   try {
     const tab = openLinkTab(url, { agentOwned, background })
-    void tab.view.webContents.loadURL(url).catch(() => {})
+    void tab.view.webContents.loadURL(url, { httpReferrer: referrer }).catch(() => {})
   } catch (error) {
     logger.warn('Could not open a link in a new browser tab', {
       error: getErrorMessage(error),
@@ -2366,18 +2557,33 @@ function openTabWithUrl(
  */
 type PopupWindowOptions = BrowserWindowConstructorOptions & WebContentsViewConstructorOptions
 
+/** A page-opened window becoming a tab, with the page that opened it. */
+interface AdoptedPopup {
+  opener: WebContents
+  options: PopupWindowOptions
+}
+
 /**
  * Creates a tab's view. `popup` adopts a page-opened window's WebContents, which Chromium created
  * with the opener's (identical) web preferences, so the opener relationship and its session stay
- * intact; callers only adopt popups whose URL belongs to the opener's session.
+ * intact; a deferred popup without one gets a fresh view in the opener's session. Callers only
+ * adopt popups that are blank or whose URL belongs to the opener's session.
  */
-function createTabView(url?: string, popup?: PopupWindowOptions): WebContentsView {
-  const appSession =
-    url && browserAppSession && isAppOrigin(url, browserAppSession.origin)
-      ? browserAppSession
-      : undefined
+function createTabView(url?: string, popup?: AdoptedPopup): WebContentsView {
+  let appSession: BrowserAppSession | undefined
+  if (popup) {
+    // A popup follows its opener's session (Chromium creates it there); a blank URL names no origin.
+    const popupSession = popup.options.webContents?.session ?? popup.opener.session
+    if (browserAppSession && popupSession === browserAppSession.session) {
+      appSession = browserAppSession
+    }
+  } else if (url && browserAppSession && isAppOrigin(url, browserAppSession.origin)) {
+    appSession = browserAppSession
+  }
   const scopeId = getBrowserScopeId()
-  const view = popup?.webContents ? new WebContentsView(popup) : createFreshTabView(appSession)
+  const view = popup?.options.webContents
+    ? new WebContentsView(popup.options)
+    : createFreshTabView(appSession)
   try {
     /** Detached tabs must lay out before a foreground panel owns their native view. */
     const [width, height] = getMainWindow()?.getContentSize() ?? [1280, 720]
@@ -2388,6 +2594,19 @@ function createTabView(url?: string, popup?: PopupWindowOptions): WebContentsVie
     throw error
   }
 }
+
+/**
+ * Preferences every tab needs, popups Chromium creates included.
+ * `focusOnNavigation`: Electron focuses a page on every main-frame commit, even
+ * a hidden agent tab, which steals the caret from chat; focus follows explicit
+ * user actions instead (see focusPageForUser).
+ * `disableHtmlFullscreenWindowResize`: a page's fullscreen fills the browser
+ * panel, never the Sim window.
+ */
+const AGENT_TAB_WEB_PREFERENCES = {
+  focusOnNavigation: false,
+  disableHtmlFullscreenWindowResize: true,
+} as const
 
 function createFreshTabView(appSession: BrowserAppSession | undefined): WebContentsView {
   return new WebContentsView({
@@ -2409,11 +2628,9 @@ function createFreshTabView(appSession: BrowserAppSession | undefined): WebConte
       // the active tab while a tool waits on it, applied explicitly by
       // applyAutomationTabPolicy — never blanket across every tab.
       backgroundThrottling: true,
-      // Electron focuses a page on every main-frame commit, even a hidden
-      // agent tab, which steals the caret from chat. Focus follows explicit
-      // user actions instead (see focusPageForUser).
-      focusOnNavigation: false,
-      spellcheck: false,
+      ...AGENT_TAB_WEB_PREFERENCES,
+      // Off elsewhere: Chromium would download Hunspell dictionaries.
+      spellcheck: process.platform === 'darwin',
       // The default every origin this tab visits starts at; a per-origin zoom
       // the user sets from the page menu still wins and still persists.
       zoomFactor: getBrowserDefaultZoomFactor(),
@@ -2429,8 +2646,10 @@ function initializeTabView(
   view.setBackgroundColor(browserBackgroundColor())
   const contents = view.webContents
   registerAgentWebContents(contents, appOrigin, browserPermissions)
-  if (appOrigin) configureBrowserDownloads(contents.session)
-  else configureAgentPartition(contents.session)
+  if (appOrigin) {
+    configureBrowserDownloads(contents.session)
+    configureBrowserPasskeys(contents.session)
+  } else configureAgentPartition(contents.session)
   const routeNavigation = (url: string, method: string): boolean => {
     if (!/^https?:\/\//i.test(url) || !browserAppSession) return false
     const wantsAppSession = isAppOrigin(url, browserAppSession.origin)
@@ -2457,10 +2676,27 @@ function initializeTabView(
   registerAgentNavigation(contents, routeNavigation)
   attachAgentContextMenu(contents, {
     addToChat: (text) => withBrowserScope(scopeId, () => addPageSelectionToChat(contents, text)),
-    openTab: (url) =>
-      withBrowserScope(scopeId, () => openTabWithUrl(url, { agentOwned: false, background: true })),
+    openTab: (url, referrer) =>
+      withBrowserScope(scopeId, () =>
+        openTabWithUrl(url, { agentOwned: false, background: true, referrer })
+      ),
     defaultZoomFactor: getBrowserDefaultZoomFactor,
+    history: () =>
+      withBrowserScope(scopeId, () => ({
+        canGoBack: canGoBack(contents),
+        canGoForward: canGoForward(contents),
+      })),
+    navigate: (kind) => withBrowserScope(scopeId, () => userNavigate(contents, kind)),
   })
+  // Chromium leaves Control-wheel zoom to the embedder; step the page menu's ladder.
+  contents.on(
+    'zoom-changed',
+    bindToBrowserScope(scopeId, (_event, direction) => {
+      contents.setZoomFactor(
+        steppedZoomFactor(contents.getZoomFactor(), direction === 'in' ? 1 : -1)
+      )
+    })
+  )
 
   contents.on(
     'focus',
@@ -2507,17 +2743,19 @@ function initializeTabView(
   contents.on(
     'before-mouse-event',
     bindToBrowserScope(scopeId, (_event, mouse) => {
-      if (
-        isDispatchingAgentInput(contents) ||
-        !['mouseDown', 'contextMenu', 'mouseWheel'].includes(mouse.type)
-      ) {
+      if (!['mouseDown', 'contextMenu', 'mouseWheel'].includes(mouse.type)) return
+      const tab = tabs.find((entry) => entry.view.webContents === contents)
+      if (isDispatchingAgentInput(contents)) {
+        if (tab && mouse.type === 'mouseDown') tab.lastAgentInputAt = Date.now()
         return
       }
-      const tab = tabs.find((entry) => entry.view.webContents === contents)
       if (tab && tab.id === currentScope.automationTabId) noteUserIntervention(tab.id)
       if (tab?.id === currentScope.activeTabId) {
         currentScope.visibleTabUserSelected = true
-        if (mouse.type === 'mouseDown') tab.lastRealUserGestureAt = Date.now()
+        if (mouse.type === 'mouseDown') {
+          tab.lastRealUserGestureAt = Date.now()
+          tab.lastUserActivationAt = tab.lastRealUserGestureAt
+        }
       }
     })
   )
@@ -2544,27 +2782,34 @@ function initializeTabView(
     })
   )
 
-  // Keep popups inside the browser resource: http(s) window.open and
-  // target=_blank requests become a new internal tab, never a native window.
-  // A same-session popup adopts Chromium's own WebContents so window.opener
-  // survives (sign-in and "connect" popups post their result back to it).
+  // Popups become internal tabs, never native windows; adopting Chromium's own
+  // WebContents keeps window.opener for sign-in popups that post back to it.
   contents.setWindowOpenHandler((details) =>
     withBrowserScope(scopeId, () => {
       const agentOwned = agentOwnsPopupFrom(contents)
       const background = details.disposition === 'background-tab'
-      if (!canAdoptPopup(contents, details.url)) {
-        openTabWithUrl(details.url, { agentOwned, background })
+      const adopt = canAdoptPopup(contents, details.url)
+      // Only Chromium can carry a form POST with its initiator; never reissue one as a GET.
+      if (details.postBody && (!adopt || background)) {
+        logger.warn('Refused a form POST into a new browser tab')
+        return { action: 'deny' }
+      }
+      if (!adopt) {
+        openTabWithUrl(details.url, { agentOwned, background, referrer: details.referrer })
         return { action: 'deny' }
       }
       return {
         action: 'allow',
         outlivesOpener: true,
-        // A popup's contents are created by Chromium from these preferences, not
-        // from createFreshTabView, so they must opt out of navigation focus here.
-        overrideBrowserWindowOptions: { webPreferences: { focusOnNavigation: false } },
+        // Chromium creates a popup's contents from these, not from createFreshTabView.
+        overrideBrowserWindowOptions: { webPreferences: AGENT_TAB_WEB_PREFERENCES },
         createWindow: (options) =>
           withBrowserScope(scopeId, () =>
-            adoptPopupTab(contents, details.url, options, { agentOwned, background })
+            adoptPopupTab(contents, details.url, options, {
+              agentOwned,
+              background,
+              referrer: details.referrer,
+            })
           ),
       }
     })
@@ -2595,6 +2840,7 @@ function initializeTabView(
       if (!tab) return
       tab.nativePageDialogOpen = false
       invalidatePageDialog(tab)
+      cancelPagePrompts(contents)
       if (tab.recoveringUnresponsive) {
         tab.recoveringUnresponsive = false
         contents.reload()
@@ -2639,20 +2885,35 @@ function initializeTabView(
     'before-input-event',
     bindToBrowserScope(scopeId, (event, input) => {
       const tab = tabs.find((entry) => entry.view === view)
+      const agentInput = isDispatchingAgentInput(contents)
+      if (agentInput && input.type === 'keyDown' && tab) tab.lastAgentInputAt = Date.now()
       if (
-        !isDispatchingAgentInput(contents) &&
+        !agentInput &&
         input.type === 'keyDown' &&
         tab &&
         tab.id === currentScope.automationTabId
       ) {
         noteUserIntervention(tab.id)
       }
-      if (!isDispatchingAgentInput(contents) && tab?.id === currentScope.activeTabId) {
+      if (!agentInput && tab?.id === currentScope.activeTabId) {
         currentScope.visibleTabUserSelected = true
-        if (input.type === 'keyDown' && !input.isAutoRepeat) tab.lastRealUserGestureAt = Date.now()
+        if (input.type === 'keyDown' && !input.isAutoRepeat) {
+          tab.lastRealUserGestureAt = Date.now()
+          tab.lastUserActivationAt = tab.lastRealUserGestureAt
+        }
       }
       const shortcut = browserShortcutForInput(input)
       if (!shortcut) return
+      if (isUserOnlyShortcut(shortcut)) {
+        if (agentInput || !tab) return
+        if (shortcut === 'stop') {
+          if (contents.isLoadingMainFrame()) contents.stop()
+          return
+        }
+        event.preventDefault()
+        runTabShortcut(tab, shortcut)
+        return
+      }
 
       event.preventDefault()
       if (shortcut === 'focus-omnibox') {
@@ -2669,7 +2930,7 @@ function initializeTabView(
         return
       }
       if (shortcut === 'reload') {
-        navigateForUser(contents, () => reloadPage(contents))
+        userNavigate(contents, 'reload')
         return
       }
       if (shortcut === 'hard-reload') {
@@ -2721,14 +2982,30 @@ function initializeTabView(
     'did-navigate',
     bindToBrowserScope(scopeId, () => {
       const tab = tabs.find((entry) => entry.view.webContents === contents)
-      if (tab) tab.pendingRestoreUrl = undefined
+      if (tab) {
+        tab.pendingRestoreUrl = undefined
+        tab.documentCommittedAt = Date.now()
+      }
+      noteMainFrameNavigation(contents, null)
       persistBrowserSession()
     })
   )
+  contents.on('did-redirect-navigation', (details) => {
+    if (details.isMainFrame && !details.isSameDocument)
+      noteMainFrameNavigation(contents, details.url)
+  })
+  // An aborted navigation (ERR_ABORTED) reports no failure the driver records; once nothing is
+  // loading, no top-level request is pending, so a later frame cannot pass for it.
+  contents.on('did-stop-loading', () => noteMainFrameNavigation(contents, null))
+
   contents.on(
     'did-start-navigation',
     bindToBrowserScope(scopeId, (details) => {
       if (!details.isMainFrame) return
+      if (!details.isSameDocument) {
+        cancelPagePrompts(contents)
+        noteMainFrameNavigation(contents, details.url)
+      }
       const tab = tabForContents(contents)
       if (!tab) return
       invalidatePageDialog(tab)
@@ -2773,6 +3050,7 @@ function initializeTabView(
       // the view's contents, so remove it without touching them.
       const tab = tabs.find((entry) => entry.view === view)
       if (tab) removeTab(tab, null)
+      cancelPagePrompts(contents)
       events?.onTabClosed(contents)
     })
   )
@@ -2934,7 +3212,7 @@ interface AddTabOptions {
   activate?: boolean
   notify?: boolean
   url?: string
-  popup?: PopupWindowOptions
+  popup?: AdoptedPopup
 }
 
 function addTabInternal({
@@ -3415,7 +3693,7 @@ export function restoreBrowserSession(): void {
   }
 }
 
-export function addTab(url?: string, popup?: PopupWindowOptions): AgentTab {
+export function addTab(url?: string, popup?: AdoptedPopup): AgentTab {
   restoreBrowserSession()
   currentScope.visibleTabUserSelected = true
   return addTabInternal({ url, popup })
@@ -3426,7 +3704,7 @@ export function addTab(url?: string, popup?: PopupWindowOptions): AgentTab {
  * renderer's decision: every page is a resource tab there, and it shows the
  * agent's tab or badges it depending on what the user is doing.
  */
-export function addAutomationTab(url?: string, popup?: PopupWindowOptions): AgentTab {
+export function addAutomationTab(url?: string, popup?: AdoptedPopup): AgentTab {
   restoreBrowserSession()
   const tab = addTabInternal({ activate: false, notify: false, url, popup })
   currentScope.automationTabId = tab.id
@@ -3500,6 +3778,7 @@ export function switchTab(tabId: string, { claim = true }: { claim?: boolean } =
   if (previousActiveTab && previousActiveTab.id !== tab.id) {
     revokeTabMediaPermissions(previousActiveTab, false)
     previousActiveTab.pendingUserFocus = false
+    for (const entry of tabs) entry.returnToOpenerOnClose = false
   }
   // The claim describes the page on screen, so a mirrored switch to another
   // page leaves that page unclaimed rather than inheriting the last one's.
@@ -3594,8 +3873,10 @@ function removeTab(
   clearFocusedBrowserTab(tab.id)
   detachIfAttached(tab.view)
   if (contents && !contents.isDestroyed()) contents.close()
+  const opener = tabs.find((entry) => entry.id === tab.openerTabId)
   if (currentScope.activeTabId === tab.id) {
-    currentScope.activeTabId = (tabs[index] ?? tabs[index - 1])?.id ?? null
+    const returnTo = tab.returnToOpenerOnClose ? opener : undefined
+    currentScope.activeTabId = (returnTo ?? tabs[index] ?? tabs[index - 1])?.id ?? null
     layout()
     const active = activeTab()
     if (active) {
@@ -3603,7 +3884,6 @@ function removeTab(
     }
   }
   if (currentScope.automationTabId === tab.id) {
-    const opener = tabs.find((entry) => entry.id === tab.openerTabId)
     currentScope.automationTabId =
       opener?.id ?? (adoptNeighborForAgent ? ((tabs[index] ?? tabs[index - 1])?.id ?? null) : null)
     applyAutomationTabPolicy()
@@ -3659,6 +3939,8 @@ export function handleFocusedShortcut(
   shortcut: FocusedResourceShortcut,
   ownerWindow?: BrowserWindow | null
 ): boolean {
+  // Accelerators and mouse buttons arrive before any chat has opened a browser.
+  if (!getActiveBrowserScopeId()) return false
   // Tab-management accelerators belong to the visible Browser even after
   // focus moves into Sim chrome. Otherwise Cmd-T/L/Shift-T silently stop
   // behaving like browser shortcuts, and Cmd-W becomes especially unsafe.
@@ -3672,17 +3954,8 @@ export function handleFocusedShortcut(
     (visibleBrowserShortcut ? visibleActiveTab(ownerWindow) : null)
   if (!shortcutTab) return false
 
-  if (isResourceTabSelectionShortcut(shortcut)) {
-    const targetIndex = resourceTabTargetIndex(
-      shortcut,
-      tabs.length,
-      tabs.findIndex((tab) => tab.id === shortcutTab.id)
-    )
-    const target = targetIndex === null ? null : tabs[targetIndex]
-    if (target) {
-      switchTab(target.id)
-      target.view.webContents.focus()
-    }
+  if (isResourceTabSelectionShortcut(shortcut) || shortcut === 'back' || shortcut === 'forward') {
+    runTabShortcut(shortcutTab, shortcut)
     return true
   }
 
@@ -3702,24 +3975,12 @@ export function handleFocusedShortcut(
     case 'focus-omnibox':
       focusRendererOmnibox('select')
       return true
-    case 'reload-or-clear': {
-      const contents = shortcutTab.view.webContents
-      navigateForUser(contents, () => reloadPage(contents))
+    case 'reload-or-clear':
+      userNavigate(shortcutTab.view.webContents, 'reload')
       return true
-    }
     case 'hard-reload': {
       const contents = shortcutTab.view.webContents
       navigateForUser(contents, () => hardReloadPage(contents))
-      return true
-    }
-    case 'back': {
-      const contents = shortcutTab.view.webContents
-      navigateForUser(contents, () => goBack(contents))
-      return true
-    }
-    case 'forward': {
-      const contents = shortcutTab.view.webContents
-      navigateForUser(contents, () => goForward(contents))
       return true
     }
   }
@@ -3885,6 +4146,17 @@ export async function clearProfileStorage(): Promise<void> {
   // allowlist would silently miss whatever Chromium adds next.
   await ses.clearStorageData()
   await ses.clearCache()
+  await clearBrowserSignIns(ses)
+}
+
+/**
+ * Sign-out forgets every HTTP credential Chromium cached for browser tabs, in the
+ * borrowed app session too, and the remembered certificate and app-launch choices.
+ */
+async function clearBrowserSignIns(agentSession: Session): Promise<void> {
+  resetPagePromptDecisions()
+  await agentSession.clearAuthCache()
+  await browserAppSession?.session.clearAuthCache()
 }
 
 /**
@@ -3917,6 +4189,10 @@ export async function clearAgentData(kinds: readonly BrowserDataKind[]): Promise
 
   if (storages.length > 0) {
     await ses.clearStorageData({ storages } as Parameters<Session['clearStorageData']>[0])
+  }
+  if (kinds.includes('cookies')) {
+    await ses.clearAuthCache()
+    resetPagePromptDecisions(ses)
   }
   if (kinds.includes('cache')) {
     await ses.clearCache()

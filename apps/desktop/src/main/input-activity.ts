@@ -132,6 +132,11 @@ function isWithin(
   if (contents.isDestroyed()) return false
   const activity = activityByContents.get(contents)
   if (!activity) return false
-  const elapsed = Date.now() - stamp(activity)
+  return withinWindow(stamp(activity), windowMs)
+}
+
+/** Whether `at` lies in the last `windowMs`; a clock stepping backwards never passes. */
+export function withinWindow(at: number, windowMs: number): boolean {
+  const elapsed = Date.now() - at
   return elapsed >= 0 && elapsed < windowMs
 }

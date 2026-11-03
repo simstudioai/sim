@@ -8,8 +8,8 @@ name: ci
 # A repo variable, not a committed value: during a Blacksmith outage there is no
 # working CI to merge a switchover through. Only unset/'blacksmith' selects
 # Blacksmith; anything unrecognized selects GitHub so a typo can't queue jobs
-# against the provider you're escaping. Paid build/browser jobs and their cache actions share
-# this predicate. Task planning, the aggregate gate, HTTP acceptance and integration tests use free GitHub runners.
+# against the provider you're escaping. Integration, build and browser jobs and their cache
+# actions share this predicate. Task planning, the aggregate gate and HTTP acceptance use free GitHub runners.
 #
 # GitHub mode is break-glass, not a peer — cold layers, slower runs. The app image
 # is the one job on a paid larger runner: next build needs ~32 GB and OOM-kills
@@ -114,6 +114,7 @@ jobs:
   migrate:
     permissions:
       contents: read
+      id-token: write
     name: migrate
     needs: [checks]
     # Explicit need results instead of the implicit success(): a skipped job
@@ -133,6 +134,8 @@ jobs:
       STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
       MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
       STAGING_MIGRATION_DATABASE_URL: ${{ secrets.STAGING_MIGRATION_DATABASE_URL }}
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
 
   # Same ordering for dev (schema push before the dev image lands in ECR)
   migrate-dev:
@@ -146,6 +149,8 @@ jobs:
       environment: dev
     secrets:
       DEV_DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
 
   # Dev: build immutable images alongside the schema push and Trigger upload.
   image-dev:
@@ -273,21 +278,21 @@ jobs:
         id: deploy
         working-directory: ./apps/sim
         env:
-          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+          TRIGGER_ACCESS_TOKEN: ${{ (steps.target.outputs.environment == 'prod' && secrets.TRIGGER_ACCESS_TOKEN_PROD) || (steps.target.outputs.environment == 'staging' && secrets.TRIGGER_ACCESS_TOKEN_STAGING) || secrets.TRIGGER_ACCESS_TOKEN }}
           TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
           TRIGGER_ENV: ${{ steps.target.outputs.environment }}
           TRIGGER_BRANCH: ${{ steps.target.outputs.preview_branch }}
         run: |
           set -eo pipefail
           if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
-            echo "ERROR: TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
+            echo "ERROR: TRIGGER_PROJECT_ID and a Trigger.dev access token (TRIGGER_ACCESS_TOKEN_${TRIGGER_ENV^^} or TRIGGER_ACCESS_TOKEN) repo secrets must be set" >&2
             exit 1
           fi
           TARGET_ARGS=(--env "$TRIGGER_ENV")
           if [ -n "$TRIGGER_BRANCH" ]; then
             TARGET_ARGS+=(--branch "$TRIGGER_BRANCH")
           fi
-          bunx trigger.dev@4.5.16 deploy "${TARGET_ARGS[@]}" --skip-promotion
+          bunx trigger.dev@4.8.3 deploy "${TARGET_ARGS[@]}" --skip-promotion
 
       - name: Validate deployment version output
         env:
@@ -618,7 +623,7 @@ jobs:
       - name: Promote Trigger.dev version
         working-directory: ./apps/sim
         env:
-          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+          TRIGGER_ACCESS_TOKEN: ${{ (needs.trigger-upload.outputs.environment == 'prod' && secrets.TRIGGER_ACCESS_TOKEN_PROD) || (needs.trigger-upload.outputs.environment == 'staging' && secrets.TRIGGER_ACCESS_TOKEN_STAGING) || secrets.TRIGGER_ACCESS_TOKEN }}
           TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
           TRIGGER_ENV: ${{ needs.trigger-upload.outputs.environment }}
           TRIGGER_BRANCH: ${{ needs.trigger-upload.outputs.preview_branch }}
@@ -626,7 +631,7 @@ jobs:
         run: |
           set -eo pipefail
           if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
-            echo "ERROR: TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
+            echo "ERROR: TRIGGER_PROJECT_ID and a Trigger.dev access token (TRIGGER_ACCESS_TOKEN_${TRIGGER_ENV^^} or TRIGGER_ACCESS_TOKEN) repo secrets must be set" >&2
             exit 1
           fi
           if [ -z "$VERSION" ]; then
@@ -638,7 +643,7 @@ jobs:
           if [ -n "$TRIGGER_BRANCH" ]; then
             TARGET_ARGS+=(--branch "$TRIGGER_BRANCH")
           fi
-          bunx trigger.dev@4.5.16 promote "$VERSION" "${TARGET_ARGS[@]}"
+          bunx trigger.dev@4.8.3 promote "$VERSION" "${TARGET_ARGS[@]}"
 
   # Production only, once the new app serves traffic: submit the library and comparison URLs this
   # push changed to IndexNow. Best effort: nothing depends on it, and a failure never fails the run.
@@ -1149,12 +1154,26 @@ jobs:
         with:
           filters: |
             docs:
-              - 'apps/docs/content/docs/**'
-              - 'apps/sim/scripts/process-docs.ts'
-              - 'apps/sim/lib/chunkers/**'
+              - 'apps/docs/content/**'
+              - 'apps/docs/components/workflow-preview/examples.ts'
+              - 'apps/docs/components/workflow-preview/block-display-workflows.ts'
+              - 'apps/docs/scripts/compile-content.ts'
+              - 'apps/docs/scripts/index-search.ts'
+              - 'apps/docs/lib/content/**'
+              - 'apps/docs/lib/search/**'
+              - 'apps/docs/lib/openapi-specs.ts'
+              - 'apps/docs/lib/urls.ts'
+              - 'apps/docs/openapi*.json'
+              - 'apps/docs/package.json'
+              - 'bun.lock'
+              - '.github/workflows/docs.yml'
+              - '.github/workflows/ci.yml'
 
   # Process docs embeddings (only when docs change, after images are promoted)
   docs:
+    permissions:
+      contents: read
+      id-token: write
     name: docs
     needs: [promote, docs-changes]
     # Explicit results: see migrate's comment.
@@ -1167,6 +1186,8 @@ jobs:
     secrets:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
 
   # Create GitHub Release (only for version commits on main, after all builds complete)
   release:

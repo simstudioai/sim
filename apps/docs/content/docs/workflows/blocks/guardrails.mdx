@@ -3,7 +3,7 @@ title: Guardrails
 description: Validate JSON, match a pattern, assess grounding, or detect PII.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
+import { Callout } from '@/components/ui/callout'
 import { BlockPreview, WorkflowPreview, GUARDRAILS_JSON_WORKFLOW, GUARDRAILS_HALLUCINATION_WORKFLOW, GUARDRAILS_PII_WORKFLOW } from '@/components/workflow-preview'
 
 The **Guardrails block** checks content and returns a result. Each block runs one validation type; chain blocks for multiple checks. Validation alone does not choose the next path—connect a Condition to act on it.

@@ -171,6 +171,11 @@ tabs and popups select their session from the destination origin. Sign-out and a
 or server changes use the existing browser teardown. Browser views retain their own
 permission/download policy, SSRF guards, and minimal preload with no `simDesktop` API.
 
+**Continue in Chrome** (browser menu, plus a hint on known sign-in hosts) opens the active
+https tab in a chosen Chromium-family profile and **Bring session back** imports only that
+page's registrable-domain cookies from it; the rationale and gating live on
+`SimDesktopBrowserImportApi.continueSignIn` in `@sim/desktop-bridge`.
+
 Generated HTML remains inside its `allow-scripts` sandbox. The driver can inspect and
 interact with inline frames through isolated Chromium worlds, including out-of-process
 frames; it does not grant those pages access to the parent app. These shell changes

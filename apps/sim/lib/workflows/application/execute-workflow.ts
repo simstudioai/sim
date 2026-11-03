@@ -23,6 +23,8 @@ export interface ExecuteWorkflowInput {
   requestedTimeoutSeconds?: number
   abortSignal?: AbortSignal
   mode: 'sync' | 'async' | 'stream' | 'sync-result-stream'
+  /** The caller may stop waiting and leave the run going; see `executeWorkflowService`. */
+  detachable?: boolean
   requestHeaders: Headers
   includeThinking?: boolean
   includeToolCalls?: boolean
@@ -63,6 +65,7 @@ export const executeWorkflowOperation = defineAuthorizedWorkflowUseCase({
       requestedTimeoutSeconds: input.requestedTimeoutSeconds,
       abortSignal: input.abortSignal,
       mode: input.mode,
+      detachable: input.detachable,
       requestHeaders: input.requestHeaders,
       includeThinking: input.includeThinking,
       includeToolCalls: input.includeToolCalls,

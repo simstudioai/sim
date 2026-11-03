@@ -92,6 +92,8 @@ export interface DesktopSettings {
   windowBounds?: WindowBounds
   zoomLevel?: number
   lastRoute?: string
+  /** Routes of the other app windows open when an update relaunch was committed. */
+  updateRelaunchRoutes?: string[]
   themeBackground?: 'dark' | 'light'
   blockThirdPartyAnalytics?: boolean
   trayEnabled?: boolean

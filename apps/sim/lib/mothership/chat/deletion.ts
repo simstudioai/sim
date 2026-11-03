@@ -1,6 +1,8 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
+import { enqueueChatBackendCleanup } from '@/lib/cleanup/chat-backend-cleanup'
+import { collectChatFiles } from '@/lib/cleanup/chat-files'
 import { stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
 import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 
@@ -43,8 +45,12 @@ export async function softDeleteMothershipChat(params: {
 }
 
 /**
- * Permanently deletes a copilot chat and stops its live runs in the same transaction. Null
- * when the chat was not the user's.
+ * Permanently deletes a copilot chat and stops its live runs in the same transaction, which also
+ * queues the purge of what lives outside Sim's rows: the copilot backend's chat data, the chat's
+ * stored files, and its inline images (swept by prefix when the purge runs, so one published after
+ * this read goes too). The file keys are read under the chat row's lock, so no message or file
+ * naming the chat can commit between that read and the delete that cascades them away, and the
+ * purge is recorded exactly when the delete commits. Null when the chat was not the user's.
  */
 export async function deleteCopilotChat(params: {
   chatId: string
@@ -61,8 +67,12 @@ export async function deleteCopilotChat(params: {
       .where(owned)
       .for('update')
     if (!chat) return null
-    /** Collected before the delete cascades the run rows away. */
+    /** Collected before the delete cascades the run, message and file rows away. */
     const stoppedRuns = await stopLiveRunsTx(tx, { chatIds: [params.chatId] })
+    await enqueueChatBackendCleanup(tx, {
+      chatIds: [params.chatId],
+      files: await collectChatFiles([params.chatId], tx),
+    })
     await tx.delete(copilotChats).where(owned)
     return { chat, stoppedRuns }
   })

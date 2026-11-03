@@ -114,8 +114,6 @@ test('chat panel sizes survive navigation, chat switches, collapse, and layout c
     const shell = app
     const page = await shell.firstWindow()
     const inputSession = await page.context().newCDPSession(page)
-    // Playwright otherwise keeps the document focused when its native window loses focus.
-    await inputSession.send('Emulation.setFocusEmulationEnabled', { enabled: false })
     page.on('pageerror', (error) => errors.push(error.message))
     page.on('crash', () => {
       rendererCrashed = true
@@ -270,6 +268,8 @@ test('chat panel sizes survive navigation, chat switches, collapse, and layout c
             await divider.evaluate((element) => element.releasePointerCapture(1))
             await page.mouse.move(rect.x + 100, rect.y + 100)
           } else if (interruption === 'blur') {
+            // Reloads restore Playwright's focus emulation; native blur must reach the document.
+            await inputSession.send('Emulation.setFocusEmulationEnabled', { enabled: false })
             await shell.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].blur())
             await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(false)
           } else if (interruption === 'chat switch') {

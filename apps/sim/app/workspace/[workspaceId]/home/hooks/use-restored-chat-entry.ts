@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
-const CHAT_PATH = /^\/(?:workspace|o)\/[^/]+\/chat\/[^/]+$/
+const CHAT_PATH = /^\/(?:workspace|o)\/[^/]+\/(?:search\/)?chat\/[^/]+$/
 
 interface UseRestoredChatEntryProps {
   /** The chat the surface was opened for; the new-chat surface has none. */

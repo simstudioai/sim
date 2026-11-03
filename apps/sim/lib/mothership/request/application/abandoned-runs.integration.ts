@@ -217,7 +217,7 @@ async function runAbandonedMidTool(
   })
   expect(
     await claimToolExecution({ toolCallId, runId, userId, ownerToken: 'dead-controller' })
-  ).toEqual({ outcome: 'claimed' })
+  ).toMatchObject({ outcome: 'claimed' })
   await db
     .update(copilotAsyncToolCalls)
     .set({
@@ -542,7 +542,7 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
       expect(await claimWorkflowToolExecution(toolCallId, generateId(), 'sim')).not.toBeNull()
       expect(
         await claimToolExecution({ toolCallId, runId, userId, ownerToken: 'successor' })
-      ).toEqual({ outcome: 'claimed' })
+      ).toMatchObject({ outcome: 'claimed' })
       expect(await storedTool(toolCallId)).toMatchObject({ attempts: 2, ownerToken: 'successor' })
     } finally {
       await db.update(copilotRuns).set({ status: 'cancelled' }).where(eq(copilotRuns.id, runId))
@@ -636,7 +636,7 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
         .set({ executionLeaseExpiresAt: sql`clock_timestamp() - interval '1 second'` })
         .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
       const successor = { toolCallId, runId, userId, ownerToken: 'successor' }
-      expect(await claimToolExecution(successor)).toEqual({ outcome: 'claimed' })
+      expect(await claimToolExecution(successor)).toMatchObject({ outcome: 'claimed' })
       await recordSimSandboxProcess({
         ...successor,
         process: { id: 'own-command', sandboxId: 'sandbox-1', sessionKey },
@@ -725,7 +725,7 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
       expect(await claimWorkflowToolExecution(toolCallId, generateId(), 'client')).toBeNull()
       expect(await claimWorkflowToolExecution(toolCallId, generateId(), 'sim')).not.toBeNull()
       const successor = { toolCallId, runId, userId, ownerToken: 'successor' }
-      expect(await claimToolExecution(successor)).toEqual({ outcome: 'claimed' })
+      expect(await claimToolExecution(successor)).toMatchObject({ outcome: 'claimed' })
       expect(await claimToolExecution({ ...successor, ownerToken: 'late-claimant' })).toEqual({
         outcome: 'existing',
       })
@@ -775,7 +775,7 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
         .where(eq(copilotAsyncToolCalls.toolCallId, interrupted))
       await upsertAsyncToolCall({ runId, toolCallId: sibling, toolName: TOOL_NAME, args: {} })
       const siblingOwner = { toolCallId: sibling, runId, userId, ownerToken: 'sibling' }
-      expect(await claimToolExecution(siblingOwner)).toEqual({ outcome: 'claimed' })
+      expect(await claimToolExecution(siblingOwner)).toMatchObject({ outcome: 'claimed' })
 
       /** The re-handed sibling runs first: its wait and its workbench access both revoke. */
       await revokeExpiredSimToolExecutions({ runId, userId, toolCallId: sibling })
@@ -791,7 +791,7 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
           userId,
           ownerToken: 'successor',
         })
-      ).toEqual({ outcome: 'claimed' })
+      ).toMatchObject({ outcome: 'claimed' })
     } finally {
       await db.update(copilotRuns).set({ status: 'cancelled' }).where(eq(copilotRuns.id, runId))
     }

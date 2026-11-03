@@ -14,7 +14,7 @@ export const tinesProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    'Tines is a proprietary workflow automation platform, available cloud-hosted or self-hosted, originally built for security operations. Teams build event-driven "Stories" via a visual no/low-code canvas, natural language, or the API. It recently added native AI agent, MCP, and copilot capabilities.',
+    'Tines is a proprietary workflow automation platform, available cloud-hosted or self-hosted, originally built for security operations. Teams build event-driven "Stories" via a visual no/low-code canvas, natural language, or the API. It recently added native AI agent, MCP, and copilot capabilities. In July 2026 Tines launched Tines 3B, a separate code-first product, and renamed the original product Tines Stories, which continues in parallel.',
   standoutFeatures: [
     {
       title: 'ISO 42001 AI-governance certification',
@@ -36,7 +36,7 @@ export const tinesProfile: CompetitorProfile = {
       source: {
         url: 'https://www.tines.com/blog/solving-the-integrations-problem/',
         label: 'Solving the integrations problem',
-        asOf: '2026-07-02',
+        asOf: '2026-11-02',
       },
     },
     {
@@ -69,9 +69,9 @@ export const tinesProfile: CompetitorProfile = {
         'Business and Enterprise plans have no published dollar pricing. Buyers must contact sales to get a quote, making self-serve cost comparison impossible.',
       shortDescription: 'Business and Enterprise pricing requires contacting sales.',
       source: {
-        url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-pricing-and-packaging',
-        label: 'Understanding Tines pricing and packaging',
-        asOf: '2026-07-02',
+        url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-stories-pricing-and-packaging',
+        label: 'Understanding Tines Stories pricing and packaging',
+        asOf: '2026-11-02',
       },
     },
     {
@@ -95,12 +95,12 @@ export const tinesProfile: CompetitorProfile = {
     {
       title: 'Not open source',
       description:
-        'Tines is a closed-source commercial SaaS/self-hosted product; the free "Community Edition" is a limited product tier (1 builder, 3 flows, 25,000 monthly events), not an open-source license.',
+        'Tines is a closed-source commercial SaaS/self-hosted product; the free "Community Edition" is a limited product tier (1 user, 3 flows, 25,000 monthly events), not an open-source license.',
       shortDescription: 'Closed-source SaaS with a limited free tier, not an open-source license.',
       source: {
-        url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-pricing-and-packaging',
-        label: 'Understanding Tines pricing and packaging',
-        asOf: '2026-07-02',
+        url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-stories-pricing-and-packaging',
+        label: 'Understanding Tines Stories pricing and packaging',
+        asOf: '2026-11-02',
       },
     },
   ],
@@ -149,9 +149,9 @@ export const tinesProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-pricing-and-packaging',
-            label: 'Understanding Tines pricing and packaging',
-            asOf: '2026-07-02',
+            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-stories-pricing-and-packaging',
+            label: 'Understanding Tines Stories pricing and packaging',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://www.tines.com/security/',
@@ -194,9 +194,9 @@ export const tinesProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-pricing-and-packaging',
-            label: 'Understanding Tines pricing and packaging',
-            asOf: '2026-07-02',
+            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-stories-pricing-and-packaging',
+            label: 'Understanding Tines Stories pricing and packaging',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -361,15 +361,16 @@ export const tinesProfile: CompetitorProfile = {
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          'Yes: default AI runs on Anthropic Claude via AWS Bedrock (Tines-hosted), and customers can bring their own AI provider/key: OpenAI, Anthropic direct, or a custom AWS Bedrock account with any enabled model',
-        shortValue: 'Bedrock-hosted Claude by default, BYO OpenAI/Anthropic/Bedrock',
+          'Yes: default AI runs on Anthropic Claude via AWS Bedrock (Tines-hosted), and customers can bring their own AI provider/key: OpenAI, Anthropic direct, a custom AWS Bedrock account with any enabled model, Mistral, or any OpenAI- or Anthropic-spec-compatible provider',
+        shortValue:
+          'Bedrock-hosted Claude by default; BYO OpenAI, Anthropic, Bedrock, Mistral, or compatible',
         confidence: 'verified',
         sources: [
           { url: 'https://www.tines.com/docs/admin/ai/', label: 'AI docs', asOf: '2026-07-02' },
           {
-            url: 'https://explained.tines.com/en/articles/10371885-use-a-preferred-ai-provider-in-tines',
-            label: 'Use a preferred AI provider in Tines',
-            asOf: '2026-07-02',
+            url: 'https://explained.tines.com/en/articles/10371885-use-a-preferred-ai-provider-in-tines-stories',
+            label: 'Use a preferred AI provider in Tines Stories',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -596,12 +597,12 @@ export const tinesProfile: CompetitorProfile = {
           {
             url: 'https://www.tines.com/blog/solving-the-integrations-problem/',
             label: 'Solving the integrations problem',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://www.tines.com/library/tools/',
             label: 'Tools | Tines library',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -731,54 +732,54 @@ export const tinesProfile: CompetitorProfile = {
     pricing: {
       pricingModel: {
         value:
-          'Tiered platform-fee model (Community / Business / Enterprise) with add-ons to expand capacity (flows, teams, apps, AI credits, tunnels). No self-serve published dollar pricing; Business/Enterprise are "Contact Tines"',
+          'Tiered platform-fee model (Community / Business / Enterprise) with add-ons to expand capacity (flows, teams, apps, AI credits, tunnels). No self-serve published dollar pricing; Business/Enterprise are "Contact Tines". The separate Tines 3B product has a Free edition (3 live workflows, one-time $50 AI allowance) and quote-only paid editions',
         shortValue: 'Tiered platform fee; Business/Enterprise are quote-only',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.tines.com/pricing/', label: 'Pricing | Tines', asOf: '2026-07-02' },
+          { url: 'https://www.tines.com/pricing/', label: 'Pricing | Tines', asOf: '2026-11-02' },
           {
-            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-pricing-and-packaging',
-            label: 'Understanding Tines pricing and packaging',
-            asOf: '2026-07-02',
+            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-stories-pricing-and-packaging',
+            label: 'Understanding Tines Stories pricing and packaging',
+            asOf: '2026-11-02',
           },
         ],
       },
       entryPaidPlan: {
         value:
-          'Business Edition. No public price; starts around 30 flows / 1 team / 100 users / 1.5M daily events per the pricing explainer, with self-hosting available',
-        shortValue: 'Business Edition, price on request',
-        confidence: 'estimated',
+          'Tines Stories Business Edition. No public price; starts around 30 flows / 1 team / 100 users / 1.5M daily events per the pricing explainer, with self-hosting available',
+        shortValue: 'Tines Stories Business Edition, price on request',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-pricing-and-packaging',
-            label: 'Understanding Tines pricing and packaging',
-            asOf: '2026-07-02',
+            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-stories-pricing-and-packaging',
+            label: 'Understanding Tines Stories pricing and packaging',
+            asOf: '2026-11-02',
           },
         ],
       },
       freeTier: {
         value:
-          'Community Edition is free forever: 1 builder, 3 flows/apps, 1 team, 25,000 monthly events, 50 AI runtime credits/month, unlimited viewers, SSO included',
+          'Tines Stories Community Edition is free forever: 1 user, 3 flows, 3 apps, 1 team, 25,000 monthly events, 50 AI runtime credits/month, SSO included',
         shortValue: 'Community Edition free forever, limited usage',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-pricing-and-packaging',
-            label: 'Understanding Tines pricing and packaging',
-            asOf: '2026-07-02',
+            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-stories-pricing-and-packaging',
+            label: 'Understanding Tines Stories pricing and packaging',
+            asOf: '2026-11-02',
           },
         ],
       },
       byok: {
         value:
-          "Yes, for AI/LLM keys. Customers can bring their own AI provider (OpenAI, Anthropic, or a custom AWS Bedrock account) instead of Tines' default Bedrock-hosted Claude, though the pricing page doesn't use the term BYOK",
+          "Yes, for AI/LLM keys. Customers can bring their own AI provider (OpenAI, Anthropic, AWS Bedrock, or Mistral, plus any OpenAI- or Anthropic-spec-compatible provider) instead of Tines' default Bedrock-hosted Claude, though the pricing page doesn't use the term BYOK",
         shortValue: 'Bring your own AI provider key',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://explained.tines.com/en/articles/10371885-use-a-preferred-ai-provider-in-tines',
-            label: 'Use a preferred AI provider in Tines',
-            asOf: '2026-07-02',
+            url: 'https://explained.tines.com/en/articles/10371885-use-a-preferred-ai-provider-in-tines-stories',
+            label: 'Use a preferred AI provider in Tines Stories',
+            asOf: '2026-11-02',
           },
         ],
       },

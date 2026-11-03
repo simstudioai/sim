@@ -163,12 +163,26 @@ function buildPendingToolCall(): ToolCallState {
   }
 }
 
+async function claimRecordedInvocation(owner: { toolCallId: string }) {
+  const input = upsertAsyncToolCall.mock.calls.find(
+    ([candidate]) => candidate.toolCallId === owner.toolCallId
+  )?.[0]
+  return {
+    outcome: 'claimed',
+    invocation: {
+      executableName: input?.executableName ?? null,
+      targetWorkspaceId: input?.targetWorkspaceId ?? null,
+      args: input?.args ?? {},
+    },
+  }
+}
+
 describe('tool result size diagnostics', () => {
   beforeEach(() => {
     completeAsyncToolCall.mockResolvedValue(null)
     markAsyncToolRunning.mockResolvedValue(null)
     upsertAsyncToolCall.mockResolvedValue(null)
-    claimToolExecution.mockResolvedValue({ outcome: 'claimed' })
+    claimToolExecution.mockImplementation(claimRecordedInvocation)
     settleSimToolExecution.mockResolvedValue(undefined)
   })
 
@@ -373,7 +387,7 @@ describe('executeToolAndReport provenance isolation', () => {
     markAsyncToolRunning.mockResolvedValue(null)
     upsertAsyncToolCall.mockResolvedValue(null)
     claimToolExecution.mockReset()
-    claimToolExecution.mockResolvedValue({ outcome: 'claimed' })
+    claimToolExecution.mockImplementation(claimRecordedInvocation)
     settleSimToolExecution.mockResolvedValue(undefined)
     waitForToolConfirmation.mockReset()
   })
@@ -1137,10 +1151,6 @@ describe('watchdog completion provenance', () => {
 
     await failPendingToolCall(toolCall.id, context, execContext)
     const persisted = completeAsyncToolCall.mock.calls[0][0]
-    expect(persisted.result).toEqual({
-      __sealedClientToolCompletionV1: expect.any(String),
-      __sealedClientToolContextV1: expect.any(String),
-    })
     waitForToolConfirmation.mockResolvedValue({
       status: 'error',
       message: persisted.error,
@@ -1377,18 +1387,34 @@ describe('watchdog completion provenance', () => {
     expect(registry.isComplete()).toBe(true)
   })
 
-  it('retains structural failure compatibility when no provenance registry exists', async () => {
+  it('restores a trusted timeout when its writer had no provenance registry', async () => {
     const { toolCall, context } = createHungClient()
 
     await failPendingToolCall(toolCall.id, context, { userId: 'user-1' })
 
     expect(toolCall.status).toBe('error')
-    expect(completeAsyncToolCall).toHaveBeenCalledWith(
-      expect.objectContaining({
-        result: { error: expect.any(String), outcomeUnknown: true, doNotRetry: true },
-      })
-    )
-    expect(encryptSecret).not.toHaveBeenCalled()
+    const persisted = completeAsyncToolCall.mock.calls[0][0]
+    waitForToolConfirmation.mockResolvedValue({
+      status: 'error',
+      message: persisted.error,
+      data: persisted.result,
+    })
+    const completion = await waitForClientToolCompletion({
+      toolCallId: toolCall.id,
+      runId: context.runId,
+      userId: 'user-1',
+      timeoutMs: 1,
+      registry: new ResolvedSecretTraceRegistry(),
+    })
+    expect(completion).toEqual({
+      status: 'error',
+      message: expect.stringContaining('outcome is unknown'),
+      data: {
+        error: expect.stringContaining('never came back'),
+        outcomeUnknown: true,
+        doNotRetry: true,
+      },
+    })
   })
 
   it.each([

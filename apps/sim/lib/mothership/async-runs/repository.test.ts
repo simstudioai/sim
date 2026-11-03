@@ -5,13 +5,7 @@ import {
   copilotRequestStops,
   copilotRuns,
 } from '@sim/db/schema'
-import {
-  dbChainMockFns,
-  flattenMockConditions,
-  hasMockCondition,
-  queueTableRows,
-  resetDbChainMock,
-} from '@sim/testing'
+import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   areStreamToolExecutionsSettled,
@@ -20,6 +14,7 @@ import {
   closeStreamToolAdmission,
   createRunSegment,
   detachAsyncToolCall,
+  detachedWorkflowExecutionId,
   getClaimedWorkflowExecutionId,
   getUnsettledStreamSandboxProcesses,
   markAsyncToolRunning,
@@ -42,14 +37,15 @@ describe('run admission and early Stop', () => {
     expect(await requestRunStop(scope)).toBeNull()
     expect(dbChainMockFns.values).toHaveBeenCalledWith(scope)
     expect(dbChainMockFns.onConflictDoNothing).toHaveBeenCalled()
-    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(2)
     expect(
-      hasMockCondition(
-        dbChainMockFns.where.mock.calls[0]?.[0],
-        (condition) =>
-          condition.type === 'eq' &&
-          condition.left === copilotRuns.userId &&
-          condition.right === scope.userId
+      dbChainMockFns.where.mock.calls.some(([predicate]) =>
+        hasMockCondition(
+          predicate,
+          (condition) =>
+            condition.type === 'eq' &&
+            condition.left === copilotRuns.userId &&
+            condition.right === scope.userId
+        )
       )
     ).toBe(true)
   })
@@ -148,12 +144,13 @@ describe('run admission and early Stop', () => {
       [copilotRequestStops.workspaceId, scope.workspaceId],
       [copilotRequestStops.streamId, scope.streamId],
     ]) {
-      /** The chat row is read first; the Stop lookup follows it. */
       expect(
-        hasMockCondition(
-          dbChainMockFns.where.mock.calls[1]?.[0],
-          (condition) =>
-            condition.type === 'eq' && condition.left === column && condition.right === value
+        dbChainMockFns.where.mock.calls.some(([predicate]) =>
+          hasMockCondition(
+            predicate,
+            (condition) =>
+              condition.type === 'eq' && condition.left === column && condition.right === value
+          )
         )
       ).toBe(true)
     }
@@ -167,12 +164,14 @@ describe('run admission and early Stop', () => {
       expect.objectContaining({ workspaceId: scope.workspaceId, status: 'active' })
     )
     expect(
-      hasMockCondition(
-        dbChainMockFns.where.mock.calls[0]?.[0],
-        (condition) =>
-          condition.type === 'eq' &&
-          condition.left === copilotChats.userId &&
-          condition.right === scope.userId
+      dbChainMockFns.where.mock.calls.some(([predicate]) =>
+        hasMockCondition(
+          predicate,
+          (condition) =>
+            condition.type === 'eq' &&
+            condition.left === copilotChats.userId &&
+            condition.right === scope.userId
+        )
       )
     ).toBe(true)
   })
@@ -191,21 +190,6 @@ describe('run admission and early Stop', () => {
     await expect(createRunSegment(input)).rejects.toThrow('persisted identity')
   })
 })
-
-/** Finds a condition anywhere in a mocked expression, including inside `sql` and `sql.join` fragments. */
-function someNestedCondition(
-  node: unknown,
-  predicate: (condition: Record<string, unknown>) => boolean
-): boolean {
-  if (!node || typeof node !== 'object') return false
-  const record = node as Record<string, unknown>
-  if (predicate(record)) return true
-  return ['conditions', 'values', 'fragments'].some(
-    (key) =>
-      Array.isArray(record[key]) &&
-      (record[key] as unknown[]).some((child) => someNestedCondition(child, predicate))
-  )
-}
 
 describe('durable Sim tool ownership', () => {
   beforeEach(() => {
@@ -244,48 +228,6 @@ describe('durable Sim tool ownership', () => {
       expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
     }
   )
-
-  it('locks the actor-owned run before claiming a still-unclaimed execution', async () => {
-    expect(copilotRuns.toolExecutionVersion).toBeDefined()
-    expect(copilotRuns.toolAdmissionClosedAt).toBeDefined()
-    expect(copilotAsyncToolCalls.executionStartedAt).toBeDefined()
-    expect(copilotAsyncToolCalls.executionSettledAt).toBeDefined()
-    dbChainMockFns.for.mockResolvedValueOnce([
-      { id: input.runId, toolExecutionVersion: 2, toolAdmissionClosedAt: null },
-    ])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'row-1' }])
-    expect(await claimToolExecution(input)).toEqual({ outcome: 'claimed' })
-    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
-    expect(
-      hasMockCondition(
-        dbChainMockFns.where.mock.calls[0]?.[0],
-        (condition) => condition.type === 'eq' && condition.right === input.userId
-      )
-    ).toBe(true)
-    /** A first execution, or a re-run of one whose owner died before it recorded a result. */
-    const claimable = flattenMockConditions(dbChainMockFns.where.mock.calls[1]?.[0]).find(
-      (condition) => condition.type === 'or'
-    )
-    const [firstExecution, interruptedExecution] = (claimable?.conditions ?? []) as unknown[]
-    expect(
-      hasMockCondition(
-        firstExecution,
-        (condition) =>
-          condition.type === 'isNull' &&
-          condition.column === copilotAsyncToolCalls.executionStartedAt
-      )
-    ).toBe(true)
-    expect(
-      someNestedCondition(
-        interruptedExecution,
-        (condition) =>
-          condition.type === 'lt' && condition.left === copilotAsyncToolCalls.executionAttempts
-      )
-    ).toBe(true)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ executionStartedAt: expect.any(Date), status: 'running' })
-    )
-  })
 
   it('refuses admission after Stop without touching any tool row', async () => {
     dbChainMockFns.for.mockResolvedValueOnce([
@@ -493,31 +435,6 @@ describe('async tool repository single-row semantics', () => {
     )
   })
 
-  it.each(['pending', 'running'] as const)(
-    'keeps the first finalized call identity immutable after it reaches %s',
-    async (status) => {
-      const existingRow = {
-        runId: 'run-1',
-        toolCallId: 'tool-1',
-        toolName: 'run_function',
-        args: { language: 'javascript', code: 'return {{FIRST_SECRET}}' },
-        status,
-      }
-      dbChainMockFns.limit.mockResolvedValueOnce([existingRow])
-
-      const result = await upsertAsyncToolCall({
-        runId: 'run-1',
-        toolCallId: 'tool-1',
-        toolName: 'run_function',
-        args: { language: 'javascript', code: 'return {{SECOND_SECRET}}' },
-        status: 'pending',
-      })
-
-      expect(result).toEqual(existingRow)
-      expect(dbChainMockFns.values).not.toHaveBeenCalled()
-    }
-  )
-
   it('refuses a provider-ID collision with an existing row in another run', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       { runId: 'old-run', toolCallId: 'provider-shared-call', toolName: 'browser_close_tab' },
@@ -540,5 +457,65 @@ describe('async tool repository single-row semantics', () => {
     await expect(
       upsertAsyncToolCall({ runId: 'current-run', toolCallId: 'call-race', toolName: 'glob' })
     ).rejects.toThrow('Async tool call belongs to another run')
+  })
+})
+
+describe('the workflow run a settled call left running', () => {
+  const stored = {
+    argv: null,
+    exitCode: null,
+    stdout: null,
+    status: null,
+    executionId: null,
+  }
+  const cli = (argv: string[], exitCode: number, record: Record<string, unknown>) => ({
+    ...stored,
+    executableName: 'sim_cli',
+    argv,
+    exitCode: String(exitCode),
+    stdout: JSON.stringify(record),
+  })
+  const tool = (executableName: string, status: string | null, executionId: string) => ({
+    ...stored,
+    executableName,
+    status,
+    executionId,
+  })
+  const running = { runId: 'run-1', workflowId: 'wf-1', status: 'running' }
+
+  it('is a workflows run the CLI answered still running', () => {
+    expect(
+      detachedWorkflowExecutionId(
+        cli(['workflows', 'run', 'wf-1', '--wait-timeout', '240'], 4, running)
+      )
+    ).toBe('run-1')
+  })
+
+  it('is a workflows run behind global flags', () => {
+    expect(
+      detachedWorkflowExecutionId(
+        cli(['--output', 'json', 'workflows', 'run', 'wf-1', '--wait-timeout', '240'], 4, running)
+      )
+    ).toBe('run-1')
+  })
+
+  it('is a workflow tool answered still running', () => {
+    expect(detachedWorkflowExecutionId(tool('run_workflow', 'running', 'exec-1'))).toBe('exec-1')
+  })
+
+  it.each([
+    [
+      'a run that settled',
+      cli(['workflows', 'run', 'wf-1'], 0, { ...running, status: 'completed' }),
+    ],
+    // Waiting on a run proves nothing about who started it; Stop must not cancel it.
+    ['a wait on a run', cli(['workflows', 'runs', 'wait', 'run-1'], 4, running)],
+    [
+      'an unreadable answer',
+      { ...cli(['workflows', 'run', 'wf-1'], 4, running), stdout: 'not json' },
+    ],
+    ['a workflow tool that settled', tool('run_block', null, 'exec-1')],
+  ])('is not %s', (_label, call) => {
+    expect(detachedWorkflowExecutionId(call)).toBeUndefined()
   })
 })

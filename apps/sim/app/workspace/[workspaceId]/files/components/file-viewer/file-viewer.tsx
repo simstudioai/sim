@@ -11,6 +11,7 @@ import {
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { resolveMediaMimeType } from '@/lib/uploads/utils/file'
 import {
+  useReresolveFileRecord,
   useWorkspaceFileBinary,
   useWorkspaceFileContent,
   useWorkspaceImageDimensionsAdapter,
@@ -19,6 +20,7 @@ import {
   createWorkspaceFileContentSource,
   type FileContentSource,
   FileContentSourceProvider,
+  useFileContentSource,
 } from '@/hooks/use-file-content-source'
 import { CsvTablePreview } from './csv-table-preview'
 import { DocxPreview } from './docx-preview'
@@ -408,20 +410,103 @@ function useBlobUrl(workspaceId: string, fileId: string, fileKey: string) {
   return { fileData, isLoading, error, blobUrl, replaceBlobUrl }
 }
 
-/**
- * Shared blob-backed preview for audio and video files — the fetch, blob-URL
- * lifecycle, and error/loading handling are identical; only the rendered
- * player differs.
- */
-const MediaPreview = memo(function MediaPreview({
-  file,
-  workspaceId,
-  kind,
-}: {
+interface MediaPreviewProps {
   file: WorkspaceFileRecord
   workspaceId: string
   kind: 'audio' | 'video'
-}) {
+}
+
+/**
+ * Audio and video preview. Where the content source answers byte ranges the player streams straight
+ * from its URL, so playback and seeking start while the file downloads, at any size. Elsewhere the
+ * file is fetched whole into a blob first.
+ */
+const MediaPreview = memo(function MediaPreview({ file, workspaceId, kind }: MediaPreviewProps) {
+  const source = useFileContentSource()
+  if (!source.servesByteRanges) {
+    return <BufferedMediaPreview file={file} workspaceId={workspaceId} kind={kind} />
+  }
+  /** `v` lets the browser cache the bytes across re-opens; a content write moves the key. */
+  const src = source.buildUrl(file.key, {
+    version: Number(new Date(file.updatedAt)) || file.size,
+  })
+  /** Keyed by URL so a re-resolved key starts the player, and its load state, afresh. */
+  return (
+    <StreamedMediaPlayer key={src} src={src} file={file} workspaceId={workspaceId} kind={kind} />
+  )
+})
+
+function StreamedMediaPlayer({
+  src,
+  file,
+  workspaceId,
+  kind,
+}: MediaPreviewProps & { src: string }) {
+  const [status, setStatus] = useState<'loading' | 'ready' | 'unplayable' | 'unavailable'>(
+    'loading'
+  )
+  const reresolveRecord = useReresolveFileRecord(workspaceId, file.id)
+  const diagnosing = useRef(false)
+
+  /**
+   * A media element reports only that it failed, not why, so the URL is asked directly for its
+   * first byte, which opens storage. A 404 means the key was replaced; the record is re-resolved,
+   * and a moved key re-renders this preview at the new URL. Bytes that are there but would not play
+   * are the browser's format support.
+   */
+  const handleError = useCallback(async () => {
+    if (diagnosing.current) return
+    diagnosing.current = true
+    // boundary-raw-fetch: ranged probe of the binary serve path, which has no contract
+    const probe = await fetch(src, { headers: { Range: 'bytes=0-0' }, cache: 'no-store' }).catch(
+      () => null
+    )
+    await probe?.body?.cancel()
+    if (probe?.status === 404) await reresolveRecord()
+    setStatus(probe?.ok ? 'unplayable' : 'unavailable')
+  }, [src, reresolveRecord])
+
+  /**
+   * The element starts loading as soon as it is in the document, which can be before hydration
+   * attaches its listeners — a small file then finishes before `loadedmetadata` is heard. Reading
+   * the element's own state on mount covers what the listeners missed.
+   */
+  const syncWithElement = useCallback(
+    (media: HTMLMediaElement | null) => {
+      if (!media || status !== 'loading') return
+      if (media.error) void handleError()
+      else if (media.readyState >= HTMLMediaElement.HAVE_METADATA) setStatus('ready')
+    },
+    [status, handleError]
+  )
+
+  if (status === 'unplayable') {
+    return (
+      <UnsupportedPreview
+        name={file.name}
+        reason={`This ${kind} can't be played in your browser. Use the download button to view it.`}
+      />
+    )
+  }
+  if (status === 'unavailable') {
+    return <PreviewError label={kind} error='Failed to fetch file content' />
+  }
+
+  return (
+    <MediaPlayer
+      file={file}
+      kind={kind}
+      src={src}
+      loading={status === 'loading'}
+      mediaRef={syncWithElement}
+      onLoadedMetadata={() => setStatus('ready')}
+      onError={handleError}
+    />
+  )
+}
+
+/** Fetches the whole file into a blob, for content sources that send only whole bodies. */
+function BufferedMediaPreview({ file, workspaceId, kind }: MediaPreviewProps) {
   const {
     fileData,
     isLoading,
@@ -444,27 +529,66 @@ const MediaPreview = memo(function MediaPreview({
     return <PreviewLoadingFrame className='h-full' tone='surface' />
   }
 
+  return <MediaPlayer file={file} kind={kind} src={blobUrl} />
+}
+
+interface MediaPlayerProps {
+  file: WorkspaceFileRecord
+  kind: 'audio' | 'video'
+  src: string | null
+  /** Covers the player until it can describe the media, for players that load in place. */
+  loading?: boolean
+  mediaRef?: (media: HTMLMediaElement | null) => void
+  onLoadedMetadata?: () => void
+  onError?: () => void
+}
+
+function MediaPlayer({
+  file,
+  kind,
+  src,
+  loading,
+  mediaRef,
+  onLoadedMetadata,
+  onError,
+}: MediaPlayerProps) {
   if (kind === 'audio') {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-4 bg-[var(--surface-1)] p-8'>
+      <div className='relative flex h-full flex-col items-center justify-center gap-4 bg-[var(--surface-1)] p-8'>
         <div className='flex flex-col items-center gap-2 text-center'>
           <Music className='size-[32px] text-[var(--text-muted)]' />
           <p className='text-[14px] text-[var(--text-primary)]'>{file.name}</p>
         </div>
-        {blobUrl && (
+        {src && (
           // biome-ignore lint/a11y/useMediaCaption: audio from workspace files
-          <audio src={blobUrl} controls className='w-full max-w-[480px]' />
+          <audio
+            ref={mediaRef}
+            src={src}
+            controls
+            className='w-full max-w-[480px]'
+            onLoadedMetadata={onLoadedMetadata}
+            onError={onError}
+          />
         )}
+        {loading && PREVIEW_LOADING_OVERLAY}
       </div>
     )
   }
 
   return (
-    <div className='flex h-full items-center justify-center bg-[var(--surface-1)]'>
-      {blobUrl && (
+    <div className='relative flex h-full items-center justify-center bg-[var(--surface-1)]'>
+      {src && (
         // biome-ignore lint/a11y/useMediaCaption: video from workspace files
-        <video src={blobUrl} controls className='max-h-full max-w-full' />
+        <video
+          ref={mediaRef}
+          src={src}
+          controls
+          className='max-h-full max-w-full'
+          onLoadedMetadata={onLoadedMetadata}
+          onError={onError}
+        />
       )}
+      {loading && PREVIEW_LOADING_OVERLAY}
     </div>
   )
-})
+}

@@ -30,6 +30,8 @@ import {
 } from '@aws-sdk/client-cloudwatch'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { getAwsCredentials } from '@/lib/core/config/aws'
+import { isHosted } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('HostedKeyMetrics')
 
@@ -43,11 +45,6 @@ type ThrottleReason = 'billing_actor_limit' | 'upstream_retries_exhausted'
 type QueueReason = 'actor_requests' | 'dimension' | 'queue_position'
 /** `metering` marks a provider call that succeeded but could not be priced. */
 type FailureReason = 'rate_limited' | 'auth' | 'other' | 'metering'
-
-// Deployed envs (app + trigger worker) carry static AWS creds; local dev does
-// not. No creds → no-op, so recorders stay always-safe to call (same contract
-// as the previous no-op-meter behavior).
-const ENABLED = Boolean(process.env.AWS_ACCESS_KEY_ID)
 
 const ENVIRONMENT =
   process.env.OTEL_DEPLOYMENT_ENVIRONMENT ||
@@ -63,7 +60,10 @@ let handlersRegistered = false
 
 function getClient(): CloudWatchClient {
   if (!client) {
-    client = new CloudWatchClient({ region: process.env.AWS_REGION || 'us-east-1' })
+    client = new CloudWatchClient({
+      region: process.env.AWS_REGION || 'us-east-1',
+      credentials: getAwsCredentials(),
+    })
   }
   return client
 }
@@ -93,13 +93,16 @@ function buildDimensions(labels: Record<string, string | undefined>) {
   return dimensions
 }
 
+// Hosted keys exist only on Sim Cloud, whose app and workers can always reach
+// CloudWatch (task role or workload identity). Elsewhere recorders are no-ops,
+// so they stay always-safe to call.
 function enqueue(
   MetricName: string,
   Value: number,
   Unit: StandardUnit,
   labels: Record<string, string | undefined>
 ): void {
-  if (!ENABLED) return
+  if (!isHosted) return
   buffer.push({
     MetricName,
     Value,
@@ -124,7 +127,7 @@ export async function flushHostedKeyMetrics(): Promise<void> {
     logger.warn('Dropped hosted-key metric points (buffer cap reached)', { dropped })
     dropped = 0
   }
-  if (!ENABLED || buffer.length === 0) return
+  if (!isHosted || buffer.length === 0) return
   const pending = buffer
   buffer = []
   for (let i = 0; i < pending.length; i += MAX_BATCH) {

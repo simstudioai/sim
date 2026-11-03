@@ -11,7 +11,7 @@ import type {
   SamplingResult,
   Span,
   SpanProcessor,
-} from '@opentelemetry/sdk-trace-base'
+} from '@opentelemetry/sdk-trace'
 import { createLogger } from '@sim/logger'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { env } from './lib/core/config/env'
@@ -181,9 +181,8 @@ async function initializeOpenTelemetry() {
     const { PeriodicExportingMetricReader } = await import('@opentelemetry/sdk-metrics')
     const { OTLPLogExporter } = await import('@opentelemetry/exporter-logs-otlp-http')
     const { BatchLogRecordProcessor } = await import('@opentelemetry/sdk-logs')
-    const { BatchSpanProcessor } = await import('@opentelemetry/sdk-trace-node')
-    const { TraceIdRatioBasedSampler, SamplingDecision } = await import(
-      '@opentelemetry/sdk-trace-base'
+    const { BatchSpanProcessor, TraceIdRatioBasedSampler, SamplingDecision } = await import(
+      '@opentelemetry/sdk-trace'
     )
 
     // Drops Next framework spans, inherits SAMPLED from business
@@ -255,7 +254,8 @@ async function initializeOpenTelemetry() {
       })
     }
 
-    const batchProcessor = new BatchSpanProcessor(exporter, {
+    const batchProcessor = new BatchSpanProcessor({
+      exporter,
       maxQueueSize: telemetryConfig.batchSettings.maxQueueSize,
       maxExportBatchSize: telemetryConfig.batchSettings.maxExportBatchSize,
       scheduledDelayMillis: telemetryConfig.batchSettings.scheduledDelayMillis,

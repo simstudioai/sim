@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { useSettingsNavigationTarget } from '@/components/settings/settings-navigation-provider'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/client'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
@@ -58,6 +59,7 @@ export function resolveSettingsHref({
 }
 
 export function useSettingsNavigation(): UseSettingsNavigationReturn {
+  const navigationTarget = useSettingsNavigationTarget()
   const router = useRouter()
   const params = useParams<{ workspaceId?: string }>()
   const workspaceId = params.workspaceId
@@ -79,6 +81,10 @@ export function useSettingsNavigation(): UseSettingsNavigationReturn {
 
   const navigateToSettings = useCallback(
     (options?: SettingsNavigationOptions) => {
+      if (navigationTarget === '_blank') {
+        window.open(getSettingsHref(options), '_blank', 'noopener,noreferrer')
+        return
+      }
       const currentPath = window.location.pathname
       if (currentPath.startsWith(settingsPrefix)) {
         router.replace(getSettingsHref(options), { scroll: false })
@@ -87,7 +93,7 @@ export function useSettingsNavigation(): UseSettingsNavigationReturn {
         router.push(getSettingsHref(options))
       }
     },
-    [router, settingsPrefix, getSettingsHref]
+    [router, settingsPrefix, getSettingsHref, navigationTarget]
   )
 
   return { navigateToSettings, getSettingsHref, popSettingsReturnUrl }

@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { document, knowledgeConnector } from '@sim/db/schema'
-import { and, eq, gt, inArray, isNotNull, isNull, lt, type SQL, sql } from 'drizzle-orm'
+import { and, eq, gt, gte, inArray, isNotNull, isNull, lt, type SQL, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -27,8 +27,10 @@ import {
   connectorPartitionWorkStore,
 } from '@/lib/knowledge/connectors/partition-store'
 import {
+  type ReconciliationMatches,
   type ReconciliationWalk,
-  walkReconciliationWindows,
+  tallyReconciliationWindows,
+  visitReconciliationMatches,
 } from '@/lib/knowledge/connectors/reconciliation-window'
 import {
   IMAGES_DEFERRED_NOTICE,
@@ -479,32 +481,44 @@ async function reconcileCompletedListing(
   const soft = and(absent, isNull(document.deletedAt))
   const hard = checkpoint.fullSync ? absent : and(absent, lt(document.deletedAt, startedAt))
   /**
-   * Walks by id through `doc_connector_reconciliation_v2_idx`, filtering absence per row, so no
-   * walk depends on `source_seen_at` order and the listing's seen stamps stay HOT.
+   * Reads by id through `doc_connector_reconciliation_v2_idx`, filtering absence per row, so no
+   * read depends on `source_seen_at` order and the listing's seen stamps stay HOT. One tally
+   * counts every decision's inputs and keeps the rows each removal may act on, paged like a walk
+   * because one statement over a large connector outlasts its timeout.
    */
-  const walk = (
+  const tally = await tallyReconciliationWindows({
+    connectorId: input.connectorId,
+    conditions: [
+      { where: gte(document.sourceSeenAt, startedAt), retain: false },
+      { where: aclAbsent, retain: input.documentAccess === 'admin' },
+      { where: soft, retain: !checkpoint.fullSync },
+      { where: hard, retain: true },
+    ].map(({ where, retain }) => ({ where: where ?? sql`true`, retain })),
+    deadlineAt: input.deadlineAt,
+    beforePage: input.lease.beatIfDue,
+  })
+  if (!tally.finished) return { finished: false, notice: null }
+  const ownedCount = tally.owned
+  const [listed, aclMatches, softMatches, hardMatches] = tally.matching
+  const listedCount = listed.count
+  const aclCount = aclMatches.count
+  const softCount = softMatches.count
+  const hardCount = hardMatches.count
+  const visit = (
     condition: SQL | undefined,
+    matches: ReconciliationMatches,
     pageSize: number,
     onPage: ReconciliationWalk['onPage']
   ) =>
-    walkReconciliationWindows({
+    visitReconciliationMatches({
       connectorId: input.connectorId,
-      condition,
+      condition: condition ?? sql`true`,
+      matches,
       pageSize,
       deadlineAt: input.deadlineAt,
       beforePage: input.lease.beatIfDue,
       onPage,
     })
-  const [{ ownedCount, listedCount, aclCount, softCount, hardCount }] = await db
-    .select({
-      ownedCount: sql<number>`count(*)::int`,
-      listedCount: sql<number>`count(*) FILTER (WHERE ${document.sourceSeenAt} >= ${sql.param(startedAt, document.sourceSeenAt)})::int`,
-      aclCount: sql<number>`count(*) FILTER (WHERE ${aclAbsent})::int`,
-      softCount: sql<number>`count(*) FILTER (WHERE ${soft})::int`,
-      hardCount: sql<number>`count(*) FILTER (WHERE ${hard})::int`,
-    })
-    .from(document)
-    .where(owned)
   let notice: string | null = null
   let allowDeletion = true
   if (classifySuspectListing(listedCount, ownedCount)) {
@@ -528,7 +542,7 @@ async function reconcileCompletedListing(
       hardHeld
     )
   if (input.documentAccess === 'admin' && aclCount > 0) {
-    const { finished } = await walk(aclAbsent, 500, async (rows) => {
+    const finished = await visit(aclAbsent, aclMatches, 500, async (rows) => {
       await revokeDocumentAcls(
         withAclPage,
         rows.map((row) => row.id),
@@ -540,7 +554,7 @@ async function reconcileCompletedListing(
   }
   if (!allowDeletion) return { finished: true, notice }
   if (!checkpoint.fullSync && !softHeld && softCount > 0) {
-    const { finished } = await walk(soft, 500, async (rows) => {
+    const finished = await visit(soft, softMatches, 500, async (rows) => {
       const removed = await withLease((tx) =>
         tx
           .update(document)
@@ -561,7 +575,7 @@ async function reconcileCompletedListing(
     if (!finished) return { finished: false, notice }
   }
   if (!hardHeld && hardCount > 0) {
-    const { finished } = await walk(hard, 25, async (rows) => {
+    const finished = await visit(hard, hardMatches, 25, async (rows) => {
       /** Report newly removed documents once; purging existing tombstones is storage cleanup. */
       for (const tombstoned of [false, true]) {
         const ids = rows.filter((row) => row.tombstoned === tombstoned).map((row) => row.id)

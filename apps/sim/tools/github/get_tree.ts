@@ -164,6 +164,7 @@ Total items: ${items.length}
 
 export const getTreeV2Tool: ToolConfig<GetTreeParams, any> = {
   id: 'github_get_tree_v2',
+  assistant: { effect: 'read', version: 1 },
   name: getTreeTool.name,
   description: getTreeTool.description,
   version: '2.0.0',

@@ -35,6 +35,8 @@ const EXCEL_RETRY_CONFIG = {
   retryIdempotentOnly: false,
 } as const
 
+const DEFAULT_CELL_RANGE = 'A1'
+
 export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWriteResponse> = {
   id: 'microsoft_excel_write',
   name: 'Write to Microsoft Excel',
@@ -219,6 +221,17 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
   name: 'Write to Microsoft Excel V2',
   description: 'Write data to a specific sheet in a Microsoft Excel spreadsheet',
   version: '2.0.0',
+
+  assistant: {
+    effect: 'write',
+    version: 1,
+    reviewFields: [
+      { name: 'spreadsheetId', label: 'Workbook', target: true },
+      { name: 'driveId', label: 'Drive', target: true },
+      { name: 'sheetName', label: 'Sheet', target: true },
+      { name: 'cellRange', label: 'Range', target: true },
+    ],
+  },
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
@@ -309,6 +322,7 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
       visibility: 'user-or-llm',
       description:
         'The cell range to write to (e.g., "A1:D10", "A1"). Defaults to "A1" if not specified.',
+      default: DEFAULT_CELL_RANGE,
     },
     values: {
       type: 'array',
@@ -336,7 +350,7 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
 
       return buildWorksheetRangeUrl(
         getItemBasePath(spreadsheetId, params.driveId),
-        params.cellRange?.trim() || 'A1',
+        params.cellRange?.trim() || DEFAULT_CELL_RANGE,
         sheetName
       )
     },

@@ -373,7 +373,11 @@ export async function closeElapsedBillingPeriod(
       and(
         eq(usageLog.billingEntityType, billingEntity.type),
         eq(usageLog.billingEntityId, billingEntity.id),
-        eq(usageLog.billingPeriodEnd, periodStart)
+        eq(usageLog.billingPeriodEnd, periodStart),
+        // The elapsed period starts before it ends; stating it lets the backward scan of the
+        // covering period index skip the current period's entries, which its unique keys can't
+        // deduplicate, instead of walking all of them to reach the previous period.
+        lt(usageLog.billingPeriodStart, periodStart)
       )
     )
   const expectedPrevStart = prevStamp?.start ?? minusOneInterval(periodStart, sub.billingInterval)

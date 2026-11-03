@@ -13,7 +13,11 @@ export const POST = defineV2JsonRoute({
   operation: fileOperations.delete,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2FileErrorPolicies.default,
-  mapInput: ({ body }) => ({ workspaceId: body.workspaceId, fileIds: body.fileIds }),
+  mapInput: ({ body }) => ({
+    workspaceId: body.workspaceId,
+    fileIds: body.fileIds,
+    acceptVfsPath: true,
+  }),
   useCase: archiveWorkspaceFileItemsOperation,
   present: ({ deletedItems }) => ({ data: { deletedItems: { files: deletedItems.files } } }),
 })

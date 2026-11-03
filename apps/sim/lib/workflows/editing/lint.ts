@@ -1,4 +1,6 @@
+import { toRecordOrNull } from '@sim/utils/object'
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
+import { MCP_STRUCTURED_CONTENT_OUTPUT } from '@/lib/mcp/output-schema'
 import {
   collectPredicateFieldNames,
   collectSortFieldNames,
@@ -6,8 +8,10 @@ import {
 import {
   getEffectiveBlockOutputs,
   getEffectiveBlockOutputType,
+  getMcpStructuredContentOutputs,
   getResponseFormatOutputs,
 } from '@/lib/workflows/blocks/outputs'
+import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import {
   isTriggerBlockType,
@@ -15,7 +19,9 @@ import {
   REFERENCE,
   SPECIAL_REFERENCE_PREFIXES,
 } from '@/executor/constants'
+import { isPathInSchema } from '@/executor/utils/block-reference'
 import { collectStringLeaves } from '@/executor/utils/reference-validation'
+import { splitLeadingBracketPath } from '@/executor/variables/resolvers/reference'
 import {
   collectBlockFieldIssues,
   extractBlockParams,
@@ -30,6 +36,7 @@ type BlockState = {
   name?: string
   triggerMode?: boolean
   subBlocks?: Record<string, { value?: unknown } | undefined>
+  data?: { canonicalModes?: CanonicalModeOverrides }
 }
 
 type EdgeState = {
@@ -639,12 +646,64 @@ function declaredOutputKeys(block: BlockState): string[] | undefined {
       triggerMode: false,
       preferToolOutputs: true,
       includeHidden: true,
+      canonicalModes: block.data?.canonicalModes,
     })
   )
   if (keys.length === 0) return undefined
   /** The resolver's legacy fallback accepts `<response.response.x>` on a Response block. */
   if (type === 'response') keys.push('response')
   return keys
+}
+
+interface UndeclaredNestedPath {
+  path: string
+  available: string[]
+}
+
+/** Field names one level below `prefix` in a declared output tree, as dotted paths. */
+function declaredChildPaths(outputs: Record<string, unknown>, prefix: string[]): string[] {
+  const [head = '', ...rest] = prefix
+  let node = toRecordOrNull(outputs[head])
+  const named = [head]
+  for (const part of rest) {
+    if (/^\d+$/.test(part)) {
+      node = toRecordOrNull(node?.items)
+      continue
+    }
+    node = toRecordOrNull(toRecordOrNull(node?.properties)?.[part])
+    named.push(part)
+  }
+  if (node?.type === 'array') node = toRecordOrNull(node.items)
+  return Object.keys(toRecordOrNull(node?.properties) ?? {}).map((name) =>
+    [...named, name].join('.')
+  )
+}
+
+/**
+ * A reference below an MCP block's `structuredContent` that the operation's
+ * declared output schema does not have. Only this output is walked past its
+ * first segment: its nested shape is the server's own declaration of its reply,
+ * while integration tools declare nested outputs by hand and often partially,
+ * and the run resolves an undeclared path whenever the reply carries it.
+ */
+function undeclaredNestedPath(
+  block: BlockState | undefined,
+  token: string
+): UndeclaredNestedPath | undefined {
+  if (block?.type !== 'mcp') return undefined
+  const parts = token
+    .split('.')
+    .slice(1)
+    .flatMap((part) => {
+      const { property, pathParts } = splitLeadingBracketPath(part)
+      return [property, ...pathParts]
+    })
+  if (parts[0] !== MCP_STRUCTURED_CONTENT_OUTPUT || parts.length < 2) return undefined
+  const outputs = getMcpStructuredContentOutputs(subBlockValues(block), block.data?.canonicalModes)
+  if (!outputs || isPathInSchema(outputs, parts)) return undefined
+  let valid = 1
+  while (valid < parts.length && isPathInSchema(outputs, parts.slice(0, valid + 1))) valid++
+  return { path: parts.join('.'), available: declaredChildPaths(outputs, parts.slice(0, valid)) }
 }
 
 interface UnknownFieldGroup {
@@ -703,6 +762,7 @@ export function collectDanglingBlockOutputReferences(
       collectStringLeaves((subBlock as { value?: unknown })?.value, leaves)
       const dangling = new Set<string>()
       const unknownByTarget = new Map<string, UnknownFieldGroup>()
+      const undeclaredNested = new Map<string, { targetId: string } & UndeclaredNestedPath>()
       for (const leaf of leaves) {
         for (const token of referenceCandidates(leaf, subBlockId === 'code')) {
           if (!token || !REF_TOKEN_SHAPE.test(token)) continue
@@ -714,9 +774,12 @@ export function collectDanglingBlockOutputReferences(
           }
           const keys = outputKeysFor(targetId)
           const segment = firstOutputSegment(token)
-          if (!keys || !segment || segment === IMPLICIT_ERROR_OUTPUT || keys.includes(segment)) {
+          if (keys && segment && keys.includes(segment)) {
+            const nested = undeclaredNestedPath(blocks[targetId], token)
+            if (nested) undeclaredNested.set(`<${token}>`, { targetId, ...nested })
             continue
           }
+          if (!keys || !segment || segment === IMPLICIT_ERROR_OUTPUT) continue
           const group = unknownByTarget.get(targetId) ?? {
             target: blocks[targetId],
             keys,
@@ -747,6 +810,16 @@ export function collectDanglingBlockOutputReferences(
           value: [...group.tokens],
           kind: 'block-output',
           reason: `unknown-field: "${targetName}" (${group.target.type}) has no output ${plural} ${quoteList(group.segments)} — the run fails when the reference resolves. Available fields: ${group.keys.join(', ')}`,
+        })
+      }
+      for (const [reference, nested] of undeclaredNested) {
+        const target = blocks[nested.targetId]
+        findings.push({
+          ...blockRef(blockId, block),
+          field: subBlockId,
+          value: [reference],
+          kind: 'block-output',
+          reason: `unknown-field: "${target?.name || nested.targetId}" (${target?.type}) has no output field "${nested.path}" in its operation's declared output schema — the run fails when the reply omits it. Declared fields: ${nested.available.join(', ') || 'none'}`,
         })
       }
     }

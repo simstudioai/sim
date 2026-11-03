@@ -5342,6 +5342,130 @@ describe('useChat remount send recovery', () => {
     ).toEqual(['saved-user', 'saved-assistant'])
   })
 
+  it('keeps a completed Assistant answer through a late user-only transcript with a cleared stream marker', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const chatId = 'chat-assistant-stale-terminal-history'
+      const history: MothershipChatHistory = {
+        id: chatId,
+        mode: 'assistant',
+        title: 'Assistant answer',
+        messages: [],
+        activeStreamId: null,
+        resources: [],
+      }
+      const staleRead = createDeferred<{ chat: MothershipChatHistory }>()
+      const savedRead = createDeferred<{ chat: MothershipChatHistory }>()
+      let firstDetailRead = true
+      mockRequestJson.mockImplementation((contract: AnyApiRouteContract) => {
+        if (contract.path === '/api/mothership/chats/[chatId]/stream-status') {
+          return Promise.resolve({ success: true, activeStreamId: null })
+        }
+        if (contract.path !== '/api/mothership/chats/[chatId]') {
+          return Promise.resolve({ chats: [] })
+        }
+        if (firstDetailRead) {
+          firstDetailRead = false
+          return staleRead.promise
+        }
+        return savedRead.promise
+      })
+      let stream: ReadableStreamDefaultController<Uint8Array> | undefined
+      let streamId: string | undefined
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) !== '/api/mothership/chat' || init?.method !== 'POST') {
+          return fetchStub(input, init)
+        }
+        streamId = JSON.parse(String(init.body)).userMessageId
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              stream = controller
+            },
+          }),
+          { headers: { 'Content-Type': 'text/event-stream', 'x-mothership-chat-id': chatId } }
+        )
+      })
+      const { getResult } = renderUseChatInChat(chatId, history, undefined, undefined, 'assistant')
+      await act(async () => {
+        void getResult().sendMessage('Summarize the run')
+        await vi.advanceTimersByTimeAsync(50)
+      })
+      if (!stream || !streamId) throw new Error('Assistant stream was not admitted')
+      const userMessage = {
+        id: streamId,
+        role: 'user' as const,
+        content: 'Summarize the run',
+        timestamp: new Date().toISOString(),
+      }
+      await act(async () => {
+        for (const event of [
+          { seq: 1, type: 'text', payload: { channel: 'assistant', text: 'Done.' } },
+          { seq: 2, type: 'complete', payload: { status: 'complete' } },
+        ]) {
+          stream?.enqueue(
+            new TextEncoder().encode(
+              `data: ${JSON.stringify({ v: 1, ts: '', stream: { streamId }, ...event })}\n\n`
+            )
+          )
+        }
+        stream?.close()
+        await vi.advanceTimersByTimeAsync(50)
+      })
+      expect(getResult().isSending).toBe(false)
+      expect(getResult().messages.find((message) => message.role === 'assistant')?.streamId).toBe(
+        streamId
+      )
+      expect(
+        getResult()
+          .messages.filter((message) => message.role === 'assistant')
+          .map((message) => message.content)
+      ).toEqual(['Done.'])
+
+      await act(async () => {
+        staleRead.resolve({ chat: { ...history, messages: [userMessage] } })
+        await vi.advanceTimersByTimeAsync(50)
+      })
+      expect(getResult().isSending).toBe(false)
+      expect(
+        getResult()
+          .messages.filter((message) => message.role === 'assistant')
+          .map((message) => message.content)
+      ).toEqual(['Done.'])
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000)
+        savedRead.resolve({
+          chat: {
+            ...history,
+            messages: [
+              userMessage,
+              {
+                id: 'saved-assistant',
+                role: 'assistant',
+                content: 'Done.',
+                timestamp: userMessage.timestamp,
+              },
+            ],
+          },
+        })
+        await vi.advanceTimersByTimeAsync(50)
+      })
+      expect(getResult().messages.map((message) => message.id)).toEqual([
+        streamId,
+        'saved-assistant',
+      ])
+      expect(
+        getResult()
+          .messages.filter((message) => message.role === 'assistant')
+          .map((message) => message.content)
+      ).toEqual(['Done.'])
+      expect(getResult().isSending).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   /**
    * The tab finalizes on the `complete` event, which reaches it before the server
    * saves the turn. A transcript read in that gap is the server's in-flight copy;

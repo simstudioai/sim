@@ -32,6 +32,10 @@ import { executeAgentCliService } from '@/lib/mothership/agent-cli/services'
 import type { AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
 import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
 
+const { routeExecution: actualRouteExecution } = await vi.importActual<
+  typeof import('@/lib/mothership/tools/server/router')
+>('@/lib/mothership/tools/server/router')
+
 const boundary = {
   ...hoisted,
   workspace: mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace,
@@ -200,10 +204,7 @@ describe('scoped CLI service adapter', () => {
   ] as const)(
     'returns actionable canonical %s input errors through the real router',
     async (name, input, field, constraint) => {
-      const { routeExecution } = await vi.importActual<
-        typeof import('@/lib/mothership/tools/server/router')
-      >('@/lib/mothership/tools/server/router')
-      boundary.route.mockImplementationOnce(routeExecution)
+      boundary.route.mockImplementationOnce(actualRouteExecution)
       const result = await executeSimCli(
         { request: service(name, input) },
         { ...organization, workflowId: '' }

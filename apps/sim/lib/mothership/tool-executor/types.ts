@@ -35,6 +35,11 @@ export interface ToolExecutionContext {
    * into the principal by `requireTrustedCopilotExecutionContext`.
    */
   boundWorkflowExecutionId?: string
+  /**
+   * How long a workflow tool waits for its run before answering it still running and letting it
+   * continue (the call frame's `waitTimeoutMs`). Undefined waits until the run settles.
+   */
+  workflowRunWaitMs?: number
   billingAttribution?: BillingAttributionSnapshot
   copilotToolExecution?: boolean
   /** In-process authoring admission; never supplied by model arguments or checkpoint JSON. */

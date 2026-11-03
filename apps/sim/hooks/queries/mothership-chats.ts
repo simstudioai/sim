@@ -871,6 +871,7 @@ export function useForkMothershipChat(owner?: MothershipChatOwner) {
         const baseName = (sourceChat?.name ?? 'New chat').replace(/^Fork \| /, '')
         const optimisticChat: MothershipChatMetadata = {
           id: data.id,
+          mode: sourceChat?.mode,
           name: `Fork | ${baseName}`,
           updatedAt: new Date(),
           isActive: false,

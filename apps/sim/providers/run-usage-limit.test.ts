@@ -2,6 +2,10 @@
  * @vitest-environment node
  */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
 import { billingCoreMock } from '@sim/testing/mocks/billing-core.mock'
 import {
   billingUsageGateCacheMock,
@@ -17,6 +21,7 @@ vi.mock('@/providers/registry', () => ({
   getProviderExecutor: async () => ({ executeRequest: mockExecuteRequest }),
 }))
 vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/tools', () => toolsMock)
 vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 vi.mock('@/providers/cost-policy', async (importOriginal) => ({
@@ -60,6 +65,7 @@ import { providerFailureLogLevel } from '@/providers/streaming-tool-loop-shared'
 import { ProviderError, type ProviderRequest, type ProviderToolConfig } from '@/providers/types'
 
 const { mockCheckExecutionUsageLimits } = billingUsageGateCacheMockFns
+const { mockCheckAttributedUsageLimits } = billingAttributionMockFns
 const { mockExecuteTool } = toolsMockFns
 
 const attribution: BillingAttributionSnapshot = {
@@ -105,6 +111,11 @@ async function modelStep(request: ProviderRequest, input: number, output: number
 beforeEach(() => {
   setEnvFlags({ isHosted: true, isBillingEnabled: true })
   mockCheckExecutionUsageLimits.mockReset()
+  // A free payer's mid-run read skips the cached gate; both answer from the same ledger.
+  mockCheckAttributedUsageLimits.mockReset()
+  mockCheckAttributedUsageLimits.mockImplementation((attribution) =>
+    mockCheckExecutionUsageLimits(attribution)
+  )
   mockCheckExecutionUsageLimits.mockResolvedValue({
     isExceeded: false,
     payerUsage: { currentUsage: 3, limit: 5 },
@@ -436,22 +447,30 @@ describe('run usage limit', () => {
           reason: 'usage_unavailable',
         }),
     ],
-    [
-      'the account is blocked',
-      () =>
-        mockCheckExecutionUsageLimits.mockResolvedValueOnce({
-          isExceeded: true,
-          reason: 'billing_blocked',
-          scope: 'payer',
-        }),
-    ],
-  ])('keeps the run going when %s, without reading again for a while', async (_case, answer) => {
+  ])(
+    'stops the free run when %s, since its spend past the limit is never billed',
+    async (_case, answer) => {
+      const request = startRequest(startRun())
+      await modelStep(request, 0.1, 0.1)
+      answer()
+
+      await expect(
+        prepareConversationGeneration(request, 'anthropic', { messages: [] })
+      ).rejects.toThrow('usage limit')
+    }
+  )
+
+  it('keeps the run going when the account is blocked, without reading again for a while', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     try {
       const request = startRequest(startRun())
       await modelStep(request, 1, 1)
       mockCheckExecutionUsageLimits.mockClear()
-      answer()
+      mockCheckExecutionUsageLimits.mockResolvedValueOnce({
+        isExceeded: true,
+        reason: 'billing_blocked',
+        scope: 'payer',
+      })
 
       await expect(modelStep(request, 1, 1)).resolves.toBeUndefined()
       await expect(modelStep(request, 1, 1)).resolves.toBeUndefined()

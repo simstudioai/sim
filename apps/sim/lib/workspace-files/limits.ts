@@ -1,4 +1,6 @@
 export const MAX_WORKSPACE_FILE_BULK_REQUEST_IDS = 1_000
+/** Each `files/…` path costs its own lookup, so a bulk request resolves far fewer than it takes ids. */
+export const MAX_WORKSPACE_FILE_BULK_REQUEST_PATHS = 100
 export const MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS = 5_000
 
 /**

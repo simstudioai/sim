@@ -119,6 +119,53 @@ describe('withLeaderLock', () => {
     }
   })
 
+  describe('when the follower wait ends with nothing', () => {
+    const waitedOut = {
+      key: 'k',
+      pollIntervalMs: 5,
+      maxWaitMs: 20,
+      onFollower: async () => null,
+    }
+
+    it('leads once a leader that vanished leaves its lease to lapse', async () => {
+      redisConfigMockFns.mockAcquireLock.mockResolvedValueOnce(false)
+      const onLeader = vi.fn(async () => 'took-over')
+      await expect(withLeaderLock<string>({ ...waitedOut, onLeader })).resolves.toBe('took-over')
+      expect(onLeader).toHaveBeenCalledOnce()
+      expect(redisConfigMockFns.mockAcquireLock).toHaveBeenCalledTimes(2)
+      expect(redisConfigMockFns.mockReleaseLock).toHaveBeenCalledOnce()
+    })
+
+    it('waits out a dead leader’s lease by default before taking over', async () => {
+      /** A Redis `SET NX EX` lease on fake time: acquiring succeeds only once the holder's lapses. */
+      let leaseExpiresAt = 0
+      redisConfigMockFns.mockAcquireLock.mockImplementation(async (_key, _owner, ttlSec) => {
+        if (Date.now() < leaseExpiresAt) return false
+        leaseExpiresAt = Date.now() + ttlSec * 1000
+        return true
+      })
+      vi.useFakeTimers()
+      try {
+        leaseExpiresAt = Date.now() + 10_000
+        const onLeader = vi.fn(async () => 'took-over')
+        const result = withLeaderLock<string>({ key: 'k', onLeader, onFollower: async () => null })
+        await vi.advanceTimersByTimeAsync(10_200)
+        await expect(result).resolves.toBe('took-over')
+        expect(onLeader).toHaveBeenCalledOnce()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('returns the follower result when a live holder still has the lease', async () => {
+      redisConfigMockFns.mockAcquireLock.mockResolvedValue(false)
+      const onLeader = vi.fn(async () => 'should-not-run')
+      await expect(withLeaderLock<string>({ ...waitedOut, onLeader })).resolves.toBeNull()
+      expect(onLeader).not.toHaveBeenCalled()
+      expect(redisConfigMockFns.mockAcquireLock).toHaveBeenCalledTimes(2)
+    })
+  })
+
   it('only one of N concurrent callers acquires the lock', async () => {
     // Track which calls won the lock: first one returns true, rest return false.
     let acquired = false

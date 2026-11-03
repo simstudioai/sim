@@ -26,6 +26,7 @@ export const GET = defineV2JsonRoute({
   errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
   mapInput: ({ params, query }) => ({
     fileId: params.fileId,
+    acceptVfsPath: true,
     assertedWorkspaceId: query.workspaceId,
     includeDeleted: query.scope === 'archived',
   }),

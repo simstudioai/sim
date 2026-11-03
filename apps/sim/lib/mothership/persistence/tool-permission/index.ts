@@ -1,11 +1,13 @@
 import type { CopilotToolPermissionDecision } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { createPubSubChannel, type PubSubChannel } from '@/lib/events/pubsub'
 import { isExecutableToolPermissionDecision } from '@/lib/mothership/async-runs/lifecycle'
 import { getAsyncToolCall } from '@/lib/mothership/async-runs/repository'
 
 const logger = createLogger('CopilotToolPermission')
+const DECISION_RECHECK_BACKOFF = { baseMs: 1_000, maxMs: 10_000 } as const
 
 export const TOOL_PERMISSION_DECISION = {
   allow: 'allow',
@@ -100,8 +102,8 @@ export async function getToolPermissionDecision(
  * Mirrors `waitForToolConfirmation`: subscribe first, then read the durable
  * row, so a decision that lands between those two steps — or that was made
  * against a different server instance, or before this waiter existed at all —
- * is still picked up. Resolves `null` on timeout or abort; callers treat that
- * as "no decision" and fail the tool rather than running it.
+ * is still picked up. Bounded durable rechecks also recover a missed notification.
+ * Resolves `null` on timeout or abort; callers treat that as "no decision".
  */
 export async function waitForToolPermissionDecision(
   toolCallId: string,
@@ -111,10 +113,13 @@ export async function waitForToolPermissionDecision(
   return new Promise((resolve) => {
     let settled = false
     let timeoutId: ReturnType<typeof setTimeout> | null = null
+    let recheckId: ReturnType<typeof setTimeout> | null = null
+    let recheckAttempt = 0
     let unsubscribe: (() => void) | null = null
 
     const cleanup = () => {
       if (timeoutId) clearTimeout(timeoutId)
+      if (recheckId) clearTimeout(recheckId)
       if (unsubscribe) unsubscribe()
       abortSignal?.removeEventListener('abort', onAbort)
     }
@@ -145,13 +150,24 @@ export async function waitForToolPermissionDecision(
     }
     abortSignal?.addEventListener('abort', onAbort, { once: true })
 
-    void getToolPermissionDecision(toolCallId).then((existing) => {
-      if (!existing) return
-      logger.info('Resolved tool permission from durable row', {
-        toolCallId,
-        decision: existing.decision,
-      })
-      settle(existing)
-    })
+    const readDecision = async () => {
+      if (settled) return
+      const existing = await getToolPermissionDecision(toolCallId)
+      if (settled) return
+      if (existing) {
+        logger.info('Resolved tool permission from durable row', {
+          toolCallId,
+          decision: existing.decision,
+        })
+        settle(existing)
+        return
+      }
+      recheckAttempt += 1
+      recheckId = setTimeout(
+        () => void readDecision(),
+        backoffWithJitter(recheckAttempt, null, DECISION_RECHECK_BACKOFF)
+      )
+    }
+    void readDecision()
   })
 }

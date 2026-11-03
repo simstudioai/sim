@@ -3,6 +3,7 @@ import { resolvePrincipalAuditAttribution } from '@sim/auth/principal'
 import { credentialGroup as credentialGroupTable } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import type { StartOrganizationAccountConnectionBody } from '@/lib/api/contracts/organization-accounts'
+import { loadAssistantIntegrationTools } from '@/lib/assistant-actions/catalog'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import {
   authorizeOrganizationOperation,
@@ -186,6 +187,7 @@ export const getOrganizationAccountsSettings = defineOrganizationAccountsUseCase
           })
         : [],
       availableProviders: listConfiguredCredentialGroupProviders(),
+      assistantProviders: (await loadAssistantIntegrationTools(context)).providers,
       availableMcpConnectors: await listConfiguredManagedMcpConnectors(credentialGroup?.id, {
         kind: 'organization',
         organizationId: context.organizationId,

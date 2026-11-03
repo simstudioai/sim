@@ -141,7 +141,7 @@ function buildInput(
 
 export async function generateFalAudio(params: GenerateFalAudioParams): Promise<GeneratedAudio> {
   const type: AudioType = params.type || 'speech'
-  const apiKey = getFalApiKey()
+  const { apiKey, envVarName } = getFalApiKey()
 
   // Voice cloning: a reference sample routes to a zero-shot clone model (F5-TTS),
   // which conditions on the sample (ref_audio_url) and speaks the prompt in that voice.
@@ -152,7 +152,13 @@ export async function generateFalAudio(params: GenerateFalAudioParams): Promise<
       ref_audio_url: params.voiceSampleDataUri,
       model_type: 'F5-TTS',
     }
-    const { requestId, data } = await runFalQueue(model, input, apiKey, params.signal)
+    const { requestId, data } = await runFalQueue(
+      model,
+      input,
+      apiKey,
+      { tool: 'generate_audio', envVarName },
+      params.signal
+    )
     const cost = await recordFalCost(apiKey, model, requestId, params.onCost)
     const url = extractFalMediaUrl(data, ['audio', 'audio_url', 'audio_file', 'output'])
     if (!url) throw new Error('No audio URL in Fal.ai clone response')
@@ -172,7 +178,13 @@ export async function generateFalAudio(params: GenerateFalAudioParams): Promise<
   const input = buildInput(type, params, model)
 
   // For fal audio models the model ID is the queue endpoint.
-  const { requestId, data } = await runFalQueue(model, input, apiKey, params.signal)
+  const { requestId, data } = await runFalQueue(
+    model,
+    input,
+    apiKey,
+    { tool: 'generate_audio', envVarName },
+    params.signal
+  )
   const cost = await recordFalCost(apiKey, model, requestId, params.onCost)
   const url = extractFalMediaUrl(data, ['audio', 'audio_url', 'audio_file', 'output'])
   if (!url) throw new Error('No audio URL in Fal.ai response')

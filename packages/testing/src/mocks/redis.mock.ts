@@ -30,6 +30,7 @@ export function createMockRedis() {
 
     // Key operations
     get: vi.fn().mockResolvedValue(null),
+    getBuffer: vi.fn().mockResolvedValue(null),
     set: vi.fn().mockResolvedValue('OK'),
     del: vi.fn().mockResolvedValue(1),
     exists: vi.fn().mockResolvedValue(0),
