@@ -1038,6 +1038,34 @@ describe('session sandbox lease', () => {
       }
     })
 
+    it('keeps a cancellation that arrives while listing the outputs a cancellation', async () => {
+      const { handle } = fakeSandbox('timeout-cancelled')
+      mockFindSessionSandbox.mockResolvedValue(handle)
+      const controller = new AbortController()
+      handle.runCommand = async () => ({
+        stdout: 'step 1',
+        stderr: '',
+        exitCode: 124,
+        timedOut: true,
+      })
+      handle.listFiles = async () => {
+        controller.abort(new Error('User Stop'))
+        return new Promise<never>(() => {})
+      }
+      const error = await executeShellInSandbox({
+        ...CODE_REQUEST,
+        envs: {},
+        session: { key: 'timeout-cancelled' },
+        outputSandboxDir: OUTPUT_DIR,
+        signal: controller.signal,
+      }).then(
+        () => undefined,
+        (rejection: unknown) => rejection
+      )
+      expect(error).not.toBeInstanceOf(SandboxExecutionTimeoutError)
+      expect(isTimeoutAbortReason(error)).toBe(false)
+    })
+
     it('withholds the output when the workbench secret provenance is unavailable', async () => {
       const error = await timedOutRun(
         'shell',

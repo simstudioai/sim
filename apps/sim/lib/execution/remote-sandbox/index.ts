@@ -279,6 +279,7 @@ async function throwIfRunTimedOut(
     lease: SandboxLease
     outputSandboxDir: string | undefined
     timeoutMs: number
+    signal: AbortSignal
   }
 ): Promise<void> {
   if (!result.timedOut) return
@@ -287,9 +288,12 @@ async function throwIfRunTimedOut(
   const listed = outputSandboxDir
     ? await withinDeadline(
         () => sandbox.listFiles(outputSandboxDir, { depth: SANDBOX_OUTPUT_DIR_MAX_DEPTH }),
-        Date.now() + TIMED_OUT_OUTPUT_LISTING_MS
+        Date.now() + TIMED_OUT_OUTPUT_LISTING_MS,
+        run.signal
       ).catch(() => [])
     : []
+  // A cancellation that arrives while listing stays a cancellation.
+  throwIfAborted(run.signal)
   throw new SandboxExecutionTimeoutError(sandboxTimeoutProgress(streams, run.timeoutMs, listed))
 }
 
@@ -1025,6 +1029,7 @@ async function executeInSandboxWithinBudget(
       lease,
       outputSandboxDir: req.outputSandboxDir,
       timeoutMs: runTimeoutMs,
+      signal,
     })
 
     if (execution.error) {
@@ -1236,6 +1241,7 @@ async function executeShellInSandboxWithinBudget(
       lease,
       outputSandboxDir: req.outputSandboxDir,
       timeoutMs: runTimeoutMs,
+      signal,
     })
 
     const stdout = [result.stdout, result.stderr].filter(Boolean).join('\n')
