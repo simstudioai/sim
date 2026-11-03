@@ -19,6 +19,7 @@ import type {
   SandboxCommandResult,
   SandboxHandle,
   SandboxProvider,
+  SandboxSessionRequest,
 } from '@/lib/execution/remote-sandbox/types'
 
 const { mockCreate, mockFindSessionSandbox, mockResolveWorkspaceSandbox } = vi.hoisted(() => ({
@@ -41,6 +42,7 @@ vi.mock('@/lib/core/execution-limits/metrics', () => ({
   recordSandboxProviderLimit: vi.fn(),
 }))
 
+import { isTimeoutAbortReason } from '@/lib/core/execution-limits'
 import {
   executeInSandbox,
   executeShellInSandbox,
@@ -56,6 +58,10 @@ import {
   recordSessionFileInput,
 } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { writeSessionSandboxFile } from '@/lib/execution/remote-sandbox/session-files'
+import {
+  MAX_SANDBOX_TIMEOUT_OUTPUT_TAIL_BYTES,
+  SandboxExecutionTimeoutError,
+} from '@/lib/execution/remote-sandbox/timeout'
 
 remoteSandboxProviderMockFns.mockResolveProvider.mockImplementation(
   (): SandboxProvider => ({
@@ -939,6 +945,122 @@ describe('session sandbox lease', () => {
     expect(calls.runCommand[0]?.envs).toMatchObject({ USER_VAR: '1', SIM_WORKSPACE: 'ws-1' })
     expect(calls.runCommand[0]?.rootUser).toBe(false)
     expect(calls.killed).toBe(false)
+  })
+
+  describe('a workbench run stopped by its own timeout', () => {
+    const OUTPUT_DIR = '/tmp/sim/outputs/call-timeout'
+
+    async function timedOutRun(
+      kind: 'code' | 'shell',
+      streams: { stdout: string; stderr: string },
+      listFiles: SandboxHandle['listFiles'],
+      acceptOutputProvenance?: SandboxSessionRequest['acceptOutputProvenance']
+    ): Promise<unknown> {
+      const { handle } = fakeSandbox(`timeout-${kind}`)
+      mockFindSessionSandbox.mockResolvedValue(handle)
+      handle.runCode = async () => ({ text: '', ...streams, timedOut: true })
+      handle.runCommand = async () => ({ ...streams, exitCode: 124, timedOut: true })
+      handle.listFiles = listFiles
+      const request = {
+        ...CODE_REQUEST,
+        session: {
+          key: `timeout-${kind}`,
+          ...(acceptOutputProvenance ? { acceptOutputProvenance } : {}),
+        },
+        outputSandboxDir: OUTPUT_DIR,
+      }
+      return (
+        kind === 'code'
+          ? executeInSandbox(request)
+          : executeShellInSandbox({ ...request, envs: {} })
+      ).then(
+        () => {
+          throw new Error('Expected the run to time out')
+        },
+        (error: unknown) => error
+      )
+    }
+
+    it.each(['code', 'shell'] as const)(
+      'reports the %s output so far and the files already exported',
+      async (kind) => {
+        const error = await timedOutRun(
+          kind,
+          { stdout: 'rendered 1 of 3\nrendered 2 of 3', stderr: 'slow frame' },
+          async () => [
+            {
+              path: `${OUTPUT_DIR}/${SANDBOX_OUTPUT_DIR_SENTINEL}`,
+              relativePath: SANDBOX_OUTPUT_DIR_SENTINEL,
+              kind: 'file',
+              size: 0,
+            },
+            { path: `${OUTPUT_DIR}/frames`, relativePath: 'frames', kind: 'directory', size: 0 },
+            {
+              path: `${OUTPUT_DIR}/frames/2.png`,
+              relativePath: 'frames/2.png',
+              kind: 'file',
+              size: 9,
+            },
+            {
+              path: `${OUTPUT_DIR}/frames/1.png`,
+              relativePath: 'frames/1.png',
+              kind: 'file',
+              size: 9,
+            },
+          ]
+        )
+        expect(isTimeoutAbortReason(error)).toBe(true)
+        if (!(error instanceof SandboxExecutionTimeoutError)) throw error
+        expect(error.progress.output).toBe('rendered 1 of 3\nrendered 2 of 3\nslow frame')
+        expect(error.progress.outputFiles).toEqual([
+          `${OUTPUT_DIR}/frames/1.png`,
+          `${OUTPUT_DIR}/frames/2.png`,
+        ])
+        expect(error.progress.stoppedAfterMs).toBeGreaterThan(0)
+        expect(error.progress.stoppedAfterMs).toBeLessThanOrEqual(CODE_REQUEST.timeoutMs)
+      }
+    )
+
+    it.each([
+      ['fails', async () => Promise.reject(new Error('listing unavailable'))],
+      ['never answers', () => new Promise<never>(() => {})],
+    ] as const)('still reports the output when the file listing %s', async (_case, listFiles) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      try {
+        const pending = timedOutRun('shell', { stdout: 'step 1', stderr: '' }, listFiles)
+        await vi.runAllTimersAsync()
+        const error = await pending
+        if (!(error instanceof SandboxExecutionTimeoutError)) throw error
+        expect(error.progress.output).toBe('step 1')
+        expect(error.progress.outputFiles).toEqual([])
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('withholds the output when the workbench secret provenance is unavailable', async () => {
+      const error = await timedOutRun(
+        'shell',
+        { stdout: 'token=secret-value', stderr: '' },
+        async () => [],
+        async () => {
+          throw new Error('Workbench output withheld because its secret provenance is unavailable')
+        }
+      )
+      expect(error).not.toBeInstanceOf(SandboxExecutionTimeoutError)
+      expect(getErrorMessage(error)).not.toContain('secret-value')
+    })
+
+    it('keeps only the end of an output too large to return', async () => {
+      const lines = Array.from({ length: 20_000 }, (_, index) => `frame ${index}`).join('\n')
+      const error = await timedOutRun('shell', { stdout: lines, stderr: '' }, async () => [])
+      if (!(error instanceof SandboxExecutionTimeoutError)) throw error
+      expect(Buffer.byteLength(error.progress.output)).toBeLessThanOrEqual(
+        MAX_SANDBOX_TIMEOUT_OUTPUT_TAIL_BYTES + 64
+      )
+      expect(error.progress.output.endsWith('frame 19999')).toBe(true)
+      expect(error.progress.output.startsWith('[earlier output omitted]')).toBe(true)
+    })
   })
 
   it('keeps the one-shot teardown when no session is requested', async () => {
