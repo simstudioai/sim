@@ -146,7 +146,7 @@ describe('executeFunctionExecute session plumbing', () => {
     expect(mockExecuteTool.mock.calls[1][1].timeout).toBe(90_000)
 
     await executeFunctionExecute({ code: 'x', language: 'python', timeout: 45_000 }, BASE_CONTEXT)
-    expect(mockExecuteTool.mock.calls[2][1].timeout).toBe(300_000)
+    expect(mockExecuteTool.mock.calls[2][1].timeout).toBe(900_000)
   })
 })
 
@@ -187,8 +187,9 @@ describe.each([
     { timeout: 7, expected: 7_000 },
     { timeout: '90', expected: 90_000 },
     { timeout: 300, expected: 300_000 },
-    { timeout: 601, expected: 300_000 },
-    { timeout: 45_000, expected: 300_000 },
+    { timeout: 900, expected: 900_000 },
+    { timeout: 901, expected: 900_000 },
+    { timeout: 45_000, expected: 900_000 },
     { timeout: 0, expected: 60_000 },
     { timeout: 'invalid', expected: 60_000 },
   ])('maps $timeout seconds to $expected milliseconds once', async ({ timeout, expected }) => {
