@@ -342,13 +342,13 @@ describe('validateRunFromBlock', () => {
       nodes: ['inner-loop'],
       iterations: 2,
       loopType: 'for',
-    } as any)
+    })
     dag.loopConfigs.set('inner-loop', {
       id: 'inner-loop',
       nodes: ['B'],
       iterations: 2,
       loopType: 'for',
-    } as any)
+    })
 
     const result = validateRunFromBlock('B', dag, new Set())
 
@@ -366,7 +366,7 @@ describe('validateRunFromBlock', () => {
     const dag = createDAG([
       createNode('P₍0₎', [], { isParallelBranch: true, subflowId: 'par', subflowType: 'parallel' }),
     ])
-    dag.parallelConfigs.set('par', { id: 'par', nodes: ['P'], count: 2 } as any)
+    dag.parallelConfigs.set('par', { id: 'par', nodes: ['P'], count: 2 })
 
     const result = validateRunFromBlock('P', dag, new Set(), new Map([['par', 'Fan out']]))
 
