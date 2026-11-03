@@ -14,6 +14,7 @@ import {
   isProfileWorkspacePath,
   PROFILE_INJECTED_FIELD,
   RESERVED_PROGRAM_FLAGS,
+  trailingListField,
 } from './request'
 import type { OperationSpec } from './types'
 
@@ -312,6 +313,22 @@ function configureOperation(
     )
   }
 
+  const trailing = trailingListField(spec)
+  if (trailing) {
+    const trailingFlags = Object.values(spec.flags ?? {}).filter((flag) => flag.trailing)
+    const descriptor = operationSpec.query?.[trailing] ?? operationSpec.body?.[trailing]
+    if (trailingFlags.length > 1)
+      throw new Error(`${operation} declares more than one trailing list`)
+    if (!descriptor || !flagSpecFor(operation, trailing).list) {
+      throw new Error(`${operation}.${trailing} is trailing but not a list request field`)
+    }
+    const name = flagNameFor(operation, trailing)
+    command.argument(
+      `[${name}...]`,
+      `${flagSpecFor(operation, trailing).describe ?? descriptor.describe} Same as --${name}.`
+    )
+  }
+
   if (spec.requestFields) {
     for (const field of spec.requestFields) {
       if (
@@ -460,11 +477,15 @@ function addLeafCommand(
     for (const segment of rest.slice(0, -1)) {
       parent = nestedGroup(parent, segment)
     }
-    parent.addCommand(buildLeaf(operation, spec, rest[rest.length - 1]))
+    parent.addCommand(buildLeaf(operation, spec, rest[rest.length - 1]), {
+      isDefault: spec.defaultSubcommand === true,
+    })
     return
   }
 
-  group.addCommand(buildLeaf(operation, spec, rest[0]))
+  group.addCommand(buildLeaf(operation, spec, rest[0]), {
+    isDefault: spec.defaultSubcommand === true,
+  })
 }
 
 function variantCommandSpec(spec: CommandSpec, variant: CommandVariantSpec): CommandSpec {
@@ -472,6 +493,7 @@ function variantCommandSpec(spec: CommandSpec, variant: CommandVariantSpec): Com
     ...spec,
     command: variant.command,
     groupDefault: false,
+    defaultSubcommand: undefined,
     aliases: [],
     positionals: variant.positionals,
     requestFields: variant.requestFields,

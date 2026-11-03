@@ -1,52 +1,45 @@
-import type { ReactNode } from 'react'
-import { SimWordmark } from '@sim/emcn'
-import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
-import { LogoMark } from '@/app/(landing)/components/navbar/components'
+import { type ReactNode, Suspense } from 'react'
+import { AuthRoot, AuthShellView, AuthWordmark } from '@sim/auth-ui'
+import { DesktopTitleBarController } from '@/app/_shell/desktop-title-bar'
+import { AuthNavigation } from '@/app/(auth)/components/auth-navigation'
+import { SupportFooter } from '@/app/(auth)/components/support-footer'
+import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface AuthShellProps {
-  /** Centered content column (the form, status copy, etc.). */
   children: ReactNode
-  /** Optional element pinned to the bottom of the shell (e.g. the support footer). */
   footer?: ReactNode
+  registrationDisabled?: boolean
 }
 
-/**
- * The light auth/status page frame — the single source of truth for the shell
- * every auth page and standalone status page wears.
- *
- * Mirrors the landing chrome: it pins the `light` token layer (so the platform's
- * light-mode `var(--*)` tokens resolve regardless of the visitor's theme), uses
- * the canvas/`--text-primary` surface, and renders a logo-only header that reuses
- * the landing {@link LogoMark} + {@link SimWordmark} at the same nav gutters. The
- * single content column is centered and capped for a calm single-form layout.
- * The home link starts a document navigation so the marketing theme default is
- * initialized independently of auth's forced-light context.
- *
- * The shell also owns the macOS traffic-light lane, unconditionally — every surface that
- * wears it (the `(auth)` routes, the CLI auth handoff, the invite pages) sits outside
- * workspace chrome and draws its logo where the lights are. Gating this per route left
- * whichever surface was overlooked drawing underneath them, and a route list could not
- * cover a dynamic segment like `/invite/[id]` anyway. Off the desktop shell
- * `--desktop-title-bar-height` is `0px`, so the reservation and the drag strip both
- * collapse to nothing and `.desktop-title-bar-page` is exactly `min-h-screen`.
- */
-export function AuthShell({ children, footer }: AuthShellProps) {
+/** Application adapter for identity and native chrome; all visual rules belong to Auth. */
+export function AuthShell({ children, footer, registrationDisabled = false }: AuthShellProps) {
+  const brand = getBrandConfig()
   return (
-    <div className='light desktop-title-bar-page relative flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
-      <DesktopTitleBarLane />
-      <header>
-        <nav className='mx-auto flex w-full max-w-[1446px] items-center px-12 py-4 max-sm:px-5 max-lg:px-8'>
-          <a href='/' aria-label='Sim home' className='flex h-[30px] items-center'>
-            <LogoMark>
-              <SimWordmark />
-            </LogoMark>
-          </a>
-        </nav>
-      </header>
-      <div className='flex flex-1 items-center justify-center px-4 pb-16'>
-        <div className='w-full max-w-[400px]'>{children}</div>
-      </div>
-      {footer}
-    </div>
+    <AuthRoot>
+      <AuthShellView
+        homeHref='/'
+        logo={
+          brand.isWhitelabeled && (brand.wordmarkUrl || brand.logoUrl) ? (
+            <img src={brand.wordmarkUrl || brand.logoUrl || undefined} alt={brand.name} />
+          ) : (
+            <AuthWordmark />
+          )
+        }
+        navigation={
+          <Suspense>
+            <AuthNavigation registrationDisabled={registrationDisabled} />
+          </Suspense>
+        }
+        footer={footer ?? <SupportFooter />}
+        titlebar={
+          <>
+            <DesktopTitleBarController />
+            <div data-auth-titlebar='' aria-hidden='true' />
+          </>
+        }
+      >
+        {children}
+      </AuthShellView>
+    </AuthRoot>
   )
 }

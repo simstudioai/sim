@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { toCopyableMarkdown } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/copyable-markdown'
 import { parseChipLinks } from '@/app/workspace/[workspaceId]/home/components/user-input/components/chip-clipboard-codec'
+import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 
 const WORKSPACE_FILES: WorkspaceFileRecord[] = [
   {
@@ -43,7 +44,9 @@ describe('toCopyableMarkdown', () => {
       })}</workspace_resource>.`,
     ].join('')
 
-    const markdown = toCopyableMarkdown(message, WORKSPACE_FILES)
+    const markdown = toCopyableMarkdown(message, (ref) =>
+      resolveWorkspaceResourceRef(ref, WORKSPACE_FILES)
+    )
 
     expect(markdown).toBe(
       'Read [The Bell at Low Tide.md](sim:file/file_bell) and [Checked_\\[rare\\]\\\\portal](sim:table/tbl_f26af6dae98d4222b014b250494d00fb).'

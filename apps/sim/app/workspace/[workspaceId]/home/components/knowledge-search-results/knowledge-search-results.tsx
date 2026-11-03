@@ -175,7 +175,7 @@ function LiveSearchResults({
             source={toSource(result, query, scope)}
             query={query}
             onSummarize={
-              isFetching
+              isFetching || !onSummarize
                 ? undefined
                 : (cited) =>
                     onSummarize(`Summarize "${cited.title ?? cited.url}"`, {

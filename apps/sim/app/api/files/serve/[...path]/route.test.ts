@@ -2,6 +2,7 @@
  * Tests for file serve API route
  */
 
+import { Readable } from 'node:stream'
 import {
   authMockFns,
   hybridAuthMockFns,
@@ -41,7 +42,7 @@ import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 const {
   mockReadFile,
   mockAuthenticateWorkspaceFile,
-  mockReadWorkspaceFileContentByKey,
+  mockStreamAuthorizedWorkspaceFile,
   mockReadWorkspaceFileRecordByKey,
   mockAuthorizeWorkspaceFileRecordByKey,
   mockResolveServableDocBytes,
@@ -64,7 +65,7 @@ const {
     mockReadOrganizationAssistantImage: vi.fn(),
     mockReadFile: vi.fn(),
     mockAuthenticateWorkspaceFile: vi.fn(),
-    mockReadWorkspaceFileContentByKey: vi.fn(),
+    mockStreamAuthorizedWorkspaceFile: vi.fn(),
     mockReadWorkspaceFileRecordByKey: vi.fn(),
     mockAuthorizeWorkspaceFileRecordByKey: vi.fn(async () => undefined),
     mockResolveServableDocBytes: vi.fn(),
@@ -117,8 +118,11 @@ vi.mock('@/lib/workspace-files/api', () => ({
   internalWorkspaceFileServeAuth: { authenticate: mockAuthenticateWorkspaceFile },
 }))
 
-vi.mock('@/lib/workspace-files/application/read-workspace-file-content-by-key', () => ({
-  readWorkspaceFileContentByKey: { execute: mockReadWorkspaceFileContentByKey },
+vi.mock('@/lib/workspace-files/application/stream-authorized-workspace-file', () => ({
+  streamAuthorizedWorkspaceFile: mockStreamAuthorizedWorkspaceFile,
+}))
+
+vi.mock('@/lib/workspace-files/application/read-workspace-file-record-by-key', () => ({
   readWorkspaceFileRecordByKey: {
     execute: mockReadWorkspaceFileRecordByKey,
     authorize: mockAuthorizeWorkspaceFileRecordByKey,
@@ -129,7 +133,9 @@ vi.mock('@/lib/uploads/documents/compile', () => ({
   resolveServableDocBytes: mockResolveServableDocBytes,
 }))
 
-vi.mock('@/app/api/files/utils', () => ({
+vi.mock('@/app/api/files/utils', async (importOriginal) => ({
+  createStoredFileStreamResponse: (await importOriginal<typeof import('@/app/api/files/utils')>())
+    .createStoredFileStreamResponse,
   FileNotFoundError,
   createFileResponse: mockCreateFileResponse,
   createConditionalFileResponse: mockCreateConditionalFileResponse,
@@ -151,6 +157,10 @@ const serveLogger = getMockLogger('FilesServeAPI')
 const mockDownloadCopilotFile = uploadsMockFns.mockDownloadCopilotFile
 const mockIsUsingCloudStorage = uploadsMockFns.mockIsUsingCloudStorage
 
+function webStream(text: string): ReadableStream<Uint8Array> {
+  return new Blob([text]).stream()
+}
+
 describe('File Serve API Route', () => {
   beforeEach(() => {
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
@@ -170,14 +180,7 @@ describe('File Serve API Route', () => {
     mockAuthenticateWorkspaceFile.mockResolvedValue(
       createSessionPrincipal({ userId: 'test-user-id' })
     )
-    mockReadWorkspaceFileContentByKey.mockResolvedValue({
-      file: {
-        id: 'file-1',
-        workspaceId: 'test-workspace-id',
-        name: 'report.pdf',
-      },
-      content: Buffer.from('generated source'),
-    })
+    mockStreamAuthorizedWorkspaceFile.mockImplementation(async () => webStream('stored bytes'))
     mockReadWorkspaceFileRecordByKey.mockResolvedValue({
       file: {
         id: 'file-1',
@@ -248,11 +251,11 @@ describe('File Serve API Route', () => {
     mockDownloadCopilotFile.mockResolvedValue(Buffer.from('bytes'))
 
     await GET(
-      createMockRequest({ url: 'http://localhost:3000/api/files/serve/copilot/doc.txt' }),
-      createRouteContext({ path: ['copilot', 'doc.txt'] })
+      createMockRequest({ url: 'http://localhost:3000/api/files/serve/copilot/doc.pdf' }),
+      createRouteContext({ path: ['copilot', 'doc.pdf'] })
     )
 
-    expect(mockDownloadCopilotFile).toHaveBeenCalledWith('copilot/doc.txt', {
+    expect(mockDownloadCopilotFile).toHaveBeenCalledWith('copilot/doc.pdf', {
       maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
     })
   })
@@ -287,9 +290,9 @@ describe('File Serve API Route', () => {
   it('bounds the local read rather than trusting the stored size', async () => {
     await GET(
       createMockRequest({
-        url: 'http://localhost:3000/api/files/serve/workspace/ws/test-file.txt',
+        url: 'http://localhost:3000/api/files/serve/workspace/ws/report.pdf',
       }),
-      createRouteContext({ path: ['workspace', 'ws', 'test-file.txt'] })
+      createRouteContext({ path: ['workspace', 'ws', 'report.pdf'] })
     )
 
     expect(mockReadLocalFileWithinLimit).toHaveBeenCalledWith(
@@ -318,8 +321,8 @@ describe('File Serve API Route', () => {
     )
 
     const response = await GET(
-      createMockRequest({ url: 'http://localhost:3000/api/files/serve/workspace/ws/huge.bin' }),
-      createRouteContext({ path: ['workspace', 'ws', 'huge.bin'] })
+      createMockRequest({ url: 'http://localhost:3000/api/files/serve/workspace/ws/huge.pdf' }),
+      createRouteContext({ path: ['workspace', 'ws', 'huge.pdf'] })
     )
 
     expect(response.status).toBe(413)
@@ -334,10 +337,10 @@ describe('File Serve API Route', () => {
     })
 
     const response = await GET(
-      new NextRequest('http://localhost:3000/api/files/serve/workspace/ws/report.md', {
+      new NextRequest('http://localhost:3000/api/files/serve/workspace/ws/report.pdf', {
         signal: controller.signal,
       }),
-      createRouteContext({ path: ['workspace', 'ws', 'report.md'] })
+      createRouteContext({ path: ['workspace', 'ws', 'report.pdf'] })
     )
 
     expect(response.status).toBe(499)
@@ -400,36 +403,269 @@ describe('File Serve API Route', () => {
       const response = await serveVersionedDoc(true)
       expect(response.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate')
     })
+  })
 
-    it('serves stored bytes under the type their extension names, not the recorded type', async () => {
+  describe('streaming stored objects', () => {
+    const principal = createSessionPrincipal({ userId: 'test-user-id' })
+    const video = {
+      id: 'file-1',
+      workspaceId: 'test-workspace-id',
+      name: 'clip.mp4',
+      key: 'workspace/test-workspace-id/clip.mp4',
+      type: 'application/octet-stream',
+      size: 300_000_000,
+      updatedAt: new Date('2026-10-31T20:28:58Z'),
+      contentUpdatedAt: new Date('2026-10-31T20:28:58Z'),
+    }
+
+    function serveWorkspaceFile(
+      file: typeof video,
+      headers: Record<string, string> = {},
+      query = ''
+    ) {
       mockResolveStoredFileContext.mockResolvedValue('workspace')
       mockParseWorkspaceFileKey.mockReturnValue('test-workspace-id')
       mockAuthenticateWorkspaceFile.mockResolvedValue(principal)
-      mockReadWorkspaceFileRecordByKey.mockResolvedValue({
-        file: {
-          id: 'file-1',
-          workspaceId: 'test-workspace-id',
-          name: 'export.csv',
-          key: 'workspace/test-workspace-id/export.csv',
-          type: 'application/vnd.ms-excel',
-          size: 3,
-          contentUpdatedAt: new Date('2026-09-06'),
-        },
-      })
-      fileUtilsServerMockFns.mockDownloadServableFileFromStorage.mockResolvedValue({
-        buffer: Buffer.from('a,b'),
-        contentType: 'application/vnd.ms-excel',
-      })
-
-      const response = await GET(
-        createMockRequest({
-          url: 'http://localhost:3000/api/files/serve/workspace/test-workspace-id/export.csv',
-        }),
-        createRouteContext({ path: ['workspace', 'test-workspace-id', 'export.csv'] })
+      mockReadWorkspaceFileRecordByKey.mockResolvedValue({ file })
+      const segments = file.key.split('/')
+      return GET(
+        new NextRequest(`http://localhost:3000/api/files/serve/${file.key}${query}`, { headers }),
+        createRouteContext({ path: segments })
       )
+    }
+
+    it('streams a file past the transfer ceiling instead of refusing it', async () => {
+      const response = await serveWorkspaceFile(video)
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Content-Length')).toBe(String(video.size))
+      expect(response.headers.get('Content-Type')).toBe('video/mp4')
+      expect(response.headers.get('Accept-Ranges')).toBe('bytes')
+      expect(await response.text()).toBe('stored bytes')
+      expect(mockStreamAuthorizedWorkspaceFile).toHaveBeenCalledWith(
+        expect.objectContaining({ file: video, principal, range: undefined })
+      )
+      expect(fileUtilsServerMockFns.mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
+    })
+
+    it('rechecks access through the same use case that admitted the file', async () => {
+      await serveWorkspaceFile(video)
+      const [{ authorize }] = mockStreamAuthorizedWorkspaceFile.mock.calls[0]
+      await authorize()
+      expect(mockAuthorizeWorkspaceFileRecordByKey).toHaveBeenCalledWith(
+        expect.objectContaining({
+          principal,
+          input: { key: video.key, assertedWorkspaceId: 'test-workspace-id' },
+        })
+      )
+    })
+
+    it('answers a byte range with 206 and reads only that span', async () => {
+      const response = await serveWorkspaceFile(video, { Range: 'bytes=100-199' })
+
+      expect(response.status).toBe(206)
+      expect(response.headers.get('Content-Range')).toBe(`bytes 100-199/${video.size}`)
+      expect(response.headers.get('Content-Length')).toBe('100')
+      expect(mockStreamAuthorizedWorkspaceFile).toHaveBeenCalledWith(
+        expect.objectContaining({ range: { start: 100, end: 199 } })
+      )
+    })
+
+    it('refuses a range past the end with 416 without opening storage', async () => {
+      const response = await serveWorkspaceFile(video, { Range: `bytes=${video.size}-` })
+
+      expect(response.status).toBe(416)
+      expect(response.headers.get('Content-Range')).toBe(`bytes */${video.size}`)
+      expect(mockStreamAuthorizedWorkspaceFile).not.toHaveBeenCalled()
+    })
+
+    it('answers a revalidation of unchanged bytes with 304 without opening storage', async () => {
+      const first = await serveWorkspaceFile(video)
+      const etag = first.headers.get('ETag')
+      expect(etag).toBeTruthy()
+      mockStreamAuthorizedWorkspaceFile.mockClear()
+
+      const response = await serveWorkspaceFile(video, { 'If-None-Match': etag ?? '' })
+
+      expect(response.status).toBe(304)
+      expect(mockStreamAuthorizedWorkspaceFile).not.toHaveBeenCalled()
+    })
+
+    it('stops matching once a content write moves the file to new bytes', async () => {
+      const etag = (await serveWorkspaceFile(video)).headers.get('ETag') ?? ''
+      const rewritten = {
+        ...video,
+        key: 'workspace/test-workspace-id/clip-v2.mp4',
+        contentUpdatedAt: new Date('2026-11-01T00:00:00Z'),
+      }
+
+      const revalidated = await serveWorkspaceFile(rewritten, { 'If-None-Match': etag })
+      const resumed = await serveWorkspaceFile(rewritten, { Range: 'bytes=0-9', 'If-Range': etag })
+
+      expect(revalidated.status).toBe(200)
+      expect(resumed.status).toBe(200)
+      expect(resumed.headers.get('Content-Length')).toBe(String(video.size))
+    })
+
+    it('serves stored bytes under the type their extension names, not the recorded type', async () => {
+      const response = await serveWorkspaceFile({
+        ...video,
+        name: 'export.csv',
+        key: 'workspace/test-workspace-id/export.csv',
+        type: 'application/vnd.ms-excel',
+        size: 3,
+      })
 
       expect(response.status).toBe(200)
       expect(response.headers.get('Content-Type')).toBe('text/csv')
+    })
+
+    it('streams an uploaded document, which is already the finished file', async () => {
+      const response = await serveWorkspaceFile({
+        ...video,
+        name: 'scan.pdf',
+        key: 'workspace/test-workspace-id/scan.pdf',
+        type: 'application/pdf',
+      })
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Content-Length')).toBe(String(video.size))
+      expect(fileUtilsServerMockFns.mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
+    })
+
+    it('streams the raw source of a page rather than rendering it', async () => {
+      mockGetContentType.mockReturnValue('text/html')
+      const response = await serveWorkspaceFile(
+        { ...video, name: 'page.html', key: 'workspace/test-workspace-id/page.html', size: 12 },
+        {},
+        '?raw=1'
+      )
+
+      expect(response.status).toBe(200)
+      expect(await response.text()).toBe('stored bytes')
+    })
+
+    it.each([
+      ['a generated document', { name: 'report.pdf', type: 'text/x-pdflibjs' }, ''],
+      ['a page', { name: 'page.html', type: 'text/html' }, ''],
+      [
+        'a preview, which may be a HEIC transcode',
+        { name: 'photo.jpg', type: 'image/jpeg' },
+        '?preview=1',
+      ],
+    ])('keeps %s on the buffered path', async (_label, override, query) => {
+      fileUtilsServerMockFns.mockDownloadServableFileFromStorage.mockResolvedValue({
+        buffer: Buffer.from('rendered'),
+        contentType: 'application/octet-stream',
+      })
+      await serveWorkspaceFile(
+        { ...video, ...override, key: `workspace/test-workspace-id/${override.name}`, size: 8 },
+        {},
+        query
+      )
+
+      expect(mockStreamAuthorizedWorkspaceFile).not.toHaveBeenCalled()
+      expect(fileUtilsServerMockFns.mockDownloadServableFileFromStorage).toHaveBeenCalled()
+    })
+
+    describe('outside the workspace-file model', () => {
+      const key = 'workspace/ws/1790000000000-0123456789abcdef-clip.mp4'
+
+      function serveAttachment(headers: Record<string, string> = {}, objectKey = key) {
+        mockIsUsingCloudStorage.mockReturnValue(true)
+        storageServiceMockFns.mockDownloadFileStream.mockImplementation(async () =>
+          Readable.from([Buffer.from('attachment')])
+        )
+        return GET(
+          new NextRequest(`http://localhost:3000/api/files/serve/${objectKey}`, { headers }),
+          createRouteContext({ path: objectKey.split('/') })
+        )
+      }
+
+      describe('a document name', () => {
+        const documentKey = 'workspace/ws/1790000000000-0123456789abcdef-scan.pdf'
+
+        beforeEach(() => {
+          storageServiceMockFns.mockHeadObject.mockResolvedValue({ size: 10, version: '"v1"' })
+          storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('rendered'))
+        })
+
+        it('streams when its file record says it is a finished upload', async () => {
+          uploadsMetadataMockFns.mockGetFileMetadataByKey.mockResolvedValue({
+            key: documentKey,
+            contentType: 'application/pdf',
+          })
+
+          const response = await serveAttachment({}, documentKey)
+
+          expect(response.status).toBe(200)
+          expect(storageServiceMockFns.mockDownloadFileStream).toHaveBeenCalled()
+          expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+        })
+
+        it.each([
+          ['its record says it is a generation source', { contentType: 'text/x-pdflibjs' }],
+          ['it has no file record', null],
+        ])('stays buffered when %s', async (_label, record) => {
+          uploadsMetadataMockFns.mockGetFileMetadataByKey.mockResolvedValue(
+            record && { key: documentKey, ...record }
+          )
+
+          await serveAttachment({}, documentKey)
+
+          expect(storageServiceMockFns.mockDownloadFileStream).not.toHaveBeenCalled()
+          expect(storageServiceMockFns.mockDownloadFile).toHaveBeenCalled()
+        })
+      })
+
+      it('streams a range of an attachment sized by storage, never buffering it', async () => {
+        storageServiceMockFns.mockHeadObject.mockResolvedValue({
+          size: 500_000_000,
+          version: '"v1"',
+        })
+
+        const response = await serveAttachment({ Range: 'bytes=0-1023' })
+
+        expect(response.status).toBe(206)
+        expect(response.headers.get('Content-Range')).toBe('bytes 0-1023/500000000')
+        expect(response.headers.get('ETag')).toBeTruthy()
+        expect(await response.text()).toBe('attachment')
+        expect(storageServiceMockFns.mockDownloadFileStream).toHaveBeenCalledWith({
+          key,
+          context: 'mothership',
+          range: { start: 0, end: 1023 },
+        })
+        expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+      })
+
+      it('still checks access before asking storage anything', async () => {
+        mockVerifyFileAccess.mockResolvedValue(false)
+
+        const response = await serveAttachment()
+
+        expect(response.status).toBe(404)
+        expect(storageServiceMockFns.mockHeadObject).not.toHaveBeenCalled()
+        expect(storageServiceMockFns.mockDownloadFileStream).not.toHaveBeenCalled()
+      })
+
+      it('answers 404 for an object storage no longer has', async () => {
+        storageServiceMockFns.mockHeadObject.mockResolvedValue(null)
+
+        const response = await serveAttachment()
+
+        expect(response.status).toBe(404)
+        expect(storageServiceMockFns.mockDownloadFileStream).not.toHaveBeenCalled()
+      })
+
+      it('sends everything when storage offers no version to resume against', async () => {
+        storageServiceMockFns.mockHeadObject.mockResolvedValue({ size: 10 })
+
+        const response = await serveAttachment({ Range: 'bytes=0-4', 'If-Range': '"v1"' })
+
+        expect(response.status).toBe(200)
+        expect(response.headers.get('ETag')).toBeNull()
+        expect(response.headers.get('Content-Length')).toBe('10')
+      })
     })
   })
 })

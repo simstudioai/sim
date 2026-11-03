@@ -207,6 +207,48 @@ describe('SSO admission with a hosted SCIM directory in PostgreSQL', () => {
     expect(await membership()).toEqual([{ id: memberId, role: 'admin' }])
   })
 
+  async function emailVerified() {
+    const { db, schema, eq } = runtime
+    const [row] = await db
+      .select({ emailVerified: schema.user.emailVerified })
+      .from(schema.user)
+      .where(eq(schema.user.id, userId))
+    return row?.emailVerified
+  }
+
+  it('verifies a directory-provisioned member who signs in through the verified-domain provider', async () => {
+    const { db, schema, eq } = runtime
+    const memberId = generateId()
+    await db.insert(schema.member).values({ id: memberId, userId, organizationId, role: 'member' })
+    await db.update(schema.user).set({ emailVerified: false }).where(eq(schema.user.id, userId))
+
+    await expect(admit()).resolves.toEqual({ kind: 'already-member', organizationId, memberId })
+    expect(await emailVerified()).toBe(true)
+  })
+
+  it('leaves an address outside the provider domain unverified', async () => {
+    const { db, schema, eq } = runtime
+    await db
+      .update(schema.user)
+      .set({ emailVerified: false, email: `${userId}@elsewhere.test` })
+      .where(eq(schema.user.id, userId))
+
+    await expect(admit()).resolves.toEqual({ kind: 'denied', reason: 'domain-mismatch' })
+    expect(await emailVerified()).toBe(false)
+  })
+
+  it('leaves the address unverified when the provider domain is not proven', async () => {
+    const { db, schema, eq } = runtime
+    await db.update(schema.user).set({ emailVerified: false }).where(eq(schema.user.id, userId))
+    await db
+      .update(schema.ssoProvider)
+      .set({ domainVerified: false })
+      .where(eq(schema.ssoProvider.providerId, providerId))
+
+    await expect(admit()).resolves.toEqual({ kind: 'denied', reason: 'provider-not-trusted' })
+    expect(await emailVerified()).toBe(false)
+  })
+
   it('resumes normal JIT admission when the directory permits automatic membership', async () => {
     const { db, schema, eq } = runtime
     await db

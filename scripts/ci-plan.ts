@@ -98,6 +98,13 @@ const http = suites.http.filter((suite) => affected(suite.task))
 const production = suites.production.filter((suite) => affected(suite.task))
 const desktopLive = affected('ci:desktop-live')
 const appTest = affected('test')
+const docsSite = fallback !== undefined || selected.has('docs#build')
+const docsPlatform = affected('ci:e2e-docs-platform')
+const docsGroups = docsSite
+  ? ['http', 'corpus', 'chromium', 'webkit']
+  : docsPlatform
+    ? ['platform']
+    : []
 function taskPackages(name: string, omitApp = false): string[] {
   return fallback
     ? ['*']
@@ -112,6 +119,9 @@ function taskPackages(name: string, omitApp = false): string[] {
 const packages = taskPackages('test', true)
 const typecheckPackages = taskPackages('type-check')
 const flags = {
+  docs: docsSite || docsPlatform,
+  docs_site: docsSite,
+  docs_platform: docsPlatform,
   integration: affected('ci:integration'),
   http: http.length > 0,
   production: production.length > 0,
@@ -128,6 +138,7 @@ const outputs = {
   test_matrix: JSON.stringify({ shard: appTest ? [1, 2] : [1] }),
   test_packages: JSON.stringify(packages),
   typecheck_packages: JSON.stringify(typecheckPackages),
+  docs_matrix: JSON.stringify({ include: docsGroups.map((group) => ({ group })) }),
 }
 const report = {
   base,
@@ -140,6 +151,7 @@ const report = {
   production,
   testPackages: packages,
   typecheckPackages,
+  docsGroups,
 }
 if (process.env.CI_PLAN_PATH)
   writeFileSync(process.env.CI_PLAN_PATH, `${JSON.stringify(report, null, 2)}\n`)

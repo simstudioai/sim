@@ -20,6 +20,7 @@ interface GmailListLabelsResponse {
 
 export const gmailListLabelsV2Tool: ToolConfig<GmailListLabelsParams, GmailListLabelsResponse> = {
   id: 'gmail_list_labels_v2',
+  assistant: { effect: 'read', version: 1 },
   name: 'Gmail List Labels',
   description: 'List all labels in a Gmail account',
   version: '2.0.0',

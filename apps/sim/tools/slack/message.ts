@@ -8,6 +8,17 @@ export const slackMessageTool: InternalToolConfig<SlackMessageParams, SlackMessa
   description:
     'Send messages to Slack channels or direct messages. Supports Slack mrkdwn formatting.',
   version: '1.0.0',
+  assistant: {
+    effect: 'write',
+    version: 1,
+    reviewFields: [
+      { name: 'channel', label: 'Channel', target: true },
+      { name: 'dmUserId', label: 'Recipient', target: true },
+      { name: 'threadTs', label: 'Thread', target: true },
+      { name: 'text', label: 'Text (fallback for blocks)', format: 'multiline', editable: true },
+      { name: 'blocks', label: 'Message blocks', format: 'json' },
+    ],
+  },
 
   oauth: {
     required: true,

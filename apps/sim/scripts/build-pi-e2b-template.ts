@@ -18,13 +18,15 @@
 
 import { defaultBuildLogger, Template, waitForTimeout } from '@e2b/code-interpreter'
 import {
+  PI_SANDBOX_CPU_COUNT,
+  PI_SANDBOX_MEMORY_MB,
+} from '@/lib/execution/remote-sandbox/pi-resources'
+import {
   PI_APT,
   PI_BUN_VERSION_ASSERT,
   PI_GLOBAL_NPM_PACKAGES,
   PI_NODE_MAJOR,
   PI_NODE_VERSION_ASSERT,
-  PI_SANDBOX_CPU_COUNT,
-  PI_SANDBOX_MEMORY_MB,
 } from '@/scripts/pi-sandbox-packages'
 
 const DEFAULT_TEMPLATE_NAME = 'sim-pi'

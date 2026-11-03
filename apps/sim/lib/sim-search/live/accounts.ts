@@ -147,11 +147,16 @@ export async function listLiveAccounts(
 }
 
 /** Re-lists the member's accounts so a reference from an earlier request is checked afresh. */
-export async function resolveLiveAccount(owner: ResourceOwner, userId: string, accountId: string) {
+export async function resolveLiveAccount(
+  owner: ResourceOwner,
+  userId: string,
+  accountId: string,
+  signal?: AbortSignal
+) {
   const current = (await listLiveAccounts(owner, userId)).find((row) => row.id === accountId)
   if (!current)
     throw new NativeSearchError('reconnect', 'This search connection is no longer available.')
-  return resolveListedLiveAccount(owner, userId, current)
+  return resolveListedLiveAccount(owner, userId, current, signal)
 }
 
 export type ResolvedLiveAccount = Awaited<ReturnType<typeof resolveListedLiveAccount>>
@@ -163,7 +168,8 @@ export type ResolvedLiveAccount = Awaited<ReturnType<typeof resolveListedLiveAcc
 export async function resolveListedLiveAccount(
   owner: ResourceOwner,
   userId: string,
-  current: LiveAccount
+  current: LiveAccount,
+  signal?: AbortSignal
 ) {
   if (current.type === 'admin_source') return resolveAdminGitLabAccount(owner, current)
   if (current.type === 'managed_mcp') return { account: current, accessToken: '', mcp: true }
@@ -177,7 +183,14 @@ export async function resolveListedLiveAccount(
     })
     return { account: current, accessToken: token.accessToken }
   }
-  const token = await resolveCredentialTokenBundle(current.id, userId, 'live-search')
+  const token = await resolveCredentialTokenBundle(
+    current.id,
+    userId,
+    'live-search',
+    undefined,
+    undefined,
+    { signal }
+  )
   if (!token) throw new NativeSearchError('reconnect', 'Reconnect your personal account.')
   if (current.type === 'service_account') {
     const [person] = await db
@@ -188,7 +201,9 @@ export async function resolveListedLiveAccount(
     const api = createNativeClient({
       origin: 'https://coda.io',
       accessToken: token.accessToken,
-      signal: AbortSignal.timeout(10_000),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(10_000)])
+        : AbortSignal.timeout(10_000),
     })
     const identity = object(await api.json('/apis/v1/whoami'))
     if (

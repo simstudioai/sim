@@ -1,6 +1,6 @@
 import { propagation, trace } from '@opentelemetry/api'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
-import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
+import { TracerProvider } from '@opentelemetry/sdk-trace'
 import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import {
   billingAttributionMock,
@@ -187,7 +187,7 @@ describe('createSSEStream terminal error handling', () => {
         },
       })
     )
-    trace.setGlobalTracerProvider(new BasicTracerProvider())
+    trace.setGlobalTracerProvider(new TracerProvider())
     propagation.setGlobalPropagator(new W3CTraceContextPropagator())
     vi.stubGlobal(
       'fetch',

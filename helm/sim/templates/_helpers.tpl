@@ -683,3 +683,50 @@ Validate Copilot configuration
   {{- end -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+Inline env entries the app container applies over its Secret, in precedence order (a later entry
+for the same name wins): envDefaults the operator did not override, existingSecret-mode app.env
+values, then extraEnvVars. Shared with the migrations init container so both resolve a key alike.
+*/}}
+{{- define "sim.appEnvOverrides" -}}
+{{- /*
+  Skip envDefaults keys that the user has explicitly overridden in app.env
+  with a non-empty value. K8s `env` takes precedence over `envFrom`, so an
+  inline default would otherwise mask the user's Secret-bound value.
+  Also skip envDefaults entirely in existingSecret mode: the pre-existing
+  Secret is the source of truth, and inlining localhost URL defaults would
+  silently shadow keys (NEXT_PUBLIC_APP_URL, BETTER_AUTH_URL, etc.) the
+  user stored in their Secret but left empty in app.env.
+*/}}
+{{- $appEnv := .Values.app.env | default dict }}
+{{- $useExistingSecret := and .Values.app.secrets.existingSecret.enabled (not .Values.externalSecrets.enabled) }}
+{{- if not $useExistingSecret }}
+{{- range $key, $value := .Values.app.envDefaults | default dict }}
+{{- $override := index $appEnv $key }}
+{{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") (or (not $override) (eq (toString $override) "") (eq (toString $override) "<nil>")) }}
+- name: {{ $key }}
+  value: {{ $value | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- /*
+  In existingSecret mode the chart-managed Secret is not rendered, so
+  non-empty values in app.env would otherwise go nowhere — inline them
+  here so the user's overrides actually reach the pod. Skipped in ESO
+  mode (ESO is the source of truth; inlining would mask the synced value)
+  and in inline mode (values flow through the chart-managed Secret).
+*/}}
+{{- if and .Values.app.secrets.existingSecret.enabled (not .Values.externalSecrets.enabled) }}
+{{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" "PII_URL" }}
+{{- range $key, $value := $appEnv }}
+{{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") (not (has $key $chartComputed)) }}
+- name: {{ $key }}
+  value: {{ $value | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- with .Values.extraEnvVars }}
+{{ toYaml . }}
+{{- end }}
+{{- end }}

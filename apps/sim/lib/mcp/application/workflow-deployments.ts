@@ -211,6 +211,8 @@ export const createWorkflowMcpDeploymentServer = defineAuthorizedWorkspaceUseCas
   async execute({ principal, input, context }) {
     const result = await performCreateWorkflowMcpServer({
       ...input,
+      // Safe only because the operation's `minimumRole` is `admin`.
+      allowVisibilityChange: true,
       workspaceId: context.workspaceId,
       userId: attribution(principal, context.billedAccountUserId),
       projectLegacyAudit: false,
@@ -259,6 +261,8 @@ export const updateWorkflowMcpDeploymentServer = defineAuthorizedWorkspaceUseCas
   async execute({ principal, input, context }) {
     const result = await performUpdateWorkflowMcpServer({
       ...input,
+      // Safe only because the operation's `minimumRole` is `admin`.
+      allowVisibilityChange: true,
       workspaceId: context.workspaceId,
       userId: attribution(principal, context.billedAccountUserId),
       projectLegacyAudit: false,

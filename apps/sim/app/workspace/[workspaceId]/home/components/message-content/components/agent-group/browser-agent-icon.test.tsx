@@ -47,7 +47,7 @@ function tool(overrides: Partial<ToolCallData> = {}): AgentGroupItem {
 }
 
 describe('getBrowserAgentFaviconUrl', () => {
-  it('keeps the observed origin and port without disclosing page details', () => {
+  it('keeps only the observed hostname, never credentials, port, path, or query', () => {
     expect(
       getBrowserAgentFaviconUrl([
         tool({
@@ -59,7 +59,7 @@ describe('getBrowserAgentFaviconUrl', () => {
           },
         }),
       ])
-    ).toBe('https://example.com:8443/favicon.ico')
+    ).toBe('/api/favicon?host=example.com')
   })
 
   it('ignores URLs from other tools and nested agent runs', () => {
@@ -87,7 +87,7 @@ describe('getBrowserAgentFaviconUrl', () => {
           },
         },
       ])
-    ).toBe('https://example.com/favicon.ico')
+    ).toBe('/api/favicon?host=example.com')
   })
 })
 

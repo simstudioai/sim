@@ -269,10 +269,17 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
     workspaceId,
     workflowId,
   })
+  const [replacementSearch, setReplacementSearch] = useState('')
+  const chosenResourceReplacements = useMemo(
+    () => Object.values(resourceReplacementByContext),
+    [resourceReplacementByContext]
+  )
   const resourceOptions = useWorkflowResourceReplacementOptions({
     matches,
     workspaceId,
     workflowId,
+    query: replacementSearch,
+    chosen: chosenResourceReplacements,
   })
 
   const hydratedMatches = useMemo(
@@ -674,6 +681,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
                   eligibleMatchIds.length > 0 && hasReplacement && !allReplacementIssue
                 )}
                 onReplacementChange={handleReplacementChange}
+                onReplacementSearchChange={setReplacementSearch}
                 onReplaceActive={handleReplaceActive}
                 onReplaceAll={handleReplaceAll}
               />

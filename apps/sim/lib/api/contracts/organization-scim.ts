@@ -94,6 +94,10 @@ const groupMappingSchema = z.object({
   workspaceId: z.string().nullable(),
   permissionType: z.enum(['admin', 'write', 'read']).nullable(),
   role: z.string().nullable(),
+  /** Optional while older application instances still serve the settings API. */
+  source: z.enum(['automatic', 'manual']).optional(),
+  /** Current directory members missing the mapped permission-group membership. */
+  unassignedMemberCount: z.number().int().min(0).max(5000).nullable().optional(),
 })
 
 export const listScimGroupMappingsContract = defineRouteContract({

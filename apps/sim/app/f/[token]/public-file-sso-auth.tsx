@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { cn, Input, Label } from '@sim/emcn'
+import { AuthEmailInput, AuthField } from '@sim/auth-ui'
 import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeEmail } from '@sim/utils/string'
 import { useRouter } from 'next/navigation'
@@ -64,28 +64,24 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
           e.preventDefault()
           handleAuthenticate()
         }}
-        className='space-y-6'
+        className='au:space-y-[var(--auth-group-gap)]'
       >
-        <div className='space-y-2'>
-          <Label htmlFor='email'>Work Email</Label>
-          <Input
+        <AuthField htmlFor='email' label='Work email' errors={error ? [error] : undefined}>
+          <AuthEmailInput
             id='email'
             name='email'
             required
             type='email'
-            autoCapitalize='none'
-            autoComplete='email'
-            autoCorrect='off'
             placeholder='Enter your work email'
             value={email}
             onChange={(e) => {
               setEmail(e.target.value)
               setError(null)
             }}
-            className={cn(error && 'border-[var(--text-error)] focus:border-[var(--text-error)]')}
+            error={Boolean(error)}
+            disabled={isLoading}
           />
-          {error ? <p className='text-[var(--text-error)] text-xs'>{error}</p> : null}
-        </div>
+        </AuthField>
 
         <AuthSubmitButton
           disabled={!email.trim()}

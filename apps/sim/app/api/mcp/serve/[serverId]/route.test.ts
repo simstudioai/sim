@@ -2,6 +2,9 @@
  * Tests for MCP serve route auth propagation.
  */
 
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { createRouteContext } from '@sim/testing/helpers/http'
 import { authInternalMock } from '@sim/testing/mocks/auth-internal.mock'
 import {
@@ -18,7 +21,7 @@ import {
 import { hybridAuthMockFns } from '@sim/testing/mocks/hybrid-auth.mock'
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { NextRequest } from 'next/server'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockExecuteWorkflowService,
@@ -101,16 +104,14 @@ const SERVER_RESOURCE = 'http://localhost:3000/api/mcp/serve/server-1'
 const SERVER_RESOURCE_METADATA =
   'http://localhost:3000/.well-known/oauth-protected-resource/api/mcp/serve/server-1'
 
-function toolCallRequest(headers: Record<string, string>) {
+function toolCallRequest(
+  headers: Record<string, string>,
+  params: Record<string, unknown> = { name: 'tool_a', arguments: { q: 'test' } }
+) {
   return new NextRequest(SERVER_RESOURCE, {
     method: 'POST',
     headers: { Accept: 'application/json', ...headers },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'tools/call',
-      params: { name: 'tool_a', arguments: { q: 'test' } },
-    }),
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params }),
   })
 }
 
@@ -1452,6 +1453,110 @@ describe('MCP Serve Route', () => {
 
     expect(response.status).toBe(413)
     expect(body.error.message).toContain('tools/list response is too large')
+  })
+
+  describe('JSON-RPC errors answering a well-formed request', () => {
+    const PUBLIC_SERVER = {
+      id: 'server-1',
+      name: 'Public Server',
+      workspaceId: 'ws-1',
+      isPublic: true,
+      createdBy: 'owner-1',
+    }
+    const DEPLOYED_TOOL_LOOKUPS = [
+      [PUBLIC_SERVER],
+      [{ toolName: 'tool_a', workflowId: 'wf-1' }],
+      [{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }],
+    ]
+    const sdkClients: Client[] = []
+
+    afterEach(async () => {
+      await Promise.all(sdkClients.splice(0).map((client) => client.close()))
+    })
+
+    /** Drives the route with the real SDK client, whose transport reads HTTP 400/404 as a lost session. */
+    async function connectSdkClient() {
+      dbChainMockFns.limit.mockResolvedValue([PUBLIC_SERVER])
+      const routeFetch = async (url: string | URL, init?: RequestInit) => {
+        const request = new NextRequest(new Request(url, init))
+        const context = createRouteContext({ serverId: 'server-1' })
+        return request.method === 'GET' ? GET(request, context) : POST(request, context)
+      }
+      const client = new Client({ name: 'route-test', version: '1.0.0' })
+      sdkClients.push(client)
+      await client.connect(
+        new StreamableHTTPClientTransport(new URL(SERVER_RESOURCE), { fetch: routeFetch })
+      )
+      return client
+    }
+
+    it('delivers MethodNotFound as a JSON-RPC error the SDK client can read', async () => {
+      const client = await connectSdkClient()
+      const failure = await client.listPrompts().catch((error: unknown) => error)
+
+      expect(failure).toBeInstanceOf(McpError)
+      expect(failure).toMatchObject({ code: ErrorCode.MethodNotFound })
+    })
+
+    it.each([
+      {
+        failure: 'tools/call params without a tool name',
+        lookups: [[PUBLIC_SERVER]],
+        params: { name: '' },
+        code: ErrorCode.InvalidParams,
+      },
+      {
+        failure: 'an unknown tool',
+        lookups: [[PUBLIC_SERVER], []],
+        code: ErrorCode.InvalidParams,
+      },
+      {
+        failure: 'an undeployed workflow',
+        lookups: [
+          [PUBLIC_SERVER],
+          [{ toolName: 'tool_a', workflowId: 'wf-1' }],
+          [{ workspaceId: 'ws-1', deploymentVersionId: null }],
+        ],
+        code: ErrorCode.InternalError,
+      },
+      {
+        failure: 'a workflow archived after the tool lookup',
+        lookups: DEPLOYED_TOOL_LOOKUPS,
+        serviceStatus: 404,
+        code: ErrorCode.InternalError,
+      },
+      {
+        failure: 'tool arguments the workflow rejects',
+        lookups: DEPLOYED_TOOL_LOOKUPS,
+        serviceStatus: 400,
+        code: ErrorCode.InvalidParams,
+      },
+    ])(
+      'answers $failure over HTTP 200 to a JSON-only client',
+      async ({ lookups, params, serviceStatus, code }) => {
+        for (const rows of lookups) dbChainMockFns.limit.mockResolvedValueOnce(rows)
+        if (serviceStatus) {
+          mockExecuteWorkflowService.mockResolvedValueOnce({
+            ok: false,
+            failure: { kind: 'precheck', statusCode: serviceStatus, message: 'Refused' },
+          })
+        }
+
+        const response = await POST(
+          toolCallRequest({}, params),
+          createRouteContext({ serverId: 'server-1' })
+        )
+        const body = await response.json()
+
+        expect(response.status).toBe(200)
+        expect(body.error.code).toBe(code)
+        if (serviceStatus) {
+          expect(body.error.data.httpStatus).toBe(serviceStatus)
+        } else {
+          expect(mockExecuteWorkflowService).not.toHaveBeenCalled()
+        }
+      }
+    )
   })
 
   describe('initialize protocol version negotiation', () => {

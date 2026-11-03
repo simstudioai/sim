@@ -3,7 +3,7 @@ title: Human in the loop
 description: Pause a run for human input, then route on the submitted decision.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
+import { Callout } from '@/components/ui/callout'
 import { BlockPreview, WorkflowPreview, HITL_APPROVAL_WORKFLOW, HITL_MULTISTAGE_WORKFLOW, HITL_VALIDATE_WORKFLOW } from '@/components/workflow-preview'
 
 The **Human** block pauses a run until a person submits input. Use it for approvals, feedback, or correcting extracted data. The pause has no automatic response timeout; it remains pending until resumed or cancelled.

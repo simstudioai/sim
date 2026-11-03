@@ -38,6 +38,7 @@ import { readAttributionProperties } from '@/lib/analytics/attribution'
 import { FREEBUFF_CLICK_ID_COOKIE } from '@/lib/analytics/freebuff'
 import { reportFreebuffConversion } from '@/lib/analytics/freebuff.server'
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
+import { enqueueAdminRemovedChatCleanup } from '@/lib/auth/admin-removal-chat-cleanup'
 import { holdAdminRemovalStops, stopAdminRemovedRuns } from '@/lib/auth/admin-removal-stops'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { stableExternalAccountId } from '@/lib/auth/connectors/account-id'
@@ -48,6 +49,7 @@ import {
   isSignInProviderAllowed,
 } from '@/lib/auth/constants'
 import { getAuthDatabase } from '@/lib/auth/database-context'
+import { refuseDisposableAccountEmail } from '@/lib/auth/disposable-email-gate'
 import {
   type AuthenticationSecurityAuditSnapshot,
   captureAuthenticationSecurityAudit,
@@ -168,12 +170,8 @@ import {
   MICROSOFT_DATAVERSE_PROVIDER_ID,
 } from '@/lib/oauth/microsoft-dataverse'
 import { clearOAuthRefreshDeadFlag } from '@/lib/oauth/refresh-coordination'
-import {
-  isSalesforceLoginOrigin,
-  isSalesforceOAuthProviderId,
-  SALESFORCE_LOGIN_HOSTS,
-  withSalesforceInstanceScope,
-} from '@/lib/oauth/salesforce'
+import { isSalesforceOAuthProviderId, withSalesforceInstanceScope } from '@/lib/oauth/salesforce'
+import { fetchSalesforceInstanceUrl } from '@/lib/oauth/salesforce-instance.server'
 import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
@@ -261,41 +259,6 @@ function resolveStripeBilling() {
 }
 
 const stripeBilling = resolveStripeBilling()
-
-/**
- * Resolves the org's API instance URL for a freshly linked Salesforce account.
- *
- * The token response never carries `instance_url`, but `/services/oauth2/userinfo`
- * returns a `profile` URL rooted at the org's own host. A response still rooted
- * at the login host means userinfo answered for the authorization server rather
- * than an org, which is not an instance URL — hence the guard.
- *
- * @returns The instance URL origin, or undefined when it cannot be determined
- * (the caller then leaves `scope` untouched rather than storing a wrong host).
- */
-async function fetchSalesforceInstanceUrl(
-  providerId: string,
-  accessToken: string
-): Promise<string | undefined> {
-  const loginHost = SALESFORCE_LOGIN_HOSTS[providerId]
-  if (!loginHost) return undefined
-  try {
-    const response = await fetch(`https://${loginHost}/services/oauth2/userinfo`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
-    if (!response.ok) return undefined
-    const data = await response.json()
-    if (typeof data.profile !== 'string') return undefined
-    const url = new URL(data.profile)
-    // The origin becomes a tool base URL that carries the bearer token, so the
-    // scheme is pinned rather than inherited from whatever userinfo returned.
-    if (url.protocol !== 'https:' || isSalesforceLoginOrigin(url.origin)) return undefined
-    return url.origin
-  } catch (error) {
-    logger.error('Failed to fetch Salesforce instance URL', { error, providerId })
-    return undefined
-  }
-}
 
 /**
  * A fresh Slack connect re-issues the installation's rotating token chain,
@@ -394,11 +357,12 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
-        before: async (user) => {
+        before: async (user, context) => {
           const accessControl = await getAccessControlConfig()
           if (isEmailBlockedByAccessControl(user.email, accessControl)) {
             throw new Error('Sign-ups from this email are not allowed.')
           }
+          if (isHosted) await refuseDisposableAccountEmail(user.email, context?.path)
           return { data: user }
         },
         after: async (user, context) => {
@@ -523,10 +487,15 @@ export const auth = betterAuth({
        * usage rows cascade away without `deleteUserAccount`. Better Auth runs `after` once the
        * delete commits, which is when the stored reporting prefixes that counted them must be
        * discarded, and when the runs the cascade orphaned are stopped: in-flight ones at once,
-       * queued ones by the outbox worker, since this module cannot load that delivery.
+       * queued ones by the outbox worker, since this module cannot load that delivery. The cleanup
+       * of the chats the cascade erases is queued, delayed, before the delete instead, and a
+       * failure to queue it refuses the removal.
        */
       delete: {
-        before: holdAdminRemovalStops,
+        before: async (user) => {
+          await holdAdminRemovalStops(user)
+          await enqueueAdminRemovedChatCleanup(user)
+        },
         after: async (user) => {
           await stopAdminRemovedRuns(user)
           await invalidateReportingUsagePrefixes()

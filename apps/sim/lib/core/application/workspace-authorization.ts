@@ -380,33 +380,32 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
        * narrows it further for one cohort inside an enterprise organization.
        * Either one saying no is a no.
        *
-       * The column is checked before the role, deliberately: it is a property of
-       * the workspace rather than of any group, it needs no query, and refusing
-       * a key the workspace has switched off is the answer whatever the caller's
-       * role turns out to be. The group key is not — it runs AFTER the role
-       * check, for the reason {@link requireCurrentHumanRole} gives: it answers
-       * with a `403` naming how an organization configured one cohort, and
-       * running it ahead of the concealed {@link NoWorkspaceAccessError} would
-       * hand that to a caller with no reach into the workspace at all.
+       * Both run AFTER the role check, for the reason {@link requireCurrentHumanRole}
+       * gives: each answers with a `403` naming how the workspace or its
+       * organization is configured, and running it ahead of the concealed
+       * {@link NoWorkspaceAccessError} would hand that to a caller with no reach
+       * into the workspace. The context is loaded before authorization, so a
+       * `403` there would also tell a non-member that the resource it named
+       * exists, where a missing one answers `404`.
        *
        * `requireCurrentHumanAccess` is unrolled below so the group's
        * personal-key refusal sits between the role check and the operation's own
        * capability: the remedies differ, and the narrower one is worth naming
        * first.
        */
+      await requireCurrentHumanRole(principal.userId, context, operation.minimumRole, options)
       if (!context.allowPersonalApiKeys) {
         throw new PersonalApiKeysDisabledError()
       }
-      await requireCurrentHumanRole(principal.userId, context, operation.minimumRole, options)
       await requirePersonalApiKeysAllowed(principal.userId, context, options?.executor)
       await requireCapability(principal.userId, context, operation, options?.executor)
       return
     /** OAuth scopes and expiry were checked before loading protected context. */
     case 'oauth_access_token': {
+      await requireCurrentHumanRole(principal.userId, context, operation.minimumRole, options)
       if (!context.allowPersonalApiKeys) {
         throw new PersonalApiKeysDisabledError()
       }
-      await requireCurrentHumanRole(principal.userId, context, operation.minimumRole, options)
       await requireUserCredentialCapabilities(principal, context, options?.executor)
       await requireCapability(principal.userId, context, operation, options?.executor)
       return

@@ -15,7 +15,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    "Claude Cowork is Anthropic's autonomous desktop agent, built into the Claude Desktop app. Give it a goal in plain language and it works across your local files, folders, and apps (via connectors, a browser, and direct screen control) to finish a multi-step task end-to-end. It is not a visual workflow builder or automation/integration platform like Sim, n8n, or Zapier. It's a session-based agent that only runs while the desktop app is open and the computer is awake.",
+    "Claude Cowork is Anthropic's autonomous desktop agent, built into the Claude Desktop app. Give it a goal in plain language and it works across your local files, folders, and apps (via connectors, a browser, and direct screen control) to finish a multi-step task end-to-end. It is not a visual workflow builder or automation/integration platform like Sim, n8n, or Zapier. Since September 16, 2026, Anthropic has been rolling out Cowork and chat as one Claude app, and scheduled tasks run remotely, but tasks that work on local files or apps still need the desktop app open and the computer awake.",
   standoutFeatures: [
     {
       title: 'Dynamic, runtime tool selection (no pre-wiring)',
@@ -81,9 +81,9 @@ export const claudeCoworkProfile: CompetitorProfile = {
     {
       title: 'No webhook/external-event-triggered automation',
       description:
-        "Task initiation is manual (prompt via desktop or mobile) or on a user-defined schedule (hourly/daily/weekly/weekdays). Scheduled tasks now run remotely in the cloud on their set cadence, independent of whether the user's computer is awake or the Claude Desktop app is open. There is still no external event/webhook trigger capability — only time-based scheduling.",
+        "Task initiation is manual (prompt via desktop or mobile) or on a user-defined schedule (hourly/daily/weekly/weekdays). Scheduled tasks now run remotely in the cloud on their set cadence, independent of whether the user's computer is awake or the Claude Desktop app is open, except tasks that work on local files or apps, which still need the desktop app open and the computer awake. There is still no external event/webhook trigger capability — only time-based scheduling.",
       shortDescription:
-        'Tasks run manually or on a schedule (now remote); no external event/webhook trigger.',
+        'Tasks run manually or on a schedule (remote, except tasks on local files or apps); no external event/webhook trigger.',
       source: {
         url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
         label: 'Anthropic/Claude documentation',
@@ -598,13 +598,17 @@ export const claudeCoworkProfile: CompetitorProfile = {
     },
     integrations: {
       integrationCount: {
-        value:
-          "200+ connectors (estimated from Anthropic's own Connectors Directory; Anthropic does not publish an exact figure)",
+        value: "1,051 connectors listed in Anthropic's Connectors directory",
         detail:
-          "Anthropic's Connectors Directory lists connectors like Linear, Slack, Google Drive, Google Workspace, and Microsoft 365, but no primary Anthropic page states a total count.",
-        shortValue: '200+ connectors (estimated)',
-        confidence: 'estimated',
+          "Anthropic's Connectors directory (claude.com/connectors) shows a count of 1,051 connectors, including Linear, Slack, Google Drive, Google Workspace, and Microsoft 365. Connectors are shared across Claude, including Cowork.",
+        shortValue: '1,051 listed connectors',
+        confidence: 'verified',
         sources: [
+          {
+            url: 'https://claude.com/connectors',
+            label: 'Connectors and plugins | Claude Marketplace',
+            asOf: '2026-11-02',
+          },
           {
             url: 'https://support.claude.com/en/articles/11176164-use-connectors-to-extend-claude-s-capabilities',
             label: "Use connectors to extend Claude's capabilities",
@@ -615,14 +619,14 @@ export const claudeCoworkProfile: CompetitorProfile = {
       triggerTypes: {
         value: 'Manual (on-demand) or schedule-based only. No external event/webhook triggers',
         detail:
-          'Tasks start either by user prompt (desktop or mobile) or on a defined schedule (hourly/daily/weekly/weekdays); scheduled runs require the computer awake and desktop app open. There is no capability to trigger a task from an inbound webhook or other external event.',
+          'Tasks start either by user prompt (desktop or mobile) or on a defined schedule (hourly/daily/weekly/weekdays); scheduled tasks run remotely, so they keep their cadence while the computer is asleep or the desktop app is closed, except tasks that work on local files or apps, which still need the desktop app open and the computer awake. There is no capability to trigger a task from an inbound webhook or other external event.',
         shortValue: 'Manual or scheduled only, no webhooks',
         confidence: 'verified',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
             label: 'Schedule recurring tasks in Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -712,11 +716,16 @@ export const claudeCoworkProfile: CompetitorProfile = {
       pricingModel: {
         value: 'Bundled into Claude subscription plans (no separate Cowork charge)',
         detail:
-          "Cowork is included at no additional charge on Pro, Max, Team, and Enterprise plans, subject to each plan's overall usage limits.",
+          "Cowork is included at no additional charge on Pro, Max, Ultra, Team, and Enterprise plans, subject to each plan's overall usage limits.",
         shortValue: 'Included in Claude subscription plans',
         confidence: 'verified',
         sources: [
-          { url: 'https://claude.com/pricing', label: 'Plans & Pricing', asOf: '2026-07-02' },
+          { url: 'https://claude.com/pricing', label: 'Plans & Pricing', asOf: '2026-11-02' },
+          {
+            url: 'https://claude.com/product/cowork',
+            label: 'Claude Cowork product page (Claude)',
+            asOf: '2026-11-02',
+          },
         ],
       },
       entryPaidPlan: {
@@ -726,17 +735,22 @@ export const claudeCoworkProfile: CompetitorProfile = {
         shortValue: '$17/mo annual ($20/mo monthly)',
         confidence: 'verified',
         sources: [
-          { url: 'https://claude.com/pricing', label: 'Plans & Pricing', asOf: '2026-07-02' },
+          { url: 'https://claude.com/pricing', label: 'Plans & Pricing', asOf: '2026-11-02' },
         ],
       },
       freeTier: {
         value: 'Free plan exists but does not include Claude Cowork',
         detail:
-          "The Free plan's feature list does not mention Cowork; Cowork requires a paid plan (Pro, Max, Team, or Enterprise).",
+          "The Free plan's feature list does not mention Cowork; Cowork requires a paid plan (Pro, Max, Ultra, Team, or Enterprise).",
         shortValue: 'Free plan excludes Cowork',
         confidence: 'verified',
         sources: [
-          { url: 'https://claude.com/pricing', label: 'Plans & Pricing', asOf: '2026-07-02' },
+          { url: 'https://claude.com/pricing', label: 'Plans & Pricing', asOf: '2026-11-02' },
+          {
+            url: 'https://claude.com/product/cowork',
+            label: 'Claude Cowork product page (Claude)',
+            asOf: '2026-11-02',
+          },
         ],
       },
       byok: {
@@ -985,8 +999,8 @@ export const claudeCoworkProfile: CompetitorProfile = {
       durabilityModel: {
         value: 'Durable server-side execution for scheduled tasks',
         detail:
-          "Scheduled tasks in Claude Cowork now run remotely on Anthropic's infrastructure, independent of whether the user's computer is awake or the Desktop app is open — this is durable server-side execution, not client-dependent.",
-        shortValue: 'Server-durable: runs remotely regardless of device state',
+          "Scheduled tasks in Claude Cowork now run remotely on Anthropic's infrastructure, independent of whether the user's computer is awake or the Desktop app is open — this is durable server-side execution, not client-dependent. Tasks that work on local files or apps are the exception and still need the desktop app open and the computer awake.",
+        shortValue: 'Server-durable, except tasks on local files or apps',
         confidence: 'verified',
         sources: [
           {
@@ -999,8 +1013,8 @@ export const claudeCoworkProfile: CompetitorProfile = {
       failureAlerting: {
         value: 'Not documented under the current remote-execution model',
         detail:
-          'Earlier documentation described a notification only when a scheduled run was skipped due to sleep/closed app, but that premise no longer applies now that scheduled tasks run remotely regardless of device state. The current schedule-recurring-tasks article is silent on failure/retry alerting for task errors, so this behavior should be treated as unverified pending updated Anthropic documentation.',
-        shortValue: 'Not documented; prior skipped-run notification premise is outdated',
+          'Earlier documentation described a notification only when a scheduled run was skipped due to sleep/closed app, but that premise now applies only to tasks that work on local files or apps, since other scheduled tasks run remotely. The current schedule-recurring-tasks article is silent on failure/retry alerting for task errors, so this behavior should be treated as unverified pending updated Anthropic documentation.',
+        shortValue: 'Not documented; skipped runs now affect only local-file/app tasks',
         confidence: 'unknown',
         sources: [
           {
@@ -1042,9 +1056,9 @@ export const claudeCoworkProfile: CompetitorProfile = {
       },
       asyncExecution: {
         value:
-          "Yes: Claude Cowork now supports true server-side background execution: remote sessions and scheduled tasks continue running on Anthropic's infrastructure even when the Desktop app is closed or the computer is asleep, except for tasks that require local file or browser access, which still need the app open.",
+          "Yes: Claude Cowork now supports true server-side background execution: remote sessions and scheduled tasks continue running on Anthropic's infrastructure even when the Desktop app is closed or the computer is asleep, except tasks that work on local files or apps, which still need the app open.",
         detail:
-          "The phrase 'assign a task and step away' now more closely matches a real cloud job: remote sessions and scheduled/recurring tasks (set up via the /schedule skill) run on their cadence independent of device state. Tasks that need local file system or browser access are the exception and still require the desktop app open on an awake machine.",
+          "The phrase 'assign a task and step away' now more closely matches a real cloud job: remote sessions and scheduled/recurring tasks (set up via the /schedule skill) run on their cadence independent of device state. Tasks that work on local files or apps are the exception and still require the desktop app open on an awake machine.",
         shortValue:
           'Yes: remote sessions/tasks run without the app open, with local-access exceptions',
         confidence: 'verified',
@@ -1115,10 +1129,10 @@ export const claudeCoworkProfile: CompetitorProfile = {
       },
       unattendedExecution: {
         value:
-          "Yes: scheduled tasks execute server-side/remotely on Anthropic's infrastructure, independent of whether the Claude Desktop app is open or the device is awake, per Anthropic's current documentation",
+          "Yes: scheduled tasks execute server-side/remotely on Anthropic's infrastructure, independent of whether the Claude Desktop app is open or the device is awake, except tasks that work on local files or apps, per Anthropic's current documentation",
         detail:
-          "Scheduled/recurring tasks now run on their cadence on Anthropic's infrastructure regardless of client device state. Tasks that require local file or browser access remain the exception and still need the desktop app open and the machine awake.",
-        shortValue: 'Yes: runs remotely regardless of desktop app/device state',
+          "Scheduled/recurring tasks now run on their cadence on Anthropic's infrastructure regardless of client device state. Tasks that work on local files or apps remain the exception and still need the desktop app open and the machine awake.",
+        shortValue: 'Yes, except tasks on local files or apps',
         confidence: 'verified',
         sources: [
           {
@@ -1169,9 +1183,9 @@ export const claudeCoworkProfile: CompetitorProfile = {
       },
       companyMaturity: {
         value:
-          'Anthropic. Major frontier AI lab; Cowork research preview Jan 12, 2026 → GA April 9, 2026',
+          'Anthropic. Major frontier AI lab; Cowork research preview Jan 12, 2026 → GA April 9, 2026; merging with chat into one Claude, rolling out from Sep 16, 2026',
         detail:
-          'Claude Cowork launched January 12, 2026 as a research preview limited to Max plan subscribers; it reached General Availability on April 9, 2026 across all paid plans (Pro, Max, Team, Enterprise) on macOS and Windows, alongside new enterprise controls. Linux support is in beta.',
+          'Claude Cowork launched January 12, 2026 as a research preview limited to Max plan subscribers; it reached General Availability on April 9, 2026 across all paid plans (Pro, Max, Team, Enterprise) on macOS and Windows, alongside new enterprise controls. Linux support is in beta. On September 16, 2026, Anthropic announced that Cowork and chat are merging into one Claude, rolling out on Pro, Max, and Ultra plans with more plans to follow.',
         shortValue: 'Anthropic; reached GA April 2026',
         confidence: 'verified',
         sources: [
@@ -1179,6 +1193,11 @@ export const claudeCoworkProfile: CompetitorProfile = {
             url: 'https://claude.com/blog/cowork-for-enterprise',
             label: 'Making Claude Cowork ready for enterprise',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://claude.com/resources/articles/cowork-is-now-claude',
+            label: 'Claude Cowork and chat are now one Claude',
+            asOf: '2026-11-02',
           },
         ],
       },

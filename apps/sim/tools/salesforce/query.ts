@@ -15,6 +15,7 @@ export const salesforceQueryTool: ToolConfig<SalesforceQueryParams, SalesforceQu
   name: 'Run SOQL Query in Salesforce',
   description: 'Execute a custom SOQL query to retrieve data from Salesforce',
   version: '1.0.0',
+  assistant: { effect: 'read', version: 1 },
 
   oauth: {
     required: true,

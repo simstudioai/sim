@@ -23,6 +23,7 @@ import {
   toBillingContext,
 } from '@/lib/billing/core/attribution'
 import {
+  isFreeRunPayer,
   type MidRunUsageVerdict,
   readMidRunAccountUsageVerdict,
   readMidRunUsageVerdict,
@@ -56,9 +57,9 @@ import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 const logger = createLogger('BillingUpdateCostAPI')
 /**
  * How long a cost callback waits on the payer's standing. The worker gives up on the whole
- * callback after 15 s, and a cold gate read can wait on the ledger far longer; past this the
- * callback answers not-exceeded. The abandoned read keeps running and caches its admission, and
- * the next step or re-check reads a refusal again.
+ * callback after 15 s, and a cold gate read can wait on the ledger far longer; past this a free
+ * payer's callback answers exceeded and a paid payer's not-exceeded. The abandoned read keeps
+ * running, and the next step or re-check reads a refusal again.
  */
 const USAGE_STANDING_TIMEOUT_MS = 1000
 
@@ -84,42 +85,57 @@ function invalidBillingProtocolResponse(requestId: string, span: Span): NextResp
  * Reads the run payer's standing after a cost callback, so a long run stops at its next step
  * once it crosses the limit instead of at its next admission, with the card the worker writes
  * to its log. The payer is the attributed run's, or the one a direct-v1 run was admitted with.
- * A duplicate callback answers too: it is often a retry whose first answer was lost. An
- * admission is cached per payer and actor (briefly once near the limit) and a refusal is always
- * re-read, so most steps cost no ledger read. The charge is
- * already recorded when this runs; a gate that cannot answer reports not-exceeded and leaves the
- * refusal to the next step or re-check rather than ending a paying run on a database blip,
- * and so does a verdict read that outlasts {@link USAGE_STANDING_TIMEOUT_MS}. An exceeded
- * verdict always pauses the run.
+ * A duplicate callback answers too: it is often a retry whose first answer was lost. The charge
+ * is already recorded when this runs.
+ *
+ * A free payer's spend past its limit is never billed, so its standing is read from the ledger
+ * on every callback, and a standing that cannot be read (a gate that cannot answer, or a read
+ * that outlasts {@link USAGE_STANDING_TIMEOUT_MS}) pauses the run. A paid payer's admission is
+ * cached per payer and actor (briefly once near the limit) and a refusal is always re-read, so
+ * most steps cost no ledger read; a standing that cannot be read answers not-exceeded and leaves
+ * the refusal to the next step or re-check rather than ending a paying run on a database blip.
+ * An exceeded verdict always pauses the run.
  */
 async function readUsageStanding(
   userId: string,
   billingAttribution: BillingAttributionSnapshot | undefined,
   accountDecision: AccountBillingDecision | undefined
 ): Promise<BillingUsageVerdict> {
+  const readOptions = { uncachedForFreePayer: true }
+  const payer = billingAttribution ?? accountDecision
   const readVerdict = billingAttribution
-    ? () => readMidRunUsageVerdict(billingAttribution)
+    ? () => readMidRunUsageVerdict(billingAttribution, 0, readOptions)
     : accountDecision
-      ? () => readMidRunAccountUsageVerdict(accountDecision)
+      ? () => readMidRunAccountUsageVerdict(accountDecision, readOptions)
       : null
-  if (!isHosted || !readVerdict) return { usageExceeded: false }
+  if (!isHosted || !payer || !readVerdict) return { usageExceeded: false }
+  const freePayer = isFreeRunPayer(payer)
   let verdict: MidRunUsageVerdict
   try {
     verdict = await withinDeadline(readVerdict, Date.now() + USAGE_STANDING_TIMEOUT_MS)
   } catch {
-    logger.warn('Usage standing read outlasted the callback budget; answering not exceeded')
-    return { usageExceeded: false }
+    logger.warn('Usage standing read outlasted the callback budget', { freePayer })
+    verdict = { status: 'unknown' }
   }
-  // Only a spent limit pauses the run. A blocked account is refused at the run's next
-  // continuation or re-check, with blocked-account copy rather than the upgrade card.
-  if (verdict.status !== 'exceeded') return { usageExceeded: false }
+  if (verdict.status === 'exceeded') {
+    return {
+      usageExceeded: true,
+      usageUpgrade: await resolveUsageUpgradePayload(
+        userId,
+        billingAttribution ?? verdict.payer,
+        verdict.scope
+      ),
+    }
+  }
+  // A blocked account is refused at the run's next continuation or re-check, with
+  // blocked-account copy rather than the upgrade card.
+  if (verdict.status !== 'unknown' || !freePayer) return { usageExceeded: false }
   return {
     usageExceeded: true,
-    usageUpgrade: await resolveUsageUpgradePayload(
-      userId,
-      billingAttribution ?? verdict.payer,
-      verdict.scope
-    ),
+    usageUpgrade: await resolveUsageUpgradePayload(userId, {
+      billingEntity: payer.billingEntity,
+      payerSubscription: null,
+    }),
   }
 }
 

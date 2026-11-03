@@ -139,6 +139,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
         const result = await searchLiveKnowledge.execute({
           principal,
           input: {
+            surface: 'mcp',
             organizationId,
             query,
             topK: topK ?? liveSearchMcpDefaultTopK(parsed),

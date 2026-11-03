@@ -125,7 +125,7 @@ describe('suspendMemberTx and unsuspendMemberTx', () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 's-1' }])
     await expect(
       suspendMemberTx(db, { userId: 'u-1', organizationId: 'org-1', source: 'scim' })
-    ).resolves.toEqual({ suspended: true, sessionsRevoked: 1 })
+    ).resolves.toEqual({ suspended: true, sessionsRevoked: 1, stoppedRuns: [] })
     expect(mockAcquireLocks).toHaveBeenCalledTimes(1)
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ suspensionSource: 'scim', suspendedAt: expect.any(Date) })

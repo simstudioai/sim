@@ -83,7 +83,7 @@ import {
 } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { deleteFile, uploadFile } from '@/lib/uploads/core/storage-service'
 import { insertImmutableFileMetadata } from '@/lib/uploads/server/metadata'
-import { readWorkspaceFileRecordByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
+import { readWorkspaceFileRecordByKey } from '@/lib/workspace-files/application/read-workspace-file-record-by-key'
 import { AgentBlockHandler } from '@/executor/handlers/agent/handler'
 import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext, StreamingExecution, UserFile } from '@/executor/types'

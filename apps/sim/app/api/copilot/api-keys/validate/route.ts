@@ -26,14 +26,16 @@ import {
   serializeAccountBillingDecisionHeader,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/attribution'
+import { payerHasChatAccess } from '@/lib/billing/core/chat-access'
 import {
+  isFreeRunPayer,
   readMidRunAccountUsageVerdict,
   readMidRunUsageVerdict,
 } from '@/lib/billing/core/mid-run-usage'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { isEnterprisePlan } from '@/lib/billing/core/subscription'
 import { deriveBillingContext } from '@/lib/billing/core/usage-log'
-import { resolveUsageUpgradePayload } from '@/lib/billing/usage-upgrade'
+import { resolveUsageUpgradePayload, type UsageUpgradePayer } from '@/lib/billing/usage-upgrade'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -245,11 +247,13 @@ function resolveContinuationBilling(
   }
 }
 
+/** The admitted payer's usage standing, and the payer admission reads to decide Chat access. */
 async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise<{
   isExceeded: boolean
   currentUsage: number
   limit: number
   scope: string
+  payer: UsageUpgradePayer
   accountBillingDecision?: AccountBillingDecision
 }> {
   if (admission.kind === 'attributed' || admission.kind === 'legacy-scoped') {
@@ -261,6 +265,7 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
       currentUsage: enforcedUsage?.currentUsage ?? 0,
       limit: enforcedUsage?.limit ?? 0,
       scope: usage.scope ?? 'payer',
+      payer: admission.attribution,
     }
   }
 
@@ -275,6 +280,7 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
       currentUsage: usage.currentUsage,
       limit: usage.limit,
       scope: 'account',
+      payer: { billingEntity: billingContext.billingEntity, payerSubscription: subscription },
       accountBillingDecision: {
         userId: admission.userId,
         billingEntity: billingContext.billingEntity,
@@ -290,12 +296,19 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
     }
   }
 
-  const usage = await checkServerSideUsageLimits(admission.userId)
+  const subscription = await getHighestPrioritySubscription(admission.userId, {
+    onError: 'throw',
+  })
+  const usage = await checkServerSideUsageLimits(admission.userId, subscription)
   return {
     isExceeded: usage.isExceeded,
     currentUsage: usage.currentUsage,
     limit: usage.limit,
     scope: 'account',
+    payer: {
+      billingEntity: deriveBillingContext(admission.userId, subscription).billingEntity,
+      payerSubscription: subscription,
+    },
   }
 }
 
@@ -418,7 +431,8 @@ export const POST = withRouteHandler((req: NextRequest) =>
           })
           // A continuation, and a worker's periodic re-check of a long run, also reads the
           // original payer's spend through the cached execution usage gate. A read that fails
-          // admits: the run is already under way, and the next re-check reads again.
+          // refuses a free payer, whose spend past the limit is never billed, and admits a paid
+          // one: the run is already under way, and the next re-check reads again.
           const verdict =
             !blocked?.blocked && purpose === COPILOT_VALIDATION_PURPOSE.continuation && billing
               ? billing.kind === 'attributed'
@@ -444,8 +458,15 @@ export const POST = withRouteHandler((req: NextRequest) =>
               { status: 402 }
             )
           }
-          if (verdict?.status === 'exceeded') {
-            logger.info('[API VALIDATION] Continuation usage exceeded', { userId })
+          const unreadFreePayer =
+            verdict?.status === 'unknown' &&
+            billing !== null &&
+            isFreeRunPayer(billing.kind === 'attributed' ? billing.attribution : billing.decision)
+          if (verdict?.status === 'exceeded' || unreadFreePayer) {
+            logger.info('[API VALIDATION] Continuation usage exceeded', {
+              userId,
+              unread: unreadFreePayer,
+            })
             span.setAttribute(
               TraceAttr.CopilotValidateOutcome,
               CopilotValidateOutcome.UsageExceeded
@@ -453,8 +474,14 @@ export const POST = withRouteHandler((req: NextRequest) =>
             span.setAttribute(TraceAttr.HttpStatusCode, 402)
             const usageUpgrade = await resolveUsageUpgradePayload(
               userId,
-              billing?.kind === 'attributed' ? billing.attribution : verdict.payer,
-              verdict.scope
+              billing?.kind === 'attributed'
+                ? billing.attribution
+                : verdict?.status === 'exceeded'
+                  ? verdict.payer
+                  : billing
+                    ? { billingEntity: billing.decision.billingEntity, payerSubscription: null }
+                    : undefined,
+              verdict?.status === 'exceeded' ? verdict.scope : undefined
             )
             return NextResponse.json<ValidateCopilotApiKeyUsageExceeded>(
               {
@@ -512,6 +539,16 @@ export const POST = withRouteHandler((req: NextRequest) =>
               ? admission.attribution.billingEntity
               : (usage.accountBillingDecision?.billingEntity ?? { type: 'account', id: userId }),
         })
+
+        // A self-hosted or key-based turn is billed to this hosted payer, whose free plan does
+        // not include Chat. The refusal is the admission 402 every caller already renders as
+        // the upgrade card.
+        if (!(await payerHasChatAccess(usage.payer))) {
+          logger.info('[API VALIDATION] Free plan does not include Chat', { userId })
+          span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.UsageExceeded)
+          span.setAttribute(TraceAttr.HttpStatusCode, 402)
+          return new NextResponse(null, { status: 402 })
+        }
 
         if (usage.isExceeded) {
           logger.info('[API VALIDATION] Usage exceeded', {

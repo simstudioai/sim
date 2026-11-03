@@ -33,7 +33,12 @@ export function instrumentSearchUseCase<
           topK: args.input.topK,
           documentFilterCount: args.input.filters?.documentIds?.length ?? 0,
           hasSourceFilter: Boolean(args.input.filters?.source),
-          hasDateFilter: Boolean(args.input.filters?.modifiedAfter),
+          hasDateFilter: Boolean(
+            args.input.filters?.modifiedAfter ||
+              args.input.filters?.modifiedBefore ||
+              args.input.filters?.startDate ||
+              args.input.filters?.endDate
+          ),
           tagFilterCount: args.input.tagFilters?.length ?? 0,
           hasProvenance: Boolean(
             args.input.resultSecretRegistry || args.input.prepareModelInputProvenance

@@ -25,6 +25,7 @@ export interface McpListOperationsResponse extends ToolResponse {
       name: string
       description: string
       inputSchema: McpToolSchema
+      outputSchema?: McpToolSchema
     }>
     hasMore: boolean
     nextCursor: string | null

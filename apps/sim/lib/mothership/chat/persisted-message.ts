@@ -1,3 +1,4 @@
+import type { PageSnapshot } from '@sim/browser-extension-protocol'
 import { generateId } from '@sim/utils/id'
 import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { truncateAtCodePoint } from '@sim/utils/string'
@@ -46,6 +47,7 @@ export interface PersistedMessageContext {
   owner?: FileOperationOwner
   kind: string
   label: string
+  snapshot?: PageSnapshot
   workspaceId?: string
   projectId?: string
   executionId?: string
@@ -104,6 +106,7 @@ export function copyPersistedMessageContext(c: PersistedMessageContext): Persist
   return {
     kind: c.kind,
     label: c.label,
+    ...(c.kind === 'browser_page' && c.snapshot ? { snapshot: { ...c.snapshot } } : {}),
     ...(c.owner ? { owner: { ...c.owner } } : {}),
     ...(c.workspaceId ? { workspaceId: c.workspaceId } : {}),
     ...(c.projectId ? { projectId: c.projectId } : {}),
@@ -133,6 +136,8 @@ export function copyPersistedMessageContext(c: PersistedMessageContext): Persist
 
 export interface PersistedMessage {
   id: string
+  /** Server-owned turn association for display; never persisted in message content. */
+  streamId?: string
   role: 'user' | 'assistant'
   requestMode?: 'agent' | 'assistant' | 'plan'
   content: string
@@ -896,6 +901,7 @@ export function normalizeMessage(raw: Record<string, unknown>): PersistedMessage
   if (raw.requestId && typeof raw.requestId === 'string') {
     msg.requestId = raw.requestId
   }
+  if (typeof raw.streamId === 'string') msg.streamId = raw.streamId
   const origin = TurnOrigin.safeParse(raw.origin)
   if (origin.success) msg.origin = origin.data
 

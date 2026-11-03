@@ -76,7 +76,11 @@ const logger = createLogger('CopilotFunctionExecute')
 const MAX_MOUNTED_FILES = 500
 /** The call budget includes cold allocation and mounting, before the user's code starts. */
 const DEFAULT_TIMEOUT_SECONDS = 60
-const MAX_TIMEOUT_SECONDS = 300
+/**
+ * The longest call the worker may request. Long renders and builds need it whole: cut off at
+ * five minutes, they fail and start over. The worker's schema decides what a model may ask for.
+ */
+const MAX_TIMEOUT_SECONDS = 900
 
 /** An input the run asked for that was not mounted, and why; paths are the model's own. */
 export interface ExcludedInput {

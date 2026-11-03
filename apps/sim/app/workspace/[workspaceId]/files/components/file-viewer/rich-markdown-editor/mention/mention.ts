@@ -12,13 +12,15 @@ import { MENTION_PLUGIN_KEY } from '@/app/workspace/[workspaceId]/files/componen
 /**
  * Per-editor storage for the `@` mention extension. The host component populates {@link store} with
  * the current workspace mention data and may set {@link onOpen} to lazily start fetching that data the
- * first time the menu is triggered. {@link enabled} gates the menu off entirely (e.g. a field with no
+ * first time the menu is triggered, and {@link onQuery} to hear what is typed after the `@` (files are
+ * searched on the server rather than listed whole). {@link enabled} gates the menu off entirely (e.g. a field with no
  * workspace scope) so `@` stays literal text. {@link navigable} lets a chip Cmd/Ctrl-click to its
  * resource — on for the file viewer, off inside a modal field so it can't route away from an edit.
  */
 export interface MentionStorage {
   store: MentionStore
   onOpen: (() => void) | null
+  onQuery: ((query: string) => void) | null
   enabled: boolean
   navigable: boolean
 }
@@ -34,14 +36,21 @@ declare module '@tiptap/core' {
  * `@` inside an email/handle (`name@host`) stays literal — opens {@link MentionList}; selecting an
  * entity inserts it as a portable `sim:<kind>/<id>` markdown link (same wire format as the chat
  * composer's `chip-clipboard-codec`), so it round-trips natively through the editor's link + markdown
- * machinery. The plugin's `items` is an empty gate; the real list is sourced reactively from the store
- * inside {@link MentionList}, populated by the host via the extension's `mentionMenu` storage.
+ * machinery. The plugin's `items` is an empty gate that only reports the query to the host; the real
+ * list is sourced reactively from the store inside {@link MentionList}, populated by the host via the
+ * extension's `mentionMenu` storage.
  */
 export const Mention = Extension.create<Record<string, never>, MentionStorage>({
   name: 'mentionMenu',
 
   addStorage() {
-    return { store: createMentionStore(), onOpen: null, enabled: true, navigable: false }
+    return {
+      store: createMentionStore(),
+      onOpen: null,
+      onQuery: null,
+      enabled: true,
+      navigable: false,
+    }
   },
 
   addProseMirrorPlugins() {
@@ -61,7 +70,10 @@ export const Mention = Extension.create<Record<string, never>, MentionStorage>({
           if ($from.parentOffset === 0) return true
           return /\s/.test($from.parent.textBetween($from.parentOffset - 1, $from.parentOffset))
         },
-        items: () => [],
+        items: ({ editor, query }) => {
+          editor.storage.mentionMenu.onQuery?.(query)
+          return []
+        },
         command: ({ editor, range, props }) => {
           editor
             .chain()

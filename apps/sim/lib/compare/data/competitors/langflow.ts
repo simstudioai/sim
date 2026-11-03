@@ -542,14 +542,19 @@ export const langflowProfile: CompetitorProfile = {
     integrations: {
       integrationCount: {
         value:
-          "Langflow organizes third-party integrations as component bundles grouped by provider, such as Google, OpenAI, LangChain, Elastic, and Composio. The full current list of bundles and components is only visible in the app's Bundles panel, not enumerated on the docs site.",
-        shortValue: 'Dozens of provider bundles; full count only in-app',
+          "100+ integrations, per IBM's Langflow product page. Langflow organizes third-party integrations as component bundles grouped by provider, such as Google, OpenAI, LangChain, Elastic, and Composio. The docs site documents about 80 bundles, but some bundles have no documentation, so the full current list is only visible in the app's Bundles panel.",
+        shortValue: '100+ integrations per IBM; about 80 documented bundles',
         confidence: 'estimated',
         sources: [
           {
+            url: 'https://www.ibm.com/products/langflow',
+            label: 'IBM Langflow (Langflow OSS: 100+ integrations)',
+            asOf: '2026-11-02',
+          },
+          {
             url: 'https://docs.langflow.org/components-bundle-components',
             label: 'Langflow Docs: About bundles',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -666,17 +671,17 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://github.com/langflow-ai/langflow',
             label: 'GitHub: langflow-ai/langflow (License: MIT)',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://docs.datastax.com/en/astra-db-serverless/release-notes.html#datastax-langflow-removal',
             label: 'Astra release notes: DataStax Langflow removal (April 9, 2026)',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://www.ibm.com/products/langflow',
             label: 'IBM Langflow (Editions)',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -689,7 +694,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://www.ibm.com/products/langflow',
             label: 'IBM Langflow (Editions)',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -702,12 +707,12 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://www.langflow.org',
             label: 'Langflow homepage',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://docs.datastax.com/en/astra-db-serverless/release-notes.html#datastax-langflow-removal',
             label: 'Astra release notes: DataStax Langflow removal',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -720,7 +725,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/agents',
             label: 'Langflow Docs: Use Langflow agents',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },

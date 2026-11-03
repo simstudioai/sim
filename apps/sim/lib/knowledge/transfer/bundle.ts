@@ -57,6 +57,9 @@ const MAX_BUNDLE_TEXT_LENGTH = 255
  */
 const MAX_BUNDLE_TAG_VALUE_LENGTH = KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH
 
+/** Largest value the `integer` count columns an import writes can hold. */
+const MAX_INTEGER_COLUMN = 2_147_483_647
+
 const tagSlotSchema = z.enum(ALL_TAG_SLOTS)
 
 export const knowledgeBundleTagSchema = z
@@ -81,8 +84,8 @@ export const knowledgeBundleDocumentSchema = z
     file: z.string().nullable(),
     chunks: z.string().nullable(),
     chunkCount: z.number().int().min(0).max(MAX_DOCUMENT_CHUNKS),
-    tokenCount: z.number().int().min(0),
-    characterCount: z.number().int().min(0),
+    tokenCount: z.number().int().min(0).max(MAX_INTEGER_COLUMN),
+    characterCount: z.number().int().min(0).max(MAX_INTEGER_COLUMN),
   })
   .strict()
   .superRefine((document, ctx) => {

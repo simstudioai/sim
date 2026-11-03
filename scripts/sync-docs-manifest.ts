@@ -11,7 +11,7 @@
  * Path derivation (each entry is BOTH the `docs/`-relative VFS path and the
  * docs.sim.ai URL path, so a read is a plain fetch of `https://docs.sim.ai/<entry>`):
  *   - `workflows/blocks/agent.mdx` → `workflows/blocks/agent.mdx`
- *   - `workflows/index.mdx`        → `workflows.mdx`   (fumadocs folds index pages
+ *   - `workflows/index.mdx`        → `workflows.mdx`   (the docs catalog folds index pages
  *                                     into their parent URL; `/workflows/index.mdx`
  *                                     is a 404 on the site)
  *

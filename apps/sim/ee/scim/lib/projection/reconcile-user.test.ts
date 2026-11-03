@@ -59,10 +59,10 @@ const params = {
   connectionId: 'conn-1',
   organizationId: 'org-1',
   scimUserId: 'su-1',
-  settings: {},
 }
 
 interface Scenario {
+  lockManualMembership?: boolean
   current?: Array<Record<string, unknown>>
   mappings?: Array<Record<string, unknown>>
   ownedWorkspaces?: string[]
@@ -72,6 +72,7 @@ interface Scenario {
 }
 
 function stage({
+  lockManualMembership = false,
   current = [],
   mappings = [],
   ownedWorkspaces = ['ws-1'],
@@ -79,7 +80,7 @@ function stage({
   actualGroups = [],
   actualRole = 'member',
 }: Scenario) {
-  queueTableRows(scimUser, [{ userId: 'u-1' }])
+  queueTableRows(scimUser, [{ userId: 'u-1', settings: { lockManualMembership } }])
   queueTableRows(scimProjectionGrant, current)
   queueTableRows(scimGroupMember, mappings)
   queueTableRows(
@@ -283,6 +284,7 @@ describe('reconcileUserProjection', () => {
 
   it('withdraws the entire covered access when managed membership is locked', async () => {
     stage({
+      lockManualMembership: true,
       current: [
         {
           targetKind: 'workspace',
@@ -294,7 +296,7 @@ describe('reconcileUserProjection', () => {
       ],
     })
     mocks.readPermission.mockResolvedValue('admin')
-    await reconcileUserProjection(db, { ...params, settings: { lockManualMembership: true } })
+    await reconcileUserProjection(db, params)
     expect(mocks.revokeWorkspace).toHaveBeenCalled()
     expect(mocks.lowerWorkspace).not.toHaveBeenCalled()
   })
@@ -321,14 +323,12 @@ describe('reconcileUserProjection', () => {
     })
     mocks.readPermission.mockResolvedValue('write')
     stage({
+      lockManualMembership: true,
       current: [
         { targetKind: 'workspace', targetId: 'ws-1', permissionType: 'write', origin: 'adopted' },
       ],
     })
-    const withdrawn = await reconcileUserProjection(db, {
-      ...params,
-      settings: { lockManualMembership: true },
-    })
+    const withdrawn = await reconcileUserProjection(db, params)
     expect(mocks.revokeWorkspace).toHaveBeenCalledWith(
       db,
       expect.objectContaining({ workspaceId: 'ws-1', userId: 'u-1' })

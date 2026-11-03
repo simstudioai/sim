@@ -25,5 +25,10 @@
     "./quick-reference/index",
     "./keyboard-shortcuts/index"
   ],
-  "defaultOpen": false
+  "defaultOpen": false,
+  "labels": {
+    "./desktop/index": "Desktop",
+    "search": "Overview",
+    "logs-debugging": "Logs and debugging"
+  }
 }

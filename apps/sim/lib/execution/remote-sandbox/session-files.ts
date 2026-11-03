@@ -123,7 +123,8 @@ export async function writeSessionSandboxFile(
       const { created } = await ensureSessionSandbox({
         provider,
         kind: 'mothership',
-        options: {},
+        // A streamed transfer can outlast the idle lease; the machine must not pause mid-write.
+        options: { lifetimeMs: timeoutMs },
         selected: null,
         session: { key: sessionKey },
         signal,

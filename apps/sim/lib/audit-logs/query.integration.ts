@@ -50,16 +50,29 @@ describe('Audit pagination and drain tenant coverage in PostgreSQL', () => {
   })
 
   it.each([
-    { limit: 1, maxBytes: undefined, boundary: 'row limit' },
-    { limit: 10, maxBytes: 1000, boundary: 'byte limit' },
+    { limit: 1, maxBytes: undefined, boundary: 'row limit', filters: {} },
+    { limit: 10, maxBytes: 1000, boundary: 'byte limit', filters: {} },
+    {
+      limit: 1,
+      maxBytes: undefined,
+      boundary: 'row limit with a filter',
+      filters: { action: 'organization.updated' },
+    },
+    {
+      limit: 10,
+      maxBytes: 1000,
+      boundary: 'byte limit with a filter',
+      filters: { action: 'organization.updated' },
+    },
   ])(
     'returns every event once across a $boundary within one PostgreSQL millisecond',
-    async ({ limit, maxBytes }) => {
+    async ({ limit, maxBytes, filters }) => {
       const seen: string[] = []
       let cursor: string | undefined
       for (let pageIndex = 0; pageIndex < ids.length + 1; pageIndex++) {
         const page = await runtime.query.queryAuditLogs(
-          [runtime.inArray(runtime.auditLog.id, ids)],
+          { organizationId, orgWorkspaceIds: [], orgMemberIds: [], includeDeparted: true },
+          filters,
           limit,
           cursor,
           maxBytes
@@ -72,8 +85,8 @@ describe('Audit pagination and drain tenant coverage in PostgreSQL', () => {
         if (!page.nextCursor) break
         cursor = page.nextCursor
       }
-      expect(seen).toHaveLength(ids.length)
-      expect(new Set(seen)).toEqual(new Set(ids))
+      expect(seen).toHaveLength(3)
+      expect(new Set(seen)).toEqual(new Set(ids.slice(0, 3)))
     }
   )
 

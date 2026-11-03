@@ -18,6 +18,7 @@ import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { withWorkflowBlockScope } from '@/lib/workflows/application/block-scope'
 import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
+import { snapshotMcpToolOutputSchemas } from '@/lib/workflows/application/mcp-output-schemas'
 import { requireMutableWorkflow } from '@/lib/workflows/application/mutability'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/operations-error'
@@ -319,7 +320,15 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
         input.blockEnabledChanges ?? [],
         skippedItems
       )
-      modifiedGraph.blocks = enablement.blocks
+      modifiedGraph.blocks = await snapshotMcpToolOutputSchemas(
+        enablement.blocks,
+        asGraph(baseGraph).blocks ?? {},
+        {
+          principal,
+          workspaceId: context.workspaceId,
+        }
+      )
+      input.checkAborted?.()
       const applied = appliedOperations + enablement.applied
 
       const validation = validateWorkflowState(modifiedGraph, { sanitize: true })

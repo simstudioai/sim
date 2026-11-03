@@ -221,6 +221,8 @@ export interface OAuthServiceConfig {
   icon: (props: { className?: string }) => ReactNode
   baseProviderIcon: (props: { className?: string }) => ReactNode
   scopes: string[]
+  /** Operation fallback scopes; consent may request additional capabilities used by explicit tools. */
+  defaultToolScopes?: string[]
   authType?: OAuthAuthType
   serviceAccountProviderId?: string
   /**

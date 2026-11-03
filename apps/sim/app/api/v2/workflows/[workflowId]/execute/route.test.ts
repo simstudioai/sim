@@ -4,6 +4,7 @@ import {
   executionPreprocessingMock,
   executionPreprocessingMockFns,
   loggingSessionMock,
+  loggingSessionMockFns,
   resetDbChainMock,
   setEnv,
   workflowAuthzMockFns,
@@ -35,8 +36,11 @@ import {
   v2RouteMocks,
 } from '@sim/testing/mocks/v2-route.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { WorkspaceApiKeyAuthorizationError } from '@/lib/core/application'
+import { getRemainingExecutionMs } from '@/lib/core/execution-limits'
+import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 
 const {
   mockClaimExecutionId,
@@ -414,6 +418,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
       ok: true,
       executionId: 'execution-123',
       pending,
+      logged: Promise.resolve(),
       cancel: vi.fn(),
     })
 
@@ -1119,5 +1124,242 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
       error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
     })
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
+  })
+  describe('waitTimeoutSeconds', () => {
+    const settledCore = {
+      success: true,
+      output: { result: 'done' },
+      metadata: {
+        duration: 42,
+        startTime: '2026-07-31T00:00:00.000Z',
+        endTime: '2026-07-31T00:00:01.000Z',
+      },
+    }
+    const receipt = {
+      runId: 'execution-123',
+      statusUrl: 'http://localhost:3000/api/v2/workflows/workflow-1/runs/execution-123',
+    }
+
+    /** A run the test settles by hand, recording the signal the executor was handed. */
+    function holdRun() {
+      const held: { signal?: AbortSignal; finish: (result: unknown) => void } = {
+        finish: () => {},
+      }
+      mockExecuteWorkflowCore.mockImplementationOnce(
+        ({ abortSignal }: { abortSignal: AbortSignal }) =>
+          new Promise((resolve) => {
+            held.signal = abortSignal
+            held.finish = resolve
+            abortSignal.addEventListener('abort', () =>
+              resolve({ success: false, status: 'cancelled', output: {}, metadata: {} })
+            )
+          })
+      )
+      return held
+    }
+
+    function readLines(response: Response) {
+      if (!response.body) throw new Error('Expected NDJSON response body')
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      return {
+        reader,
+        next: async () => {
+          const chunk = await reader.read()
+          return chunk.done ? null : JSON.parse(decoder.decode(chunk.value))
+        },
+      }
+    }
+
+    it('answers with the ordinary result when the run settles within the wait', async () => {
+      const response = await callExecute(
+        { input: {}, waitTimeoutSeconds: 30 },
+        { Accept: 'application/x-ndjson' }
+      )
+      const lines = readLines(response)
+
+      expect(await lines.next()).toMatchObject({ type: 'heartbeat' })
+      expect(await lines.next()).toMatchObject({
+        type: 'final',
+        data: { runId: 'execution-123', status: 'completed', output: { result: 'done' } },
+      })
+      expect(await lines.next()).toBeNull()
+    })
+
+    it('admits a detachable run as an async run with the async timeout', async () => {
+      const response = await callExecute({ input: {}, waitTimeoutSeconds: 30 })
+
+      expect(response.status).toBe(200)
+      expect((await response.json()).data).toMatchObject({
+        runId: 'execution-123',
+        status: 'completed',
+      })
+      expect(mockPreprocessExecution).toHaveBeenCalledWith(
+        expect.objectContaining({ rateLimitCounter: 'async', executionType: 'async' })
+      )
+      const { abortSignal } = mockExecuteWorkflowCore.mock.calls[0][0]
+      expect(getRemainingExecutionMs(abortSignal)).toBeGreaterThan(60_000)
+    })
+
+    it('detaches a run still going at the deadline and lets it finish in the background', async () => {
+      vi.useFakeTimers()
+      try {
+        const held = holdRun()
+        const response = await callExecute(
+          { input: {}, waitTimeoutSeconds: 20 },
+          { Accept: 'application/x-ndjson' }
+        )
+        const lines = readLines(response)
+        expect(await lines.next()).toMatchObject({ type: 'heartbeat' })
+
+        await vi.advanceTimersByTimeAsync(20_000)
+        const frames = []
+        for (let frame = await lines.next(); frame; frame = await lines.next()) frames.push(frame)
+        expect(frames.filter((frame) => frame.type !== 'heartbeat')).toEqual([
+          { type: 'detached', data: receipt },
+        ])
+
+        expect(held.signal?.aborted).toBe(false)
+        expect(mockAdmissionRelease).not.toHaveBeenCalled()
+        expect(mockReleaseExecutionIdClaim).not.toHaveBeenCalled()
+
+        held.finish(settledCore)
+        await vi.advanceTimersByTimeAsync(0)
+        expect(mockAdmissionRelease).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('withholds the receipt until the run can be found by its id', async () => {
+      vi.useFakeTimers()
+      try {
+        let logStarted!: () => void
+        loggingSessionMockFns.mockWhenLogStarted.mockReturnValueOnce(
+          new Promise<void>((resolve) => {
+            logStarted = resolve
+          })
+        )
+        const held = holdRun()
+        const pending = Promise.resolve(callExecute({ input: {}, waitTimeoutSeconds: 1 }))
+        await vi.advanceTimersByTimeAsync(5_000)
+        let answered = false
+        void pending.then(() => {
+          answered = true
+        })
+        await vi.advanceTimersByTimeAsync(0)
+        expect(answered).toBe(false)
+
+        logStarted()
+        const response = await pending
+        expect(response.status).toBe(202)
+        expect((await response.json()).data).toEqual(receipt)
+        held.finish(settledCore)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('answers 202 with the run receipt on the JSON transport', async () => {
+      vi.useFakeTimers()
+      try {
+        const held = holdRun()
+        const pending = callExecute({ input: {}, waitTimeoutSeconds: 20 })
+        await vi.advanceTimersByTimeAsync(20_000)
+        const response = await pending
+
+        expect(response.status).toBe(202)
+        expect(response.headers.get('X-Run-Id')).toBe('execution-123')
+        expect((await response.json()).data).toEqual(receipt)
+        expect(held.signal?.aborted).toBe(false)
+        expect(mockAdmissionRelease).not.toHaveBeenCalled()
+
+        held.finish(settledCore)
+        await vi.advanceTimersByTimeAsync(0)
+        expect(mockAdmissionRelease).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('keeps a detachable run going when the caller disconnects', async () => {
+      const held = holdRun()
+      const disconnect = new AbortController()
+      const request = new NextRequest(new URL('http://localhost:3000/api/test'), {
+        method: 'POST',
+        headers: new Headers({
+          'Content-Type': 'application/json',
+          'X-API-Key': 'test-key',
+          Accept: 'application/x-ndjson',
+        }),
+        body: JSON.stringify({ input: {}, waitTimeoutSeconds: 600 }),
+        signal: disconnect.signal,
+      })
+      const response = await POST(request, createRouteContext({ workflowId: 'workflow-1' }))
+      const lines = readLines(response)
+      await lines.next()
+
+      disconnect.abort()
+      await lines.reader.cancel()
+
+      expect(held.signal?.aborted).toBe(false)
+      held.finish(settledCore)
+    })
+
+    it('stops a detached run through runs cancel in the process that holds it', async () => {
+      const held = holdRun()
+      const response = await callExecute(
+        { input: {}, waitTimeoutSeconds: 600 },
+        { Accept: 'application/x-ndjson' }
+      )
+      const lines = readLines(response)
+      await lines.next()
+
+      expect(abortManualExecution('execution-123')).toBe(true)
+      expect(await lines.next()).toMatchObject({
+        type: 'final',
+        data: { runId: 'execution-123', status: 'cancelled' },
+      })
+      expect(held.signal?.aborted).toBe(true)
+      expect(abortManualExecution('execution-123')).toBe(false)
+    })
+
+    it('refuses a wait on runs that never hold the response', async () => {
+      expect((await callExecute({ waitTimeoutSeconds: 30, async: true })).status).toBe(400)
+      expect((await callExecute({ waitTimeoutSeconds: 30, stream: true })).status).toBe(400)
+
+      dbChainMockFns.limit.mockReset()
+      queuePublicWorkflowReads()
+      expect((await callPublicExecute({ waitTimeoutSeconds: 30 })).status).toBe(400)
+      expect(mockPreprocessExecution).not.toHaveBeenCalled()
+    })
+
+    it('accepts an execution timeout only on a run that may outlive the response', async () => {
+      expect((await callExecute({ executionTimeoutSeconds: 60 })).status).toBe(400)
+
+      const response = await callExecute({ executionTimeoutSeconds: 60, waitTimeoutSeconds: 30 })
+      expect(response.status).toBe(200)
+      expect(mockPreprocessExecution).toHaveBeenCalledWith(
+        expect.objectContaining({ requestedTimeoutSeconds: 60 })
+      )
+    })
+
+    it('dispatches a detachable manual draft run without tying it to the request', async () => {
+      authenticatePersonalKey()
+
+      const response = await callExecute({
+        run: { source: 'manual', stopAfterBlockId: 'agent-1' },
+        waitTimeoutSeconds: 30,
+      })
+
+      expect(response.status).toBe(200)
+      const call = mockExecuteManualTrigger.mock.calls[0][0]
+      expect(call.input).toMatchObject({
+        mode: 'sync-result-stream',
+        detachable: true,
+        stopAfterBlockId: 'agent-1',
+      })
+      expect(call.input.abortSignal).toBeUndefined()
+    })
   })
 })

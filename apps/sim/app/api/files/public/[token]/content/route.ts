@@ -17,7 +17,10 @@ import {
 } from '@/lib/public-shares/application'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { FILE_CACHE_CONTROL } from '@/lib/uploads/server/delivery'
-import { createConditionalFileResponse } from '@/app/api/files/utils'
+import {
+  createConditionalFileResponse,
+  createStoredFileStreamResponse,
+} from '@/app/api/files/utils'
 
 export const dynamic = 'force-dynamic'
 const logger = createLogger('PublicFileContentAPI')
@@ -49,6 +52,12 @@ export const GET = withRouteHandler(
         preview: parsed.data.query.preview === '1',
         request,
       })
+      if (result.kind === 'stream') {
+        return await createStoredFileStreamResponse(
+          { ...result, cacheControl: FILE_CACHE_CONTROL.revalidate },
+          request.headers
+        )
+      }
       return createConditionalFileResponse(
         {
           buffer: result.buffer,

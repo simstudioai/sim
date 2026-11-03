@@ -307,8 +307,8 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
       const clientClaimed = await lateTool(run.runId, { status: 'running', claimedBy: 'client' })
       const undated = await dispatchedTool(run.runId)
 
-      expect(await claimToolExecution(clientClaimed)).toEqual({ outcome: 'claimed' })
-      expect(await claimToolExecution(undated)).toEqual({ outcome: 'claimed' })
+      expect(await claimToolExecution(clientClaimed)).toMatchObject({ outcome: 'claimed' })
+      expect(await claimToolExecution(undated)).toMatchObject({ outcome: 'claimed' })
     })
   })
 
@@ -330,7 +330,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
     /** A long tool call writes nothing to the run; only its execution heartbeat shows it is alive. */
     const orphan = await admittedRun({ idleMinutes: 90, status: 'paused_waiting_for_tool' })
     const tool = await dispatchedTool(orphan.runId)
-    expect(await claimToolExecution(tool)).toEqual({ outcome: 'claimed' })
+    expect(await claimToolExecution(tool)).toMatchObject({ outcome: 'claimed' })
 
     expect((await sweepOrphanedRuns()).settledRunIds).not.toContain(orphan.runId)
     const live = await stored(orphan.runId)
@@ -368,7 +368,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
       }
     )
 
-    expect(await claim).toEqual({ outcome: 'claimed' })
+    expect(await claim).toMatchObject({ outcome: 'claimed' })
     expect((await sweep).settledRunIds).not.toContain(orphan.runId)
     const run = await stored(orphan.runId)
     expect(run.status).toBe('paused_waiting_for_tool')
@@ -378,7 +378,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
   it('never settles a run whose Sim tool lease a heartbeat renewed as the sweep settled it', async () => {
     const orphan = await admittedRun({ idleMinutes: 90, status: 'paused_waiting_for_tool' })
     const tool = await dispatchedTool(orphan.runId)
-    expect(await claimToolExecution(tool)).toEqual({ outcome: 'claimed' })
+    expect(await claimToolExecution(tool)).toMatchObject({ outcome: 'claimed' })
     await db
       .update(copilotAsyncToolCalls)
       .set({ executionLeaseExpiresAt: sql`clock_timestamp() - interval '1 second'` })

@@ -1,0 +1,58 @@
+name: browser-extension
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/browser-extension.yml'
+      - 'apps/extension/**'
+      - 'packages/browser-extension-protocol/**'
+      - 'apps/sim/app/extension/**'
+      - 'apps/sim/app/workspace/**/home/**'
+      - 'apps/sim/stores/mothership-drafts/**'
+      - 'apps/sim/scripts/test-browser-extension-e2e.ts'
+      - 'apps/sim/lib/core/security/**'
+      - 'apps/sim/lib/mothership/chat/**'
+      - 'apps/sim/lib/api/contracts/mothership-chat-context.ts'
+      - 'apps/sim/proxy.ts'
+      - 'apps/sim/next.config.ts'
+      - 'apps/sim/package.json'
+      - 'packages/emcn/**'
+      - 'packages/logger/**'
+      - 'packages/utils/**'
+      - 'bun.lock'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-extension-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  transport:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium
+        working-directory: apps/extension
+      - run: bun run type-check && bun run build && bun run test:e2e
+        working-directory: apps/extension
+        env:
+          EXTENSION_REPORT_PATH: test-results/extension-report.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: browser-extension-results
+          path: apps/extension/test-results
+          retention-days: 7

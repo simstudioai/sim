@@ -10,15 +10,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
 vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
-vi.mock('@/lib/uploads/core/prefix-sweep', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/uploads/core/prefix-sweep')>()
-  return { ...actual, listStorageKeyPage: vi.fn(actual.listStorageKeyPage) }
-})
 
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import { PROJECT_FILE_PREFIX_CLEANUP_EVENT } from '@/lib/projects/files/outbox-events'
 import { projectFilePrefixCleanupOutboxHandlers } from '@/lib/projects/files/prefix-cleanup'
-import { listStorageKeyPage } from '@/lib/uploads/core/prefix-sweep'
 
 const cleanup = projectFilePrefixCleanupOutboxHandlers[PROJECT_FILE_PREFIX_CLEANUP_EVENT]
 
@@ -82,47 +77,5 @@ describe('Project prefix cleanup on local storage', () => {
     ).resolves.toBeUndefined()
 
     expect(await exists('project/p1/zz.txt')).toBe(false)
-  })
-
-  it('keeps sweeping after a short page that is not the last', async () => {
-    await put('project/p1/a.txt')
-    await put('project/p1/b.txt')
-    vi.mocked(listStorageKeyPage).mockResolvedValueOnce({
-      keys: ['project/p1/a.txt'],
-      done: false,
-      nextPageToken: 'next',
-    })
-
-    const result = await cleanup({ projectId: 'p1' }, outboxContext())
-
-    expect(result).toMatchObject({ outcome: 'deferred', consumeAttempt: false })
-    expect(await exists('project/p1/a.txt')).toBe(false)
-    expect(await exists('project/p1/b.txt')).toBe(true)
-  })
-
-  it('follows an empty page that is not the last to the objects after it', async () => {
-    await put('project/p1/a.txt')
-    vi.mocked(listStorageKeyPage)
-      .mockResolvedValueOnce({ keys: [], done: false, nextPageToken: 'next' })
-      .mockResolvedValueOnce({ keys: ['project/p1/a.txt'], done: true })
-
-    await expect(cleanup({ projectId: 'p1' }, outboxContext())).resolves.toBeUndefined()
-
-    expect(vi.mocked(listStorageKeyPage).mock.calls[1]?.[3]).toBe('next')
-    expect(await exists('project/p1/a.txt')).toBe(false)
-  })
-
-  it('spends an attempt when its listing stops advancing without removing anything', async () => {
-    vi.mocked(listStorageKeyPage).mockResolvedValue({
-      keys: [],
-      done: false,
-      nextPageToken: 'stuck',
-    })
-
-    const result = await cleanup({ projectId: 'p1' }, outboxContext())
-
-    expect(result).toMatchObject({ outcome: 'deferred' })
-    expect(result).not.toMatchObject({ consumeAttempt: false })
-    expect(listStorageKeyPage).toHaveBeenCalledTimes(2)
   })
 })

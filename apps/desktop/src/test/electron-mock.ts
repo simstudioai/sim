@@ -107,6 +107,11 @@ export const session = {
   fromPartition: vi.fn(),
 }
 
+/** Resolves a frame to its WebContents; tests return the contents they registered. */
+export const webContents = {
+  fromFrame: vi.fn(),
+}
+
 export const protocol = {
   registerSchemesAsPrivileged: vi.fn(),
   handle: vi.fn(),

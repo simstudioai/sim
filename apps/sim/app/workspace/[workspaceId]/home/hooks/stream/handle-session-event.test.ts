@@ -1,3 +1,4 @@
+/** @vitest-environment jsdom */
 import { describe, expect, it, vi } from 'vitest'
 import { MothershipStreamV1SessionKind } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
@@ -19,7 +20,6 @@ function chatSessionEvent(chatId: string): PersistedStreamEventEnvelope {
 describe('handleSessionEvent', () => {
   it('adopts a newly assigned chat before chatIdRef is written', () => {
     const deps = makeStreamLoopDeps()
-    deps.workflowIdRef.current = 'workflow-1'
     vi.mocked(deps.adoptResolvedChatId).mockImplementation((chatId) => {
       expect(deps.chatIdRef.current).toBeUndefined()
       deps.chatIdRef.current = chatId
@@ -27,7 +27,7 @@ describe('handleSessionEvent', () => {
 
     handleSessionEvent({ deps } as StreamLoopContext, chatSessionEvent('chat-new') as never)
 
-    expect(deps.adoptResolvedChatId).toHaveBeenCalledWith('chat-new')
+    expect(deps.adoptResolvedChatId).toHaveBeenCalledWith('chat-new', { replaceHomeHistory: true })
     expect(deps.chatIdRef.current).toBe('chat-new')
   })
 })

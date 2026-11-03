@@ -200,9 +200,13 @@ export async function markWebhookSuccess(webhookId: string, logger: Logger): Pro
   }
 }
 
-/** Fetch all active webhooks for a provider, joined with their workflow. */
+/**
+ * Fetch all active webhooks for a provider, joined with their workflow; with a
+ * `workspaceId`, only those whose workflow lives in that workspace.
+ */
 export async function fetchActiveWebhooks(
-  provider: string
+  provider: string,
+  scope?: { workspaceId: string }
 ): Promise<{ webhook: WebhookRecord; workflow: WorkflowRecord }[]> {
   const rows = await db
     .select({ webhook, workflow })
@@ -221,6 +225,7 @@ export async function fetchActiveWebhooks(
         deliverableWebhookPredicate(webhook),
         eq(workflow.isDeployed, true),
         isNull(workflow.archivedAt),
+        scope ? eq(workflow.workspaceId, scope.workspaceId) : undefined,
         or(
           eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
           and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))

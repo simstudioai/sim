@@ -44,6 +44,14 @@ export const workspaceFilesListMockFns = {
   mockListWorkspaceFilesInFolderScopeAuthorize: vi.fn(),
   mockFindActiveWorkspaceFilesByReference: vi.fn(),
   mockFindActiveWorkspaceFilesByReferenceAuthorize: vi.fn(),
+  mockListWorkspaceFileCollection: vi.fn(),
+  mockListWorkspaceFileCollectionAuthorize: vi.fn(),
+  mockLookupWorkspaceFiles: vi.fn(),
+  mockLookupWorkspaceFilesAuthorize: vi.fn(),
+  mockGetWorkspaceFileFolderStats: vi.fn(),
+  mockGetWorkspaceFileFolderStatsAuthorize: vi.fn(),
+  mockSearchWorkspaceFiles: vi.fn(),
+  mockSearchWorkspaceFilesAuthorize: vi.fn(),
 }
 
 const fns = workspaceFilesListMockFns
@@ -81,5 +89,29 @@ export const workspaceFilesListMock = {
     delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
     authorize: fns.mockFindActiveWorkspaceFilesByReferenceAuthorize,
     execute: fns.mockFindActiveWorkspaceFilesByReference,
+  },
+  listWorkspaceFileCollection: {
+    operation: FILES_LIST_OPERATION,
+    delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+    authorize: fns.mockListWorkspaceFileCollectionAuthorize,
+    execute: fns.mockListWorkspaceFileCollection,
+  },
+  lookupWorkspaceFiles: {
+    operation: FILES_LIST_OPERATION,
+    delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+    authorize: fns.mockLookupWorkspaceFilesAuthorize,
+    execute: fns.mockLookupWorkspaceFiles,
+  },
+  getWorkspaceFileFolderStats: {
+    operation: FILES_LIST_OPERATION,
+    delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+    authorize: fns.mockGetWorkspaceFileFolderStatsAuthorize,
+    execute: fns.mockGetWorkspaceFileFolderStats,
+  },
+  searchWorkspaceFiles: {
+    operation: FILES_LIST_OPERATION,
+    delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+    authorize: fns.mockSearchWorkspaceFilesAuthorize,
+    execute: fns.mockSearchWorkspaceFiles,
   },
 }

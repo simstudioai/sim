@@ -132,4 +132,15 @@ describe('toolRequiresApprovalLane', () => {
     setEnvFlags({ isCopilotToolPermissionsEnabled: true })
     expect(toolRequiresApprovalLane('not_a_real_tool')).toBe(false)
   })
+
+  it.each([
+    [['workflows', 'activate', 'create', 'wf-1', '1', '--yes'], true],
+    [['workflows', 'rollback', 'wf-1', '--to-version', '1', '--yes'], true],
+    [['workflows', 'list'], false],
+  ])('answers sim_cli %j by the command it runs: %s', (argv, gated) => {
+    setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+    expect(
+      toolRequiresApprovalLane('sim_cli', { request: { invocation: { kind: 'cli', argv } } })
+    ).toBe(gated)
+  })
 })

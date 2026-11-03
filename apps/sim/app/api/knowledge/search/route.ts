@@ -17,7 +17,11 @@ export const POST = defineInternalJsonRoute({
       'Provider limits apply independently to each user grant; requests have bounded fanout and deadlines',
   }),
   errorPolicy: internalKnowledgeErrorPolicies.search,
-  mapInput: ({ body }, { request }) => ({ ...body, signal: request.signal }),
+  mapInput: ({ body }, { request }) => ({
+    ...body,
+    signal: request.signal,
+    surface: 'dashboard' as const,
+  }),
   useCase: searchLiveKnowledge,
   present: (data) => ({ success: true as const, data }),
 })

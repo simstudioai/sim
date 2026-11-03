@@ -1,0 +1,5 @@
+#!/bin/sh
+set -e
+
+bun run lint:check
+bun run type-check

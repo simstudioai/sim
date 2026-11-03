@@ -77,6 +77,7 @@ import {
   useUpdateChunk,
   useUpdateDocument,
 } from '@/hooks/queries/kb/knowledge'
+import { useBeforeUnloadWhile } from '@/hooks/use-before-unload-while'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
@@ -499,14 +500,7 @@ export function Document({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isInEditorView])
 
-  useEffect(() => {
-    if (!isDirty) return
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault()
-    }
-    window.addEventListener('beforeunload', handler)
-    return () => window.removeEventListener('beforeunload', handler)
-  }, [isDirty])
+  useBeforeUnloadWhile(isDirty)
 
   const navigateToChunk = useCallback(
     async (direction: 'prev' | 'next') => {

@@ -112,6 +112,10 @@ describe('initUpdater state machine', () => {
     probeOriginFeed?: (feedUrl: string) => Promise<boolean | 'no-release'>
     beforeInstall?: () => Promise<void>
     setRelaunchPending?: (pending: boolean) => void
+    /** Work the restart would interrupt, as the in-flight check names it. */
+    withRunningWork?: string
+    /** Overrides the in-flight check, e.g. to make it fail. */
+    describeInFlightWork?: () => Promise<string[]>
   }) {
     const states: DesktopUpdateState[] = []
     const handle = initUpdater({
@@ -127,6 +131,9 @@ describe('initUpdater state machine', () => {
       platform: 'darwin',
       beforeInstall: options?.beforeInstall,
       setRelaunchPending: options?.setRelaunchPending,
+      describeInFlightWork:
+        options?.describeInFlightWork ??
+        (async () => (options?.withRunningWork ? [options.withRunningWork] : [])),
     })
     // Engine selection (signature detection) resolves asynchronously.
     await vi.advanceTimersByTimeAsync(0)
@@ -151,7 +158,7 @@ describe('initUpdater state machine', () => {
     vi.useRealTimers()
   })
 
-  it('walks check -> validated download -> ready and installs only after confirmation', async () => {
+  it('walks check -> validated download -> ready and installs on one click when nothing is running', async () => {
     const { handle, states } = await createUpdater()
     expect(handle.getState()).toEqual({ status: 'idle' })
 
@@ -183,21 +190,67 @@ describe('initUpdater state machine', () => {
 
     handle.install()
     await vi.advanceTimersByTimeAsync(0)
+    expect(dialog.showMessageBox).not.toHaveBeenCalled()
+    expect(autoUpdaterMock.quitAndInstall).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks once, naming the running work, and keeps the update ready on Not Now', async () => {
+    const setRelaunchPending = vi.fn()
+    const { handle } = await createUpdater({
+      setRelaunchPending,
+      withRunningWork: 'claude is still running in a terminal.',
+    })
+    await stageUpdate(handle, '2.0.0')
+    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({ response: 1, checkboxChecked: false })
+
+    handle.install()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(dialog.showMessageBox).toHaveBeenCalledTimes(1)
     expect(dialog.showMessageBox).toHaveBeenCalledWith(
       expect.objectContaining({
-        buttons: ['Later', 'Restart and update'],
+        message: expect.stringContaining('claude is still running in a terminal.'),
+        buttons: ['Restart and Update', 'Not Now'],
         defaultId: 0,
-        cancelId: 0,
+        cancelId: 1,
       })
     )
     expect(autoUpdaterMock.quitAndInstall).not.toHaveBeenCalled()
+    expect(setRelaunchPending).not.toHaveBeenCalled()
+    expect(handle.getState()).toEqual({ status: 'ready', version: '2.0.0' })
+    expect(autoUpdaterMock.autoInstallOnAppQuit).toBe(true)
+  })
 
-    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({
-      response: 1,
-      checkboxChecked: false,
+  it('asks before restarting when the check for running work fails', async () => {
+    const { handle } = await createUpdater({
+      describeInFlightWork: async () => {
+        throw new Error('terminal probe failed')
+      },
     })
+    await stageUpdate(handle, '2.0.0')
+    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({ response: 1, checkboxChecked: false })
+
     handle.install()
     await vi.advanceTimersByTimeAsync(0)
+
+    expect(dialog.showMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "Sim couldn't check whether restarting would interrupt any work.",
+      })
+    )
+    expect(autoUpdaterMock.quitAndInstall).not.toHaveBeenCalled()
+  })
+
+  it('installs a required update without offering to wait for running work', async () => {
+    const { handle } = await createUpdater({
+      withRunningWork: 'claude is still running in a terminal.',
+    })
+    await stageUpdate(handle, '2.0.0')
+
+    handle.install({ mandatory: true })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(dialog.showMessageBox).not.toHaveBeenCalled()
     expect(autoUpdaterMock.quitAndInstall).toHaveBeenCalledTimes(1)
   })
 
@@ -212,7 +265,9 @@ describe('initUpdater state machine', () => {
           resolveConfirmation = resolve
         })
     )
-    const { handle } = await createUpdater()
+    const { handle } = await createUpdater({
+      withRunningWork: 'An agent is still working on this computer.',
+    })
 
     handle.check()
     await vi.advanceTimersByTimeAsync(0)
@@ -222,11 +277,12 @@ describe('initUpdater state machine', () => {
     vi.mocked(dialog.showMessageBox).mockClear()
     handle.install()
     handle.install()
+    await vi.advanceTimersByTimeAsync(0)
 
     expect(dialog.showMessageBox).toHaveBeenCalledTimes(1)
     expect(autoUpdaterMock.quitAndInstall).not.toHaveBeenCalled()
 
-    resolveConfirmation({ response: 1, checkboxChecked: false })
+    resolveConfirmation({ response: 0, checkboxChecked: false })
     await vi.advanceTimersByTimeAsync(0)
     expect(autoUpdaterMock.quitAndInstall).toHaveBeenCalledTimes(1)
   })
@@ -260,10 +316,6 @@ describe('initUpdater state machine', () => {
     handle.check()
     emit('update-downloaded', { version: '2.0.0' })
     emitSquirrel('update-downloaded')
-    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({
-      response: 1,
-      checkboxChecked: false,
-    })
     handle.install()
     await vi.advanceTimersByTimeAsync(0)
 
@@ -292,10 +344,6 @@ describe('initUpdater state machine', () => {
     emit('update-downloaded', { version: '2.0.0' })
     emitSquirrel('update-downloaded')
     await vi.advanceTimersByTimeAsync(10_000)
-    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({
-      response: 1,
-      checkboxChecked: false,
-    })
     handle.install()
     await vi.advanceTimersByTimeAsync(0)
 
@@ -328,7 +376,6 @@ describe('initUpdater state machine', () => {
         })
     )
     await vi.advanceTimersByTimeAsync(10_000)
-    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({ response: 1, checkboxChecked: false })
     handle.install()
     await vi.advanceTimersByTimeAsync(0)
 
@@ -343,10 +390,6 @@ describe('initUpdater state machine', () => {
 
   it('bypasses renderer unload guards only after teardown succeeds', async () => {
     const setRelaunchPending = vi.fn()
-    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({
-      response: 1,
-      checkboxChecked: false,
-    })
     const { handle } = await createUpdater({
       beforeInstall: async () => {},
       setRelaunchPending,
@@ -446,7 +489,9 @@ describe('initUpdater state machine', () => {
       () => {
         throw new Error('Restart confirmation did not initialize')
       }
-    const { handle } = await createUpdater()
+    const { handle } = await createUpdater({
+      withRunningWork: 'A window has unsaved changes.',
+    })
     await stageUpdate(handle, '2.0.0')
     await vi.advanceTimersByTimeAsync(10_000)
 
@@ -457,11 +502,12 @@ describe('initUpdater state machine', () => {
         })
     )
     handle.install()
+    await vi.advanceTimersByTimeAsync(0)
     emit('update-available', { version: '2.1.0' })
     emit('update-downloaded', { version: '2.1.0' })
     emitSquirrel('update-downloaded')
     expect(handle.getState()).toEqual({ status: 'ready', version: '2.1.0' })
-    resolveConfirmation({ response: 1, checkboxChecked: false })
+    resolveConfirmation({ response: 0, checkboxChecked: false })
     await vi.advanceTimersByTimeAsync(0)
 
     expect(autoUpdaterMock.quitAndInstall).toHaveBeenCalledTimes(1)
@@ -477,7 +523,6 @@ describe('initUpdater state machine', () => {
     })
     await stageUpdate(handle, '2.0.0')
     await vi.advanceTimersByTimeAsync(10_000)
-    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({ response: 1, checkboxChecked: false })
     handle.install()
     await vi.advanceTimersByTimeAsync(0)
 
@@ -824,6 +869,41 @@ describe('checkForUpdatesInteractive', () => {
   afterEach(() => {
     ;(app as unknown as { isPackaged: boolean }).isPackaged = false
     vi.useRealTimers()
+  })
+
+  function readyHandle(): UpdaterHandle {
+    return {
+      setAutoDownload: () => {},
+      getState: () => ({ status: 'ready', version: '9.9.9' }),
+      check: vi.fn(),
+      install: vi.fn(),
+      onState: () => () => {},
+    }
+  }
+
+  it('asks before restarting when the check finds an update already staged', async () => {
+    const handle = readyHandle()
+
+    checkForUpdatesInteractive({ getWindow: () => null, events, handle })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(dialog.showMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Sim 9.9.9 is ready to install',
+        buttons: ['Restart to Update', 'Later'],
+      })
+    )
+    expect(handle.install).not.toHaveBeenCalled()
+  })
+
+  it('installs a staged update only once the user chooses Restart to Update', async () => {
+    const handle = readyHandle()
+    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({ response: 0, checkboxChecked: false })
+
+    checkForUpdatesInteractive({ getWindow: () => null, events, handle })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(handle.install).toHaveBeenCalledTimes(1)
   })
 
   it('fails a hung interactive check after twelve seconds instead of waiting thirty', async () => {

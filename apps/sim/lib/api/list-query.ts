@@ -235,6 +235,28 @@ export function preciseTimestampKey<Row>(
   }
 }
 
+/**
+ * A `timestamp` key that orders on the raw column, so an index on `(…, <column>, id)` serves
+ * both the order and the cursor seek, while still finishing a walk begun before that.
+ *
+ * A cursor minted under the millisecond {@link timestampKey} carries a date rather than the
+ * precise form (see {@link classifyTimestampCursor}) and was read under truncated ordering,
+ * where rows sharing a millisecond fall in `id` order rather than stored order. Resuming one
+ * under the raw ordering would skip or repeat rows inside that millisecond, so it keeps the
+ * truncated key it was minted under, and so does every cursor that page mints, until the walk
+ * ends. `readCursor` returns the row's {@link preciseTimestampText}.
+ */
+export function resumableTimestampKey<Row>(
+  column: Column,
+  read: (row: Row) => Date,
+  readCursor: (row: Row) => string,
+  cursorKeys: CursorKey[] | undefined
+): KeysetKey<Row> {
+  return cursorKeys !== undefined && classifyTimestampCursor(cursorKeys[0]) === 'date'
+    ? timestampKey(column, read)
+    : preciseTimestampKey(column, readCursor)
+}
+
 export function sortDirection(order: ListSortOrder): typeof asc {
   return order === 'asc' ? asc : desc
 }

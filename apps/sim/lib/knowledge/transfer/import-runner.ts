@@ -153,6 +153,7 @@ async function importDocument(
             chunks: document.chunks,
             chunkCount: document.chunkCount,
             characterCount: document.characterCount,
+            tokenCount: document.tokenCount,
           },
           reuseVectors
         )

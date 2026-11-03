@@ -1,58 +1,39 @@
 import type { ReactNode } from 'react'
-import { cn, Skeleton } from '@sim/emcn'
-import { cva, type VariantProps } from 'class-variance-authority'
+import { AuthProviderGroup, AuthSkeleton, AuthStack, cn } from '@sim/auth-ui'
 
-const authLoadingSkeletonVariants = cva('', {
-  variants: {
-    shape: {
-      title: 'h-[38px] rounded-[4px]',
-      label: 'h-[14px] rounded-[4px]',
-      control: 'h-[44px] rounded-[10px]',
-      divider: 'h-[1px] rounded-[1px]',
-    },
-  },
-})
-
-interface AuthLoadingSkeletonProps extends VariantProps<typeof authLoadingSkeletonVariants> {
+interface AuthLoadingSkeletonProps {
+  shape?: 'title' | 'label' | 'control' | 'divider'
   className?: string
 }
-
-/** Placeholder geometry shared by the auth route loading states. */
-export function AuthLoadingSkeleton({ shape, className }: AuthLoadingSkeletonProps) {
-  return <Skeleton className={cn(authLoadingSkeletonVariants({ shape }), className)} />
+export function AuthLoadingSkeleton(props: AuthLoadingSkeletonProps) {
+  return <AuthSkeleton {...props} />
 }
-
 interface AuthLoadingFrameProps {
   children: ReactNode
 }
-
 export function AuthLoadingFrame({ children }: AuthLoadingFrameProps) {
-  return <div className='flex flex-col items-center'>{children}</div>
+  return <AuthStack>{children}</AuthStack>
 }
-
 interface AuthLoadingFieldProps {
   labelWidthClassName: string
   className?: string
 }
-
 export function AuthLoadingField({ labelWidthClassName, className }: AuthLoadingFieldProps) {
   return (
-    <div className={cn('w-full space-y-2', className)}>
-      <AuthLoadingSkeleton shape='label' className={labelWidthClassName} />
-      <AuthLoadingSkeleton shape='control' className='w-full' />
+    <div className={cn('au:w-full au:space-y-2', className)}>
+      <AuthSkeleton shape='label' className={labelWidthClassName} />
+      <AuthSkeleton shape='control' className='au:w-full' />
     </div>
   )
 }
-
-/** The divider and paired provider-action placeholders on login and signup. */
 export function AuthLoadingAlternateActions() {
   return (
     <>
-      <AuthLoadingSkeleton shape='divider' className='mt-6 w-full' />
-      <div className='mt-6 flex w-full gap-3'>
-        <AuthLoadingSkeleton shape='control' className='flex-1' />
-        <AuthLoadingSkeleton shape='control' className='flex-1' />
-      </div>
+      <AuthSkeleton shape='divider' className='au:w-full' />
+      <AuthProviderGroup>
+        <AuthSkeleton />
+        <AuthSkeleton />
+      </AuthProviderGroup>
     </>
   )
 }

@@ -1,5 +1,5 @@
 import { JiraServiceManagementIcon } from '@/components/icons'
-import { getScopesForService } from '@/lib/oauth/utils'
+import { getDefaultToolScopesForProvider } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
@@ -308,7 +308,7 @@ export const JiraServiceManagementBlock: BlockConfig = {
       mode: 'basic',
       required: true,
       serviceId: 'jira',
-      requiredScopes: getScopesForService('jira'),
+      requiredScopes: getDefaultToolScopesForProvider('jira'),
       placeholder: 'Select Jira account',
     },
     {

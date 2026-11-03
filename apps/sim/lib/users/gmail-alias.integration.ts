@@ -1,17 +1,21 @@
 /**
  * A dot, `+tag`, or `googlemail.com` variant of an existing Gmail address must not get a second
- * free allowance. Runs against real PostgreSQL through the production signup-stats and
- * fallback-stats paths, and checks the lookup is served by `user_gmail_mailbox_idx`.
+ * free allowance, even when two signups on one inbox race. Runs against real PostgreSQL through
+ * the production signup-stats and fallback-stats paths, and checks the lookup is served by
+ * `user_gmail_mailbox_idx`.
  */
 import { db } from '@sim/db'
 import { gmailMailbox, user, userStats } from '@sim/db/schema'
+import { createDeferred } from '@sim/testing'
 import { authMock } from '@sim/testing/mocks/auth.mock'
 import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { ensureUserStatsExists, handleNewUser } from '@/lib/billing/core/usage'
 import { getFreeTierLimit } from '@/lib/billing/subscriptions/utils'
+import { acquireGmailInboxLock } from '@/lib/users/gmail-alias'
 
 vi.mock('@/lib/core/config/env-flags', () => ({
   ...envFlagsMock,
@@ -58,6 +62,11 @@ async function statsOf(userId: string) {
     .from(userStats)
     .where(eq(userStats.userId, userId))
   return { freeTierEligible: row?.freeTierEligible, limit: Number(row?.currentUsageLimit) }
+}
+
+/** An account created a minute ago, so any account inserted after it counts as later. */
+function insertEarlierUser(email: string): Promise<string> {
+  return insertUser(email, { createdAt: new Date(Date.now() - 60_000) })
 }
 
 /** A Gmail local part no other test run can collide with. */
@@ -127,18 +136,16 @@ describe('Gmail inboxes and the free allowance', () => {
   it('withholds it from a stats row the fallback creates after signup failed to', async () => {
     const local = uniqueLocalPart()
     await signUp(`${local}@gmail.com`)
-    const alias = await insertUser(`${local.slice(0, 3)}.${local.slice(3)}@gmail.com`)
+    const later = await insertUser(`${local.slice(0, 3)}.${local.slice(3)}@gmail.com`)
 
-    await ensureUserStatsExists(alias)
+    await ensureUserStatsExists(later)
 
-    expect(await statsOf(alias)).toEqual({ freeTierEligible: false, limit: 0 })
+    expect(await statsOf(later)).toEqual({ freeTierEligible: false, limit: 0 })
   })
 
   it('keeps the allowance with the inbox’s first account when its stats row comes after an alias’s', async () => {
     const local = uniqueLocalPart()
-    const original = await insertUser(`${local}@gmail.com`, {
-      createdAt: new Date(Date.now() - 60_000),
-    })
+    const original = await insertEarlierUser(`${local}@gmail.com`)
     const alias = await signUp(`${local}+later@gmail.com`)
 
     await ensureUserStatsExists(original)
@@ -164,11 +171,78 @@ describe('Gmail inboxes and the free allowance', () => {
     expect(eligible.sort()).toEqual([false, true])
   })
 
+  it('withdraws it from an alias whose signup decided before the earlier account was visible', async () => {
+    const local = uniqueLocalPart()
+    const later = await signUp(`${local}+fast@gmail.com`)
+    const original = await insertEarlierUser(`${local}@gmail.com`)
+
+    await handleNewUser(original, {})
+
+    expect(await statsOf(original)).toEqual({ freeTierEligible: true, limit: getFreeTierLimit() })
+    expect(await statsOf(later)).toEqual({ freeTierEligible: false, limit: 0 })
+  })
+
+  it('never withdraws it from a later alias when the fallback creates the earlier account’s row', async () => {
+    const local = uniqueLocalPart()
+    const original = await insertEarlierUser(`${local}@gmail.com`)
+    const later = await signUp(`${local}+later@gmail.com`)
+    await db.update(userStats).set({ freeTierEligible: true }).where(eq(userStats.userId, later))
+
+    await ensureUserStatsExists(original)
+
+    expect(await statsOf(original)).toEqual({ freeTierEligible: true, limit: getFreeTierLimit() })
+    expect((await statsOf(later)).freeTierEligible).toBe(true)
+  })
+
+  it('makes a racing signup on the same inbox wait for the inbox lock', async () => {
+    const local = uniqueLocalPart()
+    const original = await insertEarlierUser(`${local}@gmail.com`)
+    const racer = await insertUser(`${local.slice(0, 4)}.${local.slice(4)}@gmail.com`)
+    const held = createDeferred<number>()
+    const release = createDeferred<void>()
+    const pending: Promise<unknown>[] = []
+    try {
+      const holder = db.transaction(async (tx) => {
+        await acquireGmailInboxLock(tx, original)
+        const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        held.resolve(connection.pid)
+        await release.promise
+      })
+      pending.push(holder)
+      void holder.catch((error: unknown) => held.reject(error))
+      const blockerPid = await held.promise
+      const signup = handleNewUser(racer, {})
+      pending.push(signup)
+
+      await vi.waitFor(
+        async () => {
+          const [waiting] = await db.execute<{ pid: number }>(sql`
+            SELECT pid FROM pg_stat_activity
+            WHERE datname = current_database()
+              AND ${blockerPid}::int = ANY(pg_blocking_pids(pid))
+          `)
+          expect(waiting).toBeDefined()
+        },
+        { timeout: 5_000, interval: 25 }
+      )
+      expect((await statsOf(racer)).freeTierEligible).toBeUndefined()
+
+      release.resolve()
+      await holder
+      await signup
+      expect(await statsOf(racer)).toEqual({ freeTierEligible: false, limit: 0 })
+    } finally {
+      release.resolve()
+      await Promise.allSettled(pending)
+    }
+  })
+
   it('finds the inbox through user_gmail_mailbox_idx rather than a scan of user', async () => {
+    const subject = alias(user, 'subject')
     const plan = await db.transaction(async (tx) => {
       await tx.execute(sql`SET LOCAL enable_seqscan = off`)
       const rows = await tx.execute<{ 'QUERY PLAN': string }>(
-        sql`EXPLAIN SELECT ${user.id} FROM ${user} WHERE ${gmailMailbox(user.email)} = ${`${uniqueLocalPart()}@gmail.com`} LIMIT 1`
+        sql`EXPLAIN SELECT ${user.id} FROM ${user} AS "subject" JOIN ${user} ON ${gmailMailbox(user.email)} = ${gmailMailbox(subject.email)} WHERE ${subject.id} = ${generateId()}`
       )
       return rows.map((row) => row['QUERY PLAN']).join('\n')
     })

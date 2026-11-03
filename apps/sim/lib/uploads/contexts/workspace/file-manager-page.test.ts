@@ -20,7 +20,8 @@ vi.mock('@/lib/uploads/contexts/workspace/file-folder-manager', () => workspaceF
 
 import { createWorkspaceFileBodySchema } from '@/lib/api/contracts/workspace-files'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
-import { compileSimPage, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { compileSimPage } from '@/lib/workspace-files/page-compile'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-content-type'
 
 workspaceFileFoldersMockFns.mockBuildWorkspaceFileFolderPathMap.mockImplementation(() => new Map())
 workspaceFileFoldersMockFns.mockNormalizeWorkspaceFileItemName.mockImplementation(

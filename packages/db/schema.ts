@@ -456,7 +456,6 @@ export const workflow = pgTable(
     archivedAt: timestamp('archived_at'),
   },
   (table) => ({
-    userIdIdx: index('workflow_user_id_idx').on(table.userId),
     workspaceIdIdx: index('workflow_workspace_id_idx').on(table.workspaceId),
     userWorkspaceIdx: index('workflow_user_workspace_idx').on(table.userId, table.workspaceId),
     workspaceFolderNameUnique: uniqueIndex('workflow_workspace_folder_name_active_unique')
@@ -532,7 +531,6 @@ export const workflowEdges = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
-    workflowIdIdx: index('workflow_edges_workflow_id_idx').on(table.workflowId),
     workflowSourceIdx: index('workflow_edges_workflow_source_idx').on(
       table.workflowId,
       table.sourceBlockId
@@ -560,7 +558,6 @@ export const workflowSubflows = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    workflowIdIdx: index('workflow_subflows_workflow_id_idx').on(table.workflowId),
     workflowTypeIdx: index('workflow_subflows_workflow_type_idx').on(table.workflowId, table.type),
   })
 )
@@ -584,7 +581,6 @@ export const workflowExecutionSnapshots = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
-    workflowIdIdx: index('workflow_snapshots_workflow_id_idx').on(table.workflowId),
     stateHashIdx: index('workflow_snapshots_hash_idx').on(table.stateHash),
     workflowHashUnique: uniqueIndex('workflow_snapshots_workflow_hash_idx').on(
       table.workflowId,
@@ -655,7 +651,6 @@ export const workflowExecutionLogs = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
-    workflowIdIdx: index('workflow_execution_logs_workflow_id_idx').on(table.workflowId),
     stateSnapshotIdIdx: index('workflow_execution_logs_state_snapshot_id_idx').on(
       table.stateSnapshotId
     ),
@@ -670,10 +665,6 @@ export const workflowExecutionLogs = pgTable(
     ),
     workflowStartedAtIdx: index('workflow_execution_logs_workflow_started_at_idx').on(
       table.workflowId,
-      table.startedAt
-    ),
-    workspaceStartedAtIdx: index('workflow_execution_logs_workspace_started_at_idx').on(
-      table.workspaceId,
       table.startedAt
     ),
     /**
@@ -944,6 +935,38 @@ export const organizationSecret = pgTable(
       .on(table.sourceId, table.ownerUserId, table.name)
       .where(sql`${table.ownerUserId} IS NOT NULL`),
     index('organization_secret_owner_idx').on(table.ownerUserId),
+  ]
+)
+
+/**
+ * An organization's Sim links (go links): `sim/<name>` redirects members to `url`. Names match
+ * case- and punctuation-insensitively through `normalized_name`. `{*}` in `url`
+ * marks a variable link filled from the path after the name, and `default_url`
+ * serves a variable link opened without values. `visit_count` counts redirects.
+ */
+export const simLink = pgTable(
+  'sim_link',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    normalizedName: text('normalized_name').notNull(),
+    url: text('url').notNull(),
+    defaultUrl: text('default_url'),
+    description: text('description'),
+    unlisted: boolean('unlisted').notNull().default(false),
+    restrictEdit: boolean('restrict_edit').notNull().default(false),
+    visitCount: integer('visit_count').notNull().default(0),
+    lastVisitedAt: timestamp('last_visited_at'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('sim_link_organization_name_unique').on(table.organizationId, table.normalizedName),
+    index('sim_link_created_by_idx').on(table.createdBy),
   ]
 )
 
@@ -1561,7 +1584,6 @@ export const customTools = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    workspaceIdIdx: index('custom_tools_workspace_id_idx').on(table.workspaceId),
     workspaceTitleUnique: uniqueIndex('custom_tools_workspace_title_unique').on(
       table.workspaceId,
       table.title
@@ -1959,6 +1981,35 @@ export const member = pgTable(
 )
 
 /**
+ * A member's place in their organization, from an admin's people-data import or edit: the facts
+ * behind the People page, profiles and reporting lines. At most one row per member, deleted with
+ * the membership; `manager_member_id` is cleared when the manager's membership ends. Both members
+ * belong to the same organization, which every writer checks.
+ */
+export const memberProfile = pgTable(
+  'member_profile',
+  {
+    memberId: text('member_id')
+      .primaryKey()
+      .references(() => member.id, { onDelete: 'cascade' }),
+    title: text('title'),
+    department: text('department'),
+    location: text('location'),
+    startDate: date('start_date'),
+    managerMemberId: text('manager_member_id').references((): AnyPgColumn => member.id, {
+      onDelete: 'set null',
+    }),
+    updatedBy: text('updated_by').references(() => user.id, { onDelete: 'set null' }),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    index('member_profile_manager_member_id_idx').on(table.managerMemberId),
+    index('member_profile_updated_by_idx').on(table.updatedBy),
+    check('member_profile_not_own_manager', sql`${table.managerMemberId} <> ${table.memberId}`),
+  ]
+)
+
+/**
  * Per-member usage limit (in dollars) scoped to a single organization.
  *
  * Keyed by `(organizationId, userId)` so it covers both organization members
@@ -2312,11 +2363,6 @@ export const workspaceForkResourceMap = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    childWorkspaceIdx: index('workspace_fork_resource_map_child_ws_idx').on(table.childWorkspaceId),
-    childWorkspaceTypeIdx: index('workspace_fork_resource_map_child_ws_type_idx').on(
-      table.childWorkspaceId,
-      table.resourceType
-    ),
     childTypeParentUnique: uniqueIndex('workspace_fork_resource_map_child_type_parent_unique').on(
       table.childWorkspaceId,
       table.resourceType,
@@ -2403,12 +2449,8 @@ export const workspaceForkDependentValue = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    // Reconcile replaces a workflow's stored values by its id, so index that sweep.
-    childWsWorkflowIdx: index('workspace_fork_dependent_value_child_ws_wf_idx').on(
-      table.childWorkspaceId,
-      table.targetWorkflowId
-    ),
-    // One stored value per (edge, target workflow, target block, subblock).
+    // One stored value per (edge, target workflow, target block, subblock). Its leading
+    // (child workspace, target workflow) columns also serve reconcile's per-workflow sweep.
     childWsFieldUnique: uniqueIndex('workspace_fork_dependent_value_field_unique').on(
       table.childWorkspaceId,
       table.targetWorkflowId,
@@ -2947,10 +2989,46 @@ export const workspaceFiles = pgTable(
      * Served the pre-project backfill walk, which paged live workspace files by
      * `(workspace_id, id)` and compared its cursor row-wise to seek with this index.
      *
-     * contract-pending(after owner-aware search dispatchers are fully deployed): retire workspace_files_workspace_active_keyset_idx — the backfill now walks `workspace_files_search_owner_keyset_idx`, so its last designed reader is gone once older dispatchers drain; confirm no other plan still picks it.
+     * contract-pending(after owner-aware search dispatchers are fully deployed): retire workspace_files_workspace_active_keyset_idx — the backfill now walks `workspace_files_search_owner_keyset_idx`, and `workspace_files_workspace_active_uploaded_idx` (same predicate, leading `workspace_id`) serves every workspace-scoped read this index serves while id lookups have the primary key; retire it once its idx_scan stops growing after that index deploys.
      */
     workspaceActiveKeysetIdx: index('workspace_files_workspace_active_keyset_idx')
       .on(table.workspaceId, table.id)
+      .concurrently()
+      .where(
+        sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
+      ),
+    /** Serves a workspace's live file list, and its bounded SSR seed, in upload order. */
+    workspaceActiveUploadedIdx: index('workspace_files_workspace_active_uploaded_idx')
+      .on(table.workspaceId, table.uploadedAt, table.id)
+      .concurrently()
+      .where(
+        sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
+      ),
+    /**
+     * Serves a folder page by upload date: `(workspace_id, coalesce(folder_id, ''))` equality,
+     * then the raw `(uploaded_at, id)` keyset the file sorts order on, and seeks a folder's live
+     * files for its rollup, which reads `size_bytes` from the heap. The folder expression must
+     * match `workspaceFileFolderKey` and the predicate the list's owner and lifecycle filter, or
+     * the planner cannot use it. `size_bytes` stays out of the key to keep the index narrow.
+     */
+    workspaceFolderUploadedIdx: index('workspace_files_workspace_folder_uploaded_idx')
+      .on(table.workspaceId, sql`coalesce(${table.folderId}, '')`, table.uploadedAt, table.id)
+      .concurrently()
+      .where(
+        sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
+      ),
+    /**
+     * Serves the case-insensitive substring name search (`original_name ILIKE '%term%'`).
+     * `fastupdate` is off so file writes never stall on a foreground merge of every other
+     * writer's pending entries.
+     */
+    workspaceNameTrgmIdx: index('workspace_files_workspace_name_trgm_idx')
+      .using(
+        'gin',
+        table.workspaceId.asc().op('text_ops'),
+        table.originalName.asc().op('gin_trgm_ops')
+      )
+      .with({ fastupdate: 'off' })
       .concurrently()
       .where(
         sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
@@ -3660,11 +3738,7 @@ export const permissions = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    userIdIdx: index('permissions_user_id_idx').on(table.userId),
-
     entityIdx: index('permissions_entity_idx').on(table.entityType, table.entityId),
-
-    userEntityTypeIdx: index('permissions_user_entity_type_idx').on(table.userId, table.entityType),
 
     userEntityPermissionIdx: index('permissions_user_entity_permission_idx').on(
       table.userId,
@@ -3702,7 +3776,6 @@ export const memory = pgTable(
   (table) => {
     return {
       keyIdx: index('memory_key_idx').on(table.key),
-      workspaceIdx: index('memory_workspace_idx').on(table.workspaceId),
       uniqueKeyPerWorkspaceIdx: uniqueIndex('memory_workspace_key_idx').on(
         table.workspaceId,
         table.key
@@ -3881,7 +3954,6 @@ export const knowledgeBase = pgTable(
     organizationNameActiveUnique: uniqueIndex('kb_organization_name_active_unique')
       .on(table.organizationId, table.name)
       .where(sql`${table.deletedAt} IS NULL`),
-    userIdIdx: index('kb_user_id_idx').on(table.userId),
     workspaceIdIdx: index('kb_workspace_id_idx').on(table.workspaceId),
     userWorkspaceIdx: index('kb_user_workspace_idx').on(table.userId, table.workspaceId),
     folderIdIdx: index('kb_folder_id_idx').on(table.folderId),
@@ -4070,7 +4142,6 @@ export const document = pgTable(
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
   },
   (table) => ({
-    knowledgeBaseIdIdx: index('doc_kb_id_idx').on(table.knowledgeBaseId),
     /** Backs the `ON DELETE SET NULL` referential trigger on user deletion. */
     uploadedByIdx: index('doc_uploaded_by_idx')
       .on(table.uploadedBy)
@@ -4244,7 +4315,6 @@ export const knowledgeBaseTagDefinitions = pgTable(
       table.knowledgeBaseId,
       table.displayName
     ),
-    kbIdIdx: index('kb_tag_definitions_kb_id_idx').on(table.knowledgeBaseId),
   })
 )
 
@@ -4384,7 +4454,8 @@ export const embedding = pgTable(
 /**
  * Candidate projection. Keeping identities and half-precision vectors apart from content prevents
  * candidate scans from fetching full-precision TOAST values. Application writers only change
- * `embedding`: its trigger writes this projection in the writer's transaction. A chunk write that
+ * `embedding`: its trigger writes this projection in the writer's transaction, and deletes the row
+ * instead for a chunk of a retired Search knowledge base (`isSearchIndex`). A chunk write that
  * skipped the trigger, as releases that deferred projection did, is written by the knowledge
  * projector after the commit (see {@link knowledgeProjectionDirty}).
  */
@@ -4730,7 +4801,6 @@ export const copilotChats = pgTable(
       table.createdAt,
       table.id
     ),
-    userIdIdx: index('copilot_chats_user_id_idx').on(table.userId),
     workflowIdIdx: index('copilot_chats_workflow_id_idx').on(table.workflowId),
     userWorkflowIdx: index('copilot_chats_user_workflow_idx').on(table.userId, table.workflowId),
 
@@ -4831,8 +4901,6 @@ export const workflowCheckpoints = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    userIdIdx: index('workflow_checkpoints_user_id_idx').on(table.userId),
-    workflowIdIdx: index('workflow_checkpoints_workflow_id_idx').on(table.workflowId),
     chatIdIdx: index('workflow_checkpoints_chat_id_idx').on(table.chatId),
     messageIdIdx: index('workflow_checkpoints_message_id_idx').on(table.messageId),
 
@@ -4882,6 +4950,12 @@ export type CopilotRunStatus = (typeof copilotRunStatusEnum.enumValues)[number]
 export type CopilotAsyncToolStatus = (typeof copilotAsyncToolStatusEnum.enumValues)[number]
 export type CopilotToolPermissionDecision =
   (typeof copilotToolPermissionDecisionEnum.enumValues)[number]
+
+export interface AssistantActionBinding {
+  operationVersion: number
+  effect: 'read' | 'write'
+  credentialId: string
+}
 
 /** Stop may arrive before chat creation. Its actor/workspace scope cannot cancel another request. */
 export const copilotRequestStops = pgTable(
@@ -4981,11 +5055,9 @@ export const copilotRuns = pgTable(
   },
   (table) => ({
     parentRunIdIdx: index('copilot_runs_parent_run_id_idx').on(table.parentRunId),
-    chatIdIdx: index('copilot_runs_chat_id_idx').on(table.chatId),
     chatStartedAtIdx: index('copilot_runs_chat_started_at_idx').on(table.chatId, table.startedAt),
     userIdIdx: index('copilot_runs_user_id_idx').on(table.userId),
     workflowIdIdx: index('copilot_runs_workflow_id_idx').on(table.workflowId),
-    workspaceIdIdx: index('copilot_runs_workspace_id_idx').on(table.workspaceId),
     statusIdx: index('copilot_runs_status_idx').on(table.status),
     chatExecutionIdx: index('copilot_runs_chat_execution_idx').on(table.chatId, table.executionId),
     executionStartedAtIdx: index('copilot_runs_execution_started_at_idx').on(
@@ -5020,7 +5092,6 @@ export const copilotRunCheckpoints = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    runIdIdx: index('copilot_run_checkpoints_run_id_idx').on(table.runId),
     pendingToolCallIdIdx: index('copilot_run_checkpoints_pending_tool_call_id_idx').on(
       table.pendingToolCallId
     ),
@@ -5047,19 +5118,27 @@ export const copilotAsyncToolCalls = pgTable(
     toolCallId: text('tool_call_id').notNull(),
     toolName: text('tool_name').notNull(),
     args: jsonb('args').notNull().default('{}'),
+    /** Canonical dispatch identity; null only on calls recorded before invocation binding. */
+    executableName: text('executable_name'),
+    targetWorkspaceId: text('target_workspace_id'),
+    /** Validated user edits, committed once with the decision; original args stay immutable. */
+    approvedArgs: jsonb('approved_args'),
+    /** Server-resolved authority sealed with the original proposal, never supplied by the worker. */
+    assistantAction: jsonb('assistant_action').$type<AssistantActionBinding>(),
+    /** External writes without a provider idempotency key must never be replayed after a crash. */
+    executionRetryable: boolean('execution_retryable').notNull().default(true),
     status: copilotAsyncToolStatusEnum('status').notNull().default('pending'),
     result: jsonb('result'),
     error: text('error'),
     /**
-     * Set only for tools declaring requiresApproval in the mothership tool catalog. A null decision
-     * on such a tool means the prompt is still outstanding, which is what lets it survive a reload.
+     * A null decision on a gated call means its prompt is still outstanding after a reload.
      */
     permissionDecision: copilotToolPermissionDecisionEnum('permission_decision'),
     permissionDecidedAt: timestamp('permission_decided_at'),
     /**
      * Set when this call was held for the user's decision. Whether a call is gated depends on the
      * turn (the feature flag, the tool's arguments, the user's allow lists), so the row records it:
-     * a desktop claim refuses a gated call until `permissionDecision` allows it.
+     * every execution claim refuses a gated call until `permissionDecision` allows it.
      */
     permissionRequestedAt: timestamp('permission_requested_at'),
     /**
@@ -5111,7 +5190,6 @@ export const copilotAsyncToolCalls = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    runIdIdx: index('copilot_async_tool_calls_run_id_idx').on(table.runId),
     checkpointIdIdx: index('copilot_async_tool_calls_checkpoint_id_idx').on(table.checkpointId),
     statusIdx: index('copilot_async_tool_calls_status_idx').on(table.status),
     runStatusIdx: index('copilot_async_tool_calls_run_status_idx').on(table.runId, table.status),
@@ -5531,7 +5609,6 @@ export const ssoDomain = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    organizationIdIdx: index('sso_domain_organization_id_idx').on(table.organizationId),
     domainIdx: index('sso_domain_domain_idx').on(table.domain),
     /**
      * An org holds at most one row per domain. Makes claims idempotent under
@@ -5867,7 +5944,6 @@ export const customBlock = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    organizationIdIdx: index('custom_block_organization_id_idx').on(table.organizationId),
     workflowIdIdx: index('custom_block_workflow_id_idx').on(table.workflowId),
     orgTypeUnique: uniqueIndex('custom_block_organization_type_unique').on(
       table.organizationId,
@@ -5911,6 +5987,20 @@ export const auditLog = pgTable(
       table.id
     ),
     actorCreatedIdx: index('audit_log_actor_created_idx').on(table.actorId, table.createdAt),
+    /**
+     * Serves the organization-level branch of an organization's listing: workspace-less rows
+     * attributed through `metadata.organizationId`, read newest first by the listing keyset.
+     */
+    orgLevelCreatedAtIdIdx: index('audit_log_org_level_created_at_id_idx')
+      .on(
+        sql`(${table.metadata}->>'organizationId')`,
+        sql`date_trunc('milliseconds', ${table.createdAt})`,
+        table.id
+      )
+      .concurrently()
+      .where(
+        sql`${table.workspaceId} IS NULL AND (${table.metadata}->>'organizationId') IS NOT NULL`
+      ),
     resourceIdx: index('audit_log_resource_idx').on(table.resourceType, table.resourceId),
     actionIdx: index('audit_log_action_idx').on(table.action),
   })
@@ -6041,38 +6131,30 @@ export const usageLog = pgTable(
     eventKeyUnique: uniqueIndex('usage_log_event_key_unique')
       .on(table.eventKey)
       .where(sql`${table.eventKey} IS NOT NULL`),
-    billingEntityPeriodIdx: index('usage_log_billing_entity_period_idx')
-      .on(
-        table.billingEntityType,
-        table.billingEntityId,
-        table.billingPeriodStart,
-        table.billingPeriodEnd
-      )
-      .where(sql`${table.billingEntityType} IS NOT NULL`),
     /**
-     * Covering companion to `billingEntityPeriodIdx` — not a replacement. Carries
-     * `cost` so the billing-period aggregates resolve index-only rather than taking
-     * a heap fetch per matched row.
+     * Serves every stamped-period aggregate index-only: the period sums
+     * (entity + both period stamps, optionally `user_id`), the weekly-refresh
+     * buckets (entity + `billing_period_start`, reading `created_at` and
+     * `billing_period_end` as payload), and the cycle-close range over the
+     * period stamps.
      *
-     * `userId`/`createdAt` sit immediately after the shared equality prefix because
-     * the weekly-refresh rollup filters on them and NOT on `billingPeriodEnd`;
-     * putting `billingPeriodEnd` in that slot would end the usable prefix at
-     * `billingPeriodStart` and leave that query scanning the whole period.
-     * `billingPeriodEnd` is functionally determined by `billingPeriodStart`, so it
-     * removes no rows and rides along as payload.
-     *
-     * `billingEntityPeriodIdx` is kept deliberately: with no high-cardinality key
-     * column it deduplicates to a fraction of this index's size, which keeps
-     * prefix-only bitmap scans cheap.
+     * Both period stamps lead, ahead of every payload column, so the hottest
+     * read (all four leading columns equal) ends its scan at the period's last
+     * entry. The planner underestimates that match badly, because the period
+     * stamps are functionally dependent on the entity and their selectivities
+     * multiply; with the stamps split by other columns it preferred a slimmer
+     * index without `cost` and fetched every matched row from the heap.
+     * `user_id` comes next for the per-user sums that filter on it; the rest is
+     * payload.
      */
-    billingPeriodCostIdx: index('usage_log_billing_period_cost_idx')
+    billingPeriodCostIdx: index('usage_log_billing_entity_period_cost_idx')
       .on(
         table.billingEntityType,
         table.billingEntityId,
         table.billingPeriodStart,
+        table.billingPeriodEnd,
         table.userId,
         table.createdAt,
-        table.billingPeriodEnd,
         table.source,
         table.cost
       )
@@ -6095,9 +6177,28 @@ export const usageLog = pgTable(
         (${table.billingEntityType} IS NOT NULL AND ${table.billingEntityId} IS NOT NULL AND ${table.billingPeriodStart} IS NOT NULL AND ${table.billingPeriodEnd} IS NOT NULL AND ${table.billingPeriodStart} < ${table.billingPeriodEnd})
       )`
     ),
-    workspaceCreatedAtIdx: index('usage_log_workspace_created_at_idx').on(
+    /**
+     * Serves the Workspaces drill-down index-only: an analytics read narrowed to one
+     * workspace over a `created_at` window (entity + `workspace_id` + the window)
+     * reads its totals, series, and member, source and workflow rankings from here,
+     * and skips the workspace's rows billed to another entity without a heap fetch.
+     * A Stripe-period drill-down matches the period stamps, which are not here.
+     *
+     * `workspace_id` and `created_at` lead so the scan is bounded by the
+     * workspace's rows in the window rather than its organization's, and so the
+     * reads that name only the workspace keep their order: the `workspace_id`
+     * foreign key's `ON DELETE SET NULL`, and the ledger list filtered to a
+     * workspace. The entity and everything after it are payload.
+     */
+    workspaceCreatedAtCostIdx: index('usage_log_workspace_created_at_cost_idx').on(
       table.workspaceId,
-      table.createdAt
+      table.createdAt,
+      table.billingEntityType,
+      table.billingEntityId,
+      table.userId,
+      table.source,
+      table.cost,
+      table.workflowId
     ),
     executionIdIdx: index('usage_log_execution_id_idx').on(table.executionId),
   })
@@ -6131,6 +6232,8 @@ export interface ManagedMcpToolSnapshot {
   name: string
   description?: string
   inputSchema: Record<string, unknown>
+  /** Absent when the tool declares no output schema, and on snapshots taken before it was kept. */
+  outputSchema?: Record<string, unknown>
 }
 
 /** contract-pending(after all GitLab tokens migrate and workspace-token writers are retired): drop credential_personal_token_identity_unique; only the index is retired. */
@@ -6371,7 +6474,6 @@ export const credentialGroup = pgTable(
       'credential_group_owner_check',
       sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
     ),
-    organizationIdIdx: index('credential_group_organization_id_idx').on(table.organizationId),
     organizationUnique: uniqueIndex('credential_group_organization_unique').on(
       table.organizationId
     ),
@@ -6548,6 +6650,40 @@ export const credentialGroupEnrollment = pgTable(
       'credential_group_enrollment_invitation_token_hash_length_check',
       sql`length(${table.invitationTokenHash}) = 64`
     ),
+  })
+)
+
+/** Personal Assistant preferences never confer access to another account or override organization policy. */
+export const assistantToolPermission = pgTable(
+  'assistant_tool_permission',
+  {
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    credentialId: text('credential_id')
+      .notNull()
+      .references(() => credential.id, { onDelete: 'cascade' }),
+    revision: integer('revision').notNull().default(1),
+    readPolicy: text('read_policy').$type<'allow' | 'ask' | 'block'>().notNull().default('allow'),
+    writePolicy: text('write_policy').$type<'allow' | 'ask' | 'block'>().notNull().default('ask'),
+    overrides: jsonb('overrides')
+      .$type<Record<string, { version: number; policy: 'allow' | 'ask' | 'block' }>>()
+      .notNull()
+      .default({}),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.organizationId, table.userId, table.credentialId] }),
+    credentialIdx: index('assistant_tool_permission_credential_idx').on(table.credentialId),
+    userIdx: index('assistant_tool_permission_user_idx').on(table.userId),
+    policyCheck: check(
+      'assistant_tool_permission_policy_check',
+      sql`${table.readPolicy} IN ('allow', 'ask', 'block') AND ${table.writePolicy} IN ('allow', 'ask', 'block')`
+    ),
+    revisionCheck: check('assistant_tool_permission_revision_check', sql`${table.revision} > 0`),
   })
 )
 
@@ -6730,7 +6866,6 @@ export const permissionGroupMember = pgTable(
     assignedAt: timestamp('assigned_at').notNull().defaultNow(),
   },
   (table) => ({
-    permissionGroupIdIdx: index('permission_group_member_group_id_idx').on(table.permissionGroupId),
     groupUserUnique: uniqueIndex('permission_group_member_group_user_unique').on(
       table.permissionGroupId,
       table.userId
@@ -7252,7 +7387,6 @@ export const knowledgeExternalDirectory = pgTable(
       'ked_owner_check',
       sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
     ),
-    organizationIdIdx: index('ked_organization_id_idx').on(table.organizationId),
     workspaceIdentity: uniqueIndex('ked_workspace_identity_unique').on(
       table.workspaceId,
       table.providerId,
@@ -7313,7 +7447,6 @@ export const knowledgeExternalGroup = pgTable(
       'keg_owner_check',
       sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
     ),
-    organizationIdIdx: index('keg_organization_id_idx').on(table.organizationId),
     organizationIdentityUnique: uniqueIndex('keg_organization_identity_unique').on(
       table.organizationId,
       table.providerId,
@@ -8093,7 +8226,6 @@ export const dataDrains = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    orgIdx: index('data_drains_org_idx').on(table.organizationId),
     dueIdx: index('data_drains_due_idx').on(table.enabled, table.lastRunAt),
     orgNameUnique: uniqueIndex('data_drains_org_name_unique').on(table.organizationId, table.name),
   })
@@ -8165,7 +8297,6 @@ export const workspaceSandbox = pgTable(
       table.workspaceId,
       table.name
     ),
-    workspaceIdx: index('workspace_sandbox_workspace_idx').on(table.workspaceId),
     specHashIdx: index('workspace_sandbox_spec_hash_idx').on(table.specHash),
   })
 )
@@ -8509,7 +8640,6 @@ export const scimGroupMapping = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
-    groupIdx: index('scim_group_mapping_group_idx').on(table.groupId),
     permissionGroupIdx: index('scim_group_mapping_permission_group_idx').on(
       table.permissionGroupId
     ),

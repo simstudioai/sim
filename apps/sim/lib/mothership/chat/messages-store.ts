@@ -31,7 +31,8 @@ function toRow(
   options?: { chatModel?: string | null; streamId?: string | null }
 ): typeof copilotMessages.$inferInsert {
   const ts = new Date(message.timestamp)
-  const content = stripToolResultOutput(message)
+  const { streamId, ...storedMessage } = message
+  const content = stripToolResultOutput(storedMessage)
   return {
     chatId,
     messageId: message.id,

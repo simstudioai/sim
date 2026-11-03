@@ -40,6 +40,7 @@ import {
   parsePersistedStreamEventEnvelope,
 } from '@/lib/mothership/request/session'
 import {
+  forgetToolCallEvent,
   shouldSkipToolCallEvent,
   shouldSkipToolResultEvent,
 } from '@/lib/mothership/request/sse-utils'
@@ -495,7 +496,14 @@ export async function runStreamLoop(
           })
         }
 
-        await prePersistClientExecutableToolCall(streamEvent, context, options, execContext)
+        try {
+          await prePersistClientExecutableToolCall(streamEvent, context, options, execContext)
+        } catch (error) {
+          forgetToolCallEvent(context, streamEvent)
+          throw new StreamContinuityError('Tool preparation could not be recorded.', {
+            cause: error,
+          })
+        }
 
         await prepareStreamImages(
           streamEvent,

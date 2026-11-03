@@ -7,19 +7,12 @@ import { v1LogsMetaMock, v1LogsMetaMockFns } from '@sim/testing/mocks/v1-logs-me
 import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockValidateV1EnterpriseAuditAccess,
-  mockBuildOrgScopeCondition,
-  mockGetOrgWorkspaceIds,
-  mockQueryAuditLogs,
-  mockBuildFilterConditions,
-} = vi.hoisted(() => ({
-  mockValidateV1EnterpriseAuditAccess: vi.fn(),
-  mockBuildOrgScopeCondition: vi.fn(),
-  mockGetOrgWorkspaceIds: vi.fn(),
-  mockQueryAuditLogs: vi.fn(),
-  mockBuildFilterConditions: vi.fn(),
-}))
+const { mockValidateV1EnterpriseAuditAccess, mockGetOrgWorkspaceIds, mockQueryAuditLogs } =
+  vi.hoisted(() => ({
+    mockValidateV1EnterpriseAuditAccess: vi.fn(),
+    mockGetOrgWorkspaceIds: vi.fn(),
+    mockQueryAuditLogs: vi.fn(),
+  }))
 
 vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
 
@@ -28,8 +21,6 @@ vi.mock('@/app/api/v1/audit-logs/auth', () => ({
 }))
 
 vi.mock('@/lib/audit-logs/query', () => ({
-  buildFilterConditions: mockBuildFilterConditions,
-  buildOrgScopeCondition: mockBuildOrgScopeCondition,
   getOrgWorkspaceIds: mockGetOrgWorkspaceIds,
   queryAuditLogs: mockQueryAuditLogs,
 }))
@@ -48,7 +39,6 @@ v1LogsMetaMockFns.mockCreateApiResponse.mockImplementation((body: unknown) => ({
 const ORG_ID = 'org-1'
 const MEMBER_IDS = ['admin-1', 'member-1']
 const ORG_WORKSPACE_IDS = ['ws-org-1', 'ws-org-2']
-const SCOPE_SENTINEL = { type: 'org-scope-sentinel' }
 
 function makeRequest(query: string) {
   return createMockRequest('GET', undefined, {}, `http://localhost:3000/api/v1/audit-logs${query}`)
@@ -63,8 +53,6 @@ describe('GET /api/v1/audit-logs', () => {
       context: { organizationId: ORG_ID, orgMemberIds: MEMBER_IDS },
     })
     mockGetOrgWorkspaceIds.mockResolvedValue(ORG_WORKSPACE_IDS)
-    mockBuildOrgScopeCondition.mockReturnValue(SCOPE_SENTINEL)
-    mockBuildFilterConditions.mockReturnValue([])
     mockQueryAuditLogs.mockResolvedValue({ data: [], nextCursor: undefined })
   })
 

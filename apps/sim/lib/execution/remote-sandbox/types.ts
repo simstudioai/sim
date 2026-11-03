@@ -2,6 +2,7 @@ import type { CodePlaceholderRuntimeBinding } from '@/lib/execution/code-placeho
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import type { CodeLanguage } from '@/lib/execution/languages'
 import type { SandboxBuildError } from '@/lib/execution/remote-sandbox/build-errors'
+import type { SandboxPhaseTimings } from '@/lib/execution/remote-sandbox/phase-timing'
 import type { SandboxSpec } from '@/lib/execution/remote-sandbox/spec'
 
 /**
@@ -187,6 +188,8 @@ export interface SandboxExecutionResult {
    * is gone.
    */
   sandboxSession?: 'created' | 'reused'
+  /** Wall time per execution phase, for the caller's log line; never part of a response. */
+  phaseMs?: SandboxPhaseTimings
 }
 
 /** One harvested output file, carried as base64 with its decoded length. */
@@ -488,4 +491,17 @@ export interface SandboxProvider {
     key: string,
     options: { language?: CodeLanguage; lifetimeMs?: number }
   ): Promise<SandboxHandle | null>
+  /** Session sandboxes the provider paused when their lease ran out, for the retention sweep. */
+  listPausedSessionSandboxes?(): Promise<PausedSessionSandbox[]>
+  /**
+   * Kills the sandbox only if it is still paused and paused at or before `pausedBeforeMs`,
+   * resolving false when a resume got there first. Callers hold the session's lock.
+   */
+  killPausedSessionSandbox?(sandbox: PausedSessionSandbox, pausedBeforeMs: number): Promise<boolean>
+}
+
+export interface PausedSessionSandbox {
+  sandboxId: string
+  sessionKey: string
+  pausedAtMs: number
 }

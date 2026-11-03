@@ -13,6 +13,20 @@ export const jiraWriteTool: InternalToolConfig<JiraWriteParams, JiraWriteRespons
   name: 'Jira Write',
   description: 'Create a new Jira issue',
   version: '1.0.0',
+  assistant: {
+    effect: 'write',
+    version: 1,
+    reviewFields: [
+      { name: 'domain', label: 'Jira site', target: true },
+      { name: 'projectId', label: 'Project', target: true },
+      { name: 'summary', label: 'Summary', editable: true },
+      { name: 'description', label: 'Description', format: 'multiline', editable: true },
+      { name: 'priority', label: 'Priority', editable: true },
+      { name: 'issueType', label: 'Issue type' },
+      { name: 'assignee', label: 'Assignee', target: true },
+      { name: 'parent', label: 'Parent issue', format: 'json', target: true },
+    ],
+  },
 
   oauth: {
     required: true,
@@ -197,6 +211,7 @@ export const jiraWriteTool: InternalToolConfig<JiraWriteParams, JiraWriteRespons
           success: data.output.success ?? true,
           url: data.output.url ?? '',
           assigneeId: data.output.assigneeId ?? null,
+          ...(data.output.warning ? { warning: data.output.warning } : {}),
         },
       }
     }
@@ -225,6 +240,12 @@ export const jiraWriteTool: InternalToolConfig<JiraWriteParams, JiraWriteRespons
     summary: { type: 'string', description: 'Issue summary' },
     success: { type: 'boolean', description: 'Whether the issue was created successfully' },
     url: { type: 'string', description: 'URL to the created issue in Jira' },
+    warning: {
+      type: 'string',
+      description:
+        'A requested follow-up that failed after issue creation; do not recreate the issue',
+      optional: true,
+    },
     assigneeId: {
       type: 'string',
       description: 'Account ID of the assigned user (null if no assignee was set)',

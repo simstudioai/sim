@@ -44,6 +44,7 @@ export function SecretReveal({ value, className, redacted = false }: SecretRevea
 
   return (
     <div
+      data-sim-extension-ignore
       className={cn(
         'flex h-[30px] w-full items-center gap-1.5 px-2',
         chipFieldSurfaceClass,

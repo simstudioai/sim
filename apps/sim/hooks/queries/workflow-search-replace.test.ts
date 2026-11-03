@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { WorkflowSearchMatch } from '@/lib/workflows/search-replace/types'
-import { buildWorkflowSearchMcpToolReplacementOptions } from '@/hooks/queries/workflow-search-replace'
+import {
+  buildWorkflowSearchMcpToolReplacementOptions,
+  workflowSearchFileLookups,
+} from '@/hooks/queries/workflow-search-replace'
 
 function createMcpToolMatch(serverId?: string): WorkflowSearchMatch {
   return {
@@ -60,5 +63,42 @@ describe('buildWorkflowSearchMcpToolReplacementOptions', () => {
         resourceGroupKey: 'mcp-tool:server-a',
       },
     ])
+  })
+})
+
+describe('workflowSearchFileLookups', () => {
+  it('looks a value up only as what it can be', () => {
+    expect(
+      workflowSearchFileLookups([
+        'wf_abc',
+        'notes.md',
+        'docs/notes.md',
+        'workspace/ws-1/1731-ab-doc.md',
+        '/api/files/serve/workspace%2Fws-1%2F1731-ab-img.png?context=workspace',
+      ])
+    ).toEqual({
+      references: ['wf_abc', 'notes.md', 'docs/notes.md', 'workspace/ws-1/1731-ab-doc.md'],
+      keyValues: [
+        'docs/notes.md',
+        'workspace/ws-1/1731-ab-doc.md',
+        'workspace/ws-1/1731-ab-img.png',
+      ],
+    })
+  })
+
+  it('leaves a serve path with malformed percent-encoding unresolved instead of throwing', () => {
+    expect(workflowSearchFileLookups(['/api/files/serve/workspace%2Fws-1%2F%E0%A4%A.png'])).toEqual(
+      {
+        references: [],
+        keyValues: [],
+      }
+    )
+  })
+
+  it('looks a name or path holding `?` or `#` up by reference, never as a serve URL', () => {
+    expect(workflowSearchFileLookups(['what?.md', 'docs/q&a #1?.md'])).toEqual({
+      references: ['what?.md', 'docs/q&a #1?.md'],
+      keyValues: ['docs/q&a #1?.md'],
+    })
   })
 })

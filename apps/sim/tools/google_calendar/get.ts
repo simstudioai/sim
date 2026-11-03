@@ -102,6 +102,7 @@ interface GoogleCalendarGetV2Response {
 
 export const getV2Tool: ToolConfig<GoogleCalendarGetParams, GoogleCalendarGetV2Response> = {
   id: 'google_calendar_get_v2',
+  assistant: { effect: 'read', version: 1 },
   name: 'Google Calendar Get Event',
   description: 'Get a specific event from Google Calendar.',
   version: '2.0.0',

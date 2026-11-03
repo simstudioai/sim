@@ -1,5 +1,5 @@
 import { mkdtempSync } from 'node:fs'
-import { createServer, type Server } from 'node:http'
+import { createServer, type IncomingMessage, type Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -62,6 +62,36 @@ const CAPABILITIES_FIXTURE = `<!doctype html><title>Capabilities fixture</title>
 const POPUP_FIXTURE = `<!doctype html><title>Authorize fixture</title>
 <button onclick="window.opener.postMessage('granted', '*'); window.close()">Allow</button>`
 
+/** Sign-in and payment popup patterns: blank-then-navigate, and form posts into a new tab. */
+const popupsFixture = (
+  appOrigin: string,
+  popupOrigin: string
+) => `<!doctype html><title>Popups fixture</title>
+<form id="same-session" method="post" action="${popupOrigin}/echo" target="_blank"><input name="note" value="hello"></form>
+<form id="cross-session" method="post" action="${appOrigin}/echo" target="_blank"><input name="note" value="hello"></form>
+<script>
+  let popup = null;
+  function signIn() {
+    popup = window.open('', 'signin', 'width=400,height=400');
+    document.body.dataset.handle = String(popup !== null);
+    popup?.document.write('<script>opener.postMessage("ready", "*")<\\/script>');
+  }
+  addEventListener('message', (event) => {
+    if (event.data !== 'ready') return void (document.body.dataset.connected = event.data);
+    document.body.dataset.blank = 'ready';
+    popup.location.href = new URLSearchParams(location.search).get('next') || '${popupOrigin}/authorize';
+  });
+</script>`
+
+async function readBody(request: IncomingMessage): Promise<string> {
+  let body = ''
+  for await (const chunk of request) body += chunk.toString()
+  return body
+}
+
+const echoPage = (method: string | undefined, body: string) =>
+  `<!doctype html><title>${method} ${body}</title>`
+
 const UPLOAD_TARGET_FIXTURE = `<!doctype html><title>Upload target fixture</title>
 <div id="surface"></div>
 <script>
@@ -105,6 +135,7 @@ test.describe('browser tools', () => {
   let window: Page
   let callCount = 0
   let beforeUploadResponse: (() => Promise<void>) | undefined
+  const appEchoes: string[] = []
 
   test.beforeAll(async () => {
     server = createServer(async (request, response) => {
@@ -153,8 +184,7 @@ test.describe('browser tools', () => {
         return
       }
       if (path === '/api/desktop/tool/file') {
-        let body = ''
-        for await (const chunk of request) body += chunk.toString()
+        const body = await readBody(request)
         const { toolCallId, index } = JSON.parse(body)
         const reference = claimed.get(toolCallId)?.args.paths
         const found = Array.isArray(reference) && reference[index] === 'files/receipt.txt'
@@ -192,9 +222,25 @@ test.describe('browser tools', () => {
         )
         return
       }
+      if (path === '/echo') {
+        const body = await readBody(request)
+        appEchoes.push(`${request.method} ${body}`)
+        response.writeHead(200, { 'Content-Type': 'text/html' })
+        response.end(echoPage(request.method, body))
+        return
+      }
+      if (path === '/authorize') {
+        response.writeHead(200, { 'Content-Type': 'text/html' })
+        response.end(POPUP_FIXTURE)
+        return
+      }
+      if (path === '/popups') {
+        response.writeHead(200, { 'Content-Type': 'text/html' })
+        response.end(popupsFixture(origin, popupOrigin))
+        return
+      }
       if (path === '/api/desktop/tool/authorize') {
-        let body = ''
-        for await (const chunk of request) body += chunk.toString()
+        const body = await readBody(request)
         const authorization = calls.get(JSON.parse(body).toolCallId)
         calls.delete(JSON.parse(body).toolCallId)
         if (authorization) claimed.set(JSON.parse(body).toolCallId, authorization)
@@ -224,9 +270,11 @@ test.describe('browser tools', () => {
     origin = `http://127.0.0.1:${address.port}`
     /** Pages outside the app origin browse in the agent partition, like any third-party site. */
     site = origin.replace('127.0.0.1', 'localhost')
-    popupServer = createServer((_request, response) => {
+    popupServer = createServer(async (request, response) => {
       response.writeHead(200, { 'Content-Type': 'text/html' })
-      response.end(POPUP_FIXTURE)
+      response.end(
+        request.url === '/echo' ? echoPage(request.method, await readBody(request)) : POPUP_FIXTURE
+      )
     })
     await new Promise<void>((resolve) => popupServer.listen(0, '127.0.0.1', resolve))
     const popupAddress = popupServer.address()
@@ -276,6 +324,7 @@ test.describe('browser tools', () => {
 
   test.afterEach(async () => {
     beforeUploadResponse = undefined
+    appEchoes.length = 0
     await app?.close()
     calls.clear()
     claimed.clear()
@@ -624,6 +673,111 @@ test.describe('browser tools', () => {
         async () => ((await execute('browser_list_tabs', {})).result as { tabs: unknown[] }).tabs
       )
       .toHaveLength(1)
+  })
+
+  const tabsState = () =>
+    window.evaluate(
+      (scope) =>
+        (
+          globalThis as typeof globalThis & { simDesktop: SimDesktopApi }
+        ).simDesktop.browserAgent.activateScope(scope),
+      SCOPE
+    )
+  const tabUrls = async () => (await tabsState()).tabs.map((tab) => tab.url)
+  /** Runs script in a page with a user gesture, as the user's own click would. */
+  const inPage = (url: string, code: string) =>
+    app.evaluate(
+      ({ webContents }, { url, code }) =>
+        webContents
+          .getAllWebContents()
+          .find((contents) => contents.getURL() === url)
+          ?.executeJavaScript(code, true),
+      { url, code }
+    )
+  const pageDataset = (url: string) => inPage(url, '({ ...document.body.dataset })')
+
+  test('adopts a blank popup that keeps its opener and returns there when it closes', async () => {
+    const openerUrl = `${site}/popups`
+    expect((await execute('browser_open_url', { url: openerUrl })).ok).toBe(true)
+    // A second tab makes the strip neighbour differ from the opener.
+    expect((await execute('browser_open_tab', { url: `${site}/other` })).ok).toBe(true)
+    const openerTabId = (await tabsState()).tabs.find((tab) => tab.url === openerUrl)?.tabId
+    expect(openerTabId).toBeTruthy()
+
+    await inPage(openerUrl, 'signIn()')
+    await expect
+      .poll(() => pageDataset(openerUrl))
+      .toMatchObject({ handle: 'true', blank: 'ready' })
+    await expect.poll(tabUrls).toContain(`${popupOrigin}/authorize`)
+    const popupTab = (await tabsState()).tabs.find((tab) => tab.url === `${popupOrigin}/authorize`)
+    expect(popupTab?.active).toBe(true)
+
+    await inPage(`${popupOrigin}/authorize`, "document.querySelector('button').click()")
+    await expect.poll(() => pageDataset(openerUrl)).toMatchObject({ connected: 'granted' })
+    await expect.poll(async () => (await tabsState()).tabs.length).toBe(2)
+    expect((await tabsState()).activeTabId).toBe(openerTabId)
+  })
+
+  test('forgets the opener once the user switches tabs, closing the popup to its neighbour', async () => {
+    const openerUrl = `${site}/popups`
+    expect((await execute('browser_open_url', { url: openerUrl })).ok).toBe(true)
+    expect((await execute('browser_open_tab', { url: `${site}/other` })).ok).toBe(true)
+    const otherTabId = (await tabsState()).tabs.find((tab) => tab.url === `${site}/other`)?.tabId
+    await inPage(openerUrl, 'signIn()')
+    await expect.poll(tabUrls).toContain(`${popupOrigin}/authorize`)
+    const popupTabId = (await tabsState()).tabs.find(
+      (tab) => tab.url === `${popupOrigin}/authorize`
+    )?.tabId
+    for (const tabId of [otherTabId, popupTabId]) {
+      await window.evaluate(
+        ({ tabId, scope }) =>
+          (
+            globalThis as typeof globalThis & { simDesktop: SimDesktopApi }
+          ).simDesktop.browserAgent.panelAction({ action: 'switch-tab', tabId }, scope),
+        { tabId, scope: SCOPE }
+      )
+      await expect.poll(async () => (await tabsState()).activeTabId).toBe(tabId)
+    }
+
+    await inPage(`${popupOrigin}/authorize`, "document.querySelector('button').click()")
+    await expect.poll(() => pageDataset(openerUrl)).toMatchObject({ connected: 'granted' })
+    await expect.poll(async () => (await tabsState()).tabs.length).toBe(2)
+    expect((await tabsState()).activeTabId).toBe(otherTabId)
+  })
+
+  test('keeps data: popups denied', async () => {
+    const openerUrl = `${site}/popups`
+    expect((await execute('browser_open_url', { url: openerUrl })).ok).toBe(true)
+    expect(await inPage(openerUrl, "String(window.open('data:text/html,x') !== null)")).toBe(
+      'false'
+    )
+    expect((await tabsState()).tabs).toHaveLength(1)
+  })
+
+  test('posts a same-session form popup and refuses to reissue a cross-session one', async () => {
+    const openerUrl = `${site}/popups`
+    expect((await execute('browser_open_url', { url: openerUrl })).ok).toBe(true)
+    await inPage(openerUrl, "document.getElementById('same-session').requestSubmit()")
+    await expect.poll(() => inPage(`${popupOrigin}/echo`, 'document.title')).toBe('POST note=hello')
+
+    const before = (await tabsState()).tabs.length
+    await inPage(openerUrl, "document.getElementById('cross-session').requestSubmit()")
+    // The handler decides popups in order, so once this one is listed the post was decided.
+    await inPage(openerUrl, `void window.open('${site}/sentinel')`)
+    await expect.poll(tabUrls).toContain(`${site}/sentinel`)
+    expect((await tabsState()).tabs).toHaveLength(before + 1)
+    expect(appEchoes).toEqual([])
+  })
+
+  test('keeps the opener of a Sim page blank popup that navigates within Sim', async () => {
+    const openerUrl = `${origin}/popups?next=${encodeURIComponent(`${origin}/authorize`)}`
+    expect((await execute('browser_open_url', { url: openerUrl })).ok).toBe(true)
+    await inPage(openerUrl, 'signIn()')
+    await expect.poll(tabUrls).toContain(`${origin}/authorize`)
+    await inPage(`${origin}/authorize`, "document.querySelector('button').click()")
+    await expect
+      .poll(() => pageDataset(openerUrl))
+      .toMatchObject({ handle: 'true', connected: 'granted' })
   })
 
   test('renders PDFs in the built-in viewer', async () => {

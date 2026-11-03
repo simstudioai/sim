@@ -5,7 +5,7 @@ import { vi } from 'vitest'
  * `@/lib/logs/execution/logging-session`. Every instance method is backed by a
  * shared `vi.fn()` so tests that construct multiple sessions observe identical
  * mock state. `mockSafeStart` defaults to `true` because callers branch on the
- * boolean result. Display projection methods (incl. `projectTraceSpansForLiveDisplay`) return
+ * boolean result, and `mockWhenLogStarted` resolves at once, as for a log already written. Display projection methods (incl. `projectTraceSpansForLiveDisplay`) return
  * their input, diagnostic projection fails closed to structural metadata, `hasCompleted` is
  * `false`, `getPersistedCompletionStatus` and `getDeletedScope` are `null`, and other methods
  * resolve to `undefined`.
@@ -26,6 +26,7 @@ export const loggingSessionMockFns = {
   mockCompleteWithCancellation: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
   mockCompleteWithPause: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
   mockSafeStart: vi.fn(async (..._args: unknown[]): Promise<boolean> => true),
+  mockWhenLogStarted: vi.fn(async (): Promise<void> => {}),
   mockWaitForCompletion: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
   mockWaitForPostExecution: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
   mockSetTrustedExecutionCorrelation: vi.fn(),
@@ -73,6 +74,7 @@ function buildLoggingSessionInstance() {
     completeWithCancellation: loggingSessionMockFns.mockCompleteWithCancellation,
     completeWithPause: loggingSessionMockFns.mockCompleteWithPause,
     safeStart: loggingSessionMockFns.mockSafeStart,
+    whenLogStarted: loggingSessionMockFns.mockWhenLogStarted,
     waitForCompletion: loggingSessionMockFns.mockWaitForCompletion,
     waitForPostExecution: loggingSessionMockFns.mockWaitForPostExecution,
     setTrustedExecutionCorrelation: loggingSessionMockFns.mockSetTrustedExecutionCorrelation,

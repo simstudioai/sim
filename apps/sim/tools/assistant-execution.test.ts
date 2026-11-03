@@ -8,6 +8,9 @@ import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolve
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { InternalToolConfig } from '@/tools/types'
 
+// Compile the lazy authorization graph before the first test's execution deadline.
+import '@/lib/assistant-actions/execution-scope'
+
 const { getTool, resolveToken, operation, resolvePersonalToken } = vi.hoisted(() => ({
   getTool: vi.fn(),
   resolveToken: vi.fn(),
@@ -68,6 +71,7 @@ function tool(id: string): InternalToolConfig {
     name: id,
     description: 'Personal integration fixture',
     version: '1.0.0',
+    assistant: { effect: 'read', version: 1 },
     oauth: { required: true, provider: 'google-drive' },
     params: { accessToken: { type: 'string', visibility: 'hidden' } },
     operation: { input: (params) => params },

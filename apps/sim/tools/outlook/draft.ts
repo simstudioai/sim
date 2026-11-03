@@ -6,6 +6,17 @@ export const outlookDraftTool: InternalToolConfig<OutlookDraftParams, OutlookDra
   name: 'Outlook Draft',
   description: 'Draft emails using Outlook',
   version: '1.0.0',
+  assistant: {
+    effect: 'write',
+    version: 1,
+    reviewFields: [
+      { name: 'to', label: 'To', target: true },
+      { name: 'cc', label: 'Cc', target: true },
+      { name: 'bcc', label: 'Bcc', target: true },
+      { name: 'subject', label: 'Subject', editable: true },
+      { name: 'body', label: 'Message', format: 'multiline', editable: true },
+    ],
+  },
 
   oauth: {
     required: true,

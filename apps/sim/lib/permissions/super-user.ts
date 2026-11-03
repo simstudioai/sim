@@ -42,20 +42,17 @@ export async function verifyEffectiveSuperUser(
 }
 
 /**
- * True when the user is a platform admin (`role === 'admin'`). A single-column read
- * served from the replica: this gates features, not security-critical auth, so it
- * tolerates the replica's bounded staleness (admin role rarely changes). Falls back
- * to the primary when no replica is configured.
- *
- * Request-memoized: an account-settings render checks the same viewer in both the
- * layout and the page.
+ * Reads platform-admin status from the supplied transaction or, by default, the replica.
+ * Request-memoized by viewer and executor so transactions never reuse another connection's result.
  */
-export const isPlatformAdmin = cache(async (userId: string): Promise<boolean> => {
-  const [row] = await dbReplica
-    .select({ role: user.role })
-    .from(user)
-    .where(eq(user.id, userId))
-    .limit(1)
+export const isPlatformAdmin = cache(
+  async (userId: string, executor: DbOrTx = dbReplica): Promise<boolean> => {
+    const [row] = await executor
+      .select({ role: user.role })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1)
 
-  return row?.role === 'admin'
-})
+    return row?.role === 'admin'
+  }
+)

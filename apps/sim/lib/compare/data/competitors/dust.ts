@@ -653,16 +653,21 @@ export const dustProfile: CompetitorProfile = {
     integrations: {
       integrationCount: {
         value:
-          '50+ native connections (Slack, Notion, Google Drive, Confluence, GitHub, Salesforce, HubSpot, Zendesk, and more), plus MCP servers for further extensibility',
+          '70+ connectors (Slack, Notion, Google Drive, GitHub, Salesforce, Zendesk, and more), plus MCP servers for further extensibility',
         detail:
-          "Dust's enterprise page states 'native integrations to 50+ business tools'; some third-party listings cite higher figures (100+) that likely include MCP-based and community integrations beyond the core native connector count.",
-        shortValue: '50+ native connections per Dust',
+          "Dust's homepage states 'Connect Dust to 70+ connectors, including Slack, Notion, Google Drive, GitHub, Salesforce, and Zendesk.' Its pricing page separately lists 'Connectors to 20+ data sources' in the plan comparison, so the two vendor pages count different sets.",
+        shortValue: '70+ connectors per Dust',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://dust.tt/home/enterprise',
-            label: 'Dust for Enterprise',
-            asOf: '2026-07-02',
+            url: 'https://dust.tt/',
+            label: 'Dust homepage',
+            asOf: '2026-11-02',
+          },
+          {
+            url: 'https://dust.tt/home/pricing',
+            label: 'Dust Pricing',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -785,7 +790,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://dust.tt/home/pricing',
             label: 'Dust Pricing',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -800,7 +805,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://dust.tt/home/pricing',
             label: 'Dust Pricing',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -815,12 +820,12 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://dust.tt/home/pricing',
             label: 'Dust Pricing',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://docs.dust.tt/docs/subscriptions',
             label: 'Subscriptions & Payments | Dust Docs',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -835,12 +840,12 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://dust.tt/home/pricing',
             label: 'Dust Pricing',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://docs.dust.tt/docs/credits',
             label: 'Credits | Dust Docs',
-            asOf: '2026-10-15',
+            asOf: '2026-11-02',
           },
         ],
       },

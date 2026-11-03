@@ -1,7 +1,8 @@
 import { cache } from 'react'
+import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { member, organization } from '@sim/db/schema'
-import { asc, count, eq } from 'drizzle-orm'
+import { member, organization, session } from '@sim/db/schema'
+import { and, asc, count, eq } from 'drizzle-orm'
 import {
   getOrganizationSettingsFeatures,
   type OrganizationSettingsFeatures,
@@ -12,17 +13,17 @@ import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isInvitationsDisabled } from '@/lib/core/config/env-flags'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
+import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import {
-  type KnowledgeAccessAvailability,
-  resolveKnowledgeAccessAvailability,
-} from '@/lib/knowledge/access/availability'
+  type OrganizationChatAccess,
+  projectOrganizationChatAccess,
+} from '@/lib/organizations/chat-access'
 import { getOrganizationSettingsAccess } from '@/lib/organizations/settings-access'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import {
   getUserPermissionConfigForOrganization,
   isOrganizationPermissionRegimeActive,
 } from '@/lib/permission-groups/resolve.server'
-import { canCreateOrganizationWorkspace } from '@/lib/workspaces/policy'
 
 export interface OrganizationSurfaceOrganization {
   id: string
@@ -48,13 +49,10 @@ interface OrganizationSurfaceViewer {
  * result is an explicit access denial — the viewer is not a member, or there is no
  * such organization.
  */
-export interface OrganizationSurfaceContext {
+export interface OrganizationSurfaceContext extends OrganizationChatAccess {
   organization: OrganizationSurfaceOrganization
   viewer: OrganizationSurfaceViewer
   connectedAccountsAvailable: boolean
-  mothershipAvailable: boolean
-  canBuild: boolean
-  searchAccess: KnowledgeAccessAvailability
   settingsFeatures: OrganizationSettingsFeatures
   deployment: DeploymentShape
 }
@@ -138,11 +136,7 @@ async function resolveOrganizationSurfaceContext(
         !capabilityDeniedBy('oauth_apps.use', config),
     },
     connectedAccountsAvailable,
-    mothershipAvailable: !capabilityDeniedBy('copilot.use', config),
-    canBuild:
-      !capabilityDeniedBy('copilot.use', config) &&
-      canCreateOrganizationWorkspace(access.role, config),
-    searchAccess,
+    ...projectOrganizationChatAccess({ role: access.role, config, searchAccess }),
     settingsFeatures: getOrganizationSettingsFeatures(
       hasEnterprisePlan,
       deployment,
@@ -178,4 +172,20 @@ export async function resolveOrganizationLanding(
     activeOrganizationId !== null &&
     memberships.some((row) => row.organizationId === activeOrganizationId)
   return isActiveMember ? activeOrganizationId : memberships[0].organizationId
+}
+
+/**
+ * {@link resolveOrganizationLanding} for a session known only by its principal, reading the
+ * active organization stored on the session, so an API call lands where a page load would.
+ */
+export async function resolveSessionOrganizationLanding({
+  userId,
+  sessionId,
+}: SessionPrincipal): Promise<string | null> {
+  const [row] = await db
+    .select({ activeOrganizationId: session.activeOrganizationId })
+    .from(session)
+    .where(and(eq(session.id, sessionId), eq(session.userId, userId)))
+    .limit(1)
+  return resolveOrganizationLanding(userId, row?.activeOrganizationId ?? null)
 }

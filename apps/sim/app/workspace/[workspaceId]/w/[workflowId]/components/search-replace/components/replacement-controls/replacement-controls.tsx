@@ -13,6 +13,8 @@ interface ReplacementControlsProps {
   canReplaceActive: boolean
   canReplaceAll: boolean
   onReplacementChange: (replacement: string) => void
+  /** Hears what is typed in the resource picker, which file options are searched by. */
+  onReplacementSearchChange: (query: string) => void
   onReplaceActive: () => void
   onReplaceAll: () => void
 }
@@ -27,6 +29,7 @@ export function ReplacementControls({
   canReplaceActive,
   canReplaceAll,
   onReplacementChange,
+  onReplacementSearchChange,
   onReplaceActive,
   onReplaceAll,
 }: ReplacementControlsProps) {
@@ -42,6 +45,7 @@ export function ReplacementControls({
           onChange={onReplacementChange}
           placeholder='Choose replacement...'
           searchable
+          onSearchChange={onReplacementSearchChange}
           searchPlaceholder='Search resources...'
           emptyMessage='No valid replacements available'
           disabled={disabled || compatibleResourceOptions.length === 0}

@@ -729,7 +729,8 @@ describe('workflow client tool completion', () => {
     expect(completion).toEqual({
       status: 'background',
       message: 'Workflow execution is continuing in the background.',
-      data: { workflowId: 'workflow-1', executionId: 'execution-1' },
+      // A WorkflowToolRunningResult: the worker waits on the run by these ids.
+      data: { workflowId: 'workflow-1', executionId: 'execution-1', status: 'running' },
     })
     expect(registry.isComplete()).toBe(true)
     expect(getTrustedWorkflowToolExecution).not.toHaveBeenCalled()

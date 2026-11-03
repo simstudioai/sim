@@ -109,6 +109,7 @@ import { useResourceListPreferences } from '@/hooks/use-resource-list-preference
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
 import type { WorkflowFolder } from '@/stores/folders/types'
+import { useInFlightUploadsStore } from '@/stores/in-flight-uploads/store'
 import type { ResourceListPreference } from '@/stores/resource-list-preferences'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 
@@ -1175,6 +1176,7 @@ function TablesContent() {
       return
     }
 
+    const releaseUpload = useInFlightUploadsStore.getState().begin()
     try {
       setUploadProgress({ completed: 0, total: csvFiles.length })
       for (let index = 0; index < csvFiles.length; index++) {
@@ -1212,6 +1214,7 @@ function TablesContent() {
       logger.error('Error uploading CSV:', err)
       toast.error('Failed to import CSV')
     } finally {
+      releaseUpload()
       setUploadProgress({ completed: 0, total: 0 })
       if (csvInputRef.current) {
         csvInputRef.current.value = ''

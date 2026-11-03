@@ -100,12 +100,14 @@ async function applyUserUpdate(
     await syncAccountIdentityTx(tx, { userId: current.userId, name: nextName })
   }
 
+  let stoppedRuns: StoppedRun[] = []
   if (deactivated) {
-    await suspendMemberTx(tx, {
+    const suspension = await suspendMemberTx(tx, {
       userId: current.userId,
       organizationId: context.organizationId,
       source: 'scim',
     })
+    stoppedRuns = suspension.stoppedRuns
   } else if (reactivated) {
     await unsuspendMemberTx(tx, { userId: current.userId, source: 'scim' })
   }
@@ -120,12 +122,13 @@ async function applyUserUpdate(
     connectionId: context.connection.id,
     organizationId: context.organizationId,
     scimUserId: current.id,
-    settings: context.connection.settings,
   })
 
   return {
     outcome: { emailChanged, deactivated, reactivated },
-    stoppedRuns: projection.stoppedRuns,
+    stoppedRuns: [
+      ...new Map([...stoppedRuns, ...projection.stoppedRuns].map((run) => [run.id, run])).values(),
+    ],
   }
 }
 

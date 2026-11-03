@@ -11,7 +11,8 @@ interface UseEditorMentionsOptions {
 
 /**
  * Wires an editor's `@` mention menu to its workspace data: gates the menu on a workspace scope,
- * lazily fetches the data on the first open, and feeds it into the menu's reactive store. Shared by
+ * lazily fetches the data on the first open, searches files by what is typed after the `@`, and
+ * feeds it into the menu's reactive store. Shared by
  * every editor surface that mounts the mention extension (the file editor and the modal field).
  */
 export function useEditorMentions(
@@ -20,7 +21,8 @@ export function useEditorMentions(
   options?: UseEditorMentionsOptions
 ): void {
   const [active, setActive] = useState(false)
-  const items = useMarkdownMentions(workspaceId, { enabled: active })
+  const [query, setQuery] = useState('')
+  const menu = useMarkdownMentions(workspaceId, { enabled: active, fileQuery: query })
   const navigable = options?.navigable ?? false
   const disableTagging = options?.disableTagging ?? false
 
@@ -30,12 +32,14 @@ export function useEditorMentions(
     editor.storage.mentionMenu.enabled = taggingOn
     editor.storage.mentionMenu.navigable = navigable
     editor.storage.mentionMenu.onOpen = taggingOn ? () => setActive(true) : null
+    editor.storage.mentionMenu.onQuery = taggingOn ? setQuery : null
     return () => {
       editor.storage.mentionMenu.onOpen = null
+      editor.storage.mentionMenu.onQuery = null
     }
   }, [editor, workspaceId, navigable, disableTagging])
 
   useEffect(() => {
-    editor?.storage.mentionMenu.store.set(items)
-  }, [editor, items])
+    editor?.storage.mentionMenu.store.set(menu)
+  }, [editor, menu])
 }

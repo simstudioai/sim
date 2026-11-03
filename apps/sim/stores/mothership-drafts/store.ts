@@ -87,7 +87,18 @@ export const useMothershipDraftsStore = create<MothershipDraftsState>()(
         version: 1,
         migrate: (persistedState, version) =>
           (version ?? 0) < 1 ? dropLegacyWorkflowCopilotDrafts(persistedState) : persistedState,
-        partialize: (state) => ({ drafts: state.drafts }),
+        partialize: (state) => {
+          const drafts: Record<string, DraftPayload> = {}
+          for (const [key, payload] of Object.entries(state.drafts)) {
+            const contexts = payload.contexts?.filter((context) => context.kind !== 'browser_page')
+            const persistedPayload: DraftPayload = {
+              ...payload,
+              contexts: contexts?.length ? contexts : undefined,
+            }
+            if (!isEmpty(persistedPayload)) drafts[key] = persistedPayload
+          }
+          return { drafts }
+        },
       }
     ),
     { name: 'mothership-drafts-store' }

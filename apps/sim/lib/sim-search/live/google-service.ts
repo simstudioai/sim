@@ -24,6 +24,8 @@ const SOURCE_REQUEST_BUDGET = 30
 /** Distinct ancestor folders a restricted Drive page may read while verifying its files. */
 const DRIVE_FOLDER_RESERVE = 9
 const DAY_MS = 86400000
+/** Source users a session delegates to; more are reported as partial coverage. */
+const MAX_SUBJECTS = 6
 
 interface GoogleServiceSession {
   verify(document: Reference): Promise<boolean>
@@ -49,11 +51,18 @@ export async function createGoogleServiceVerifier(input: {
   pool?: PinnedConnectionPool
 }): Promise<GoogleServiceSession> {
   const { provider, token, member, config, policy, signal, pool } = input
-  if (!token.getDelegatedAccessToken)
+  const { getDelegatedAccessToken } = token
+  if (!getDelegatedAccessToken)
     throw new NativeSearchError(
       'unavailable',
       'Configure a Google Workspace service account with domain-wide delegation.'
     )
+  /** The administrator lookup does not depend on the member identity, so both run at once. */
+  const administratorLookup = getGoogleWorkspaceUser(token.accessToken, string(config.adminEmail), {
+    signal,
+  })
+  // Awaited below; this keeps it handled when the identity lookup fails first.
+  administratorLookup.catch(() => undefined)
   const identity = object(
     await member.json(
       provider === 'gmail'
@@ -78,9 +87,7 @@ export async function createGoogleServiceVerifier(input: {
       'reconnect',
       'The connected Google account identity could not be verified.'
     )
-  const administrator = await getGoogleWorkspaceUser(token.accessToken, string(config.adminEmail), {
-    signal,
-  })
+  const administrator = await administratorLookup
   if (!administrator?.active)
     throw new NativeSearchError('unavailable', 'The source Directory administrator is unavailable.')
   const selected = selectedGoogleWorkspaceUsers(config.userEmails)
@@ -88,37 +95,42 @@ export async function createGoogleServiceVerifier(input: {
   if (provider !== 'google_drive' && selected.length && !selected.includes(email)) {
     return { verify: async () => false, partial: false, scopeSearch: () => null }
   }
-  const clients: {
-    email: string
-    client: NativeClient
-    verifyPolicy: ReturnType<typeof createPolicyVerifier>
-  }[] = []
-  for (const subject of subjects.slice(0, 6)) {
-    signal.throwIfAborted()
-    const person = await getGoogleWorkspaceUser(token.accessToken, subject, { signal })
-    if (
-      !person?.active ||
-      person.customerId !== administrator.customerId ||
-      person.email !== subject
-    )
-      continue
-    const accessToken = await token.getDelegatedAccessToken(person.email, signal)
-    const client = createNativeClient({
-      origin: 'https://www.googleapis.com',
-      accessToken,
-      signal,
-      pool,
+  /**
+   * Each subject's Directory check and token mint run alongside the others'; results keep the
+   * configured subject order, and the first failure in that order fails the session.
+   */
+  const delegations = await Promise.allSettled(
+    subjects.slice(0, MAX_SUBJECTS).map(async (subject) => {
+      signal.throwIfAborted()
+      const person = await getGoogleWorkspaceUser(token.accessToken, subject, { signal })
+      if (
+        !person?.active ||
+        person.customerId !== administrator.customerId ||
+        person.email !== subject
+      )
+        return undefined
+      const accessToken = await getDelegatedAccessToken(person.email, signal)
+      const client = createNativeClient({
+        origin: 'https://www.googleapis.com',
+        accessToken,
+        signal,
+        pool,
+      })
+      return {
+        email: person.email,
+        client,
+        verifyPolicy: createPolicyVerifier(provider, policy, client, 'https://www.googleapis.com'),
+      }
     })
-    clients.push({
-      email: person.email,
-      client,
-      verifyPolicy: createPolicyVerifier(provider, policy, client, 'https://www.googleapis.com'),
-    })
-  }
-  let partial = subjects.length > 6
+  )
+  const clients = delegations.flatMap((delegation) => {
+    if (delegation.status === 'rejected') throw delegation.reason
+    return delegation.value ? [delegation.value] : []
+  })
+  let partial = subjects.length > MAX_SUBJECTS
   if (provider === 'google_drive' && !selected.length && !clients.length) {
     signal.throwIfAborted()
-    const accessToken = await token.getDelegatedAccessToken(administrator.email, signal)
+    const accessToken = await getDelegatedAccessToken(administrator.email, signal)
     const client = createNativeClient({
       origin: 'https://www.googleapis.com',
       accessToken,

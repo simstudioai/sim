@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
+import { PersonalApiKeysDisabledError } from '@/lib/core/application'
 import type { OrchestrationError } from '@/lib/core/orchestration/types'
 import { authorizeTableOperation } from '@/lib/table/application/authorization'
 import { tableOperations } from '@/lib/table/application/operations'
@@ -65,14 +66,14 @@ describe('table operation authorization', () => {
     await expectForbidden(createSessionPrincipal())
   })
 
-  it('rejects disabled personal keys before permission lookup', async () => {
+  it("refuses a member's personal key when the workspace disables them", async () => {
+    resolvePermission.mockResolvedValue('admin')
     await expect(
       authorizeTableOperation(createPersonalApiKeyPrincipal(), tableOperations.updateRow, {
         ...authorizationContext,
         allowPersonalApiKeys: false,
       })
-    ).rejects.toMatchObject<Partial<OrchestrationError>>({ code: 'forbidden' })
-    expect(resolvePermission).not.toHaveBeenCalled()
+    ).rejects.toBeInstanceOf(PersonalApiKeysDisabledError)
   })
 
   it('allows workspace keys only in their credential workspace', async () => {

@@ -29,7 +29,7 @@ describe.skipIf(!smokeEnabled)('pi sandbox billing smoke', () => {
   it(
     'bills the session a Pi sandbox was held for',
     async () => {
-      const pricing = createSandboxPricing(resolveProvider().id)
+      const pricing = createSandboxPricing(resolveProvider().id, 'pi')
       const usdPerBilledSecond =
         (pricing.resources.vcpu * pricing.rates.cpuUsdPerVcpuSecond +
           pricing.resources.memoryGiB * pricing.rates.memoryUsdPerGiBSecond +

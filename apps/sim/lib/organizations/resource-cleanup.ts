@@ -8,6 +8,7 @@ import { env } from '@/lib/core/config/env'
 import { enqueueOutboxEvent, type OutboxHandlerRegistry } from '@/lib/core/outbox/service'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbTransaction } from '@/lib/db/types'
+import { enqueueMemoryCleanup } from '@/lib/mothership/memories/cleanup-outbox'
 import { ORGANIZATION_RESOURCE_CLEANUP_EVENT } from '@/lib/organizations/resource-cleanup-event'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 
@@ -35,7 +36,8 @@ const organizationResourceCleanupSchema = z.discriminatedUnion('kind', [
  * Captures canonical bindings before the org FK cascade removes them. The org
  * row lock excludes new direct resources; a rebound resource is checked again
  * by the worker. Each keyset page becomes its own bounded outbox event in the
- * caller's delete transaction, so rollback cannot leave cleanup work behind.
+ * caller's delete transaction, so rollback cannot leave cleanup work behind. The
+ * members' private Mothership memory in the organization is erased the same way.
  */
 export async function enqueueOrganizationResourceCleanup(
   tx: DbTransaction,
@@ -105,6 +107,8 @@ export async function enqueueOrganizationResourceCleanup(
     chatCursor = chats[chats.length - 1].id
     if (chats.length < CLEANUP_BATCH_SIZE) break
   }
+
+  await enqueueMemoryCleanup(tx, [{ kind: 'organization', organizationId }])
 }
 
 export const organizationResourceCleanupOutboxHandlers = {

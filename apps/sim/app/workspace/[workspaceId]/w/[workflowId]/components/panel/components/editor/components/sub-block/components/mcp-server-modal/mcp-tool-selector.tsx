@@ -2,6 +2,10 @@
 
 import { useMemo } from 'react'
 import { Combobox } from '@sim/emcn'
+import {
+  createMcpToolOutputSnapshot,
+  MCP_TOOL_OUTPUT_SCHEMA_SUBBLOCK,
+} from '@/lib/mcp/output-schema'
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -35,6 +39,7 @@ export function McpToolSelector({
 
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
   const [, setSchemaCache] = useSubBlockValue(blockId, '_toolSchema')
+  const [, setOutputSchemaSnapshot] = useSubBlockValue(blockId, MCP_TOOL_OUTPUT_SCHEMA_SUBBLOCK)
 
   const { server: serverValue } = useMcpBlockConfig({ blockId, previewContextValues })
 
@@ -68,6 +73,11 @@ export function McpToolSelector({
     const matchedTool = availableTools.find((tool) => tool.name === value)
     setStoreValue(matchedTool?.name ?? value)
     setSchemaCache(matchedTool?.inputSchema ?? null)
+    setOutputSchemaSnapshot(
+      matchedTool && typeof serverValue === 'string'
+        ? createMcpToolOutputSnapshot(serverValue, matchedTool.name, matchedTool.outputSchema)
+        : null
+    )
   }
 
   const handleOpenChange = (isOpen: boolean) => {

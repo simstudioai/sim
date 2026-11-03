@@ -18,6 +18,7 @@ import {
   createCoordinatedMcpOauthFetch,
   createMcpEndpointFetch,
 } from '@/lib/mcp/oauth/coordinated-fetch'
+import { readMcpToolOutputSchema } from '@/lib/mcp/output-schema'
 import { createGuardedMcpFetch, createPinnedPrivateMcpFetch } from '@/lib/mcp/pinned-fetch'
 import {
   type McpClientOptions,
@@ -384,10 +385,12 @@ export class McpClient {
             truncated = 'byte size'
             break
           }
+          const outputSchema = readMcpToolOutputSchema(tool.outputSchema)
           tools.push({
             name: tool.name,
             description: tool.description,
             inputSchema: tool.inputSchema as McpTool['inputSchema'],
+            ...(outputSchema ? { outputSchema } : {}),
             serverId: this.config.id,
             serverName: this.config.name,
           })

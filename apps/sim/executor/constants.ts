@@ -196,6 +196,12 @@ export const DEFAULTS = {
   BLOCK_TITLE: 'Untitled Block',
   WORKFLOW_NAME: 'Workflow',
   DEFAULT_LOOP_ITERATIONS: 1000,
+  /**
+   * Most iterations a condition-driven loop (While, or Do While with a condition) may run.
+   * Its body can leave the condition unchanged, and billing-disabled deployments run
+   * untimed, so without this a stuck condition repeats until the process is stopped.
+   */
+  MAX_CONDITION_LOOP_ITERATIONS: 10_000,
   MAX_PARALLEL_BRANCHES: 20,
   MAX_NESTING_DEPTH: 10,
   /** Maximum child workflow depth for propagating SSE callbacks (block:started, block:completed). */

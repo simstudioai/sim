@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { toRecord, toRecordOrNull } from '@sim/utils/object'
 import { parseLargeExecutionValue } from '@/lib/execution/payloads/large-execution-value'
 import { compactWorkflowVariableValue } from '@/lib/execution/payloads/serializer'
 import type { BlockOutput } from '@/blocks/types'
@@ -56,6 +57,42 @@ function setWorkflowVariableProvenance(
   })
 }
 
+interface AssignmentTarget {
+  name: string
+  type: string
+}
+
+function readTrimmedString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+/**
+ * The variable an assignment row writes: the one it names, else the one its `variableId`
+ * selects. A row that omits `type` takes the target variable's own type, so a programmatic
+ * `{ variableName: 'count', value: 1 }` stays a number instead of becoming the string `'1'`.
+ */
+function resolveAssignmentTarget(
+  assignment: Record<string, unknown>,
+  workflowVariables: Record<string, unknown>
+): AssignmentTarget | undefined {
+  const variableId = readTrimmedString(assignment.variableId)
+  const selected = toRecordOrNull(getWorkflowVariableEntry(workflowVariables, variableId)?.[1])
+  const name = readTrimmedString(assignment.variableName) ?? readTrimmedString(selected?.name)
+  if (!name) return undefined
+  const target =
+    selected ??
+    Object.values(workflowVariables)
+      .map(toRecordOrNull)
+      .find((variable) => variable?.name === name)
+  const type = readTrimmedString(assignment.type) ?? readTrimmedString(target?.type) ?? 'string'
+  return { name, type }
+}
+
+function hasAssignedValue(value: unknown): boolean {
+  if (value === undefined || value === null) return false
+  return typeof value !== 'string' || value.trim() !== ''
+}
+
 export class VariablesBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
     const canHandle = block.metadata?.id === BlockType.VARIABLES
@@ -72,7 +109,7 @@ export class VariablesBlockHandler implements BlockHandler {
         ctx.workflowVariables = {}
       }
 
-      const assignments = this.parseAssignments(inputs.variables)
+      const assignments = this.parseAssignments(inputs.variables, ctx.workflowVariables)
 
       const output: Record<string, any> = {}
 
@@ -127,8 +164,15 @@ export class VariablesBlockHandler implements BlockHandler {
     })
   }
 
+  /**
+   * Reads the block's assignment rows. A row targets the variable it names, or the one its
+   * `variableId` selects. A row with neither is skipped while it is blank (the editor's empty
+   * row), and fails the block when it carries a value, since that update would otherwise be
+   * dropped without a trace.
+   */
   private parseAssignments(
-    assignmentsInput: any
+    assignmentsInput: unknown,
+    workflowVariables: Record<string, unknown>
   ): Array<{ variableId?: string; variableName: string; type: string; value: any }> {
     const result: Array<{ variableId?: string; variableName: string; type: string; value: any }> =
       []
@@ -137,19 +181,25 @@ export class VariablesBlockHandler implements BlockHandler {
       return result
     }
 
-    for (const assignment of assignmentsInput) {
-      if (assignment?.variableName?.trim()) {
-        const name = assignment.variableName.trim()
-        const type = assignment.type || 'string'
-        const value = this.parseValueByType(assignment.value, type, name)
-
-        result.push({
-          variableId: assignment.variableId,
-          variableName: name,
-          type,
-          value,
-        })
+    for (const [index, row] of assignmentsInput.entries()) {
+      const assignment = toRecord(row)
+      const target = resolveAssignmentTarget(assignment, workflowVariables)
+      if (!target) {
+        if (hasAssignedValue(assignment.value)) {
+          throw new Error(
+            `Assignment ${index + 1} sets a value but names no variable. Select a workflow variable for it (variableName), or remove the row.`
+          )
+        }
+        continue
       }
+      const value = this.parseValueByType(assignment.value, target.type, target.name)
+
+      result.push({
+        variableId: readTrimmedString(assignment.variableId),
+        variableName: target.name,
+        type: target.type,
+        value,
+      })
     }
 
     return result

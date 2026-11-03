@@ -120,8 +120,9 @@ export const discoverAccessRequests = defineAuthorizedAccessRequestUseCase({
   scope: (input: DiscoverAccessRequestsInput) => input,
   async execute({ input, actorUserId, context, executor }): Promise<AccessRequestDiscovery> {
     const organizationId = context.organizationId
-    if (!organizationId || !(await isAccessRequestEnabled(organizationId, executor)))
+    if (!organizationId)
       return { enabled: false, organizationId, entries: [], total: 0, hasMore: false }
+    const enabled = await isAccessRequestEnabled(organizationId, executor)
     const catalog = await loadAccessRequestCatalog(
       {
         userId: actorUserId,
@@ -214,7 +215,7 @@ export const discoverAccessRequests = defineAuthorizedAccessRequestUseCase({
     }
     const page = entries.slice(offset, offset + (input.limit ?? 50))
     return {
-      enabled: true,
+      enabled,
       organizationId,
       entries: page,
       total: entries.length,

@@ -4,64 +4,474 @@ on:
   pull_request:
     paths:
       - 'apps/docs/**'
+      - 'apps/sim/**'
+      - 'packages/**'
+      - 'turbo.json'
+      - 'scripts/ci-plan.ts'
+      - '.github/scripts/ci-changes.sh'
+      - '.github/scripts/ci-plan.gql'
+      - '.github/ci-suites.json'
       - 'patches/next@*.patch'
       - 'package.json'
       - 'bun.lock'
       - '.github/workflows/docs-negotiation.yml'
+      - '.github/actions/docs-content-cache/**'
+      - '.github/actions/cache/**'
+      - '.github/actions/setup/**'
+      - '.github/scripts/stop-session.sh'
   push:
     branches: [staging]
     paths:
       - 'apps/docs/**'
+      - 'apps/sim/**'
+      - 'packages/**'
+      - 'turbo.json'
+      - 'scripts/ci-plan.ts'
+      - '.github/scripts/ci-changes.sh'
+      - '.github/scripts/ci-plan.gql'
+      - '.github/ci-suites.json'
       - 'patches/next@*.patch'
       - 'package.json'
       - 'bun.lock'
       - '.github/workflows/docs-negotiation.yml'
+      - '.github/actions/docs-content-cache/**'
+      - '.github/actions/cache/**'
+      - '.github/actions/setup/**'
+      - '.github/scripts/stop-session.sh'
   workflow_dispatch:
+    inputs:
+      benchmark:
+        description: Run bounded production navigation, image and Lighthouse measurements
+        type: boolean
+        default: false
+      build_ref:
+        description: Commit to build for the benchmark (empty uses this workflow revision)
+        type: string
+        default: ''
+      preview_artifact:
+        description: Save the verified production build for local visual inspection
+        type: boolean
+        default: false
+      benchmark_scope:
+        description: Full measurements, navigation without Lighthouse, or only interactive controls
+        type: choice
+        options: [full, navigation, interactions]
+        default: full
+      benchmark_production:
+        description: Also measure the public production origin (only when it permits automated access)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: docs-negotiation-${{ github.ref }}
-  cancel-in-progress: true
+  group: docs-negotiation-${{ github.ref }}-${{ inputs.benchmark && 'benchmark' || 'verification' }}
+  cancel-in-progress: ${{ !inputs.benchmark }}
 
 jobs:
-  http:
-    name: docs HTTP
+  benchmark:
+    if: github.event_name == 'workflow_dispatch' && inputs.benchmark
+    name: docs benchmark (${{ matrix.target }})
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
-    timeout-minutes: 15
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        target: ${{ fromJSON(inputs.benchmark_production && '["build","production"]' || '["build"]') }}
     env:
-      DATABASE_URL: postgresql://docs_test:docs_test@127.0.0.1:1/docs_test
-      DOCS_E2E_BASE_URL: http://127.0.0.1:3001
-      DOCS_NEGOTIATION_REPORT_PATH: ${{ github.workspace }}/test-results/docs-negotiation.json
-      DOCS_HEADER_REPORT_PATH: ${{ github.workspace }}/test-results/docs-headers.json
-      DOCS_NAVIGATION_REPORT_PATH: ${{ github.workspace }}/test-results/navigation/docs.json
+      DATABASE_URL: ''
+      OPENAI_API_KEY: ''
+      DOCS_BENCHMARK_BASE_URL: ${{ matrix.target == 'production' && 'https://docs.sim.ai' || 'http://127.0.0.1:3001' }}
     steps:
-      - name: Checkout code
+      - name: Checkout measured revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          ref: ${{ inputs.build_ref || github.sha }}
+          fetch-depth: 0
+          filter: blob:none
       - name: Setup workspace
         uses: ./.github/actions/setup
         with:
           provider: ${{ vars.CI_PROVIDER }}
-      - name: Build production docs
-        run: bun run --cwd apps/docs build
-      - name: Verify native header edge cases
-        run: bun run --cwd apps/docs test:headers:e2e
-      - name: Install browser for navigation checks
-        run: bunx --no-install playwright install --with-deps chromium
-      - name: Verify HTTP content negotiation
+      - name: Checkout benchmark harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          ref: ${{ github.sha }}
+          path: .readiness-harness
+          sparse-checkout: apps/docs/scripts/benchmark-readiness.ts
+          sparse-checkout-cone-mode: false
+      - name: Prepare measurements
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MEASURED_TARGET: ${{ matrix.target }}
         run: |
-          mkdir -p test-results
-          bun run --cwd apps/docs start --port 3001 >test-results/docs-server.log 2>&1 &
-          DOCS_SERVER_PID=$!
-          trap 'kill "$DOCS_SERVER_PID" 2>/dev/null || true' EXIT
-          bun run --cwd apps/docs test:negotiation:e2e
-          bun run --cwd apps/docs test:navigation:e2e
-      - name: Upload HTTP regression report
+          mkdir -p test-results/benchmark
+          cp .readiness-harness/apps/docs/scripts/benchmark-readiness.ts apps/docs/scripts/benchmark-readiness.ts
+          if [ "$MEASURED_TARGET" = production ]; then
+            gh api "repos/$GITHUB_REPOSITORY/deployments?environment=Production&per_page=1" >test-results/benchmark/deployment.json
+            # Candidate deployments do not establish which revision owns the public alias.
+            REVISION=unverified-public-origin
+          else
+            REVISION=$(git rev-parse HEAD)
+          fi
+          echo "DOCS_BENCHMARK_REVISION=$REVISION" >> "$GITHUB_ENV"
+          bunx --no-install playwright install --with-deps chromium
+      - name: Build measured production docs
+        id: build
+        if: matrix.target == 'build'
+        run: bun run --cwd apps/docs build
+      - name: Measure navigation and Lighthouse sequentially
+        env:
+          BENCHMARK_SCOPE: ${{ inputs.benchmark_scope || 'full' }}
+        run: |
+          if [ "$DOCS_BENCHMARK_BASE_URL" = http://127.0.0.1:3001 ]; then
+            bun run --cwd apps/docs start --port 3001 >test-results/benchmark/server.log 2>&1 &
+            DOCS_SERVER_PID=$!
+            trap 'kill "$DOCS_SERVER_PID" 2>/dev/null || true' EXIT
+            for attempt in $(seq 1 30); do
+              curl -fsS "$DOCS_BENCHMARK_BASE_URL/introduction" -o /dev/null && break
+              if [ "$attempt" -eq 30 ]; then exit 1; fi
+              sleep 1
+            done
+          fi
+          NAVIGATION_STATUS=0
+          LIGHTHOUSE_STATUS=0
+          if [ "$BENCHMARK_SCOPE" = interactions ]; then
+            export DOCS_BENCHMARK_SCENARIOS=interactions
+          fi
+          DOCS_BENCHMARK_MODE=navigation DOCS_BENCHMARK_REPORT_PATH="$GITHUB_WORKSPACE/test-results/benchmark/navigation.json" bun run --cwd apps/docs scripts/benchmark-readiness.ts || NAVIGATION_STATUS=$?
+          if [ "$BENCHMARK_SCOPE" = full ]; then
+            DOCS_BENCHMARK_MODE=lighthouse DOCS_BENCHMARK_REPORT_PATH="$GITHUB_WORKSPACE/test-results/benchmark/lighthouse.json" bun run --cwd apps/docs scripts/benchmark-readiness.ts || LIGHTHOUSE_STATUS=$?
+          fi
+          test "$NAVIGATION_STATUS" -eq 0 && test "$LIGHTHOUSE_STATUS" -eq 0
+      - name: Upload measurements
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: docs-negotiation-report
-          path: test-results/
+          name: docs-benchmark-${{ matrix.target }}
+          path: test-results/benchmark/
+          retention-days: 14
+      - name: Package measured production preview
+        if: always() && inputs.preview_artifact && steps.build.outcome == 'success'
+        run: tar -czf docs-preview-build.tar.gz --exclude='.next/cache' -C apps/docs .next .content
+      - name: Upload measured production preview
+        if: always() && inputs.preview_artifact && steps.build.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docs-preview-build
+          path: docs-preview-build.tar.gz
+          retention-days: 3
+
+  changes:
+    if: github.event_name != 'workflow_dispatch' || !inputs.benchmark
+    name: docs changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      docs: ${{ steps.classify.outputs.docs }}
+      docs_site: ${{ steps.classify.outputs.docs_site }}
+      docs_platform: ${{ steps.classify.outputs.docs_platform }}
+      docs_matrix: ${{ steps.classify.outputs.docs_matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.4
+      - name: Install only the pinned task planner
+        continue-on-error: true
+        run: bun install --global "turbo@$(jq -r .devDependencies.turbo package.json)"
+      - name: Attribute documentation changes
+        id: classify
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          CI_PLAN_PATH: ${{ runner.temp }}/docs-ci-plan.json
+        run: bash .github/scripts/ci-changes.sh "$BASE" >> "$GITHUB_OUTPUT"
+      - name: Upload documentation attribution
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docs-ci-plan
+          path: ${{ runner.temp }}/docs-ci-plan.json
+          retention-days: 7
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    name: docs build
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
+    timeout-minutes: 45
+    env:
+      DATABASE_URL: postgresql://docs_test:docs_test@127.0.0.1:1/docs_test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+      - name: Restore incremental documentation build inputs
+        uses: ./.github/actions/docs-content-cache
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          namespace: docs-build
+          generate: 'false'
+          next-cache: 'true'
+      - name: Build production docs
+        run: bun run --cwd apps/docs build
+      - name: Package the production docs
+        run: tar -I 'zstd -T0 -3' -cf docs-build.tar.zst --exclude='.next/cache' -C apps/docs .next .content public/llms-full.txt
+      - name: Upload the production docs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docs-build
+          path: docs-build.tar.zst
+          compression-level: 0
+          retention-days: 1
+      - name: Package production preview for visual inspection
+        if: inputs.preview_artifact
+        run: tar -czf docs-preview-build.tar.gz --exclude='.next/cache' -C apps/docs .next .content public/llms-full.txt
+      - name: Upload production preview
+        if: inputs.preview_artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docs-preview-build
+          path: docs-preview-build.tar.gz
+          retention-days: 3
+      - name: Bound the incremental build cache
+        if: always()
+        run: |
+          bash .github/actions/docs-content-cache/prune.sh content
+          bash .github/actions/docs-content-cache/prune.sh next
+
+  source:
+    needs: changes
+    if: needs.changes.outputs.docs_site == 'true'
+    name: docs source
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
+    timeout-minutes: 45
+    env:
+      DATABASE_URL: postgresql://docs_test:docs_test@127.0.0.1:1/docs_test
+      DOCS_GENERATORS_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/generators/report.json
+      DOCS_COMPATIBILITY_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/compatibility.json
+      DOCS_HEADER_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/docs-headers.json
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+      - name: Generate documentation modules
+        uses: ./.github/actions/docs-content-cache
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          namespace: docs-source
+      - name: Verify generator idempotence and authored regions
+        id: generators
+        run: bun run --cwd apps/docs scripts/test-generators-e2e.ts
+      - name: Verify preserved routes, anchors and examples
+        if: ${{ !cancelled() && steps.generators.outcome != 'skipped' }}
+        run: bun run --cwd apps/docs content:verify-compatibility
+      - name: Verify native header edge cases
+        if: ${{ !cancelled() && steps.generators.outcome != 'skipped' }}
+        run: bun run --cwd apps/docs test:headers:e2e
+      - name: Bound the generated content cache
+        if: always()
+        run: bash .github/actions/docs-content-cache/prune.sh content
+      - name: Upload source regression reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docs-source-reports
+          path: apps/docs/test-results/
           if-no-files-found: warn
           retention-days: 14
+
+  acceptance:
+    if: needs.changes.outputs.docs == 'true'
+    needs: [changes, build]
+    name: docs acceptance (${{ matrix.group }})
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.changes.outputs.docs_matrix) }}
+    services:
+      search-postgres:
+        image: ${{ (matrix.group == 'http' || matrix.group == 'platform') && 'pgvector/pgvector:pg17' || '' }}
+        env:
+          POSTGRES_USER: docs_test
+          POSTGRES_PASSWORD: docs_test
+          POSTGRES_DB: docs_search_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U docs_test -d docs_search_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://docs_test:docs_test@127.0.0.1:1/docs_test
+      DOCS_E2E_BASE_URL: http://127.0.0.1:3001
+      DOCS_NEGOTIATION_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/docs-negotiation.json
+      DOCS_SEARCH_E2E_DATABASE_URL: postgresql://docs_test:docs_test@127.0.0.1:5432/docs_search_test
+      DOCS_SEARCH_E2E_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/search-postgres/report.json
+      DOCS_INTERFACES_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/docs-interfaces.json
+      DOCS_CORPUS_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/docs-corpus.json
+      DOCS_NAVIGATION_BROWSER: ${{ matrix.group }}
+      DOCS_NAVIGATION_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/navigation-${{ matrix.group }}/docs.json
+      DOCS_SAMPLES_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/samples/report.json
+      DOCS_SAMPLES_SYNTAX_LANGUAGES: javascript,python,bash,go,java,csharp
+      DOCS_SAMPLES_HTTP_BASE_URL: http://127.0.0.1:3001
+      DOCS_PROVIDER_E2E_DATABASE_URL: postgresql://docs_test:docs_test@127.0.0.1:5432/docs_search_test
+      DOCS_PROVIDER_E2E_BASE_URL: http://127.0.0.1:3001
+      DOCS_PROVIDER_E2E_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/platform-consumer/report.json
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+      - name: Download production docs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: docs-build
+      - name: Extract production docs
+        run: tar -I zstd -xf docs-build.tar.zst -C apps/docs
+      - name: Set up Java for copied request examples
+        if: matrix.group == 'http'
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up .NET for copied request examples
+        if: matrix.group == 'http'
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '8.0.x'
+      - name: Set up Go for copied request examples
+        if: matrix.group == 'http'
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.25.x'
+          cache: false
+      - name: Install the selected navigation browser
+        if: matrix.group == 'chromium' || matrix.group == 'webkit'
+        env:
+          BROWSER: ${{ matrix.group }}
+        run: bunx --no-install playwright install --with-deps "$BROWSER"
+      - name: Verify production documentation
+        env:
+          DOCS_ACCEPTANCE_GROUP: ${{ matrix.group }}
+        run: |
+          mkdir -p apps/docs/test-results
+          FEEDBACK_TLS_DIR=$(mktemp -d)
+          export DOCS_FEEDBACK_TEST_CERT="$FEEDBACK_TLS_DIR/cert.pem"
+          export DOCS_FEEDBACK_TEST_KEY="$FEEDBACK_TLS_DIR/key.pem"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' -keyout "$DOCS_FEEDBACK_TEST_KEY" -out "$DOCS_FEEDBACK_TEST_CERT" 2>/dev/null
+          export NODE_EXTRA_CA_CERTS="$DOCS_FEEDBACK_TEST_CERT"
+          export DOCS_FEEDBACK_WEBHOOK_URL=https://127.0.0.1:3443/feedback
+          DOCS_FEEDBACK_WEBHOOK_TOKEN=$(openssl rand -hex 32)
+          export DOCS_FEEDBACK_WEBHOOK_TOKEN
+          APP_TAG="docs-$DOCS_ACCEPTANCE_GROUP-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
+          E2E_APP="$APP_TAG" setsid --wait bun run --cwd apps/docs start --port 3001 >apps/docs/test-results/docs-server.log 2>&1 &
+          DOCS_SERVER_PID=$!
+          finish() {
+            local status=$1
+            trap - EXIT
+            if bash .github/scripts/stop-session.sh "$DOCS_SERVER_PID" "$APP_TAG"; then
+              wait "$DOCS_SERVER_PID" 2>/dev/null || true
+            else
+              status=1
+            fi
+            rm -rf "$FEEDBACK_TLS_DIR"
+            exit "$status"
+          }
+          trap 'finish "$?"' EXIT
+          for attempt in $(seq 1 60); do
+            if ! kill -0 "$DOCS_SERVER_PID" 2>/dev/null; then
+              echo '::error::Documentation server exited before becoming ready.'
+              exit 1
+            fi
+            if curl -fsS --max-time 2 "$DOCS_E2E_BASE_URL/introduction" -o /dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 60 ]; then
+              echo '::error::Documentation server did not become ready.'
+              exit 1
+            fi
+            sleep 1
+          done
+          STATUS=0
+          case "$DOCS_ACCEPTANCE_GROUP" in
+            http)
+              bun run --cwd apps/docs test:search:postgres:e2e || STATUS=1
+              bun run --cwd apps/docs test:negotiation:e2e || STATUS=1
+              bun run --cwd apps/docs scripts/test-docs-interfaces-e2e.ts || STATUS=1
+              bun run --cwd apps/docs scripts/verify-api-samples.ts || STATUS=1
+              bun --cwd apps/sim --no-env-file scripts/test-docs-search-provider-e2e.ts || STATUS=1
+              ;;
+            platform) bun --cwd apps/sim --no-env-file scripts/test-docs-search-provider-e2e.ts || STATUS=1 ;;
+            corpus) bun run --cwd apps/docs test:corpus:e2e || STATUS=1 ;;
+            chromium|webkit) bun run --cwd apps/docs test:navigation:e2e || STATUS=1 ;;
+            *) echo "::error::Unknown documentation acceptance group: $DOCS_ACCEPTANCE_GROUP"; STATUS=1 ;;
+          esac
+          finish "$STATUS"
+      - name: Upload acceptance regression reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docs-acceptance-${{ matrix.group }}
+          path: apps/docs/test-results/
+          if-no-files-found: warn
+          retention-days: 14
+
+  http:
+    if: always() && (github.event_name != 'workflow_dispatch' || !inputs.benchmark)
+    needs: [changes, build, source, acceptance]
+    name: docs HTTP
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every documentation check to pass
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          if ! jq -e '
+            keys == ["acceptance", "build", "changes", "source"]
+            and .changes.result == "success"
+            and (
+              if .changes.outputs.docs == "true" then
+                (.changes.outputs.docs_site == "true" or .changes.outputs.docs_site == "false")
+                and (.changes.outputs.docs_platform == "true" or .changes.outputs.docs_platform == "false")
+                and (.changes.outputs.docs_site == "true" or .changes.outputs.docs_platform == "true")
+                and ([.build, .acceptance] | all(.result == "success"))
+                and (.source.result == (if .changes.outputs.docs_site == "true" then "success" else "skipped" end))
+              elif .changes.outputs.docs == "false" then
+                .changes.outputs.docs_site == "false"
+                and .changes.outputs.docs_platform == "false"
+                and ([.build, .source, .acceptance] | all(.result == "skipped"))
+              else false
+              end
+            )
+          ' <<< "$NEEDS"; then
+            echo '::error::Documentation checks did not all pass.'
+            exit 1
+          fi

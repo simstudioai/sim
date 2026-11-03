@@ -26,4 +26,9 @@ export interface MentionItem {
   group: string
   /** Optional per-item icon (emcn category icon or a brand block icon). */
   icon?: ComponentType<{ className?: string }>
+  /**
+   * The query this item is one of the server's ranked matches for (files only). The menu keeps
+   * it listed for that query rather than re-filtering it by substring.
+   */
+  matchedQuery?: string
 }

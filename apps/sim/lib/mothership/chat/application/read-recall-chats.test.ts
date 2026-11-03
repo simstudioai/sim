@@ -196,11 +196,15 @@ describe("a chat's other chats", () => {
       readRecallChats.execute({ principal: organizationPrincipal(), input })
     ).rejects.toMatchObject({ code: 'forbidden' })
     resetDbChainMock()
-    // A workflow's copilot chat is no home chat, so it reads no home chats back.
+    // A workflow's copilot chat is no home chat, so it reads no home chats back, and says so
+    // rather than reporting its own chat missing.
     queueWorkspaceChat('agent', 'copilot')
     await expect(
       readRecallChats.execute({ principal: workspacePrincipal(), input })
-    ).rejects.toMatchObject({ code: 'not_found' })
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      message: "Reading other chats is available in home chats, not in a workflow's copilot chat",
+    })
     resetDbChainMock()
     queueOrganizationChat()
     authBanMockFns.mockGetActivelyBannedUserIds.mockResolvedValue(['actor'])

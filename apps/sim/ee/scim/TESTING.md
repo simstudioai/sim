@@ -68,9 +68,19 @@ timeout.
 - Group membership idempotency and membership-only replacement timestamps.
 - Workspace, organization-role, and permission-group mappings, reconciliation,
   drift repair, withdrawal, and preservation of pre-existing manual workspace access.
+- Automatic group renames through PATCH and PUT, including a destination already
+  mapped manually; the old policy is withdrawn immediately.
+- Mapping status when overlapping workspace policies prevent assignment, followed
+  by conflict recovery and reconciliation.
+- A concurrent membership-lock change while a group removal waits on the
+  organization lock; withdrawal uses the committed setting.
+- Concurrent name-matching changes while POST, PUT, and PATCH wait on the
+  organization lock; mapping uses the committed setting in both toggle directions.
 - Managed-membership enforcement through the actual batch invitation and
   workspace permission APIs, including successful edits to unmanaged members.
-- Session revocation on deactivation, membership retention, directory
+- Session revocation on deactivation and permanent OAuth grant revocation on
+  directory deletion, including an actual OAuth API request after deletion.
+- Membership retention, directory
   reactivation, manual suspension protection, owner protection, and account
   relinking after deletion and rehire.
 - Credential scopes, overlapping rotation, the active credential limit,
@@ -114,6 +124,20 @@ both `db:push` and `db:migrate`, also run `lib/auth/sso/application/admit-sso-us
 which verifies that SCIM's `disableJit` setting blocks fresh SSO membership,
 preserves existing membership, and permits JIT when disabled. These checks run
 the admission operation and Enterprise entitlement reads through PostgreSQL.
+
+The real PostgreSQL/Redis suite
+`lib/mothership/request/application/removal-stops-runs.integration.ts` verifies
+that deactivation writes durable Stops for admitted Chat runs, including concurrent
+interactive and headless admission. Reactivation cannot revive those runs or a
+headless run admitted during suspension. An existing account first provisioned
+inactive is stopped, and a rolled-back suspension emits no durable or delivered Stop.
+
+## Verification dates and limits
+
+The October 28, 2026 audit exercised the current app using the local HTTP harness,
+real PostgreSQL/Redis integration suites, and the browser UI with synthetic data.
+It did not connect to a live provider tenant. The live-provider results below are
+from September 2026 and describe that run, not certification of every later change.
 
 ## Live Okta verification
 

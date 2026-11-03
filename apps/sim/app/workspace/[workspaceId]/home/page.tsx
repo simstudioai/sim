@@ -1,11 +1,8 @@
 import { Suspense } from 'react'
-import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
-import { prefetchHomeSurface } from '@/app/workspace/[workspaceId]/home/prefetch'
 import { Home } from './home'
 import { HomeFallback } from './home-fallback'
 
@@ -17,21 +14,16 @@ export default async function HomePage({ params }: { params: Promise<{ workspace
   const { workspaceId } = await params
 
   // The layout redirects too, but pages and layouts resolve concurrently — without
-  // this the prefetch below still fires on its way out.
+  // this the page still renders on its way out.
   if (!isChatEnabled) {
     redirect(`/workspace/${workspaceId}`)
   }
 
   const session = await getSession()
-  const userId = session?.user?.id
-  const queryClient = getQueryClient()
-  await prefetchHomeSurface(queryClient, workspaceId, userId)
 
   return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <Suspense fallback={<HomeFallback />}>
-        <Home userName={session?.user?.name} userId={userId} />
-      </Suspense>
-    </HydrationBoundary>
+    <Suspense fallback={<HomeFallback />}>
+      <Home userName={session?.user?.name} userId={session?.user?.id} />
+    </Suspense>
   )
 }

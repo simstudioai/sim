@@ -9,7 +9,7 @@ import {
   type WorkspaceSearchFilters,
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/knowledge/search'
-import { chatContextSchema } from '@/lib/api/contracts/mothership-chat-context'
+import { chatContextsSchema } from '@/lib/api/contracts/mothership-chat-context'
 import { mothershipResourceAttachmentSchema as ResourceAttachmentSchema } from '@/lib/api/contracts/mothership-resources'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
@@ -37,7 +37,7 @@ import {
   prepareOrganizationChatAttachments,
 } from '@/lib/mothership/chat/assistant-images'
 import { buildOnComplete, buildOnError } from '@/lib/mothership/chat/completion'
-import { MAX_CHAT_CONTEXTS, MAX_CHAT_MESSAGE_LENGTH } from '@/lib/mothership/chat/context-limits'
+import { MAX_CHAT_MESSAGE_LENGTH } from '@/lib/mothership/chat/context-limits'
 import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
@@ -145,7 +145,7 @@ const ChatMessageSchema = z
       .preprocess(dropUnaddressableAttachments, z.array(ResourceAttachmentSchema))
       .optional(),
     provider: z.string().optional(),
-    contexts: z.array(chatContextSchema).max(MAX_CHAT_CONTEXTS).optional(),
+    contexts: chatContextsSchema.optional(),
     commands: z.array(z.string()).optional(),
     userTimezone: z.string().optional(),
     effort: z.enum(['none', 'low', 'medium', 'high', 'xhigh', 'max']).optional(),
@@ -796,15 +796,14 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       (body.workflowId ||
         body.workflowName ||
         (body.fileAttachments?.length && !body.organizationId) ||
-        body.contexts?.length)
+        body.contexts?.some((context) => context.kind !== 'browser_page'))
     ) {
       return createBadRequestResponse(
-        'Assistant uses the Enterprise Search index. Switch to Build to use workspace resources or workflows.'
+        'Assistant uses the Enterprise Search index. Start a chat from Home to use workspace resources or workflows.'
       )
     }
 
-    const normalizedContexts =
-      body.mode === 'assistant' ? [] : (normalizeContexts(body.contexts) ?? [])
+    const normalizedContexts = normalizeContexts(body.contexts) ?? []
     userMessageId = body.userMessageId || generateId()
 
     sendClaim = await claimChatSend(userMessageId, authenticatedUserId)
@@ -1081,7 +1080,14 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         activeOtelRoot.context
       )
       const agentContextsPromise = executionContextPromise.then((executionContext) => {
-        if (body.mode === 'assistant') return []
+        if (body.mode === 'assistant') {
+          if (normalizedContexts.length === 0) return []
+          return processContextsServer(
+            normalizedContexts as ChatContext[],
+            authenticatedUserId,
+            body.message
+          )
+        }
         return withCopilotSpan(
           TraceSpan.CopilotChatResolveAgentContexts,
           {

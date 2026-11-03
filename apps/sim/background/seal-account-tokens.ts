@@ -1,6 +1,6 @@
 import { resolveDbUrl } from '@sim/db'
 import { sealAccountTokens } from '@sim/db/script-migrations/0037_seal_account_tokens'
-import { isAccountTokenWriteSealingEnabled, readEncryptionKey } from '@sim/db/sealed-text'
+import { accountTokenSealingDisabledReason, readEncryptionKey } from '@sim/db/sealed-text'
 import { createLogger } from '@sim/logger'
 import { sealingKeyId } from '@sim/security/encryption'
 import { task } from '@trigger.dev/sdk'
@@ -31,7 +31,8 @@ function assertIntegerInRange(name: string, value: number | undefined, min: numb
  * Runs the account-token sealing backfill (`0037_seal_account_tokens`) from a worker, which already
  * holds the database and the fleet's `ENCRYPTION_KEY`. Refuses before connecting when the payload
  * names a key id other than this worker's, so a pass can never seal rows under a key the fleet
- * cannot open, and refuses `seal` while this worker's writers still store plaintext.
+ * cannot open, and refuses `seal` while this worker's writers still store plaintext (sealing opted
+ * out with `ENCRYPT_ACCOUNT_TOKENS=false`).
  *
  * Opens its own single connection rather than reusing the `@sim/db` pool: the pass binds JS arrays
  * through the postgres.js tag, which needs the array type map the shared pool skips
@@ -50,9 +51,10 @@ export async function runSealAccountTokens(payload: SealAccountTokensPayload) {
   if (expectedKeyId !== keyId) {
     throw new Error(`ENCRYPTION_KEY has key id ${keyId}, not the expected ${expectedKeyId}`)
   }
-  if (mode === 'seal' && !isAccountTokenWriteSealingEnabled()) {
+  const disabledReason = accountTokenSealingDisabledReason()
+  if (mode === 'seal' && disabledReason) {
     throw new Error(
-      'Refusing to seal: ENCRYPT_ACCOUNT_TOKENS is not enabled on this worker, so writers still store plaintext'
+      `Refusing to seal: ${disabledReason} on this worker, so writers still store plaintext`
     )
   }
 

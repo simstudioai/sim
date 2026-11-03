@@ -33,7 +33,7 @@
       "!**/apps/sim/tools/generated",
       "!**/apps/sim/lib/mothership/generated/**",
       "!**/packages/desktop-bridge/src/computer-use.generated.ts",
-      "!**/apps/docs/.source",
+      "!**/apps/docs/.content",
       "!**/apps/desktop/release",
       "!**/venv",
       "!**/.venv",
@@ -154,7 +154,7 @@
   },
   "overrides": [
     {
-      "includes": ["apps/sim/app/_styles/tailwind.css"],
+      "includes": ["apps/sim/app/_styles/tailwind.css", "packages/auth-ui/src/utilities.css"],
       "linter": { "enabled": false },
       "formatter": { "enabled": false }
     },

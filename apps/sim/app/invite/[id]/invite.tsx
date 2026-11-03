@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { AuthIdentity, AuthStack } from '@sim/auth-ui'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatQuotedNameList, normalizeEmail } from '@sim/utils/string'
@@ -581,7 +582,18 @@ export default function Invite({ registrationDisabled }: InviteProps) {
         title={isOrg ? 'Organization Invitation' : 'Workspace Invitation'}
         description={`You've been invited to join ${displayName}.`}
         details={
-          invitation && <InvitationDisclosure invitation={invitation} joinPreview={joinPreview} />
+          <AuthStack>
+            {session?.user?.email && (
+              <AuthIdentity email={session.user.email} name={session.user.name ?? undefined} />
+            )}
+            {invitation && (
+              <InvitationDisclosure
+                invitation={invitation}
+                joinPreview={joinPreview}
+                appearance='auth'
+              />
+            )}
+          </AuthStack>
         }
         icon={isOrg ? 'users' : 'mail'}
         actions={[

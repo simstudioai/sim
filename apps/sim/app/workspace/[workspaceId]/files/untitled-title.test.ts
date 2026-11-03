@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest'
-import { deriveMarkdownFileName, isUntitledName, uniqueMarkdownName } from './untitled-title'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  deriveMarkdownFileName,
+  isUntitledName,
+  renameToUniqueMarkdownName,
+  uniqueMarkdownName,
+} from './untitled-title'
 
 describe('isUntitledName', () => {
   it.each([
@@ -35,5 +40,32 @@ describe('uniqueMarkdownName', () => {
     expect(uniqueMarkdownName('notes.md', new Set(['notes.md', 'notes (1).md']))).toBe(
       'notes (2).md'
     )
+  })
+})
+
+describe('renameToUniqueMarkdownName', () => {
+  const taken = new Error('taken')
+  const isTaken = (error: unknown) => error === taken
+
+  it('steps past numbered names the sibling read did not reach, as the server reports them', async () => {
+    const occupied = new Set(['Plan (1).md', 'Plan (2).md'])
+    const rename = vi.fn(async (candidate: string) => {
+      if (occupied.has(candidate)) throw taken
+    })
+    await expect(
+      renameToUniqueMarkdownName('Plan.md', new Set(['Plan.md']), rename, isTaken)
+    ).resolves.toBe('Plan (3).md')
+    expect(rename.mock.calls.map(([candidate]) => candidate)).toEqual([
+      'Plan (1).md',
+      'Plan (2).md',
+      'Plan (3).md',
+    ])
+  })
+
+  it('rethrows a failure that is not a taken name', async () => {
+    const failure = new Error('offline')
+    await expect(
+      renameToUniqueMarkdownName('Plan.md', new Set(), async () => Promise.reject(failure), isTaken)
+    ).rejects.toBe(failure)
   })
 })

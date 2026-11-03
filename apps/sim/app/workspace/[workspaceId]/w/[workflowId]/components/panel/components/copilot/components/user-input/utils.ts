@@ -153,6 +153,8 @@ export function areContextsEqual(c: ChatContext, context: ChatContext): boolean 
   const otherOwner = 'workspaceId' in context ? context.workspaceId : undefined
   if (owner !== otherOwner) return false
   switch (c.kind) {
+    case 'browser_page':
+      return context.kind === 'browser_page' && c.snapshot.id === context.snapshot.id
     case 'past_chat': {
       const ctx = context as PastChatContext
       return c.chatId === ctx.chatId

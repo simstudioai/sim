@@ -16,6 +16,7 @@ import {
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { resolveMcpWorkspaceContext } from '@/lib/mcp/application/context'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
+import { readMcpToolOutputSchema } from '@/lib/mcp/output-schema'
 import type { McpToolSchema } from '@/lib/mcp/types'
 import { requireResourcePolicy } from '@/lib/resource-policies/repository'
 
@@ -188,15 +189,19 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
         updatedAt: row.updatedAt.toISOString(),
       })),
       tools: rows.flatMap((row) => {
-        return row.tools.map((tool) => ({
-          name: tool.name,
-          description: tool.description,
-          inputSchema: requireMcpToolSchema(tool.inputSchema),
-          serverId: row.id,
-          canonicalServerId: row.serverId,
-          serverName: `${row.serverName} — ${row.email}`,
-          managedConnectorId: row.managedConnectorId,
-        }))
+        return row.tools.map((tool) => {
+          const outputSchema = readMcpToolOutputSchema(tool.outputSchema)
+          return {
+            name: tool.name,
+            description: tool.description,
+            inputSchema: requireMcpToolSchema(tool.inputSchema),
+            ...(outputSchema ? { outputSchema } : {}),
+            serverId: row.id,
+            canonicalServerId: row.serverId,
+            serverName: `${row.serverName} — ${row.email}`,
+            managedConnectorId: row.managedConnectorId,
+          }
+        })
       }),
     }
   },

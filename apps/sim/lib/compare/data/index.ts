@@ -22,6 +22,7 @@ export { simProfile } from '@/lib/compare/data/sim'
 export type {
   ComparisonFacts,
   CompetitorBrand,
+  CompetitorMigration,
   CompetitorProfile,
   Fact,
   FactSource,

@@ -209,6 +209,24 @@ export interface CompetitorBrand {
   asOf: string
 }
 
+/**
+ * Guidance for buyers who must leave a product its vendor is shutting down: where they can
+ * go, then how to move to Sim. The page renders it ahead of the feature comparison, because
+ * the deadline, not the feature set, is what those readers came for.
+ */
+export interface CompetitorMigration {
+  /** Heading for the destinations table, phrased as the buyer asks it. */
+  heading: string
+  /** Answer-first: what shuts down and when, what keeps working, and how to choose. */
+  answer: Prose
+  /** Each realistic destination, Sim among them, with the team it fits. */
+  options: Array<{ name: string; fitsWhen: string; source: FactSource }>
+  /** Heading for {@link CompetitorMigration.steps}. */
+  stepsHeading: string
+  /** Ordered steps for rebuilding the product's workflows in Sim. */
+  steps: Prose[]
+}
+
 /** One competitor (or Sim itself) as a comparable profile. */
 export interface CompetitorProfile {
   /** kebab-case identifier, e.g. "n8n", "openai-agentkit". */
@@ -245,6 +263,16 @@ export interface CompetitorProfile {
    * products so it can be quoted on its own.
    */
   faqs?: Array<{ question: string; answer: string }>
+  /**
+   * Replaces the generated `Sim vs {name} | Sim, the AI Workspace` search title, at most 60
+   * characters. Set it when buyers search this competitor for one time-sensitive reason, such
+   * as a shutdown, that the generated title does not name.
+   */
+  seoTitle?: string
+  /** Replaces the generated search description, at most 160 characters. Pairs with {@link seoTitle}. */
+  seoDescription?: string
+  /** Set when the vendor is shutting the product down. See {@link CompetitorMigration}. */
+  migration?: CompetitorMigration
   /**
    * One-sentence lead-in per comparison-table section, stating what that
    * section covers so the section is quotable without the rest of the page.

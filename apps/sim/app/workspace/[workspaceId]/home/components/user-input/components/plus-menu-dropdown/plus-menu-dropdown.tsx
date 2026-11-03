@@ -8,6 +8,7 @@ import {
   DropdownMenuItemLabel,
   DropdownMenuLabel,
   DropdownMenuSearchInput,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   dropdownMenuRowClass,
   OverflowText,
@@ -99,6 +100,7 @@ const EMPTY_BROWSER_TABS = [] as const
 const EMPTY_TERMINAL_TABS = [] as const
 
 interface PlusMenuDropdownProps {
+  actions?: React.ReactNode
   workspaceId: string
   organizationId?: string
   /**
@@ -123,6 +125,7 @@ export const PlusMenuDropdown = React.memo(
   React.forwardRef<PlusMenuHandle, PlusMenuDropdownProps>(function PlusMenuDropdown(
     {
       workspaceId,
+      actions,
       organizationId,
       warm,
       onResourceSelect,
@@ -153,10 +156,12 @@ export const PlusMenuDropdown = React.memo(
     })
 
     const inventoryEnabled = open || !!warm
+    const query = isMention ? (mentionQuery ?? '') : search
     const workspaceInventory = useAvailableResources(organizationId ? '' : workspaceId, {
       enabled: inventoryEnabled,
       includeFolderMentions: true,
       excludeTypes: COMPOSER_EXCLUDED_TYPES,
+      fileSearch: query,
     })
     const { data: allWorkspaces, isPending: workspacesPending } = useOrderedWorkspacesQuery(
       Boolean(organizationId) && inventoryEnabled
@@ -232,7 +237,6 @@ export const PlusMenuDropdown = React.memo(
       selectFolders: true,
     })
 
-    const query = isMention ? (mentionQuery ?? '') : search
     const filteredItems = useMemo((): MentionCandidate[] | null => {
       const q = query.toLowerCase().trim()
       if (!isMention && !q) return null
@@ -415,6 +419,7 @@ export const PlusMenuDropdown = React.memo(
               key={workspace.id}
               workspaceId={workspace.id}
               excludeTypes={COMPOSER_EXCLUDED_TYPES}
+              fileSearch={query}
               onChange={receiveInventory}
             />
           ))}
@@ -475,6 +480,12 @@ export const PlusMenuDropdown = React.memo(
                 onSelect={handleSelect}
                 subContentClassName={RESOURCE_MENU_WIDTH_CLASS}
               />
+              {actions && (
+                <>
+                  <DropdownMenuSeparator />
+                  {actions}
+                </>
+              )}
             </div>
             {/* Plain buttons, not DropdownMenuItem: mount/unmount must not mutate Radix's
                   menu Collection, or FocusScope restores focus to the content root. */}

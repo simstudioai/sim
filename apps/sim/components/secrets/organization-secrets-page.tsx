@@ -13,11 +13,13 @@ import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/compo
 interface OrganizationSecretsPageProps {
   organizationId: string
   mode: SecretSourceMode
+  backHref?: string
 }
 
 export async function OrganizationSecretsPage({
   organizationId,
   mode,
+  backHref,
 }: OrganizationSecretsPageProps) {
   const routes = organizationRoutes(organizationId)
   const session = await getSession()
@@ -42,7 +44,7 @@ export async function OrganizationSecretsPage({
         <Suspense
           fallback={<SettingsEmptyState variant='inline'>Loading secrets…</SettingsEmptyState>}
         >
-          <OrganizationSecretsEditor mode={mode} />
+          <OrganizationSecretsEditor mode={mode} backHref={backHref} />
         </Suspense>
       </SettingsHeaderShell>
     </SettingsHeaderProvider>

@@ -10,7 +10,10 @@ export function managedMcpPayload(result: McpToolResult, label: string): unknown
   if (!isJsonWithinByteLimit(result, MAX_SEARCH_MCP_PAYLOAD_BYTES))
     throw new NativeSearchError(
       'unavailable',
-      `${label} response exceeded the search size limit. Narrow the query.`
+      `${label} response exceeded the search size limit. Narrow the query.`,
+      undefined,
+      undefined,
+      'mcp_payload_too_large'
     )
   if (result.isError) {
     if (
@@ -23,7 +26,10 @@ export function managedMcpPayload(result: McpToolResult, label: string): unknown
     )
       throw new NativeSearchError(
         'reconnect',
-        'Reconnect using an existing Granola account. Check the account email in the Granola app.'
+        'Reconnect using an existing Granola account. Check the account email in the Granola app.',
+        undefined,
+        undefined,
+        'mcp_account_required'
       )
     const quota = result.content?.some(
       (block) =>
@@ -34,7 +40,10 @@ export function managedMcpPayload(result: McpToolResult, label: string): unknown
       quota ? 'rate_limited' : 'unavailable',
       quota
         ? `${label} MCP request limit reached. Try again when it resets.`
-        : `${label} could not complete this read. Check the query and your access.`
+        : `${label} could not complete this read. Check the query and your access.`,
+      undefined,
+      undefined,
+      quota ? 'provider_rate_limited' : 'mcp_tool_error'
     )
   }
   const unwrap = (value: unknown) =>
@@ -51,7 +60,14 @@ export function managedMcpPayload(result: McpToolResult, label: string): unknown
     .filter((block) => block.type === 'text')
     .map((block) => block.text ?? '')
     .join('\n')
-  if (!text) throw new NativeSearchError('unavailable', `${label} returned no readable content.`)
+  if (!text)
+    throw new NativeSearchError(
+      'unavailable',
+      `${label} returned no readable content.`,
+      undefined,
+      undefined,
+      'mcp_payload_unreadable'
+    )
   try {
     return unwrap(JSON.parse(text))
   } catch {

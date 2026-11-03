@@ -33,9 +33,9 @@ interface ResourceChromeFallbackProps {
    */
   breadcrumbs?: BreadcrumbItem[]
   /** Table column headers. Omit on bodies that don't render `Resource.Table` (the table editor). */
-  columns?: ResourceColumn[]
+  columns?: readonly ResourceColumn[]
   /** The page's exact header action chips (handlers wired to a no-op). */
-  actions?: ChromeActionSpec[]
+  actions?: readonly ChromeActionSpec[]
   /** Search placeholder. Omit to hide the search box (matches a page with no search). */
   searchPlaceholder?: string
   /** Paint the Sort chip (its menu never opens during the fallback, so the option list is irrelevant). */

@@ -28,7 +28,7 @@ describe.skipIf(!smokeEnabled)('sandbox billing smoke', () => {
   it(
     'bills the sandbox lifetime at the provider rate',
     async () => {
-      const pricing = createSandboxPricing(resolveProvider().id)
+      const pricing = createSandboxPricing(resolveProvider().id, 'code')
       const usdPerSecond =
         pricing.resources.vcpu * pricing.rates.cpuUsdPerVcpuSecond +
         pricing.resources.memoryGiB * pricing.rates.memoryUsdPerGiBSecond +

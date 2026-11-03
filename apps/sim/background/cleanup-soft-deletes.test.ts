@@ -6,6 +6,7 @@ import {
   schemaMock,
 } from '@sim/testing'
 import { billingStorageMock } from '@sim/testing/mocks/billing-storage.mock'
+import { chatCleanupMock, chatCleanupMockFns } from '@sim/testing/mocks/chat-cleanup.mock'
 import {
   knowledgeDocumentsServiceMock,
   knowledgeDocumentsServiceMockFns,
@@ -25,7 +26,6 @@ const {
   mockScopedChunkedBatchDelete,
   mockDeleteRowsById,
   mockKnowledgeBaseContainerDelete,
-  mockPrepareChatCleanup,
   mockSelectRowsByIdChunks,
   mockSettleDetachedConnectorReservations,
   mockDeduplicateFolderName,
@@ -36,7 +36,6 @@ const {
   mockScopedChunkedBatchDelete: vi.fn(async () => ({ deleted: 0, failed: 0 })),
   mockDeleteRowsById: vi.fn(async () => ({ deleted: 0, failed: 0 })),
   mockKnowledgeBaseContainerDelete: vi.fn(),
-  mockPrepareChatCleanup: vi.fn(async () => ({ execute: vi.fn(async () => undefined) })),
   mockSelectRowsByIdChunks: vi.fn(async () => [] as unknown[]),
   mockSettleDetachedConnectorReservations: vi.fn(async () => undefined),
 }))
@@ -58,7 +57,7 @@ vi.mock('@/lib/cleanup/queue', () => ({
   retentionCleanupQueue: { name: 'retention-cleanup', concurrencyLimit: 1 },
 }))
 
-vi.mock('@/lib/cleanup/chat-cleanup', () => ({ prepareChatCleanup: mockPrepareChatCleanup }))
+vi.mock('@/lib/cleanup/chat-cleanup', () => chatCleanupMock)
 
 vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
@@ -81,6 +80,8 @@ vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 vi.mock('@/lib/folders/naming', () => ({ deduplicateFolderName: mockDeduplicateFolderName }))
 
 import { runCleanupSoftDeletes } from '@/background/cleanup-soft-deletes'
+
+const { mockPrepareChatCleanup } = chatCleanupMockFns
 
 const { mockHardDeleteDocuments } = knowledgeDocumentsServiceMockFns
 mockHardDeleteDocuments.mockImplementation(async (ids: string[]) => ids.length)

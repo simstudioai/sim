@@ -20,6 +20,20 @@ export function frameToolDeadlineAt(deadlineMs: unknown, receivedAt: number): nu
   return receivedAt + deadlineMs - TOOL_DEADLINE_SETTLE_MARGIN_MS
 }
 
+/**
+ * How long a workflow tool call waits for its run before settling still running, from the
+ * frame's `waitTimeoutMs`. Undefined when the frame names none or a malformed value: the call
+ * holds until its run settles.
+ */
+export function frameWorkflowWaitMs(waitTimeoutMs: unknown): number | undefined {
+  return typeof waitTimeoutMs === 'number' &&
+    Number.isSafeInteger(waitTimeoutMs) &&
+    waitTimeoutMs > 0 &&
+    waitTimeoutMs <= MAX_FRAME_DEADLINE_MS
+    ? waitTimeoutMs
+    : undefined
+}
+
 /** What the model learns when a call's deadline passed before the call could start. */
 export const TOOL_DEADLINE_BEFORE_START_MESSAGE =
   'This tool call ran out of its time limit before it could start, so it did not run. Nothing changed; it is safe to try again with a smaller request.'

@@ -52,6 +52,7 @@ export const permissionGroupSchema = z.object({
   creatorEmail: z.string().nullable(),
   memberCount: z.number(),
   isDefault: z.boolean(),
+  membershipMode: z.string().optional(),
   /**
    * Workspaces this group targets. Empty for the default group (which governs
    * every workspace) and for a non-default group scoped to nothing.

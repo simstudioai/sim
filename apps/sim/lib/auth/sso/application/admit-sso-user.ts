@@ -110,7 +110,12 @@ async function runAdmissionTransaction(
 
     const [[userRow], [linkedAccount]] = await Promise.all([
       tx
-        .select({ id: user.id, email: user.email, name: user.name })
+        .select({
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          emailVerified: user.emailVerified,
+        })
         .from(user)
         .where(eq(user.id, userId))
         .limit(1),
@@ -131,6 +136,19 @@ async function runAdmissionTransaction(
     const providerDomain = normalizeSSODomain(provider.domain)
     if (!userDomain || !providerDomain || userDomain !== providerDomain) {
       return { providerId, result: { kind: 'denied', reason: 'domain-mismatch' } }
+    }
+
+    /**
+     * `trustEmailVerified` stays off, so Better Auth always stores an SSO user as
+     * unverified. Signing in through a linked provider on a DNS-verified domain
+     * that matches the address is the ownership proof, and without it SSO- and
+     * SCIM-created users can never connect accounts.
+     */
+    if (!userRow.emailVerified) {
+      await tx
+        .update(user)
+        .set({ emailVerified: true, updatedAt: new Date() })
+        .where(and(eq(user.id, userId), eq(user.email, userRow.email)))
     }
 
     const attribution = { providerId, userName: userRow.name, userEmail: userRow.email }

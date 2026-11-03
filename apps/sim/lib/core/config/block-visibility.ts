@@ -3,6 +3,7 @@ import type { AppConfigGateContext, AppConfigGateRule } from '@/lib/core/config/
 import { matchesRule, parseGateConfig } from '@/lib/core/config/appconfig-rules'
 import { env } from '@/lib/core/config/env'
 import { getPreviewBlocksFromEnv, isAppConfigEnabled } from '@/lib/core/config/env-flags'
+import type { DbOrTx } from '@/lib/db/types'
 
 /**
  * Name of the AppConfig configuration profile holding per-block visibility rules.
@@ -54,9 +55,9 @@ function parseVisibilityConfig(json: unknown): Record<string, AppConfigGateRule>
  * helper (and `@sim/db`) stay out of this config module's load graph for callers
  * that never reach an admin-gated rule.
  */
-async function resolveAdmin(userId: string): Promise<boolean> {
+async function resolveAdmin(userId: string, executor?: DbOrTx): Promise<boolean> {
   const { isPlatformAdmin } = await import('@/lib/permissions/super-user')
-  return isPlatformAdmin(userId)
+  return isPlatformAdmin(userId, executor)
 }
 
 /**
@@ -72,7 +73,8 @@ async function resolveAdmin(userId: string): Promise<boolean> {
  * the caller didn't already supply `ctx.isAdmin`.
  */
 export async function getBlockVisibility(
-  ctx: BlockVisibilityContext = {}
+  ctx: BlockVisibilityContext = {},
+  executor?: DbOrTx
 ): Promise<BlockVisibilityState> {
   if (!isAppConfigEnabled) {
     const revealed = new Set(getPreviewBlocksFromEnv())
@@ -94,7 +96,8 @@ export async function getBlockVisibility(
     ctx.isAdmin === undefined &&
     Boolean(ctx.userId) &&
     Object.values(rules).some((rule) => rule.adminEnabled)
-  const isAdmin = ctx.isAdmin ?? (needsAdmin ? await resolveAdmin(ctx.userId as string) : false)
+  const isAdmin =
+    ctx.isAdmin ?? (needsAdmin ? await resolveAdmin(ctx.userId as string, executor) : false)
 
   const revealed = new Set<string>()
   const disabled = new Set<string>()

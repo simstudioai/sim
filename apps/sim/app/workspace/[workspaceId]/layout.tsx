@@ -37,6 +37,7 @@ import { CustomBlocksLoader } from '@/app/workspace/[workspaceId]/providers/cust
 import { DesktopOAuthConnectListener } from '@/app/workspace/[workspaceId]/providers/desktop-oauth-connect-listener'
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { InFlightUploadGuard } from '@/app/workspace/[workspaceId]/providers/in-flight-upload-guard'
 import { ProviderModelsLoader } from '@/app/workspace/[workspaceId]/providers/provider-models-loader'
 import { SettingsLoader } from '@/app/workspace/[workspaceId]/providers/settings-loader'
 import { WorkspaceHostProvider } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
@@ -177,6 +178,7 @@ async function WorkspaceContent({
             initialOrgSettings={initialOrgSettings}
           >
             <DesktopOAuthConnectListener />
+            <InFlightUploadGuard />
             <SettingsLoader />
             <ProviderModelsLoader />
             <CustomBlocksLoader />

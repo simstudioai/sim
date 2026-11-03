@@ -34,6 +34,7 @@ function buildSearchUrl(cloudId: string, params: JiraListProjectsParams): string
 
 export const jiraListProjectsTool: ToolConfig<JiraListProjectsParams, JiraListProjectsResponse> = {
   id: 'jira_list_projects',
+  assistant: { effect: 'read', version: 1 },
   name: 'Jira List Projects',
   description:
     'List Jira projects visible to the user, with optional name/key filtering and pagination. Returns each project with id, key, name, and type.',

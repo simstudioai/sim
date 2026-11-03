@@ -345,6 +345,43 @@ describe('validateInputsForBlock', () => {
     ).toBe(false)
   })
 
+  describe('file-upload values', () => {
+    const multiple = { id: 'attachmentFiles', type: 'file-upload' as const, multiple: true }
+    const single = { id: 'file', type: 'file-upload' as const }
+    const stored = {
+      id: 'wf_a',
+      name: 'brief.txt',
+      path: '/api/files/serve/workspace%2Fws%2Fbrief.txt?context=workspace',
+      key: 'workspace/ws/brief.txt',
+      size: 12,
+      type: 'text/plain',
+    }
+    const validate = (config: typeof multiple | typeof single, value: unknown) =>
+      validateValueForSubBlockType(config, value, config.id, 'agent', 'agent-1')
+
+    it('stores a multi-file field as the list of file objects the editor writes', () => {
+      const files = [stored, { ...stored, id: 'wf_b', name: 'notes.txt' }]
+      expect(validate(multiple, files)).toEqual({ valid: true, value: files })
+    })
+
+    it('clears a multi-file field given an empty list, as removing its last file does', () => {
+      expect(validate(multiple, [])).toEqual({ valid: true, value: null })
+    })
+
+    it('names the entry of a multi-file list that is not a stored file', () => {
+      const result = validate(multiple, [stored, { name: 'notes.txt' }])
+      expect(result.valid).toBe(false)
+      expect(result.error?.error).toContain('attachmentFiles[1]')
+      expect(validate(multiple, [stored, 'brief.txt']).valid).toBe(false)
+    })
+
+    it('keeps a single-file field to one file object', () => {
+      expect(validate(single, stored)).toEqual({ valid: true, value: stored })
+      expect(validate(single, [stored]).valid).toBe(false)
+      expect(validate(single, []).valid).toBe(false)
+    })
+  })
+
   it('stores input-format rows with legacy or aliased types unchanged', () => {
     const rows = [
       { name: 'payload', type: 'json' },

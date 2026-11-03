@@ -1,5 +1,5 @@
 import { GOOGLE_CLICK_ID_PARAMETERS, UTM_PARAMETERS } from '@/lib/analytics/campaign-parameters'
-import { isNoindexPath } from '@/lib/navigation/paths'
+import { isNoindexPath, isPathOrDescendant } from '@/lib/navigation/paths'
 
 const GOOGLE_ANALYTICS_ORIGINS = new Set(['https://sim.ai', 'https://www.sim.ai'])
 
@@ -51,6 +51,7 @@ export function getGooglePageLocation(value: string): string | undefined {
   try {
     const url = new URL(value)
     if (!GOOGLE_ANALYTICS_ORIGINS.has(url.origin)) return undefined
+    if (isPathOrDescendant(decodeURIComponent(url.pathname), '/extension')) return undefined
 
     const campaign = new URLSearchParams()
     for (const parameter of GOOGLE_CAMPAIGN_PARAMETERS) {

@@ -578,8 +578,7 @@ export async function updateCredentialGroup(
         return (
           !next ||
           next.authorizationAppId !== option.authorizationAppId ||
-          next.scopeVersion !== option.scopeVersion ||
-          !scopesEqual(next.requiredScopes, option.requiredScopes) ||
+          !option.requiredScopes.every((scope) => next.requiredScopes.includes(scope)) ||
           body.status === 'disabled'
         )
       })

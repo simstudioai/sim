@@ -14,6 +14,7 @@ import {
   checkAttributedUsageLimits,
   createAttributedBillingRequestEnvelope,
 } from '@/lib/billing/core/attribution'
+import { payerHasChatAccess } from '@/lib/billing/core/chat-access'
 import { env } from '@/lib/core/config/env'
 import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { withFileOwnerContext } from '@/lib/mothership/application/file-owner-context'
@@ -71,7 +72,10 @@ import {
   requireToolCallStateResult,
   setTerminalToolCallState,
 } from '@/lib/mothership/request/tool-call-state'
-import { handleBillingLimitResponse } from '@/lib/mothership/request/tools/billing'
+import {
+  handleBillingLimitResponse,
+  handleChatPlanRequiredResponse,
+} from '@/lib/mothership/request/tools/billing'
 import {
   executeToolAndReport,
   failPendingToolCall,
@@ -572,22 +576,30 @@ export async function runCopilotLifecycle(
     let onCompleteStarted = false
 
     try {
-      // Hosted admission (usage limits) belongs HERE, at dispatch, with the attribution
+      // Hosted admission (plan and usage limits) belongs HERE, at dispatch, with the attribution
       // already in hand. The old path outsourced it to the Go backend's api-keys/validate
       // callback — a call the TS worker rightly never makes, so without this gate the
       // limit check simply never runs on the new path. On exceeded, the same synthetic
       // 402 UX as the mid-stream path renders the upgrade prompt, the backend is never
       // dispatched, and the shared verdict assembly below runs exactly as after a
       // mid-stream billing break.
-      const admission =
+      const admittedAttribution =
         isHosted && !isContinuation && execContext.billingAttribution
-          ? await checkAttributedUsageLimits(
-              assertBillingAttributionSnapshot(execContext.billingAttribution)
-            )
+          ? assertBillingAttributionSnapshot(execContext.billingAttribution)
+          : undefined
+      // The free plan does not include Chat, on any surface that starts a run: such a payer's
+      // turn ends here with the upgrade card, before usage is read or the backend dispatched.
+      const chatPlanRequired =
+        admittedAttribution !== undefined && !(await payerHasChatAccess(admittedAttribution))
+      const admission =
+        admittedAttribution && !chatPlanRequired
+          ? await checkAttributedUsageLimits(admittedAttribution)
           : { isExceeded: false as const }
       if (options.recovery && context.completionStatus) {
         // The worker terminal was already delivered before the relay died.
         // Rebuild persistence from that receipt without charging its usage twice.
+      } else if (chatPlanRequired) {
+        await handleChatPlanRequiredResponse(context, execContext, lifecycleOptions)
       } else if (admission.isExceeded) {
         await handleBillingLimitResponse(
           execContext.userId,

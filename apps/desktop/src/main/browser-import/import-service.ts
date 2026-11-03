@@ -12,6 +12,7 @@ import type { ReadCookiesResult } from '@/main/browser-import/chromium-cookies'
 import { deriveEncryptionKey } from '@/main/browser-import/chromium-crypto'
 import type { ReadPasswordsResult } from '@/main/browser-import/chromium-passwords'
 import type { ImportedSite } from '@/main/browser-import/chromium-site-names'
+import type { SiteScope } from '@/main/browser-import/site-scope'
 import {
   type BrowserProfile,
   type ImportableCookie,
@@ -34,7 +35,8 @@ export interface ImportServiceDeps {
   listProfiles: () => Promise<BrowserProfile[]>
   /** Reads one browser's Safe Storage key; the item comes from its source. */
   readSafeStoragePassword: (item: { service: string; account: string }) => Promise<string | null>
-  readCookies: (cookiesPath: string, key: Buffer) => Promise<ReadCookiesResult>
+  /** `scope` limits the read to one site; absent for a whole profile. */
+  readCookies: (cookiesPath: string, key: Buffer, scope?: SiteScope) => Promise<ReadCookiesResult>
   writeCookies: (cookies: ImportableCookie[]) => Promise<{ imported: number; failed: number }>
   readPasswords: (loginDataPath: string, key: Buffer) => Promise<ReadPasswordsResult>
   /** Site icons for the given origins, read from the source browser's own store. */
@@ -54,7 +56,7 @@ export interface ImportServiceDeps {
   }
 }
 
-function cookieFailure(error: BrowserImportResult['error']): BrowserImportResult {
+export function cookieFailure(error: BrowserImportResult['error']): BrowserImportResult {
   return { cookiesImported: 0, cookiesSkipped: 0, error }
 }
 
@@ -152,7 +154,8 @@ export function toDisplayProfiles(profiles: BrowserProfile[]): BrowserImportProf
 }
 
 /**
- * Copies one Chrome profile's cookies into the built-in browser.
+ * Copies one Chrome profile's cookies into the built-in browser — or, given a
+ * `scope`, only one site's: the sign-in the user just finished there.
  *
  * Fails closed at every step: an unsupported platform, an absent Chrome, a
  * refused Keychain prompt, or an unrecognised database all stop the import
@@ -161,7 +164,8 @@ export function toDisplayProfiles(profiles: BrowserProfile[]): BrowserImportProf
  */
 export async function importChromeCookies(
   profileId: string | undefined,
-  deps: ImportServiceDeps
+  deps: ImportServiceDeps,
+  scope?: SiteScope
 ): Promise<BrowserImportResult> {
   if (deps.platform !== 'darwin') return cookieFailure('unsupported-platform')
 
@@ -169,7 +173,7 @@ export async function importChromeCookies(
     const open = await openBrowserProfile(profileId, deps)
     let outcome: CookieOutcome
     try {
-      outcome = await runCookieImport(open, deps)
+      outcome = await runCookieImport(open, deps, scope)
     } finally {
       zeroKey(open)
     }
@@ -199,13 +203,14 @@ interface PasswordOutcome {
  */
 async function runCookieImport(
   { profile, key }: OpenProfile,
-  deps: ImportServiceDeps
+  deps: ImportServiceDeps,
+  scope?: SiteScope
 ): Promise<CookieOutcome> {
   if (profile.cookiesPath === null) {
     return { result: cookieFailure('profile-unreadable'), domains: new Set() }
   }
 
-  const read = await deps.readCookies(profile.cookiesPath, key)
+  const read = await deps.readCookies(profile.cookiesPath, key, scope)
   const skippedReading = totalSkipped(read.skipped)
   // Rows present but nothing usable means the profile did not decrypt —
   // typically a scheme this importer does not support. Report it as a

@@ -262,6 +262,121 @@ async function storedState() {
 }
 
 describe('access request member-to-admin flow on PostgreSQL', () => {
+  it.each([
+    {
+      name: 'feature and child feature',
+      config: { deniedAccessRequests: ['feature:hideTablesTab'] },
+      targets: [
+        { kind: 'feature', configKey: 'hideTablesTab' },
+        { kind: 'feature', configKey: 'disableTableCreation' },
+      ],
+    },
+    {
+      name: 'provider and model',
+      config: { allowedModelProviders: [], deniedAccessRequests: ['provider:openai'] },
+      targets: [
+        { kind: 'provider', id: 'openai' },
+        { kind: 'model', id: 'gpt-4.1' },
+      ],
+    },
+    {
+      name: 'integration and tool',
+      config: { allowedIntegrations: [], deniedAccessRequests: ['integration:table_v2'] },
+      targets: [
+        { kind: 'integration', id: 'table_v2' },
+        { kind: 'tool', id: 'table_insert_row' },
+      ],
+    },
+    {
+      name: 'individual model',
+      config: { deniedModels: ['gpt-4.1'], deniedAccessRequests: ['model:gpt-4.1'] },
+      targets: [{ kind: 'model', id: 'gpt-4.1' }],
+    },
+    {
+      name: 'individual tool',
+      config: {
+        deniedTools: ['table_insert_row'],
+        deniedAccessRequests: ['tool:table_insert_row'],
+      },
+      targets: [{ kind: 'tool', id: 'table_insert_row' }],
+    },
+    {
+      name: 'knowledge connector',
+      config: { allowedKnowledgeConnectors: [], deniedAccessRequests: ['knowledge_connector:s3'] },
+      targets: [{ kind: 'knowledge_connector', id: 's3' }],
+    },
+    {
+      name: 'file sharing authentication',
+      config: { allowedFileShareAuthTypes: [], deniedAccessRequests: ['file_share_auth:public'] },
+      targets: [{ kind: 'file_share_auth', id: 'public' }],
+    },
+    {
+      name: 'chat deployment authentication',
+      config: { allowedChatDeployAuthTypes: [], deniedAccessRequests: ['chat_deploy_auth:public'] },
+      targets: [{ kind: 'chat_deploy_auth', id: 'public' }],
+    },
+  ] as const)(
+    'refuses unavailable $name without recording a request',
+    async ({ config, targets }) => {
+      await connection`
+      UPDATE permission_group SET config = config || ${JSON.stringify(config)}::jsonb
+      WHERE id = 'restricted'
+    `
+      for (const unavailableTarget of targets) {
+        const targetKey =
+          unavailableTarget.kind === 'feature'
+            ? `feature:${unavailableTarget.configKey}`
+            : `${unavailableTarget.kind}:${unavailableTarget.id}`
+        const discovery = await discoverAccessRequests.execute({
+          principal: member,
+          input: { ...scope, targetKind: unavailableTarget.kind, targetKey, ...page },
+        })
+        expect(discovery.entries).toMatchObject([
+          { target: unavailableTarget, state: 'unavailable' },
+        ])
+        await expect(
+          createAccessRequest.execute({
+            principal: member,
+            input: { scope, target: unavailableTarget },
+          })
+        ).rejects.toMatchObject({ code: 'conflict' })
+      }
+      const persisted = await storedState()
+      expect(persisted.requests).toEqual([])
+      expect(persisted.events).toEqual([])
+      await expect(authorizeTables()).rejects.toMatchObject({
+        detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+      })
+    }
+  )
+
+  it('rechecks request eligibility at approval while preserving history and cancellation', async () => {
+    const { request } = await create()
+    await connection`
+      UPDATE permission_group SET config = config ||
+        '{"deniedAccessRequests":["feature:hideTablesTab"]}'::jsonb
+      WHERE id = 'restricted'
+    `
+    const unavailable = await preview(request.id)
+    expect(unavailable).toMatchObject({ canApply: false })
+    const before = await storedState()
+    await expect(apply(request.id, unavailable.fingerprint)).rejects.toMatchObject({
+      code: 'conflict',
+    })
+    expect(await storedState()).toEqual(before)
+    expect(
+      await listMyAccessRequests.execute({
+        principal: member,
+        input: { scope, ...page },
+      })
+    ).toMatchObject({ requests: [{ id: request.id, status: 'pending' }] })
+    await cancelAccessRequest.execute({
+      principal: member,
+      input: { scope, requestId: request.id },
+    })
+    expect((await storedState()).requests).toMatchObject([{ status: 'cancelled' }])
+  })
+
   it('refuses workspace API keys before any protected read or transaction', async () => {
     const readsBefore = select.mock.calls.length
     const transactionsBefore = transaction.mock.calls.length
@@ -567,9 +682,18 @@ describe('access request member-to-admin flow on PostgreSQL', () => {
     })
     const discovery = await discoverAccessRequests.execute({
       principal: member,
-      input: { ...scope, targetKind: 'feature', limit: 1, offset: 0 },
+      input: {
+        ...scope,
+        targetKind: 'feature',
+        targetKey: 'feature:hideTablesTab',
+        limit: 1,
+        offset: 0,
+      },
     })
-    expect(discovery).toMatchObject({ enabled: false, entries: [] })
+    expect(discovery).toMatchObject({
+      enabled: false,
+      entries: [{ target, state: 'requestable', pendingRequestId: request.id }],
+    })
     await expect(create()).rejects.toMatchObject({ detailCode: 'ACCESS_REQUESTS_DISABLED' })
     expect(
       (await listMyAccessRequests.execute({ principal: member, input: { scope, ...page } }))

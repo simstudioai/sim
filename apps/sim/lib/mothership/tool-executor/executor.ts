@@ -9,7 +9,6 @@ import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspa
 import { ASSISTANT_TOOLS, isAssistantIntegrationTool } from '@/lib/mothership/assistant/tool-policy'
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
-import { isSearchIntegrationToolsEnabled } from '@/lib/mothership/feature-flags'
 import { isOwnerScopedFile } from '@/lib/mothership/file-owners'
 import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
@@ -172,8 +171,7 @@ async function executeBoundTool(
   if (
     context.requestMode === 'assistant' &&
     !ASSISTANT_TOOLS.has(toolId) &&
-    (!isAssistantIntegrationTool(getToolMetadata(toolId)) ||
-      !(await isSearchIntegrationToolsEnabled()))
+    !isAssistantIntegrationTool(getToolMetadata(toolId))
   ) {
     return {
       success: false,
@@ -336,7 +334,12 @@ function buildAppToolParams(
 ): Record<string, unknown> {
   const result = { ...params }
 
-  if (result.credentialId && !result.credential && !result.oauthCredential) {
+  if (
+    context.requestMode !== 'assistant' &&
+    result.credentialId &&
+    !result.credential &&
+    !result.oauthCredential
+  ) {
     result.credential = result.credentialId
   }
 

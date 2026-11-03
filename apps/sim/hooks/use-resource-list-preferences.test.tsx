@@ -143,6 +143,25 @@ describe('useResourceListPreferences', () => {
     expect(useResourceListPreferencesStore.getState().preferences).toEqual({})
   })
 
+  it('restores a saved filter without the values its URL parser drops, so the list becomes ready', async () => {
+    seedPreference({
+      sort: { column: 'name', direction: 'asc' },
+      filters: { type: ['document', 'spreadsheet'], size: ['huge'], uploadedBy: [] },
+    })
+    const applyPreference = vi.fn()
+    const result = renderPreferenceHook({ preference: defaultPreference, applyPreference })
+    await flushEffects()
+
+    const restored: ResourceListPreference = {
+      sort: { column: 'name', direction: 'asc' },
+      filters: { type: ['document'], size: [], uploadedBy: [] },
+    }
+    expect(applyPreference).toHaveBeenCalledWith(restored)
+    result.rerender({ preference: restored, applyPreference })
+    await flushEffects()
+    expect(result.current.isReady).toBe(true)
+  })
+
   it('keeps URL commits working when localStorage writes fail', async () => {
     const applyPreference = vi.fn()
     const result = renderPreferenceHook({ preference: defaultPreference, applyPreference })

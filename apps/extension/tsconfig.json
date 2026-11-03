@@ -1,0 +1,11 @@
+{
+  "extends": "@sim/tsconfig/base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node", "bun", "chrome"],
+    "paths": { "@/*": ["./src/*"] },
+    "jsx": "react-jsx"
+  },
+  "include": ["src/**/*", "scripts/**/*"],
+  "exclude": ["node_modules", "dist", "test-results"]
+}

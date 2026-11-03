@@ -3,7 +3,7 @@ title: Pi coding agent
 description: Plan repository changes, create or update a PR, review code, or edit over SSH.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
+import { Callout } from '@/components/ui/callout'
 import { BlockPreview } from '@/components/workflow-preview'
 
 The **Pi Coding Agent block** runs the [Pi](https://github.com/earendil-works/pi-mono) coding harness against a real repository. You give it a task and a model; it creates or updates a pull request, posts a PR review, or changes your files in place. Create PR and Update PR can optionally babysit their pull request. Plan, Create PR, Update PR, and Local Dev can reuse your [skills](/agents/skills) and multi-turn [memory](#memory-create-pr--update-pr--local-dev). Review Code deliberately loads neither.

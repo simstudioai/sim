@@ -14,6 +14,7 @@ import { loadManagedMcpAuthProvider } from '@/lib/mcp/application/managed-auth-p
 import { loadMcpOperationAccess } from '@/lib/mcp/application/operation-access'
 import { mcpService } from '@/lib/mcp/service'
 import { compileMcpToolSchema } from '@/lib/mcp/tool-schema'
+import { toManagedMcpToolSnapshots } from '@/lib/mcp/tool-snapshot'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 
 export interface DiscoverManagedMcpToolsInput {
@@ -73,11 +74,7 @@ export const discoverManagedMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
     )
     await saveManagedMcpToolSnapshot(
       runtime.credentialId,
-      tools.map((tool) => ({
-        name: tool.name,
-        ...(tool.description ? { description: tool.description } : {}),
-        inputSchema: tool.inputSchema,
-      })),
+      toManagedMcpToolSnapshots(tools),
       runtime.oauthConfigVersion,
       runtime.grantedAt
     )

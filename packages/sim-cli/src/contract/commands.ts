@@ -114,7 +114,7 @@ const TARGET_FOLDER_PATH_FLAG = {
  * catch, and nothing about that failure would point back here.
  */
 const LOG_LIST_FILTER_FLAGS = {
-  workflowIds: { name: 'workflow', list: true },
+  workflowIds: { name: 'workflow', list: true, hiddenAliases: ['workflow-ids'] },
   folderPaths: FOLDER_PATHS_FLAG,
   triggers: { name: 'trigger', list: true },
 } as const
@@ -251,7 +251,7 @@ export const CLI_CONTRACT: CliContract = {
     command: 'tables rows batch-delete',
     describe: 'Delete rows matching a filter, or an explicit list of ids',
     flags: {
-      rowIds: { name: 'row', list: true },
+      rowIds: { name: 'row', list: true, hiddenAliases: ['row-ids'] },
       filter: { json: true, describe: TABLE_FILTER_HELP },
     },
     confirm: 'This deletes every matching row and cannot be undone.',
@@ -1461,6 +1461,8 @@ export const CLI_CONTRACT: CliContract = {
   // `serviceId`, while `credentials create` matches a service-account provider
   // on `providerId`. Each is empty on the kind of row that does not use it.
   listCredentialProviders: {
+    // The providers group holds nothing but this list, so naming the group lists them.
+    defaultSubcommand: true,
     columns: [
       { header: 'type' },
       { header: 'service', path: 'serviceId' },
@@ -1556,7 +1558,12 @@ export const CLI_CONTRACT: CliContract = {
     command: 'files batch-delete',
     describe: 'Delete several files at once',
     flags: {
-      fileIds: { list: true },
+      fileIds: {
+        list: true,
+        trailing: true,
+        fileReferences: true,
+        hiddenAliases: ['ids', 'paths'],
+      },
     },
     confirm: 'This archives the listed files; restore them with `files restore`.',
   },
@@ -2139,6 +2146,10 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Run a deployed workflow or execute saved state manually',
     flags: {
       async: { boolean: true, describe: 'Queue the run and return immediately' },
+      executionTimeoutSeconds: {
+        describe:
+          "Maximum duration of the run in seconds, capped by the plan's execution timeout. Requires --async or --wait-timeout",
+      },
       input: { json: true, describe: 'Trigger input as JSON' },
       run: {
         hidden: true,
@@ -2159,6 +2170,10 @@ export const CLI_CONTRACT: CliContract = {
       stream: { omit: true },
       includeThinking: { omit: true },
       includeToolCalls: { omit: true },
+      // Spelled `--wait-timeout <seconds>` like every other wait, and parsed the
+      // same way, by `workflow-run-follow.ts`, which also reads the run back
+      // when the server stops waiting.
+      waitTimeoutSeconds: { omit: true },
       // Its embedded default lives with the synchronous request in
       // `workflow-run-follow.ts`, because an `--async` run rejects the field.
       includeFileBase64: {

@@ -616,12 +616,12 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://github.com/crewAIInc/crewAI/tree/main/lib/crewai-tools/src/crewai_tools/tools',
             label: 'crewAIInc/crewAI - lib/crewai-tools/tools directory (GitHub)',
-            asOf: '2026-07-08',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://docs.crewai.com/en/tools/automation/composiotool',
             label: 'Composio Tool - CrewAI Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -735,7 +735,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://crewai.com/pricing',
             label: 'CrewAI Pricing',
-            asOf: '2026-07-08',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -745,12 +745,12 @@ export const crewaiProfile: CompetitorProfile = {
         detail:
           "CrewAI AMP pricing currently lists only a free Basic tier (50 executions/month) and custom Enterprise pricing; the previously offered $25/month Professional tier is no longer shown on CrewAI's pricing page.",
         shortValue: 'None currently listed: free Basic tier, then custom Enterprise',
-        confidence: 'estimated',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://crewai.com/pricing',
             label: 'CrewAI Pricing',
-            asOf: '2026-07-08',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -765,7 +765,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://crewai.com/pricing',
             label: 'CrewAI Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -780,7 +780,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/concepts/llms',
             label: 'LLMs - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },

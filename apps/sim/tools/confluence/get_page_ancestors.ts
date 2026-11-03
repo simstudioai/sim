@@ -29,6 +29,7 @@ export const confluenceGetPageAncestorsTool: InternalToolConfig<
   ConfluenceGetPageAncestorsResponse
 > = {
   id: 'confluence_get_page_ancestors',
+  assistant: { effect: 'read', version: 1 },
   name: 'Confluence Get Page Ancestors',
   description:
     'Get the ancestor (parent) pages of a specific Confluence page. Returns the full hierarchy from the page up to the root.',

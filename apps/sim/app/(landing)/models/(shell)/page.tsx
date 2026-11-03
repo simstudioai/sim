@@ -1,3 +1,4 @@
+import { ChipLink } from '@sim/emcn'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import type { SearchParams } from 'nuqs/server'
@@ -20,6 +21,7 @@ import {
   ALL_CATALOG_MODELS,
   getPricingBounds,
   MODEL_PROVIDERS_WITH_CATALOGS,
+  MODEL_RESELLER_PROVIDERS,
   TOP_MODEL_PROVIDERS,
   TOTAL_MODEL_PROVIDERS,
   TOTAL_MODELS,
@@ -272,6 +274,36 @@ export default async function ModelsPage({
             </section>
 
             <div className='h-px w-full bg-[var(--border)]' />
+
+            {MODEL_RESELLER_PROVIDERS.length > 0 && (
+              <>
+                <section
+                  id='cloud-providers'
+                  aria-labelledby='cloud-providers-heading'
+                  className='px-6 py-10'
+                >
+                  <h2
+                    id='cloud-providers-heading'
+                    className='mb-2 text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[20px]'
+                  >
+                    Cloud and inference providers
+                  </h2>
+                  <p className='mb-6 text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
+                    The same models served through cloud platforms and inference hosts, each with
+                    its own pricing and model IDs.
+                  </p>
+                  <nav aria-label='Cloud and inference providers' className='flex flex-wrap gap-2'>
+                    {MODEL_RESELLER_PROVIDERS.map((provider) => (
+                      <ChipLink key={provider.id} href={provider.href} variant='outline'>
+                        {provider.name}
+                      </ChipLink>
+                    ))}
+                  </nav>
+                </section>
+
+                <div className='h-px w-full bg-[var(--border)]' />
+              </>
+            )}
 
             <section aria-labelledby='all-models-heading'>
               <div className='px-6 pt-10 pb-4'>
