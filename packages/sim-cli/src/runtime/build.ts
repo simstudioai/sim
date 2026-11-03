@@ -137,7 +137,9 @@ function siblingsDeclaring(command: Command, flag: string): string[] {
       (sibling) =>
         sibling !== command &&
         !(sibling as Command & CommandInternals)._hidden &&
-        sibling.options.some((option) => !option.hidden && option.long === flag)
+        sibling.options.some(
+          (option) => !option.hidden && (option.long === flag || option.short === flag)
+        )
     )
     .map((sibling) => `  ${commandPath(sibling)} — ${sibling.description().split('\n', 1)[0]}`)
 }
@@ -207,14 +209,14 @@ function addParseErrorGuidance(command: Command): void {
  * Attaches {@link addParseErrorGuidance} to every command that parses its own
  * arguments, generated or attached by hand (`files upload`, `secrets set`), so
  * a hand-written command does not answer a guessed flag with a bare error.
- * Pure dispatchers are left to commander's unknown-command handling.
+ * Pure dispatchers below the root are left to commander's unknown-command handling.
  */
 export function addParseErrorGuidanceToTree(program: Command): void {
   const walk = (command: Command): void => {
     const parsesOwnArguments =
       command.commands.length === 0 ||
       Boolean((command as Command & CommandInternals)._actionHandler)
-    if (command.parent && parsesOwnArguments) addParseErrorGuidance(command)
+    if (parsesOwnArguments || !command.parent) addParseErrorGuidance(command)
     for (const child of command.commands) walk(child)
   }
   walk(program)

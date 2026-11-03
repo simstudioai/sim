@@ -26,7 +26,7 @@ function bodyVariantShapeError(
   variants: readonly BodyVariantSpec[]
 ): string {
   const flag = `--${variant.name}`
-  const example = variant.kind === 'array' ? `'[{...}, {...}]'` : `'{...}'`
+  const example = variant.kind === 'array' ? `'[{"column":"value"}]'` : `'{"column":"value"}'`
   const base = `${flag} must be a JSON ${variant.kind}, e.g. ${flag} ${example}; got ${jsonKind(parsed)}.`
   if (variant.kind === 'array' && parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
     if (Array.isArray((parsed as Record<string, unknown>)[variant.property])) {
