@@ -42,7 +42,14 @@ const database = assertDisposableTestDatabaseUrl(required('EXTENSION_APP_E2E_DAT
 const report = resolve(required('EXTENSION_APP_E2E_REPORT_PATH'))
 const liveChat = process.env.EXTENSION_APP_E2E_LIVE_CHAT === '1'
 const group = process.env.EXTENSION_APP_E2E_GROUP ?? 'all'
-assert(group === 'all' || group === 'native' || group === 'access', 'Unknown extension E2E group')
+assert(
+  group === 'all' ||
+    group === 'native' ||
+    group === 'navigation' ||
+    group === 'composer' ||
+    group === 'access',
+  'Unknown extension E2E group'
+)
 assert(!liveChat || group === 'all', 'Live-provider acceptance requires the complete suite')
 const loopback = ['127.0.0.1', 'localhost', '[::1]']
 assert(
@@ -115,8 +122,12 @@ await once(fixture, 'listening')
 const fixtureAddress = fixture.address()
 assert(fixtureAddress && typeof fixtureAddress !== 'string')
 
-async function check(owner: 'native' | 'access', name: string, run: () => Promise<void>) {
-  if (group !== 'all' && group !== owner) return
+async function check(
+  owner: 'navigation' | 'composer' | 'access',
+  name: string,
+  run: () => Promise<void>
+) {
+  if (group !== 'all' && group !== owner && !(group === 'native' && owner !== 'access')) return
   const started = performance.now()
   try {
     await run()
@@ -132,7 +143,8 @@ async function check(owner: 'native' | 'access', name: string, run: () => Promis
     throw error
   }
 }
-const checkNative = (name: string, run: () => Promise<void>) => check('native', name, run)
+const checkNavigation = (name: string, run: () => Promise<void>) => check('navigation', name, run)
+const checkComposer = (name: string, run: () => Promise<void>) => check('composer', name, run)
 const checkAccess = (name: string, run: () => Promise<void>) => check('access', name, run)
 
 async function screenshot(name: string) {
@@ -387,7 +399,7 @@ try {
     await frame().evaluate((destination) => window.location.assign(destination), url)
     await navigation
   }
-  await checkNative('Signed-out users get the real top-level Sim sign-in flow', async () => {
+  await checkNavigation('Signed-out users get the real top-level Sim sign-in flow', async () => {
     await expect(frame().getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
     await screenshot('signed-out')
     const link = frame().getByRole('link', { name: 'Sign in', exact: true })
@@ -414,7 +426,7 @@ try {
     userId = String(id)
     await seed()
   }
-  await checkNative('A real Better Auth session reaches the extension iframe', async () => {
+  await checkNavigation('A real Better Auth session reaches the extension iframe', async () => {
     await signInAndSeed()
     await shell.reload()
     await expect(
@@ -436,7 +448,11 @@ try {
       timeout: 120_000,
     })
   })
-  if (group === 'access') await signInAndSeed()
+  if (group === 'access' || group === 'composer') await signInAndSeed()
+  if (group === 'composer') {
+    await navigate(`${base.origin}/extension/${alphaId}`)
+    await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
+  }
   let source = await context.newPage()
   await source.goto(`${fixtureOrigin}/page?private=QUERY_SECRET#FRAGMENT_SECRET`)
   const observeCaptureReceipts = () =>
@@ -496,7 +512,7 @@ try {
     trackUploadedFile(String(asset.key))
     await expect(frame().getByRole('button', { name: `Remove ${name}`, exact: true })).toBeEnabled()
   }
-  await checkNative(
+  await checkNavigation(
     'Capture, preview, removal, and the three-page cap use the real composer',
     async () => {
       await capture()
@@ -529,7 +545,7 @@ try {
       )
     }
   )
-  await checkNative(
+  await checkNavigation(
     'Toolbar and authenticated chat align at 320/390 pixels in light and dark themes',
     async () => {
       for (const theme of ['light', 'dark'] as const) {
@@ -606,7 +622,7 @@ try {
       }
     }
   )
-  await checkNative(
+  await checkNavigation(
     'Workspace and conversation navigation clear pending page context',
     async () => {
       await capture()
@@ -633,7 +649,7 @@ try {
       await expect(frame().getByText('QA history response.', { exact: false })).toBeVisible()
     }
   )
-  await checkNative(
+  await checkNavigation(
     'Page chips protect draft history and support page-only Enter at the HTTP boundary',
     async () => {
       const editor = frame().getByRole('textbox', { name: 'Message', exact: true })
@@ -692,77 +708,83 @@ try {
       contentType: 'application/javascript',
     })
   )
-  await checkNative('Saved page previews stay out of session replay in the full app', async () => {
-    const opened = browserContext.waitForEvent('page')
-    await frame().getByRole('link', { name: 'Open in Sim', exact: true }).click()
-    const app = await opened
-    try {
-      await app.waitForURL(`${base.origin}/workspace/${alphaId}/chat/${historyId}`)
-      await app.getByRole('button', { name: 'Review page context: Extension QA page' }).click()
-      const preview = app.getByRole('dialog', { name: 'Page context', exact: true })
-      await expect(preview).toBeVisible()
-      await expect(preview.getByText(captureText, { exact: false })).toBeVisible()
-      await app.evaluate(() => {
-        const control = document.createElement('p')
-        control.textContent = 'QA_PUBLIC_REPLAY_CONTROL'
-        document.body.append(control)
-      })
-      const recorded = await recordSnapshot(app)
-      assert(recorded.includes('"type":2'), 'Recorder did not produce a full DOM snapshot')
-      assert(recorded.includes('QA_PUBLIC_REPLAY_CONTROL'), 'Ordinary page text was not recorded')
-      assert(!recorded.includes('QA_PRIVATE_PAGE_MARKER'), 'Page text entered session replay')
-      assert(!recorded.includes('Extension QA page'), 'Page title entered session replay')
-      assert(!recorded.includes(fixtureOrigin), 'Page URL entered session replay')
-      await app
-        .getByText('QA_PUBLIC_REPLAY_CONTROL', { exact: true })
-        .evaluate((element) => element.remove())
-      const path = `${report}.full-app-page-preview.png`
-      await app.screenshot({ path, fullPage: true, animations: 'disabled' })
-      screenshots.push(path)
-    } finally {
-      await app.close()
+  await checkNavigation(
+    'Saved page previews stay out of session replay in the full app',
+    async () => {
+      const opened = browserContext.waitForEvent('page')
+      await frame().getByRole('link', { name: 'Open in Sim', exact: true }).click()
+      const app = await opened
+      try {
+        await app.waitForURL(`${base.origin}/workspace/${alphaId}/chat/${historyId}`)
+        await app.getByRole('button', { name: 'Review page context: Extension QA page' }).click()
+        const preview = app.getByRole('dialog', { name: 'Page context', exact: true })
+        await expect(preview).toBeVisible()
+        await expect(preview.getByText(captureText, { exact: false })).toBeVisible()
+        await app.evaluate(() => {
+          const control = document.createElement('p')
+          control.textContent = 'QA_PUBLIC_REPLAY_CONTROL'
+          document.body.append(control)
+        })
+        const recorded = await recordSnapshot(app)
+        assert(recorded.includes('"type":2'), 'Recorder did not produce a full DOM snapshot')
+        assert(recorded.includes('QA_PUBLIC_REPLAY_CONTROL'), 'Ordinary page text was not recorded')
+        assert(!recorded.includes('QA_PRIVATE_PAGE_MARKER'), 'Page text entered session replay')
+        assert(!recorded.includes('Extension QA page'), 'Page title entered session replay')
+        assert(!recorded.includes(fixtureOrigin), 'Page URL entered session replay')
+        await app
+          .getByText('QA_PUBLIC_REPLAY_CONTROL', { exact: true })
+          .evaluate((element) => element.remove())
+        const path = `${report}.full-app-page-preview.png`
+        await app.screenshot({ path, fullPage: true, animations: 'disabled' })
+        screenshots.push(path)
+      } finally {
+        await app.close()
+      }
     }
-  })
-  await checkNative('Sources and resource actions preserve their real destinations', async () => {
-    await frame().getByRole('button', { name: '1 source', exact: true }).click()
-    await frame().getByRole('button', { name: 'View all sources' }).click()
-    const dialog = frame().getByRole('dialog', { name: 'Cited sources' })
-    await expect(dialog).toBeVisible()
-    await screenshot('sources')
-    await expect(dialog.getByRole('link', { name: 'QA evidence' })).toHaveAttribute(
-      'href',
-      'https://example.com/qa-evidence'
-    )
-    await shell.bringToFront()
-    await dialog.getByRole('button', { name: 'Actions for QA evidence' }).click()
-    await frame().getByRole('menuitem', { name: 'Copy link', exact: true }).click()
-    await expect(dialog.getByRole('button', { name: 'Link copied', exact: true })).toBeVisible()
-    await screenshot('source-link-copied')
-    const recorded = await recordSnapshot(frame())
-    assert(recorded.includes('"type":2'), 'Recorder did not produce a full DOM snapshot')
-    assert(!recorded.includes('QA evidence'), 'Portaled citation content entered session replay')
-    await dialog.getByRole('button', { name: 'Close', exact: true }).click()
-    await expect(dialog).toHaveCount(0)
-    await expect.poll(() => new URL(frame().url()).searchParams.get('source-message')).toBeNull()
-    await navigate(
-      `${base.origin}/extension/${alphaId}?chat=${historyId}&source-message=live-assistant:${historyRequestId}&source-request=${historyRequestId}`
-    )
-    await expect(dialog).toBeVisible()
-    await expect(dialog.getByRole('link', { name: 'QA evidence' })).toHaveAttribute(
-      'href',
-      'https://example.com/qa-evidence'
-    )
-    await dialog.getByRole('button', { name: 'Close', exact: true }).click()
-    const popup = browserContext.waitForEvent('page')
-    await frame().getByRole('button', { name: 'Extension QA workflow', exact: true }).click()
-    const resource = await popup
-    await resource.waitForURL(`${base.origin}/workspace/${alphaId}/w/${workflowId}`)
-    assert.equal(await resource.evaluate(() => window.opener), null)
-    await resource.close()
-    await frame().getByRole('button', { name: 'New chat', exact: true }).click()
-    await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('')
-  })
-  await checkNative(
+  )
+  await checkNavigation(
+    'Sources and resource actions preserve their real destinations',
+    async () => {
+      await frame().getByRole('button', { name: '1 source', exact: true }).click()
+      await frame().getByRole('button', { name: 'View all sources' }).click()
+      const dialog = frame().getByRole('dialog', { name: 'Cited sources' })
+      await expect(dialog).toBeVisible()
+      await screenshot('sources')
+      await expect(dialog.getByRole('link', { name: 'QA evidence' })).toHaveAttribute(
+        'href',
+        'https://example.com/qa-evidence'
+      )
+      await shell.bringToFront()
+      await dialog.getByRole('button', { name: 'Actions for QA evidence' }).click()
+      await frame().getByRole('menuitem', { name: 'Copy link', exact: true }).click()
+      await expect(dialog.getByRole('button', { name: 'Link copied', exact: true })).toBeVisible()
+      await screenshot('source-link-copied')
+      const recorded = await recordSnapshot(frame())
+      assert(recorded.includes('"type":2'), 'Recorder did not produce a full DOM snapshot')
+      assert(!recorded.includes('QA evidence'), 'Portaled citation content entered session replay')
+      await dialog.getByRole('button', { name: 'Close', exact: true }).click()
+      await expect(dialog).toHaveCount(0)
+      await expect.poll(() => new URL(frame().url()).searchParams.get('source-message')).toBeNull()
+      await navigate(
+        `${base.origin}/extension/${alphaId}?chat=${historyId}&source-message=live-assistant:${historyRequestId}&source-request=${historyRequestId}`
+      )
+      await expect(dialog).toBeVisible()
+      await expect(dialog.getByRole('link', { name: 'QA evidence' })).toHaveAttribute(
+        'href',
+        'https://example.com/qa-evidence'
+      )
+      await dialog.getByRole('button', { name: 'Close', exact: true }).click()
+      const popup = browserContext.waitForEvent('page')
+      await frame().getByRole('button', { name: 'Extension QA workflow', exact: true }).click()
+      const resource = await popup
+      await resource.waitForURL(`${base.origin}/workspace/${alphaId}/w/${workflowId}`)
+      assert.equal(await resource.evaluate(() => window.opener), null)
+      await resource.close()
+      await frame().getByRole('button', { name: 'New chat', exact: true }).click()
+      await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('')
+    }
+  )
+  await checkComposer(
     'The extension blocks microphone capture even when the Sim origin has permission',
     async () => {
       await browserContext.grantPermissions(['microphone'], { origin: base.origin })
@@ -780,7 +802,7 @@ try {
       await browserContext.clearPermissions()
     }
   )
-  await checkNative(
+  await checkComposer(
     'Files and pages share the attachment row, remove independently, and reach the submission boundary together',
     async () => {
       await capture()
@@ -876,7 +898,7 @@ try {
       await expect(attachments()).toHaveCount(0)
     }
   )
-  await checkNative(
+  await checkComposer(
     'Selected text attaches only the selected excerpt through the shared plus menu',
     async () => {
       await source.evaluate(() => {
@@ -1135,7 +1157,7 @@ try {
     assert.equal(toRecord(submitted[0]).workspaceId, scope.organizationId ? undefined : alphaId)
   }
   if (liveChat) {
-    await checkNative(
+    await checkComposer(
       'Workspace live admission preserves queued pages, files, and the active draft',
       () =>
         verifyLiveChat({
@@ -1145,9 +1167,9 @@ try {
           draftKey: `extension:${userId}:${alphaId}:new`,
         })
     )
-  } else if (group !== 'access')
+  } else if (group === 'all' || group === 'native' || group === 'composer')
     checks.push({ name: 'Live Mothership send and admission', status: 'skipped', durationMs: 0 })
-  await checkNative(
+  await checkComposer(
     'Another user’s existing workspace fails closed and returns to an authorized workspace',
     async () => {
       await navigate(`${base.origin}/extension/${deniedId}`)
@@ -1158,7 +1180,7 @@ try {
       await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
     }
   )
-  await checkNative(
+  await checkComposer(
     'Organization default landing binds page-only submissions to the organization',
     async () => {
       await seedViewerOrganization()
@@ -1217,7 +1239,7 @@ try {
     )
     assert.equal(active.status(), 200)
   }
-  await checkNative(
+  await checkComposer(
     'A shared workspace returns to the viewer’s own organization chat',
     async () => {
       await seedHostedWorkspace()
@@ -1242,7 +1264,7 @@ try {
       await screenshot('shared-workspace-organization-navigation')
     }
   )
-  await checkNative(
+  await checkComposer(
     'A first-open toolbar capture survives authenticated organization landing',
     async () => {
       await source.bringToFront()
@@ -1280,7 +1302,7 @@ try {
       await screenshot('organization-first-open-capture')
     }
   )
-  await checkNative('The current-page shortcut attaches in both shared composers', async () => {
+  await checkComposer('The current-page shortcut attaches in both shared composers', async () => {
     for (const path of [`/extension/${alphaId}`, `/extension/o/${organizationId}`]) {
       await navigate(`${base.origin}${path}`)
       await expect(attachments()).toHaveCount(0)
@@ -1299,7 +1321,7 @@ try {
       await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
     }
   })
-  await checkNative(
+  await checkComposer(
     'Large attachment stacks keep the composer reachable without nested desktop scrolling',
     async () => {
       const names = Array.from(
@@ -1411,7 +1433,7 @@ try {
     }
   )
   if (liveChat) {
-    await checkNative(
+    await checkComposer(
       'Organization live admission preserves queued pages, files, and the admitted conversation mode',
       () =>
         verifyLiveChat({
@@ -1429,7 +1451,7 @@ try {
     await seedHostedWorkspace()
     await setActiveOrganization()
   }
-  if (group !== 'native' && !liveChat) {
+  if ((group === 'all' || group === 'access') && !liveChat) {
     // Install timers before app code in a fresh context; live provider checks keep native timing.
     await browserContext.close()
     context = await launchBrowserContext()
@@ -1961,7 +1983,11 @@ try {
   const cleanup =
     group === 'access'
       ? cleanupFixtures()
-      : checkNative('Disposable database fixtures are removed', cleanupFixtures)
+      : check(
+          group === 'navigation' ? 'navigation' : 'composer',
+          'Disposable database fixtures are removed',
+          cleanupFixtures
+        )
   await cleanup.catch((error) => {
     if (group === 'access')
       checks.push({

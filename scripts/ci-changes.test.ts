@@ -157,7 +157,8 @@ describe('CI task attribution through real Turborepo', () => {
     expect(groups(plan)).toEqual([
       'assistant-actions',
       'browser-extension-access',
-      'browser-extension-native',
+      'browser-extension-composer',
+      'browser-extension-navigation',
       'mobile',
       'organization-search',
       'seo',
@@ -344,10 +345,14 @@ describe('CI task attribution through real Turborepo', () => {
       e2e_build: true,
     })
   })
-  it('selects both isolated extension groups for an extension harness change', () => {
+  it('selects every isolated extension group for an extension harness change', () => {
     const plan = classifyFiles(['apps/sim/scripts/test-browser-extension-e2e.ts'])
     expect(plan.fallback).toBeUndefined()
-    expect(groups(plan)).toEqual(['browser-extension-access', 'browser-extension-native'])
+    expect(groups(plan)).toEqual([
+      'browser-extension-access',
+      'browser-extension-composer',
+      'browser-extension-navigation',
+    ])
     expect(plan.flags).toMatchObject({
       http: true,
       production: false,
@@ -363,7 +368,8 @@ describe('CI task attribution through real Turborepo', () => {
     expect(groups(plan)).toEqual([
       'assistant-actions',
       'browser-extension-access',
-      'browser-extension-native',
+      'browser-extension-composer',
+      'browser-extension-navigation',
       'cli',
       'desktop-inbox',
       'mobile',
