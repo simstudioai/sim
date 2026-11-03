@@ -240,7 +240,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     {
       title: 'Chat',
       description:
-        'Ask the Sim Assistant to research a question in your accessible organization sources and write a cited answer. It runs its own multi-step search, so it usually takes 30 to 60 seconds and returns a synthesized answer rather than the sources. To answer a question yourself, use search and read_document, which return sources in seconds; use chat only when the user asks for the Sim Assistant’s answer. Starts a new private conversation. Use source, modifiedAfter, or documentIds to narrow the evidence. No web search or source changes.',
+        'Ask the Sim Assistant to research a question in your accessible organization sources and write a cited answer. It runs its own multi-step search, so it usually takes 30 to 60 seconds and returns a synthesized answer rather than the sources. To answer a question yourself, use search and read_document, which return sources in seconds; use chat only when the user asks for the Sim Assistant’s answer. Starts a new private conversation. Use source, modifiedAfter, or documentIds to narrow the evidence. It searches the public web only when your sources lack the answer, and makes no source changes.',
       inputSchema: chatSearchMcpSchema,
       annotations: {
         readOnlyHint: false,

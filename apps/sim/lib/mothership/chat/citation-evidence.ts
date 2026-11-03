@@ -14,6 +14,38 @@ type RetrievalCitationSource = {
   snippet?: string
 }
 
+/** Tools whose successful results supply sources: connected-source retrieval and public web research. */
+const WEB_TOOLS = new Set(['web_search', 'web_fetch'])
+const CITATION_TOOLS = new Set(['search_workspace', 'read_document', ...WEB_TOOLS])
+
+export function isCitationTool(toolName: string): boolean {
+  return CITATION_TOOLS.has(toolName)
+}
+
+/** Web research only cites in Search Assistant; elsewhere its results carry no citation handles. */
+export function isWebResearchTool(toolName: string): boolean {
+  return WEB_TOOLS.has(toolName)
+}
+
+/**
+ * A result in retrieval's citation fields. A web page names its address `url` and its heading
+ * `title`, and leaves its site name and summary to the link preview; a compacted page already
+ * carries the citation fields.
+ */
+export function toCitationResult(
+  toolName: string,
+  result: Record<string, unknown>
+): Record<string, unknown> {
+  if (!isWebResearchTool(toolName) || typeof result.citationUrl === 'string') return result
+  return {
+    citationId: result.citationId,
+    citationUrl: result.url,
+    ...(typeof result.title === 'string' && result.title.trim()
+      ? { documentName: result.title }
+      : {}),
+  }
+}
+
 export function parseCitationRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value === 'string') {
     try {
@@ -25,24 +57,20 @@ export function parseCitationRecord(value: unknown): Record<string, unknown> | n
   return toRecordOrNull(value)
 }
 
-/** Only successful retrieval tool results may supply source destinations. */
+/** Only successful retrieval and web research results may supply source destinations. */
 export function collectRetrievalCitationEvidence(blocks: readonly RetrievalCitationBlock[]) {
   const evidence = new Map<string, RetrievalCitationSource>()
   for (const block of blocks) {
     const call = block.toolCall
-    if (
-      !call ||
-      !['search_workspace', 'read_document'].includes(call.name) ||
-      call.status !== 'success' ||
-      !call.result?.success
-    )
+    if (!call || !isCitationTool(call.name) || call.status !== 'success' || !call.result?.success)
       continue
     const output = parseCitationRecord(call.result.output)
     if (!output || output.success === false) continue
     const data = parseCitationRecord(output.data) ?? output
     const results = Array.isArray(data.results) ? data.results : [data]
     for (const raw of results) {
-      const result = parseCitationRecord(raw)
+      const record = parseCitationRecord(raw)
+      const result = record && toCitationResult(call.name, record)
       if (
         !result ||
         typeof result.citationId !== 'string' ||
