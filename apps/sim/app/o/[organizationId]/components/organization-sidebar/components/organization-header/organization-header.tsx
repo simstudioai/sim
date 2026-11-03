@@ -66,7 +66,14 @@ export function OrganizationHeader({
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [draftName, setDraftName] = useState<string | null>(null)
-  const initial = getOrganizationInitial(organization.name)
+  /**
+   * The name just saved, shown until the refreshed server prop replaces the one
+   * it was saved over; without it the old name flashes back in between.
+   */
+  const [savedName, setSavedName] = useState<{ name: string; replaces: string } | null>(null)
+  if (savedName && savedName.replaces !== organization.name) setSavedName(null)
+  const organizationName = savedName?.name ?? organization.name
+  const initial = getOrganizationInitial(organizationName)
 
   if (isCollapsed) {
     return (
@@ -103,21 +110,24 @@ export function OrganizationHeader({
   const submitRename = () => {
     if (draftName === null || renameOrganization.isPending) return
     const name = draftName.trim()
-    if (!name || name === organization.name) {
+    if (!name || name === organizationName) {
       stopRenaming()
       return
     }
     renameOrganization.mutate(
       { orgId: organization.id, name },
       {
-        onSuccess: stopRenaming,
+        onSuccess: () => {
+          setSavedName({ name, replaces: organization.name })
+          stopRenaming()
+        },
         onError: () => requestAnimationFrame(() => nameInputRef.current?.focus()),
       }
     )
   }
 
   const logo = (
-    <IdentityTile size='lg' initial={initial} logoUrl={organization.logo} alt={organization.name} />
+    <IdentityTile size='lg' initial={initial} logoUrl={organization.logo} alt={organizationName} />
   )
 
   return (
@@ -156,7 +166,7 @@ export function OrganizationHeader({
             leftAdornment={<IdentityTile initial={initial} logoUrl={organization.logo} />}
             rightAdornment={<ChipChevronDown />}
           >
-            {organization.name}
+            {organizationName}
           </Chip>
         </DropdownMenuTrigger>
         <DropdownMenuContent
@@ -222,13 +232,13 @@ export function OrganizationHeader({
                   className='h-auto min-w-0 p-0 hover-hover:opacity-70 focus-visible:opacity-70'
                   onSelect={(event) => {
                     event.preventDefault()
-                    setDraftName(organization.name)
+                    setDraftName(organizationName)
                   }}
                 >
-                  <OverflowText label={organization.name} />
+                  <OverflowText label={organizationName} />
                 </DropdownMenuItem>
               ) : (
-                <OverflowText label={organization.name} />
+                <OverflowText label={organizationName} />
               )}
               {renameOrganization.isError && (
                 <span role='alert' className='text-[var(--text-error)] text-caption'>
