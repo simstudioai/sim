@@ -3,7 +3,13 @@ import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { resourceFromAttributes } from '@opentelemetry/resources'
 import { createLogger } from '@sim/logger'
+import {
+  diffTriggerEnv,
+  resolveTriggerEnvFromAppSecret,
+  TRIGGER_CONSTANT_VARS,
+} from '@sim/runtime-secrets/trigger-env'
 import { distrustCompromisedRoots } from '@sim/security/tls-trust'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { BuildExtension } from '@trigger.dev/build'
 import {
   additionalFiles,
@@ -64,6 +70,35 @@ function getFunctionExecutionEnvVars() {
     const value = env[name]
     return value ? [{ name, value, isSecret: secret }] : []
   })
+}
+
+/**
+ * Mirrors the app's env-vars secret into an environment listed in
+ * `TRIGGER_ENV_SYNC_TARGETS`, logging only counts, never names or values (CI
+ * logs are public). Exits on failure: `syncEnvVars` catches a thrown error and
+ * deploys without syncing, and a failed deploy leaves the running version and
+ * its environment untouched where a silent skip would keep stale configuration.
+ */
+async function syncFromAppSecret(environment: string, deployedEnv: Record<string, string>) {
+  const logger = createLogger('TriggerEnvSync')
+  try {
+    const { secretId, vars } = await resolveTriggerEnvFromAppSecret(environment)
+    const { added, changed } = diffTriggerEnv(vars, deployedEnv)
+    logger.info('Syncing the Trigger.dev environment from the app env-vars secret', {
+      environment,
+      secretId,
+      total: vars.length,
+      added: added.length,
+      changed: changed.length,
+    })
+    return vars
+  } catch (error) {
+    logger.error('Trigger.dev env sync failed; aborting the deploy', {
+      environment,
+      error: getErrorMessage(error),
+    })
+    process.exit(1)
+  }
 }
 
 /**
@@ -198,17 +233,11 @@ export default defineConfig({
     ],
     extensions: [
       nodeBinary(),
-      syncEnvVars(() => [
-        { name: 'DB_APP_NAME', value: 'sim-trigger' },
-        /**
-         * Workers run Trigger.dev by definition, but the flag saying so was only
-         * set on the app container. Syncing it keeps the deployment flag honest
-         * inside runs; the dispatch decision itself no longer depends on it,
-         * because the `init` hook above marks the run process directly.
-         */
-        { name: 'TRIGGER_DEV_ENABLED', value: 'TRUE' },
-        ...getFunctionExecutionEnvVars(),
-      ]),
+      syncEnvVars(({ environment, env: deployedEnv }) =>
+        env.TRIGGER_ENV_SYNC_TARGETS?.split(',').includes(environment)
+          ? syncFromAppSecret(environment, deployedEnv)
+          : [...TRIGGER_CONSTANT_VARS, ...getFunctionExecutionEnvVars()]
+      ),
       additionalFiles({
         files: [
           './lib/execution/isolated-vm-worker.cjs',
