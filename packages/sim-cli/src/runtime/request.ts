@@ -1,12 +1,46 @@
 import { closeSync, existsSync, fstatSync, openSync, readSync } from 'node:fs'
 import { CLI_CONTRACT } from '../contract/commands'
-import type { CommandSpec, FlagSpec } from '../contract/types'
+import type { BodyVariantSpec, CommandSpec, FlagSpec } from '../contract/types'
 import { embedStore } from '../embed-context'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
 import { type QueryValue, SimApiError } from '../http/client'
 import { embeddedFileContent } from '../transfer/local-file'
 import { camel, kebab } from './derive'
 import type { OperationSpec } from './types'
+
+function jsonKind(value: unknown): string {
+  if (Array.isArray(value)) return 'a JSON array'
+  if (value === null) return 'null'
+  return typeof value === 'object' ? 'a JSON object' : `a JSON ${typeof value}`
+}
+
+/**
+ * The refusal for a body variant given the wrong JSON shape, stating what came
+ * in and the spelling that takes it. `--rows '{"rows":[...]}'` and `--rows`
+ * with a single row were the recurring misses; neither value is reshaped,
+ * because guessing which part the caller meant is the server's write to make.
+ */
+function bodyVariantShapeError(
+  variant: BodyVariantSpec,
+  parsed: unknown,
+  variants: readonly BodyVariantSpec[]
+): string {
+  const flag = `--${variant.name}`
+  const example = variant.kind === 'array' ? `'[{...}, {...}]'` : `'{...}'`
+  const base = `${flag} must be a JSON ${variant.kind}, e.g. ${flag} ${example}; got ${jsonKind(parsed)}.`
+  if (variant.kind === 'array' && parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    if (Array.isArray((parsed as Record<string, unknown>)[variant.property])) {
+      return `${base} Pass the array under its "${variant.property}" key itself, not the object wrapping it.`
+    }
+  }
+  const other = variants.find(
+    (candidate) =>
+      candidate !== variant && candidate.kind === (Array.isArray(parsed) ? 'array' : 'object')
+  )
+  return other && parsed && typeof parsed === 'object'
+    ? `${base} For that shape use --${other.name}.`
+    : base
+}
 
 /** One request field, as the generator describes it. */
 export interface FieldSpec {
@@ -803,7 +837,7 @@ export async function buildRequest(
           (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))) ||
         (variant.kind === 'array' && !Array.isArray(parsed))
       ) {
-        throw new SimApiError(`--${variant.name} must be a JSON ${variant.kind}`, 0)
+        throw new SimApiError(bodyVariantShapeError(variant, parsed, commandSpec.bodyVariants), 0)
       }
       return boundedRequest({
         params,

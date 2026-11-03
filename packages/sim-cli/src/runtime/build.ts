@@ -1,4 +1,4 @@
-import { Command } from 'commander'
+import { Command, type Option } from 'commander'
 import { CLI_CONTRACT } from '../contract/commands'
 import type { CommandSpec, CommandVariantSpec } from '../contract/types'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
@@ -93,46 +93,131 @@ function looksLikeAnId(token: string): boolean {
   )
 }
 
+const MISSING_OPTION_ERROR = /^error: required option '(.+?)' not specified/
+const EXCESS_ARGUMENTS_ERROR = /^error: too many arguments/
+
+interface CommandInternals {
+  _actionHandler?: unknown
+  _hidden?: boolean
+}
+
+function longFlagSyntax(option: Option): string {
+  return option.flags.replace(/^-[A-Za-z], /, '')
+}
+
+/** The command line with its positionals and every required flag, as `--help` would read it. */
+function usageExample(command: Command): string {
+  const parts = [commandPath(command), argumentSyntax(command)]
+  for (const option of command.options) if (option.mandatory) parts.push(longFlagSyntax(option))
+  return parts.filter(Boolean).join(' ')
+}
+
+function optionList(command: Command): string {
+  const flags = command.options.filter((option) => !option.hidden).map((option) => option.flags)
+  return flags.length > 0
+    ? `Options for ${commandPath(command)}: ${flags.join(', ')}`
+    : `${commandPath(command)} takes no options.`
+}
+
+/** Operands past the declared positionals: the values a caller typed where a flag was wanted. */
+function extraOperands(command: Command): string[] {
+  const declared = command.registeredArguments.length
+  if (command.registeredArguments.some((argument) => argument.variadic)) return []
+  return command.args.filter((arg) => !arg.startsWith('-')).slice(declared)
+}
+
 /**
- * Appends a worked example to the parse errors a positional argument causes,
- * and the command's own flags to an unknown option.
- *
- * Covers the argument being absent and the argument being swallowed as an
- * option because its id opens with a dash; the second needs the `--` escape,
- * which commander never mentions. A guessed flag gets the real list: commander
- * suggests only a near spelling, so `--row-ids` for `--row` got a bare error
- * and a caller had to look the command up before retrying.
+ * The visible sibling commands that do declare a flag this one does not, each
+ * with its description, so a read never picks a sibling that deletes.
  */
-function addParseErrorGuidance(command: Command): Command {
-  const outputError = command.configureOutput().outputError
-  if (!outputError) throw new Error('Commander output formatter is not configured')
+function siblingsDeclaring(command: Command, flag: string): string[] {
+  const siblings = command.parent?.commands ?? []
+  return siblings
+    .filter(
+      (sibling) =>
+        sibling !== command &&
+        !(sibling as Command & CommandInternals)._hidden &&
+        sibling.options.some((option) => !option.hidden && option.long === flag)
+    )
+    .map((sibling) => `  ${commandPath(sibling)} — ${sibling.description().split('\n', 1)[0]}`)
+}
 
-  command.configureOutput({
-    outputError: (message, write) => {
-      outputError(message, write)
+/**
+ * Appends recovery guidance to commander's parse errors, so the retry needs no
+ * `--help` round.
+ *
+ * - A missing positional or required flag gets the full command line, and a
+ *   value typed as a positional where the flag was wanted (`files rename
+ *   <id> new.pdf`, `knowledge search <kbId>`) is named against that flag.
+ * - Too many positionals get the same command line and the flag list.
+ * - An unknown option gets the command's own flags, and the sibling commands
+ *   that do take it: `tables rows list --filter` belongs to `tables rows
+ *   query`, which commander's near-spelling suggestion never reaches.
+ * - An id swallowed as an option because it opens with a dash gets the `--`
+ *   escape, which commander never mentions.
+ */
+function parseErrorGuidance(command: Command, message: string): string[] {
+  if (message.startsWith('error: missing required argument ')) {
+    return [`Example: ${usageExample(command)}`]
+  }
 
-      if (message.startsWith('error: missing required argument ')) {
-        const syntax = argumentSyntax(command)
-        const example = syntax ? `${commandPath(command)} ${syntax}` : commandPath(command)
-        write(`Example: ${example}\n`)
-        return
-      }
+  const missingOption = MISSING_OPTION_ERROR.exec(message)?.[1]
+  if (missingOption) {
+    const extra = extraOperands(command)
+    const flag = missingOption.split(' ', 1)[0]
+    const moved =
+      extra.length === 1
+        ? [`"${extra[0]}" was passed as a positional; pass it as ${flag} "${extra[0]}".`]
+        : []
+    return [...moved, `Example: ${usageExample(command)}`]
+  }
 
-      const token = UNKNOWN_OPTION_TOKEN.exec(message)?.[1]
-      if (!token) return
-      if (looksLikeAnId(token) && command.registeredArguments.length > 0) {
-        write(`Example: ${commandPath(command)} -- ${token}\n`)
-        return
-      }
-      const flags = command.options.filter((option) => !option.hidden).map((option) => option.flags)
-      write(
-        flags.length > 0
-          ? `Options for ${commandPath(command)}: ${flags.join(', ')}\n`
-          : `${commandPath(command)} takes no options.\n`
-      )
-    },
-  })
-  return command
+  if (EXCESS_ARGUMENTS_ERROR.test(message)) {
+    return [`Example: ${usageExample(command)}`, optionList(command)]
+  }
+
+  const token = UNKNOWN_OPTION_TOKEN.exec(message)?.[1]
+  if (!token) return []
+  if (looksLikeAnId(token) && command.registeredArguments.length > 0) {
+    return [`Example: ${commandPath(command)} -- ${token}`]
+  }
+  const flag = token.split('=', 1)[0]
+  const owners = siblingsDeclaring(command, flag)
+  return [
+    optionList(command),
+    ...(owners.length > 0 ? [`${flag} is an option of:`, ...owners] : []),
+  ]
+}
+
+/**
+ * Wraps the command's own `error`, which every commander parse failure on it
+ * goes through. The output configuration cannot carry this: commands made with
+ * `.command()` share their parent's configuration object, so a formatter set on
+ * one would answer for all of them.
+ */
+function addParseErrorGuidance(command: Command): void {
+  const error = command.error.bind(command)
+  command.error = (message, options) => {
+    const guidance = parseErrorGuidance(command, message)
+    return error(guidance.length > 0 ? `${message}\n${guidance.join('\n')}` : message, options)
+  }
+}
+
+/**
+ * Attaches {@link addParseErrorGuidance} to every command that parses its own
+ * arguments, generated or attached by hand (`files upload`, `secrets set`), so
+ * a hand-written command does not answer a guessed flag with a bare error.
+ * Pure dispatchers are left to commander's unknown-command handling.
+ */
+export function addParseErrorGuidanceToTree(program: Command): void {
+  const walk = (command: Command): void => {
+    const parsesOwnArguments =
+      command.commands.length === 0 ||
+      Boolean((command as Command & CommandInternals)._actionHandler)
+    if (command.parent && parsesOwnArguments) addParseErrorGuidance(command)
+    for (const child of command.commands) walk(child)
+  }
+  walk(program)
 }
 
 /**
@@ -374,7 +459,7 @@ function configureOperation(
 }
 
 function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: string): Command {
-  return addParseErrorGuidance(configureOperation(new Command(leafName), operation, spec))
+  return configureOperation(new Command(leafName), operation, spec)
 }
 
 /**
