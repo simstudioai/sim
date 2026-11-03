@@ -1130,6 +1130,43 @@ describe('session sandbox lease', () => {
       }
     })
 
+    it('reports the output of a short run whose own timeout answers after a round trip', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+      try {
+        const { handle } = fakeSandbox('timeout-short')
+        mockFindSessionSandbox.mockResolvedValue(handle)
+        // The provider answers its own timeout one round trip late, and stops on the call's abort.
+        handle.runCommand = (_command, options) =>
+          new Promise((resolve, reject) => {
+            const timer = setTimeout(
+              () => resolve({ stdout: 'step 1', stderr: '', exitCode: 124, timedOut: true }),
+              (options?.timeoutMs ?? 0) + 300
+            )
+            options?.signal?.addEventListener('abort', () => {
+              clearTimeout(timer)
+              reject(options.signal?.reason)
+            })
+          })
+        handle.listFiles = () => new Promise<never>(() => {})
+        const pending = executeShellInSandbox({
+          ...CODE_REQUEST,
+          timeoutMs: 10_000,
+          envs: {},
+          session: { key: 'timeout-short' },
+          outputSandboxDir: OUTPUT_DIR,
+        }).then(
+          () => undefined,
+          (rejection: unknown) => rejection
+        )
+        await vi.runAllTimersAsync()
+        const error = await pending
+        if (!(error instanceof SandboxExecutionTimeoutError)) throw error
+        expect(error.progress.output).toBe('step 1')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('keeps a cancellation that arrives while listing the outputs a cancellation', async () => {
       const { handle } = fakeSandbox('timeout-cancelled')
       mockFindSessionSandbox.mockResolvedValue(handle)

@@ -87,6 +87,8 @@ interface SettingAdapter {
   get(context: SettingsContext): Promise<unknown>
   schema?: z.ZodType
   update?(context: SettingsContext, changes: Record<string, unknown>): Promise<unknown>
+  /** Whether the section exists for this target at all; a section that does not is never listed. */
+  available?(context: SettingsContext): Promise<boolean>
 }
 
 function organizationInput(context: SettingsContext) {
@@ -255,7 +257,10 @@ const adapters: Record<string, SettingAdapter> = {
   },
   'organization/members': { get: readSettingsRoster },
   'organization/requests': { get: (context) => readSettingsAccessRequests(context) },
-  'organization/sim-links': { get: (context) => readSettingsSimLinks(context) },
+  'organization/sim-links': {
+    available: (context) => isSimLinksEnabled(organizationInput(context).organizationId),
+    get: (context) => readSettingsSimLinks(context),
+  },
   'organization/whitelabeling': {
     schema: updateOrganizationWhitelabelBodySchema.strict(),
     get: async (context) =>
@@ -322,6 +327,7 @@ async function describeSection(context: SettingsContext, section: SettingsSectio
   )
     return null
   const adapter = adapters[`${context.scope}/${section.id}`]
+  if (adapter?.available && !(await adapter.available(context))) return null
   const uiSection =
     context.scope === 'organization' &&
     section.id === 'connected-accounts' &&
