@@ -43,6 +43,10 @@ import {
   SANDBOX_OUTPUT_DIR_MAX_DEPTH,
   SANDBOX_OUTPUT_DIR_SENTINEL,
 } from '@/lib/execution/remote-sandbox/paths'
+import {
+  createSandboxPhaseTimer,
+  type SandboxPhaseTimer,
+} from '@/lib/execution/remote-sandbox/phase-timing'
 import { resolvePiSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 import {
@@ -116,13 +120,16 @@ async function leaseSandbox(
   selected: ResolvedSandbox | null,
   signal: AbortSignal,
   meterUsage: boolean | undefined,
-  session: SandboxSessionRequest | undefined
+  session: SandboxSessionRequest | undefined,
+  phases: SandboxPhaseTimer
 ): Promise<SandboxLease> {
   const provider = resolveProvider()
   const sessionCapable = Boolean(session && !meterUsage && provider.findSessionSandbox)
 
   if (session && sessionCapable) {
+    const endAccess = phases.start('access')
     await prepareSandboxSessionAccess(session.key, signal)
+    endAccess()
     return withSandboxSessionLock(session.key, signal, async (leaseSignal) => {
       const { created, status } = await ensureSessionSandbox({
         provider,
@@ -132,6 +139,7 @@ async function leaseSandbox(
         session,
         signal: leaseSignal,
         bootstrapTimeoutMs: remainingSandboxBudgetMs(signal),
+        phases,
       })
       return {
         created,
@@ -212,6 +220,16 @@ function raceSandboxAbort<T>(operation: Promise<T>, signal: AbortSignal): Promis
       }
     )
   })
+}
+
+/** Attaches the phase breakdown to whichever result the execution returns, after its release. */
+async function withPhaseTimings(
+  execute: (phases: SandboxPhaseTimer) => Promise<SandboxExecutionResult>
+): Promise<SandboxExecutionResult> {
+  const phases = createSandboxPhaseTimer()
+  const result = await execute(phases)
+  result.phaseMs = phases.timings
+  return result
 }
 
 async function withSandboxExecutionBudget<T>(
@@ -864,7 +882,8 @@ async function acceptSessionOutputHistory(
 async function executeInSandboxWithinBudget(
   // The budget wrapper always injects the signal; the required-signal type states that
   // invariant instead of a cast hiding it.
-  req: SandboxExecutionRequest & { signal: AbortSignal }
+  req: SandboxExecutionRequest & { signal: AbortSignal },
+  phases: SandboxPhaseTimer
 ): Promise<SandboxExecutionResult> {
   const { code, language, signal } = req
   const kind = req.sandboxKind ?? 'code'
@@ -872,14 +891,17 @@ async function executeInSandboxWithinBudget(
 
   // Resolved before the sandbox is created so a selection that cannot be honored
   // fails without spending a provider create.
+  const endResolve = phases.start('resolve')
   const selected = await resolveWorkspaceSandbox({
     kind,
     language,
     workspaceId: req.workspaceId,
     sandboxId: req.sandboxId,
   })
+  endResolve()
   throwIfAborted(signal)
 
+  const endLease = phases.start('lease')
   const lease = await leaseSandbox(
     kind,
     {
@@ -890,8 +912,10 @@ async function executeInSandboxWithinBudget(
     selected,
     signal,
     req.meterUsage,
-    req.session
+    req.session,
+    phases
   )
+  endLease()
   const created = lease.created
   const sandbox = created.sandbox
   const sandboxId = sandbox.sandboxId
@@ -906,6 +930,7 @@ async function executeInSandboxWithinBudget(
     // the finally below. Dependencies land before the inputs so user code and its
     // mounts always see a complete environment.
     //
+    const endPrepare = phases.start('prepare')
     if (lease.session && req.session)
       await recordSessionFileInput(
         req.session.key,
@@ -926,6 +951,7 @@ async function executeInSandboxWithinBudget(
       signal,
       Boolean(lease.session)
     )
+    endPrepare()
     const executionEnvironment = {
       ...selected?.envs,
       ...req.session?.envs,
@@ -944,6 +970,7 @@ async function executeInSandboxWithinBudget(
 
     let execution: SandboxCodeResult
     try {
+      const endRun = phases.start('run')
       execution = await sandbox.runCode(code, {
         timeoutMs: codeBudgetMs(req, signal),
         javascriptPreload: buildJavaScriptRuntimeBindingsSource(req.runtimeBindings ?? []),
@@ -951,6 +978,7 @@ async function executeInSandboxWithinBudget(
         signal,
         ...(hasExecutionEnvironment ? { envs: executionEnvironment } : {}),
       })
+      endRun()
     } catch (error) {
       throwIfAborted(signal)
       throw error
@@ -1009,11 +1037,13 @@ async function executeInSandboxWithinBudget(
       ...sessionField,
     }
     try {
+      const endCollect = phases.start('collect')
       const { exportedFiles, exportedFileContent, collectedFiles } = await collectExportedFiles(
         sandbox,
         req,
         { signal }
       )
+      endCollect()
       throwIfAborted(signal)
       billableResult.exportedFileContent = exportedFileContent
       billableResult.exportedFiles = exportedFiles
@@ -1044,6 +1074,7 @@ async function executeInSandboxWithinBudget(
     if (cost && billableOutputError) {
       attachTrustedSandboxOutputCost(billableOutputError, cost)
     }
+    const endRelease = phases.start('release')
     try {
       await privateInputFiles?.cleanup()
       await lease.release()
@@ -1052,6 +1083,7 @@ async function executeInSandboxWithinBudget(
         providerId: created.providerId,
         sandboxId,
       })
+      endRelease()
     }
   }
 }
@@ -1061,12 +1093,14 @@ export function executeInSandbox(req: SandboxExecutionRequest): Promise<SandboxE
     req.timeoutMs,
     req.signal,
     Boolean(req.session && !req.meterUsage),
-    (signal) => executeInSandboxWithinBudget({ ...req, signal })
+    (signal) =>
+      withPhaseTimings((phases) => executeInSandboxWithinBudget({ ...req, signal }, phases))
   )
 }
 
 async function executeShellInSandboxWithinBudget(
-  req: SandboxShellExecutionRequest & { signal: AbortSignal }
+  req: SandboxShellExecutionRequest & { signal: AbortSignal },
+  phases: SandboxPhaseTimer
 ): Promise<SandboxExecutionResult> {
   const { code, envs, signal } = req
   const kind = req.sandboxKind ?? 'shell'
@@ -1074,21 +1108,26 @@ async function executeShellInSandboxWithinBudget(
 
   // No language is passed: a shell execution runs commands rather than a language
   // runtime, so whichever language the sandbox carries is the one it installs.
+  const endResolve = phases.start('resolve')
   const selected = await resolveWorkspaceSandbox({
     kind,
     workspaceId: req.workspaceId,
     sandboxId: req.sandboxId,
   })
+  endResolve()
   throwIfAborted(signal)
 
+  const endLease = phases.start('lease')
   const lease = await leaseSandbox(
     kind,
     { imageRef: selected?.imageRef, lifetimeMs: remainingSandboxBudgetMs(signal) },
     selected,
     signal,
     req.meterUsage,
-    req.session
+    req.session,
+    phases
   )
+  endLease()
   const created = lease.created
   const sandbox = created.sandbox
   const sandboxId = sandbox.sandboxId
@@ -1102,6 +1141,7 @@ async function executeShellInSandboxWithinBudget(
     // Inside the try so a failed install or mount still releases the sandbox via
     // the finally below. The install shares the caller's budget rather than adding
     // to it — see the note in `executeInSandbox`.
+    const endPrepare = phases.start('prepare')
     if (lease.session && req.session)
       await recordSessionFileInput(
         req.session.key,
@@ -1123,9 +1163,11 @@ async function executeShellInSandboxWithinBudget(
       signal,
       Boolean(lease.session)
     )
+    endPrepare()
 
     let result: SandboxCommandResult
     try {
+      const endRun = phases.start('run')
       result = await sandbox.runCommand(code, {
         envs: {
           ...selected?.envs,
@@ -1141,6 +1183,7 @@ async function executeShellInSandboxWithinBudget(
         rootUser: !lease.session,
         atMostOnce: true,
       })
+      endRun()
     } catch (error) {
       throwIfAborted(signal)
       throw error
@@ -1185,11 +1228,13 @@ async function executeShellInSandboxWithinBudget(
       ...sessionField,
     }
     try {
+      const endCollect = phases.start('collect')
       const { exportedFiles, exportedFileContent, collectedFiles } = await collectExportedFiles(
         sandbox,
         req,
         { signal }
       )
+      endCollect()
       throwIfAborted(signal)
       billableResult.exportedFileContent = exportedFileContent
       billableResult.exportedFiles = exportedFiles
@@ -1220,6 +1265,7 @@ async function executeShellInSandboxWithinBudget(
     if (cost && billableOutputError) {
       attachTrustedSandboxOutputCost(billableOutputError, cost)
     }
+    const endRelease = phases.start('release')
     try {
       await privateInputFiles?.cleanup()
       await lease.release()
@@ -1228,6 +1274,7 @@ async function executeShellInSandboxWithinBudget(
         providerId: created.providerId,
         sandboxId,
       })
+      endRelease()
     }
   }
 }
@@ -1239,7 +1286,8 @@ export function executeShellInSandbox(
     req.timeoutMs,
     req.signal,
     Boolean(req.session && !req.meterUsage),
-    (signal) => executeShellInSandboxWithinBudget({ ...req, signal })
+    (signal) =>
+      withPhaseTimings((phases) => executeShellInSandboxWithinBudget({ ...req, signal }, phases))
   )
 }
 
