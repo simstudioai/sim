@@ -55,9 +55,7 @@ export function CredentialMembersSection({
 
   const viewerId = session?.user?.id
   const activeMembers = members.filter((member) => member.status === 'active')
-  const explicitAdminCount = activeMembers.filter(
-    (member) => member.role === 'admin' && member.roleSource !== 'workspace-admin'
-  ).length
+  const explicitAdminCount = activeMembers.filter((member) => member.explicitAdmin).length
   const showActions = isAdmin || activeMembers.some((member) => member.userId === viewerId)
 
   const handleChangeMemberRole = async (userId: string, role: MemberRole) => {
