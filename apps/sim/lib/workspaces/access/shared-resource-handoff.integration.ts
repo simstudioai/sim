@@ -1334,6 +1334,40 @@ describe('shared resource retention across workspace departure and account erasu
     )
   })
 
+  it("repairs a former member's leftover Sim link to the owner on account deletion", async () => {
+    const fixture = await seedResources(false, false)
+    const organizationId = generateId()
+    const linkId = generateId()
+    organizationIds.push(organizationId)
+    await db.insert(organization).values({
+      id: organizationId,
+      name: 'Former organization',
+      slug: organizationId,
+      createdAt: new Date(),
+    })
+    await db.insert(member).values({
+      id: generateId(),
+      organizationId,
+      userId: fixture.ownerId,
+      role: 'owner',
+      createdAt: new Date(),
+    })
+    await db.insert(simLink).values({
+      id: linkId,
+      organizationId,
+      name: 'handbook',
+      normalizedName: 'handbook',
+      url: 'https://example.test/handbook',
+      restrictEdit: true,
+      createdBy: fixture.departingId,
+    })
+    await deleteUserAccount(fixture.departingId, { recordIdentity: false })
+    expect(
+      await db.select({ createdBy: simLink.createdBy }).from(simLink).where(eq(simLink.id, linkId))
+    ).toEqual([{ createdBy: fixture.ownerId }])
+    await assertRetained(fixture)
+  })
+
   it('refuses organization-only retention without an owner successor', async () => {
     const fixture = await seedResources(false, false)
     const organizationId = generateId()

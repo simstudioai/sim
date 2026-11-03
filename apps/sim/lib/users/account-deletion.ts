@@ -34,6 +34,7 @@ import {
 } from '@/lib/billing/organizations/membership'
 import {
   findOrganizationSharedResourceSuccessor,
+  handoffLeftoverSimLinksTx,
   listSharedResourceOrganizationIdsForUser,
   reassignOrganizationSharedResourcesTx,
 } from '@/lib/billing/organizations/resource-handoff'
@@ -965,6 +966,7 @@ export async function deleteUserAccount(
     for (const organizationId of sharedOrganizationIds) {
       await reassignOrganizationSharedResourcesTx(tx, organizationId, userId)
     }
+    await handoffLeftoverSimLinksTx(tx, userId, sharedOrganizationIds)
 
     const sharedWorkspaceIds = await listSharedResourceWorkspaceIdsForUser(tx, userId)
     const { unresolved: resourceUnresolved } =

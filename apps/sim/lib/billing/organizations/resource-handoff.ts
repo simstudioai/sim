@@ -7,7 +7,7 @@ import {
   user,
   workspaceFiles,
 } from '@sim/db/schema'
-import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm'
+import { and, asc, eq, isNull, ne, notInArray, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
@@ -104,10 +104,7 @@ export async function reassignOrganizationSharedResourcesTx(
         eq(permissionGroup.createdBy, departingUserId)
       )
     )
-  await tx
-    .update(simLink)
-    .set({ createdBy: userId, updatedAt })
-    .where(and(eq(simLink.organizationId, organizationId), eq(simLink.createdBy, departingUserId)))
+  await reassignSimLinksTx(tx, organizationId, departingUserId, userId)
   await tx
     .update(ssoProvider)
     .set({ userId })
@@ -115,4 +112,49 @@ export async function reassignOrganizationSharedResourcesTx(
       and(eq(ssoProvider.organizationId, organizationId), eq(ssoProvider.userId, departingUserId))
     )
   return userId
+}
+
+async function reassignSimLinksTx(
+  tx: DbTransaction,
+  organizationId: string,
+  fromUserId: string,
+  toUserId: string
+) {
+  await tx
+    .update(simLink)
+    .set({ createdBy: toUserId, updatedAt: new Date() })
+    .where(and(eq(simLink.organizationId, organizationId), eq(simLink.createdBy, fromUserId)))
+}
+
+/**
+ * Repairs Sim links a former member kept after leaving before departures handed them off. Never
+ * blocks erasure: an organization without an owner successor keeps the FK's `SET NULL`. Takes
+ * only the successor's row locks, so it is safe after the deleting account's user barrier.
+ */
+export async function handoffLeftoverSimLinksTx(
+  tx: DbTransaction,
+  departingUserId: string,
+  handledOrganizationIds: string[]
+) {
+  const rows = await tx
+    .selectDistinct({ organizationId: simLink.organizationId })
+    .from(simLink)
+    .where(
+      and(
+        eq(simLink.createdBy, departingUserId),
+        handledOrganizationIds.length > 0
+          ? notInArray(simLink.organizationId, handledOrganizationIds)
+          : undefined
+      )
+    )
+    .orderBy(asc(simLink.organizationId))
+  for (const { organizationId } of rows) {
+    const successorId = await findOrganizationSharedResourceSuccessor(
+      tx,
+      organizationId,
+      departingUserId,
+      true
+    )
+    if (successorId) await reassignSimLinksTx(tx, organizationId, departingUserId, successorId)
+  }
 }
