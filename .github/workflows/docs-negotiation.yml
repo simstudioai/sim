@@ -373,7 +373,7 @@ jobs:
         if: matrix.group == 'chromium' || matrix.group == 'webkit'
         env:
           BROWSER: ${{ matrix.group }}
-        run: bunx --no-install playwright install --with-deps "$BROWSER"
+        run: bunx --no-install playwright install --with-deps --only-shell "$BROWSER"
       - name: Verify production documentation
         env:
           DOCS_ACCEPTANCE_GROUP: ${{ matrix.group }}
