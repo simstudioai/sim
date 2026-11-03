@@ -246,7 +246,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
         readOnlyHint: false,
         destructiveHint: false,
         idempotentHint: false,
-        openWorldHint: false,
+        openWorldHint: true,
       },
     },
     async ({ query, ...filters }, extra) =>

@@ -4,7 +4,7 @@ import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
 import { compactRetrievalCitations } from '@/lib/mothership/chat/retrieval-citations'
 import { collectCitedMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
-import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
+import type { ContentBlock, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
 const output = {
   success: true,
@@ -138,7 +138,11 @@ describe('evidence-linked citations', () => {
         },
       ],
     }
-    const webBlocks = (status: string, success: boolean, result: unknown): ContentBlock[] => [
+    const webBlocks = (
+      status: ToolCallStatus,
+      success: boolean,
+      result: unknown
+    ): ContentBlock[] => [
       {
         type: 'tool_call',
         toolCall: { id: 'web', name: 'web_search', status, result: { success, output: result } },

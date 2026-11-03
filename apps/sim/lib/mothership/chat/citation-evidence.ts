@@ -18,6 +18,7 @@ type RetrievalCitationSource = {
 const WEB_TOOLS = new Set(['web_search', 'web_fetch'])
 const CITATION_TOOLS = new Set(['search_workspace', 'read_document', ...WEB_TOOLS])
 
+/** Whether a successful result of this tool may supply source destinations. */
 export function isCitationTool(toolName: string): boolean {
   return CITATION_TOOLS.has(toolName)
 }
