@@ -215,6 +215,7 @@ describe('applyWorkflowOperations', () => {
       state: graph(),
       validationErrors: [],
       skippedItems: [],
+      declinedOperationCount: 0,
       mintedBlockIds: {},
     })
     mocks.collectReferences.mockResolvedValue([])
@@ -240,6 +241,7 @@ describe('applyWorkflowOperations', () => {
       state: graph({ 'block-1': BLOCK }),
       validationErrors: [],
       skippedItems: [],
+      declinedOperationCount: 0,
       mintedBlockIds: {},
     })
     mocks.lintGraph.mockReturnValue({ ...EMPTY_GRAPH_LINT, orphanBlocks: [orphan] })
@@ -301,6 +303,7 @@ describe('applyWorkflowOperations', () => {
         state: graph(),
         validationErrors: [],
         skippedItems: [],
+        declinedOperationCount: 0,
         mintedBlockIds: { triage: 'preview-uuid' },
       })
 
@@ -390,6 +393,7 @@ describe('applyWorkflowOperations', () => {
           reason: 'Name taken',
         },
       ],
+      declinedOperationCount: 1,
     })
 
     const result = await applyWorkflowOperations.execute({
@@ -414,6 +418,7 @@ describe('applyWorkflowOperations', () => {
           reason: 'Target not created yet',
         },
       ],
+      declinedOperationCount: 0,
     })
 
     const result = await applyWorkflowOperations.execute({
@@ -437,6 +442,7 @@ describe('applyWorkflowOperations', () => {
           reason: 'Block is locked',
         },
       ],
+      declinedOperationCount: 1,
     })
 
     const failure = await applyWorkflowOperations
@@ -508,6 +514,7 @@ describe('applyWorkflowOperations', () => {
       state: graph(),
       validationErrors: [],
       skippedItems: [],
+      declinedOperationCount: 0,
     })
     mocks.collectReferences.mockResolvedValue([])
     mocks.collectToolReferences.mockResolvedValue([])
@@ -528,6 +535,7 @@ describe('applyWorkflowOperations', () => {
       state: graph({ 'block-1': { ...BLOCK, locked: true } }),
       validationErrors: [],
       skippedItems: [],
+      declinedOperationCount: 0,
     })
 
     const result = await applyWorkflowOperations.execute({
@@ -625,6 +633,7 @@ describe('applyWorkflowOperations', () => {
       }),
       validationErrors: [],
       skippedItems: [],
+      declinedOperationCount: 0,
     })
 
     const result = await applyWorkflowOperations.execute({
@@ -656,6 +665,7 @@ describe('applyWorkflowOperations', () => {
       }),
       validationErrors: [],
       skippedItems: [],
+      declinedOperationCount: 0,
     })
 
     const result = await applyWorkflowOperations.execute({

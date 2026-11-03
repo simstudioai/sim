@@ -2,6 +2,7 @@ import { removeWorkspaceMemberContract } from '@/lib/api/contracts/invitations'
 import {
   defineInternalJsonRoute,
   internalErrorResponse,
+  internalOrchestrationErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
@@ -32,7 +33,7 @@ export const DELETE = defineInternalJsonRoute({
         error instanceof NoWorkspaceAccessError
       )
         return internalErrorResponse(403, { error: 'Insufficient permissions' })
-      return null
+      return internalOrchestrationErrorPolicy.project(error)
     },
     unhandled: () => internalErrorResponse(500, { error: 'Failed to remove workspace member' }),
   },

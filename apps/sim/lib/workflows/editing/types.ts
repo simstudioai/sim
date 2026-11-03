@@ -155,6 +155,12 @@ export interface ApplyOperationsResult {
   validationErrors: ValidationError[]
   skippedItems: SkippedItem[]
   /**
+   * Operations whose handler recorded at least one non-deferred skip. Counted per
+   * operation, not per skip: one `add` can drop several tools and still be one
+   * operation, so `operations - skippedItems` would go negative.
+   */
+  declinedOperationCount: number
+  /**
    * Requested `block_id` -> the id the block was actually given, for every
    * `add`/`insert_into_subflow` whose requested id was not already a UUID.
    *

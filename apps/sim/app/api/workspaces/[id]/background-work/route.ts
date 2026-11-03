@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getWorkspaceBackgroundWorkContract } from '@/lib/api/contracts/workspace-fork'
 import { parseRequest } from '@/lib/api/server'
+import { orchestrationFailureResponse } from '@/lib/api/server/orchestration-response'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { listSurfacedBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
@@ -21,7 +22,13 @@ export const GET = withRouteHandler(
 
     // The fork Activity feed is a fork feature: gate it behind the same forking-enabled +
     // workspace-admin check the other fork routes use, instead of a bare access check.
-    await assertWorkspaceAdminAccess(id, session.user.id)
+    try {
+      await assertWorkspaceAdminAccess(id, session.user.id)
+    } catch (error) {
+      const refused = orchestrationFailureResponse(error)
+      if (refused) return refused
+      throw error
+    }
 
     const { rows, nextCursor } = await listSurfacedBackgroundWork(db, id, { cursor, limit })
     return NextResponse.json({

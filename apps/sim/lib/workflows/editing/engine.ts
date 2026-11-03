@@ -30,7 +30,7 @@ import type {
   OperationContext,
   ValidationError,
 } from './types'
-import { logSkippedItem, type SkippedItem } from './types'
+import { isDeferredSkippedItem, logSkippedItem, type SkippedItem } from './types'
 
 const logger = createLogger('EditWorkflowServerTool')
 
@@ -198,7 +198,14 @@ export function applyOperationsToWorkflowState(
     deferredConnections: [],
   }
 
-  for (const operation of orderedOperations) {
+  /** Indices into `orderedOperations` that recorded a refusal, during their handler or later. */
+  const declinedOperations = new Set<number>()
+  /** The operation that queued each entry of `ctx.deferredConnections`, index for index. */
+  const deferredConnectionOrigins: number[] = []
+  const recordedRefusalSince = (skipsBefore: number) =>
+    skippedItems.slice(skipsBefore).some((item) => !isDeferredSkippedItem(item))
+
+  for (const [operationIndex, operation] of orderedOperations.entries()) {
     const { operation_type, block_id } = operation
 
     // CRITICAL: Validate block_id is a valid string and not "undefined"
@@ -215,6 +222,7 @@ export function applyOperationsToWorkflowState(
         block_id,
         block_id_type: typeof block_id,
       })
+      declinedOperations.add(operationIndex)
       continue
     }
 
@@ -226,7 +234,12 @@ export function applyOperationsToWorkflowState(
       currentBlockCount: Object.keys((modifiedState as any).blocks || {}).length,
     })
 
+    const skipsBefore = skippedItems.length
     handler(operation, ctx)
+    if (recordedRefusalSince(skipsBefore)) declinedOperations.add(operationIndex)
+    while (deferredConnectionOrigins.length < ctx.deferredConnections.length) {
+      deferredConnectionOrigins.push(operationIndex)
+    }
   }
 
   // Pass 2: Create all edges from deferred connections
@@ -237,7 +250,7 @@ export function applyOperationsToWorkflowState(
       totalBlocks: Object.keys((modifiedState as any).blocks || {}).length,
     })
 
-    for (const { blockId, connections } of ctx.deferredConnections) {
+    for (const [connectionIndex, { blockId, connections }] of ctx.deferredConnections.entries()) {
       // Verify the source block still exists (it might have been deleted by a later operation)
       if (!(modifiedState as any).blocks[blockId]) {
         logger.warn('Source block no longer exists for deferred connection', {
@@ -247,6 +260,7 @@ export function applyOperationsToWorkflowState(
         continue
       }
 
+      const skipsBefore = skippedItems.length
       addConnectionsAsEdges(
         modifiedState,
         blockId,
@@ -255,6 +269,8 @@ export function applyOperationsToWorkflowState(
         skippedItems,
         validationErrors
       )
+      const origin = deferredConnectionOrigins[connectionIndex]
+      if (origin !== undefined && recordedRefusalSince(skipsBefore)) declinedOperations.add(origin)
     }
 
     logger.info('Finished processing deferred connections', {
@@ -318,6 +334,7 @@ export function applyOperationsToWorkflowState(
     state: modifiedState,
     validationErrors,
     skippedItems,
+    declinedOperationCount: declinedOperations.size,
     mintedBlockIds: Object.fromEntries(idMapping),
   }
 }

@@ -19,6 +19,7 @@ import type { StorageContext } from '@/lib/uploads/config'
 import { readOrganizationChatAttachment } from '@/lib/uploads/contexts/organization-assistant/application'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/file-manager'
+import { hasObjectNotFoundCause } from '@/lib/uploads/core/errors'
 import { downloadFile, downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
 import { resolveServableDocBytes } from '@/lib/uploads/documents/compile'
 import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
@@ -34,6 +35,7 @@ import {
   inferContextFromKey,
   isRenderableDocumentName,
   resolveEffectiveMimeType,
+  tryInferContextFromKey,
 } from '@/lib/uploads/utils/file'
 import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
@@ -71,7 +73,11 @@ const logger = createLogger('FilesServeAPI')
  * its way out of, not something on call needs to look at.
  */
 function logServeFailure(message: string, error: unknown): void {
-  if (error instanceof FileNotFoundError || isPayloadSizeLimitError(error)) {
+  if (
+    error instanceof FileNotFoundError ||
+    hasObjectNotFoundCause(error) ||
+    isPayloadSizeLimitError(error)
+  ) {
     logger.info(message, { reason: getErrorMessage(error) })
     return
   }
@@ -389,6 +395,9 @@ export const GET = withRouteHandler(
         })
       }
 
+      /** No storage context owns a key without a known prefix, so no file can live there. */
+      if (!tryInferContextFromKey(cloudKey)) throw new FileNotFoundError('File not found')
+
       const isPublicByKeyPrefix =
         cloudKey.startsWith('profile-pictures/') ||
         cloudKey.startsWith('og-images/') ||
@@ -534,6 +543,10 @@ export const GET = withRouteHandler(
 
       if (error instanceof FileNotFoundError) {
         return createFileErrorResponse(error)
+      }
+
+      if (hasObjectNotFoundCause(error)) {
+        return createFileErrorResponse(new FileNotFoundError('File not found'))
       }
 
       return createFileErrorResponse(

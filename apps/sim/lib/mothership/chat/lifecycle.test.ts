@@ -34,7 +34,7 @@ import {
   resolveOrCreateChat,
 } from '@/lib/mothership/chat/lifecycle'
 
-const CHAT_ID = 'chat-1'
+const CHAT_ID = 'c7a4d2e1-5b3f-4a8e-9c6d-1f2e3a4b5c6d'
 const USER_ID = 'user-1'
 
 // A chat with no workflow/workspace skips the authz lookups and authorizes directly.
@@ -235,6 +235,15 @@ describe('organization chat isolation', () => {
       input: { organizationId: 'org-1' },
     })
   })
+
+  it.each(['c7a4d2e1-5b3f-4a8e-9c6d-1f2e3a4b5c6d.', 'chat-1'])(
+    'answers a malformed chat id %s as not found without querying',
+    async (chatId) => {
+      expect(await getAccessibleCopilotChatWithMessages(chatId, USER_ID)).toBeNull()
+      expect(await getAccessibleCopilotChatAuth(chatId, USER_ID)).toBeNull()
+      expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+    }
+  )
 
   it('does not expose org content to a legacy caller without a principal', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ ...chatRow, organizationId: 'org-1' }])

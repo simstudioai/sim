@@ -169,21 +169,6 @@ async function loadStoredGraph(workflowId: string): Promise<Record<string, unkno
 }
 
 /**
- * How many of the engine's skips charge against the operation batch.
- *
- * The enablement slice appends to the same array, and a deferred forward
- * reference is not a refusal at all, so neither may be subtracted from the
- * operation count.
- */
-function countOperationSkips(skippedItems: readonly SkippedItem[]): number {
-  let count = 0
-  for (const item of skippedItems) {
-    if (item.operationType !== 'set_block_enabled' && !isDeferredSkippedItem(item)) count += 1
-  }
-  return count
-}
-
-/**
  * How each enablement refusal maps onto the machine-readable skip enum. Kept as
  * a total `Record` so a new refusal reason fails to compile until it is
  * classified, and kept aligned with `BLOCK_ENABLEMENT_REFUSAL_CODES`, which
@@ -297,6 +282,7 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
         state: modifiedGraph,
         validationErrors,
         skippedItems,
+        declinedOperationCount,
         mintedBlockIds,
       } = await withBlockVisibility(blockVisibility, async () =>
         applyOperationsToWorkflowState(
@@ -309,12 +295,11 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
       validationErrors.push(...credentialErrors)
 
       /**
-       * Counted directly rather than as `operations - skipped`. The enablement
-       * slice pushes its own refusals into the same `skippedItems` array, so
-       * subtracting the whole array from the operation count charged enablement
-       * refusals against operations and could go negative.
+       * Taken before the enablement slice appends its own refusals to `skippedItems`,
+       * and from the engine's per-operation count: one operation can record several
+       * skips, so subtracting skips from operations could go negative.
        */
-      const appliedOperations = filteredOperations.length - countOperationSkips(skippedItems)
+      const appliedOperations = filteredOperations.length - declinedOperationCount
 
       const enablement = applyBlockEnabledChanges(
         modifiedGraph.blocks as Record<string, BlockState>,
