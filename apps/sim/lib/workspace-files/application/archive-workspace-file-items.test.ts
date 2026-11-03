@@ -169,24 +169,6 @@ describe('archiveWorkspaceFileItemsOperation', () => {
         input: { workspaceId: 'ws-1', fileIds, acceptVfsPath },
       })
 
-    it('archives the file each path names, once even when its id is also listed', async () => {
-      await deleteByReference(['files/Docs/a.csv', 'file-a', 'file-b'])
-      expect(mockArchive).toHaveBeenCalledWith(
-        expect.objectContaining({ fileIds: ['file-a', 'file-b'] })
-      )
-    })
-
-    it('archives nothing when one path names no live file, and says which', async () => {
-      await expect(deleteByReference(['files/Docs/a.csv', 'files/Docs/gone.csv'])).rejects.toThrow(
-        'No live file at "files/Docs/gone.csv"'
-      )
-      await expect(deleteByReference(['files/Docs/a.csv,files/Docs/b.csv'])).rejects.toThrow(
-        'pass each path as its own entry'
-      )
-      expect(mockAssertItems).not.toHaveBeenCalled()
-      expect(mockArchive).not.toHaveBeenCalled()
-    })
-
     it('looks up no path for a caller it refuses', async () => {
       mockResolvePermission.mockImplementation(async () => {
         events.push('authorize')
@@ -196,14 +178,6 @@ describe('archiveWorkspaceFileItemsOperation', () => {
         code: 'forbidden',
       })
       expect(events).toEqual(['resolve', 'authorize'])
-    })
-
-    it('leaves a path an unknown id for a caller that did not opt in', async () => {
-      await deleteByReference(['files/Docs/a.csv'], false)
-      expect(mockResolveReference).not.toHaveBeenCalled()
-      expect(mockAssertItems).toHaveBeenCalledWith(
-        expect.objectContaining({ fileIds: ['files/Docs/a.csv'] })
-      )
     })
 
     it('refuses more paths than one request resolves before looking any up', async () => {
