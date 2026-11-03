@@ -1,9 +1,11 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { isPeopleEnabled } from '@/lib/people/feature-flag'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
+import PageLoading from '@/app/o/[organizationId]/people/[memberId]/loading'
 import { Person } from '@/app/o/[organizationId]/people/[memberId]/person'
 
 export const metadata: Metadata = { title: 'People' }
@@ -23,5 +25,9 @@ export default async function PersonPage({ params }: PersonPageProps) {
       })
     )
   if (!(await isPeopleEnabled(organizationId))) notFound()
-  return <Person organizationId={organizationId} memberId={memberId} />
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <Person organizationId={organizationId} memberId={memberId} />
+    </Suspense>
+  )
 }

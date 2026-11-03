@@ -77,6 +77,12 @@ describe('readPeopleSheet', () => {
     ])
   })
 
+  it('rejects a spreadsheet with more than 100 named columns', async () => {
+    const headers = Array.from({ length: 101 }, (_, index) => `field-${index}`).join(',')
+    const file = new File([`${headers}\nvalue`], 'wide.csv')
+    await expect(readPeopleSheet(file)).rejects.toThrow('100 named columns')
+  })
+
   it('refuses a header row that repeats a column name', async () => {
     await expect(
       readPeopleSheet(

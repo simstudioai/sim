@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -12,7 +13,8 @@ import postgres from 'postgres'
 /**
  * Exercises the People page's API over real HTTP against a running local app (with
  * `PEOPLE=true`) and a disposable local PostgreSQL database. SQL seeds organizations and their
- * members; every import, edit, and read crosses the real app boundary, and membership changes
+ * members. Set PEOPLE_E2E_SCREENSHOT_DIR to exercise the signed-in browser and save its views.
+ * Every import, edit, and read crosses the real app boundary, and membership changes
  * are made in SQL to prove the database keeps profiles and reporting lines consistent.
  */
 const logger = createLogger('PeopleE2E')
@@ -135,7 +137,7 @@ async function seedMember(
   const userId = generateId()
   const memberId = generateId()
   userIds.push(userId)
-  const email = `${label}-${userId.slice(0, 8)}@people-e2e.test`
+  const email = `${label.toLowerCase().replaceAll(' ', '-')}-${userId.slice(0, 8)}@people-e2e.test`
   const token = generateShortId()
   await sql.begin(async (tx) => {
     await tx`insert into "user" (id, name, email, normalized_email, email_verified, created_at, updated_at)
@@ -153,6 +155,18 @@ async function seedMember(
     email,
     cookie: encodeURIComponent(`${token}.${await makeSignature(token, authSecret)}`),
   }
+}
+
+async function seedBrowserWorkspace(viewer: Member) {
+  const id = generateId()
+  await sql.begin(async (tx) => {
+    await tx`insert into project (id, name, owner_id, organization_id)
+      values (${id}, 'People test project', ${viewer.userId}, ${viewer.orgId})`
+    await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id, organization_id)
+      values (${id}, ${id}, 'People test workspace', ${viewer.userId}, ${viewer.userId}, ${viewer.orgId})`
+    await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
+      values (${generateId()}, ${viewer.userId}, 'workspace', ${id}, 'admin')`
+  })
 }
 
 async function run() {
@@ -185,6 +199,56 @@ async function run() {
       expected: 403,
     })
   })
+
+  await check(
+    'sync settings and credentials are restricted to this organization’s admins',
+    async () => {
+      const credentials = { source: 'okta', domain: 'untrusted.invalid', token: 'test-only-token' }
+      for (const [subject, denial] of [
+        [ada, 403],
+        [{ ...outsider, orgId }, 404],
+      ] as const) {
+        await api(subject, '/sync', { expected: denial })
+        await api(subject, '/sync', { method: 'PUT', body: credentials, expected: denial })
+        await api(subject, '/sync/run', { method: 'POST', expected: denial })
+        await api(subject, '/sync', { method: 'DELETE', expected: denial })
+      }
+      await api(owner, '/sync', { method: 'PUT', body: credentials, expected: 400 })
+      assert.equal((await api(owner, '/sync', {})).sync, null)
+    }
+  )
+
+  await check('chart focus is scoped to the viewer and the routed organization', async () => {
+    const branch = await api(ada, '/chart', {})
+    assert(isRecordLike(branch.person))
+    assert.equal(branch.person.memberId, ada.memberId)
+    await api(ada, `/chart?memberId=${outsider.memberId}`, { expected: 404 })
+    await api({ ...outsider, orgId }, '/chart', { expected: 404 })
+    await api(ada, '/import', {
+      method: 'POST',
+      body: { source: 'directory', apply: false },
+      expected: 403,
+    })
+  })
+
+  await check(
+    'direct provider reads require administrator access and refuse external Okta hosts',
+    async () => {
+      const body = {
+        source: 'okta',
+        domain: 'outside.invalid',
+        token: 'fixture-token',
+        apply: false,
+      }
+      await api(ada, '/import', { method: 'POST', body, expected: 403 })
+      await api(owner, '/import', { method: 'POST', body, expected: 400 })
+      await api(ada, '/import', {
+        method: 'POST',
+        body: { source: 'entra', token: 'fixture-token', apply: false },
+        expected: 403,
+      })
+    }
+  )
 
   const csv = [
     'Work Email,Job Title,Dept,City,Country,Hire Date,Manager Email',
@@ -234,6 +298,24 @@ async function run() {
       const again = await importRows(owner, csv, true)
       assert.equal(again.updated, 0)
       assert.equal(again.unchanged, 3)
+    }
+  )
+
+  await check(
+    'a focused branch exposes report counts and the nearest-first manager path',
+    async () => {
+      const branch = await api(ada, `/chart?memberId=${owner.memberId}&page=500`, {})
+      assert.equal(branch.totalReports, 1)
+      assert.equal(branch.page, 1)
+      const [report] = branch.reports as { memberId: string; reportCount: number }[]
+      assert.equal(report.memberId, ada.memberId)
+      assert.equal(report.reportCount, 1)
+      const leaf = await api(linus, '/chart', {})
+      assert.deepEqual(
+        (leaf.chain as { memberId: string }[]).map((r) => r.memberId),
+        [ada.memberId, owner.memberId]
+      )
+      assert.deepEqual(leaf.reports, [])
     }
   )
 
@@ -381,11 +463,423 @@ async function run() {
     }
     assert.deepEqual(counts, expected, 'Previews are not audited; each apply and edit is')
   })
+
+  const teamOrg = await seedOrganization()
+  const lead = await seedMember(teamOrg, 'owner', 'Maya Chen')
+  const teammates: Member[] = []
+  const longTitle = 'Staff Engineer for Infrastructure Reliability and Developer Experience'
+  const roster = [
+    ['Amara Cole', longTitle],
+    ['Ben Ortega', 'Design Lead'],
+    ['Elena Park', 'Product Manager'],
+    ['Felix Ward', 'Platform Lead'],
+    ['Lena Ali', 'Research Lead'],
+    ['Robin Bell', 'Director of Product'],
+  ]
+  for (const [name] of roster) teammates.push(await seedMember(teamOrg, 'member', name))
+  const report = await seedMember(teamOrg, 'member', 'June Evans')
+  await importRows(
+    lead,
+    [
+      'email,title,department,manager_email',
+      `${lead.email},VP Engineering,Engineering,`,
+      ...teammates.map(
+        (person, index) => `${person.email},${roster[index][1]},Engineering,${lead.email}`
+      ),
+      `${report.email},Engineer,Engineering,${teammates[0].email}`,
+    ].join('\n'),
+    true
+  )
+
+  await check(
+    'provider exports prefer mail and fall back to a blank row’s sign-in address',
+    async () => {
+      const preview = await importRows(
+        lead,
+        [
+          'mail,userPrincipalName,jobTitle',
+          `${teammates[0].email},${teammates[1].email},Architect`,
+          `,${teammates[1].email},Product Designer`,
+        ].join('\n'),
+        false
+      )
+      assert.equal(preview.updated, 2)
+      assert.equal(preview.skipped, 0)
+    }
+  )
+
+  await check('large teams page in name order and shrink after offboarding', async () => {
+    const read = (page: number) => api(lead, `/chart?page=${page}`, {})
+    const second = await read(2)
+    assert.equal(second.totalReports, 6)
+    assert.deepEqual(
+      (second.reports as { memberId: string }[]).map((r) => r.memberId),
+      teammates.slice(4).map((p) => p.memberId)
+    )
+    await sql`update "user" set suspended_at = now() where id = ${teammates[5].userId}`
+    const last = await read(99)
+    assert.equal(last.page, 2)
+    assert.equal(last.totalReports, 5)
+    assert.deepEqual(
+      (last.reports as { memberId: string }[]).map((r) => r.memberId),
+      [teammates[4].memberId]
+    )
+  })
+
+  const unlinked = await seedMember(teamOrg, 'member', 'Rae Dunn')
+  await check(
+    'top-level teams exclude individual members and include leaders whose manager is suspended',
+    async () => {
+      const roots = async () =>
+        ((await api(lead, '?scope=roots', {})).people as { memberId: string }[]).map(
+          (p) => p.memberId
+        )
+      assert.deepEqual(await roots(), [lead.memberId])
+      await sql`update "user" set suspended_at = now() where id = ${lead.userId}`
+      const visible = (await api(teammates[0], '?scope=roots', {})).people as { memberId: string }[]
+      assert.deepEqual(
+        visible.map((p) => p.memberId),
+        [teammates[0].memberId]
+      )
+      await sql`update "user" set suspended_at = null where id = ${lead.userId}`
+    }
+  )
+
+  const screenshotDir = process.env.PEOPLE_E2E_SCREENSHOT_DIR
+  if (screenshotDir)
+    await check('browse the org chart by keyboard, search, history and touch', async () => {
+      const { chromium, expect: browserExpect } = await import('@playwright/test')
+      const expect = browserExpect.configure({ timeout: 60_000 })
+      await Promise.all([seedBrowserWorkspace(lead), seedBrowserWorkspace(outsider)])
+      const browser = await chromium.launch()
+      try {
+        await mkdir(screenshotDir, { recursive: true })
+        const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+        page.setDefaultTimeout(60_000)
+        await page
+          .context()
+          .addCookies([
+            { name: 'better-auth.session_token', value: lead.cookie, url: baseUrl.origin },
+          ])
+        const path = `/o/${teamOrg}/people`
+        await page.goto(new URL(path, baseUrl).href, {
+          waitUntil: 'domcontentloaded',
+          timeout: 180_000,
+        })
+        const focused = (name: string) =>
+          page.getByRole('link', { name: `View profile for ${name}` })
+        await expect(focused('Maya Chen')).toBeVisible({ timeout: 120_000 })
+        await expect(page.getByRole('button', { name: 'Explore Felix Ward' })).toBeVisible()
+        const longTitleLabel = page
+          .getByRole('button', { name: 'Explore Amara Cole' })
+          .getByText(longTitle, { exact: true })
+        await longTitleLabel.hover()
+        await expect(
+          page.locator('[data-native-surface-overlay]').filter({ hasText: longTitle })
+        ).toBeVisible()
+        await page.mouse.move(0, 0)
+        await page.screenshot({ path: join(screenshotDir, 'desktop.png') })
+        const card = focused('Maya Chen')
+        const cardWidth = await card.evaluate((node) => node.getBoundingClientRect().width)
+        await page.getByRole('button', { name: 'Zoom in' }).click()
+        await expect
+          .poll(() => card.evaluate((node) => node.getBoundingClientRect().width))
+          .toBeGreaterThan(cardWidth)
+        await page.getByRole('button', { name: 'Fit chart' }).click()
+        const lightCardColor = await card.evaluate((node) => getComputedStyle(node).backgroundColor)
+        await page.emulateMedia({ colorScheme: 'dark' })
+        await expect
+          .poll(() => card.evaluate((node) => getComputedStyle(node).backgroundColor))
+          .not.toBe(lightCardColor)
+        await page.screenshot({ path: join(screenshotDir, 'desktop-dark.png') })
+        await page.emulateMedia({ colorScheme: 'light' })
+        await page.getByRole('button', { name: 'Next reports' }).focus()
+        await page.keyboard.press('Enter')
+        await page.getByRole('button', { name: 'Explore Lena Ali' }).waitFor()
+        await expect(page.getByRole('button', { name: 'Previous reports' })).toBeFocused()
+        await page.keyboard.press('Enter')
+        const amara = page.getByRole('button', { name: 'Explore Amara Cole' })
+        await amara.focus()
+        await page.keyboard.press('Enter')
+        await expect(focused('Amara Cole')).toBeVisible()
+        await expect(page.getByRole('heading', { name: 'Amara Cole', exact: true })).toBeFocused()
+        await page.getByRole('button', { name: 'Explore June Evans' }).waitFor()
+        await page.waitForURL((url) => url.searchParams.get('focus') === teammates[0].memberId)
+        await page.goBack()
+        await expect(focused('Maya Chen')).toBeVisible()
+        const searched = new Set<string>()
+        const pagedSearch = 'Directory colleague'
+        const requestedPages: (string | null)[] = []
+        page.on('request', (request) => {
+          const url = new URL(request.url())
+          const term = url.searchParams.get('search')
+          if (url.pathname !== `/api/organizations/${teamOrg}/people` || !term) return
+          searched.add(term)
+          if (term === pagedSearch) requestedPages.push(url.searchParams.get('cursor'))
+        })
+        const boundedPaste = 'q'.repeat(200)
+        await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+        await page.evaluate(
+          (text) => navigator.clipboard.writeText(text),
+          `${boundedPaste}${'界'.repeat(4096)}`
+        )
+        await page.getByLabel('Find a person').click()
+        const pickerSearch = page.getByPlaceholder('Search name, title or email…')
+        await pickerSearch.focus()
+        await pickerSearch.press('ControlOrMeta+v')
+        await expect(pickerSearch).toHaveValue(boundedPaste, { timeout: 5_000 })
+        await expect.poll(() => searched.has(boundedPaste)).toBe(true)
+        await sql.begin(async (tx) => {
+          await tx`insert into people_directory_sync (organization_id, source, source_target, next_sync_at)
+            values (${teamOrg}, 'okta', 'picker.okta.com', now() + interval '1 day')`
+          await tx`insert into people_directory_entry (id, organization_id, source, external_id, email, name)
+            select gen_random_uuid()::text, ${teamOrg}, 'okta', 'picker-' || n, 'picker-' || n || '@example.test',
+              ${pagedSearch}::text || ' ' || lpad(n::text, 3, '0') from generate_series(1, 101) n`
+        })
+        try {
+          await pickerSearch.fill(pagedSearch)
+          await expect(page.getByRole('option', { name: /^Directory colleague 001/ })).toBeVisible()
+          const more = page.getByRole('button', { name: 'Load more', exact: true })
+          await expect(more).toBeVisible({ timeout: 5_000 })
+          await Promise.all([
+            page.waitForResponse((response) => {
+              const url = new URL(response.url())
+              return (
+                url.pathname === `/api/organizations/${teamOrg}/people` &&
+                url.searchParams.get('search') === pagedSearch &&
+                url.searchParams.has('cursor') &&
+                response.ok()
+              )
+            }),
+            more.click(),
+          ])
+          await more.scrollIntoViewIfNeeded()
+          await page.getByRole('option', { name: /^Directory colleague 100/ }).click()
+          await expect(
+            page.getByText('No reporting lines for Directory colleague 100', { exact: true })
+          ).toBeVisible()
+          assert.equal(requestedPages.length, 2, 'One click loads exactly one additional page')
+          assert.equal(requestedPages[0], null)
+          assert(requestedPages[1], 'Page two resumes with a cursor')
+          await page.goBack()
+          await expect(focused('Maya Chen')).toBeVisible()
+        } finally {
+          await sql`delete from people_directory_sync where organization_id = ${teamOrg} and source_target = 'picker.okta.com'`
+        }
+        await page.getByLabel('Find a person').click()
+        await page.getByPlaceholder('Search name, title or email…').fill(' Engineering ')
+        await page.getByText(/Ben Ortega · Design Lead/).click()
+        await focused('Ben Ortega').click()
+        await page.getByRole('link', { name: 'View in org chart' }).click()
+        await expect(focused('Ben Ortega')).toBeVisible()
+        await page.getByLabel('Browse top-level teams').click()
+        await page.getByText(/Maya Chen · VP Engineering/).click()
+        await expect(focused('Maya Chen')).toBeVisible()
+        await page.getByRole('radio', { name: 'Directory' }).click()
+        const directorySearch = page.getByRole('textbox', { name: 'Search people...', exact: true })
+        await directorySearch.focus()
+        await directorySearch.press('ControlOrMeta+v')
+        await expect(directorySearch).toHaveValue(boundedPaste)
+        await page.waitForURL((url) => url.searchParams.get('search') === boundedPaste)
+        const direct = new URL(path, baseUrl)
+        const prefix = 'z'.repeat(199)
+        direct.searchParams.set('search', `${prefix}😀legacy`)
+        await page.goto(direct.href)
+        await expect(directorySearch).toHaveValue(prefix)
+        await expect.poll(() => searched.has(prefix)).toBe(true)
+        assert(
+          [...searched].every((term) => term.length <= 200),
+          'People sent an oversized search'
+        )
+        await directorySearch.fill('Amara')
+        const profileLink = page.getByRole('link', { name: 'Amara Cole', exact: true })
+        await profileLink.focus()
+        await page.keyboard.press('Enter')
+        await page.getByRole('link', { name: 'Open Maya Chen' }).click()
+        const backToResults = page
+          .getByRole('link', { name: 'People', exact: true })
+          .and(page.locator('a[href*="search=Amara"]'))
+        await backToResults.click()
+        await expect(directorySearch).toHaveValue('Amara')
+        const chartOrigin = new URL(path, baseUrl)
+        chartOrigin.searchParams.set('view', 'chart')
+        chartOrigin.searchParams.set('focus', lead.memberId)
+        chartOrigin.searchParams.set('page', '2')
+        chartOrigin.searchParams.set('search', 'Amara')
+        chartOrigin.searchParams.set('department', 'Engineering')
+        await page.goto(chartOrigin.href)
+        await focused('Maya Chen').click()
+        await page
+          .getByRole('link', { name: 'People', exact: true })
+          .and(page.locator('a[href*="department=Engineering"]'))
+          .click()
+        await page.waitForURL(
+          (url) =>
+            url.pathname === path &&
+            [...chartOrigin.searchParams].every(
+              ([key, value]) => url.searchParams.get(key) === value
+            )
+        )
+        await expect(page.getByRole('button', { name: 'Explore Lena Ali' })).toBeVisible()
+        await page.goto(new URL(`${path}?search=Amara`, baseUrl).href)
+        await directorySearch.fill('')
+        await page.waitForURL(
+          (url) => url.searchParams.get('view') === 'directory' && !url.searchParams.get('search')
+        )
+        await expect(page.getByRole('radio', { name: 'Directory' })).toBeChecked()
+        await page.getByRole('radio', { name: 'Org chart' }).click()
+        await page.goto(new URL(`${path}?focus=${unlinked.memberId}`, baseUrl).href)
+        await page.getByText('No reporting lines for Rae Dunn').waitFor()
+        await page.getByRole('button', { name: 'Explore a team' }).click()
+        await expect(focused('Maya Chen')).toBeVisible()
+
+        const empty = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+        empty.setDefaultTimeout(60_000)
+        await empty
+          .context()
+          .addCookies([
+            { name: 'better-auth.session_token', value: outsider.cookie, url: baseUrl.origin },
+          ])
+        await empty.goto(new URL(`/o/${outsider.orgId}/people`, baseUrl).href)
+        await empty.getByText('No reporting lines yet', { exact: true }).waitFor()
+        await empty.screenshot({ path: join(screenshotDir, 'empty-chart.png') })
+        await empty.getByRole('button', { name: 'Import people', exact: true }).click()
+        const picker = empty.getByRole('dialog', { name: 'Import people data' })
+        await picker.getByRole('button', { name: 'Okta', exact: true }).waitFor()
+        await expect(picker.getByRole('button', { name: 'SCIM provisioning' })).toHaveCount(0)
+        await empty.screenshot({ path: join(screenshotDir, 'import-sources.png') })
+        await picker.getByRole('button', { name: 'Microsoft Entra ID' }).click()
+        await empty.getByRole('dialog', { name: 'Import from Microsoft Entra ID' }).waitFor()
+        await empty.close()
+        const mobile = await browser.newPage({
+          isMobile: true,
+          hasTouch: true,
+          viewport: { width: 390, height: 844 },
+        })
+        mobile.setDefaultTimeout(60_000)
+        await mobile
+          .context()
+          .addCookies([
+            { name: 'better-auth.session_token', value: lead.cookie, url: baseUrl.origin },
+          ])
+        await mobile.goto(new URL(path, baseUrl).href, { waitUntil: 'domcontentloaded' })
+        await mobile
+          .getByRole('link', { name: 'View profile for Maya Chen' })
+          .waitFor({ timeout: 120_000 })
+        for (const width of [390, 320]) {
+          await mobile.setViewportSize({ width, height: 844 })
+          await expect(mobile.getByRole('button', { name: 'Explore Amara Cole' })).toBeVisible()
+          await expect(mobile.getByRole('button', { name: 'Explore Ben Ortega' })).toHaveCount(0)
+          await mobile.getByRole('button', { name: 'Next reports' }).tap()
+          await expect(mobile.getByRole('button', { name: 'Explore Ben Ortega' })).toBeVisible()
+          await mobile.getByRole('button', { name: 'Fit chart' }).tap()
+          await mobile.screenshot({ path: join(screenshotDir, `mobile-${width}.png`) })
+          assert(
+            await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+          )
+          await mobile.getByRole('button', { name: 'Previous reports' }).tap()
+        }
+        await mobile.getByRole('button', { name: 'Explore Amara Cole' }).tap()
+        await mobile.getByRole('button', { name: 'Explore June Evans' }).tap()
+        const trail = mobile.getByRole('navigation', { name: 'Reporting path' })
+        const heading = trail.getByRole('heading', { name: 'June Evans' })
+        await heading.scrollIntoViewIfNeeded()
+        await expect(heading).toBeInViewport()
+        const manager = trail.getByRole('button', { name: 'Maya Chen' })
+        await manager.scrollIntoViewIfNeeded()
+        await expect(manager).toBeInViewport()
+        await manager.tap()
+        await expect(mobile.getByRole('link', { name: 'View profile for Maya Chen' })).toBeVisible()
+        assert(
+          await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+        )
+      } finally {
+        await browser.close()
+      }
+    })
+
+  if (screenshotDir)
+    await check(
+      'a transient status poll preserves a credential draft until administrator access is revoked',
+      async () => {
+        const { chromium, expect } = await import('@playwright/test')
+        const browser = await chromium.launch()
+        try {
+          await sql`insert into people_directory_sync (organization_id, source, source_target, next_sync_at)
+          values (${teamOrg}, 'okta', 'draft.okta.com', now() + interval '1 hour')`
+          const page = await browser.newPage()
+          page.setDefaultTimeout(60_000)
+          await page
+            .context()
+            .addCookies([
+              { name: 'better-auth.session_token', value: lead.cookie, url: baseUrl.origin },
+            ])
+          const statusUrl = new URL(`/api/organizations/${teamOrg}/people/sync`, baseUrl).href
+          const draft = `unsaved-e2e-${generateId()}`
+          let transmitted = false
+          page.on('request', (req) => {
+            transmitted ||= [req.url(), req.postData() ?? '', ...Object.values(req.headers())].some(
+              (value) => value.includes(draft)
+            )
+          })
+          await page.clock.install()
+          await page.goto(new URL(`/o/${teamOrg}/people?panel=sync`, baseUrl).href)
+          await page.getByRole('button', { name: 'Update credentials' }).click()
+          const token = page
+            .getByRole('dialog', { name: 'Update Okta credentials' })
+            .getByLabel('API token', { exact: true })
+          await token.click()
+          await token.fill(draft)
+
+          let failures = 0
+          await page.route(statusUrl, (route) => {
+            if (route.request().method() === 'GET' && failures < 2) {
+              failures++
+              return route.fulfill({
+                status: 503,
+                json: { error: 'Directory status temporarily unavailable' },
+              })
+            }
+            return route.continue()
+          })
+          const response = (code: number) =>
+            page.waitForResponse((event) => event.url() === statusUrl && event.status() === code)
+          const failed = response(503)
+          await page.clock.fastForward(30_001)
+          await failed
+          await expect.poll(() => failures).toBe(2)
+          const recovered = response(200)
+          await page.clock.fastForward(30_001)
+          await recovered
+          await expect(token).toHaveValue(draft)
+
+          await sql`update member set role='member' where id=${lead.memberId}`
+          const denied = response(403)
+          await page.clock.fastForward(30_001)
+          await denied
+          await expect(token).toHaveCount(0)
+          assert.equal(
+            transmitted,
+            false,
+            'Polling and revoking access must never transmit the unsaved credential'
+          )
+        } finally {
+          await browser.close()
+          await sql`update member set role='owner' where id=${lead.memberId}`
+          await sql`delete from people_directory_sync where organization_id=${teamOrg}`
+        }
+      }
+    )
 }
 
 async function cleanup() {
   if (organizationIds.length) {
     await sql`delete from audit_log where resource_id in ${sql(organizationIds)}`
+    if (userIds.length) {
+      await sql`delete from workspace where owner_id in ${sql(userIds)} or billed_account_user_id in ${sql(userIds)}`
+      await sql`delete from project where owner_id in ${sql(userIds)}`
+    }
+    await sql`delete from project where organization_id in ${sql(organizationIds)}`
     await sql`delete from organization where id in ${sql(organizationIds)}`
   }
   if (userIds.length) await sql`delete from "user" where id in ${sql(userIds)}`
