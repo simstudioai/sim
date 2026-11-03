@@ -16,6 +16,11 @@ import { useOptionalOrganizationContext } from '@/app/o/[organizationId]/provide
 import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
+interface PlanUpgradeLinkInput {
+  reason: string
+  action: UsageUpgradeTagPayload['action']
+}
+
 interface PlanUpgradeLink {
   href: string
   opensInNewTab: boolean
@@ -30,10 +35,7 @@ interface PlanUpgradeLink {
  * limit, or a free plan that does not include Chat. A workspace's plan links to its upgrade page;
  * self-hosted plans and limits live on the hosted account.
  */
-export function usePlanUpgradeLink(data: {
-  reason: string
-  action: UsageUpgradeTagPayload['action']
-}): PlanUpgradeLink {
+export function usePlanUpgradeLink(data: PlanUpgradeLinkInput): PlanUpgradeLink {
   const { data: session } = useSession()
   const hostContext = useOptionalWorkspaceHostContext()
   const organizationContext = useOptionalOrganizationContext()
