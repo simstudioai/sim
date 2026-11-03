@@ -13,6 +13,7 @@ import {
   toast,
 } from '@sim/emcn'
 import { PanelLeft, Send, Settings } from '@sim/emcn/icons'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
@@ -20,7 +21,9 @@ import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link
 import type { OrganizationSurfaceOrganization } from '@/lib/organizations/surface'
 import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
+import { SidebarRenameRow } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-rename-row'
 import { SIDEBAR_RAIL_CHIP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+import { useRenameOrganization } from '@/hooks/queries/organization'
 import { useUploadOrganizationLogo } from '@/hooks/queries/organization-logo'
 
 function getOrganizationInitial(name: string): string {
@@ -29,7 +32,8 @@ function getOrganizationInitial(name: string): string {
 
 interface OrganizationHeaderProps {
   organization: OrganizationSurfaceOrganization
-  canEditLogo: boolean
+  /** Organization admins may change its logo and name. */
+  canEditIdentity: boolean
   canInviteMembers: boolean
   isCollapsed: boolean
   /** Expands the rail; the collapsed header is itself the expand control. */
@@ -42,10 +46,11 @@ interface OrganizationHeaderProps {
  * into its settings; collapsed, it becomes the rail's expand control, swapping
  * the mark for a panel glyph on hover exactly as the workspace header does. The
  * mark is the organization's uploaded logo or its initial on the neutral tile.
+ * Admins change the logo and rename the organization from the card.
  */
 export function OrganizationHeader({
   organization,
-  canEditLogo,
+  canEditIdentity,
   canInviteMembers,
   isCollapsed,
   onExpandSidebar,
@@ -55,7 +60,9 @@ export function OrganizationHeader({
   const { mutate: uploadLogo, isPending: isUploadingLogo } = useUploadOrganizationLogo(
     organization.id
   )
+  const renameOrganization = useRenameOrganization()
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
+  const [draftName, setDraftName] = useState<string | null>(null)
   const initial = getOrganizationInitial(organization.name)
 
   if (isCollapsed) {
@@ -85,13 +92,28 @@ export function OrganizationHeader({
   }
 
   const { memberCount } = organization
+  const stopRenaming = () => {
+    setDraftName(null)
+    renameOrganization.reset()
+  }
+
+  const submitRename = () => {
+    if (draftName === null || renameOrganization.isPending) return
+    const name = draftName.trim()
+    if (!name || name === organization.name) {
+      stopRenaming()
+      return
+    }
+    renameOrganization.mutate({ orgId: organization.id, name }, { onSuccess: stopRenaming })
+  }
+
   const logo = (
     <IdentityTile size='lg' initial={initial} logoUrl={organization.logo} alt={organization.name} />
   )
 
   return (
     <div className='min-w-0 flex-1'>
-      {canEditLogo && (
+      {canEditIdentity && (
         <input
           ref={fileInputRef}
           type='file'
@@ -110,7 +132,11 @@ export function OrganizationHeader({
           }}
         />
       )}
-      <DropdownMenu>
+      <DropdownMenu
+        onOpenChange={(open) => {
+          if (!open) stopRenaming()
+        }}
+      >
         <DropdownMenuTrigger asChild>
           <Chip
             aria-label='Organization menu'
@@ -128,7 +154,7 @@ export function OrganizationHeader({
           className='w-64 max-w-[calc(100vw-24px)]'
         >
           <div className='flex items-center gap-2 px-2 py-1.5'>
-            {canEditLogo ? (
+            {canEditIdentity ? (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <DropdownMenuItem
@@ -150,8 +176,50 @@ export function OrganizationHeader({
             ) : (
               logo
             )}
-            <div className='flex min-w-0 flex-col'>
-              <OverflowText label={organization.name} />
+            <div className='flex min-w-0 flex-1 flex-col'>
+              {draftName !== null ? (
+                <SidebarRenameRow
+                  aria-label='Organization name'
+                  aria-invalid={renameOrganization.isError || undefined}
+                  autoFocus
+                  value={draftName}
+                  disabled={renameOrganization.isPending}
+                  onFocus={(event) => event.currentTarget.select()}
+                  onChange={(event) => {
+                    setDraftName(event.target.value)
+                    if (renameOrganization.isError) renameOrganization.reset()
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      submitRename()
+                    } else if (event.key === 'Escape') {
+                      event.preventDefault()
+                      stopRenaming()
+                    }
+                  }}
+                  onBlur={submitRename}
+                />
+              ) : canEditIdentity ? (
+                <DropdownMenuItem
+                  aria-label='Rename organization'
+                  textValue='Rename organization'
+                  className='h-auto min-w-0 p-0 hover-hover:opacity-70 focus-visible:opacity-70'
+                  onSelect={(event) => {
+                    event.preventDefault()
+                    setDraftName(organization.name)
+                  }}
+                >
+                  <OverflowText label={organization.name} />
+                </DropdownMenuItem>
+              ) : (
+                <OverflowText label={organization.name} />
+              )}
+              {renameOrganization.isError && (
+                <span role='alert' className='text-[var(--text-error)] text-caption'>
+                  {getErrorMessage(renameOrganization.error, 'Failed to rename organization')}
+                </span>
+              )}
               <span className='text-[var(--text-muted)] text-caption'>
                 {memberCount} {memberCount === 1 ? 'member' : 'members'}
               </span>
@@ -176,7 +244,7 @@ export function OrganizationHeader({
           open={isInviteModalOpen}
           onOpenChange={setIsInviteModalOpen}
           organizationId={organization.id}
-          isOrganizationAdmin={canEditLogo}
+          isOrganizationAdmin={canEditIdentity}
           canInvite={canInviteMembers}
         />
       )}
