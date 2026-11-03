@@ -54,6 +54,12 @@ export const settingsSections: Record<MothershipSettingsScope, readonly Settings
     },
     { id: 'access-control', label: 'Permission groups', uiSection: 'access-control' },
     {
+      id: 'sim-links',
+      label: 'Sim links',
+      userSetup:
+        'Members browse and follow links on the organization Links page. Available only where Sim links are enabled for the organization.',
+    },
+    {
       id: 'sso',
       label: 'Single sign-on and provisioning',
       uiSection: 'sso',

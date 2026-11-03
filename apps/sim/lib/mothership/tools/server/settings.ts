@@ -46,6 +46,7 @@ import {
 } from '@/lib/mothership/tools/server/settings-operation'
 import { settingsOperations } from '@/lib/mothership/tools/server/settings-operations'
 import { readSettingsDomains } from '@/lib/mothership/tools/server/settings-security'
+import { readSettingsSimLinks } from '@/lib/mothership/tools/server/settings-sim-links'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import {
   getOrganizationDataRetention,
@@ -228,6 +229,7 @@ const adapters: Record<string, SettingAdapter> = {
       }),
   },
   'organization/members': { get: readSettingsRoster },
+  'organization/sim-links': { get: (context) => readSettingsSimLinks(context) },
   'organization/whitelabeling': {
     schema: updateOrganizationWhitelabelBodySchema.strict(),
     get: async (context) =>
