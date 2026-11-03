@@ -50,8 +50,13 @@ export const ORGANIZATION_REMOVAL_IMPACT_STALE_TIME = 0
 export { organizationKeys }
 
 /** Revalidates organization membership and chat policy through the shared authorized read. */
-export function useOrganizationSummary(organizationId: string) {
+export function useOrganizationSummary(
+  organizationId: string,
+  options?: { enabled?: boolean; refetchOnMount?: 'always' }
+) {
   return useQuery({
+    enabled: options?.enabled ?? true,
+    refetchOnMount: options?.refetchOnMount ?? true,
     queryKey: organizationKeys.summary(organizationId),
     queryFn: ({ signal }) =>
       requestJson(getOrganizationContract, {

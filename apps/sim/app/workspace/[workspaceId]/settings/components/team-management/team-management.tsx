@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Plus } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { useSession } from '@/lib/auth/client'
@@ -10,7 +11,7 @@ import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
-import { generateSlug, isAdminOrOwner, type Member } from '@/lib/workspaces/organization'
+import { generateSlug, type Member } from '@/lib/workspaces/organization'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
 import {
   SettingsEmptyState,
@@ -30,6 +31,7 @@ import {
   useMemberRemovalImpact,
   useOrganization,
   useOrganizationRoster,
+  useOrganizationSummary,
   useRemoveMember,
   useTransferOwnership,
 } from '@/hooks/queries/organization'
@@ -83,7 +85,33 @@ export function TeamManagement({
   const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
   const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
 
-  const adminOrOwner = isAdminOrOwner(organization, session?.user?.email)
+  const {
+    data: roster,
+    isLoading: isLoadingRoster,
+    error: rosterError,
+    isFetchedAfterMount: isRosterFetchedAfterMount,
+    isFetching: isRosterFetching,
+    refetch: refetchRoster,
+  } = useOrganizationRoster(organizationId)
+
+  // Only a row naming the caller (the roster) or the server's own role read is authoritative:
+  // Better Auth's full-organization read caps its member list and can omit or lag the caller.
+  const rosterRole = roster?.members.find((member) => member.userId === session?.user?.id)?.role
+  const organizationSummary = useOrganizationSummary(organizationId, {
+    enabled: rosterError !== null,
+    refetchOnMount: 'always',
+  })
+  // Fetched on this mount, so the identity-scoped role belongs to the current session.
+  const summaryRole = organizationSummary.isFetchedAfterMount
+    ? organizationSummary.data?.userRole
+    : undefined
+  const confirmedRole = rosterRole ?? summaryRole
+  const adminOrOwner = isOrgAdminRole(
+    confirmedRole ??
+      organization?.members.find((member) => member.user.email === session?.user?.email)?.role ??
+      'member'
+  )
+  const canLeave = confirmedRole !== undefined && confirmedRole !== 'owner'
 
   const {
     data: organizationBillingData,
@@ -93,15 +121,6 @@ export function TeamManagement({
     isFetching: isOrganizationBillingFetching,
     refetch: refetchOrganizationBilling,
   } = useOrganizationPlanSeats(organizationId, { enabled: billingEnabled && adminOrOwner })
-
-  const {
-    data: roster,
-    isLoading: isLoadingRoster,
-    error: rosterError,
-    isFetchedAfterMount: isRosterFetchedAfterMount,
-    isFetching: isRosterFetching,
-    refetch: refetchRoster,
-  } = useOrganizationRoster(organizationId)
 
   const removeMemberMutation = useRemoveMember()
   const transferOwnershipMutation = useTransferOwnership()
@@ -221,6 +240,17 @@ export function TeamManagement({
       memberName: displayName,
       isSelfRemoval: isLeavingSelf,
       isExternalRemoval: member.role === 'external',
+    })
+  }
+
+  const handleLeave = () => {
+    if (!session?.user) return
+    setRemoveMemberDialog({
+      open: true,
+      memberId: session.user.id,
+      memberName: 'yourself',
+      isSelfRemoval: true,
+      isExternalRemoval: false,
     })
   }
 
@@ -365,20 +395,31 @@ export function TeamManagement({
           onChange: setMemberQuery,
           placeholder: 'Search members...',
         }}
-        actions={
-          adminOrOwner
+        actions={[
+          ...(canLeave
             ? [
                 {
+                  id: 'leave-organization',
+                  text: 'Leave organization',
+                  variant: 'destructive' as const,
+                  onSelect: handleLeave,
+                },
+              ]
+            : []),
+          ...(adminOrOwner
+            ? [
+                {
+                  id: 'invite',
                   text: 'Invite',
                   icon: Plus,
-                  variant: 'primary',
+                  variant: 'primary' as const,
                   onSelect: () => setInviteModalOpen(true),
                   disabled: invitationsDisabled,
                   tooltip: invitationsDisabled ? 'Invitations are disabled' : undefined,
                 },
               ]
-            : []
-        }
+            : []),
+        ]}
       >
         {billingEnabled &&
           adminOrOwner &&

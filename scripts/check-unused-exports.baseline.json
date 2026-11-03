@@ -5231,8 +5231,6 @@
   "apps/sim/lib/workspaces/operations/receipts.ts#WorkspaceOperationIssue",
   "apps/sim/lib/workspaces/operations/receipts.ts#WorkspaceOperationKind",
   "apps/sim/lib/workspaces/operations/receipts.ts#WorkspaceOperationStatus",
-  "apps/sim/lib/workspaces/organization/index.ts#getUserRole",
-  "apps/sim/lib/workspaces/organization/utils.ts#getUserRole",
   "apps/sim/lib/workspaces/permissions/utils.ts#MemberRoleSource",
   "apps/sim/lib/workspaces/policy.ts#CONTACT_OWNER_TO_UPGRADE_REASON",
   "apps/sim/lib/workspaces/policy.ts#UPGRADE_TO_INVITE_REASON",
