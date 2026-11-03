@@ -5,7 +5,11 @@ import {
   defineRouteContract,
 } from '@/lib/api/contracts'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
-import { DIRECTORY_TEXT_MAX_LENGTH, memberProfileFieldsSchema } from '@/lib/people/validation'
+import {
+  DIRECTORY_TEXT_MAX_LENGTH,
+  memberProfileFieldsSchema,
+  PEOPLE_SEARCH_MAX_LENGTH,
+} from '@/lib/people/validation'
 
 /** Rows one import may carry; larger organizations import in several files. */
 export const PEOPLE_IMPORT_MAX_ROWS = 10_000
@@ -48,7 +52,7 @@ export const listPeopleContract = defineRouteContract({
   params,
   query: z.object({
     scope: z.enum(['roots', 'members']).optional(),
-    search: z.string().max(200).optional(),
+    search: z.string().max(PEOPLE_SEARCH_MAX_LENGTH).optional(),
     department: z.string().max(DIRECTORY_TEXT_MAX_LENGTH).optional(),
     departmentKey: departmentKey.optional(),
     cursor: z.string().min(1).max(1024).optional(),
@@ -68,7 +72,7 @@ export const listDepartmentsContract = defineRouteContract({
   path: '/api/organizations/[id]/people/departments',
   params,
   query: z.object({
-    search: z.string().max(200).optional(),
+    search: z.string().max(PEOPLE_SEARCH_MAX_LENGTH).optional(),
     cursor: z.string().min(1).max(1024).optional(),
   }),
   response: {

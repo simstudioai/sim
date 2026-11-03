@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+export const PEOPLE_SEARCH_MAX_LENGTH = 200
 export const PROFILE_TEXT_MAX_LENGTH = 200
 export const DIRECTORY_TEXT_MAX_LENGTH = 2048
 

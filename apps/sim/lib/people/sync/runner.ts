@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { peopleDirectoryScimChange as change, peopleDirectorySync as sync } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { and, eq, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
@@ -340,10 +341,20 @@ export async function syncDueDirectories() {
     GROUP BY organization_id ORDER BY min(due_at), organization_id LIMIT 50
   `)
   for (let i = 0; i < connections.length && Date.now() < deadline; i += 2) {
-    const batch = await Promise.all(
-      connections.slice(i, i + 2).map((row) => runDirectorySync(row.organizationId, 'cron'))
+    const slice = connections.slice(i, i + 2)
+    const results = await Promise.allSettled(
+      slice.map(({ organizationId }) => runDirectorySync(organizationId, 'cron'))
     )
-    attempted += batch.filter(Boolean).length
+    for (const [index, result] of results.entries()) {
+      if (result.status === 'rejected') {
+        logger.error('Could not process a due directory', {
+          organizationId: slice[index].organizationId,
+          code: getPostgresErrorCode(result.reason),
+        })
+      } else if (result.value) {
+        attempted++
+      }
+    }
   }
   return { attempted }
 }

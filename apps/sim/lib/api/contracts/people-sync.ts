@@ -49,6 +49,7 @@ const status = z.object({
     })
     .nullable(),
   retryAt: z.iso.datetime().nullable(),
+  retryBlocked: z.boolean(),
 })
 export type PeopleSyncStatus = z.infer<typeof status>
 

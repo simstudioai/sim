@@ -49,11 +49,12 @@ interface SyncStatusProps {
   sync: PeopleSyncStatus
 }
 function SyncStatus({ sync }: SyncStatusProps) {
-  const { label, variant } = sync.retryAt
-    ? { label: 'Waiting to retry', variant: 'amber' as const }
-    : sync.progress && sync.state === 'queued'
-      ? { label: 'Refresh in progress', variant: 'blue' as const }
-      : STATES[sync.state]
+  const { label, variant } =
+    sync.retryBlocked && sync.state !== 'syncing'
+      ? { label: 'Waiting to retry', variant: 'amber' as const }
+      : sync.progress && sync.state === 'queued'
+        ? { label: 'Refresh in progress', variant: 'blue' as const }
+        : STATES[sync.state]
   const { progress } = sync
   const dates = [
     ['Last attempted', sync.lastAttemptAt],
@@ -155,7 +156,7 @@ export function DirectorySyncModal({ organizationId, onClose }: DirectorySyncMod
     )
   const title = 'Directory sync'
   const syncing = sync?.state === 'syncing' || actions.pending
-  const waitingToRetry = Boolean(sync?.retryAt)
+  const waitingToRetry = Boolean(sync?.retryBlocked)
   return (
     <ChipModal open onOpenChange={(open) => !open && onClose()} srTitle={title}>
       <ChipModalHeader onClose={onClose}>{title}</ChipModalHeader>

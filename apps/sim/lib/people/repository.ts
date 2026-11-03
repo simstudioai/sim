@@ -42,7 +42,7 @@ export type PersonRecord = Omit<Person, 'joinedAt' | 'departmentKey'> & { joined
 const ACTIVE_USER = isNull(user.suspendedAt)
 const SUMMARY_FIELDS = sql`p.id AS "memberId", p.user_id AS "userId", p.name, p.email, p.image, p.title`
 
-/** Retire SCIM identities in the same commit as provisioning, before a later snapshot reclaims the row. */
+/** Hide retired SCIM identities immediately while the previous snapshot awaits cleanup. */
 function visibleDirectoryEntry(organizationId: string) {
   return sql`(d.source <> 'scim' OR EXISTS (
     SELECT 1 FROM ${scimUser} su JOIN ${user} account ON account.id = su.user_id

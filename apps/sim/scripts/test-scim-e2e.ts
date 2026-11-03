@@ -406,7 +406,8 @@ async function run() {
       await patch(token, `/Users/${aliceId}`, [{ op: 'replace', path: 'title', value: 'Engineer' }])
       const screenshotDir = process.env.PEOPLE_E2E_SCREENSHOT_DIR
       if (screenshotDir) {
-        const { chromium, expect } = await import('@playwright/test')
+        const { chromium, expect: browserExpect } = await import('@playwright/test')
+        const expect = browserExpect.configure({ timeout: 60_000 })
         const browser = await chromium.launch()
         try {
           const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
@@ -517,13 +518,16 @@ async function run() {
       const failed = record((await connection()).body.sync)
       assert.equal(failed.state, 'failed')
       assert.equal(failed.lastSuccessAt, success)
+      assert.equal(failed.retryAt, failed.nextSyncAt)
+      assert.equal(failed.retryBlocked, false)
       assert.match(string(failed.lastError), /reporting loop/i)
       assert(failed.lastFailedAt)
       assert.equal((await chart()).manager, null)
       await patch(token, `/Users/${bobId}`, [{ op: 'remove', path: `${enterprise}:manager` }])
       const screenshotDir = process.env.PEOPLE_E2E_SCREENSHOT_DIR
       if (screenshotDir) {
-        const { chromium, expect } = await import('@playwright/test')
+        const { chromium, expect: browserExpect } = await import('@playwright/test')
+        const expect = browserExpect.configure({ timeout: 60_000 })
         const browser = await chromium.launch()
         try {
           const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
@@ -533,7 +537,9 @@ async function run() {
             .addCookies([
               { name: 'better-auth.session_token', value: primary.cookie, url: baseUrl.origin },
             ])
-          await page.goto(new URL(`/o/${primary.orgId}/people`, baseUrl).href)
+          await page.goto(
+            new URL(`/o/${primary.orgId}/people?focus=${aliceMemberId}`, baseUrl).href
+          )
           const statusUrl = new URL(syncPath, baseUrl).href
           await page.route(statusUrl, (route) =>
             route.fulfill({ status: 503, json: { error: 'Unavailable' } })
@@ -555,6 +561,14 @@ async function run() {
           const dialogBox = await modal.boundingBox()
           assert(dialogBox && dialogBox.x >= 0 && dialogBox.x + dialogBox.width <= 391)
           assert.equal(record((await chart()).manager).email, bobEmail)
+          await expect(page.getByText('Principal Engineer', { exact: true })).toBeAttached()
+          await patch(token, `/Users/${aliceId}`, [
+            { op: 'replace', path: 'title', value: 'Staff Platform Engineer' },
+          ])
+          await tick()
+          await expect(page.getByText('Staff Platform Engineer', { exact: true })).toBeAttached({
+            timeout: 60_000,
+          })
           await modal.getByRole('button', { name: 'Disconnect', exact: true }).click()
           await page
             .getByRole('dialog', { name: 'Disconnect directory' })

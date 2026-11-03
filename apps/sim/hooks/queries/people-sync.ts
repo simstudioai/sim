@@ -1,7 +1,8 @@
 import { useRef } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
+import type { ContractJsonResponse } from '@/lib/api/contracts'
 import {
   configurePeopleSyncContract,
   disconnectPeopleSyncContract,
@@ -20,11 +21,27 @@ const syncKeys = {
   organization: (organizationId: string) => [...syncKeys.all, organizationId] as const,
 }
 
+type SyncResult = ContractJsonResponse<typeof getPeopleSyncContract>
+
+function refreshPublishedPeople(client: QueryClient, organizationId: string, result: SyncResult) {
+  const previous = client.getQueryData<SyncResult>(syncKeys.organization(organizationId))
+  if ((previous?.sync?.lastSuccessAt ?? null) !== (result.sync?.lastSuccessAt ?? null)) {
+    return client.invalidateQueries({ queryKey: peopleKeys.organization(organizationId) })
+  }
+}
+
 export function usePeopleSyncStatus(organizationId: string) {
+  const client = useQueryClient()
   return useQuery({
     queryKey: syncKeys.organization(organizationId),
-    queryFn: ({ signal }) =>
-      requestJson(getPeopleSyncContract, { params: { id: organizationId }, signal }),
+    queryFn: async ({ signal }) => {
+      const result = await requestJson(getPeopleSyncContract, {
+        params: { id: organizationId },
+        signal,
+      })
+      if (!signal.aborted) void refreshPublishedPeople(client, organizationId, result)
+      return result
+    },
     staleTime: SYNC_STATUS_STALE_TIME,
     refetchInterval: (query) => {
       const sync = query.state.data?.sync
@@ -62,11 +79,13 @@ export function usePeopleSyncActions(organizationId: string) {
       if (!body) throw new Error('Choose a directory connection')
       return requestJson(configurePeopleSyncContract, { params, body })
     },
-    onSuccess: () =>
-      Promise.all([
-        client.invalidateQueries({ queryKey: syncKeys.organization(organizationId) }),
-        client.invalidateQueries({ queryKey: peopleKeys.organization(organizationId) }),
-      ]),
+    onSuccess: async (result) => {
+      const queryKey = syncKeys.organization(organizationId)
+      await client.cancelQueries({ queryKey })
+      const refreshed = refreshPublishedPeople(client, organizationId, result)
+      client.setQueryData(queryKey, result)
+      await refreshed
+    },
     onError: () => client.invalidateQueries({ queryKey: syncKeys.organization(organizationId) }),
     onSettled: () => {
       busy.current = false

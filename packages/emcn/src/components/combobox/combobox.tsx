@@ -145,6 +145,7 @@ export interface ComboboxProps
   onSearchChange?: (query: string) => void
   /** Placeholder for search input */
   searchPlaceholder?: string
+  searchMaxLength?: number
   /** Size variant */
   size?: 'sm' | 'md'
   /** Dropdown alignment */
@@ -213,6 +214,7 @@ const Combobox = memo(
         searchMode = 'local',
         onSearchChange,
         searchPlaceholder = 'Search...',
+        searchMaxLength,
         align = 'start',
         dropdownWidth = 'trigger',
         disablePortal = false,
@@ -944,6 +946,7 @@ const Combobox = memo(
                     ref={searchInputRef}
                     className={MENU_STYLES.searchInput}
                     placeholder={searchPlaceholder}
+                    maxLength={searchMaxLength}
                     value={searchQuery}
                     onChange={(e) => updateSearchQuery(e.target.value)}
                     onKeyDown={(e) => {

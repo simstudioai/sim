@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Avatar } from '@sim/emcn'
+import { PEOPLE_SEARCH_MAX_LENGTH } from '@/lib/people/validation'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { usePeople } from '@/hooks/queries/people'
 import { useDebounce } from '@/hooks/use-debounce'
@@ -26,6 +27,7 @@ export function usePeoplePicker(
     people,
     pickerProps: {
       searchable: true,
+      searchMaxLength: PEOPLE_SEARCH_MAX_LENGTH,
       searchMode: 'server' as const,
       onSearchChange: setSearch,
       onOpenChange: setOpen,

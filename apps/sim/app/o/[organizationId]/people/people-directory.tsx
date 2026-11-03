@@ -8,6 +8,7 @@ import { useQueryStates } from 'nuqs'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import type { PersonSummary } from '@/lib/api/contracts/people'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { PEOPLE_SEARCH_MAX_LENGTH } from '@/lib/people/validation'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { PEOPLE_COLUMNS, PEOPLE_SEARCH_PLACEHOLDER } from '@/app/o/[organizationId]/people/columns'
 import { LoadingStatus } from '@/app/o/[organizationId]/people/loading-status'
@@ -68,12 +69,7 @@ export function PeopleDirectory({ organizationId }: PeopleProps) {
   const [departmentSearch, setDepartmentSearch] = useState('')
   const [departmentsOpen, setDepartmentsOpen] = useState(false)
   const departmentTerm = useSearchFilterValue(departmentSearch, SEARCH_DEBOUNCE_MS).trim()
-  const searchTooLong = departmentSearch.trim().length > 200
-  const departments = useDepartments(
-    organizationId,
-    departmentTerm,
-    departmentsOpen && !searchTooLong && departmentTerm.length <= 200
-  )
+  const departments = useDepartments(organizationId, departmentTerm, departmentsOpen)
   const departmentWaiting = departmentSearch.trim() !== departmentTerm
   const changingFilter = people.isPlaceholderData || query !== search.trim()
 
@@ -111,6 +107,7 @@ export function PeopleDirectory({ organizationId }: PeopleProps) {
 
   const searchConfig: SearchConfig = {
     value: search,
+    maxLength: PEOPLE_SEARCH_MAX_LENGTH,
     onChange: setSearch,
     onClearAll: () => setSearch(''),
     placeholder: PEOPLE_SEARCH_PLACEHOLDER,
@@ -147,7 +144,7 @@ export function PeopleDirectory({ organizationId }: PeopleProps) {
                 <ChipCombobox
                   options={[
                     { value: ALL_DEPARTMENTS, label: 'All' },
-                    ...(departmentWaiting || searchTooLong
+                    ...(departmentWaiting
                       ? []
                       : (departments.data?.pages.flatMap((page) => page.departments) ?? [])
                     ).map(({ name, count, departmentKey: key }) => ({
@@ -160,23 +157,20 @@ export function PeopleDirectory({ organizationId }: PeopleProps) {
                   overlayContent={departmentLabel || 'All'}
                   overlayLabel={departmentLabel || 'All'}
                   searchable
+                  searchMaxLength={PEOPLE_SEARCH_MAX_LENGTH}
                   searchMode='server'
                   onSearchChange={setDepartmentSearch}
                   onOpenChange={setDepartmentsOpen}
-                  hasMore={!searchTooLong && !departmentWaiting && departments.hasNextPage}
+                  hasMore={!departmentWaiting && departments.hasNextPage}
                   onLoadMore={() => void departments.fetchNextPage()}
                   isLoadingMore={departments.isFetchingNextPage}
-                  isLoading={!searchTooLong && (departmentWaiting || departments.isPending)}
-                  error={
-                    searchTooLong
-                      ? 'Search using up to 200 characters from the department name.'
-                      : departments.error?.message
-                  }
+                  isLoading={departmentWaiting || departments.isPending}
+                  error={departments.error?.message}
                   searchPlaceholder='Search departments...'
                   emptyMessage='No departments match'
                   className='w-full'
                 />
-                {!searchTooLong && departments.isError && (
+                {departments.isError && (
                   <Chip
                     disabled={departments.isFetching}
                     onClick={() => void departments.refetch()}

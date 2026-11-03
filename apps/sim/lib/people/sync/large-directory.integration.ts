@@ -121,11 +121,13 @@ it('resumes a throttled directory beyond 10,000 accounts and publishes the compl
   const started = Date.now()
   let status = await requestDirectorySync(organizationId)
   expect(status.state).toBe('failed')
+  expect(status.retryBlocked).toBe(true)
   expect(status.progress).toEqual({ phase: 'users', usersRead: throttleAt })
   expect(Date.parse(status.retryAt ?? '')).toBeGreaterThanOrEqual(started + 119000)
   expect(JSON.stringify(status)).not.toContain(config.token)
   const beforeRetry = [...requested]
   await requestDirectorySync(organizationId)
+  expect(await runDirectorySync(organizationId, 'cron')).toBe(false)
   expect(requested).toEqual(beforeRetry)
 
   const verifyBaseline = async () => {

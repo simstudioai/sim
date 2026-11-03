@@ -607,7 +607,24 @@ async function run() {
         await page.waitForURL((url) => url.searchParams.get('focus') === teammates[0].memberId)
         await page.goBack()
         await expect(focused('Maya Chen')).toBeVisible()
+        const searched = new Set<string>()
+        page.on('request', (request) => {
+          const url = new URL(request.url())
+          const term = url.searchParams.get('search')
+          if (url.pathname === `/api/organizations/${teamOrg}/people` && term) searched.add(term)
+        })
+        const boundedPaste = 'q'.repeat(200)
+        await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+        await page.evaluate(
+          (text) => navigator.clipboard.writeText(text),
+          `${boundedPaste}${'界'.repeat(4096)}`
+        )
         await page.getByLabel('Find a person').click()
+        const pickerSearch = page.getByPlaceholder('Search name, title or email…')
+        await pickerSearch.focus()
+        await pickerSearch.press('ControlOrMeta+v')
+        await expect(pickerSearch).toHaveValue(boundedPaste, { timeout: 5_000 })
+        await expect.poll(() => searched.has(boundedPaste)).toBe(true)
         await page.getByPlaceholder('Search name, title or email…').fill(' Engineering ')
         await page.getByText(/Ben Ortega · Design Lead/).click()
         await focused('Ben Ortega').click()
@@ -617,6 +634,21 @@ async function run() {
         await page.getByText(/Maya Chen · VP Engineering/).click()
         await expect(focused('Maya Chen')).toBeVisible()
         await page.getByRole('radio', { name: 'Directory' }).click()
+        const directorySearch = page.getByPlaceholder('Search people...')
+        await directorySearch.focus()
+        await directorySearch.press('ControlOrMeta+v')
+        await expect(directorySearch).toHaveValue(boundedPaste)
+        await page.waitForURL((url) => url.searchParams.get('search') === boundedPaste)
+        const direct = new URL(path, baseUrl)
+        const prefix = 'z'.repeat(199)
+        direct.searchParams.set('search', `${prefix}😀legacy`)
+        await page.goto(direct.href)
+        await expect(directorySearch).toHaveValue(prefix)
+        await expect.poll(() => searched.has(prefix)).toBe(true)
+        assert(
+          [...searched].every((term) => term.length <= 200),
+          'People sent an oversized search'
+        )
         await page.getByPlaceholder('Search people...').fill('Amara')
         const profileLink = page.getByRole('link', { name: 'Amara Cole', exact: true })
         await profileLink.focus()

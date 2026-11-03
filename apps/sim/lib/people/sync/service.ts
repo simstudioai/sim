@@ -55,10 +55,8 @@ export async function getDirectorySync(organizationId: string): Promise<PeopleSy
           ? 'queued'
           : 'scheduled',
     progress: row.phase ? { phase: row.phase, usersRead: row.usersRead } : null,
-    retryAt:
-      !row.changedAt && row.retryCount > 0 && nextSyncAt.getTime() > now
-        ? nextSyncAt.toISOString()
-        : null,
+    retryAt: row.lastError && !running ? nextSyncAt.toISOString() : null,
+    retryBlocked: !row.changedAt && row.retryCount > 0 && nextSyncAt.getTime() > now,
     lastAttemptAt: row.lastAttemptAt?.toISOString() ?? null,
     lastSuccessAt: row.lastSuccessAt?.toISOString() ?? null,
     lastFailedAt: row.lastFailedAt?.toISOString() ?? null,
