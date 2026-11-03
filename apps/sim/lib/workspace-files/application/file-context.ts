@@ -87,33 +87,39 @@ function requireWorkspaceFileContext<C extends ActiveWorkspaceFileContext>(
   return canonical
 }
 
+/** Whether a caller that may have opted in with `acceptVfsPath` named a file by its VFS path. */
+export function namesWorkspaceFileVfsPath(
+  acceptVfsPath: boolean | undefined,
+  reference: string
+): boolean {
+  return acceptVfsPath === true && isWorkspaceFileVfsPath(reference)
+}
+
 function namesVfsPath(input: WorkspaceFileTargetInput): boolean {
-  return input.acceptVfsPath === true && isWorkspaceFileVfsPath(input.fileId)
+  return namesWorkspaceFileVfsPath(input.acceptVfsPath, input.fileId)
 }
 
 /**
- * A path becomes an id first, so the canonical load and every authorization check run unchanged.
- * The resolver's `validation` is decided from the reference alone, before any read, and says
- * nothing about the workspace. Every other refusal it raises was read from the workspace, as is a
- * path that names no single live file, so each leaves as an
- * {@link UnresolvedWorkspaceFileVfsPathError} that only a caller the operation admits sees.
+ * The id of the one live file at `vfsPath` in `workspaceId`. The resolver's `validation` is
+ * decided from the path alone, before any read, and says nothing about the workspace. Every other
+ * refusal it raises was read from the workspace, as is a path that names no single live file, so
+ * each leaves as an {@link UnresolvedWorkspaceFileVfsPathError}, which a caller must admit to the
+ * workspace before its message can be shown.
  */
-async function resolveFileId(input: WorkspaceFileContextInput): Promise<string> {
-  if (!namesVfsPath(input)) return input.fileId
-  const workspaceId = input.assertedWorkspaceId
-  if (workspaceId === undefined) {
-    throw new OrchestrationError('not_found', 'File not found')
-  }
+export async function resolveWorkspaceFileVfsPath(
+  workspaceId: string,
+  vfsPath: string
+): Promise<string> {
   const file = await resolveFileReference(
     { entityType: 'workspace', entityId: workspaceId },
-    input.fileId
+    vfsPath
   ).catch((error: unknown) => {
     if (!(error instanceof OrchestrationError) || error.code === 'validation') throw error
     if (error.code === 'conflict') {
       throw new UnresolvedWorkspaceFileVfsPathError(
         workspaceId,
         'validation',
-        `"${input.fileId}" names more than one file whose names display alike; pass the file id instead`
+        `"${vfsPath}" names more than one file whose names display alike; pass the file id instead`
       )
     }
     throw new UnresolvedWorkspaceFileVfsPathError(workspaceId, error.code, error.message)
@@ -122,6 +128,15 @@ async function resolveFileId(input: WorkspaceFileContextInput): Promise<string> 
     throw new UnresolvedWorkspaceFileVfsPathError(workspaceId, 'not_found', 'File not found')
   }
   return file.id
+}
+
+/** A path becomes an id first, so the canonical load and every authorization check run unchanged. */
+async function resolveFileId(input: WorkspaceFileContextInput): Promise<string> {
+  if (!namesVfsPath(input)) return input.fileId
+  if (input.assertedWorkspaceId === undefined) {
+    throw new OrchestrationError('not_found', 'File not found')
+  }
+  return resolveWorkspaceFileVfsPath(input.assertedWorkspaceId, input.fileId)
 }
 
 export async function resolveActiveWorkspaceFileContext(

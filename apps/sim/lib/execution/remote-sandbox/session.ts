@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { createSandboxPricing } from '@/lib/billing/sandbox-pricing'
 import { mapSettledWithConcurrency } from '@/lib/core/utils/concurrency'
 import { type CreatedSandbox, createSelectedSandbox } from '@/lib/execution/remote-sandbox/create'
+import type { SandboxPhaseTimer } from '@/lib/execution/remote-sandbox/phase-timing'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 import type { ResolvedSandbox } from '@/lib/execution/remote-sandbox/resolve'
 import { ensureSessionCli } from '@/lib/execution/remote-sandbox/session-cli'
@@ -56,12 +57,14 @@ export async function ensureSessionSandbox(args: {
   session: SandboxSessionRequest
   signal: AbortSignal
   bootstrapTimeoutMs: number
+  phases?: SandboxPhaseTimer
 }): Promise<SessionAcquisition> {
   const { provider, kind, options, selected, session, signal } = args
   signal.throwIfAborted()
   if (!provider.findSessionSandbox) throw new Error('This deployment has no persistent workbench')
   const lifetimeMs = SESSION_SANDBOX_IDLE_MS + (options.lifetimeMs ?? 0)
   const requestedAtMs = Date.now()
+  const endLookup = args.phases?.start('lookup')
   const existing = await provider.findSessionSandbox(session.key, {
     ...(options.language ? { language: options.language } : {}),
     lifetimeMs,
@@ -83,6 +86,7 @@ export async function ensureSessionSandbox(args: {
         true,
         provider
       )
+  endLookup?.()
   // Before the abort check: a stopped caller still leaves this machine for the next call to
   // reuse, and a reused machine without history can never be certified.
   if (!existing)
@@ -96,7 +100,9 @@ export async function ensureSessionSandbox(args: {
     await created.sandbox.extendLifetime?.(lifetimeMs)
   signal.throwIfAborted()
   if (session.cli) {
+    const endCli = args.phases?.start('cli')
     await ensureSessionCli(created.sandbox, session.cli, signal, args.bootstrapTimeoutMs)
+    endCli?.()
   }
   signal.throwIfAborted()
   return { created, status: existing ? 'reused' : 'created' }

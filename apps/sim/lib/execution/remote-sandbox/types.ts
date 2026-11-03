@@ -2,6 +2,7 @@ import type { CodePlaceholderRuntimeBinding } from '@/lib/execution/code-placeho
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import type { CodeLanguage } from '@/lib/execution/languages'
 import type { SandboxBuildError } from '@/lib/execution/remote-sandbox/build-errors'
+import type { SandboxPhaseTimings } from '@/lib/execution/remote-sandbox/phase-timing'
 import type { SandboxSpec } from '@/lib/execution/remote-sandbox/spec'
 
 /**
@@ -187,6 +188,8 @@ export interface SandboxExecutionResult {
    * is gone.
    */
   sandboxSession?: 'created' | 'reused'
+  /** Wall time per execution phase, for the caller's log line; never part of a response. */
+  phaseMs?: SandboxPhaseTimings
 }
 
 /** One harvested output file, carried as base64 with its decoded length. */

@@ -46,7 +46,10 @@ import { MAX_FOLDER_PATH_BYTES, MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/p
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file'
 import { isWorkspaceFileVfsPath } from '@/lib/vfs/path'
-import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
+import {
+  MAX_WORKSPACE_FILE_BULK_REQUEST_PATHS,
+  MAX_ZIP_DOWNLOAD_FILES,
+} from '@/lib/workspace-files/limits'
 import {
   FILE_SEARCH_DEFAULT_MAX_RESULTS,
   FILE_SEARCH_MAX_QUERY_LENGTH,
@@ -527,7 +530,9 @@ export type V2MoveFileItemsResult = z.output<typeof v2MoveFileItemsResultSchema>
 export const v2BulkDeleteFilesBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace containing the files.'),
-    fileIds: fileIdsSchema.describe('File identifiers to delete.'),
+    fileIds: fileIdsSchema.describe(
+      `Files to delete, each by identifier or by the VFS path of a live file: \`files/<folder>/<name>\`. Pass the id when two files in a folder have names that display alike. At most ${MAX_WORKSPACE_FILE_BULK_REQUEST_PATHS} entries may be paths.`
+    ),
   })
   .strict()
 

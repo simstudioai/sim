@@ -93,7 +93,7 @@ describe('embedded CLI output ownership', () => {
       throw new Error('a parse error must not reach the API')
     }
     const [guessed, dashedId, noArguments, noOptions] = await Promise.all([
-      runEmbeddedCli(['tables', 'rows', 'batch-delete', 'tbl_1', '--row-ids', 'row_1', '--yes'], {
+      runEmbeddedCli(['tables', 'rows', 'batch-delete', 'tbl_1', '--ids', 'row_1', '--yes'], {
         ...identity,
         transport,
       }),
@@ -102,7 +102,7 @@ describe('embedded CLI output ownership', () => {
       runEmbeddedCli(['workspaces', 'get', 'ws_1', '--verbose'], { ...identity, transport }),
     ])
     expect(guessed.exitCode).toBe(1)
-    expect(guessed.stderr).toContain("unknown option '--row-ids'")
+    expect(guessed.stderr).toContain("unknown option '--ids'")
     expect(guessed.stderr).toContain('Options for sim tables rows batch-delete:')
     expect(guessed.stderr).toContain('--row <value...>')
     expect(dashedId.exitCode).toBe(1)
