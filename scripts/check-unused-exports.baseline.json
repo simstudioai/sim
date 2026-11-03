@@ -4702,7 +4702,6 @@
   "apps/sim/lib/messaging/email/mailer.ts#sendBatchEmails",
   "apps/sim/lib/messaging/email/types.ts#EmailAttachment",
   "apps/sim/lib/messaging/email/utils.ts#extractEmailFromAddress",
-  "apps/sim/lib/monitoring/metrics.ts#flushHostedKeyMetrics",
   "apps/sim/lib/mothership/agent-cli/types.ts#AgentCliClient",
   "apps/sim/lib/mothership/application/execute-knowledge-use-case.ts#requireCopilotKnowledgeWorkspaceId",
   "apps/sim/lib/mothership/application/execute-knowledge-use-case.ts#resolveCopilotKnowledgePrincipal",
