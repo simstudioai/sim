@@ -97,10 +97,14 @@ export function TeamManagement({
   // Only a row naming the caller (the roster) or the server's own role read is authoritative:
   // Better Auth's full-organization read caps its member list and can omit or lag the caller.
   const rosterRole = roster?.members.find((member) => member.userId === session?.user?.id)?.role
-  const { data: organizationSummary } = useOrganizationSummary(organizationId, {
+  const organizationSummary = useOrganizationSummary(organizationId, {
     enabled: rosterError !== null,
   })
-  const confirmedRole = rosterRole ?? organizationSummary?.userRole
+  // Fetched on this mount, so the identity-scoped role belongs to the current session.
+  const summaryRole = organizationSummary.isFetchedAfterMount
+    ? organizationSummary.data?.userRole
+    : undefined
+  const confirmedRole = rosterRole ?? summaryRole
   const adminOrOwner = isOrgAdminRole(
     confirmedRole ??
       organization?.members.find((member) => member.user.email === session?.user?.email)?.role ??
