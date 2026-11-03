@@ -1,13 +1,12 @@
 import { FALAI_HOSTED_KEY_MARKUP_MULTIPLIER } from '@/lib/tools/falai-pricing'
 import type { InternalToolConfig } from '@/tools/types'
 import type { VideoParams, VideoResponse } from '@/tools/video/types'
-import { parseBooleanParam, parseBooleanParamWithDefault } from '@/tools/video/utils'
+import { parseBooleanParam } from '@/tools/video/utils'
 
 export const falaiVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
   id: 'video_falai',
   name: 'Fal.ai Video Generation',
-  description:
-    'Generate videos using Fal.ai with access to Veo 3.1, Sora 2, Seedance 2.0, Kling 3.0, MiniMax Hailuo 2.3, WAN 2.2, LTX 2.3, and previously supported models',
+  description: 'Generate a video from a text prompt with a model in the Fal.ai video catalog',
   version: '1.0.0',
 
   params: {
@@ -28,7 +27,7 @@ export const falaiVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Fal.ai model: veo-3.1, veo-3.1-fast, sora-2, sora-2-pro, seedance-2.0, seedance-2.0-fast, kling-v3-pro, kling-v3-4k, kling-o3-pro, kling-o3-4k, minimax-hailuo-2.3-pro, minimax-hailuo-2.3-standard, wan-2.2-a14b-turbo, ltx-2.3, ltx-2.3-fast, plus previously supported model IDs',
+        'A Video Generator fal model ID, such as veo-3.1, kling/v4/text-to-video, or minimax/h3-max/text-to-video',
     },
     prompt: {
       type: 'string',
@@ -46,20 +45,19 @@ export const falaiVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Aspect ratio (varies by model): 16:9, 9:16, 1:1',
+      description: 'Aspect ratio supported by the selected model',
     },
     resolution: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Video resolution (varies by model): 480p, 580p, 720p, 1080p, true_1080p, 1440p, 2160p, 4k',
+      description: 'Video resolution supported by the selected model',
     },
     promptOptimizer: {
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Enable prompt optimization for MiniMax models (default: true)',
+      description: 'Override prompt optimization when supported by the selected model',
     },
     generateAudio: {
       type: 'boolean',
@@ -117,7 +115,7 @@ export const falaiVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
       duration: params.duration,
       aspectRatio: params.aspectRatio,
       resolution: params.resolution,
-      promptOptimizer: parseBooleanParamWithDefault(params.promptOptimizer, true),
+      promptOptimizer: parseBooleanParam(params.promptOptimizer),
       generateAudio: parseBooleanParam(params.generateAudio),
       useHostedCostTracking: params.__usingHostedKey === true,
     }),

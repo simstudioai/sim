@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
 
 import { generateVideo } from '@/lib/internal/video/client'
+import { executeVideoOperation } from '@/lib/internal/video/operations'
+import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
 
 executionLimitsMockFns.mockGetMaxExecutionTimeout.mockReturnValue(5000)
 
@@ -65,9 +67,8 @@ describe('Video provider client', () => {
         }),
         jsonResponse({ status: 'COMPLETED' }),
         jsonResponse({
-          video: { url: 'https://cdn.example/fal.mp4', width: 1920, height: 1080, duration: 8 },
+          video: { url: 'data:video/mp4;base64,dmlkZW8=', width: 1920, height: 1080, duration: 8 },
         }),
-        new Response(Buffer.from('video')),
       ],
       submitUrl: 'https://queue.fal.run/fal-ai/veo3.1',
     },
@@ -95,6 +96,106 @@ describe('Video provider client', () => {
         ([, init]) => (init as RequestInit | undefined)?.method === 'POST'
       )
     ).toHaveLength(1)
+  })
+
+  it('retrieves a nested endpoint result when fal omits the queue URLs', async () => {
+    const app = 'fal-ai/kandinsky5'
+    const model = `${app}/text-to-video`
+    const request = `/${app}/requests/fal-1`
+    vi.stubGlobal('fetch', async (url: string | URL) => {
+      switch (new URL(url).pathname) {
+        case `/${model}`:
+          return jsonResponse({ request_id: 'fal-1' })
+        case `${request}/status`:
+          return jsonResponse({ status: 'COMPLETED' })
+        case request:
+          return jsonResponse({ video: { url: 'data:video/mp4;base64,dmlkZW8=' } })
+        default:
+          return new Response(null, { status: 405 })
+      }
+    })
+    const result = generateVideo(
+      { provider: 'falai', apiKey: 'key', model, prompt: 'A cinematic sunrise' },
+      { requestId: 'request-1' }
+    )
+    const completion = expect(result).resolves.toMatchObject({ buffer: Buffer.from('video') })
+    await vi.advanceTimersByTimeAsync(5000)
+    await completion
+  })
+
+  it('keeps the fal API key off a foreign polling origin', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ request_id: 'fal-1', status_url: 'https://untrusted.example/job' })
+      )
+      .mockResolvedValue(jsonResponse({ status: 'FAILED' }))
+    vi.stubGlobal('fetch', mockFetch)
+
+    const result = generateVideo(
+      { provider: 'falai', apiKey: 'private-key', model: 'veo-3.1', prompt: 'A cinematic sunrise' },
+      { requestId: 'request-1' }
+    )
+    const rejection = expect(result).rejects.toThrow()
+    await vi.advanceTimersByTimeAsync(5000)
+    await rejection
+    expect(mockFetch.mock.calls.map(([url]) => new URL(url).origin)).not.toContain(
+      'https://untrusted.example'
+    )
+  })
+
+  it('preserves the completed hosted receipt for reconciliation when Stop interrupts delivery', async () => {
+    const controller = new AbortController()
+    const requestId = 'completed-video'
+    const endpoint = 'fal-ai/veo3.1'
+    vi.stubGlobal('fetch', async (url: string | URL, init?: RequestInit) => {
+      init?.signal?.throwIfAborted()
+      const path = new URL(url).pathname
+      if (path === `/${endpoint}`) return jsonResponse({ request_id: requestId })
+      if (path.endsWith('/status')) {
+        controller.abort(new Error('Stopped'))
+        return jsonResponse({ status: 'COMPLETED' })
+      }
+      if (path.endsWith('/billing-events')) {
+        return jsonResponse({
+          billing_events: [
+            { request_id: requestId, endpoint_id: endpoint, cost_estimate_nano_usd: 400000000 },
+          ],
+        })
+      }
+      throw new Error('Unexpected provider request')
+    })
+    const pending: string[] = []
+    const result = observeServiceCosts(
+      async () => {
+        throw new Error('Unexpected successful charge')
+      },
+      () =>
+        executeVideoOperation(
+          {
+            provider: 'falai',
+            model: 'veo-3.1',
+            prompt: 'A sunrise',
+            apiKey: 'key',
+            useHostedCostTracking: true,
+          },
+          {
+            requestId: 'trace-id',
+            userId: 'user',
+            headers: new Headers(),
+            signal: controller.signal,
+          }
+        ),
+      async (receipt) => {
+        pending.push(receipt)
+      }
+    )
+    const rejection = expect(result).rejects.toThrow('Stopped')
+    await vi.advanceTimersByTimeAsync(5000)
+    await rejection
+    expect(pending).toHaveLength(1)
+    expect(pending[0]).toContain(requestId)
+    expect(pending[0]).toContain('0.4')
   })
 
   it('cancels during the provider wait without polling or resubmitting', async () => {

@@ -10,6 +10,9 @@ import {
   readResponseTextWithLimit,
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { buildFalVideoRequest, getFalAIValidationError } from '@/lib/internal/video/fal-request'
+import { getFalVideoModel } from '@/lib/media/fal-video-catalog'
+import { downloadFalMedia } from '@/lib/media/falai'
 import { type FalAICostMetadata, getFalAICostMetadata } from '@/lib/tools/falai-pricing'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file.server'
 import type { UserFile } from '@/executor/types'
@@ -48,6 +51,7 @@ export interface VideoGenerationResult {
 }
 
 export interface VideoGenerationContext {
+  onFalCost?: (receipt: FalAICostMetadata) => void
   requestId: string
   signal?: AbortSignal
 }
@@ -113,8 +117,7 @@ export function getVideoInputValidationError(input: VideoGenerationInput): strin
     if (!valid.includes(input.aspectRatio)) return `Aspect ratio must be ${valid.join(', ')}`
   }
   if (input.provider === 'falai') {
-    if (!input.model) return 'Model is required for Fal.ai provider'
-    return getFalAIValidationError(input.model, input.duration, input.aspectRatio, input.resolution)
+    return getFalAIValidationError(input)
   }
   return undefined
 }
@@ -174,19 +177,7 @@ export async function generateVideo(
         logger
       )
     case 'falai':
-      return generateWithFalAI(
-        input.apiKey,
-        input.model as string,
-        input.prompt,
-        input.duration,
-        input.aspectRatio,
-        input.resolution,
-        input.promptOptimizer,
-        input.generateAudio,
-        input.useHostedCostTracking === true,
-        context,
-        logger
-      )
+      return generateWithFalAI(input, context)
   }
 }
 
@@ -726,202 +717,6 @@ async function generateWithMiniMax(
   throw new Error('MiniMax generation timed out')
 }
 
-type FalAIDurationFormat = 'number' | 'seconds' | 'string'
-
-interface FalAIModelConfig {
-  endpoint: string
-  durationFormat?: FalAIDurationFormat
-  durationOptions?: readonly number[]
-  supportsAspectRatio?: boolean
-  aspectRatioOptions?: readonly string[]
-  supportsResolution?: boolean
-  resolutionOptions?: readonly string[]
-  supportsPromptOptimizer?: boolean
-  supportsGenerateAudio?: boolean
-}
-
-interface FalAIRequestBody {
-  prompt: string
-  duration?: number | string
-  aspect_ratio?: string
-  resolution?: string
-  prompt_optimizer?: boolean
-  generate_audio?: boolean
-}
-
-const FALAI_MODEL_CONFIGS: Record<string, FalAIModelConfig> = {
-  'veo-3.1': {
-    endpoint: 'fal-ai/veo3.1',
-    durationFormat: 'seconds',
-    durationOptions: [4, 6, 8],
-    supportsAspectRatio: true,
-    aspectRatioOptions: ['16:9', '9:16'],
-    supportsResolution: true,
-    resolutionOptions: ['720p', '1080p', '4k'],
-    supportsGenerateAudio: true,
-  },
-  'veo-3.1-fast': {
-    endpoint: 'fal-ai/veo3.1/fast',
-    durationFormat: 'seconds',
-    durationOptions: [4, 6, 8],
-    supportsAspectRatio: true,
-    aspectRatioOptions: ['16:9', '9:16'],
-    supportsResolution: true,
-    resolutionOptions: ['720p', '1080p', '4k'],
-    supportsGenerateAudio: true,
-  },
-  'sora-2': {
-    endpoint: 'fal-ai/sora-2/text-to-video',
-    durationFormat: 'number',
-    durationOptions: [4, 8, 12, 16, 20],
-    supportsAspectRatio: true,
-    aspectRatioOptions: ['16:9', '9:16'],
-    supportsResolution: true,
-    resolutionOptions: ['720p'],
-  },
-  'sora-2-pro': {
-    endpoint: 'fal-ai/sora-2/text-to-video/pro',
-    durationFormat: 'number',
-    durationOptions: [4, 8, 12, 16, 20],
-    supportsAspectRatio: true,
-    aspectRatioOptions: ['16:9', '9:16'],
-    supportsResolution: true,
-    resolutionOptions: ['720p', '1080p', 'true_1080p'],
-  },
-  'seedance-2.0': {
-    endpoint: 'bytedance/seedance-2.0/text-to-video',
-    durationFormat: 'string',
-    durationOptions: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    supportsAspectRatio: true,
-    aspectRatioOptions: ['auto', '21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
-    supportsResolution: true,
-    resolutionOptions: ['480p', '720p', '1080p'],
-    supportsGenerateAudio: true,
-  },
-  'seedance-2.0-fast': {
-    endpoint: 'bytedance/seedance-2.0/fast/text-to-video',
-    durationFormat: 'string',
-    durationOptions: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    supportsAspectRatio: true,
-    aspectRatioOptions: ['auto', '21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
-    supportsResolution: true,
-    resolutionOptions: ['480p', '720p'],
-    supportsGenerateAudio: true,
-  },
-  'kling-v3-pro': {
-    endpoint: 'fal-ai/kling-video/v3/pro/text-to-video',
-    durationFormat: 'string',
-    durationOptions: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    supportsAspectRatio: true,
-    aspectRatioOptions: ['16:9', '9:16', '1:1'],
-    supportsGenerateAudio: true,
-  },
-  'kling-v3-4k': {
-    endpoint: 'fal-ai/kling-video/v3/4k/text-to-video',
-    durationFormat: 'string',
-    durationOptions: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    supportsAspectRatio: true,
-    aspectRatioOptions: ['16:9', '9:16', '1:1'],
-    supportsGenerateAudio: true,
-  },
-  'kling-o3-pro': {
-    endpoint: 'fal-ai/kling-video/o3/pro/text-to-video',
-    durationFormat: 'string',
-    durationOptions: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    supportsAspectRatio: true,
-    aspectRatioOptions: ['16:9', '9:16', '1:1'],
-    supportsGenerateAudio: true,
-  },
-  'kling-o3-4k': {
-    endpoint: 'fal-ai/kling-video/o3/4k/text-to-video',
-    durationFormat: 'string',
-    durationOptions: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    supportsAspectRatio: true,
-    aspectRatioOptions: ['16:9', '9:16', '1:1'],
-    supportsGenerateAudio: true,
-  },
-  'kling-2.5-turbo-pro': {
-    endpoint: 'fal-ai/kling-video/v2.5-turbo/pro/text-to-video',
-    durationFormat: 'string',
-    supportsAspectRatio: true,
-    supportsResolution: true,
-  },
-  'kling-2.1-pro': {
-    endpoint: 'fal-ai/kling-video/v2.1/master/text-to-video',
-    durationFormat: 'string',
-    supportsAspectRatio: true,
-    supportsResolution: true,
-  },
-  'minimax-hailuo-2.3-pro': {
-    endpoint: 'fal-ai/minimax/hailuo-2.3/pro/text-to-video',
-    supportsPromptOptimizer: true,
-  },
-  'minimax-hailuo-2.3-standard': {
-    endpoint: 'fal-ai/minimax/hailuo-2.3/standard/text-to-video',
-    durationFormat: 'string',
-    durationOptions: [6, 10],
-    supportsPromptOptimizer: true,
-  },
-  'minimax-hailuo-02-pro': {
-    endpoint: 'fal-ai/minimax/hailuo-02/pro/text-to-video',
-    durationFormat: 'string',
-    supportsAspectRatio: true,
-    supportsResolution: true,
-    supportsPromptOptimizer: true,
-  },
-  'minimax-hailuo-02-standard': {
-    endpoint: 'fal-ai/minimax/hailuo-02/standard/text-to-video',
-    durationFormat: 'string',
-    supportsAspectRatio: true,
-    supportsResolution: true,
-    supportsPromptOptimizer: true,
-  },
-  'wan-2.2-a14b-turbo': {
-    endpoint: 'fal-ai/wan/v2.2-a14b/text-to-video/turbo',
-    supportsAspectRatio: true,
-    aspectRatioOptions: ['16:9', '9:16', '1:1'],
-    supportsResolution: true,
-    resolutionOptions: ['480p', '580p', '720p'],
-  },
-  'wan-2.1': {
-    endpoint: 'fal-ai/wan-t2v',
-  },
-  'ltx-2.3': {
-    endpoint: 'fal-ai/ltx-2.3/text-to-video',
-    durationFormat: 'number',
-    durationOptions: [6, 8, 10],
-    supportsAspectRatio: true,
-    aspectRatioOptions: ['16:9', '9:16'],
-    supportsResolution: true,
-    resolutionOptions: ['1080p', '1440p', '2160p'],
-    supportsGenerateAudio: true,
-  },
-  'ltx-2.3-fast': {
-    endpoint: 'fal-ai/ltx-2.3/text-to-video/fast',
-    durationFormat: 'number',
-    durationOptions: [6, 8, 10, 12, 14, 16, 18, 20],
-    supportsAspectRatio: true,
-    aspectRatioOptions: ['16:9', '9:16'],
-    supportsResolution: true,
-    resolutionOptions: ['1080p', '1440p', '2160p'],
-    supportsGenerateAudio: true,
-  },
-  'ltxv-0.9.8': {
-    endpoint: 'fal-ai/ltxv-13b-098-distilled',
-  },
-}
-
-function formatFalAIDuration(
-  format: FalAIDurationFormat | undefined,
-  duration: number | undefined
-): string | number | undefined {
-  if (!format || duration === undefined) return undefined
-
-  if (format === 'number') return duration
-  if (format === 'seconds') return `${duration}s`
-  return String(duration)
-}
-
 function getStringProperty(
   record: Record<string, unknown> | undefined,
   key: string
@@ -938,135 +733,36 @@ function getNumberProperty(
   return typeof value === 'number' ? value : undefined
 }
 
-function formatAllowedValues(allowed: readonly (number | string)[]): string {
-  return allowed.map(String).join(', ')
-}
-
-function getFalAIValidationError(
-  model: string,
-  duration: number | undefined,
-  aspectRatio: string | undefined,
-  resolution: string | undefined
-): string | undefined {
-  const modelConfig = FALAI_MODEL_CONFIGS[model]
-  if (!modelConfig) {
-    return `Unknown Fal.ai model: ${model}`
-  }
-
-  if (
-    duration !== undefined &&
-    modelConfig.durationOptions &&
-    !modelConfig.durationOptions.includes(duration)
-  ) {
-    return `Invalid duration for Fal.ai model ${model}. Supported durations: ${formatAllowedValues(modelConfig.durationOptions)}`
-  }
-
-  if (aspectRatio) {
-    if (!modelConfig.supportsAspectRatio) {
-      return `Fal.ai model ${model} does not support aspect ratio`
-    }
-
-    if (modelConfig.aspectRatioOptions && !modelConfig.aspectRatioOptions.includes(aspectRatio)) {
-      return `Invalid aspect ratio for Fal.ai model ${model}. Supported aspect ratios: ${formatAllowedValues(modelConfig.aspectRatioOptions)}`
-    }
-  }
-
-  if (resolution) {
-    if (!modelConfig.supportsResolution) {
-      return `Fal.ai model ${model} does not support resolution`
-    }
-
-    if (modelConfig.resolutionOptions && !modelConfig.resolutionOptions.includes(resolution)) {
-      return `Invalid resolution for Fal.ai model ${model}. Supported resolutions: ${formatAllowedValues(modelConfig.resolutionOptions)}`
-    }
-  }
-
-  if (
-    model === 'ltx-2.3-fast' &&
-    duration !== undefined &&
-    duration > 10 &&
-    resolution &&
-    resolution !== '1080p'
-  ) {
-    return 'Fal.ai model ltx-2.3-fast only supports durations over 10 seconds with 1080p resolution'
-  }
-
-  return undefined
-}
-
 function getFalAIErrorMessage(error: unknown): string {
   if (typeof error === 'string') return error
   if (isRecordLike(error)) return getStringProperty(error, 'message') || JSON.stringify(error)
   return 'Unknown error'
 }
 
-function buildFalAIQueueUrl(
-  endpoint: string,
-  requestId: string,
-  path: 'response' | 'status'
-): string {
-  return `https://queue.fal.run/${endpoint}/requests/${requestId}/${path}`
+function falQueueUrl(url: string): string {
+  if (new URL(url).origin !== 'https://queue.fal.run') {
+    throw new Error('Invalid Fal.ai queue URL')
+  }
+  return url
 }
 
 async function generateWithFalAI(
-  apiKey: string,
-  model: string,
-  prompt: string,
-  duration: number | undefined,
-  aspectRatio: string | undefined,
-  resolution: string | undefined,
-  promptOptimizer: boolean | undefined,
-  generateAudio: boolean | undefined,
-  useHostedCostTracking: boolean,
-  context: VideoGenerationContext,
-  logger: Logger
-): Promise<{
-  buffer: Buffer
-  width: number
-  height: number
-  jobId: string
-  duration: number
-  falaiCost?: FalAICostMetadata
-}> {
+  input: VideoGenerationInput,
+  context: VideoGenerationContext
+): Promise<VideoGenerationResult> {
+  const { apiKey, model, duration, aspectRatio, resolution, useHostedCostTracking } = input
   const { requestId, signal } = context
   signal?.throwIfAborted()
   logger.info(`[${requestId}] Starting Fal.ai generation with model: ${model}`)
-
-  const modelConfig = FALAI_MODEL_CONFIGS[model]
-  if (!modelConfig) {
-    throw new Error(`Unknown Fal.ai model: ${model}`)
-  }
-
-  const requestBody: FalAIRequestBody = { prompt }
-  const formattedDuration = formatFalAIDuration(modelConfig.durationFormat, duration)
-
-  if (formattedDuration !== undefined) {
-    requestBody.duration = formattedDuration
-  }
-
-  if (modelConfig.supportsAspectRatio && aspectRatio) {
-    requestBody.aspect_ratio = aspectRatio
-  }
-
-  if (modelConfig.supportsResolution && resolution) {
-    requestBody.resolution = resolution
-  }
-
-  if (modelConfig.supportsPromptOptimizer && promptOptimizer !== undefined) {
-    requestBody.prompt_optimizer = promptOptimizer
-  }
-
-  if (modelConfig.supportsGenerateAudio && generateAudio !== undefined) {
-    requestBody.generate_audio = generateAudio
-  }
-
-  const createResponse = await fetch(`https://queue.fal.run/${modelConfig.endpoint}`, {
+  const { endpoint, body } = buildFalVideoRequest(input)
+  const createResponse = await fetch(`https://queue.fal.run/${endpoint}`, {
     method: 'POST',
+    redirect: 'error',
     headers: {
       Authorization: `Key ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(requestBody),
+    body: JSON.stringify(body),
     signal,
   })
 
@@ -1085,12 +781,12 @@ async function generateWithFalAI(
     throw new Error('Fal.ai queue response missing request_id')
   }
 
-  const statusUrl =
-    getStringProperty(createData, 'status_url') ||
-    buildFalAIQueueUrl(modelConfig.endpoint, requestIdFal, 'status')
-  const responseUrl =
-    getStringProperty(createData, 'response_url') ||
-    buildFalAIQueueUrl(modelConfig.endpoint, requestIdFal, 'response')
+  const app = endpoint.split('/', 2).join('/')
+  const requestUrl = `https://queue.fal.run/${app}/requests/${encodeURIComponent(requestIdFal)}`
+  const statusUrl = falQueueUrl(
+    getStringProperty(createData, 'status_url') || `${requestUrl}/status`
+  )
+  const responseUrl = falQueueUrl(getStringProperty(createData, 'response_url') || requestUrl)
 
   logger.info(`[${requestId}] Fal.ai request created: ${requestIdFal}`)
 
@@ -1101,6 +797,7 @@ async function generateWithFalAI(
     await waitForProvider(context)
 
     const statusResponse = await fetch(statusUrl, {
+      redirect: 'error',
       headers: {
         Authorization: `Key ${apiKey}`,
       },
@@ -1125,9 +822,16 @@ async function generateWithFalAI(
 
       logger.info(`[${requestId}] Fal.ai generation completed after ${attempts * 5}s`)
 
+      const falaiCost = useHostedCostTracking
+        ? await getFalAICostMetadata({ apiKey, endpointId: endpoint, requestId: requestIdFal })
+        : undefined
+      if (falaiCost) context.onFalCost?.(falaiCost)
+      signal?.throwIfAborted()
+
       const resultResponse = await fetch(
-        getStringProperty(statusData, 'response_url') || responseUrl,
+        falQueueUrl(getStringProperty(statusData, 'response_url') || responseUrl),
         {
+          redirect: 'error',
           headers: {
             Authorization: `Key ${apiKey}`,
           },
@@ -1153,35 +857,28 @@ async function generateWithFalAI(
         throw new Error('No video URL in response')
       }
 
-      const videoResponse = await fetch(videoUrl, { signal })
-      if (!videoResponse.ok) {
-        await readVideoErrorText(videoResponse, 'Fal.ai video error response')
-        throw new Error(`Failed to download video: ${videoResponse.status}`)
-      }
-
-      let width = getNumberProperty(videoOutput, 'width') || 1920
-      let height = getNumberProperty(videoOutput, 'height') || 1080
-
-      if (!getNumberProperty(videoOutput, 'width') && aspectRatio?.includes(':')) {
+      const { buffer } = await downloadFalMedia(videoUrl, signal)
+      const catalogModel = getFalVideoModel(model)
+      const legacyMetadata = !catalogModel || catalogModel.legacyId === model
+      let width = getNumberProperty(videoOutput, 'width')
+      let height = getNumberProperty(videoOutput, 'height')
+      if (legacyMetadata && !width && aspectRatio?.includes(':')) {
         const dims = getVideoDimensions(aspectRatio, resolution || '1080p')
         width = dims.width
         height = dims.height
       }
 
       return {
-        buffer: await readVideoResponseBuffer(videoResponse, 'Fal.ai video response'),
-        width,
-        height,
+        buffer,
+        width: width ?? (legacyMetadata ? 1920 : undefined),
+        height: height ?? (legacyMetadata ? 1080 : undefined),
         jobId: requestIdFal,
-        duration: getNumberProperty(videoOutput, 'duration') || duration || 5,
-        falaiCost: useHostedCostTracking
-          ? await getFalAICostMetadata({
-              apiKey,
-              endpointId: modelConfig.endpoint,
-              requestId: requestIdFal,
-              signal,
-            })
-          : undefined,
+        duration:
+          getNumberProperty(videoOutput, 'duration') ??
+          getNumberProperty(resultData, 'duration') ??
+          duration ??
+          (legacyMetadata ? 5 : undefined),
+        falaiCost,
       }
     }
 
