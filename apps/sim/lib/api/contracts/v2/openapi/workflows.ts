@@ -116,6 +116,7 @@ const EMPTY_LINT_EXAMPLE = {
   fieldIssues: [],
   unresolvedReferences: [],
   tableFieldIssues: [],
+  manualRunIssue: null,
   notes: [],
 } as const
 
@@ -419,9 +420,12 @@ const declaredRoutes = [
                 ],
                 unresolvedReferences: [],
                 tableFieldIssues: [],
+                manualRunIssue: null,
                 notes: [],
               },
-              warnings: [],
+              warnings: [
+                'Workflow lint found issues. Fix these before continuing: Blocks missing required fields: "Triage" (systemPrompt)',
+              ],
               needsRedeployment: true,
               dryRun: false,
             },

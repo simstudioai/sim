@@ -663,6 +663,13 @@ type ApplyWorkflowOperationsResponseRef2 = {
     field: string
     tableName: string
   }>
+  manualRunIssue: {
+    reason: 'no-trigger' | 'multiple-api-triggers' | 'trigger-not-connected'
+    message: string
+    blockId: string | null
+    blockName: string | null
+    blockType: string | null
+  } | null
   notes: Array<string>
 }
 
@@ -5079,6 +5086,13 @@ type DeployWorkflowResponseRef4 = {
     field: string
     tableName: string
   }>
+  manualRunIssue: {
+    reason: 'no-trigger' | 'multiple-api-triggers' | 'trigger-not-connected'
+    message: string
+    blockId: string | null
+    blockName: string | null
+    blockType: string | null
+  } | null
   notes: Array<string>
 }
 
@@ -12920,6 +12934,13 @@ type ReplaceWorkflowStateResponseRef0 = {
     field: string
     tableName: string
   }>
+  manualRunIssue: {
+    reason: 'no-trigger' | 'multiple-api-triggers' | 'trigger-not-connected'
+    message: string
+    blockId: string | null
+    blockName: string | null
+    blockType: string | null
+  } | null
   notes: Array<string>
 }
 

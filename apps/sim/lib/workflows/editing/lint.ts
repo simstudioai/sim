@@ -12,6 +12,7 @@ import {
   getResponseFormatOutputs,
 } from '@/lib/workflows/blocks/outputs'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
+import type { ManualRunEntryIssue } from '@/lib/workflows/triggers/manual-run'
 import { getBlock } from '@/blocks'
 import {
   isTriggerBlockType,
@@ -116,6 +117,12 @@ export interface WorkflowLintReport extends WorkflowLintResult {
   fieldIssues: WorkflowLintFieldIssue[]
   unresolvedReferences: WorkflowLintUnresolvedReference[]
   tableFieldIssues: WorkflowLintTableFieldIssue[]
+  /**
+   * Why the editor's Run button would refuse this graph before it starts, or
+   * `null` when a manual run can begin. Not raised for a graph a manual run
+   * cannot start but a chat can (a chat-trigger-only workflow).
+   */
+  manualRunIssue: ManualRunEntryIssue | null
   notes: string[]
 }
 
@@ -420,6 +427,7 @@ type WorkflowLintIssueView = WorkflowLintResult & {
   fieldIssues?: WorkflowLintFieldIssue[]
   unresolvedReferences?: WorkflowLintUnresolvedReference[]
   tableFieldIssues?: WorkflowLintTableFieldIssue[]
+  manualRunIssue?: ManualRunEntryIssue | null
 }
 
 export function hasWorkflowLintIssues(lint: WorkflowLintIssueView) {
@@ -430,7 +438,8 @@ export function hasWorkflowLintIssues(lint: WorkflowLintIssueView) {
     lint.invalidConnectionTargets.length > 0 ||
     (lint.fieldIssues?.length ?? 0) > 0 ||
     (lint.unresolvedReferences?.length ?? 0) > 0 ||
-    (lint.tableFieldIssues?.length ?? 0) > 0
+    (lint.tableFieldIssues?.length ?? 0) > 0 ||
+    lint.manualRunIssue != null
   )
 }
 
@@ -546,6 +555,10 @@ export function formatWorkflowLintMessage(lint: WorkflowLintIssueView) {
         )
         .join(', ')}`
     )
+  }
+
+  if (lint.manualRunIssue) {
+    parts.push(`A manual run would fail: ${lint.manualRunIssue.message}`)
   }
 
   return `Workflow lint found issues. Fix these before continuing: ${parts.join('; ')}`

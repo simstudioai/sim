@@ -92,6 +92,7 @@ describe('Mothership workflow lint scope', () => {
       fieldIssues: [],
       unresolvedReferences: [],
       tableFieldIssues: [],
+      manualRunIssue: null,
       notes: [],
     })
     mocks.secrets.mockResolvedValue({ secrets: [{ envKey: 'WORKFLOW_KEY' }], nextCursorKeys: null })

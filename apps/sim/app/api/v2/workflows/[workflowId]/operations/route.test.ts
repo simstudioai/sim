@@ -52,6 +52,7 @@ const LINT = {
   fieldIssues: [],
   unresolvedReferences: [],
   tableFieldIssues: [],
+  manualRunIssue: null,
   notes: [],
 }
 

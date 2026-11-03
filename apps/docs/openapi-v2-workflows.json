@@ -549,6 +549,7 @@
                           "fieldIssues": [],
                           "unresolvedReferences": [],
                           "tableFieldIssues": [],
+                          "manualRunIssue": null,
                           "notes": []
                         }
                       }
@@ -722,9 +723,12 @@
                           ],
                           "unresolvedReferences": [],
                           "tableFieldIssues": [],
+                          "manualRunIssue": null,
                           "notes": []
                         },
-                        "warnings": [],
+                        "warnings": [
+                          "Workflow lint found issues. Fix these before continuing: Blocks missing required fields: \"Triage\" (systemPrompt)"
+                        ],
                         "needsRedeployment": true,
                         "dryRun": false
                       }
@@ -2655,6 +2659,7 @@
                           "fieldIssues": [],
                           "unresolvedReferences": [],
                           "tableFieldIssues": [],
+                          "manualRunIssue": null,
                           "notes": []
                         }
                       }
@@ -8813,6 +8818,63 @@
             },
             "description": "Table block `filter` and `order` fields checked against the bound table's live schema that name no column (nor the implicit `id`, `createdAt`, `updatedAt`). Such a run fails inside the block's error edge. A filter holding a `<block.output>` reference, or one that is not JSON, is not checked."
           },
+          "manualRunIssue": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "enum": ["no-trigger", "multiple-api-triggers", "trigger-not-connected"],
+                    "description": "Why the run is refused."
+                  },
+                  "message": {
+                    "type": "string",
+                    "description": "The error the manual run raises."
+                  },
+                  "blockId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Trigger the run would start from, when the problem is that trigger."
+                  },
+                  "blockName": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Display name of that trigger."
+                  },
+                  "blockType": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Registered type of that trigger."
+                  }
+                },
+                "required": ["reason", "message", "blockId", "blockName", "blockType"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why a manual run from the editor's Run button would be refused before it starts: no enabled trigger it can start from, more than one API trigger, or a selected trigger with no outgoing connection. `null` when a manual run can begin. Not raised for a workflow only a chat trigger can start."
+          },
           "notes": {
             "type": "array",
             "items": {
@@ -8831,6 +8893,7 @@
           "fieldIssues",
           "unresolvedReferences",
           "tableFieldIssues",
+          "manualRunIssue",
           "notes"
         ],
         "additionalProperties": false,
@@ -8897,6 +8960,7 @@
                 "fieldIssues": [],
                 "unresolvedReferences": [],
                 "tableFieldIssues": [],
+                "manualRunIssue": null,
                 "notes": []
               }
             }
@@ -9461,7 +9525,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Non-fatal notes about blocks and edges that were normalized or dropped before persistence. Empty when there was nothing to report."
+            "description": "Non-fatal notes about blocks and edges that were normalized or dropped before persistence and, when `lint` has findings, one summary of them, so the findings are not lost to a caller that reads only `warnings`. Empty when there is nothing to report."
           },
           "needsRedeployment": {
             "type": "boolean",
@@ -9581,9 +9645,12 @@
                 ],
                 "unresolvedReferences": [],
                 "tableFieldIssues": [],
+                "manualRunIssue": null,
                 "notes": []
               },
-              "warnings": [],
+              "warnings": [
+                "Workflow lint found issues. Fix these before continuing: Blocks missing required fields: \"Triage\" (systemPrompt)"
+              ],
               "needsRedeployment": true,
               "dryRun": false
             }
@@ -12554,6 +12621,7 @@
                 "fieldIssues": [],
                 "unresolvedReferences": [],
                 "tableFieldIssues": [],
+                "manualRunIssue": null,
                 "notes": []
               }
             }
