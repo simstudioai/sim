@@ -4443,7 +4443,7 @@ export function useChat(
     ) => {
       if ((!message.trim() && !fileAttachments?.length) || !scopeKey) return
       if (chatPlanRequired) {
-        useChatPlanModalStore.getState().open()
+        useChatPlanModalStore.getState().open(workspaceId)
         return
       }
 
@@ -5307,7 +5307,7 @@ export function useChat(
       if (!msg || queueState.editing[chatKey] === msg.id) return
       if (queuedMessageDispatchIds.has(msg.id)) return
       if (chatPlanRequired) {
-        useChatPlanModalStore.getState().open()
+        useChatPlanModalStore.getState().open(workspaceId)
         return
       }
       /* Sent by hand, it still must not run a second turn: if the history shows it

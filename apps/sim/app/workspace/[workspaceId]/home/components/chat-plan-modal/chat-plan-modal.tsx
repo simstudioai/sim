@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation'
 import { CHAT_PLAN_REQUIRED_UPGRADE } from '@/lib/billing/chat-plan'
 import { rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
 import { usePlanUpgradeLink } from '@/app/workspace/[workspaceId]/home/hooks/use-plan-upgrade-link'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useChatPlanModalStore } from '@/stores/modals/chat-plan/store'
 
 /**
@@ -18,7 +19,8 @@ import { useChatPlanModalStore } from '@/stores/modals/chat-plan/store'
  * for a viewer who may, and who to ask for one who may not. Render it once per workspace shell.
  */
 export function ChatPlanModal() {
-  const isOpen = useChatPlanModalStore((state) => state.isOpen)
+  const workspaceId = useOptionalWorkspaceHostContext()?.workspace.id
+  const isOpen = useChatPlanModalStore((state) => state.workspaceId === workspaceId)
   const close = useChatPlanModalStore((state) => state.close)
 
   return (

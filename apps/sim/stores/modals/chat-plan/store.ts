@@ -2,22 +2,23 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
 interface ChatPlanModalState {
-  isOpen: boolean
-  open: () => void
+  /** The workspace whose refused send opened the modal; another workspace never shows it. */
+  workspaceId: string | null
+  open: (workspaceId: string | undefined) => void
   close: () => void
 }
 
 /**
- * Whether the Chat plan modal is showing. A send the payer's plan refuses opens it from wherever
- * the send started (the composer, a queued message, a handoff from another surface), and the
- * workspace shell renders the one modal.
+ * Which workspace's Chat plan modal is showing. A send the payer's plan refuses opens it from
+ * wherever the send started (the composer, a queued message, a handoff from another surface), and
+ * the workspace shell renders the one modal, only for the workspace that opened it.
  */
 export const useChatPlanModalStore = create<ChatPlanModalState>()(
   devtools(
     (set) => ({
-      isOpen: false,
-      open: () => set({ isOpen: true }),
-      close: () => set({ isOpen: false }),
+      workspaceId: null,
+      open: (workspaceId) => set({ workspaceId: workspaceId ?? null }),
+      close: () => set({ workspaceId: null }),
     }),
     { name: 'chat-plan-modal-store' }
   )
