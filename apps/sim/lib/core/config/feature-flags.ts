@@ -17,7 +17,7 @@ const FEATURE_FLAGS_PROFILE = 'feature-flags'
  * `adminEnabled` for platform admins. An absent clause never matches. Shape shared with the other
  * AppConfig gating documents via {@link AppConfigGateRule}.
  */
-export type FeatureFlagRule = AppConfigGateRule
+type FeatureFlagRule = AppConfigGateRule
 
 export type FeatureFlagsConfig = Record<string, FeatureFlagRule>
 
@@ -74,7 +74,7 @@ const FEATURE_FLAGS = {
   },
   people: {
     description:
-      'Enable the organization People page: member profiles, reporting lines, and people-data import. Supports organization rollout; disabled by default.',
+      'Enable the organization People directory, org chart, profile imports, and directory sync. Supports organization rollout; disabled by default.',
     fallback: 'PEOPLE',
   },
   'mothership-model-selector': {

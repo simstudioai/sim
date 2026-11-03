@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -274,9 +274,31 @@ describe('migration safety audit', () => {
   }, 30_000)
 
   it('passes against a real base ref with no new migrations', async () => {
-    const { code, stdout } = await runAudit('HEAD')
-
-    expect(code).toBe(0)
+    const repo = mkdtempSync(path.join(tmpdir(), 'migration-clean-repo-'))
+    tempDirs.push(repo)
+    const script = path.join(repo, 'scripts', path.basename(SCRIPT))
+    mkdirSync(path.dirname(script))
+    copyFileSync(SCRIPT, script)
+    await execFileAsync('git', ['init', '--quiet'], { cwd: repo })
+    await execFileAsync('git', ['add', 'scripts'], { cwd: repo })
+    await execFileAsync(
+      'git',
+      [
+        '-c',
+        'user.name=Fixture',
+        '-c',
+        'user.email=fixture@example.test',
+        '-c',
+        'core.hooksPath=/dev/null',
+        'commit',
+        '--no-gpg-sign',
+        '--quiet',
+        '-m',
+        'Fixture baseline',
+      ],
+      { cwd: repo }
+    )
+    const { stdout } = await execFileAsync('bun', ['run', script, 'HEAD'], { cwd: repo })
     expect(stdout).toContain('No new migrations to check')
   }, 30_000)
 })

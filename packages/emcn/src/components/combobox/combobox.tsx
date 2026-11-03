@@ -128,6 +128,8 @@ export interface ComboboxProps
   onArrowLeft?: () => void
   /** Enable search input in dropdown (useful for multiselect) */
   searchable?: boolean
+  /** Server search receives the input through onSearchChange and supplies the matching options. */
+  searchMode?: 'local' | 'server'
   /**
    * Notified when the dropdown's search box changes value, including the `''` a
    * select, close, Escape, or ArrowLeft resets it to. Deduped, so an already-empty
@@ -208,6 +210,7 @@ const Combobox = memo(
         onOpenChange,
         onArrowLeft,
         searchable = false,
+        searchMode = 'local',
         onSearchChange,
         searchPlaceholder = 'Search...',
         align = 'start',
@@ -392,7 +395,7 @@ const Combobox = memo(
           }
         }
 
-        if (searchable && searchQuery) {
+        if (searchable && searchMode === 'local' && searchQuery) {
           const query = searchQuery.toLowerCase()
           result = result.filter((option) => {
             const label = option.label.toLowerCase()
@@ -402,7 +405,7 @@ const Combobox = memo(
         }
 
         return result
-      }, [allOptions, value, open, filterOptions, searchable, searchQuery])
+      }, [allOptions, value, open, filterOptions, searchable, searchMode, searchQuery])
 
       /**
        * Filter groups based on search query (preserves group structure)
@@ -417,7 +420,7 @@ const Combobox = memo(
           }))
           .filter((group) => group.items.length > 0)
 
-        if (!searchable || !searchQuery) return baseGroups
+        if (!searchable || searchMode === 'server' || !searchQuery) return baseGroups
 
         const query = searchQuery.toLowerCase()
         return baseGroups
@@ -430,7 +433,7 @@ const Combobox = memo(
             }),
           }))
           .filter((group) => group.items.length > 0)
-      }, [groups, searchable, searchQuery])
+      }, [groups, searchable, searchMode, searchQuery])
 
       const virtualizeOptions =
         !filteredGroups && !showAllOption && filteredOptions.length >= VIRTUALIZE_OPTION_THRESHOLD

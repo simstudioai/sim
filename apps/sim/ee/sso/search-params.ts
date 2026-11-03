@@ -1,4 +1,4 @@
-import { parseAsBoolean, parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import { createSerializer, parseAsBoolean, parseAsString, parseAsStringLiteral } from 'nuqs/server'
 
 export const SSO_SETTINGS_TABS = ['sign-in', 'domains', 'provisioning'] as const
 
@@ -10,3 +10,5 @@ export const ssoSettingsParsers = {
 }
 
 export const ssoSettingsUrlKeys = { history: 'push', clearOnDefault: true } as const
+
+export const serializeSsoSettings = createSerializer(ssoSettingsParsers)

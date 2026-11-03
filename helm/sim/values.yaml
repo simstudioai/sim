@@ -1508,6 +1508,17 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    peopleDirectorySync:
+      enabled: true
+      name: people-directory-sync
+      schedule: "*/5 * * * *"
+      path: "/api/cron/people-directory-sync"
+      requestTimeoutSeconds: 300
+      activeDeadlineSeconds: 360
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     # Re-applies directory group mappings so drift between what a mapping says a
     # member should have and what SCIM granted them cannot persist. Idempotent,
     # and a no-op for organizations with no connection.

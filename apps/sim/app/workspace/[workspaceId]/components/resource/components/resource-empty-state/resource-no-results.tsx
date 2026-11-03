@@ -13,6 +13,7 @@ interface ResourceNoResultsProps {
   /** Clears the query and every filter, restoring the open folder's contents. */
   onClear: () => void
   /** Where a search looked, for a list that isn't foldered within a workspace. */
+  filterScope?: string
   searchScope?: string
 }
 
@@ -34,12 +35,13 @@ export function ResourceNoResults({
   filterCount,
   onClear,
   searchScope = 'Searched every folder in this workspace.',
+  filterScope = 'Filters apply to this folder only.',
 }: ResourceNoResultsProps) {
   const trimmed = search.trim()
   return (
     <EmptyState
       title={trimmed ? `No results for “${trimmed}”` : 'No results'}
-      description={trimmed ? searchScope : 'Filters apply to this folder only.'}
+      description={trimmed ? searchScope : filterScope}
       action={
         <Chip variant='border' onClick={onClear}>
           {trimmed && filterCount > 0

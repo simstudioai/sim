@@ -1,7 +1,11 @@
-import { createSerializer, parseAsString } from 'nuqs/server'
+import { createSerializer, parseAsInteger, parseAsString, parseAsStringLiteral } from 'nuqs/server'
 
 /** `search` matches name, email, title, department, or location; `department` narrows to one. */
 export const peopleParsers = {
+  view: parseAsStringLiteral(['chart', 'directory'] as const),
+  panel: parseAsStringLiteral(['sync'] as const),
+  focus: parseAsString.withDefault(''),
+  page: parseAsInteger.withDefault(1),
   search: parseAsString.withDefault(''),
   department: parseAsString.withDefault(''),
 } as const

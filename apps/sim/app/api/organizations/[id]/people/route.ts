@@ -11,8 +11,13 @@ import { listPeople } from '@/lib/people/application/use-cases'
 import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 
 /** A cursor resumes only the list it came from: the same organization, search, and department. */
-function cursorScope(id: string, search: string | undefined, department: string | undefined) {
-  return cursorScopeKey(cursorRoute(listPeopleContract, { id }), { search, department })
+function cursorScope(
+  id: string,
+  search: string | undefined,
+  department: string | undefined,
+  scope?: 'roots' | 'members'
+) {
+  return cursorScopeKey(cursorRoute(listPeopleContract, { id }), { search, department, scope })
 }
 
 export const GET = defineInternalJsonRoute({
@@ -27,11 +32,12 @@ export const GET = defineInternalJsonRoute({
     organizationId: params.id,
     search: query.search,
     department: query.department,
+    scope: query.scope,
     cursorKeys: readSortedCursor(
       query.cursor,
       'name',
       'asc',
-      cursorScope(params.id, query.search, query.department)
+      cursorScope(params.id, query.search, query.department, query.scope)
     ),
   }),
   present: ({ data, nextCursorKeys }, { input }) => ({
@@ -40,7 +46,7 @@ export const GET = defineInternalJsonRoute({
       nextCursorKeys,
       'name',
       'asc',
-      cursorScope(input.organizationId, input.search, input.department)
+      cursorScope(input.organizationId, input.search, input.department, input.scope)
     ),
   }),
 })

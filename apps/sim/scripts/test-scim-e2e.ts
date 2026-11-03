@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
@@ -225,6 +226,7 @@ async function cleanup() {
       await tx`delete from rate_limit_bucket where key in (
         select 'route:scim:connection:' || id from scim_connection where organization_id = ${fixture.orgId}
       )`
+      if (userIds.length) await tx`delete from project where owner_id in ${tx(userIds)}`
       await tx`delete from project where organization_id = ${fixture.orgId}`
       await tx`delete from organization where id = ${fixture.orgId}`
       if (userIds.length) await tx`delete from "user" where id in ${tx(userIds)}`
@@ -292,6 +294,13 @@ async function run() {
       try {
         const denied = await admin(primary, '', { expected: 403 })
         assert.match(string(denied.body.error), /active enterprise subscription/)
+        await request(`/api/organizations/${primary.orgId}/people/import`, {
+          method: 'POST',
+          fixture: primary,
+          contentType: 'application/json',
+          body: { source: 'directory', apply: false },
+          expected: 403,
+        })
         await scim(token, '/Users', { expected: 401 })
       } finally {
         await sql`update subscription set status = 'active' where reference_id = ${primary.orgId}`
@@ -363,6 +372,283 @@ async function run() {
         body: { schemas: [USER_SCHEMA], userName: aliceEmail },
       })
       assert.equal(duplicate.body.scimType, 'uniqueness')
+    }
+  )
+
+  await check(
+    'People previews then imports mapped profiles and same-directory reporting lines',
+    async () => {
+      const enterprise = 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User'
+      const people = `/api/organizations/${primary.orgId}/people`
+      const pull = (apply: boolean, previewDigest?: string, expected = 200) =>
+        request(`${people}/import`, {
+          method: 'POST',
+          fixture: primary,
+          contentType: 'application/json',
+          body: { source: 'directory', apply, previewDigest },
+          expected,
+        })
+      await patch(token, `/Users/${aliceId}`, [
+        { op: 'replace', path: 'title', value: 'Engineer' },
+        { op: 'replace', path: `${enterprise}:department`, value: 'Engineering' },
+        { op: 'replace', path: `${enterprise}:manager.value`, value: bobId },
+      ])
+      const before = await pull(false)
+      assert.equal(before.body.updated, 1)
+      const alice =
+        await sql`select id from member where organization_id = ${primary.orgId} and user_id = ${aliceUserId}`
+      const focusPath = `${people}/chart?memberId=${string(alice[0]?.id)}`
+      assert.deepEqual((await request(focusPath, { fixture: primary })).body.chain, [])
+      const digest = string(before.body.previewDigest)
+      await patch(token, `/Users/${aliceId}`, [{ op: 'replace', path: 'title', value: 'Director' }])
+      await pull(true, digest, 409)
+      assert.equal(record((await request(focusPath, { fixture: primary })).body.person).title, null)
+      await patch(token, `/Users/${aliceId}`, [{ op: 'replace', path: 'title', value: 'Engineer' }])
+      const screenshotDir = process.env.PEOPLE_E2E_SCREENSHOT_DIR
+      if (screenshotDir) {
+        const { chromium, expect } = await import('@playwright/test')
+        const browser = await chromium.launch()
+        try {
+          const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+          page.setDefaultTimeout(60_000)
+          await page
+            .context()
+            .addCookies([
+              { name: 'better-auth.session_token', value: primary.cookie, url: baseUrl.origin },
+            ])
+          await page.goto(new URL(`/o/${primary.orgId}/people`, baseUrl).href, {
+            waitUntil: 'domcontentloaded',
+            timeout: 180_000,
+          })
+          await page.getByRole('button', { name: 'Import people', exact: true }).click()
+          const picker = page.getByRole('dialog', { name: 'Import people data' })
+          await picker.getByRole('button', { name: 'SCIM provisioning' }).click()
+          await page
+            .getByRole('dialog', { name: 'Import from SCIM provisioning' })
+            .getByRole('button', { name: 'Preview import' })
+            .click()
+          const modal = page.getByRole('dialog', { name: 'Review import' })
+          await expect(modal.getByText(/1 profile will be updated/)).toBeVisible()
+          await mkdir(screenshotDir, { recursive: true })
+          await page.screenshot({ path: join(screenshotDir, 'provisioned-import.png') })
+          await modal.getByRole('button', { name: 'Import', exact: true }).click()
+          await expect(modal).toHaveCount(0)
+        } finally {
+          await browser.close()
+        }
+      } else {
+        assert.equal((await pull(true, digest)).body.updated, 1)
+      }
+      const focus = (await request(focusPath, { fixture: primary })).body
+      assert.equal(record(focus.person).title, 'Engineer')
+      assert.equal(record(focus.person).department, 'Engineering')
+      assert.equal(record(record(focus.person).manager).email, bobEmail)
+      assert.equal((await pull(true, digest)).body.updated, 0)
+      const foreign = await scim(otherToken, '/Users', {
+        method: 'POST',
+        expected: 201,
+        body: { schemas: [USER_SCHEMA], userName: `manager@${other.domain}`, active: true },
+      })
+      await patch(token, `/Users/${aliceId}`, [
+        { op: 'replace', path: `${enterprise}:manager.value`, value: string(foreign.body.id) },
+        { op: 'remove', path: `${enterprise}:department` },
+      ])
+      const nextPreview = await pull(false)
+      const unresolved = await pull(true, string(nextPreview.body.previewDigest))
+      assert.equal(unresolved.body.warnings, 1)
+      const retained = record((await request(focusPath, { fixture: primary })).body.person)
+      assert.equal(record(retained.manager).email, bobEmail)
+      assert.equal(retained.department, 'Engineering')
+      await scim(otherToken, `/Users/${string(foreign.body.id)}`, {
+        method: 'DELETE',
+        expected: 204,
+      })
+    }
+  )
+
+  await check(
+    'SCIM changes refresh the chart through the cron, retain the last good tree on failure, and recover',
+    async () => {
+      const syncPath = `/api/organizations/${primary.orgId}/people/sync`
+      const cronPath = '/api/cron/people-directory-sync'
+      const connection = (options: RequestOptions = {}) =>
+        request(syncPath, { fixture: primary, contentType: 'application/json', ...options })
+      const tick = () => request(cronPath, { token: requiredEnvironment('CRON_SECRET') })
+      const chart = async () => {
+        const result = await request(
+          `/api/organizations/${primary.orgId}/people/chart?memberId=${aliceMemberId}`,
+          { fixture: primary }
+        )
+        return record(result.body.person)
+      }
+      const enterprise = 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User'
+      const [membership] =
+        await sql`select id from member where user_id = ${aliceUserId} and organization_id = ${primary.orgId}`
+      const aliceMemberId = string(membership.id)
+      await request(cronPath, { expected: 401 })
+      await request(syncPath, { expected: 401 })
+      assert.equal((await connection()).body.sync, null)
+      await patch(token, `/Users/${aliceId}`, [
+        { op: 'replace', path: `${enterprise}:manager.value`, value: bobId },
+      ])
+      const initial = record(
+        (await connection({ method: 'PUT', body: { source: 'scim' } })).body.sync
+      )
+      assert.equal(initial.state, 'scheduled')
+      assert(initial.lastSuccessAt)
+      assert.equal(record((await chart()).manager).email, bobEmail)
+      await patch(token, `/Users/${aliceId}`, [
+        { op: 'replace', path: 'title', value: 'Principal Engineer' },
+        { op: 'remove', path: `${enterprise}:manager` },
+      ])
+      assert.equal(record((await connection()).body.sync).state, 'queued')
+      await tick()
+      assert.equal((await chart()).manager, null)
+      assert.equal((await chart()).title, 'Principal Engineer')
+      const success = record((await connection()).body.sync).lastSuccessAt
+
+      await patch(token, `/Users/${aliceId}`, [
+        { op: 'replace', path: `${enterprise}:manager.value`, value: bobId },
+      ])
+      await patch(token, `/Users/${bobId}`, [
+        { op: 'replace', path: `${enterprise}:manager.value`, value: aliceId },
+      ])
+      await tick()
+      const failed = record((await connection()).body.sync)
+      assert.equal(failed.state, 'failed')
+      assert.equal(failed.lastSuccessAt, success)
+      assert.match(string(failed.lastError), /reporting loop/i)
+      assert(failed.lastFailedAt)
+      assert.equal((await chart()).manager, null)
+      await patch(token, `/Users/${bobId}`, [{ op: 'remove', path: `${enterprise}:manager` }])
+      const screenshotDir = process.env.PEOPLE_E2E_SCREENSHOT_DIR
+      if (screenshotDir) {
+        const { chromium, expect } = await import('@playwright/test')
+        const browser = await chromium.launch()
+        try {
+          const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+          page.setDefaultTimeout(60_000)
+          await page
+            .context()
+            .addCookies([
+              { name: 'better-auth.session_token', value: primary.cookie, url: baseUrl.origin },
+            ])
+          await page.goto(new URL(`/o/${primary.orgId}/people`, baseUrl).href)
+          await page.getByRole('button', { name: 'Directory sync', exact: true }).click()
+          const modal = page.getByRole('dialog', { name: 'Directory sync', exact: true })
+          await expect(modal.getByText('Sync failed', { exact: true })).toBeVisible()
+          await expect(modal.getByText(/reporting loop/)).toBeVisible()
+          await page.screenshot({ path: join(screenshotDir, 'sync-failure.png') })
+          await modal.getByRole('button', { name: 'Retry sync' }).click()
+          await expect(modal.getByText('Connected', { exact: true })).toBeVisible()
+          await expect(modal.getByText('Last successful sync')).toBeVisible()
+          await page.setViewportSize({ width: 390, height: 844 })
+          await page.screenshot({ path: join(screenshotDir, 'sync-recovered-mobile.png') })
+          const dialogBox = await modal.boundingBox()
+          assert(dialogBox && dialogBox.x >= 0 && dialogBox.x + dialogBox.width <= 391)
+          assert.equal(record((await chart()).manager).email, bobEmail)
+          await modal.getByRole('button', { name: 'Disconnect', exact: true }).click()
+          await page
+            .getByRole('dialog', { name: 'Disconnect directory' })
+            .getByRole('button', { name: 'Disconnect', exact: true })
+            .click()
+          await expect(
+            modal.getByRole('button', { name: 'Connect SCIM provisioning' })
+          ).toBeVisible()
+          await modal.getByRole('button', { name: 'Connect SCIM provisioning' }).click()
+          await page
+            .getByRole('dialog', { name: 'Connect SCIM provisioning' })
+            .getByRole('button', { name: 'Connect and sync' })
+            .click()
+          await expect(modal.getByText('Connected', { exact: true })).toBeVisible()
+        } finally {
+          await browser.close()
+        }
+      } else {
+        const recovered = record(
+          (await request(`${syncPath}/run`, { method: 'POST', fixture: primary })).body.sync
+        )
+        assert.equal(recovered.state, 'scheduled')
+        assert.equal(recovered.lastError, null)
+        assert.equal(recovered.lastFailedAt, failed.lastFailedAt)
+      }
+      assert.equal(record((await chart()).manager).email, bobEmail)
+      await connection({ method: 'DELETE' })
+      assert.equal((await connection()).body.sync, null)
+      assert.equal((await chart()).title, 'Engineer')
+    }
+  )
+
+  await check(
+    'a SCIM directory beyond 10,000 users publishes its full chart over HTTP',
+    async () => {
+      const fixture = await seedFixture()
+      await configure(fixture)
+      const [source] =
+        await sql`select id from scim_connection where organization_id = ${fixture.orgId}`
+      const prefix = `${generateId()}-scim-`
+      const size = 10_004
+      const managerEmail = `person${size}@${fixture.domain}`
+      const directoryPath = `/api/organizations/${fixture.orgId}/people`
+      try {
+        await sql.begin(async (tx) => {
+          await tx`insert into "user" (id, name, email, email_verified, created_at, updated_at)
+          select ${prefix}::text || n, 'Person ' || lpad(n::text, 5, '0'), 'person' || n || '@' || ${fixture.domain}::text, true, now(), now()
+          from generate_series(1, ${size}::integer) n`
+          await tx`insert into scim_user (id, connection_id, user_id, user_name, active, attributes, order_key)
+          select 'scim-' || ${prefix}::text || n, ${source.id}, ${prefix}::text || n, email, true,
+            jsonb_build_object('active', true, 'userName', email, 'name', jsonb_build_object('formatted', name),
+              'emails', jsonb_build_array(jsonb_build_object('value', email, 'primary', true)),
+              'enterprise', jsonb_build_object('department', 'Team ' || lpad((n % 71)::text,2,'0')) ||
+                case when n = ${size} then '{}'::jsonb else jsonb_build_object('manager',
+                  jsonb_build_object('value', 'scim-' || ${prefix}::text || ${size}::text)) end),
+            lpad(n::text, 5, '0')
+          from generate_series(1, ${size}::integer) n join "user" on id = ${prefix}::text || n`
+        })
+        const result = await request(`${directoryPath}/sync`, {
+          method: 'PUT',
+          fixture,
+          contentType: 'application/json',
+          body: { source: 'scim' },
+        })
+        assert.equal(record(result.body.sync).state, 'scheduled')
+        const first = (await request(`${directoryPath}/departments`, { fixture })).body
+        assert(Array.isArray(first.departments) && first.departments.length === 50)
+        const second = (
+          await request(
+            `${directoryPath}/departments?cursor=${encodeURIComponent(string(first.nextCursor))}`,
+            { fixture }
+          )
+        ).body
+        assert(Array.isArray(second.departments) && second.nextCursor === null)
+        const teams = [...first.departments, ...second.departments].map(record)
+        assert.equal(new Set(teams.map((team) => team.name)).size, 71)
+        assert.equal(
+          teams.reduce((sum, team) => sum + Number(team.count), 0),
+          size
+        )
+        const filtered = (
+          await request(`${directoryPath}/departments?search=Team%2070`, { fixture })
+        ).body
+        assert(Array.isArray(filtered.departments) && filtered.departments.length === 1)
+        const listed = await request(
+          `${directoryPath}?search=${encodeURIComponent(managerEmail)}`,
+          { fixture }
+        )
+        assert(Array.isArray(listed.body.people) && listed.body.people.length === 1)
+        const managerId = string(record(listed.body.people[0]).memberId)
+        const page = await request(
+          `${directoryPath}/chart?memberId=${encodeURIComponent(managerId)}&size=4&page=2501`,
+          { fixture }
+        )
+        assert.equal(page.body.totalReports, size - 1)
+        assert.equal(page.body.page, 2501)
+        assert(Array.isArray(page.body.reports) && page.body.reports.length === 3)
+        assert.equal(record(page.body.reports[2]).email, `person10003@${fixture.domain}`)
+      } finally {
+        await sql`delete from people_directory_sync where organization_id = ${fixture.orgId}`
+        await sql`delete from "user" where id like ${`${prefix}%`}`
+      }
     }
   )
 
@@ -1399,6 +1685,13 @@ async function run() {
       await scim(token, '/Users', { expected: 401 })
       await scim(newToken, '/Users')
       await admin(primary, '', { method: 'PUT', body: { status: 'disabled' } })
+      await request(`/api/organizations/${primary.orgId}/people/import`, {
+        method: 'POST',
+        fixture: primary,
+        contentType: 'application/json',
+        body: { source: 'directory', apply: false },
+        expected: 400,
+      })
       await scim(newToken, '/Users', { expected: 401 })
       await admin(primary, '', { method: 'PUT', body: { status: 'active' } })
       await scim(newToken, '/Users')

@@ -164,7 +164,11 @@ case "$group" in
     export NEXT_PUBLIC_CHAT_DISABLED=true
     export SIM_LINKS=true
     export PEOPLE=true
+    export CRON_SECRET=people-directory-sync-local-e2e-secret
+    start_browser_install people chromium
     start_app scim 3017 SCIM record-http-status
+    wait_for_browsers
+    export PEOPLE_E2E_SCREENSHOT_DIR="$report_dir/people-ui-report.json.artifacts"
     SCIM_E2E_BASE_URL="$local_app_url" \
     SCIM_E2E_DATABASE_URL="$DATABASE_URL" \
     SCIM_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \

@@ -53,6 +53,9 @@ SHELL=/bin/sh
 # Directory provisioning drift sweep (re-applies SCIM group mappings)
 17 * * * * curl -fsS -m 300 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/scim-reconcile"
 
+# Refresh connected People directories and deliver pending SCIM changes.
+*/5 * * * * curl -fsS -m 300 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/people-directory-sync"
+
 # Deletes table rows whose TTL column has expired
 */15 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/cleanup-table-row-ttl"
 
