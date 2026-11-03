@@ -67,7 +67,13 @@ describe('runFalQueue on a request that never finishes', () => {
   it('stops polling and cancels the request once its caller gives up', async () => {
     const fal = stubStuckFalQueue()
     const caller = new AbortController()
-    const generation = runFalQueue('fal-ai/model', { prompt: 'p' }, 'key', caller.signal)
+    const generation = runFalQueue(
+      'fal-ai/model',
+      { prompt: 'p' },
+      'key',
+      'generate_video',
+      caller.signal
+    )
     const outcome = generation.then(
       () => 'resolved',
       () => 'rejected'
@@ -87,7 +93,13 @@ describe('runFalQueue on a request that never finishes', () => {
   it('ends a poll that never answers when its caller gives up', async () => {
     const fal = stubStuckFalQueue({ statusHangs: true })
     const caller = new AbortController()
-    const generation = runFalQueue('fal-ai/model', { prompt: 'p' }, 'key', caller.signal)
+    const generation = runFalQueue(
+      'fal-ai/model',
+      { prompt: 'p' },
+      'key',
+      'generate_video',
+      caller.signal
+    )
     const outcome = generation.then(
       () => 'resolved',
       () => 'rejected'
@@ -104,7 +116,7 @@ describe('runFalQueue on a request that never finishes', () => {
 
   it('fails and cancels after its own ceiling even when nothing aborts it', async () => {
     const fal = stubStuckFalQueue()
-    const generation = runFalQueue('fal-ai/model', { prompt: 'p' }, 'key')
+    const generation = runFalQueue('fal-ai/model', { prompt: 'p' }, 'key', 'generate_video')
     const outcome = generation.then(
       () => 'resolved',
       (error: unknown) => String(error)
@@ -119,9 +131,13 @@ describe('runFalQueue on a request that never finishes', () => {
   it('warns when fal refuses to cancel a request', async () => {
     const fal = stubStuckFalQueue({ cancelStatus: 500 })
     const caller = new AbortController()
-    const generation = runFalQueue('fal-ai/model', { prompt: 'p' }, 'key', caller.signal).catch(
-      () => undefined
-    )
+    const generation = runFalQueue(
+      'fal-ai/model',
+      { prompt: 'p' },
+      'key',
+      'generate_video',
+      caller.signal
+    ).catch(() => undefined)
     await vi.advanceTimersByTimeAsync(3_500)
     caller.abort()
     await generation
@@ -137,7 +153,7 @@ describe('runFalQueue on a request that never finishes', () => {
     const fal = stubStuckFalQueue()
 
     await expect(
-      runFalQueue('fal-ai/model', { prompt: 'p' }, 'key', AbortSignal.abort())
+      runFalQueue('fal-ai/model', { prompt: 'p' }, 'key', 'generate_video', AbortSignal.abort())
     ).rejects.toThrow()
     expect(fal.calls).toEqual([])
   })
@@ -160,9 +176,13 @@ describe('runFalQueue on a request that never finishes', () => {
       })
     )
     const caller = new AbortController()
-    const generation = runFalQueue('fal-ai/model', { prompt: 'p' }, 'key', caller.signal).catch(
-      () => 'rejected'
-    )
+    const generation = runFalQueue(
+      'fal-ai/model',
+      { prompt: 'p' },
+      'key',
+      'generate_video',
+      caller.signal
+    ).catch(() => 'rejected')
 
     await vi.advanceTimersByTimeAsync(0)
     caller.abort(new Error('watchdog'))
@@ -175,9 +195,13 @@ describe('runFalQueue on a request that never finishes', () => {
   it('asks fal never to start the request past that ceiling', async () => {
     const fal = stubStuckFalQueue()
     const caller = new AbortController()
-    const generation = runFalQueue('fal-ai/model', { prompt: 'p' }, 'key', caller.signal).catch(
-      () => undefined
-    )
+    const generation = runFalQueue(
+      'fal-ai/model',
+      { prompt: 'p' },
+      'key',
+      'generate_video',
+      caller.signal
+    ).catch(() => undefined)
     await vi.advanceTimersByTimeAsync(0)
     caller.abort()
     await generation

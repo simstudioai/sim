@@ -13,6 +13,7 @@ import {
   readResponseTextWithLimit,
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
 import { type FalAICostMetadata, getFalAICostMetadata } from '@/lib/tools/falai-pricing'
 
 const logger = createLogger('FalMediaClient')
@@ -32,6 +33,15 @@ const FAL_CANCEL_TIMEOUT_MS = 5000
  * would leave a generation running that nothing can cancel. It has its own bound instead.
  */
 const FAL_SUBMIT_TIMEOUT_MS = 60_000
+
+/** The Mothership tools that generate media on Sim's hosted Fal.ai keys. */
+type FalMediaTool = 'generate_audio' | 'generate_video'
+
+/**
+ * Statuses fal answers when the hosted account itself refuses the call (a revoked key, or an
+ * account locked for an exhausted balance), so every generation fails until someone acts.
+ */
+const FAL_ACCOUNT_REFUSAL_STATUSES = new Set([401, 402, 403])
 
 /**
  * Resolves a hosted Fal.ai API key from the numbered env pool
@@ -101,6 +111,7 @@ export async function runFalQueue(
   endpoint: string,
   input: Record<string, unknown>,
   apiKey: string,
+  tool: FalMediaTool,
   signal?: AbortSignal
 ): Promise<FalQueueResult> {
   const ceiling = new AbortController()
@@ -110,7 +121,7 @@ export async function runFalQueue(
   )
   const queueSignal = signal ? AbortSignal.any([signal, ceiling.signal]) : ceiling.signal
   try {
-    return await submitAndPollFalQueue(endpoint, input, apiKey, queueSignal)
+    return await submitAndPollFalQueue(endpoint, input, apiKey, tool, queueSignal)
   } finally {
     clearTimeout(ceilingTimer)
   }
@@ -120,6 +131,7 @@ async function submitAndPollFalQueue(
   endpoint: string,
   input: Record<string, unknown>,
   apiKey: string,
+  tool: FalMediaTool,
   queueSignal: AbortSignal
 ): Promise<FalQueueResult> {
   // Only a submit already under way outlives its caller; a stopped call never starts one.
@@ -135,6 +147,14 @@ async function submitAndPollFalQueue(
     signal: AbortSignal.timeout(FAL_SUBMIT_TIMEOUT_MS),
   })
   if (!createResponse.ok) {
+    if (FAL_ACCOUNT_REFUSAL_STATUSES.has(createResponse.status)) {
+      hostedKeyMetrics.recordFailed({
+        provider: 'falai',
+        tool,
+        key: 'FALAI_API_KEY',
+        reason: 'auth',
+      })
+    }
     const err = await readResponseTextWithLimit(createResponse, {
       maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
       label: 'Fal.ai create error response',

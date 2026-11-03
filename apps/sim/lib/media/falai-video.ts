@@ -177,7 +177,13 @@ export async function generateFalVideo(params: GenerateFalVideoParams): Promise<
     input.prompt_optimizer = params.promptOptimizer
   }
 
-  const { requestId, data } = await runFalQueue(endpoint, input, apiKey, params.signal)
+  const { requestId, data } = await runFalQueue(
+    endpoint,
+    input,
+    apiKey,
+    'generate_video',
+    params.signal
+  )
   const cost = await recordFalCost(apiKey, endpoint, requestId, params.onCost)
   const url = extractFalMediaUrl(data, ['video', 'output'])
   if (!url) throw new Error('No video URL in Fal.ai response')
