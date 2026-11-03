@@ -182,6 +182,44 @@ describe('CI task attribution through real Turborepo', () => {
     })
   })
   it.each([
+    ['apps/sim/public/library/example/cover.jpg'],
+    ['apps/sim/content/library/example/index.mdx', 'apps/sim/public/library/example/cover.jpg'],
+  ])('keeps library media on the rendering and SEO path: %j', (...files) => {
+    const plan = classifyFiles(files)
+    expect(plan.fallback).toBeUndefined()
+    expect(groups(plan)).toEqual(['seo'])
+    expect(plan.docsGroups).toEqual([])
+    expect(plan.flags).toMatchObject({
+      integration: false,
+      desktop_live: false,
+      production: false,
+      test_app: true,
+      build: true,
+      e2e_build: true,
+    })
+  })
+  it.each(['delete', 'move'])('keeps SEO coverage when library media is removed: %s', (change) => {
+    const { repo } = fixture()
+    const media = 'apps/sim/public/library/example/cover.jpg'
+    write(repo, media, 'fixture media')
+    git(repo, 'add', '-A')
+    git(repo, 'commit', '--quiet', '-m', 'media base')
+    const base = git(repo, 'rev-parse', 'HEAD')
+    if (change === 'delete') git(repo, 'rm', media)
+    else git(repo, 'mv', media, 'apps/sim/public/library/example/renamed.jpg')
+    git(repo, 'commit', '--quiet', '-m', change)
+    const plan = classify(repo, base)
+    expect(plan.fallback).toBeUndefined()
+    expect(groups(plan)).toEqual(['seo'])
+    expect(plan.flags).toMatchObject({
+      build: true,
+      e2e_build: true,
+      integration: false,
+      desktop_live: false,
+      docs: false,
+    })
+  })
+  it.each([
     'apps/sim/app/workspace/[workspaceId]/upgrade/components/comparison-table/comparison-data.ts',
     'apps/sim/providers/models.ts',
     'apps/sim/blocks/registry.ts',
@@ -344,15 +382,15 @@ describe('CI task attribution through real Turborepo', () => {
       build: true,
     })
   })
-  it('keeps unknown app modules and non-code fixtures in the shared runtime boundary', () => {
-    for (const path of [
-      'apps/sim/new-domain/feature.ts',
-      'apps/sim/tools/service/__fixtures__/README.md',
-    ]) {
-      const plan = classifyFiles([path])
-      expect(plan.fallback).toBeUndefined()
-      expect(plan.flags).toMatchObject({ integration: true, desktop_live: true, e2e_build: true })
-    }
+  it.each([
+    'apps/sim/new-domain/feature.ts',
+    'apps/sim/public/new-domain/config.json',
+    'apps/sim/public/favicon/favicon.ico',
+    'apps/sim/tools/service/__fixtures__/README.md',
+  ])('keeps unclassified runtime files in the shared boundary: %s', (path) => {
+    const plan = classifyFiles([path])
+    expect(plan.fallback).toBeUndefined()
+    expect(plan.flags).toMatchObject({ integration: true, desktop_live: true, e2e_build: true })
   })
   it.each([
     '.github/workflows/checks.yml',
