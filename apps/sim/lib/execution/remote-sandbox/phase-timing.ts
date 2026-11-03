@@ -24,6 +24,7 @@ export interface SandboxPhaseTimer {
   start(phase: SandboxPhase): () => void
 }
 
+/** Creates a timer whose callbacks record rounded milliseconds; unfinished phases stay absent. */
 export function createSandboxPhaseTimer(): SandboxPhaseTimer {
   const timings: SandboxPhaseTimings = {}
   return {

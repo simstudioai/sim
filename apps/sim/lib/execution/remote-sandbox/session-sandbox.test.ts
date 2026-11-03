@@ -823,29 +823,42 @@ describe('session sandbox lease', () => {
 
   it('attributes a warm shell call’s wall time to the phase that spent it', async () => {
     const { handle } = fakeSandbox('phase-timing')
-    const runCommand = handle.runCommand.bind(handle)
-    handle.runCommand = async (command, options) => {
-      await sleep(options.envs?.SIM_CLI_PATH ? 30 : 60)
-      return runCommand(command, options)
-    }
-    mockFindSessionSandbox.mockImplementation(async () => {
-      await sleep(40)
-      return handle
-    })
-
-    const result = await executeShellInSandbox({
+    mockFindSessionSandbox.mockResolvedValue(handle)
+    const request = {
       code: 'true',
       envs: {},
       timeoutMs: 10_000,
       session: { key: 'phase-timing', cli: CLI },
+    }
+    await executeShellInSandbox(request)
+
+    let nowMs = 0
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => nowMs)
+    const writes = vi.fn(handle.writeFile.bind(handle))
+    handle.writeFile = writes
+    const runCommand = handle.runCommand.bind(handle)
+    handle.runCommand = async (command, options) => {
+      nowMs += options.envs?.SIM_CLI_PATH ? 30 : 60
+      return runCommand(command, options)
+    }
+    mockFindSessionSandbox.mockImplementation(async () => {
+      nowMs += 40
+      return handle
     })
 
-    const phases = result.phaseMs ?? {}
-    expect(result.sandboxSession).toBe('reused')
-    expect(phases.lookup).toBeGreaterThanOrEqual(38)
-    expect(phases.cli).toBeGreaterThanOrEqual(28)
-    expect(phases.run).toBeGreaterThanOrEqual(58)
-    expect(phases.lease).toBeGreaterThanOrEqual((phases.lookup ?? 0) + (phases.cli ?? 0))
+    try {
+      const result = await executeShellInSandbox(request)
+
+      const phases = result.phaseMs ?? {}
+      expect(result.sandboxSession).toBe('reused')
+      expect(writes).not.toHaveBeenCalled()
+      expect(phases.lookup).toBe(40)
+      expect(phases.cli).toBe(30)
+      expect(phases.run).toBe(60)
+      expect(phases.lease).toBeGreaterThanOrEqual(70)
+    } finally {
+      clock.mockRestore()
+    }
   })
 
   it('pins shell CLI resolution ahead of caller environment paths', async () => {
