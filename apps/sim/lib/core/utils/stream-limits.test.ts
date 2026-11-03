@@ -293,6 +293,32 @@ describe('stream limits', () => {
     }
   )
 
+  it.each([
+    ['a JSON body', 'application/json', '{"name":"example"}', true],
+    [
+      'a boundary the body never uses',
+      'multipart/form-data; boundary=declared',
+      '--other\r\n',
+      true,
+    ],
+    ['a streamed body the parser cannot decode', 'text/plain', 'name=example', false],
+  ])('rejects %s as invalid multipart input', async (_label, contentType, body, declareLength) => {
+    const bytes = new TextEncoder().encode(body)
+    const request = new Request('http://localhost/upload', {
+      method: 'POST',
+      headers: {
+        'content-type': contentType,
+        ...(declareLength ? { 'content-length': String(bytes.byteLength) } : {}),
+      },
+      body: declareLength ? bytes : streamFromChunks([bytes]),
+      duplex: 'half',
+    } as RequestInit)
+
+    await expect(
+      readFormDataWithLimit(request, { maxBytes: 1024 * 1024, label: 'multipart body' })
+    ).rejects.toBeInstanceOf(MultipartFieldValidationError)
+  })
+
   it('rejects multipart streams without content-length once bytes exceed the limit', async () => {
     const request = new Request('http://localhost/upload', {
       method: 'POST',

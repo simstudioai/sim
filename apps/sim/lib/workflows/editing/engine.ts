@@ -30,7 +30,7 @@ import type {
   OperationContext,
   ValidationError,
 } from './types'
-import { logSkippedItem, type SkippedItem } from './types'
+import { isDeferredSkippedItem, logSkippedItem, type SkippedItem } from './types'
 
 const logger = createLogger('EditWorkflowServerTool')
 
@@ -198,6 +198,7 @@ export function applyOperationsToWorkflowState(
     deferredConnections: [],
   }
 
+  let declinedOperationCount = 0
   for (const operation of orderedOperations) {
     const { operation_type, block_id } = operation
 
@@ -215,6 +216,7 @@ export function applyOperationsToWorkflowState(
         block_id,
         block_id_type: typeof block_id,
       })
+      declinedOperationCount += 1
       continue
     }
 
@@ -226,7 +228,11 @@ export function applyOperationsToWorkflowState(
       currentBlockCount: Object.keys((modifiedState as any).blocks || {}).length,
     })
 
+    const skipsBefore = skippedItems.length
     handler(operation, ctx)
+    if (skippedItems.slice(skipsBefore).some((item) => !isDeferredSkippedItem(item))) {
+      declinedOperationCount += 1
+    }
   }
 
   // Pass 2: Create all edges from deferred connections
@@ -318,6 +324,7 @@ export function applyOperationsToWorkflowState(
     state: modifiedState,
     validationErrors,
     skippedItems,
+    declinedOperationCount,
     mintedBlockIds: Object.fromEntries(idMapping),
   }
 }

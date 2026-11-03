@@ -138,7 +138,7 @@ export async function readFormDataWithLimit(
   assertContentLengthWithinLimit(request.headers, options.maxBytes, options.label)
 
   if (request.headers?.get('content-length') || !request.body) {
-    const formData = await request.formData()
+    const formData = await parseFormData(request)
     assertMultipartFieldsAreStorable(formData)
     return formData
   }
@@ -149,9 +149,26 @@ export async function readFormDataWithLimit(
     headers: request.headers,
     body: new Uint8Array(body),
   })
-  const formData = await boundedRequest.formData()
+  const formData = await parseFormData(boundedRequest)
   assertMultipartFieldsAreStorable(formData)
   return formData
+}
+
+/**
+ * The fetch body parser rejects a body that does not decode as the content type it
+ * declares (a JSON body, a boundary the body never uses) with a bare `TypeError`. That
+ * is the caller's malformed input, so it surfaces as the same validation failure every
+ * multipart route already answers with a 400.
+ */
+async function parseFormData(request: Pick<Request, 'formData'>): Promise<FormData> {
+  try {
+    return await request.formData()
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new MultipartFieldValidationError('Request body must be valid multipart form data')
+    }
+    throw error
+  }
 }
 
 export interface ReadStreamWithLimitOptions {

@@ -1195,6 +1195,40 @@ describe('permission-group tool access', () => {
       })
     )
   })
+
+  it('charges an operation with several skips once, beside other declined operations', () => {
+    const agentId = '66666666-6666-4666-8666-666666666666'
+    const cleanId = '77777777-7777-4777-8777-777777777777'
+    const { skippedItems, declinedOperationCount } = applyOperationsToWorkflowState(
+      emptyWorkflow(),
+      [
+        {
+          operation_type: 'add',
+          block_id: agentId,
+          params: {
+            type: 'agent',
+            name: 'Agent 1',
+            inputs: {
+              tools: [
+                { type: 'slack', operation: 'canvas', title: 'Canvas A' },
+                { type: 'slack', operation: 'canvas', title: 'Canvas B' },
+              ],
+            },
+          },
+        },
+        {
+          operation_type: 'add',
+          block_id: cleanId,
+          params: { type: 'agent', name: 'Agent 2', inputs: {} },
+        },
+        { operation_type: 'edit', block_id: '', params: {} },
+      ],
+      denyCanvas
+    )
+
+    expect(skippedItems.filter((item) => item.type === 'tool_not_allowed')).toHaveLength(2)
+    expect(declinedOperationCount).toBe(2)
+  })
 })
 
 describe('tool canonical-mode reindexing', () => {
