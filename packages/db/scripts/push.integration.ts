@@ -330,6 +330,25 @@ export const workflows = pgTable('workflow', {
     ).rejects.toMatchObject({ code: '23503' })
   }, 60_000)
 
+  it('adds a composite unique constraint before the foreign keys that reference it', async () => {
+    await sql`CREATE TABLE folder (id text PRIMARY KEY, resource_type text NOT NULL, parent_id text)`
+    await sql`INSERT INTO folder VALUES ('parent', 'file', NULL), ('child', 'file', 'parent')`
+    await schema(`export const folders = pgTable('folder', {
+  id: text('id').primaryKey(), resourceType: text('resource_type').notNull(),
+  projectId: text('project_id'), parentId: text('parent_id'),
+}, (t) => [
+  unique('folder_project_owner_type_unique').on(t.id, t.projectId, t.resourceType),
+  foreignKey({ name: 'folder_project_parent_owner_fk', columns: [t.parentId, t.projectId, t.resourceType], foreignColumns: [t.id, t.projectId, t.resourceType] }),
+])`)
+    const result = push()
+    expect(result.error).toBeUndefined()
+    expect(result.status, result.stdout + result.stderr).toBe(0)
+    await sql`UPDATE folder SET project_id = 'project' WHERE id = 'parent'`
+    await expect(
+      sql`UPDATE folder SET project_id = 'other' WHERE id = 'child'`
+    ).rejects.toMatchObject({ code: '23503' })
+  }, 30_000)
+
   it('retires the legacy size bridge without losing bigint or unbackfilled values', async () => {
     await sql`CREATE TABLE workspace_files (id text PRIMARY KEY, size integer NOT NULL, size_bytes bigint)`
     await sql`INSERT INTO workspace_files VALUES ('legacy', 123, NULL), ('large', 2147483647, 5000000000)`

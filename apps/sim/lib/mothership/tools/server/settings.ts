@@ -34,6 +34,7 @@ import {
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
 import { inboxSettingsPatchSchema } from '@/lib/mothership/inbox/settings-input'
 import type { BaseServerTool } from '@/lib/mothership/tools/server/base-tool'
+import { readSettingsAccessRequests } from '@/lib/mothership/tools/server/settings-access-requests'
 import { readSettingsUsageLimit } from '@/lib/mothership/tools/server/settings-billing'
 import { readArchivedSettingsChats } from '@/lib/mothership/tools/server/settings-chats'
 import {
@@ -46,6 +47,7 @@ import {
 } from '@/lib/mothership/tools/server/settings-operation'
 import { settingsOperations } from '@/lib/mothership/tools/server/settings-operations'
 import { readSettingsDomains } from '@/lib/mothership/tools/server/settings-security'
+import { readSettingsSimLinks } from '@/lib/mothership/tools/server/settings-sim-links'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import {
   getOrganizationDataRetention,
@@ -74,6 +76,11 @@ import {
 import { listCustomBlockSettings } from '@/lib/workflows/custom-blocks/application/settings'
 import { readInboxSettings, updateInboxSettings } from '@/lib/workspaces/application/inbox-settings'
 import { readWorkspacePermissions } from '@/lib/workspaces/application/manage-permissions'
+import {
+  readWorkspaceIdentity,
+  updateWorkspaceIdentity,
+  workspaceIdentityPatchSchema,
+} from '@/lib/workspaces/application/update-workspace'
 
 interface SettingAdapter {
   get(context: SettingsContext): Promise<unknown>
@@ -88,6 +95,24 @@ function organizationInput(context: SettingsContext) {
 
 /** Closed adapters call the same application operations as Settings; no route proxy or metadata patch. */
 const adapters: Record<string, SettingAdapter> = {
+  'workspace/general': {
+    schema: workspaceIdentityPatchSchema,
+    get: (context) =>
+      readWorkspaceIdentity.execute({
+        principal: context.principal,
+        input: { workspaceId: settingsWorkspaceId(context) },
+      }),
+    update: async (context, changes) =>
+      (
+        await updateWorkspaceIdentity.execute({
+          principal: context.principal,
+          input: {
+            workspaceId: settingsWorkspaceId(context),
+            patch: workspaceIdentityPatchSchema.parse(changes),
+          },
+        })
+      ).identity,
+  },
   'workspace/custom-blocks': {
     get: (context) =>
       listCustomBlockSettings.execute({
@@ -228,6 +253,8 @@ const adapters: Record<string, SettingAdapter> = {
       }),
   },
   'organization/members': { get: readSettingsRoster },
+  'organization/requests': { get: (context) => readSettingsAccessRequests(context) },
+  'organization/sim-links': { get: (context) => readSettingsSimLinks(context) },
   'organization/whitelabeling': {
     schema: updateOrganizationWhitelabelBodySchema.strict(),
     get: async (context) =>

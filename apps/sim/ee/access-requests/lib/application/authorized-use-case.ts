@@ -1,4 +1,4 @@
-import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import {
@@ -6,7 +6,6 @@ import {
   type WorkspaceUseCaseAuditEntry,
 } from '@/lib/core/application/authorized-workspace-use-case'
 import type { OperationUseCase } from '@/lib/core/application/operation'
-import { requireAllowedWorkspacePrincipal } from '@/lib/core/application/workspace-authorization'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import type { DbClient, DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
@@ -18,6 +17,7 @@ import {
   type AccessRequestOperation,
   type AccessRequestPrincipal,
 } from '@/ee/access-requests/lib/application/operations'
+import { requireAccessRequestPrincipal } from '@/ee/access-requests/lib/application/principal'
 import type { AccessRequestScope } from '@/ee/access-requests/lib/targets'
 
 interface AccessRequestPreparationArgs<I> {
@@ -62,13 +62,6 @@ type MutationAccessRequestUseCase<I, R, P> = AccessRequestUseCase<I, R, P, DbTra
 
 type ReadAccessRequestUseCase<I, R, P> = AccessRequestUseCase<I, R, P, DbClient> & {
   mutation?: false
-}
-
-function requireAccessRequestPrincipal(
-  principal: Principal,
-  operation: AccessRequestOperation
-): asserts principal is AccessRequestPrincipal {
-  requireAllowedWorkspacePrincipal(principal, operation)
 }
 
 /** Runs preparation before any transaction opens and binds its result to `execute`. */

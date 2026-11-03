@@ -17,8 +17,13 @@ const RECONCILIATION_COMMANDS = [
   ['bun', '--env-file=.env', 'run', './script-migrations/0031_drop_keyword_tin.ts'],
 ]
 
+/** Reads, on the fence session, whether `--prepare` left a Project bootstrap for this push to finish. */
+type ProjectBootstrapProbe = () => Promise<boolean>
+
 /** Fences preparation, Drizzle and reconcilers from a concurrent migration run. */
-async function withMigrationFence(run: (signal: AbortSignal) => Promise<number>): Promise<number> {
+async function withMigrationFence(
+  run: (signal: AbortSignal, projectBootstrapPending: ProjectBootstrapProbe) => Promise<number>
+): Promise<number> {
   const rawUrl = process.env.DATABASE_URL
   if (!rawUrl) {
     logger.error('DATABASE_URL is required for schema push')
@@ -48,7 +53,11 @@ async function withMigrationFence(run: (signal: AbortSignal) => Promise<number>)
         logger.error('A migration is running; retry schema push later')
         return 1
       }
-      return run(abort.signal)
+      return run(abort.signal, async () => {
+        const [state] = await tx<{ pending: boolean }[]>`
+          SELECT to_regclass('public.project_membership_rollout') IS NOT NULL AS pending`.simple()
+        return state.pending
+      })
     })) as number
   } catch (error) {
     logger.error(
@@ -82,11 +91,21 @@ export async function runPush(args: string[]): Promise<number> {
     return 1
   }
 
-  async function runCommands(signal?: AbortSignal): Promise<number> {
-    async function runCommand(command: string[]): Promise<number> {
+  async function runCommands(
+    signal?: AbortSignal,
+    projectBootstrapPending?: ProjectBootstrapProbe
+  ): Promise<number> {
+    async function runCommand(
+      command: string[],
+      env: Record<string, string> = {}
+    ): Promise<number> {
       signal?.throwIfAborted()
       const child = Bun.spawn(command, {
-        env: { ...process.env, SIM_DB_PUSH_RENAME_MODE: interactiveRenames ? 'prompt' : 'create' },
+        env: {
+          ...process.env,
+          SIM_DB_PUSH_RENAME_MODE: interactiveRenames ? 'prompt' : 'create',
+          ...env,
+        },
         stdin: 'inherit',
         stdout: 'inherit',
         stderr: 'inherit',
@@ -119,13 +138,21 @@ export async function runPush(args: string[]): Promise<number> {
     const pushArgs = args.filter((arg) => arg !== '--interactive-renames')
     // Launch the installed CLI directly so losing the fence also terminates its database connection.
     const cli = fileURLToPath(new URL('bin.cjs', import.meta.resolve('drizzle-kit')))
-    const exitCode = await runCommand([
-      'bun',
-      cli,
-      'push',
-      '--config=./drizzle.config.ts',
-      ...pushArgs,
-    ])
+    const drizzlePush = ['bun', cli, 'push', '--config=./drizzle.config.ts', ...pushArgs]
+    if (!help && process.env.SIM_DEV_DB_PUSH === '1' && (await projectBootstrapPending?.())) {
+      /** The Project migration reads columns an older database gains only from this push. */
+      const code = await runCommand(drizzlePush, { SIM_DB_PUSH_PROJECT_BOOTSTRAP: '1' })
+      if (code !== 0) return code
+      const bootstrapCode = await runCommand([
+        'bun',
+        '--env-file=.env',
+        'run',
+        './scripts/reconcile-project-membership.ts',
+        '--bootstrap',
+      ])
+      if (bootstrapCode !== 0) return bootstrapCode
+    }
+    const exitCode = await runCommand(drizzlePush)
     if (exitCode !== 0 || help) return exitCode
 
     for (const command of RECONCILIATION_COMMANDS) {

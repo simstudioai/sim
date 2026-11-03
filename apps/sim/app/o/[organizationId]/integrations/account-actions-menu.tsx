@@ -43,7 +43,7 @@ export function AccountActionsMenu({
   permissionAccountIds,
   reconnectAccountIds,
 }: AccountActionsMenuProps) {
-  const disconnect = useDisconnectPersonalOrganizationAccount(organizationId)
+  const disconnect = useDisconnectPersonalOrganizationAccount()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selected = accounts.find((account) => account.credentialId === selectedId)
   const permissionAccounts = accounts.filter((account) =>
@@ -118,7 +118,10 @@ export function AccountActionsMenu({
           disabled: disconnect.isPending,
           onClick: () => {
             if (!selected || disconnect.isPending) return
-            disconnect.mutate(selected.credentialId, { onSuccess: () => setSelectedId(null) })
+            disconnect.mutate(
+              { credentialId: selected.credentialId, organizationId },
+              { onSuccess: () => setSelectedId(null) }
+            )
           },
         }}
       >

@@ -10,13 +10,3 @@ export interface Member {
   role: string
   user?: User
 }
-
-export interface Organization {
-  id: string
-  name: string
-  slug: string
-  logo?: string | null
-  members?: Member[]
-  createdAt: string | Date
-  [key: string]: unknown
-}

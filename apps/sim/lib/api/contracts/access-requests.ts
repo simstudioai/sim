@@ -30,7 +30,7 @@ export const ACCESS_REQUEST_STATUSES = [
   'closed',
 ] as const
 
-export const ACCESS_REQUEST_PAGE_SIZE = 50
+const ACCESS_REQUEST_PAGE_SIZE = 50
 export const ACCESS_REQUEST_MAX_PAGE_SIZE = 100
 
 const requestIdSchema = z

@@ -149,16 +149,21 @@ export const POST = withRouteHandler(
         userId: session.user.id,
         organizationId,
         memberId: selfMember.id,
+        actorUserId: session.user.id,
         spareSessionToken: session.session.token,
       })
       deliverRunStops(removeResult.stoppedRuns)
 
       if (!removeResult.success) {
-        logger.error('Transfer succeeded but self-removal failed', {
+        const outcome = {
           organizationId,
           userId: session.user.id,
           error: removeResult.error,
-        })
+          refusalCode: removeResult.refusalCode,
+        }
+        if (removeResult.refusalCode)
+          logger.info('Transfer succeeded; policy kept the previous owner as admin', outcome)
+        else logger.error('Transfer succeeded but self-removal failed', outcome)
         return NextResponse.json(
           {
             success: true,

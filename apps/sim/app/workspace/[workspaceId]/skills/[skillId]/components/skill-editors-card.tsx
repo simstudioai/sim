@@ -47,10 +47,17 @@ export function SkillEditorsCard({ editors, canEdit }: SkillEditorsCardProps) {
               }}
               roleOptions={SKILL_EDITOR_ROLE_OPTIONS}
               lockReason={skillEditorLockReason(editor.isWorkspaceAdmin)}
-              canManage={canEdit}
+              showActions={canEdit}
+              action={
+                canEdit
+                  ? {
+                      label: 'Remove',
+                      disabled: editor.isWorkspaceAdmin,
+                      onSelect: () => editors.removeEditor(editor.userId),
+                    }
+                  : null
+              }
               roleDisabled
-              removeDisabled={editor.isWorkspaceAdmin}
-              onRemove={() => editors.removeEditor(editor.userId)}
             />
           ))}
         </div>

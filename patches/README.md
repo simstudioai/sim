@@ -60,11 +60,21 @@ chooser and requires a terminal. Normal migration generation keeps its rename
 prompts. Data-loss confirmations, table filters, introspection, and generated SQL
 remain owned by Drizzle; `--force` still controls data-loss approval.
 
+The same policy answers Drizzle's prompt to truncate a populated table before
+adding a unique constraint with its non-destructive choice: the constraint is
+added without truncating, and duplicate rows fail the push. Drizzle also adds
+PostgreSQL unique constraints after the foreign keys of the same diff, so a
+composite foreign key that references a new unique constraint on an existing
+table (the folder ownership keys) always fails. The patch adds unique
+constraints right after new columns, before every foreign key, for push and
+generated migrations alike; a unique constraint never depends on a foreign key.
+
 `packages/db/scripts/push.test.ts` covers argument forwarding and stopping before
 reconciliation on failure. `packages/db/scripts/push.integration.ts` exercises
 the installed CLI against PostgreSQL, including multiple column changes, table
 and enum replacement, schema replacement, preservation of the excluded script
-ledger, and database errors. Set `TEST_DATABASE_URL` to a disposable local
+ledger, database errors, and a composite foreign key on a new unique constraint of
+a populated table. Set `TEST_DATABASE_URL` to a disposable local
 PostgreSQL database and run these tests with
 `bun run --cwd packages/db test --mode integration`.
 
