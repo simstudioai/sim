@@ -9,7 +9,10 @@ import {
   type OrganizationUseCaseContext,
 } from '@/lib/core/application/authorized-organization-use-case'
 import type { WorkspaceUseCaseAuditEntry } from '@/lib/core/application/authorized-workspace-use-case'
-import type { OrganizationMembershipContext } from '@/lib/core/application/organization-authorization'
+import {
+  type OrganizationMembershipContext,
+  requireOrganizationSubjectMembership,
+} from '@/lib/core/application/organization-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedCredentialUserUseCase } from '@/lib/credentials/application/authorized-user-use-case'
 import type { DbTransaction } from '@/lib/db/types'
@@ -193,6 +196,18 @@ export const createSimLink = defineAuthorizedOrganizationUseCase({
     const { organizationId, ...fields } = input
     return withUniqueName(organizationId, fields.name, () =>
       db.transaction(async (tx) => {
+        /** A removal deletes this row before handing off the member's links, so it waits for this insert. */
+        await requireOrganizationSubjectMembership(
+          context.userId,
+          organizationId,
+          'member',
+          'none',
+          undefined,
+          {
+            executor: tx,
+            forShare: true,
+          }
+        )
         const linkId = await repository.insertSimLink(tx, organizationId, context.userId, fields)
         return readView(tx, organizationId, linkId, viewerOf(context))
       })
