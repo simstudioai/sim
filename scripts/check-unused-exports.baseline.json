@@ -3964,7 +3964,6 @@
   "apps/sim/lib/api/contracts/workspaces.ts#createWorkspaceBodySchema",
   "apps/sim/lib/api/contracts/workspaces.ts#deploymentFeaturesSchema",
   "apps/sim/lib/api/contracts/workspaces.ts#deploymentShapeSchema",
-  "apps/sim/lib/api/contracts/workspaces.ts#updateWorkspaceBodySchema",
   "apps/sim/lib/api/contracts/workspaces.ts#workspaceCreationPolicySchema",
   "apps/sim/lib/api/contracts/workspaces.ts#workspaceCreditAvailabilitySchema",
   "apps/sim/lib/api/contracts/workspaces.ts#workspaceHostContextSchema",

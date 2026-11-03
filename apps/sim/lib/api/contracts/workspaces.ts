@@ -346,6 +346,10 @@ export const getWorkspaceUsageGateContract = defineRouteContract({
   },
 })
 
+const updateWorkspaceResponseSchema = z.object({
+  workspace: workspaceSchema,
+})
+
 export const updateWorkspaceContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/workspaces/[id]',
@@ -353,9 +357,19 @@ export const updateWorkspaceContract = defineRouteContract({
   body: updateWorkspaceBodySchema,
   response: {
     mode: 'json',
-    schema: z.object({
-      workspace: workspaceSchema,
-    }),
+    schema: updateWorkspaceResponseSchema,
+  },
+})
+
+/** `PUT` is a legacy alias of {@link updateWorkspaceContract} with the same partial-update semantics. */
+export const updateWorkspacePutContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/workspaces/[id]',
+  params: workspaceParamsSchema,
+  body: updateWorkspaceBodySchema,
+  response: {
+    mode: 'json',
+    schema: updateWorkspaceResponseSchema,
   },
 })
 
