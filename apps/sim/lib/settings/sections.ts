@@ -106,6 +106,7 @@ export const settingsSections: Record<MothershipSettingsScope, readonly Settings
     },
   ],
   workspace: [
+    { id: 'general', label: 'Workspace name and logo' },
     {
       id: 'teammates',
       label: 'Teammates',
