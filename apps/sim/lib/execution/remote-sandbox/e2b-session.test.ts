@@ -613,6 +613,36 @@ describe('E2B session recovery', () => {
     expect(stopCommand).toHaveBeenCalledOnce()
     expect(killSandbox).not.toHaveBeenCalled()
   })
+
+  it('returns what a session command printed before its own timeout stopped it', async () => {
+    runCommand.mockImplementation(
+      async (
+        _command: string,
+        options: { onStdout?: (chunk: string) => void; onStderr?: (chunk: string) => void }
+      ) => {
+        options.onStdout?.('rendered 1 of 3\n')
+        options.onStderr?.('slow frame\n')
+        options.onStdout?.('rendered 2 of 3\n')
+        return {
+          pid: 7,
+          wait: async () => {
+            throw Object.assign(
+              new Error("deadline_exceeded: This error is likely due to exceeding 'timeoutMs'"),
+              { name: 'TimeoutError' }
+            )
+          },
+        }
+      }
+    )
+    const sandbox = await sessionSandbox('reconnected')
+    const result = await sandbox?.runCommand('render', { timeoutMs: 1000 })
+    expect(result).toMatchObject({
+      timedOut: true,
+      exitCode: 124,
+      stdout: 'rendered 1 of 3\nrendered 2 of 3\n',
+      stderr: 'slow frame\n',
+    })
+  })
 })
 
 describe('E2B session lease', () => {

@@ -9,6 +9,7 @@ import {
   isTimeoutAbortReason,
 } from '@/lib/core/execution-limits'
 import { recordSandboxTeardownFailure } from '@/lib/core/execution-limits/metrics'
+import { withinDeadline } from '@/lib/core/utils/deadline'
 import { buildJavaScriptRuntimeBindingsSource } from '@/lib/execution/code-placeholders/javascript-runtime'
 import { SANDBOX_SYSTEM_PATH } from '@/lib/execution/remote-sandbox/cli-tools.server'
 import { describeProcessExit } from '@/lib/execution/remote-sandbox/code-failure'
@@ -65,6 +66,10 @@ import {
   recordSessionFileInput,
 } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { withSandboxSessionLock } from '@/lib/execution/remote-sandbox/session-lock'
+import {
+  SandboxExecutionTimeoutError,
+  sandboxTimeoutProgress,
+} from '@/lib/execution/remote-sandbox/timeout'
 import type {
   CreateSandboxOptions,
   SandboxCodeResult,
@@ -256,6 +261,40 @@ async function withSandboxExecutionBudget<T>(
 
 function throwIfSandboxTimedOut(result: { timedOut?: boolean }): void {
   if (result.timedOut) throw new DOMException('timeout', 'AbortError')
+}
+
+/** Bounds the output-directory listing a timeout report adds; a slow listing reports no files. */
+const TIMED_OUT_OUTPUT_LISTING_MS = 3_000
+
+/**
+ * A workbench run stopped by its own timeout reports what it produced, because the workbench and
+ * its files outlive the call and the next call can resume from them. A one-shot sandbox is torn
+ * down with everything in it, so it keeps the plain timeout.
+ */
+async function throwIfRunTimedOut(
+  result: { timedOut?: boolean },
+  streams: Array<string | undefined>,
+  run: {
+    sandbox: SandboxHandle
+    lease: SandboxLease
+    outputSandboxDir: string | undefined
+    timeoutMs: number
+    signal: AbortSignal
+  }
+): Promise<void> {
+  if (!result.timedOut) return
+  if (!run.lease.session) throw new DOMException('timeout', 'AbortError')
+  const { outputSandboxDir, sandbox } = run
+  const listed = outputSandboxDir
+    ? await withinDeadline(
+        () => sandbox.listFiles(outputSandboxDir, { depth: SANDBOX_OUTPUT_DIR_MAX_DEPTH }),
+        Date.now() + TIMED_OUT_OUTPUT_LISTING_MS,
+        run.signal
+      ).catch(() => [])
+    : []
+  // A cancellation that arrives while listing stays a cancellation.
+  throwIfAborted(run.signal)
+  throw new SandboxExecutionTimeoutError(sandboxTimeoutProgress(streams, run.timeoutMs, listed))
 }
 
 function bindSandboxAbort(
@@ -969,10 +1008,11 @@ async function executeInSandboxWithinBudget(
       Object.keys(privateInputFiles.environment).length > 0
 
     let execution: SandboxCodeResult
+    const runTimeoutMs = codeBudgetMs(req, signal)
     try {
       const endRun = phases.start('run')
       execution = await sandbox.runCode(code, {
-        timeoutMs: codeBudgetMs(req, signal),
+        timeoutMs: runTimeoutMs,
         javascriptPreload: buildJavaScriptRuntimeBindingsSource(req.runtimeBindings ?? []),
         maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
         signal,
@@ -984,7 +1024,13 @@ async function executeInSandboxWithinBudget(
       throw error
     }
     throwIfAborted(signal)
-    throwIfSandboxTimedOut(execution)
+    await throwIfRunTimedOut(execution, [execution.text, execution.stdout, execution.stderr], {
+      sandbox,
+      lease,
+      outputSandboxDir: req.outputSandboxDir,
+      timeoutMs: runTimeoutMs,
+      signal,
+    })
 
     if (execution.error) {
       const errorMessage = `${execution.error.name}: ${execution.error.value}`
@@ -1166,6 +1212,7 @@ async function executeShellInSandboxWithinBudget(
     endPrepare()
 
     let result: SandboxCommandResult
+    const runTimeoutMs = codeBudgetMs(req, signal)
     try {
       const endRun = phases.start('run')
       result = await sandbox.runCommand(code, {
@@ -1177,7 +1224,7 @@ async function executeShellInSandboxWithinBudget(
           ...privateInputFiles.environment,
           ...(req.session && req.outputSandboxDir ? { SIM_OUTPUT_DIR: req.outputSandboxDir } : {}),
         },
-        timeoutMs: codeBudgetMs(req, signal),
+        timeoutMs: runTimeoutMs,
         maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
         signal,
         rootUser: !lease.session,
@@ -1189,7 +1236,13 @@ async function executeShellInSandboxWithinBudget(
       throw error
     }
     throwIfAborted(signal)
-    throwIfSandboxTimedOut(result)
+    await throwIfRunTimedOut(result, [result.stdout, result.stderr], {
+      sandbox,
+      lease,
+      outputSandboxDir: req.outputSandboxDir,
+      timeoutMs: runTimeoutMs,
+      signal,
+    })
 
     const stdout = [result.stdout, result.stderr].filter(Boolean).join('\n')
 

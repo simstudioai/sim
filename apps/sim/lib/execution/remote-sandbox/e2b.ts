@@ -373,6 +373,14 @@ export async function stopE2BSessionProcess(
   if (sandbox) await stopSessionCommand(sandbox, process.id, signal)
 }
 
+/** Joins what the stream callbacks observed with the streams the SDK returned, without repeating either. */
+function mergeObservedOutput(observed: string, returned: string): string {
+  if (!observed) return returned
+  if (!returned || observed.endsWith(returned)) return observed
+  if (returned.startsWith(observed)) return returned
+  return observed + returned
+}
+
 class E2BSandboxHandle implements SandboxHandle {
   private killed = false
   private killPromise: Promise<void> | null = null
@@ -676,12 +684,6 @@ class E2BSandboxHandle implements SandboxHandle {
         // process handle because `background: true` is fixed above.
         result = started
       }
-      const mergeObservedOutput = (observed: string, returned: string): string => {
-        if (!observed) return returned
-        if (!returned || observed.endsWith(returned)) return observed
-        if (returned.startsWith(observed)) return returned
-        return observed + returned
-      }
       const stdout = mergeObservedOutput(observedStdout, result.stdout ?? '')
       const stderr = mergeObservedOutput(observedStderr, result.stderr ?? '')
       assertSandboxProcessOutputWithinLimit([stdout, stderr], options.maxOutputBytes)
@@ -727,16 +729,21 @@ class E2BSandboxHandle implements SandboxHandle {
       )
       const tailIfStreamed = (value: string | undefined, retain: boolean) =>
         retain || value === undefined ? value : tailStreamedSandboxOutput(value)
-      const failureStdout = tailIfStreamed(failure.stdout, retainStdout)
-      const failureStderr = tailIfStreamed(failure.stderr, retainStderr)
       if (isE2BExecutionTimeout(error)) {
+        // The SDK's timeout error carries no streams; the callbacks observed the run's output.
+        const stdout = mergeObservedOutput(observedStdout, failure.stdout ?? '')
+        const stderr = mergeObservedOutput(observedStderr, failure.stderr ?? '')
         return {
-          stdout: failureStdout ?? '',
-          stderr: failureStderr ?? failure.message ?? '',
+          stdout: retainStdout ? stdout : tailStreamedSandboxOutput(stdout),
+          stderr:
+            (retainStderr ? stderr : tailStreamedSandboxOutput(stderr)) ||
+            `Command timed out after ${options.timeoutMs}ms`,
           exitCode: 124,
           timedOut: true,
         }
       }
+      const failureStdout = tailIfStreamed(failure.stdout, retainStdout)
+      const failureStderr = tailIfStreamed(failure.stderr, retainStderr)
       return {
         stdout: failureStdout ?? '',
         stderr: failureStderr ?? failure.message ?? getErrorMessage(error),

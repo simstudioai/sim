@@ -90,6 +90,10 @@ import {
   readTrustedSandboxOutputCost,
 } from '@/lib/execution/remote-sandbox/output-limits'
 import { MAX_BLOCK_MOUNTED_FILES, SANDBOX_OUTPUT_DIR } from '@/lib/execution/remote-sandbox/paths'
+import {
+  describeSandboxTimeoutProgress,
+  SandboxExecutionTimeoutError,
+} from '@/lib/execution/remote-sandbox/timeout'
 import type {
   SandboxCollectedFile,
   SandboxFile,
@@ -3361,12 +3365,24 @@ export async function executeFunctionRequest(
         isTimeoutAbortReason(req.signal.reason) ||
         isTimeoutAbortReason(error?.cause ?? error) ||
         (executionDeadlineAt !== undefined && Date.now() >= executionDeadlineAt)
+      const timeoutMessage = `Function execution timed out${timeoutForError ? ` after ${timeoutForError}ms` : ''}`
+      // Only a route context carries the secret provenance that partial output must cross with.
+      const progress =
+        timedOut && routeContext && error instanceof SandboxExecutionTimeoutError
+          ? error.progress
+          : undefined
       const abortResponse = {
         success: false,
-        error: timedOut
-          ? `Function execution timed out${timeoutForError ? ` after ${timeoutForError}ms` : ''}`
-          : 'Function execution was cancelled',
-        output: { result: null, stdout: cleanStdout(stdout), executionTime },
+        error: !timedOut
+          ? 'Function execution was cancelled'
+          : progress
+            ? `${timeoutMessage}.${describeSandboxTimeoutProgress(progress)}`
+            : timeoutMessage,
+        output: {
+          result: null,
+          stdout: cleanStdout(progress ? progress.output : stdout),
+          executionTime,
+        },
       }
       logger.warn(`[${requestId}] Function execution ${timedOut ? 'timed out' : 'was cancelled'}`, {
         executionTime,
