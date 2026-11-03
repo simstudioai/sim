@@ -69,6 +69,7 @@ export interface ReadFormDataWithLimitRequest {
   method: string
   headers?: Headers
   body?: ReadableStream<Uint8Array> | null
+  bodyUsed?: boolean
   formData: () => Promise<FormData>
 }
 
@@ -158,9 +159,14 @@ export async function readFormDataWithLimit(
  * The fetch body parser rejects a body that does not decode as the content type it
  * declares (a JSON body, a boundary the body never uses) with a bare `TypeError`. That
  * is the caller's malformed input, so it surfaces as the same validation failure every
- * multipart route already answers with a 400.
+ * multipart route already answers with a 400. So does a declared-length body that ends
+ * early, since the client sent an incomplete request. A body some earlier code already
+ * consumed is a server bug, so that failure is left to surface as it is.
  */
-async function parseFormData(request: Pick<Request, 'formData'>): Promise<FormData> {
+async function parseFormData(
+  request: Pick<ReadFormDataWithLimitRequest, 'formData' | 'bodyUsed'>
+): Promise<FormData> {
+  if (request.bodyUsed) return request.formData()
   try {
     return await request.formData()
   } catch (error) {

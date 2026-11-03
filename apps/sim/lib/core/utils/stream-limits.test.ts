@@ -319,6 +319,30 @@ describe('stream limits', () => {
     ).rejects.toBeInstanceOf(MultipartFieldValidationError)
   })
 
+  it('leaves a body that was already read to fail as a server error', async () => {
+    const input = new FormData()
+    input.append('name', 'example')
+    const encoded = new Request('http://localhost/upload', { method: 'POST', body: input })
+    const bytes = new Uint8Array(await encoded.arrayBuffer())
+    const request = new Request('http://localhost/upload', {
+      method: 'POST',
+      headers: {
+        'content-type': encoded.headers.get('content-type') ?? '',
+        'content-length': String(bytes.byteLength),
+      },
+      body: bytes,
+    })
+    await request.text()
+
+    const failure = await readFormDataWithLimit(request, {
+      maxBytes: 1024 * 1024,
+      label: 'multipart body',
+    }).catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(TypeError)
+    expect(failure).not.toBeInstanceOf(MultipartFieldValidationError)
+  })
+
   it('rejects multipart streams without content-length once bytes exceed the limit', async () => {
     const request = new Request('http://localhost/upload', {
       method: 'POST',
