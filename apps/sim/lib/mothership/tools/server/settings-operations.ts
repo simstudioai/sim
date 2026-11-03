@@ -48,6 +48,7 @@ import {
   removeSlackSearchInstallation,
 } from '@/lib/knowledge/application/slack-search/installations'
 import { slackSearchSettingsPatchSchema } from '@/lib/knowledge/application/slack-search/settings-projection'
+import { accessRequestSettingsActions } from '@/lib/mothership/tools/server/settings-access-requests'
 import {
   memberUsageLimitSettingsActions,
   usageLimitSettingsActions,
@@ -472,6 +473,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
         })
     ),
   },
+  'organization/requests': accessRequestSettingsActions,
   'organization/sim-links': simLinkSettingsActions,
   'organization/usage': {
     summary: settingsOperation(
