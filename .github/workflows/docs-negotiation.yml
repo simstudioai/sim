@@ -342,9 +342,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
-        with:
-          fetch-depth: 0
-          filter: blob:none
       - name: Setup workspace
         uses: ./.github/actions/setup
         with:
@@ -376,7 +373,7 @@ jobs:
         if: matrix.group == 'chromium' || matrix.group == 'webkit'
         env:
           BROWSER: ${{ matrix.group }}
-        run: bunx --no-install playwright install --with-deps "$BROWSER"
+        run: bunx --no-install playwright install --with-deps --only-shell "$BROWSER"
       - name: Verify production documentation
         env:
           DOCS_ACCEPTANCE_GROUP: ${{ matrix.group }}

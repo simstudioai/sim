@@ -233,7 +233,7 @@ case "$group" in
     export COPILOT_TOOL_PERMISSIONS_ENABLED=true
     export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
     export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
-    if [ "$group" != desktop-inbox ]; then start_browser_install "$group" chromium; fi
+    if [ "$group" != desktop-inbox ]; then start_browser_install "$group" --only-shell chromium; fi
     export INTERNAL_API_SECRET=desktop-inbox-http-ci-local-secret-at-least-32-characters
     export DB_TX_TRIPWIRE=throw
     start_app "$group" 3019 "$group" record-http-status
@@ -275,7 +275,7 @@ case "$group" in
     export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
     export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true
     export API_ENCRYPTION_KEY="$ENCRYPTION_KEY"
-    start_browser_install "$group" chromium
+    start_browser_install "$group" --no-shell chromium
     extension_identity=$(bun - <<'JS'
       import { generateKeyPairSync, createHash } from 'node:crypto'
       const { publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
@@ -312,7 +312,7 @@ JS
     export INTERNAL_API_SECRET=mobile-http-ci-local-secret-at-least-32-characters
     export NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:3025 SOCKET_SERVER_URL=http://127.0.0.1:3025
     read -ra browsers <<< "${MOBILE_E2E_BROWSER:-chromium webkit}"
-    start_browser_install mobile "${browsers[@]}"
+    start_browser_install mobile --only-shell "${browsers[@]}"
     start_app mobile 3024 'mobile browser' record-http-status
     start_realtime mobile 3025
     wait_for_browsers
