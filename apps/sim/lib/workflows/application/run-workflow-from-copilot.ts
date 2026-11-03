@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
+import type { BlockState } from '@sim/workflow-types/workflow'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -244,6 +245,61 @@ async function resolveSourceSnapshot(input: SnapshotCopilotRunInput): Promise<{
   )
 }
 
+/** How many workflow blocks a "block not found" refusal lists before summarizing the rest. */
+const MAX_LISTED_BLOCKS = 20
+
+/**
+ * Rewrites a refused run-from-block start as guidance the agent can act on: blocks by name
+ * and id, and the tool call that gets past the refusal. The executor's message is written for
+ * the canvas, where tool names mean nothing. Never suggests anything that would run more than
+ * the caller asked for: every alternative is the agent's own next call.
+ */
+function describeRunFromBlockRefusal(
+  error: RunFromBlockValidationError,
+  blocks: Record<string, BlockState>,
+  source: { executionId?: string; useDraftState: boolean }
+): string {
+  const refusal = error.refusal
+  if (!refusal) return error.message
+  const label = (id: string) => {
+    const name = blocks[id]?.name
+    return name ? `"${name}" (${id})` : `"${id}"`
+  }
+
+  switch (refusal.kind) {
+    case 'upstream_not_executed': {
+      const execution = source.executionId
+        ? `execution ${source.executionId}`
+        : 'the source execution'
+      return (
+        `Cannot run from ${label(refusal.blockId)}: its upstream block ${label(refusal.upstreamBlockId)} did not run in ${execution}, so there is no output to start from. ` +
+        `Run the workflow up to this block with run_workflow_until_block (stopAfterBlockId "${refusal.blockId}"), ` +
+        `or pass the executionId of a run that executed ${label(refusal.upstreamBlockId)}.`
+      )
+    }
+    case 'inside_subflow':
+      return (
+        `Cannot run ${label(refusal.blockId)} on its own: it is inside ${refusal.subflowType} ${label(refusal.subflowId)}. ` +
+        `Start from the ${refusal.subflowType} itself (block id "${refusal.subflowId}") or run the whole workflow with run_workflow.`
+      )
+    case 'block_not_found': {
+      const state = source.useDraftState ? 'draft' : 'deployed'
+      const existing = blocks[refusal.blockId]
+      if (existing?.enabled === false) {
+        return `Block ${label(refusal.blockId)} is disabled in the ${state} workflow, so it cannot be run.`
+      }
+      if (existing) {
+        return `Block ${label(refusal.blockId)} is not an executable block, so it cannot be run.`
+      }
+      const all = Object.keys(blocks)
+      const listed = all.slice(0, MAX_LISTED_BLOCKS).map(label).join(', ')
+      const more =
+        all.length > MAX_LISTED_BLOCKS ? ` and ${all.length - MAX_LISTED_BLOCKS} more` : ''
+      return `Block "${refusal.blockId}" is not in the ${state} workflow. Its blocks are: ${listed}${more}.`
+    }
+  }
+}
+
 async function executeCopilotRun(params: {
   principal: Principal
   input: BaseCopilotRunInput
@@ -257,6 +313,8 @@ async function executeCopilotRun(params: {
     sourceExecutionId?: string
     variableInputs?: Record<string, unknown>
   }
+  /** Phrases a refused run-from-block start for the agent; the executor's message otherwise. */
+  describeRefusal?: (error: RunFromBlockValidationError) => string
 }): Promise<ExecutionResult> {
   if (
     params.principal.kind === 'resource_delegated' ||
@@ -366,7 +424,7 @@ async function executeCopilotRun(params: {
      */
     const error =
       caught instanceof RunFromBlockValidationError
-        ? new OrchestrationError('validation', caught.message)
+        ? new OrchestrationError('validation', params.describeRefusal?.(caught) ?? caught.message)
         : caught
     /**
      * `executeWorkflow` names the run itself once it crosses its own dispatch boundary, so
@@ -491,6 +549,11 @@ function defineSnapshotRunUseCase<I extends SnapshotCopilotRunInput>(
           ...(input.variableInputs ? { variableInputs: input.variableInputs } : {}),
         },
         stopAfterBlockId: stopAtStartBlock ? input.blockId : undefined,
+        describeRefusal: (error) =>
+          describeRunFromBlockRefusal(error, state.blocks, {
+            executionId: source.executionId,
+            useDraftState: input.useDraftState,
+          }),
       })
     },
   })
