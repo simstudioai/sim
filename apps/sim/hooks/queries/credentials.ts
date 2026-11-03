@@ -1,6 +1,6 @@
 'use client'
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { type QueryKey, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput, ContractQueryInput } from '@/lib/api/contracts'
 import {
@@ -325,13 +325,14 @@ export function useLeaveCredential() {
     mutationFn: (credentialId: string) =>
       requestJson(leaveCredentialMembershipContract, { query: { credentialId } }),
     onSuccess: (_data, credentialId) => {
-      for (const queryKey of [
+      const staleKeys: QueryKey[] = [
         workspaceCredentialKeys.lists(),
         workspaceCredentialKeys.detail(credentialId),
         OAUTH_CREDENTIALS_KEY,
         environmentKeys.all,
         oauthConnectionsKeys.connections(),
-      ]) {
+      ]
+      for (const queryKey of staleKeys) {
         queryClient.invalidateQueries({ queryKey, refetchType: 'none' })
       }
       invalidateSelectorQueries(queryClient)
