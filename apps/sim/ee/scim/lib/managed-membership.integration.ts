@@ -19,9 +19,13 @@ async function loadRuntime() {
       import('@/ee/scim/lib/managed-membership'),
       import('@/ee/scim/lib/entitlement'),
     ])
-  const [{ removeOrganizationMemberRecord }, { transferOrganizationOwnership }] = await Promise.all(
-    [import('@/lib/organizations/member-manager'), import('@/lib/billing/organizations/membership')]
-  )
+  const [
+    { removeOrganizationMemberRecord },
+    { removeUserFromOrganization, transferOrganizationOwnership },
+  ] = await Promise.all([
+    import('@/lib/organizations/member-manager'),
+    import('@/lib/billing/organizations/membership'),
+  ])
   return {
     db,
     schema,
@@ -31,6 +35,7 @@ async function loadRuntime() {
     sql,
     alias,
     removeOrganizationMemberRecord,
+    removeUserFromOrganization,
     transferOrganizationOwnership,
     ...membership,
     ...entitlement,
@@ -291,18 +296,36 @@ describe('SCIM managed membership in PostgreSQL', () => {
       return row?.role
     }
 
-    it('refuses a managed owner transferring to leave, leaving ownership unchanged', async () => {
-      const { transferOrganizationOwnership } = runtime
+    it('transfers a managed owner’s ownership but keeps them as admin when they try to leave', async () => {
+      const { db, schema, and, eq, transferOrganizationOwnership, removeUserFromOrganization } =
+        runtime
       await expect(
         transferOrganizationOwnership({
           organizationId: orgId,
           currentOwnerUserId: managedUserId,
           newOwnerUserId: adminUserId,
-          currentOwnerLeaves: true,
         })
-      ).resolves.toMatchObject({ success: false, refusalCode: 'SCIM_MANAGED_MEMBERSHIP' })
-      expect(await roleOf(managedUserId)).toBe('owner')
-      expect(await roleOf(adminUserId)).toBe('member')
+      ).resolves.toMatchObject({ success: true })
+      const [previousOwner] = await db
+        .select({ id: schema.member.id })
+        .from(schema.member)
+        .where(
+          and(eq(schema.member.organizationId, orgId), eq(schema.member.userId, managedUserId))
+        )
+      await expect(
+        removeUserFromOrganization({
+          userId: managedUserId,
+          organizationId: orgId,
+          memberId: previousOwner.id,
+          actorUserId: managedUserId,
+        })
+      ).resolves.toMatchObject({
+        success: false,
+        refusalCode: 'SCIM_MANAGED_MEMBERSHIP',
+        error: expect.stringContaining('Ask your identity provider administrator'),
+      })
+      expect(await roleOf(managedUserId)).toBe('admin')
+      expect(await roleOf(adminUserId)).toBe('owner')
     })
 
     it('lets a managed owner transfer ownership and stay', async () => {

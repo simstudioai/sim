@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus } from '@sim/emcn'
+import { Plus, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -305,6 +305,8 @@ export function TeamManagement({
 
       if (result.left) {
         window.location.href = APP_ENTRY_PATH
+      } else if (result.warning) {
+        toast.warning(`Ownership transferred. ${result.warning}`)
       }
     } catch (error) {
       logger.error('Failed to transfer ownership', error)

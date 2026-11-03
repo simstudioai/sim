@@ -81,15 +81,8 @@ export const POST = withRouteHandler(
         organizationId,
         currentOwnerUserId: session.user.id,
         newOwnerUserId,
-        currentOwnerLeaves: alsoLeave,
       })
 
-      if (transferResult.refusalCode) {
-        return NextResponse.json(
-          { error: transferResult.error, details: { code: transferResult.refusalCode } },
-          { status: 403 }
-        )
-      }
       if (!transferResult.success) {
         return NextResponse.json(
           { error: transferResult.error ?? 'Failed to transfer ownership' },
@@ -162,11 +155,15 @@ export const POST = withRouteHandler(
       deliverRunStops(removeResult.stoppedRuns)
 
       if (!removeResult.success) {
-        logger.error('Transfer succeeded but self-removal failed', {
+        const outcome = {
           organizationId,
           userId: session.user.id,
           error: removeResult.error,
-        })
+          refusalCode: removeResult.refusalCode,
+        }
+        if (removeResult.refusalCode)
+          logger.info('Transfer succeeded; policy kept the previous owner as admin', outcome)
+        else logger.error('Transfer succeeded but self-removal failed', outcome)
         return NextResponse.json(
           {
             success: true,

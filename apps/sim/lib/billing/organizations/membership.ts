@@ -535,6 +535,8 @@ export interface RemoveMemberParams {
 export interface RemoveMemberResult {
   success: boolean
   error?: string
+  /** Set when policy refused the removal, as opposed to it failing. */
+  refusalCode?: ForbiddenDetailCode
   /**
    * Whether the member row was actually deleted. `false` (with `success: true`)
    * when `requireNoOrgWorkspaceAccess` was set and the user still had workspace
@@ -1621,6 +1623,15 @@ export async function removeUserFromOrganization(
       return { success: false, error: error.message, billingActions, stoppedRuns: [] }
     }
     if (onError === 'throw') throw error
+    if (error instanceof ForbiddenOperationError) {
+      return {
+        success: false,
+        error: error.message,
+        refusalCode: error.detailCode,
+        billingActions,
+        stoppedRuns: [],
+      }
+    }
 
     logger.error('Failed to remove user from organization', {
       userId,
@@ -1837,19 +1848,11 @@ export interface TransferOwnershipParams {
   organizationId: string
   currentOwnerUserId: string
   newOwnerUserId: string
-  /**
-   * The current owner leaves once the transfer commits. Their self-leave is
-   * vetted inside the transfer, so a leave the directory would undo refuses the
-   * transfer too instead of half-applying it.
-   */
-  currentOwnerLeaves?: boolean
 }
 
 export interface TransferOwnershipResult {
   success: boolean
   error?: string
-  /** Set when the transfer was refused by policy rather than failed. */
-  refusalCode?: ForbiddenDetailCode
   workspacesReassigned: number
   billedAccountReassigned: number
   overageMigrated: string
@@ -1859,7 +1862,7 @@ export interface TransferOwnershipResult {
 export async function transferOrganizationOwnership(
   params: TransferOwnershipParams
 ): Promise<TransferOwnershipResult> {
-  const { organizationId, currentOwnerUserId, newOwnerUserId, currentOwnerLeaves } = params
+  const { organizationId, currentOwnerUserId, newOwnerUserId } = params
 
   const result: TransferOwnershipResult = {
     success: false,
@@ -1892,12 +1895,6 @@ export async function transferOrganizationOwnership(
       if (!currentOwnerMember) {
         throw new Error('Current user is not the owner of this organization')
       }
-      if (currentOwnerLeaves)
-        await assertSelfLeaveNotScimManaged({
-          organizationId,
-          userId: currentOwnerUserId,
-          executor: tx,
-        })
 
       const [newOwnerMember] = await tx
         .select({ id: member.id, role: member.role })
@@ -2067,8 +2064,6 @@ export async function transferOrganizationOwnership(
 
     return { ...result, success: true }
   } catch (error) {
-    if (error instanceof ForbiddenOperationError)
-      return { ...result, error: error.message, refusalCode: error.detailCode }
     logger.error('Failed to transfer organization ownership', {
       organizationId,
       currentOwnerUserId,
