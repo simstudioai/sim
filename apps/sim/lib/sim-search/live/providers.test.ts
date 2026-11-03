@@ -321,6 +321,56 @@ describe('Slack RTS pages', () => {
     expect(result.message).toContain('nextCursor')
   })
 
+  it('keeps earlier pages when a later page fails outside the Slack API', async () => {
+    const api = client()
+    api.json
+      .mockResolvedValueOnce(slackPage(1, 20, 'page-2'))
+      .mockRejectedValueOnce(new Error('socket hang up'))
+    const result = await searchSlack(api, {
+      ...input,
+      limit: 50,
+      scopes,
+      native: { provider: 'slack', query: 'launch' },
+    })
+    expect(result.documents).toHaveLength(20)
+    expect(result.nextCursor).toBe('page-2')
+    expect(result.partial).toBe(true)
+  })
+
+  it('stops paging once the caller cancels the search', async () => {
+    const api = client()
+    const cancelled = new AbortController()
+    api.json.mockResolvedValueOnce(slackPage(1, 20, 'page-2')).mockImplementationOnce(async () => {
+      cancelled.abort()
+      throw new Error('aborted')
+    })
+    await expect(
+      searchSlack(api, {
+        ...input,
+        limit: 50,
+        scopes,
+        signal: cancelled.signal,
+        native: { provider: 'slack', query: 'launch' },
+      })
+    ).rejects.toThrow('aborted')
+  })
+
+  it('keeps paging past short pages that still carry a cursor', async () => {
+    const api = client()
+    api.json
+      .mockResolvedValueOnce(slackPage(1, 10, 'page-2'))
+      .mockResolvedValueOnce(slackPage(11, 10, 'page-3'))
+      .mockResolvedValueOnce(slackPage(21, 10))
+    const result = await searchSlack(api, {
+      ...input,
+      limit: 30,
+      scopes,
+      native: { provider: 'slack', query: 'launch' },
+    })
+    expect(api.json).toHaveBeenCalledTimes(3)
+    expect(result.documents).toHaveLength(30)
+  })
+
   it('still fails when the first page fails', async () => {
     const api = client()
     api.json.mockResolvedValue({ ok: false, error: 'ratelimited' })
