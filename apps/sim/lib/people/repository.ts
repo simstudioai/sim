@@ -1,5 +1,14 @@
 import { db } from '@sim/db'
-import { foldedEmail, member, memberProfile, peopleDirectoryEntry, user } from '@sim/db/schema'
+import {
+  foldedEmail,
+  member,
+  memberProfile,
+  peopleDirectoryEntry,
+  peopleDirectorySync,
+  scimConnection,
+  scimUser,
+  user,
+} from '@sim/db/schema'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { PEOPLE_IMPORT_MAX_ROWS, type Person, type PersonSummary } from '@/lib/api/contracts/people'
 import {
@@ -7,7 +16,6 @@ import {
   type KeysetPage,
   keysetOrderBy,
   keysetPage,
-  numberKey,
   resumeKeyset,
   searchFilter,
   textKey,
@@ -24,12 +32,26 @@ const PROFILE_LOCK_TIMEOUT_MS = 5_000
 /** Eight bound parameters a row keeps a chunk far below Postgres's 65,535-parameter limit. */
 const UPSERT_CHUNK_SIZE = 5_000
 
-type PersonRow = Omit<Person, 'joinedAt'> & { joinedMs: number | null; sortName: string }
+type PersonRow = Omit<Person, 'joinedAt' | 'departmentKey'> & {
+  joinedMs: number | null
+  sortName: string
+}
 
-export type PersonRecord = Omit<Person, 'joinedAt'> & { joinedAt: Date | null }
+export type PersonRecord = Omit<Person, 'joinedAt' | 'departmentKey'> & { joinedAt: Date | null }
 
 const ACTIVE_USER = isNull(user.suspendedAt)
 const SUMMARY_FIELDS = sql`p.id AS "memberId", p.user_id AS "userId", p.name, p.email, p.image, p.title`
+
+/** Retire SCIM identities in the same commit as provisioning, before a later snapshot reclaims the row. */
+function visibleDirectoryEntry(organizationId: string) {
+  return sql`(d.source <> 'scim' OR EXISTS (
+    SELECT 1 FROM ${scimUser} su JOIN ${user} account ON account.id = su.user_id
+    WHERE su.id = d.external_id AND su.active AND account.suspended_at IS NULL
+      AND su.connection_id = (SELECT c.id FROM ${peopleDirectorySync} s
+        JOIN ${scimConnection} c ON c.id = s.source_target AND c.organization_id = s.organization_id
+        WHERE s.organization_id = ${organizationId} AND s.source = 'scim')
+  ))`
+}
 
 /** Compact identity/manager edges. Names, avatars, and other profile data are joined only when needed. */
 function identityRelations(organizationId: string) {
@@ -43,7 +65,7 @@ function identityRelations(organizationId: string) {
       ) u WHERE m.organization_id = ${organizationId}
       UNION ALL
       SELECT NULL, d.id, d.external_id, d.manager_external_id, lower(d.name), d.email, false
-      FROM ${peopleDirectoryEntry} d WHERE d.organization_id = ${organizationId}
+      FROM ${peopleDirectoryEntry} d WHERE d.organization_id = ${organizationId} AND ${visibleDirectoryEntry(organizationId)}
     ),
     matched AS (
       SELECT i.*, count(member_id) OVER address AS member_count, max(member_id) OVER address AS match_id,
@@ -121,10 +143,35 @@ export async function listPeople(
   {
     search,
     department,
+    departmentKey,
     scope,
     cursorKeys,
-  }: { search?: string; department?: string; scope?: 'roots' | 'members'; cursorKeys?: CursorKey[] }
-): Promise<KeysetPage<PersonRecord>> {
+  }: {
+    search?: string
+    department?: string
+    departmentKey?: string
+    scope?: 'roots' | 'members'
+    cursorKeys?: CursorKey[]
+  }
+): Promise<KeysetPage<PersonRecord> & { selectedDepartment: string | null }> {
+  if (departmentKey && department)
+    throw new OrchestrationError('validation', 'Choose a department by name or by key.')
+  if (cursorKeys?.length === 1 && typeof cursorKeys[0] === 'string') {
+    const [anchor] = await db.execute<{ name: string }>(sql`
+      WITH ${identityRelations(organizationId)} SELECT sort_name AS name FROM links WHERE id=${cursorKeys[0]}
+    `)
+    if (!anchor)
+      throw new OrchestrationError(
+        'validation',
+        'This page changed. Restart pagination without a cursor.'
+      )
+    cursorKeys = [anchor.name, cursorKeys[0]]
+  }
+  const departmentFilter = departmentKey
+    ? eq(sql`encode(sha256(convert_to(p.department,'UTF8')),'hex')`, departmentKey)
+    : department
+      ? eq(sql`p.department`, department)
+      : undefined
   const term = search?.trim() || undefined
   const where = and(
     term
@@ -134,7 +181,7 @@ export async function listPeople(
           )
         )
       : undefined,
-    department ? eq(sql`p.department`, department) : undefined,
+    departmentFilter,
     scope === 'members' ? sql`p.user_id IS NOT NULL` : undefined,
     resumeKeyset(PEOPLE_KEYS, cursorKeys, 'asc')
   )
@@ -151,30 +198,43 @@ export async function listPeople(
     ORDER BY ${sql.join(keysetOrderBy(PEOPLE_KEYS, 'asc'), sql`, `)}
   `)
   const page = keysetPage(PEOPLE_KEYS, rows, PAGE_SIZE)
-  return { ...page, data: page.data.map(toPerson) }
+  let selectedDepartment = department ?? rows[0]?.department ?? null
+  if (departmentKey && !rows.length && !cursorKeys) {
+    const [selected] = await db.execute<{ name: string }>(sql`
+      WITH ${identityRelations(organizationId)}, ${profileRelations()}
+      SELECT p.department AS name FROM people p WHERE ${departmentFilter} LIMIT 1
+    `)
+    selectedDepartment = selected?.name ?? null
+  }
+  const keys = page.nextCursorKeys
+  // Oversized names resume from the same member in the scoped directory without sending the name in a URL.
+  const nextCursorKeys = keys && Buffer.byteLength(JSON.stringify(keys)) > 512 ? [keys[1]] : keys
+  return {
+    data: page.data.map(toPerson),
+    nextCursorKeys,
+    selectedDepartment: department || departmentKey ? selectedDepartment : null,
+  }
 }
 
 type Department = { name: string; count: number }
-const DEPARTMENT_KEYS = [
-  numberKey<Department>(sql`-d.count`, (row) => -row.count),
-  textKey<Department>(sql`d.name`, (row) => row.name),
-]
 
 export async function listDepartments(
   organizationId: string,
-  options: { search?: string; cursorKeys?: CursorKey[] }
+  { search, offset = 0 }: { search?: string; offset?: number }
 ) {
-  const term = options.search?.trim()
-  const resume = resumeKeyset(DEPARTMENT_KEYS, options.cursorKeys, 'asc')
+  if (!Number.isSafeInteger(offset) || offset < 0)
+    throw new OrchestrationError('validation', 'Invalid department page offset.')
+  const term = search?.trim()
   const rows = await db.execute<Department>(sql`
-    WITH ${identityRelations(organizationId)}, ${profileRelations()},
-    departments AS (SELECT p.department AS name, count(*)::int AS count FROM people p
-      WHERE p.department IS NOT NULL ${term ? sql`AND ${searchFilter(sql`p.department`, term)}` : sql``}
-      GROUP BY p.department)
-    SELECT d.name,d.count FROM departments d ${resume ? sql`WHERE ${resume}` : sql``}
-    ORDER BY ${sql.join(keysetOrderBy(DEPARTMENT_KEYS, 'asc'), sql`, `)} LIMIT ${PAGE_SIZE + 1}
+    WITH ${identityRelations(organizationId)}, ${profileRelations()}
+    SELECT p.department AS name, count(*)::int AS count FROM people p
+    WHERE p.department IS NOT NULL ${term ? sql`AND ${searchFilter(sql`p.department`, term)}` : sql``}
+    GROUP BY p.department ORDER BY count DESC, p.department LIMIT ${PAGE_SIZE + 1} OFFSET ${offset}
   `)
-  return keysetPage(DEPARTMENT_KEYS, rows, PAGE_SIZE)
+  return {
+    data: rows.slice(0, PAGE_SIZE),
+    nextOffset: rows.length > PAGE_SIZE ? offset + PAGE_SIZE : null,
+  }
 }
 
 export async function getPerson(
@@ -225,8 +285,10 @@ export async function getChartBranch(
       WHERE d.id = (SELECT directory_id FROM focus) OR d.member_id IN (SELECT id FROM native_ancestors)
       UNION ALL
       SELECT d.id, d.manager_external_id, a.depth + 1 FROM source_ancestors a
-      JOIN ${peopleDirectoryEntry} d ON d.organization_id = ${organizationId} AND d.external_id = a.parent
-      WHERE a.depth < ${MAX_CHAIN_DEPTH}
+      CROSS JOIN LATERAL (
+        SELECT d.id, d.manager_external_id FROM ${peopleDirectoryEntry} d
+        WHERE d.organization_id = ${organizationId} AND d.external_id = a.parent AND ${visibleDirectoryEntry(organizationId)} LIMIT 1
+      ) d WHERE a.depth < ${MAX_CHAIN_DEPTH}
     ),
     ancestor_links AS MATERIALIZED (
       SELECT l.id, l.manager_id FROM links l
@@ -351,7 +413,7 @@ export async function listMemberProfiles(
       managerMemberId: memberProfile.managerMemberId,
       hasProfile: sql<boolean>`${memberProfile.memberId} IS NOT NULL`,
       directoryManaged: sql<boolean>`EXISTS (SELECT 1 FROM ${peopleDirectoryEntry} d
-        WHERE d.organization_id = ${organizationId} AND d.email = ${foldedEmail(user.email)}
+        WHERE d.organization_id = ${organizationId} AND d.email = ${foldedEmail(user.email)} AND ${visibleDirectoryEntry(organizationId)}
           AND NOT EXISTS (
             SELECT 1 FROM ${member} other_member JOIN ${user} other_user ON other_user.id = other_member.user_id
             WHERE other_member.organization_id = ${organizationId} AND other_member.id <> ${member.id}

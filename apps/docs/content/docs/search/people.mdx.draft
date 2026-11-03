@@ -46,7 +46,7 @@ The directory controls the name, title, department, and reporting line of the pe
 
 People keeps the last published chart visible until the full replacement passes validation. If a provider asks Sim to slow down, the status shows when the next attempt is allowed. Sim keeps its place and resumes from the last completed page. A refresh still unfinished after seven days restarts from the source on its next eligible run. An empty directory removes its entries only after a successful refresh.
 
-SCIM user changes queue a refresh for the next scheduler pass. Sim reads the organization’s locally provisioned profiles together and publishes their reporting lines in one update.
+SCIM user changes queue a refresh for the next scheduler pass, including changes that arrive while a refresh is running. Sim reads locally provisioned profiles together and publishes their reporting lines in one update. When SCIM deactivates or removes someone, their directory-managed profile is hidden immediately.
 
 After a failure, check the status for the cause. Correct invalid or duplicate email addresses and reporting loops in the source. Check credentials and directory permissions for an access failure, then select **Retry sync** when available.
 

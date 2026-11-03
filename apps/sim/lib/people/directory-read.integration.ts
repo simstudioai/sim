@@ -5,6 +5,8 @@ import {
   organization,
   peopleDirectoryEntry,
   peopleDirectorySync,
+  scimConnection,
+  scimUser,
   user,
 } from '@sim/db/schema'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
@@ -32,6 +34,8 @@ const bossEntry = generateId()
 const reportEntry = generateId()
 const foreignEntry = generateId()
 const bossEmail = `boss-${org}@example.test`
+const reportAccount = generateId()
+const directoryAccounts = [ownerId, bossId, reportAccount]
 const reportEmail = `report-${org}@example.test`
 const principal = createSessionPrincipal({ userId: ownerId })
 const base = { organizationId: org }
@@ -64,6 +68,34 @@ beforeAll(async () => {
         updatedAt: new Date(),
       },
     ])
+    await tx.insert(user).values({
+      id: reportAccount,
+      name: 'External designer',
+      email: reportEmail,
+      emailVerified: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    await tx
+      .insert(scimConnection)
+      .values([org, foreignOrg].map((id) => ({ id, organizationId: id })))
+    await tx.insert(scimUser).values(
+      [
+        { id: bossEntry, connectionId: org, userId: bossId, email: bossEmail },
+        { id: reportEntry, connectionId: org, userId: reportAccount, email: reportEmail },
+        { id: foreignEntry, connectionId: foreignOrg, userId: bossId, email: bossEmail },
+      ].map(({ email, ...row }) => ({
+        ...row,
+        userName: email,
+        orderKey: row.id,
+        attributes: {
+          userName: email,
+          active: true,
+          name: { formatted: 'Directory fixture' },
+          emails: [{ value: email, primary: true }],
+        },
+      }))
+    )
     await tx
       .insert(member)
       .values({ id: ownerMember, organizationId: org, userId: ownerId, role: 'owner' })
@@ -78,7 +110,7 @@ beforeAll(async () => {
       {
         id: bossEntry,
         organizationId: org,
-        externalId: 'boss',
+        externalId: bossEntry,
         source: 'scim',
         name: 'Directory lead',
         email: bossEmail,
@@ -88,18 +120,18 @@ beforeAll(async () => {
       {
         id: reportEntry,
         organizationId: org,
-        externalId: 'report',
+        externalId: reportEntry,
         source: 'scim',
         name: 'External designer',
         email: reportEmail,
         title: 'Designer',
         department: 'Design',
-        managerExternalId: 'boss',
+        managerExternalId: bossEntry,
       },
       {
         id: foreignEntry,
         organizationId: foreignOrg,
-        externalId: 'boss',
+        externalId: foreignEntry,
         source: 'scim',
         name: 'Foreign lead',
         email: bossEmail,
@@ -110,7 +142,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.delete(organization).where(inArray(organization.id, [org, foreignOrg]))
-  await db.delete(user).where(inArray(user.id, [ownerId, bossId]))
+  await db.delete(user).where(inArray(user.id, directoryAccounts))
   vi.unstubAllEnvs()
 })
 
@@ -185,10 +217,56 @@ it('browses source identities before they have accounts and preserves profile li
   await expect(profile(bossMember)).rejects.toMatchObject({ code: 'not_found' })
   expect((await profile(reportEntry)).chain).toEqual([])
   expect(await directory({ search: 'Directory lead' })).toEqual([])
+
+  await db.update(scimUser).set({ active: false }).where(eq(scimUser.id, bossEntry))
+  await db.update(user).set({ suspendedAt: null }).where(eq(user.id, bossId))
+  await expect(profile(bossEntry)).rejects.toMatchObject({ code: 'not_found' })
+  expect((await profile(bossMember)).person).toMatchObject({
+    directorySource: null,
+    title: 'Manual title',
+  })
+  expect((await profile(reportEntry)).chain).toEqual([])
+  expect(
+    await importPeople.execute({
+      principal,
+      input: {
+        ...base,
+        headers: ['email', 'title'],
+        rows: [[bossEmail, 'New manual title']],
+        apply: false,
+      },
+    })
+  ).toMatchObject({ updated: 1, skipped: 0 })
 })
 
 it('pages an external team with duplicate names and bounds the full profile response', async () => {
   const reports = Array.from({ length: 55 }, () => generateId()).sort()
+  directoryAccounts.push(...reports)
+  await db.insert(user).values(
+    reports.map((id) => ({
+      id,
+      name: 'Directory pagination fixture',
+      email: `${id}@example.test`,
+      emailVerified: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }))
+  )
+  await db.insert(scimUser).values(
+    reports.map((id) => ({
+      id,
+      connectionId: org,
+      userId: id,
+      userName: `${id}@example.test`,
+      orderKey: id,
+      attributes: {
+        userName: `${id}@example.test`,
+        active: true,
+        name: { formatted: 'Directory fixture' },
+        emails: [{ value: `${id}@example.test`, primary: true }],
+      },
+    }))
+  )
   await db.insert(peopleDirectoryEntry).values(
     reports.map((id) => ({
       id,
@@ -197,7 +275,7 @@ it('pages an external team with duplicate names and bounds the full profile resp
       source: 'scim' as const,
       name: 'Directory pagination fixture',
       email: `${id}@example.test`,
-      managerExternalId: 'report',
+      managerExternalId: reportEntry,
     }))
   )
   const filter = { organizationId: org, search: 'Directory pagination fixture' }

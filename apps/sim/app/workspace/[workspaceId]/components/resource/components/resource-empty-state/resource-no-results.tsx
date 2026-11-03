@@ -13,8 +13,9 @@ interface ResourceNoResultsProps {
   /** Clears the query and every filter, restoring the open folder's contents. */
   onClear: () => void
   /** Where a search looked, for a list that isn't foldered within a workspace. */
-  filterScope?: string
   searchScope?: string
+  /** The scope of active filters when the search is empty. */
+  filterScope?: string
 }
 
 /**

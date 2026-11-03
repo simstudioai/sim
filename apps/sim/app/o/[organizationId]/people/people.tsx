@@ -31,13 +31,13 @@ interface PeopleProps {
 
 export function People({ organizationId }: PeopleProps) {
   const { viewer } = useOrganizationContext()
-  const [{ view, search, department, panel }, setView] = useQueryStates(
+  const [{ view, search, department, departmentKey, panel }, setView] = useQueryStates(
     peopleParsers,
     peopleUrlKeys
   )
   const [importOpen, setImportOpen] = useState(false)
   const openSync = () => void setView({ panel: 'sync' }, { history: 'push' })
-  const currentView = view ?? (search || department ? 'directory' : 'chart')
+  const currentView = view ?? (search || department || departmentKey ? 'directory' : 'chart')
 
   const viewSwitch = (
     <ChipSwitch

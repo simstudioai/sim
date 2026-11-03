@@ -19,8 +19,21 @@ const VISIBLE_PROFILE_REFRESH_MS = 5 * 60_000
 export const peopleKeys = {
   all: ['people'] as const,
   organization: (organizationId: string) => [...peopleKeys.all, organizationId] as const,
-  list: (organizationId: string, search: string, department: string, scope?: 'roots' | 'members') =>
-    [...peopleKeys.organization(organizationId), 'list', scope, search, department] as const,
+  list: (
+    organizationId: string,
+    search: string,
+    department: string,
+    scope?: 'roots' | 'members',
+    departmentKey?: string
+  ) =>
+    [
+      ...peopleKeys.organization(organizationId),
+      'list',
+      scope,
+      search,
+      department,
+      departmentKey,
+    ] as const,
   chart: (organizationId: string, memberId: string, page: number, size: number) =>
     [...peopleKeys.organization(organizationId), 'chart', memberId, page, size] as const,
   departments: (organizationId: string, search: string) =>
@@ -33,10 +46,16 @@ export function usePeople(
   organizationId: string,
   search: string,
   department: string,
-  options: { scope?: 'roots' | 'members'; enabled?: boolean } = {}
+  options: { scope?: 'roots' | 'members'; enabled?: boolean; departmentKey?: string } = {}
 ) {
   return useInfiniteQuery({
-    queryKey: peopleKeys.list(organizationId, search, department, options.scope),
+    queryKey: peopleKeys.list(
+      organizationId,
+      search,
+      department,
+      options.scope,
+      options.departmentKey
+    ),
     enabled: options.enabled,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ signal, pageParam }) =>
@@ -45,7 +64,8 @@ export function usePeople(
         query: {
           scope: options.scope,
           search: search || undefined,
-          department: department || undefined,
+          department: options.departmentKey ? undefined : department || undefined,
+          departmentKey: options.departmentKey || undefined,
           cursor: pageParam,
         },
         signal,

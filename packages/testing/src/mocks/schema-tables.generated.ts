@@ -482,6 +482,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'lastFailedAt',
     'lastError',
   ],
+  peopleDirectoryScimChange: ['organizationId', 'changedAt'],
   peopleDirectoryEntry: [
     'id',
     'organizationId',

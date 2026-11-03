@@ -10,7 +10,7 @@ export function LoadingStatus({ children }: LoadingStatusProps) {
       role='status'
       className='m-auto flex items-center gap-2 text-[var(--text-muted)] text-small'
     >
-      <Loader />
+      <Loader animate />
       {children}
     </div>
   )

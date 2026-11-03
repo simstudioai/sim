@@ -10,6 +10,7 @@ import {
   readDirectoryResponse,
 } from '@/lib/people/sync/provider-request'
 import type { DirectoryPerson } from '@/lib/people/sync/types'
+import { DIRECTORY_TEXT_MAX_LENGTH } from '@/lib/people/validation'
 
 type ProviderInput = Extract<PeopleImportBody, { source: 'okta' | 'entra' }>
 
@@ -17,7 +18,7 @@ const PAGE_SIZE = 200
 const MAX_PAGES = 100
 const MAX_IMPORT_PROFILE_BYTES = 32 * 1024 * 1024
 const IMPORT_TIMEOUT_MS = 60_000
-const optionalText = z.string().trim().max(2048).nullish()
+const optionalText = z.string().trim().max(DIRECTORY_TEXT_MAX_LENGTH).nullish()
 const id = z.string().min(1).max(512)
 const oktaPage = z
   .array(
@@ -133,7 +134,7 @@ function parseDirectoryPage(source: ProviderInput['source'], data: unknown, link
         location: person.officeLocation || null,
         managerExternalId: person.manager?.id ?? null,
       }))
-    return { profiles, count: page.data.value.length, next: page.data['@odata.nextLink'] }
+    return { profiles, next: page.data['@odata.nextLink'] }
   }
   const page = oktaPage.safeParse(data)
   if (!page.success)
@@ -155,7 +156,7 @@ function parseDirectoryPage(source: ProviderInput['source'], data: unknown, link
         [profile.city, profile.state, profile.countryCode].filter(Boolean).join(', ') || null,
       managerExternalId: profile.managerId || null,
     }))
-  return { profiles, count: page.data.length, next: oktaNextLink(link) }
+  return { profiles, next: oktaNextLink(link) }
 }
 
 /** Reads one page and validates both the saved checkpoint and the provider's proposed continuation. */
@@ -175,7 +176,7 @@ export function externalDirectoryUsers(input: DirectoryAccess, appOnly = false) 
       if (next === url.href)
         throw new OrchestrationError('validation', 'The directory repeated its pagination link.')
       if (appOnly) for (const person of page.profiles) person.managerExternalId = null
-      return { people: page.profiles, count: page.count, next }
+      return { people: page.profiles, next }
     },
   }
 }
@@ -185,7 +186,6 @@ export async function readProviderProfiles(input: ProviderInput & { organization
   const signal = AbortSignal.timeout(IMPORT_TIMEOUT_MS)
   const seen = new Set<string | null>()
   const profiles = new Map<string, DirectoryPerson>()
-  let count = 0
   let bytes = 0
   let cursor: string | null = null
   do {
@@ -196,8 +196,7 @@ export async function readProviderProfiles(input: ProviderInput & { organization
       )
     seen.add(cursor)
     const page = await reader.users(cursor, signal)
-    count += page.count
-    if (count > PEOPLE_IMPORT_MAX_ROWS)
+    if (profiles.size + page.people.length > PEOPLE_IMPORT_MAX_ROWS)
       throw new OrchestrationError(
         'validation',
         'One-time imports support up to 10,000 people. Use Directory sync for a larger directory.'

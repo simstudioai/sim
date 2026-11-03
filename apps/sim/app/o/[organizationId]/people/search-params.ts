@@ -8,6 +8,7 @@ export const peopleParsers = {
   page: parseAsInteger.withDefault(1),
   search: parseAsString.withDefault(''),
   department: parseAsString.withDefault(''),
+  departmentKey: parseAsString.withDefault(''),
 } as const
 
 export const peopleUrlKeys = { history: 'replace', clearOnDefault: true } as const

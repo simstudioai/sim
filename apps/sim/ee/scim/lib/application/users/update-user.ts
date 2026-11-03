@@ -119,7 +119,7 @@ async function applyUserUpdate(
     active: next.active,
   })
 
-  await markScimPeopleChanged(tx, context.organizationId, next.active ? [] : [current.id])
+  await markScimPeopleChanged(tx, context.organizationId)
 
   const projection = await reconcileUserProjection(tx, {
     connectionId: context.connection.id,

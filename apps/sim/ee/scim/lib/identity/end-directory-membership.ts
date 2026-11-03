@@ -65,11 +65,7 @@ export async function endDirectoryMembershipTx(
     .set({ suspendedAt: null, suspensionSource: null, updatedAt: new Date() })
     .where(and(eq(user.id, params.userId), eq(user.suspensionSource, 'scim')))
 
-  await markScimPeopleChanged(
-    tx,
-    params.organizationId,
-    rows.map((row) => row.id)
-  )
+  await markScimPeopleChanged(tx, params.organizationId)
 
   return { removed: rows.length }
 }

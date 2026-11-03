@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
   configurePeopleSyncContract,
@@ -27,7 +28,12 @@ export function usePeopleSyncStatus(organizationId: string) {
     staleTime: SYNC_STATUS_STALE_TIME,
     refetchInterval: (query) => {
       const sync = query.state.data?.sync
-      if (!sync || query.state.error) return false
+      const error = query.state.error
+      if (error)
+        return isApiClientError(error) && [401, 403, 404].includes(error.status)
+          ? false
+          : IDLE_SYNC_POLL_MS
+      if (!sync) return false
       if (sync.retryAt) return IDLE_SYNC_POLL_MS
       return sync.state === 'syncing' || sync.state === 'queued'
         ? ACTIVE_SYNC_POLL_MS

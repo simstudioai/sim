@@ -36,6 +36,26 @@ describe('directory imports', () => {
     }
   )
 
+  it('imports enabled accounts when disabled Entra accounts span the one-time row limit', async () => {
+    fetchPage.mockImplementation(async (href) => {
+      const page = Number(new URL(href).searchParams.get('$skiptoken') || 0)
+      if (page === 51)
+        return jsonResponse({
+          value: [{ id: 'active', accountEnabled: true, mail: 'active@example.test' }],
+        })
+      return jsonResponse({
+        value: Array.from({ length: 200 }, (_, i) => ({
+          id: String(200 * page + i),
+          accountEnabled: false,
+        })),
+        '@odata.nextLink': `https://graph.microsoft.com/v1.0/USERS?$skiptoken=${page + 1}`,
+      })
+    })
+    await expect(readProviderProfiles(entra)).resolves.toMatchObject({
+      rows: [{ email: 'active@example.test' }],
+    })
+  })
+
   it('refuses an incomplete Okta pagination header instead of accepting a partial import', async () => {
     fetchPage.mockResolvedValueOnce(
       jsonResponse([], {

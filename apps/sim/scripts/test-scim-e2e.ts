@@ -534,9 +534,17 @@ async function run() {
               { name: 'better-auth.session_token', value: primary.cookie, url: baseUrl.origin },
             ])
           await page.goto(new URL(`/o/${primary.orgId}/people`, baseUrl).href)
+          const statusUrl = new URL(syncPath, baseUrl).href
+          await page.route(statusUrl, (route) =>
+            route.fulfill({ status: 503, json: { error: 'Unavailable' } })
+          )
           await page.getByRole('button', { name: 'Directory sync', exact: true }).click()
           const modal = page.getByRole('dialog', { name: 'Directory sync', exact: true })
-          await expect(modal.getByText('Sync failed', { exact: true })).toBeVisible()
+          await modal.getByRole('button', { name: 'Retry connection' }).waitFor()
+          await page.unroute(statusUrl)
+          await expect(modal.getByText('Sync failed', { exact: true })).toBeVisible({
+            timeout: 60_000,
+          })
           await expect(modal.getByText(/reporting loop/)).toBeVisible()
           await page.screenshot({ path: join(screenshotDir, 'sync-failure.png') })
           await modal.getByRole('button', { name: 'Retry sync' }).click()
@@ -588,18 +596,24 @@ async function run() {
         await sql`select id from scim_connection where organization_id = ${fixture.orgId}`
       const prefix = `${generateId()}-scim-`
       const size = 10_004
+      const longPrefix = `Team 49 ${'界'.repeat(2039)}`
+      const longA = `${longPrefix}A`
+      const longB = `${longPrefix}B`
+      const legacy = `Team 60 ${'x'.repeat(220)}`
+      const longName = `Person 00050 ${'界'.repeat(450)}`
       const managerEmail = `person${size}@${fixture.domain}`
       const directoryPath = `/api/organizations/${fixture.orgId}/people`
       try {
         await sql.begin(async (tx) => {
           await tx`insert into "user" (id, name, email, email_verified, created_at, updated_at)
-          select ${prefix}::text || n, 'Person ' || lpad(n::text, 5, '0'), 'person' || n || '@' || ${fixture.domain}::text, true, now(), now()
+          select ${prefix}::text || n, case when n=50 then ${longName} else 'Person ' || lpad(n::text, 5, '0') end, 'person' || n || '@' || ${fixture.domain}::text, true, now(), now()
           from generate_series(1, ${size}::integer) n`
           await tx`insert into scim_user (id, connection_id, user_id, user_name, active, attributes, order_key)
           select 'scim-' || ${prefix}::text || n, ${source.id}, ${prefix}::text || n, email, true,
             jsonb_build_object('active', true, 'userName', email, 'name', jsonb_build_object('formatted', name),
               'emails', jsonb_build_array(jsonb_build_object('value', email, 'primary', true)),
-              'enterprise', jsonb_build_object('department', 'Team ' || lpad((n % 71)::text,2,'0')) ||
+              'enterprise', jsonb_build_object('department', case n % 71 when 49 then ${longA} when 50 then ${longB}
+                when 60 then ${legacy} else 'Team ' || lpad((n % 71)::text,2,'0') end) ||
                 case when n = ${size} then '{}'::jsonb else jsonb_build_object('manager',
                   jsonb_build_object('value', 'scim-' || ${prefix}::text || ${size}::text)) end),
             lpad(n::text, 5, '0')
@@ -614,6 +628,11 @@ async function run() {
         assert.equal(record(result.body.sync).state, 'scheduled')
         const first = (await request(`${directoryPath}/departments`, { fixture })).body
         assert(Array.isArray(first.departments) && first.departments.length === 50)
+        assert.equal(record(first.departments.at(-1)).name, longB)
+        assert(
+          string(first.nextCursor).length < 512,
+          'A department page cursor must fit in a short URL'
+        )
         const second = (
           await request(
             `${directoryPath}/departments?cursor=${encodeURIComponent(string(first.nextCursor))}`,
@@ -626,6 +645,52 @@ async function run() {
         assert.equal(
           teams.reduce((sum, team) => sum + Number(team.count), 0),
           size
+        )
+        for (const label of [longA, longB]) {
+          const key = string(teams.find((team) => team.name === label)?.departmentKey)
+          assert(key.length <= 64)
+          const path = `${directoryPath}?departmentKey=${encodeURIComponent(key)}`
+          const selected = (await request(path, { fixture })).body
+          assert.equal(selected.selectedDepartment, label)
+          assert(Array.isArray(selected.people) && selected.people.length === 50)
+          assert(selected.people.every((person) => record(person).department === label))
+          const person = record(selected.people[0])
+          const profile = record(
+            (await request(`${directoryPath}/${person.memberId}`, { fixture })).body.person
+          )
+          assert.equal(
+            profile.departmentKey,
+            key,
+            'Profile and facet must link to the same department'
+          )
+          const empty = (await request(`${path}&search=does-not-exist`, { fixture })).body
+          assert.deepEqual(empty.people, [])
+          assert.equal(empty.selectedDepartment, label)
+          await request(
+            `${path}&cursor=${encodeURIComponent(string(selected.nextCursor))}&search=changed`,
+            { fixture, expected: 400 }
+          )
+        }
+        const legacyList = (
+          await request(`${directoryPath}?department=${encodeURIComponent(legacy)}`, { fixture })
+        ).body
+        assert(Array.isArray(legacyList.people) && legacyList.people.length === 50)
+        assert(legacyList.people.every((person) => record(person).department === legacy))
+        const byName = (await request(`${directoryPath}?search=person`, { fixture })).body
+        assert(Array.isArray(byName.people) && record(byName.people.at(-1)).name === longName)
+        assert(
+          string(byName.nextCursor).length < 512,
+          'A long name must not inflate a people cursor'
+        )
+        const nextNames = (
+          await request(
+            `${directoryPath}?search=person&cursor=${encodeURIComponent(string(byName.nextCursor))}`,
+            { fixture }
+          )
+        ).body
+        assert(
+          Array.isArray(nextNames.people) &&
+            record(nextNames.people[0]).email === `person51@${fixture.domain}`
         )
         const filtered = (
           await request(`${directoryPath}/departments?search=Team%2070`, { fixture })
@@ -645,6 +710,18 @@ async function run() {
         assert.equal(page.body.page, 2501)
         assert(Array.isArray(page.body.reports) && page.body.reports.length === 3)
         assert.equal(record(page.body.reports[2]).email, `person10003@${fixture.domain}`)
+
+        await sql`update scim_user set attributes=jsonb_set(attributes, '{enterprise,department}', to_jsonb(repeat('x',2049)))
+          where connection_id=${source.id} and user_id=${`${prefix}${size}`}`
+        const rejected = record(
+          (await request(`${directoryPath}/sync/run`, { method: 'POST', fixture })).body.sync
+        )
+        assert.equal(rejected.state, 'failed')
+        assert.match(string(rejected.lastError), /department exceeds 2048 characters/i)
+        const retained = record(
+          (await request(`${directoryPath}/${managerId}`, { fixture })).body.person
+        )
+        assert.equal(retained.department, `Team ${String(size % 71).padStart(2, '0')}`)
       } finally {
         await sql`delete from people_directory_sync where organization_id = ${fixture.orgId}`
         await sql`delete from "user" where id like ${`${prefix}%`}`
@@ -1642,6 +1719,102 @@ async function run() {
         (await sql`select user_id from scim_user where id = ${string(rehired.id)}`)[0]?.user_id,
         bobUserId
       )
+    }
+  )
+
+  await check(
+    'SCIM writes commit while a People publication waits and the next tick includes them',
+    async () => {
+      const fixture = await seedFixture()
+      const { secret } = await configure(fixture)
+      const create = (name: string) =>
+        scim(secret, '/Users', {
+          method: 'POST',
+          expected: 201,
+          body: { schemas: [USER_SCHEMA], userName: `${name}@${fixture.domain}`, active: true },
+        })
+      const anchor = string((await create('held')).body.id)
+      const retiring = string((await create('retiring')).body.id)
+      const people = `/api/organizations/${fixture.orgId}/people`
+      const syncPath = `${people}/sync`
+      const initial = await request(syncPath, {
+        method: 'PUT',
+        fixture,
+        contentType: 'application/json',
+        body: { source: 'scim' },
+      })
+      assert.equal(record(initial.body.sync).state, 'scheduled')
+      const [retired] =
+        await sql`select id from people_directory_entry where organization_id=${fixture.orgId} and external_id=${retiring}`
+      assert(retired, 'Expected a previously published SCIM profile')
+      await patch(secret, `/Users/${anchor}`, [
+        { op: 'replace', path: 'title', value: 'Updated title' },
+      ])
+
+      let publication: ReturnType<typeof request> | undefined
+      let writes: Promise<void> | undefined
+      let createdId = ''
+      try {
+        await sql.begin(async (tx) => {
+          const [held] = await tx`select pg_backend_pid() as pid from people_directory_entry
+          where organization_id=${fixture.orgId} and external_id=${anchor} for update`
+          assert(held)
+          publication = request(`${syncPath}/run`, { method: 'POST', fixture })
+          void publication.catch(() => {})
+          let publisher: number | undefined
+          const deadline = performance.now() + 15_000
+          while (publisher === undefined) {
+            const [waiting] = await sql<{ pid: number }[]>`select pid from pg_stat_activity
+            where ${held.pid} = any(pg_blocking_pids(pid)) and query ilike '%insert into%people_directory_entry%'`
+            if (waiting) publisher = waiting.pid
+            else {
+              assert(
+                performance.now() < deadline,
+                'The People publish must reach the held profile row'
+              )
+              await sleep(20)
+            }
+          }
+
+          writes = (async () => {
+            createdId = string((await create('during-publish')).body.id)
+            await scim(secret, `/Users/${retiring}`, { method: 'DELETE', expected: 204 })
+            await request(`${people}/${retired.id}`, { fixture, expected: 404 })
+          })()
+          let settled = false
+          void writes.then(
+            () => {
+              settled = true
+            },
+            () => {
+              settled = true
+            }
+          )
+          const writeDeadline = performance.now() + 15_000
+          while (!settled) {
+            const [blocked] = await sql`select pid from pg_stat_activity
+            where ${publisher} = any(pg_blocking_pids(pid)) and query ilike '%update%people_directory_sync%next_sync_at%'`
+            assert(!blocked, 'A SCIM write must not wait behind the People publisher')
+            assert(
+              performance.now() < writeDeadline,
+              'SCIM writes must finish before the held People profile is released'
+            )
+            await sleep(20)
+          }
+          await writes
+        })
+      } finally {
+        await Promise.allSettled([publication, writes])
+      }
+      await publication
+      await request(`${people}/${retired.id}`, { fixture, expected: 404 })
+      assert.equal(record((await request(syncPath, { fixture })).body.sync).state, 'queued')
+      await request('/api/cron/people-directory-sync', {
+        token: requiredEnvironment('CRON_SECRET'),
+      })
+      const active =
+        await sql`select external_id from people_directory_entry where organization_id=${fixture.orgId}`
+      assert.deepEqual(active.map((row) => row.external_id).sort(), [anchor, createdId].sort())
     }
   )
 

@@ -1,5 +1,6 @@
 import { listDepartmentsContract } from '@/lib/api/contracts/people'
 import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
+import { departmentFilterKey } from '@/lib/api/server/people-presenters'
 import {
   defineInternalJsonRoute,
   internalOrchestrationErrorPolicy,
@@ -7,7 +8,9 @@ import {
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { listDepartments } from '@/lib/people/application/use-cases'
-import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
+import { cursorSortKey, decodeOffsetCursor, encodeOffsetCursor } from '@/app/api/v2/lib/response'
+
+const SORT = cursorSortKey('department', 'asc')
 
 function scope(id: string, search?: string) {
   return cursorScopeKey(cursorRoute(listDepartmentsContract, { id }), { search })
@@ -24,15 +27,16 @@ export const GET = defineInternalJsonRoute({
   mapInput: ({ params, query }) => ({
     organizationId: params.id,
     search: query.search,
-    cursorKeys: readSortedCursor(query.cursor, 'department', 'asc', scope(params.id, query.search)),
+    offset: decodeOffsetCursor(query.cursor, SORT, scope(params.id, query.search)),
   }),
-  present: ({ data, nextCursorKeys }, { input }) => ({
-    departments: data,
-    nextCursor: writeSortedCursor(
-      nextCursorKeys,
-      'department',
-      'asc',
-      scope(input.organizationId, input.search)
-    ),
+  present: ({ data, nextOffset }, { input }) => ({
+    departments: data.map((department) => ({
+      ...department,
+      departmentKey: departmentFilterKey(department.name),
+    })),
+    nextCursor:
+      nextOffset === null
+        ? null
+        : encodeOffsetCursor(SORT, scope(input.organizationId, input.search), nextOffset),
   }),
 })

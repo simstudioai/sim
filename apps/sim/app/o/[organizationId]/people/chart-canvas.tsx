@@ -1,7 +1,7 @@
 'use client'
 
 import { type MouseEvent, useMemo } from 'react'
-import { Avatar, cn, Tooltip } from '@sim/emcn'
+import { Avatar, cn, OverflowText, Tooltip } from '@sim/emcn'
 import { ArrowUpRight, ChevronRight, Minus, Plus } from '@sim/emcn/icons'
 import {
   BLOCK_DIMENSIONS,
@@ -68,24 +68,19 @@ function PersonCard({ data }: NodeProps<CardNode>) {
       <span className='relative flex flex-1 items-center gap-2.5 px-3'>
         <Avatar size='md' name={person.name} src={person.image} aria-hidden />
         <span className={cn('flex min-w-0 flex-col gap-0.5', !focused && 'pr-5')}>
-          <span
-            className='truncate font-medium text-[var(--text-primary)] text-base'
-            title={person.name}
-          >
-            {person.name}
-          </span>
-          <span
-            className='truncate text-[var(--text-secondary)] text-small'
-            title={person.title || person.email}
-          >
-            {person.title || person.email}
-          </span>
+          <OverflowText
+            label={person.name}
+            focusTarget='nearest-interactive'
+            className='font-medium text-[var(--text-primary)] text-base'
+          />
+          <OverflowText
+            label={person.title || person.email}
+            className='text-[var(--text-secondary)] text-small'
+          />
         </span>
       </span>
       <span className='relative mx-3 flex h-8 min-w-0 shrink-0 items-center justify-between gap-2 border-[var(--border)] border-t text-[var(--text-secondary)] text-caption'>
-        <span className='min-w-0 truncate' title={focused ? (department ?? undefined) : undefined}>
-          {focused ? department || relation : relation}
-        </span>
+        <OverflowText label={focused ? department || relation : relation} />
         <span className='flex shrink-0 items-center gap-1 text-[var(--text-body)]'>
           {focused ? (
             <>

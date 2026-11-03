@@ -167,13 +167,14 @@ export function Person({ organizationId, memberId }: PersonProps) {
               <SettingsField label='Department'>
                 {data.person.department ? (
                   <Link
-                    className='text-[var(--text-body)] text-sm hover:underline'
+                    className='break-all text-[var(--text-body)] text-sm hover:underline'
                     href={serializePeopleView(routes.people, {
                       ...origin,
                       view: 'directory',
                       search: '',
                       panel: null,
-                      department: data.person.department,
+                      department: data.person.departmentKey ? null : data.person.department,
+                      departmentKey: data.person.departmentKey ?? null,
                     })}
                   >
                     {data.person.department}

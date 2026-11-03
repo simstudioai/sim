@@ -24,7 +24,7 @@ export const peopleSyncConfigSchema = z.discriminatedUnion('source', [
       source: z.literal('entra'),
       tenantId: z.guid({ error: 'Enter a valid directory (tenant) ID.' }),
       clientId: z.guid({ error: 'Enter a valid application (client) ID.' }),
-      clientSecret: z.string().min(1).max(8192),
+      clientSecret: z.string().trim().min(1).max(8192),
     })
     .strict(),
   z.object({ source: z.literal('scim') }).strict(),

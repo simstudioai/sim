@@ -9,12 +9,19 @@ import {
 const MAX_PAGE_BYTES = 2 * 1024 * 1024
 export const MAX_NEXT_LINK_LENGTH = 8192
 
+function collectionPath(url: URL) {
+  if (url.origin !== 'https://graph.microsoft.com') return url.pathname
+  return url.pathname
+    .replace(/^\/v1\.0\/users(?=\/|$)/i, '/v1.0/users')
+    .replace(/\/directreports$/i, '/directReports')
+}
+
 export function checkedDirectoryNextLink(href: string, endpoint: URL): URL {
   const url = href.length <= MAX_NEXT_LINK_LENGTH && URL.canParse(href) ? new URL(href) : null
   if (
     !url ||
     url.origin !== endpoint.origin ||
-    url.pathname !== endpoint.pathname ||
+    collectionPath(url) !== collectionPath(endpoint) ||
     url.username ||
     url.password ||
     url.hash
@@ -105,7 +112,7 @@ export async function readDirectoryResponse(
     }
     throw new OrchestrationError(
       'validation',
-      'The directory request exceeded the permitted network or response limits.'
+      'Could not read the directory. Check the directory address, network access, and response size.'
     )
   })
   if (response.status !== 200) await response.body?.cancel().catch(() => undefined)

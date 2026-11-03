@@ -1,9 +1,9 @@
 import { db } from '@sim/db'
-import { peopleDirectorySync as sync } from '@sim/db/schema'
+import { peopleDirectoryScimChange as change, peopleDirectorySync as sync } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
-import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import type { DbTransaction } from '@/lib/db/types'
@@ -11,6 +11,7 @@ import { requirePeopleEnabled } from '@/lib/people/feature-flag'
 import { lockProfiles } from '@/lib/people/repository'
 import { publishStagedSnapshot } from '@/lib/people/sync/projection'
 import { DirectoryRetryError } from '@/lib/people/sync/provider-request'
+import { pendingScimChange } from '@/lib/people/sync/scim-changes'
 import { openDirectoryReader } from '@/lib/people/sync/snapshot'
 import {
   discardStage,
@@ -40,6 +41,7 @@ export const CLEARED_RUN = {
 } as const
 const RELEASED = { leaseToken: null, leaseExpiresAt: null } as const
 const available = (at: Date) => or(isNull(sync.leaseToken), lte(sync.leaseExpiresAt, at))
+const due = (at: Date) => or(lte(sync.nextSyncAt, at), isNotNull(pendingScimChange))
 type Connection = typeof sync.$inferSelect
 type Worker = StageRun & { token: string }
 const checkpointColumns = {
@@ -179,7 +181,7 @@ async function checkpointReports(worker: Worker, reader: DirectoryReader) {
   return applied && !delays.length
 }
 
-/** A SCIM source is local. Its copy, validation, and publication run under the same lock as the sync watermark. */
+/** A local SCIM generation captures, validates, and publishes atomically. New provisioning changes have their own marker. */
 async function runScim(worker: Worker) {
   await checkpoint(worker, 'publish', async (tx, row) => {
     await discardStage(tx, row.organizationId)
@@ -245,12 +247,12 @@ function claim(organizationId: string, trigger: keyof typeof SLICES, token: stri
         and(
           eq(sync.organizationId, organizationId),
           available(now),
-          trigger === 'manual'
-            ? or(eq(sync.retryCount, 0), lte(sync.nextSyncAt, now))
-            : lte(sync.nextSyncAt, now)
+          trigger === 'manual' ? or(eq(sync.retryCount, 0), due(now)) : due(now)
         )
       )
       .returning()
+    if (claimed?.source === 'scim')
+      await tx.delete(change).where(eq(change.organizationId, organizationId))
     if (!claimed?.runStartedAt || claimed.runStartedAt.getTime() + RUN_LIFETIME_MS > now.getTime())
       return claimed
     await discardStage(tx, organizationId)
@@ -324,15 +326,22 @@ export async function syncDueDirectories() {
   const deadline = Date.now() + 90_000
   let attempted = 0
   const now = new Date()
-  const due = await db
-    .select({ organizationId: sync.organizationId })
-    .from(sync)
-    .where(and(available(now), lte(sync.nextSyncAt, now)))
-    .orderBy(sync.nextSyncAt, sync.organizationId)
-    .limit(50)
-  for (let i = 0; i < due.length && Date.now() < deadline; i += 2) {
+  const connections = await db.execute<{ organizationId: string }>(sql`
+    WITH candidates AS (
+      (SELECT ${sync.organizationId} AS organization_id, ${sync.nextSyncAt} AS due_at FROM ${sync}
+       WHERE ${and(available(now), lte(sync.nextSyncAt, now))}
+       ORDER BY ${sync.nextSyncAt}, ${sync.organizationId} LIMIT 50)
+      UNION ALL
+      (SELECT ${change.organizationId}, ${change.changedAt} FROM ${change}
+       JOIN ${sync} ON ${sync.organizationId}=${change.organizationId} AND ${sync.source}='scim'
+       WHERE ${available(now)} ORDER BY ${change.changedAt}, ${change.organizationId} LIMIT 50)
+    )
+    SELECT organization_id AS "organizationId" FROM candidates
+    GROUP BY organization_id ORDER BY min(due_at), organization_id LIMIT 50
+  `)
+  for (let i = 0; i < connections.length && Date.now() < deadline; i += 2) {
     const batch = await Promise.all(
-      due.slice(i, i + 2).map((row) => runDirectorySync(row.organizationId, 'cron'))
+      connections.slice(i, i + 2).map((row) => runDirectorySync(row.organizationId, 'cron'))
     )
     attempted += batch.filter(Boolean).length
   }

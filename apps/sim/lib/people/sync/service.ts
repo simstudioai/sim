@@ -1,5 +1,9 @@
 import { db } from '@sim/db'
-import { scimConnection, peopleDirectorySync as sync } from '@sim/db/schema'
+import {
+  peopleDirectoryScimChange as change,
+  scimConnection,
+  peopleDirectorySync as sync,
+} from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import type { PeopleSyncConfig, PeopleSyncStatus } from '@/lib/api/contracts/people-sync'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -7,11 +11,13 @@ import { encryptSecret } from '@/lib/core/security/encryption'
 import { oktaDirectoryHost } from '@/lib/people/provider-import'
 import { lockProfiles } from '@/lib/people/repository'
 import { CLEARED_RUN, runDirectorySync } from '@/lib/people/sync/runner'
+import { pendingScimChange } from '@/lib/people/sync/scim-changes'
 import { discardStage } from '@/lib/people/sync/stage'
 import { isScimEntitledForOrganization } from '@/ee/scim/lib/entitlement'
 
 const statusColumns = {
   source: sync.source,
+  changedAt: pendingScimChange,
   sourceTarget: sync.sourceTarget,
   clientId: sync.clientId,
   lastAttemptAt: sync.lastAttemptAt,
@@ -32,6 +38,8 @@ export async function getDirectorySync(organizationId: string): Promise<PeopleSy
     .where(eq(sync.organizationId, organizationId))
   if (!row) return null
   const now = Date.now()
+  const nextSyncAt =
+    row.changedAt && row.changedAt < row.nextSyncAt ? row.changedAt : row.nextSyncAt
   const running = row.leaseExpiresAt && row.leaseExpiresAt.getTime() > now
   return {
     source: row.source,
@@ -43,17 +51,19 @@ export async function getDirectorySync(organizationId: string): Promise<PeopleSy
       ? 'syncing'
       : row.lastError
         ? 'failed'
-        : row.phase || row.nextSyncAt.getTime() <= now
+        : row.phase || row.changedAt || row.nextSyncAt.getTime() <= now
           ? 'queued'
           : 'scheduled',
     progress: row.phase ? { phase: row.phase, usersRead: row.usersRead } : null,
     retryAt:
-      row.retryCount > 0 && row.nextSyncAt.getTime() > now ? row.nextSyncAt.toISOString() : null,
+      !row.changedAt && row.retryCount > 0 && nextSyncAt.getTime() > now
+        ? nextSyncAt.toISOString()
+        : null,
     lastAttemptAt: row.lastAttemptAt?.toISOString() ?? null,
     lastSuccessAt: row.lastSuccessAt?.toISOString() ?? null,
     lastFailedAt: row.lastFailedAt?.toISOString() ?? null,
     lastError: row.lastError,
-    nextSyncAt: row.nextSyncAt.toISOString(),
+    nextSyncAt: nextSyncAt.toISOString(),
   }
 }
 
@@ -147,6 +157,7 @@ export async function disconnectDirectorySync(organizationId: string) {
   await db.transaction(async (tx) => {
     await lockProfiles(tx, organizationId)
     await tx.delete(sync).where(eq(sync.organizationId, organizationId))
+    await tx.delete(change).where(eq(change.organizationId, organizationId))
   })
 }
 

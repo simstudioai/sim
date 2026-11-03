@@ -467,8 +467,9 @@ async function run() {
   const teamOrg = await seedOrganization()
   const lead = await seedMember(teamOrg, 'owner', 'Maya Chen')
   const teammates: Member[] = []
+  const longTitle = 'Staff Engineer for Infrastructure Reliability and Developer Experience'
   const roster = [
-    ['Amara Cole', 'Staff Engineer'],
+    ['Amara Cole', longTitle],
     ['Ben Ortega', 'Design Lead'],
     ['Elena Park', 'Product Manager'],
     ['Felix Ward', 'Platform Lead'],
@@ -569,6 +570,14 @@ async function run() {
           page.getByRole('link', { name: `View profile for ${name}` })
         await expect(focused('Maya Chen')).toBeVisible({ timeout: 120_000 })
         await expect(page.getByRole('button', { name: 'Explore Felix Ward' })).toBeVisible()
+        const longTitleLabel = page
+          .getByRole('button', { name: 'Explore Amara Cole' })
+          .getByText(longTitle, { exact: true })
+        await longTitleLabel.hover()
+        await expect(
+          page.locator('[data-native-surface-overlay]').filter({ hasText: longTitle })
+        ).toBeVisible()
+        await page.mouse.move(0, 0)
         await page.screenshot({ path: join(screenshotDir, 'desktop.png') })
         const card = focused('Maya Chen')
         const cardWidth = await card.evaluate((node) => node.getBoundingClientRect().width)
@@ -696,6 +705,20 @@ async function run() {
           )
           await mobile.getByRole('button', { name: 'Previous reports' }).tap()
         }
+        await mobile.getByRole('button', { name: 'Explore Amara Cole' }).tap()
+        await mobile.getByRole('button', { name: 'Explore June Evans' }).tap()
+        const trail = mobile.getByRole('navigation', { name: 'Reporting path' })
+        const heading = trail.getByRole('heading', { name: 'June Evans' })
+        await heading.scrollIntoViewIfNeeded()
+        await expect(heading).toBeInViewport()
+        const manager = trail.getByRole('button', { name: 'Maya Chen' })
+        await manager.scrollIntoViewIfNeeded()
+        await expect(manager).toBeInViewport()
+        await manager.tap()
+        await expect(mobile.getByRole('link', { name: 'View profile for Maya Chen' })).toBeVisible()
+        assert(
+          await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+        )
       } finally {
         await browser.close()
       }

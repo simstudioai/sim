@@ -35,6 +35,7 @@ import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 
 /** The filter's value for every department: stored text can't hold a NUL, so no department is this. */
+const KEY_PREFIX = '\u0000key:'
 const ALL_DEPARTMENTS = '\u0000all'
 
 function personCell(person: PersonSummary) {
@@ -51,13 +52,13 @@ interface PeopleProps {
 export function PeopleDirectory({ organizationId }: PeopleProps) {
   const router = useRouter()
   const [origin, setView] = useQueryStates(peopleParsers, peopleUrlKeys)
-  const { search, department } = origin
+  const { search, department, departmentKey } = origin
   const setSearch = useDebouncedSearchSetter((value, options) =>
     setView({ view: 'directory', search: value }, options)
   )
   const debouncedSearch = useSearchFilterValue(search, SEARCH_DEBOUNCE_MS)
   const query = debouncedSearch.trim()
-  const people = usePeople(organizationId, query, department)
+  const people = usePeople(organizationId, query, department, { departmentKey })
   const profileQuery = serializePeopleView({ ...origin, view: 'directory', panel: null })
   const profileHref = useCallback(
     (memberId: string) => `${organizationRoutes(organizationId).person(memberId)}${profileQuery}`,
@@ -67,7 +68,12 @@ export function PeopleDirectory({ organizationId }: PeopleProps) {
   const [departmentSearch, setDepartmentSearch] = useState('')
   const [departmentsOpen, setDepartmentsOpen] = useState(false)
   const departmentTerm = useSearchFilterValue(departmentSearch, SEARCH_DEBOUNCE_MS).trim()
-  const departments = useDepartments(organizationId, departmentTerm, departmentsOpen)
+  const searchTooLong = departmentSearch.trim().length > 200
+  const departments = useDepartments(
+    organizationId,
+    departmentTerm,
+    departmentsOpen && !searchTooLong && departmentTerm.length <= 200
+  )
   const departmentWaiting = departmentSearch.trim() !== departmentTerm
   const changingFilter = people.isPlaceholderData || query !== search.trim()
 
@@ -109,9 +115,24 @@ export function PeopleDirectory({ organizationId }: PeopleProps) {
     onClearAll: () => setSearch(''),
     placeholder: PEOPLE_SEARCH_PLACEHOLDER,
   }
-  const setDepartment = (value: string) => void setView({ view: 'directory', department: value })
-  const filterTags: FilterTag[] = department
-    ? [{ label: `Department: ${department}`, onRemove: () => setDepartment('') }]
+  const setDepartment = (value: string) => {
+    const keyed = value.startsWith(KEY_PREFIX)
+    void setView({
+      view: 'directory',
+      department: keyed ? null : value,
+      departmentKey: keyed ? value.slice(KEY_PREFIX.length) : null,
+    })
+  }
+  const hasDepartment = Boolean(departmentKey || department)
+  const selectedValue = departmentKey
+    ? `${KEY_PREFIX}${departmentKey}`
+    : department || ALL_DEPARTMENTS
+  const departmentLabel = departmentKey
+    ? (!people.isPlaceholderData && people.data?.pages[0]?.selectedDepartment) ||
+      'Selected department'
+    : department
+  const filterTags: FilterTag[] = hasDepartment
+    ? [{ label: `Department: ${departmentLabel}`, onRemove: () => setDepartment('') }]
     : []
 
   return (
@@ -119,38 +140,43 @@ export function PeopleDirectory({ organizationId }: PeopleProps) {
       <Resource.Options
         search={searchConfig}
         filter={{
-          active: Boolean(department),
+          active: hasDepartment,
           content: (
             <ResourceFilterPanel>
               <ResourceFilterSection label='Department'>
                 <ChipCombobox
                   options={[
                     { value: ALL_DEPARTMENTS, label: 'All' },
-                    ...(departmentWaiting
+                    ...(departmentWaiting || searchTooLong
                       ? []
                       : (departments.data?.pages.flatMap((page) => page.departments) ?? [])
-                    ).map(({ name, count }) => ({
-                      value: name,
+                    ).map(({ name, count, departmentKey: key }) => ({
+                      value: key ? `${KEY_PREFIX}${key}` : name,
                       label: `${name} (${count})`,
                     })),
                   ]}
-                  value={department || ALL_DEPARTMENTS}
+                  value={selectedValue}
                   onChange={(value) => setDepartment(value === ALL_DEPARTMENTS ? '' : value)}
-                  overlayContent={department || 'All'}
+                  overlayContent={departmentLabel || 'All'}
+                  overlayLabel={departmentLabel || 'All'}
                   searchable
                   searchMode='server'
                   onSearchChange={setDepartmentSearch}
                   onOpenChange={setDepartmentsOpen}
-                  hasMore={!departmentWaiting && departments.hasNextPage}
+                  hasMore={!searchTooLong && !departmentWaiting && departments.hasNextPage}
                   onLoadMore={() => void departments.fetchNextPage()}
                   isLoadingMore={departments.isFetchingNextPage}
-                  isLoading={departmentWaiting || departments.isPending}
-                  error={departments.error?.message}
+                  isLoading={!searchTooLong && (departmentWaiting || departments.isPending)}
+                  error={
+                    searchTooLong
+                      ? 'Search using up to 200 characters from the department name.'
+                      : departments.error?.message
+                  }
                   searchPlaceholder='Search departments...'
                   emptyMessage='No departments match'
                   className='w-full'
                 />
-                {departments.isError && (
+                {!searchTooLong && departments.isError && (
                   <Chip
                     disabled={departments.isFetching}
                     onClick={() => void departments.refetch()}
@@ -165,6 +191,7 @@ export function PeopleDirectory({ organizationId }: PeopleProps) {
         filterTags={filterTags}
       />
       <Resource.Table
+        virtualized
         columns={PEOPLE_COLUMNS}
         rows={rows}
         onRowClick={(memberId) => router.push(profileHref(memberId))}
@@ -181,19 +208,23 @@ export function PeopleDirectory({ organizationId }: PeopleProps) {
               message={people.error.message}
               onRetry={() => void people.refetch()}
             />
-          ) : !query && !department ? (
+          ) : !query && !hasDepartment ? (
             <EmptyState
               title='No people to show'
               description='Organization members and people from a connected directory appear here.'
             />
           ) : (
-            <ResourceNoResults
-              search={query}
-              filterCount={department ? 1 : 0}
-              searchScope='Searched everyone in your organization.'
-              filterScope={`No people match the ${department} department.`}
-              onClear={() => void setView({ view: 'directory', search: '', department: '' })}
-            />
+            <div className='flex min-h-0 flex-1 flex-col [overflow-wrap:anywhere]'>
+              <ResourceNoResults
+                search={query}
+                filterCount={hasDepartment ? 1 : 0}
+                searchScope='Searched everyone in your organization.'
+                filterScope='No people match the selected department.'
+                onClear={() =>
+                  void setView({ view: 'directory', search: '', department: '', departmentKey: '' })
+                }
+              />
+            </div>
           )
         }
       />

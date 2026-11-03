@@ -5,13 +5,14 @@ import {
   defineRouteContract,
 } from '@/lib/api/contracts'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
-import { memberProfileFieldsSchema } from '@/lib/people/validation'
+import { DIRECTORY_TEXT_MAX_LENGTH, memberProfileFieldsSchema } from '@/lib/people/validation'
 
 /** Rows one import may carry; larger organizations import in several files. */
 export const PEOPLE_IMPORT_MAX_ROWS = 10_000
 export const PEOPLE_IMPORT_MAX_COLUMNS = 100
 
 const params = z.object({ id: organizationIdSchema })
+const departmentKey = z.string().regex(/^[0-9a-f]{64}$/)
 const personParams = params.extend({ memberId: z.string().min(1).max(255) })
 
 const personSummarySchema = z.object({
@@ -27,6 +28,7 @@ export type PersonSummary = z.output<typeof personSummarySchema>
 
 const personSchema = personSummarySchema.extend({
   department: z.string().nullable(),
+  departmentKey: departmentKey.optional(),
   location: z.string().nullable(),
   /** `YYYY-MM-DD`. */
   startDate: z.string().nullable(),
@@ -47,12 +49,17 @@ export const listPeopleContract = defineRouteContract({
   query: z.object({
     scope: z.enum(['roots', 'members']).optional(),
     search: z.string().max(200).optional(),
-    department: z.string().max(200).optional(),
+    department: z.string().max(DIRECTORY_TEXT_MAX_LENGTH).optional(),
+    departmentKey: departmentKey.optional(),
     cursor: z.string().min(1).max(1024).optional(),
   }),
   response: {
     mode: 'json',
-    schema: z.object({ people: z.array(personSchema), nextCursor: z.string().nullable() }),
+    schema: z.object({
+      people: z.array(personSchema),
+      selectedDepartment: z.string().nullable(),
+      nextCursor: z.string().nullable(),
+    }),
   },
 })
 
@@ -68,7 +75,13 @@ export const listDepartmentsContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       /** Largest first. */
-      departments: z.array(z.object({ name: z.string(), count: z.number().int() })),
+      departments: z.array(
+        z.object({
+          name: z.string(),
+          count: z.number().int(),
+          departmentKey: departmentKey.optional(),
+        })
+      ),
       nextCursor: z.string().nullable(),
     }),
   },

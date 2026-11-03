@@ -50,6 +50,7 @@ export const listPeople = defineAuthorizedOrganizationUseCase({
     OrganizationInput & {
       search?: string
       department?: string
+      departmentKey?: string
       scope?: 'roots' | 'members'
       cursorKeys?: CursorKey[]
     }
@@ -91,9 +92,8 @@ export const listDepartments = defineAuthorizedOrganizationUseCase({
   authorizeResource: authorizeDirectory,
   execute: ({
     input,
-  }: OrganizationUseCaseContext<
-    OrganizationInput & { search?: string; cursorKeys?: CursorKey[] }
-  >) => repository.listDepartments(input.organizationId, input),
+  }: OrganizationUseCaseContext<OrganizationInput & { search?: string; offset?: number }>) =>
+    repository.listDepartments(input.organizationId, input),
 })
 
 /**

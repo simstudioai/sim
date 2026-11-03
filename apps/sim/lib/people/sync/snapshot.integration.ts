@@ -14,13 +14,16 @@ import {
   inputValidationMockFns,
 } from '@sim/testing/mocks/input-validation.mock'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest'
 import { getChartBranch, getPerson } from '@/lib/people/repository'
 import { DirectoryRetryError } from '@/lib/people/sync/provider-request'
+import { runDirectorySync } from '@/lib/people/sync/runner'
+import { markScimPeopleChanged } from '@/lib/people/sync/scim-changes'
 import {
   configureDirectorySync,
   disconnectDirectorySync,
+  getDirectorySync,
   requestDirectorySync,
 } from '@/lib/people/sync/service'
 import { openDirectoryReader } from '@/lib/people/sync/snapshot'
@@ -215,10 +218,10 @@ it.each([
 )
 
 it('lets successful Graph siblings checkpoint while a throttled manager retries its own cursor', async () => {
-  const lead = generateId()
+  const lead = 'DirectoryManagerCase'
   const second = generateId()
   const worker = generateId()
-  const next = `https://graph.microsoft.com/v1.0/users/${lead}/directReports?$skiptoken=next`
+  const next = `https://graph.microsoft.com/v1.0/Users/${lead}/directreports?$skiptoken=next`
   fetchPage
     .mockResolvedValueOnce(jsonResponse({ access_token: 'access', token_type: 'Bearer' }))
     .mockResolvedValueOnce(
@@ -240,6 +243,9 @@ it('lets successful Graph siblings checkpoint while a throttled manager retries 
     { managerId: second, retryAfterMs: 7_200_000 },
   ])
   await expect(reader.reports([{ managerId: second, cursor: next }])).rejects.toThrow(/pagination/)
+  await expect(reader.reports([{ managerId: lead.toLowerCase(), cursor: next }])).rejects.toThrow(
+    /pagination/
+  )
   expect(fetchPage).toHaveBeenCalledTimes(2)
 })
 
@@ -437,4 +443,33 @@ it('projects SCIM resource IDs and preferred names even when the linked account 
     name: 'SCIM formatted report',
     manager: { memberId: lead.id },
   })
+
+  const locked = createDeferred<void>()
+  const release = createDeferred<void>()
+  const publisher = db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT 1 FROM people_directory_sync WHERE organization_id=${organizationId} FOR UPDATE`
+    )
+    await tx.execute(sql`SELECT 1 FROM people_directory_entry WHERE id=${report.id} FOR UPDATE`)
+    locked.resolve()
+    await release.promise
+  })
+  try {
+    await locked.promise
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`SET LOCAL lock_timeout='500ms'`)
+      await tx.delete(scimUser).where(eq(scimUser.id, worker.id))
+      await markScimPeopleChanged(tx, organizationId)
+    })
+    expect(await getPerson(db, organizationId, report.id)).toBeNull()
+  } finally {
+    release.resolve()
+    await publisher
+  }
+  const due = await getDirectorySync(organizationId)
+  expect(due).toMatchObject({ state: 'failed', lastError: ambiguous.lastError })
+  expect(new Date(due?.nextSyncAt ?? '').getTime()).toBeLessThanOrEqual(Date.now())
+  expect(await runDirectorySync(organizationId, 'cron')).toBe(true)
+  expect(await getDirectorySync(organizationId)).toMatchObject({ state: 'scheduled' })
+  expect((await publishedDirectory()).some((entry) => entry.id === report.id)).toBe(false)
 })

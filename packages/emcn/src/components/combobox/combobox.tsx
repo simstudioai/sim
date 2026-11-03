@@ -139,8 +139,8 @@ export interface ComboboxProps
    * This is the `searchable` search box only. In `editable` mode the typed text
    * arrives via `onChange`, not here.
    *
-   * Client-side filtering of `options` is unaffected — this is an additional
-   * signal for consumers that also resolve matches server-side.
+   * In local mode the combobox filters the options. In server mode the consumer
+   * supplies matches for the current search.
    */
   onSearchChange?: (query: string) => void
   /** Placeholder for search input */

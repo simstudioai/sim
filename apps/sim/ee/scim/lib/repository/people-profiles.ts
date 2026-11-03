@@ -11,7 +11,7 @@ import { z } from 'zod'
 import { PEOPLE_IMPORT_MAX_ROWS } from '@/lib/api/contracts/people'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
-import { PROFILE_TEXT_MAX_LENGTH } from '@/lib/people/validation'
+import { DIRECTORY_TEXT_MAX_LENGTH, PROFILE_TEXT_MAX_LENGTH } from '@/lib/people/validation'
 import { isScimEntitledForOrganization } from '@/ee/scim/lib/entitlement'
 
 /** One character beyond a valid SCIM resource ID keeps oversized PATCH values unresolved. */
@@ -43,7 +43,7 @@ function projectedPeople(
       where lower(entry.key)='title' and jsonb_typeof(entry.value)='string' order by entry.key limit 1)`,
       department: sql<
         string | null
-      >`left(trim(${scimUser.attributes} #>> '{enterprise,department}'),${max})`,
+      >`left(trim(${scimUser.attributes} #>> '{enterprise,department}'),${memberOnly ? max : DIRECTORY_TEXT_MAX_LENGTH + 1})`,
       manager: sql<
         string | null
       >`left(${scimUser.attributes} #>> '{enterprise,manager,value}',${UNRESOLVED_MANAGER_LENGTH})`,
@@ -105,7 +105,7 @@ export async function readProvisionedProfiles(
   }
 }
 
-/** Stage one database snapshot under the sync row lock. A concurrent SCIM write queues another pass after this transaction commits. */
+/** Stage one database snapshot. A concurrent provisioning change independently marks a subsequent pass due. */
 export async function stageScimDirectory(
   tx: DbTransaction,
   organizationId: string,
@@ -118,7 +118,12 @@ export async function stageScimDirectory(
       'Directory provisioning is unavailable for this organization.'
     )
   const source = projectedPeople(tx, organizationId, sql`(select id from connected)`, false)
-  const [result] = await tx.execute<{ connected: boolean; complete: boolean; total: string }>(sql`
+  const [result] = await tx.execute<{
+    connected: boolean
+    complete: boolean
+    oversized: boolean
+    total: string
+  }>(sql`
     WITH connected AS (
       SELECT ${scimConnection.id} FROM ${scimConnection}
       WHERE ${scimConnection.organizationId}=${organizationId} AND ${scimConnection.id}=${expectedConnectionId} AND ${scimConnection.status}='active'
@@ -130,12 +135,18 @@ export async function stageScimDirectory(
       FROM source WHERE char_length(external_id) BETWEEN 1 AND 512 AND char_length(email) <= 320 AND email ~ ${z.regexes.email.source}
       ON CONFLICT DO NOTHING RETURNING 1
     ), counts AS (SELECT (SELECT count(*) FROM source) AS expected,(SELECT count(*) FROM staged) AS actual)
-    SELECT EXISTS(SELECT 1 FROM connected) AS connected, expected=actual AS complete, actual::text AS total FROM counts
+    SELECT EXISTS(SELECT 1 FROM connected) AS connected, expected=actual AS complete, actual::text AS total,
+      EXISTS (SELECT 1 FROM source WHERE char_length(department) > ${DIRECTORY_TEXT_MAX_LENGTH}) AS oversized FROM counts
   `)
   if (!result?.connected)
     throw new OrchestrationError(
       'conflict',
       'The provisioning connection changed or is no longer active. Reconnect the directory.'
+    )
+  if (result.oversized)
+    throw new OrchestrationError(
+      'validation',
+      `A SCIM department exceeds ${DIRECTORY_TEXT_MAX_LENGTH} characters. Shorten it in the directory and sync again.`
     )
   if (!result.complete)
     throw new OrchestrationError(

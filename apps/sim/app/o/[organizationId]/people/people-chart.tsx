@@ -8,7 +8,15 @@ import {
   useLayoutEffect,
   useRef,
 } from 'react'
-import { Button, Chip, ChipCombobox } from '@sim/emcn'
+import {
+  Button,
+  Chip,
+  ChipCombobox,
+  cn,
+  scrollFadeAttributes,
+  scrollFadeXClass,
+  useScrollEdges,
+} from '@sim/emcn'
 import { ChevronLeft, ChevronRight, Search } from '@sim/emcn/icons'
 import { useQueryStates } from 'nuqs'
 import { EmptyState } from '@/components/empty-state/empty-state'
@@ -54,6 +62,7 @@ function FindPerson({ organizationId, onSelect, rootsLabel }: FindPersonProps) {
           </span>
         )
       }
+      overlayLabel={rootsLabel ?? 'Find a person'}
       placeholder={rootsLabel ?? 'Find a person'}
       searchPlaceholder={rootsLabel ? 'Search team leads…' : 'Search name, title or email…'}
       className={rootsLabel ? 'max-w-48' : 'w-44 max-w-full'}
@@ -64,6 +73,26 @@ function FindPerson({ organizationId, onSelect, rootsLabel }: FindPersonProps) {
         rootsLabel && !search ? 'No top-level teams with reporting lines yet' : 'No matching people'
       }
     />
+  )
+}
+
+interface ReportingPathProps {
+  children: ReactNode
+}
+
+function ReportingPath({ children }: ReportingPathProps) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const edges = useScrollEdges(scrollRef, { axis: 'x' })
+  return (
+    <nav aria-label='Reporting path' className='shrink-0 border-[var(--border)] border-y'>
+      <div
+        ref={scrollRef}
+        className={cn('overflow-x-auto px-4 py-1.5 text-small', scrollFadeXClass)}
+        {...scrollFadeAttributes(edges)}
+      >
+        <div className='flex w-max min-w-full items-center gap-1'>{children}</div>
+      </div>
+    </nav>
   )
 }
 
@@ -155,10 +184,7 @@ export function PeopleChart({ organizationId, viewSwitch, onImport, onSync }: Pe
         </div>
       ) : branch ? (
         <>
-          <nav
-            aria-label='Reporting path'
-            className='flex shrink-0 items-center gap-1 overflow-x-auto border-[var(--border)] border-y px-4 py-1.5 text-small'
-          >
+          <ReportingPath>
             <div className='shrink-0'>
               <FindPerson
                 organizationId={organizationId}
@@ -186,7 +212,7 @@ export function PeopleChart({ organizationId, viewSwitch, onImport, onSync }: Pe
             >
               {branch.person.name}
             </h2>
-          </nav>
+          </ReportingPath>
           <ChartCanvas
             key={`${branch.person.memberId}/${branch.page}/${size}`}
             organizationId={organizationId}

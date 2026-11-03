@@ -1,33 +1,17 @@
-import { peopleDirectoryEntry, peopleDirectorySync } from '@sim/db/schema'
-import { and, eq, inArray } from 'drizzle-orm'
+import { peopleDirectoryScimChange as change, peopleDirectorySync as sync } from '@sim/db/schema'
+import { sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 
-/** Marks the source due in the same commit as a provisioning change. A stale in-flight read cannot put a retired identity back. */
-export async function markScimPeopleChanged(
-  tx: DbOrTx,
-  organizationId: string,
-  removedIds: string[] = []
-): Promise<void> {
-  const [connection] = await tx
-    .update(peopleDirectorySync)
-    .set({
-      nextSyncAt: new Date(),
-    })
-    .where(
-      and(
-        eq(peopleDirectorySync.organizationId, organizationId),
-        eq(peopleDirectorySync.source, 'scim')
-      )
-    )
-    .returning({ id: peopleDirectorySync.organizationId })
-  if (connection && removedIds.length) {
-    await tx
-      .delete(peopleDirectoryEntry)
-      .where(
-        and(
-          eq(peopleDirectoryEntry.organizationId, organizationId),
-          inArray(peopleDirectoryEntry.externalId, removedIds)
-        )
-      )
-  }
+/** An upsert serializes concurrent changes with the short claim that consumes the marker. */
+export async function markScimPeopleChanged(tx: DbOrTx, organizationId: string): Promise<void> {
+  await tx.execute(sql`
+    INSERT INTO ${change} (organization_id)
+    SELECT organization_id FROM ${sync} WHERE organization_id=${organizationId} AND source='scim'
+    ON CONFLICT (organization_id) DO UPDATE SET changed_at=excluded.changed_at
+  `)
 }
+
+export const pendingScimChange = sql<Date | null>`(SELECT ${change.changedAt} FROM ${change}
+  WHERE ${change.organizationId}=${sync.organizationId} AND ${sync.source}='scim')`.mapWith(
+  change.changedAt
+)
