@@ -107,6 +107,12 @@ export async function applyWorkspaceUpdate(
   return { previous, updated }
 }
 
+/**
+ * Writes the patch only while the workspace is still active: an archival that
+ * commits after the earlier reads leaves no row to update, which answers the
+ * same not-found as a workspace that was already gone (and rolls back a
+ * billed-account transfer).
+ */
 async function updateWorkspaceRow(
   executor: DbOrTx,
   workspaceId: string,
@@ -115,7 +121,7 @@ async function updateWorkspaceRow(
   const [row] = await executor
     .update(workspace)
     .set(updateData)
-    .where(eq(workspace.id, workspaceId))
+    .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
     .returning()
   if (!row) throw new OrchestrationError('not_found', 'Workspace not found')
   return row

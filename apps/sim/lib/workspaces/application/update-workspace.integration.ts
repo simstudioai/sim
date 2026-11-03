@@ -6,10 +6,11 @@
 import { db } from '@sim/db'
 import { auditLog, permissions, user, workspace } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -26,7 +27,16 @@ const writerId = generateId()
 const outsiderId = generateId()
 const workspaceId = generateId()
 const archivedWorkspaceId = generateId()
+const routeRaceWorkspaceId = generateId()
+const chatRaceWorkspaceId = generateId()
+const fixtureWorkspaceIds = [
+  workspaceId,
+  archivedWorkspaceId,
+  routeRaceWorkspaceId,
+  chatRaceWorkspaceId,
+]
 const ORIGINAL_NAME = 'Workspace update fixture'
+const ARCHIVED_NAME = 'Archived fixture'
 
 function signIn(userId: string) {
   authMockFns.mockGetSession.mockResolvedValue({
@@ -46,16 +56,57 @@ function patchWorkspace(id: string, body: Record<string, unknown>) {
   )
 }
 
-function chatSettings(userId: string, input: Record<string, unknown>) {
+function chatSettings(userId: string, input: Record<string, unknown>, targetId = workspaceId) {
   return settingsServerTool.execute(
     { scope: 'workspace', ...input } as Parameters<typeof settingsServerTool.execute>[0],
-    { copilotToolExecution: true, userId, workspaceId, toolCallId: generateId() }
+    { copilotToolExecution: true, userId, workspaceId: targetId, toolCallId: generateId() }
   )
 }
 
-async function readWorkspace() {
-  const [row] = await db.select().from(workspace).where(eq(workspace.id, workspaceId))
+async function readWorkspace(id: string) {
+  const [row] = await db.select().from(workspace).where(eq(workspace.id, id))
   return row
+}
+
+/**
+ * Holds the workspace row lock until `update` is queued behind it, then archives
+ * the row and commits, so the update's write runs after its own active-state reads
+ * passed but against an archived row.
+ */
+async function archiveWhileUpdateWaits<T>(id: string, update: () => Promise<T>) {
+  const held = createDeferred<number>()
+  const release = createDeferred<void>()
+  const archival = db.transaction(async (tx) => {
+    await tx.select({ id: workspace.id }).from(workspace).where(eq(workspace.id, id)).for('update')
+    const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+    held.resolve(connection.pid)
+    await release.promise
+    await tx.update(workspace).set({ archivedAt: new Date() }).where(eq(workspace.id, id))
+  })
+  void archival.catch((error: unknown) => held.reject(error))
+  try {
+    const blockerPid = await held.promise
+    const pending = update()
+    void pending.catch(() => undefined)
+    await vi.waitFor(
+      async () => {
+        const [waiting] = await db.execute<{ pid: number }>(sql`
+          SELECT pid FROM pg_stat_activity
+          WHERE datname = current_database()
+            AND ${blockerPid}::int = ANY(pg_blocking_pids(pid))
+        `)
+        expect(waiting).toBeDefined()
+      },
+      { timeout: 10_000, interval: 25 }
+    )
+    release.resolve()
+    await archival
+    const [settled] = await Promise.allSettled([pending])
+    return settled
+  } finally {
+    release.resolve()
+    await Promise.allSettled([archival])
+  }
 }
 
 describe('workspace update operations', () => {
@@ -81,14 +132,20 @@ describe('workspace update operations', () => {
       },
       {
         id: archivedWorkspaceId,
-        name: 'Archived fixture',
+        name: ARCHIVED_NAME,
         ownerId: adminId,
         billedAccountUserId: adminId,
         archivedAt: now,
       },
+      ...[routeRaceWorkspaceId, chatRaceWorkspaceId].map((id) => ({
+        id,
+        name: ORIGINAL_NAME,
+        ownerId: adminId,
+        billedAccountUserId: adminId,
+      })),
     ])
     await db.insert(permissions).values([
-      ...[workspaceId, archivedWorkspaceId].map((entityId) => ({
+      ...fixtureWorkspaceIds.map((entityId) => ({
         id: generateId(),
         entityType: 'workspace',
         entityId,
@@ -113,25 +170,37 @@ describe('workspace update operations', () => {
   }, 30_000)
 
   afterAll(async () => {
-    await db.delete(auditLog).where(eq(auditLog.workspaceId, workspaceId))
-    await db
-      .delete(permissions)
-      .where(inArray(permissions.entityId, [workspaceId, archivedWorkspaceId]))
-    await deleteWorkspaceFixture(db, inArray(workspace.id, [workspaceId, archivedWorkspaceId]))
+    await db.delete(auditLog).where(inArray(auditLog.workspaceId, fixtureWorkspaceIds))
+    await db.delete(permissions).where(inArray(permissions.entityId, fixtureWorkspaceIds))
+    await deleteWorkspaceFixture(db, inArray(workspace.id, fixtureWorkspaceIds))
     await db.delete(user).where(inArray(user.id, [adminId, secondAdminId, writerId, outsiderId]))
   })
 
   describe('session route', () => {
     it.each([
-      ['a write member', writerId, workspaceId],
-      ['a non-member', outsiderId, workspaceId],
-      ['an admin of an archived workspace', adminId, archivedWorkspaceId],
-    ])('refuses %s with the legacy 403 body', async (_label, userId, id) => {
+      ['a write member', writerId, workspaceId, ORIGINAL_NAME],
+      ['a non-member', outsiderId, workspaceId, ORIGINAL_NAME],
+      ['an admin of an archived workspace', adminId, archivedWorkspaceId, ARCHIVED_NAME],
+    ])('refuses %s with the legacy 403 body', async (_label, userId, id, unchangedName) => {
       signIn(userId)
       const response = await patchWorkspace(id, { name: 'Renamed by someone else' })
       expect(response.status).toBe(403)
       expect(await response.json()).toMatchObject({ error: 'Insufficient permissions' })
-      expect((await readWorkspace()).name).toBe(ORIGINAL_NAME)
+      expect((await readWorkspace(id)).name).toBe(unchangedName)
+    })
+
+    it('answers 404 and leaves the row alone when the workspace is archived mid-update', async () => {
+      signIn(adminId)
+      const settled = await archiveWhileUpdateWaits(routeRaceWorkspaceId, () =>
+        patchWorkspace(routeRaceWorkspaceId, { name: 'Renamed after archival' })
+      )
+      expect(settled.status).toBe('fulfilled')
+      const response = settled.status === 'fulfilled' ? settled.value : null
+      expect(response?.status).toBe(404)
+      expect(await response?.json()).toMatchObject({ error: 'Workspace not found' })
+      const row = await readWorkspace(routeRaceWorkspaceId)
+      expect(row.archivedAt).not.toBeNull()
+      expect(row.name).toBe(ORIGINAL_NAME)
     })
 
     it('rejects an empty patch from an admin', async () => {
@@ -148,7 +217,7 @@ describe('workspace update operations', () => {
       expect(await response.json()).toMatchObject({
         error: 'Billed account must be a workspace admin',
       })
-      expect((await readWorkspace()).billedAccountUserId).toBe(adminId)
+      expect((await readWorkspace(workspaceId)).billedAccountUserId).toBe(adminId)
     })
 
     it('updates as an admin and answers with the workspace and the admin role', async () => {
@@ -161,7 +230,7 @@ describe('workspace update operations', () => {
         allowPersonalApiKeys: false,
         permissions: 'admin',
       })
-      expect((await readWorkspace()).allowPersonalApiKeys).toBe(false)
+      expect((await readWorkspace(workspaceId)).allowPersonalApiKeys).toBe(false)
       await db
         .update(workspace)
         .set({ allowPersonalApiKeys: true })
@@ -178,7 +247,7 @@ describe('workspace update operations', () => {
           changes: { name: 'Renamed by a writer' },
         })
       ).rejects.toThrow('Insufficient workspace permissions')
-      expect((await readWorkspace()).name).toBe(ORIGINAL_NAME)
+      expect((await readWorkspace(workspaceId)).name).toBe(ORIGINAL_NAME)
     })
 
     it.each([
@@ -188,9 +257,26 @@ describe('workspace update operations', () => {
       await expect(
         chatSettings(adminId, { action: 'update', section: 'general', changes })
       ).rejects.toThrow(/Unrecognized key/)
-      const row = await readWorkspace()
+      const row = await readWorkspace(workspaceId)
       expect(row.billedAccountUserId).toBe(adminId)
       expect(row.allowPersonalApiKeys).toBe(true)
+    })
+
+    it('refuses a rename when the workspace is archived mid-update', async () => {
+      const settled = await archiveWhileUpdateWaits(chatRaceWorkspaceId, () =>
+        chatSettings(
+          adminId,
+          { action: 'update', section: 'general', changes: { name: 'Renamed after archival' } },
+          chatRaceWorkspaceId
+        )
+      )
+      expect(settled.status).toBe('rejected')
+      expect(settled.status === 'rejected' ? settled.reason : null).toMatchObject({
+        message: 'Workspace not found',
+      })
+      const row = await readWorkspace(chatRaceWorkspaceId)
+      expect(row.archivedAt).not.toBeNull()
+      expect(row.name).toBe(ORIGINAL_NAME)
     })
 
     it('cannot reach the full workspace update as a delegated principal', async () => {
@@ -216,7 +302,7 @@ describe('workspace update operations', () => {
         status: 'updated',
         value: { id: workspaceId, name: 'Renamed by Chat' },
       })
-      expect((await readWorkspace()).name).toBe('Renamed by Chat')
+      expect((await readWorkspace(workspaceId)).name).toBe('Renamed by Chat')
       await vi.waitFor(async () => {
         const entries = await db
           .select()
