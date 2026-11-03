@@ -3,7 +3,6 @@
  * These are pure functions that compute values from organization data
  */
 
-import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import type { Organization } from '@/lib/workspaces/organization/types'
 
 /**
@@ -18,17 +17,6 @@ export function getUserRole(
   }
   const currentMember = organization.members.find((m) => m.user?.email === userEmail)
   return currentMember?.role ?? 'member'
-}
-
-/**
- * Check if a user is an admin or owner in an organization
- */
-export function isAdminOrOwner(
-  organization: Organization | null | undefined,
-  userEmail?: string
-): boolean {
-  const role = getUserRole(organization, userEmail)
-  return isOrgAdminRole(role)
 }
 
 /**

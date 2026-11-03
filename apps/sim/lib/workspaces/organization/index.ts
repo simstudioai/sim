@@ -4,5 +4,4 @@ export type { Member } from '@/lib/workspaces/organization/types'
 export {
   generateSlug,
   getUserRole,
-  isAdminOrOwner,
 } from '@/lib/workspaces/organization/utils'
