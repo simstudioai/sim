@@ -20,7 +20,11 @@ import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { usePeopleSyncActions, usePeopleSyncStatus } from '@/hooks/queries/people-sync'
+import {
+  isDirectorySyncAccessError,
+  usePeopleSyncActions,
+  usePeopleSyncStatus,
+} from '@/hooks/queries/people-sync'
 
 const SOURCES = {
   okta: IMPORT_SOURCES.okta,
@@ -119,12 +123,14 @@ export function DirectorySyncModal({ organizationId, onClose }: DirectorySyncMod
   const query = usePeopleSyncStatus(organizationId)
   const actions = usePeopleSyncActions(organizationId)
   const [mode, setMode] = useState<PeopleSyncConfig['source'] | 'disconnect' | null>(null)
-  const sync = query.isSuccess ? query.data.sync : null
+  const status = isDirectorySyncAccessError(query.error) ? undefined : query.data
+  const sync = status?.sync ?? null
+  const activeMode = status ? mode : null
   const goBack = () => {
     setMode(null)
     actions.reset()
   }
-  if (mode === 'disconnect')
+  if (activeMode === 'disconnect')
     return (
       <ChipConfirmModal
         open
@@ -141,13 +147,13 @@ export function DirectorySyncModal({ organizationId, onClose }: DirectorySyncMod
         <ChipModalError>{actions.error?.message}</ChipModalError>
       </ChipConfirmModal>
     )
-  if (mode && query.isSuccess)
+  if (activeMode)
     return (
       <DirectorySyncForm
-        key={mode}
+        key={activeMode}
         organizationId={organizationId}
-        source={mode}
-        name={SOURCES[mode].name}
+        source={activeMode}
+        name={SOURCES[activeMode].name}
         current={sync}
         actions={actions}
         onBack={goBack}
@@ -163,7 +169,7 @@ export function DirectorySyncModal({ organizationId, onClose }: DirectorySyncMod
       <ChipModalBody>
         {query.isPending ? (
           <ChipModalDescription>Loading directory connection…</ChipModalDescription>
-        ) : query.isError ? (
+        ) : query.isError && !status ? (
           <>
             <ChipModalError>{query.error.message}</ChipModalError>
             <div className='px-2'>

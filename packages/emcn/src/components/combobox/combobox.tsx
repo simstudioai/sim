@@ -446,11 +446,10 @@ const Combobox = memo(
         overscan: 8,
       })
       const hasActiveSearch = searchActive || (searchable && searchQuery.trim().length > 0)
-      const continuationAction = hasActiveSearch ? (onLoadAll ?? onLoadMore) : onLoadMore
-      const continuationLabel = hasActiveSearch ? 'Search all options' : 'Load more'
-      const continuationLoadingLabel = hasActiveSearch
-        ? 'Searching options...'
-        : 'Loading options...'
+      const searchAll = hasActiveSearch && Boolean(onLoadAll)
+      const continuationAction = searchAll ? onLoadAll : onLoadMore
+      const continuationLabel = searchAll ? 'Search all options' : 'Load more'
+      const continuationLoadingLabel = searchAll ? 'Searching options...' : 'Loading options...'
 
       /**
        * Handles selection of an option. In editable mode the input is blurred on

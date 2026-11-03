@@ -608,10 +608,14 @@ async function run() {
         await page.goBack()
         await expect(focused('Maya Chen')).toBeVisible()
         const searched = new Set<string>()
+        const pagedSearch = 'Directory colleague'
+        const requestedPages: (string | null)[] = []
         page.on('request', (request) => {
           const url = new URL(request.url())
           const term = url.searchParams.get('search')
-          if (url.pathname === `/api/organizations/${teamOrg}/people` && term) searched.add(term)
+          if (url.pathname !== `/api/organizations/${teamOrg}/people` || !term) return
+          searched.add(term)
+          if (term === pagedSearch) requestedPages.push(url.searchParams.get('cursor'))
         })
         const boundedPaste = 'q'.repeat(200)
         await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
@@ -625,6 +629,44 @@ async function run() {
         await pickerSearch.press('ControlOrMeta+v')
         await expect(pickerSearch).toHaveValue(boundedPaste, { timeout: 5_000 })
         await expect.poll(() => searched.has(boundedPaste)).toBe(true)
+        await sql.begin(async (tx) => {
+          await tx`insert into people_directory_sync (organization_id, source, source_target, next_sync_at)
+            values (${teamOrg}, 'okta', 'picker.okta.com', now() + interval '1 day')`
+          await tx`insert into people_directory_entry (id, organization_id, source, external_id, email, name)
+            select gen_random_uuid()::text, ${teamOrg}, 'okta', 'picker-' || n, 'picker-' || n || '@example.test',
+              ${pagedSearch}::text || ' ' || lpad(n::text, 3, '0') from generate_series(1, 101) n`
+        })
+        try {
+          await pickerSearch.fill(pagedSearch)
+          await expect(page.getByRole('option', { name: /^Directory colleague 001/ })).toBeVisible()
+          const more = page.getByRole('button', { name: 'Load more', exact: true })
+          await expect(more).toBeVisible({ timeout: 5_000 })
+          await Promise.all([
+            page.waitForResponse((response) => {
+              const url = new URL(response.url())
+              return (
+                url.pathname === `/api/organizations/${teamOrg}/people` &&
+                url.searchParams.get('search') === pagedSearch &&
+                url.searchParams.has('cursor') &&
+                response.ok()
+              )
+            }),
+            more.click(),
+          ])
+          await more.scrollIntoViewIfNeeded()
+          await page.getByRole('option', { name: /^Directory colleague 100/ }).click()
+          await expect(
+            page.getByText('No reporting lines for Directory colleague 100', { exact: true })
+          ).toBeVisible()
+          assert.equal(requestedPages.length, 2, 'One click loads exactly one additional page')
+          assert.equal(requestedPages[0], null)
+          assert(requestedPages[1], 'Page two resumes with a cursor')
+          await page.goBack()
+          await expect(focused('Maya Chen')).toBeVisible()
+        } finally {
+          await sql`delete from people_directory_sync where organization_id = ${teamOrg} and source_target = 'picker.okta.com'`
+        }
+        await page.getByLabel('Find a person').click()
         await page.getByPlaceholder('Search name, title or email…').fill(' Engineering ')
         await page.getByText(/Ben Ortega · Design Lead/).click()
         await focused('Ben Ortega').click()
@@ -634,7 +676,7 @@ async function run() {
         await page.getByText(/Maya Chen · VP Engineering/).click()
         await expect(focused('Maya Chen')).toBeVisible()
         await page.getByRole('radio', { name: 'Directory' }).click()
-        const directorySearch = page.getByPlaceholder('Search people...')
+        const directorySearch = page.getByRole('textbox', { name: 'Search people...', exact: true })
         await directorySearch.focus()
         await directorySearch.press('ControlOrMeta+v')
         await expect(directorySearch).toHaveValue(boundedPaste)
@@ -649,7 +691,7 @@ async function run() {
           [...searched].every((term) => term.length <= 200),
           'People sent an oversized search'
         )
-        await page.getByPlaceholder('Search people...').fill('Amara')
+        await directorySearch.fill('Amara')
         const profileLink = page.getByRole('link', { name: 'Amara Cole', exact: true })
         await profileLink.focus()
         await page.keyboard.press('Enter')
@@ -658,7 +700,7 @@ async function run() {
           .getByRole('link', { name: 'People', exact: true })
           .and(page.locator('a[href*="search=Amara"]'))
         await backToResults.click()
-        await expect(page.getByPlaceholder('Search people...')).toHaveValue('Amara')
+        await expect(directorySearch).toHaveValue('Amara')
         const chartOrigin = new URL(path, baseUrl)
         chartOrigin.searchParams.set('view', 'chart')
         chartOrigin.searchParams.set('focus', lead.memberId)
@@ -680,7 +722,7 @@ async function run() {
         )
         await expect(page.getByRole('button', { name: 'Explore Lena Ali' })).toBeVisible()
         await page.goto(new URL(`${path}?search=Amara`, baseUrl).href)
-        await page.getByPlaceholder('Search people...').fill('')
+        await directorySearch.fill('')
         await page.waitForURL(
           (url) => url.searchParams.get('view') === 'directory' && !url.searchParams.get('search')
         )
@@ -755,6 +797,79 @@ async function run() {
         await browser.close()
       }
     })
+
+  if (screenshotDir)
+    await check(
+      'a transient status poll preserves a credential draft until administrator access is revoked',
+      async () => {
+        const { chromium, expect } = await import('@playwright/test')
+        const browser = await chromium.launch()
+        try {
+          await sql`insert into people_directory_sync (organization_id, source, source_target, next_sync_at)
+          values (${teamOrg}, 'okta', 'draft.okta.com', now() + interval '1 hour')`
+          const page = await browser.newPage()
+          page.setDefaultTimeout(60_000)
+          await page
+            .context()
+            .addCookies([
+              { name: 'better-auth.session_token', value: lead.cookie, url: baseUrl.origin },
+            ])
+          const statusUrl = new URL(`/api/organizations/${teamOrg}/people/sync`, baseUrl).href
+          const draft = `unsaved-e2e-${generateId()}`
+          let transmitted = false
+          page.on('request', (req) => {
+            transmitted ||= [req.url(), req.postData() ?? '', ...Object.values(req.headers())].some(
+              (value) => value.includes(draft)
+            )
+          })
+          await page.clock.install()
+          await page.goto(new URL(`/o/${teamOrg}/people?panel=sync`, baseUrl).href)
+          await page.getByRole('button', { name: 'Update credentials' }).click()
+          const token = page
+            .getByRole('dialog', { name: 'Update Okta credentials' })
+            .getByLabel('API token', { exact: true })
+          await token.click()
+          await token.fill(draft)
+
+          let failures = 0
+          await page.route(statusUrl, (route) => {
+            if (route.request().method() === 'GET' && failures < 2) {
+              failures++
+              return route.fulfill({
+                status: 503,
+                json: { error: 'Directory status temporarily unavailable' },
+              })
+            }
+            return route.continue()
+          })
+          const response = (code: number) =>
+            page.waitForResponse((event) => event.url() === statusUrl && event.status() === code)
+          const failed = response(503)
+          await page.clock.fastForward(30_001)
+          await failed
+          await expect.poll(() => failures).toBe(2)
+          const recovered = response(200)
+          await page.clock.fastForward(30_001)
+          await recovered
+          await expect(token).toHaveValue(draft)
+
+          await sql`update member set role='member' where id=${lead.memberId}`
+          const denied = response(403)
+          await page.clock.fastForward(30_001)
+          await denied
+          await expect(token).toHaveCount(0)
+          assert.equal(
+            transmitted,
+            false,
+            'Polling and revoking access must never transmit the unsaved credential'
+          )
+        } finally {
+          await browser.close()
+          await sql`update member set role='owner' where id=${lead.memberId}`
+          await sql`delete from people_directory_sync where organization_id=${teamOrg}`
+        }
+      }
+    )
 }
 
 async function cleanup() {

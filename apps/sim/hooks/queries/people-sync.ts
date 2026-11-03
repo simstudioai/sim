@@ -23,6 +23,10 @@ const syncKeys = {
 
 type SyncResult = ContractJsonResponse<typeof getPeopleSyncContract>
 
+export function isDirectorySyncAccessError(error: unknown) {
+  return isApiClientError(error) && [401, 403, 404].includes(error.status)
+}
+
 function refreshPublishedPeople(client: QueryClient, organizationId: string, result: SyncResult) {
   const previous = client.getQueryData<SyncResult>(syncKeys.organization(organizationId))
   if ((previous?.sync?.lastSuccessAt ?? null) !== (result.sync?.lastSuccessAt ?? null)) {
@@ -46,10 +50,7 @@ export function usePeopleSyncStatus(organizationId: string) {
     refetchInterval: (query) => {
       const sync = query.state.data?.sync
       const error = query.state.error
-      if (error)
-        return isApiClientError(error) && [401, 403, 404].includes(error.status)
-          ? false
-          : IDLE_SYNC_POLL_MS
+      if (error) return isDirectorySyncAccessError(error) ? false : IDLE_SYNC_POLL_MS
       if (!sync) return false
       if (sync.retryAt) return IDLE_SYNC_POLL_MS
       return sync.state === 'syncing' || sync.state === 'queued'
