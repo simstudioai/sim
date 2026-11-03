@@ -2,6 +2,7 @@ import {
   knowledgeBase,
   member,
   permissionGroup,
+  simLink,
   ssoProvider,
   user,
   workspaceFiles,
@@ -103,6 +104,10 @@ export async function reassignOrganizationSharedResourcesTx(
         eq(permissionGroup.createdBy, departingUserId)
       )
     )
+  await tx
+    .update(simLink)
+    .set({ createdBy: userId, updatedAt })
+    .where(and(eq(simLink.organizationId, organizationId), eq(simLink.createdBy, departingUserId)))
   await tx
     .update(ssoProvider)
     .set({ userId })

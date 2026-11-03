@@ -13,6 +13,7 @@ import {
   permissionGroup,
   permissions,
   project,
+  simLink,
   ssoProvider,
   user,
   userStats,
@@ -1262,6 +1263,75 @@ describe('shared resource retention across workspace departure and account erasu
       await db.select().from(environment).where(eq(environment.id, fixture.departingId))
     ).toHaveLength(0)
     await assertRetained(fixture)
+  })
+
+  it("hands a removed member's Sim links to the owner and leaves another organization's links", async () => {
+    const fixture = await seedResources(false, false)
+    const [organizationId, otherOrganizationId] = [generateId(), generateId()]
+    const memberId = generateId()
+    const [linkId, otherLinkId] = [generateId(), generateId()]
+    organizationIds.push(organizationId, otherOrganizationId)
+    await db.insert(organization).values(
+      [organizationId, otherOrganizationId].map((id) => ({
+        id,
+        name: 'Sim link organization',
+        slug: id,
+        createdAt: new Date(),
+      }))
+    )
+    await db.insert(member).values([
+      {
+        id: generateId(),
+        organizationId,
+        userId: fixture.ownerId,
+        role: 'owner',
+        createdAt: new Date(),
+      },
+      {
+        id: memberId,
+        organizationId,
+        userId: fixture.departingId,
+        role: 'member',
+        createdAt: new Date(),
+      },
+    ])
+    await db.insert(simLink).values(
+      [
+        { id: linkId, organizationId },
+        { id: otherLinkId, organizationId: otherOrganizationId },
+      ].map(({ id, organizationId: linkOrganizationId }) => ({
+        id,
+        organizationId: linkOrganizationId,
+        name: 'docs',
+        normalizedName: 'docs',
+        url: 'https://example.test/docs',
+        unlisted: true,
+        restrictEdit: true,
+        createdBy: fixture.departingId,
+      }))
+    )
+    expect(
+      (
+        await removeUserFromOrganization({
+          organizationId,
+          userId: fixture.departingId,
+          memberId,
+          skipBillingLogic: true,
+          onError: 'throw',
+        })
+      ).success
+    ).toBe(true)
+    expect(
+      await db
+        .select({ id: simLink.id, createdBy: simLink.createdBy })
+        .from(simLink)
+        .where(inArray(simLink.id, [linkId, otherLinkId]))
+    ).toEqual(
+      expect.arrayContaining([
+        { id: linkId, createdBy: fixture.ownerId },
+        { id: otherLinkId, createdBy: fixture.departingId },
+      ])
+    )
   })
 
   it('refuses organization-only retention without an owner successor', async () => {
