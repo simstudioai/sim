@@ -114,7 +114,7 @@ const TARGET_FOLDER_PATH_FLAG = {
  * catch, and nothing about that failure would point back here.
  */
 const LOG_LIST_FILTER_FLAGS = {
-  workflowIds: { name: 'workflow', list: true },
+  workflowIds: { name: 'workflow', list: true, hiddenAliases: ['workflow-ids'] },
   folderPaths: FOLDER_PATHS_FLAG,
   triggers: { name: 'trigger', list: true },
 } as const
@@ -251,7 +251,7 @@ export const CLI_CONTRACT: CliContract = {
     command: 'tables rows batch-delete',
     describe: 'Delete rows matching a filter, or an explicit list of ids',
     flags: {
-      rowIds: { name: 'row', list: true },
+      rowIds: { name: 'row', list: true, hiddenAliases: ['row-ids'] },
       filter: { json: true, describe: TABLE_FILTER_HELP },
     },
     confirm: 'This deletes every matching row and cannot be undone.',
@@ -1558,7 +1558,12 @@ export const CLI_CONTRACT: CliContract = {
     command: 'files batch-delete',
     describe: 'Delete several files at once',
     flags: {
-      fileIds: { list: true, trailing: true },
+      fileIds: {
+        list: true,
+        trailing: true,
+        fileReferences: true,
+        hiddenAliases: ['ids', 'paths'],
+      },
     },
     confirm: 'This archives the listed files; restore them with `files restore`.',
   },

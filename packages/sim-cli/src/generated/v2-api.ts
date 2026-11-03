@@ -16196,7 +16196,12 @@ export const V2_OPERATIONS = {
     summary: 'Delete files',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the files.' },
-      fileIds: { kind: 'array', required: true, describe: 'File identifiers to delete.' },
+      fileIds: {
+        kind: 'array',
+        required: true,
+        describe:
+          'Files to delete, each by identifier or by the VFS path of a live file: `files/<folder>/<name>`. Pass the id when two files in a folder have names that display alike. At most 100 entries may be paths.',
+      },
     },
   },
   bulkDeleteTables: {

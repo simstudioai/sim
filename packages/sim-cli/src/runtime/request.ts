@@ -61,6 +61,14 @@ export function flagSpecFor(operation: V2OperationName, field: string): FlagSpec
   return CLI_CONTRACT[operation]?.flags?.[field] ?? {}
 }
 
+/** The undocumented spellings a flag also answers to: former names, then hidden aliases. */
+export function otherSpellings(flag: FlagSpec): { name: string; renamed: boolean }[] {
+  return [
+    ...(flag.renamedFrom ?? []).map((name) => ({ name, renamed: true })),
+    ...(flag.hiddenAliases ?? []).map((name) => ({ name, renamed: false })),
+  ]
+}
+
 /** The list field whose values may also follow the command as arguments, if any. */
 export function trailingListField(commandSpec: CommandSpec): string | undefined {
   return Object.entries(commandSpec.flags ?? {}).find(([, flag]) => flag.trailing)?.[0]
@@ -272,6 +280,36 @@ export async function readArgumentSource(
   }
 }
 
+/**
+ * The file references one list value carries: a JSON array's strings, a comma-joined run of
+ * ids, or the value itself. See {@link FlagSpec.fileReferences} for why neither reading can
+ * misread a single id or path.
+ */
+function fileReferenceEntries(value: string, flagName: string): string[] {
+  const entries = value.startsWith('[')
+    ? jsonStringArray(value)
+    : value.includes(',') && !value.includes('/')
+      ? value.split(',')
+      : undefined
+  if (!entries) return [value]
+  const trimmed = entries.map((entry) => entry.trim())
+  if (trimmed.some((entry) => !entry)) {
+    throw new SimApiError(`--${flagName} values cannot be empty: ${value}`, 0)
+  }
+  return trimmed
+}
+
+function jsonStringArray(value: string): string[] | undefined {
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return Array.isArray(parsed) && parsed.every((entry) => typeof entry === 'string')
+      ? parsed
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /** A manifest line that carries no value: blank, or a `#` comment. */
 function isManifestNoise(line: string): boolean {
   const trimmed = line.trim()
@@ -439,9 +477,12 @@ export async function coerce(
    *   or failed validation outright.
    */
   if (flag.list) {
-    const values = (await readListValues(raw, flagName, flag.manifest === true)).map((value) =>
-      flag.folderPath ? encodeFolderPath(value) : value
-    )
+    const listed = await readListValues(raw, flagName, flag.manifest === true)
+    const values = (
+      flag.fileReferences
+        ? listed.flatMap((value) => fileReferenceEntries(value, flagName))
+        : listed
+    ).map((value) => (flag.folderPath ? encodeFolderPath(value) : value))
     // Encoding first is also what keeps the comma-joined form unambiguous: a
     // folder name containing a comma leaves here as `%2C`, so the route's split
     // cannot cut one path in half.

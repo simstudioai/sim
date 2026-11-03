@@ -6,6 +6,10 @@ import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
   workspaceUploadsMock,
   workspaceUploadsMockFns,
 } from '@sim/testing/mocks/workspace-uploads.mock'
@@ -16,6 +20,7 @@ const { events } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
@@ -31,6 +36,7 @@ const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspac
 const mockAssertItems = workspaceUploadsMockFns.mockAssertWorkspaceFileItemsBelongToWorkspace
 const mockArchive = workspaceUploadsMockFns.mockBulkArchiveWorkspaceFileItems
 const mockLoadContext = workspaceUploadsMockFns.mockLoadWorkspaceFileOperationContext
+const mockResolveReference = workspaceFileManagerMockFns.mockResolveFileReference
 
 describe('archiveWorkspaceFileItemsOperation', () => {
   beforeEach(() => {
@@ -57,6 +63,10 @@ describe('archiveWorkspaceFileItemsOperation', () => {
       fileIds: ['file-1'],
       folderIds: [],
     }))
+    mockResolveReference.mockImplementation(async (_owner: unknown, reference: string) => {
+      events.push(`lookup ${reference}`)
+      return reference === 'files/Docs/a.csv' ? { id: 'file-a' } : null
+    })
   })
 
   it('authorizes a delegated bulk selection without borrowing the first file scope', async () => {
@@ -150,5 +160,31 @@ describe('archiveWorkspaceFileItemsOperation', () => {
     ).rejects.toThrow('accept at most 1000')
     expect(events).toEqual(['resolve', 'authorize'])
     expect(mockArchive).not.toHaveBeenCalled()
+  })
+
+  describe('with files/ paths', () => {
+    const deleteByReference = (fileIds: string[], acceptVfsPath = true) =>
+      archiveWorkspaceFileItemsOperation.execute({
+        principal: createSessionPrincipal(),
+        input: { workspaceId: 'ws-1', fileIds, acceptVfsPath },
+      })
+
+    it('looks up no path for a caller it refuses', async () => {
+      mockResolvePermission.mockImplementation(async () => {
+        events.push('authorize')
+        return 'read'
+      })
+      await expect(deleteByReference(['files/Docs/a.csv'])).rejects.toMatchObject({
+        code: 'forbidden',
+      })
+      expect(events).toEqual(['resolve', 'authorize'])
+    })
+
+    it('refuses more paths than one request resolves before looking any up', async () => {
+      await expect(
+        deleteByReference(Array.from({ length: 101 }, (_, index) => `files/f-${index}.csv`))
+      ).rejects.toThrow('at most 100 file paths')
+      expect(mockResolveReference).not.toHaveBeenCalled()
+    })
   })
 })

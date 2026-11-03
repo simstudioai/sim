@@ -159,6 +159,7 @@ export const workspaceFileManagerMockFns = {
     }
   ),
   mockResolveWorkspaceFileReference: vi.fn(),
+  mockResolveFileReference: vi.fn(),
   mockLoadActiveWorkspaceFileContext: vi.fn(),
   mockLoadWorkspaceFileLifecycleContext: vi.fn(),
   mockLoadActiveWorkspaceContext: vi.fn(),
@@ -209,6 +210,7 @@ export const workspaceFileManagerMock = {
   parseChatUploadReference: fns.mockParseChatUploadReference,
   findWorkspaceFileRecord: fns.mockFindWorkspaceFileRecord,
   resolveWorkspaceFileReference: fns.mockResolveWorkspaceFileReference,
+  resolveFileReference: fns.mockResolveFileReference,
   loadActiveWorkspaceFileContext: fns.mockLoadActiveWorkspaceFileContext,
   loadWorkspaceFileLifecycleContext: fns.mockLoadWorkspaceFileLifecycleContext,
   loadActiveWorkspaceContext: fns.mockLoadActiveWorkspaceContext,

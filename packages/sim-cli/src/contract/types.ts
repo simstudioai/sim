@@ -44,6 +44,20 @@ export interface FlagSpec {
    */
   renamedFrom?: readonly string[]
   /**
+   * Other names this flag answers to because callers reach for them: the request field's own
+   * name behind a shortened flag (`--row-ids` for `--row`), or the noun a sibling command uses
+   * (`--ids`, `--paths` for `--file-ids`). Only for a spelling that can mean nothing but this
+   * field on this command. Hidden like a {@link renamedFrom} spelling, but silent.
+   */
+  hiddenAliases?: readonly string[]
+  /**
+   * The list holds workspace file ids or `files/…` paths, so an inline value written as a JSON
+   * array (`["wf_a","wf_b"]`) or joined with commas (`wf_a,wf_b`) is read as its entries.
+   * Unambiguous because an id is `[A-Za-z0-9_-]` and a path starts with `files/`: neither starts
+   * with `[`, and a comma splits only a value with no `/`, so a path keeps a comma in its name.
+   */
+  fileReferences?: true
+  /**
    * Accept one or more space-separated values, or `@path` / `@-` with one
    * value per line.
    *
