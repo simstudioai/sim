@@ -2939,6 +2939,7 @@ async function executeToolRequest(
           signal,
           proxyUrl: proxyOption,
           stripAuthOnRedirect: requestParams.stripAuthOnRedirect,
+          maxRedirects: requestParams.maxRedirects,
           redirectPolicy: requestParams.redirectPolicy,
           assertRedirectTarget:
             tool.request.allowSameOrigin === true

@@ -46,6 +46,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   cloudwatch: 'CloudWatch',
   coda: 'Coda',
   codepipeline: 'CodePipeline',
+  companyenrich: 'CompanyEnrich',
   condition: 'Condition',
   confluence_v2: 'Confluence',
   context_dev: 'Context.dev',

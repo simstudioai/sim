@@ -294,6 +294,8 @@ export interface ToolConfig<P = any, R = any> {
       }
     }
     retry?: ToolRetryConfig
+    /** Reject redirects for providers whose requests must remain on their fixed origin. */
+    maxRedirects?: 0
     /** Selects redirect compatibility and cross-origin credential behavior for this request. */
     redirectPolicy?: (params: P) => HttpRedirectPolicy
     /**

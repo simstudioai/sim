@@ -1,0 +1,991 @@
+[
+  {
+    "operation": "get_companies_enrich",
+    "method": "GET",
+    "path": "/companies/enrich",
+    "query": {
+      "domain": "example.com"
+    },
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "post_companies_enrich",
+    "method": "POST",
+    "path": "/companies/enrich",
+    "query": {},
+    "path_parameters": {},
+    "body": {
+      "name": "Example"
+    },
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "post_companies_enrich_batch",
+    "method": "POST",
+    "path": "/companies/enrich/batch",
+    "query": {},
+    "path_parameters": {},
+    "body": {
+      "domains": ["example.com"]
+    },
+    "allow_beta": false,
+    "response": [
+      {
+        "id": "a",
+        "future": {
+          "nested": null
+        }
+      }
+    ]
+  },
+  {
+    "operation": "get_companies_workforce",
+    "method": "GET",
+    "path": "/companies/workforce",
+    "query": {
+      "domain": "example.com"
+    },
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "get_companies_autocomplete",
+    "method": "GET",
+    "path": "/companies/autocomplete",
+    "query": {
+      "query": "test"
+    },
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": [
+      {
+        "id": "a",
+        "future": {
+          "nested": null
+        }
+      }
+    ]
+  },
+  {
+    "operation": "post_companies_enrich_bulk",
+    "method": "POST",
+    "path": "/companies/enrich/bulk",
+    "query": {},
+    "path_parameters": {},
+    "body": {
+      "domains": ["example.com"]
+    },
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "get_companies_enrich_bulk_jobid",
+    "method": "GET",
+    "path": "/companies/enrich/bulk/{jobId}",
+    "query": {},
+    "path_parameters": {
+      "jobId": "00000000-0000-4000-8000-000000000001"
+    },
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "get_companies_enrich_bulk_jobs",
+    "method": "GET",
+    "path": "/companies/enrich/bulk/jobs",
+    "query": {},
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "post_companies_search",
+    "method": "POST",
+    "path": "/companies/search",
+    "query": {},
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "post_companies_search_preview",
+    "method": "POST",
+    "path": "/companies/search/preview",
+    "query": {},
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "post_companies_search_count",
+    "method": "POST",
+    "path": "/companies/search/count",
+    "query": {},
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": 0
+  },
+  {
+    "operation": "post_companies_search_scroll",
+    "method": "POST",
+    "path": "/companies/search/scroll",
+    "query": {},
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "get_companies",
+    "method": "GET",
+    "path": "/companies",
+    "query": {
+      "id": "00000000-0000-4000-8000-000000000001"
+    },
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "post_companies_search_async",
+    "method": "POST",
+    "path": "/companies/search/async",
+    "query": {},
+    "path_parameters": {},
+    "body": {
+      "count": 1
+    },
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "get_companies_search_async_jobid",
+    "method": "GET",
+    "path": "/companies/search/async/{jobId}",
+    "query": {},
+    "path_parameters": {
+      "jobId": "00000000-0000-4000-8000-000000000001"
+    },
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "get_companies_search_async_jobs",
+    "method": "GET",
+    "path": "/companies/search/async/jobs",
+    "query": {},
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "post_companies_similar",
+    "method": "POST",
+    "path": "/companies/similar",
+    "query": {},
+    "path_parameters": {},
+    "body": {
+      "domains": ["example.com"]
+    },
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "post_companies_similar_preview",
+    "method": "POST",
+    "path": "/companies/similar/preview",
+    "query": {},
+    "path_parameters": {},
+    "body": {
+      "domains": ["example.com"]
+    },
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "post_companies_similar_count",
+    "method": "POST",
+    "path": "/companies/similar/count",
+    "query": {},
+    "path_parameters": {},
+    "body": {
+      "domains": ["example.com"]
+    },
+    "allow_beta": false,
+    "response": 0
+  },
+  {
+    "operation": "post_companies_similar_scroll",
+    "method": "POST",
+    "path": "/companies/similar/scroll",
+    "query": {},
+    "path_parameters": {},
+    "body": {
+      "domains": ["example.com"]
+    },
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "post_people_lookup",
+    "method": "POST",
+    "path": "/people/lookup",
+    "query": {},
+    "path_parameters": {},
+    "body": {
+      "email": "test@example.com"
+    },
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "get_people",
+    "method": "GET",
+    "path": "/people",
+    "query": {
+      "id": "9223372036854775807"
+    },
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "post_people_search",
+    "method": "POST",
+    "path": "/people/search",
+    "query": {},
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "post_people_search_scroll",
+    "method": "POST",
+    "path": "/people/search/scroll",
+    "query": {},
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "get_people_email",
+    "method": "GET",
+    "path": "/people/email",
+    "query": {
+      "id": "9223372036854775807"
+    },
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": true,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "post_people_email_bulk",
+    "method": "POST",
+    "path": "/people/email/bulk",
+    "query": {},
+    "path_parameters": {},
+    "body": {
+      "items": [
+        {
+          "person_id": "9223372036854775807"
+        }
+      ]
+    },
+    "allow_beta": true,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "get_people_email_bulk_jobid",
+    "method": "GET",
+    "path": "/people/email/bulk/{jobId}",
+    "query": {},
+    "path_parameters": {
+      "jobId": "00000000-0000-4000-8000-000000000001"
+    },
+    "body": {},
+    "allow_beta": true,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "get_people_education",
+    "method": "GET",
+    "path": "/people/education",
+    "query": {
+      "id": "9223372036854775807"
+    },
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": [
+      {
+        "id": "a",
+        "future": {
+          "nested": null
+        }
+      }
+    ]
+  },
+  {
+    "operation": "post_people_search_async",
+    "method": "POST",
+    "path": "/people/search/async",
+    "query": {},
+    "path_parameters": {},
+    "body": {
+      "count": 1
+    },
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "get_people_search_async_jobid",
+    "method": "GET",
+    "path": "/people/search/async/{jobId}",
+    "query": {},
+    "path_parameters": {
+      "jobId": "00000000-0000-4000-8000-000000000001"
+    },
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "get_people_search_async_jobs",
+    "method": "GET",
+    "path": "/people/search/async/jobs",
+    "query": {},
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "get_jobs",
+    "method": "GET",
+    "path": "/jobs",
+    "query": {},
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "get_jobs_jobid",
+    "method": "GET",
+    "path": "/jobs/{jobId}",
+    "query": {},
+    "path_parameters": {
+      "jobId": "00000000-0000-4000-8000-000000000001"
+    },
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "get_geo_regions",
+    "method": "GET",
+    "path": "/geo/regions",
+    "query": {},
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "get_geo_countries_countrycode",
+    "method": "GET",
+    "path": "/geo/countries/{countryCode}",
+    "query": {},
+    "path_parameters": {
+      "countryCode": "US"
+    },
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "post_geo_countries",
+    "method": "POST",
+    "path": "/geo/countries",
+    "query": {},
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "post_geo_states",
+    "method": "POST",
+    "path": "/geo/states",
+    "query": {},
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "post_geo_cities",
+    "method": "POST",
+    "path": "/geo/cities",
+    "query": {},
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": {
+      "id": "a",
+      "items": [],
+      "page": 1,
+      "totalPages": 0,
+      "totalItems": 0,
+      "metadata": {
+        "scores": {
+          "a": 0.8
+        }
+      },
+      "future": {
+        "nested": null
+      }
+    }
+  },
+  {
+    "operation": "get_industries",
+    "method": "GET",
+    "path": "/industries",
+    "query": {},
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": [
+      {
+        "id": "a",
+        "future": {
+          "nested": null
+        }
+      }
+    ]
+  },
+  {
+    "operation": "get_keywords_autocomplete",
+    "method": "GET",
+    "path": "/keywords/autocomplete",
+    "query": {
+      "query": "test"
+    },
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": [
+      {
+        "id": "a",
+        "future": {
+          "nested": null
+        }
+      }
+    ]
+  },
+  {
+    "operation": "get_technologies_autocomplete",
+    "method": "GET",
+    "path": "/technologies/autocomplete",
+    "query": {
+      "query": "test"
+    },
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": [
+      {
+        "id": "a",
+        "future": {
+          "nested": null
+        }
+      }
+    ]
+  },
+  {
+    "operation": "get_positions_autocomplete",
+    "method": "GET",
+    "path": "/positions/autocomplete",
+    "query": {
+      "query": "test"
+    },
+    "path_parameters": {},
+    "body": {},
+    "allow_beta": false,
+    "response": [
+      {
+        "id": "a",
+        "future": {
+          "nested": null
+        }
+      }
+    ]
+  }
+]
