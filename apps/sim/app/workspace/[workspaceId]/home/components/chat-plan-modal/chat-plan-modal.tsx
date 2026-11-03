@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import {
   ChipModal,
   ChipModalBody,
@@ -15,11 +16,14 @@ import { useChatPlanModalStore } from '@/stores/modals/chat-plan/store'
 
 /**
  * Answers a send the workspace's plan refuses: Chat is on paid plans, with the way to upgrade
- * for a viewer who may, and who to ask for one who may not. Render it once per workspace shell.
+ * for a viewer who may, and who to ask for one who may not. Render it once per workspace shell;
+ * leaving the shell closes it, so a refusal never reopens in the next workspace or organization.
  */
 export function ChatPlanModal() {
   const isOpen = useChatPlanModalStore((state) => state.isOpen)
   const close = useChatPlanModalStore((state) => state.close)
+
+  useEffect(() => close, [close])
 
   return (
     <ChipModal

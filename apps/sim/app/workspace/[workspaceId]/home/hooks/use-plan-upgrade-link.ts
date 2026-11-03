@@ -63,12 +63,13 @@ export function usePlanUpgradeLink(data: PlanUpgradeLinkInput): PlanUpgradeLink 
   const action = planRequired
     ? 'upgrade this workspace’s plan'
     : 'manage this workspace’s usage limits'
-  const unavailableMessage =
-    organizationContext && !planRequired
-      ? 'Contact an organization admin to manage usage limits.'
-      : organizationContext || hostContext?.hostOrganizationId
-        ? `Contact an organization admin to ${action}.`
-        : `Only the workspace owner can ${action}.`
+  const unavailableMessage = organizationContext
+    ? planRequired
+      ? 'Contact an organization admin to upgrade this organization’s plan.'
+      : 'Contact an organization admin to manage usage limits.'
+    : hostContext?.hostOrganizationId
+      ? `Contact an organization admin to ${action}.`
+      : `Only the workspace owner can ${action}.`
 
   return {
     href,
