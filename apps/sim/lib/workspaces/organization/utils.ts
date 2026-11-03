@@ -3,22 +3,6 @@
  * These are pure functions that compute values from organization data
  */
 
-import type { Organization } from '@/lib/workspaces/organization/types'
-
-/**
- * Get the role of a user in an organization
- */
-export function getUserRole(
-  organization: Organization | null | undefined,
-  userEmail?: string
-): string {
-  if (!userEmail || !organization?.members) {
-    return 'member'
-  }
-  const currentMember = organization.members.find((m) => m.user?.email === userEmail)
-  return currentMember?.role ?? 'member'
-}
-
 /**
  * Generate a URL-friendly slug from a name
  */

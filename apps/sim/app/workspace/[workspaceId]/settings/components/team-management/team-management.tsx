@@ -11,7 +11,7 @@ import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
-import { generateSlug, getUserRole, type Member } from '@/lib/workspaces/organization'
+import { generateSlug, type Member } from '@/lib/workspaces/organization'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
 import {
   SettingsEmptyState,
@@ -94,15 +94,12 @@ export function TeamManagement({
   } = useOrganizationRoster(organizationId)
 
   // Prefer the roster row: Better Auth's full-organization read caps its member list and can omit
-  // the caller; the roster is withheld only when the directory is hidden, where the fallback is accurate.
+  // the caller. An unknown role hides Leave rather than offering an owner a request that always fails.
   const currentUserRole =
     roster?.members.find((member) => member.userId === session?.user?.id)?.role ??
-    getUserRole(organization, session?.user?.email)
-  const adminOrOwner = isOrgAdminRole(currentUserRole)
-  const canLeave =
-    Boolean(organization) &&
-    (roster !== undefined || rosterError !== null) &&
-    currentUserRole !== 'owner'
+    organization?.members.find((member) => member.user.email === session?.user?.email)?.role
+  const adminOrOwner = isOrgAdminRole(currentUserRole ?? 'member')
+  const canLeave = currentUserRole !== undefined && currentUserRole !== 'owner'
 
   const {
     data: organizationBillingData,
