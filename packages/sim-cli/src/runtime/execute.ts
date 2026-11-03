@@ -21,6 +21,7 @@ import {
   cursorSlot,
   flagNameFor,
   isProfileWorkspacePath,
+  otherSpellings,
   PROFILE_INJECTED_FIELD,
   trailingListField,
 } from './request'
@@ -377,11 +378,7 @@ function foldOtherSpellings(
 ): void {
   for (const [field, flag] of Object.entries(commandSpec.flags ?? {})) {
     const current = flagNameFor(operation, field)
-    const spellings = [
-      ...(flag.renamedFrom ?? []).map((name) => ({ name, renamed: true })),
-      ...(flag.hiddenAliases ?? []).map((name) => ({ name, renamed: false })),
-    ]
-    for (const { name, renamed } of spellings) {
+    for (const { name, renamed } of otherSpellings(flag)) {
       const supplied = flags[camel(name)]
       if (supplied === undefined) continue
       if (flags[camel(current)] !== undefined) {

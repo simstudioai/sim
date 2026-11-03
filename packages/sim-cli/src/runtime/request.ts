@@ -61,6 +61,14 @@ export function flagSpecFor(operation: V2OperationName, field: string): FlagSpec
   return CLI_CONTRACT[operation]?.flags?.[field] ?? {}
 }
 
+/** The undocumented spellings a flag also answers to: former names, then hidden aliases. */
+export function otherSpellings(flag: FlagSpec): { name: string; renamed: boolean }[] {
+  return [
+    ...(flag.renamedFrom ?? []).map((name) => ({ name, renamed: true })),
+    ...(flag.hiddenAliases ?? []).map((name) => ({ name, renamed: false })),
+  ]
+}
+
 /** The list field whose values may also follow the command as arguments, if any. */
 export function trailingListField(commandSpec: CommandSpec): string | undefined {
   return Object.entries(commandSpec.flags ?? {}).find(([, flag]) => flag.trailing)?.[0]
@@ -278,25 +286,23 @@ export async function readArgumentSource(
  * misread a single id or path.
  */
 function fileReferenceEntries(value: string): string[] {
-  if (value.startsWith('[')) {
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(value)
-    } catch {
-      return [value]
-    }
-    if (Array.isArray(parsed) && parsed.every((entry) => typeof entry === 'string')) {
-      return parsed.map((entry) => entry.trim()).filter(Boolean)
-    }
-    return [value]
+  const entries = value.startsWith('[')
+    ? jsonStringArray(value)
+    : value.includes(',') && !value.includes('/')
+      ? value.split(',')
+      : undefined
+  return entries ? entries.map((entry) => entry.trim()).filter(Boolean) : [value]
+}
+
+function jsonStringArray(value: string): string[] | undefined {
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return Array.isArray(parsed) && parsed.every((entry) => typeof entry === 'string')
+      ? parsed
+      : undefined
+  } catch {
+    return undefined
   }
-  if (value.includes(',') && !value.includes('/')) {
-    return value
-      .split(',')
-      .map((entry) => entry.trim())
-      .filter(Boolean)
-  }
-  return [value]
 }
 
 /** A manifest line that carries no value: blank, or a `#` comment. */

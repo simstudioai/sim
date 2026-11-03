@@ -7,9 +7,11 @@ import {
   bulkArchiveWorkspaceFileItems,
   loadWorkspaceFileOperationContext,
 } from '@/lib/uploads/contexts/workspace'
-import { isWorkspaceFileVfsPath } from '@/lib/vfs/path'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
-import { resolveWorkspaceFileVfsPath } from '@/lib/workspace-files/application/file-context'
+import {
+  namesWorkspaceFileVfsPath,
+  resolveWorkspaceFileVfsPath,
+} from '@/lib/workspace-files/application/file-context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
   MAX_WORKSPACE_FILE_BULK_REQUEST_IDS,
@@ -41,10 +43,6 @@ function normalizeSelection(input: ArchiveWorkspaceFileItemsInput) {
   }
 }
 
-function namesVfsPath(input: ArchiveWorkspaceFileItemsInput, reference: string): boolean {
-  return input.acceptVfsPath === true && isWorkspaceFileVfsPath(reference)
-}
-
 /**
  * Turns each path among the selected files into its file's id, all before anything is archived,
  * so one path that names no single live file refuses the whole request. Runs only after the
@@ -53,19 +51,19 @@ function namesVfsPath(input: ArchiveWorkspaceFileItemsInput, reference: string):
  */
 async function resolveFileReferences(
   workspaceId: string,
-  input: ArchiveWorkspaceFileItemsInput,
+  acceptVfsPath: boolean | undefined,
   references: string[]
 ): Promise<string[]> {
-  const paths = references.filter((reference) => namesVfsPath(input, reference))
-  if (paths.length > MAX_WORKSPACE_FILE_BULK_REQUEST_PATHS) {
+  const isPath = references.map((reference) => namesWorkspaceFileVfsPath(acceptVfsPath, reference))
+  if (isPath.filter(Boolean).length > MAX_WORKSPACE_FILE_BULK_REQUEST_PATHS) {
     throw new OrchestrationError(
       'validation',
       `Bulk file operations resolve at most ${MAX_WORKSPACE_FILE_BULK_REQUEST_PATHS} file paths per request; pass file ids for the rest`
     )
   }
   const resolved: string[] = []
-  for (const reference of references) {
-    if (!namesVfsPath(input, reference)) {
+  for (const [index, reference] of references.entries()) {
+    if (!isPath[index]) {
       resolved.push(reference)
       continue
     }
@@ -102,7 +100,7 @@ async function executeArchiveWorkspaceFileItems({
       `Bulk file operations accept at most ${MAX_WORKSPACE_FILE_BULK_REQUEST_IDS} file and folder IDs`
     )
   }
-  const fileIds = await resolveFileReferences(context.workspaceId, input, references)
+  const fileIds = await resolveFileReferences(context.workspaceId, input.acceptVfsPath, references)
 
   await assertWorkspaceFileItemsBelongToWorkspace({
     workspaceId: context.workspaceId,
@@ -134,9 +132,13 @@ async function resolveArchiveContext({ input }: { input: ArchiveWorkspaceFileIte
   const context = await loadWorkspaceFileOperationContext(input.workspaceId)
   if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
   const { fileIds, folderIds } = normalizeSelection(input)
-  const sole = fileIds.length === 1 && folderIds.length === 0 ? fileIds[0] : undefined
-  // A path is not yet an id here, so it can never match a delegation scoped to one file.
-  return { ...context, fileId: sole === undefined || namesVfsPath(input, sole) ? undefined : sole }
+  const [sole] = fileIds
+  const namesOneFileById =
+    sole !== undefined &&
+    fileIds.length === 1 &&
+    folderIds.length === 0 &&
+    !namesWorkspaceFileVfsPath(input.acceptVfsPath, sole)
+  return { ...context, fileId: namesOneFileById ? sole : undefined }
 }
 
 export const archiveWorkspaceFileItemsOperation = defineAuthorizedWorkspaceFileUseCase({

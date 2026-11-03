@@ -87,8 +87,16 @@ function requireWorkspaceFileContext<C extends ActiveWorkspaceFileContext>(
   return canonical
 }
 
+/** Whether a caller that may have opted in with `acceptVfsPath` named a file by its VFS path. */
+export function namesWorkspaceFileVfsPath(
+  acceptVfsPath: boolean | undefined,
+  reference: string
+): boolean {
+  return acceptVfsPath === true && isWorkspaceFileVfsPath(reference)
+}
+
 function namesVfsPath(input: WorkspaceFileTargetInput): boolean {
-  return input.acceptVfsPath === true && isWorkspaceFileVfsPath(input.fileId)
+  return namesWorkspaceFileVfsPath(input.acceptVfsPath, input.fileId)
 }
 
 /**

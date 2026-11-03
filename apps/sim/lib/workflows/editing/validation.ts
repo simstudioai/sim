@@ -614,8 +614,7 @@ export function validateValueForSubBlockType(
     }
 
     case 'file-upload': {
-      // A multi-file field stores the editor's list of file objects; removing its last file
-      // stores null, so an empty list clears it the same way.
+      // Removing the editor's last file stores null, so an empty list clears the field too.
       if (subBlockConfig.multiple && Array.isArray(value)) {
         if (value.length === 0) return { valid: true, value: null }
         const index = value.findIndex((file) => !isStoredFile(file))
@@ -639,9 +638,7 @@ export function validateValueForSubBlockType(
             blockType,
             field: fieldName,
             value,
-            error: subBlockConfig.multiple
-              ? `Invalid file-upload value for field "${fieldName}" - expected a list of objects with "name" and "path" properties, or null`
-              : `Invalid file-upload value for field "${fieldName}" - expected one object with "name" and "path" properties, or null`,
+            error: `Invalid file-upload value for field "${fieldName}" - expected ${subBlockConfig.multiple ? 'a list of objects' : 'one object'} with "name" and "path" properties, or null`,
           },
         }
       }
