@@ -185,6 +185,30 @@ describe('development schema push of a database that predates Projects', () => {
     })
   }, 240_000)
 
+  it('pushes the columns the Project migration reads before running it', async () => {
+    await preProjectDatabase(async (sql, url) => {
+      await sql`ALTER TABLE workspace DROP COLUMN forked_from_workspace_id CASCADE`
+      const pushed = runPush(url, true)
+      expect(pushed.status, pushed.output).toBe(0)
+      expect(await projectSchema(sql)).toEqual({
+        project: true,
+        connector: false,
+        rollout: false,
+        required: true,
+      })
+      expect(
+        await sql`SELECT count(*)::int AS unassigned FROM workspace WHERE project_id IS NULL`
+      ).toEqual([{ unassigned: 0 }])
+      expect(
+        await sql`SELECT count(*)::int AS restored FROM pg_attribute WHERE attrelid = 'workspace'::regclass
+          AND attname = 'forked_from_workspace_id' AND NOT attisdropped`
+      ).toEqual([{ restored: 1 }])
+      expect(
+        await sql`SELECT name FROM script_migrations WHERE name = '0032_project_membership'`
+      ).toEqual([{ name: '0032_project_membership' }])
+    })
+  }, 240_000)
+
   it('resumes after the Project migration reports conflicts', async () => {
     await preProjectDatabase(async (sql, url) => {
       await sql`INSERT INTO workspace (id, name, owner_id, billed_account_user_id, forked_from_workspace_id)
@@ -296,6 +320,13 @@ describe('development schema push of a database that predates Projects', () => {
       state: 'a workspace Project column without Projects',
       async build(sql: Sql) {
         await sql`ALTER TABLE workspace ADD COLUMN project_id text`
+      },
+    },
+    {
+      state: 'folder Project ownership without Projects',
+      async build(sql: Sql) {
+        await sql`ALTER TABLE folder ADD COLUMN project_id text`
+        await sql`UPDATE folder SET project_id = 'orphaned'`
       },
     },
     {
