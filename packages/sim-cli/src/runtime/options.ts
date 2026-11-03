@@ -6,6 +6,7 @@ import {
   type FieldSpec,
   flagNameFor,
   flagSpecFor,
+  otherSpellings,
   PROFILE_INJECTED_FIELD,
   pathFlagNameFor,
   takesJson,
@@ -196,7 +197,7 @@ function addFieldOption(
     if (!flag.boolean || flag.negatable) {
       command.option(`--no-${name}`, `Send --${name} as false`)
     }
-    for (const previous of flag.renamedFrom ?? []) {
+    for (const { name: previous } of otherSpellings(flag)) {
       command.addOption(new Option(`--${previous}`).hideHelp())
       if (!flag.boolean || flag.negatable)
         command.addOption(new Option(`--no-${previous}`).hideHelp())
@@ -241,26 +242,26 @@ function addFieldOption(
       : ''
   }${literalNull ? literalNullHint(documented, name) : ''}`
 
-  const renamedFrom = flag.renamedFrom ?? []
+  const hiddenNames = otherSpellings(flag).map(({ name }) => name)
   const option = new Option(`${short}--${name} ${placeholder}`, describe)
   if (flag.hidden) option.hideHelp()
   if (choices && !takesList) option.choices([...choices])
   if (descriptor.default !== undefined && field !== 'limit') {
     option.default(undefined, String(descriptor.default))
   }
-  // Commander's mandatory check runs before `executeOperation` can fold a
-  // renamed spelling or trailing arguments onto the flag, so a required field
-  // supplied either way would be rejected. The requirement is not lost:
-  // `buildRequest` raises it once every spelling has had its chance.
-  if (descriptor.required && renamedFrom.length === 0 && !flag.trailing) {
+  // Commander's mandatory check runs before `executeOperation` can fold another
+  // spelling or trailing arguments onto the flag, so a required field supplied
+  // either way would be rejected. The requirement is not lost: `buildRequest`
+  // raises it once every spelling has had its chance.
+  if (descriptor.required && hiddenNames.length === 0 && !flag.trailing) {
     option.makeOptionMandatory()
   }
   command.addOption(option)
 
-  for (const previous of renamedFrom) {
-    const retired = new Option(`--${previous} ${placeholder}`).hideHelp()
-    if (choices && !takesList) retired.choices([...choices])
-    command.addOption(retired)
+  for (const previous of hiddenNames) {
+    const hidden = new Option(`--${previous} ${placeholder}`).hideHelp()
+    if (choices && !takesList) hidden.choices([...choices])
+    command.addOption(hidden)
   }
 }
 

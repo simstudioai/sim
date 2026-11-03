@@ -1,4 +1,5 @@
 export { ChatMessageAttachments } from './chat-message-attachments'
+export { ChatPlanNotice } from './chat-plan-notice'
 export { ChatSurfaceProvider, useChatSurface } from './chat-surface-context'
 export { ContextMentionIcon } from './context-mention-icon'
 export { CreditsChip } from './credits-chip'

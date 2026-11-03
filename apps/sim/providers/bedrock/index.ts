@@ -15,6 +15,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { getAwsCredentials } from '@/lib/core/config/aws'
 import { validateAwsRegion } from '@/lib/core/security/input-validation'
 import type { IterationToolCall, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -158,12 +159,12 @@ export const bedrockProvider: ProviderConfig = {
       )
     }
 
-    const clientConfig: BedrockRuntimeClientConfig = { region }
-    if (request.bedrockAccessKeyId && request.bedrockSecretKey) {
-      clientConfig.credentials = {
-        accessKeyId: request.bedrockAccessKeyId,
-        secretAccessKey: request.bedrockSecretKey,
-      }
+    const clientConfig: BedrockRuntimeClientConfig = {
+      region,
+      credentials:
+        request.bedrockAccessKeyId && request.bedrockSecretKey
+          ? { accessKeyId: request.bedrockAccessKeyId, secretAccessKey: request.bedrockSecretKey }
+          : getAwsCredentials(),
     }
 
     // Key on the full credential (access key id + secret) so a corrected secret

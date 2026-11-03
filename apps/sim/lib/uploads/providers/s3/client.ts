@@ -16,7 +16,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { getAwsCredentialsFromEnv } from '@/lib/core/config/aws'
+import { getAwsCredentials } from '@/lib/core/config/aws'
 import {
   assertKnownSizeWithinLimit,
   readNodeStreamToBufferWithLimit,
@@ -62,7 +62,7 @@ export function getS3Client(): S3Client {
     region,
     endpoint: S3_CONFIG.endpoint,
     forcePathStyle: S3_CONFIG.forcePathStyle,
-    credentials: getAwsCredentialsFromEnv(),
+    credentials: getAwsCredentials(),
   })
 
   return _s3Client

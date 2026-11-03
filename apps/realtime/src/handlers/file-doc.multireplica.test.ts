@@ -37,6 +37,7 @@ const fakeStore = {
 vi.mock('@sim/platform-authz/rooms', () => ({ authorizeRoom: vi.fn() }))
 
 vi.mock('@/handlers/file-doc-app', () => ({
+  fetchFileDocAccess: vi.fn(),
   fetchFileDocSeed: vi.fn(),
   fetchFileDocMerge: mockFetchFileDocMerge,
   fetchFileDocPersist: vi.fn(),

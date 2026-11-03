@@ -219,10 +219,12 @@ async function check(name: string, run: () => Promise<void>) {
   }
 }
 
-async function capture(name: string) {
-  await page.evaluate(() => document.fonts.ready)
-  await page.addStyleTag({ content: 'nextjs-portal { display: none; }' })
-  await page.screenshot({ path: resolve(artifactDirectory, `${name}.png`) })
+async function capture(name: string, timeout = 10_000) {
+  await page.screenshot({
+    path: resolve(artifactDirectory, `${name}.png`),
+    style: 'nextjs-portal { display: none; }',
+    timeout,
+  })
 }
 
 async function verifyLegacyDraft(
@@ -1012,28 +1014,37 @@ try {
   })
 } catch (error) {
   logger.error('Organization Search E2E failed', { error: getErrorMessage(error) })
-  await capture('failure').catch(() => {})
   process.exitCode = 1
+  await capture('failure', 5000).catch(() => {})
 } finally {
   currentCheck = 'Teardown'
-  await browser.close()
-  try {
-    await sql.begin(async (tx) => {
-      await tx`delete from workspace where owner_id = ${userId}`
-      await tx`delete from project where owner_id = ${userId}`
-      await tx`delete from organization where id in (${organizationId}, ${otherOrganizationId})`
-      await tx`delete from "user" where id = ${userId}`
-    })
-  } catch (error) {
-    checks.push({
-      name: 'Fixture cleanup',
-      status: 'failed',
-      durationMs: 0,
-      error: getErrorMessage(error),
-    })
-    process.exitCode = 1
-  } finally {
-    await sql.end()
+  for (const [name, cleanup] of [
+    ['Browser cleanup', () => browser.close()],
+    [
+      'Fixture cleanup',
+      async () => {
+        await sql.begin(async (tx) => {
+          await tx`delete from workspace where owner_id = ${userId}`
+          await tx`delete from project where owner_id = ${userId}`
+          await tx`delete from organization where id in (${organizationId}, ${otherOrganizationId})`
+          await tx`delete from "user" where id = ${userId}`
+        })
+      },
+    ],
+    ['Database connection cleanup', () => sql.end({ timeout: 5 })],
+  ] as const) {
+    const started = performance.now()
+    try {
+      await cleanup()
+    } catch (error) {
+      checks.push({
+        name,
+        status: 'failed',
+        durationMs: Math.round(performance.now() - started),
+        error: getErrorMessage(error),
+      })
+      process.exitCode = 1
+    }
   }
   await mkdir(dirname(reportPath), { recursive: true })
   await writeFile(

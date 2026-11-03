@@ -821,6 +821,46 @@ describe('session sandbox lease', () => {
     expect(writes).toHaveBeenCalledTimes(firstWrites)
   })
 
+  it('attributes a warm shell call’s wall time to the phase that spent it', async () => {
+    const { handle } = fakeSandbox('phase-timing')
+    mockFindSessionSandbox.mockResolvedValue(handle)
+    const request = {
+      code: 'true',
+      envs: {},
+      timeoutMs: 10_000,
+      session: { key: 'phase-timing', cli: CLI },
+    }
+    await executeShellInSandbox(request)
+
+    let nowMs = 0
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => nowMs)
+    const writes = vi.fn(handle.writeFile.bind(handle))
+    handle.writeFile = writes
+    const runCommand = handle.runCommand.bind(handle)
+    handle.runCommand = async (command, options) => {
+      nowMs += options.envs?.SIM_CLI_PATH ? 30 : 60
+      return runCommand(command, options)
+    }
+    mockFindSessionSandbox.mockImplementation(async () => {
+      nowMs += 40
+      return handle
+    })
+
+    try {
+      const result = await executeShellInSandbox(request)
+
+      const phases = result.phaseMs ?? {}
+      expect(result.sandboxSession).toBe('reused')
+      expect(writes).not.toHaveBeenCalled()
+      expect(phases.lookup).toBe(40)
+      expect(phases.cli).toBe(30)
+      expect(phases.run).toBe(60)
+      expect(phases.lease).toBeGreaterThanOrEqual(70)
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
   it('pins shell CLI resolution ahead of caller environment paths', async () => {
     const { handle, calls } = fakeSandbox('shell-cli-path')
     mockFindSessionSandbox.mockResolvedValue(handle)

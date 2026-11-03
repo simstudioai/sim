@@ -23,6 +23,7 @@ import {
 } from '@/lib/mcp/workflow-tool-schema'
 import type { InputFormatField } from '@/lib/workflows/types'
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components/create-workflow-mcp-server-modal'
 import {
   useAddWorkflowMcpTool,
@@ -133,6 +134,7 @@ export function McpDeploy({
   onActiveServerChange,
 }: McpDeployProps) {
   const { workspaceId } = useWorkflowScope()
+  const { canAdmin } = useUserPermissionsContext()
   const [showCreateModal, setShowCreateModal] = useState(false)
 
   const { data: servers = [], isLoading: isLoadingServers } = useWorkflowMcpServers(workspaceId)
@@ -513,6 +515,7 @@ export function McpDeploy({
           open={showCreateModal}
           onOpenChange={setShowCreateModal}
           workspaceId={workspaceId}
+          canChangeVisibility={canAdmin}
         />
       </>
     )

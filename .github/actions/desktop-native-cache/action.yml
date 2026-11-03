@@ -1,0 +1,16 @@
+name: Cache desktop native outputs
+description: Reuse validated native outputs only for matching source and toolchain inputs
+runs:
+  using: composite
+  steps:
+    - name: Identify native build inputs
+      id: inputs
+      shell: bash
+      working-directory: apps/desktop
+      run: echo "key=$(bun run scripts/native-build-cache.ts)" >> "$GITHUB_OUTPUT"
+    - name: Restore native compilation outputs
+      continue-on-error: true
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+      with:
+        path: apps/desktop/dist/native
+        key: desktop-native-v1-${{ runner.os }}-${{ steps.inputs.outputs.key }}

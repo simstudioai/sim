@@ -5,10 +5,11 @@
  * hanging until a watchdog calls it "hung". Runs against real PostgreSQL and Redis: the call is
  * persisted and dispatched by the production stream handlers, the desktop claims it through the
  * authorize route and reports through the confirm route.
+ * Cases own separate calls and waiters; the shared authorization and parent-run fixtures stay fixed.
  */
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, it, vi } from 'vitest'
 
 const { redisUrl, inheritedEnv } = await vi.hoisted(async () => {
   const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
@@ -69,7 +70,7 @@ afterAll(async () => {
   }
 })
 
-describe.runIf(Boolean(redisUrl))('a desktop tool call nobody picks up', () => {
+describe.runIf(Boolean(redisUrl)).concurrent('a desktop tool call nobody picks up', () => {
   const userId = generateId()
   const workspaceId = generateId()
   const chatId = generateId()
@@ -181,12 +182,13 @@ describe.runIf(Boolean(redisUrl))('a desktop tool call nobody picks up', () => {
     await db.delete(user).where(eq(user.id, userId))
   })
 
-  it.each([
+  it.for([
     ['browser_snapshot', {}],
     ['terminal', { operation: 'run', args: { command: 'ls' } }],
-  ])(
+  ] as const)(
     'tells the agent a %s call never started, and refuses a late pickup',
-    async (toolName, args) => {
+    { timeout: TURN_WAIT_MS + 10_000 },
+    async ([toolName, args], { expect }) => {
       const startedAt = Date.now()
       const { toolCallId, answer } = await agentCalls(toolName, args)
 
@@ -203,13 +205,12 @@ describe.runIf(Boolean(redisUrl))('a desktop tool call nobody picks up', () => {
         .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
       expect(row.status).toBe('failed')
       expect((await desktopClaims(toolCallId)).ok).toBe(false)
-    },
-    TURN_WAIT_MS + 10_000
+    }
   )
 
   it(
     'keeps waiting for a call the desktop picked up in time, past the pickup grace',
-    async () => {
+    async ({ expect }) => {
       const { toolCallId, answer } = await agentCalls('browser_snapshot', {})
       expect((await desktopClaims(toolCallId)).status).toBe(200)
 
@@ -229,7 +230,7 @@ describe.runIf(Boolean(redisUrl))('a desktop tool call nobody picks up', () => {
 
   it(
     'never lets a stale "not started" report end a call the desktop is running',
-    async () => {
+    async ({ expect }) => {
       const { toolCallId, answer } = await agentCalls('terminal', {
         operation: 'run',
         args: { command: 'bun run test' },
@@ -258,7 +259,7 @@ describe.runIf(Boolean(redisUrl))('a desktop tool call nobody picks up', () => {
 
   it(
     'tells the agent a local read nobody picked up never started, for a desktop that claims reads',
-    async () => {
+    async ({ expect }) => {
       const startedAt = Date.now()
       const { toolCallId, answer } = await agentCalls(
         'read_local_file',
@@ -277,7 +278,7 @@ describe.runIf(Boolean(redisUrl))('a desktop tool call nobody picks up', () => {
 
   it(
     'lets a desktop that claimed a local read keep reading it, past the pickup grace',
-    async () => {
+    async ({ expect }) => {
       const { toolCallId, answer } = await agentCalls(
         'grep',
         { path: 'user-local/Project--mount-1', pattern: 'TODO' },
@@ -302,7 +303,7 @@ describe.runIf(Boolean(redisUrl))('a desktop tool call nobody picks up', () => {
 
   it(
     'reads as before for a desktop that does not claim local reads',
-    async () => {
+    async ({ expect }) => {
       const { toolCallId, answer } = await agentCalls('read_local_file', {
         path: '/Users/me/notes.txt',
       })

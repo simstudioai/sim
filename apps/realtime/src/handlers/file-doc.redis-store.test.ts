@@ -20,15 +20,18 @@ import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
 import type { IRoomManager } from '@/rooms'
 
-const { mockAuthorizeRoom, mockFetchFileDocSeed, mockFetchFileDocPersist } = vi.hoisted(() => ({
-  mockAuthorizeRoom: vi.fn(),
-  mockFetchFileDocSeed: vi.fn(),
-  mockFetchFileDocPersist: vi.fn(),
-}))
+const { mockFetchFileDocAccess, mockFetchFileDocSeed, mockFetchFileDocPersist } = vi.hoisted(
+  () => ({
+    mockFetchFileDocAccess: vi.fn(),
+    mockFetchFileDocSeed: vi.fn(),
+    mockFetchFileDocPersist: vi.fn(),
+  })
+)
 
-vi.mock('@sim/platform-authz/rooms', () => ({ authorizeRoom: mockAuthorizeRoom }))
+vi.mock('@sim/platform-authz/rooms', () => ({ authorizeRoom: vi.fn() }))
 
 vi.mock('@/handlers/file-doc-app', () => ({
+  fetchFileDocAccess: mockFetchFileDocAccess,
   fetchFileDocSeed: mockFetchFileDocSeed,
   fetchFileDocMerge: vi.fn(),
   fetchFileDocPersist: mockFetchFileDocPersist,
@@ -263,7 +266,7 @@ describe('file-doc join readiness (shared store enabled)', () => {
     backing.kv.clear()
     backing.seq = 0
     backing.readDelayTicks = 0
-    mockAuthorizeRoom.mockResolvedValue({
+    mockFetchFileDocAccess.mockResolvedValue({
       allowed: true,
       status: 200,
       workspaceId: 'ws-1',

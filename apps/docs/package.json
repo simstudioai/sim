@@ -7,7 +7,7 @@
     "dev": "bun run dev:cache:cap && bun run content:generate && bunx concurrently --kill-others --names Next,Content \"next dev --port 3001\" \"bun scripts/compile-content.ts --watch\"",
     "dev:cache:cap": "bun run ../../scripts/prune-turbopack-cache.ts",
     "dev:clean": "rm -rf .next/dev/cache",
-    "build": "bun scripts/fetch-git-history.ts && bun run content:generate && NODE_OPTIONS='--max-old-space-size=8192' next build",
+    "build": "bun scripts/fetch-git-history.ts && bun run content:generate --prune && NODE_OPTIONS='--max-old-space-size=8192' next build",
     "start": "next start",
     "test": "vitest run",
     "test:negotiation:e2e": "bun scripts/test-negotiation-e2e.ts",
@@ -67,7 +67,7 @@
     "vfile": "6.0.3"
   },
   "devDependencies": {
-    "@playwright/test": "1.61.1",
+    "@playwright/test": "1.64.1",
     "@sim/tsconfig": "workspace:*",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "24.19.2",

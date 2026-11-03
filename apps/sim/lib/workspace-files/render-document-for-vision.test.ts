@@ -34,6 +34,11 @@ describe('document page selection', () => {
       expect(() => resolveDocumentPages(37, pages)).toThrow()
     }
   )
+  it('tells a caller who lists separate pages to read each range on its own', () => {
+    expect(() => resolveDocumentPages(37, '5,9, 17')).toThrow(
+      '"5,9, 17" lists several pages; pass one page or one contiguous range per read'
+    )
+  })
 })
 
 describe('renderDocumentForVision', () => {

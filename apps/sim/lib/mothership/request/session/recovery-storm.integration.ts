@@ -10,45 +10,68 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedEnv, worker, faults } = await vi.hoisted(async () => {
+const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
   const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
+  const { toRecord } = await import('@sim/utils/object')
   const { createServer } = await import('node:http')
-  const faults = {
-    /** Which leased appends fail, and how; `undefined` lets every append through. */
-    append: undefined as
-      | undefined
-      | {
-          frames: 'any_tool' | 'tool_result'
-          effect: 'throw' | 'throw_once' | 'lose_lease'
-        },
-    /** Fails a recovering controller's read of the whole replay ring. */
-    recoveryRead: false,
+  interface RunFixture {
+    mode: 'frames' | 'json500' | 'drop'
+    frames: unknown[]
+    posts: { path: string; at: number }[]
+    append?: {
+      frames: 'any_tool' | 'tool_result'
+      effect: 'throw' | 'throw_once' | 'lose_lease'
+    }
+    recoveryRead: boolean
   }
   const worker = {
-    posts: [] as Array<{ path: string; at: number }>,
-    mode: 'frames' as 'frames' | 'json500' | 'drop',
-    frames: [] as unknown[],
+    runs: new Map<string, RunFixture>(),
+    unexpectedRequests: [] as { path: string; reason: string }[],
   }
   const server = createServer(async (request, response) => {
-    await new Promise((resolve) => request.on('end', resolve).resume())
-    worker.posts.push({ path: request.url ?? '', at: Date.now() })
+    let body: Record<string, unknown>
+    try {
+      let raw = ''
+      request.setEncoding('utf8')
+      for await (const chunk of request) raw += chunk
+      body = toRecord(JSON.parse(raw))
+    } catch {
+      worker.unexpectedRequests.push({ path: request.url ?? '', reason: 'malformed_body' })
+      response.writeHead(404, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ error: 'Run not found' }))
+      return
+    }
+    const fixture = typeof body.messageId === 'string' ? worker.runs.get(body.messageId) : undefined
+    if (
+      !fixture ||
+      (request.url !== '/api/mothership' && request.url !== '/api/streams/explicit-abort')
+    ) {
+      worker.unexpectedRequests.push({
+        path: request.url ?? '',
+        reason: fixture ? 'unknown_path' : 'unknown_stream',
+      })
+      response.writeHead(404, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ error: 'Run not found' }))
+      return
+    }
+    fixture.posts.push({ path: request.url, at: Date.now() })
     if (request.url === '/api/streams/explicit-abort') {
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ settled: true }))
       return
     }
-    if (worker.mode === 'json500') {
+    if (fixture.mode === 'json500') {
       response.writeHead(500, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ error: 'internal' }))
       return
     }
     response.writeHead(200, { 'content-type': 'text/event-stream' })
-    if (worker.mode === 'drop') {
-      response.write(`data: ${JSON.stringify(worker.frames[0])}\n\n`)
+    if (fixture.mode === 'drop') {
+      response.write(`data: ${JSON.stringify(fixture.frames[0])}\n\n`)
       setTimeout(() => response.socket?.destroy(), 20)
       return
     }
-    for (const frame of worker.frames) response.write(`data: ${JSON.stringify(frame)}\n\n`)
+    for (const frame of fixture.frames) response.write(`data: ${JSON.stringify(frame)}\n\n`)
     response.end('data: [DONE]\n\n')
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -61,7 +84,7 @@ const { redisUrl, inheritedEnv, worker, faults } = await vi.hoisted(async () => 
   /** The real Redis module and worker URL resolution read these at import. */
   process.env.REDIS_URL = url
   process.env.SIM_AGENT_API_URL = `http://127.0.0.1:${port}`
-  return { redisUrl: url, inheritedEnv, worker: Object.assign(worker, { server }), faults }
+  return { redisUrl: url, inheritedEnv, worker: Object.assign(worker, { server }) }
 })
 
 vi.mock('@/lib/auth', () => authMock)
@@ -71,8 +94,15 @@ vi.mock('@/lib/mothership/request/session/buffer', async (importOriginal) => {
   return {
     ...actual,
     appendEvents: async (...args: Parameters<typeof actual.appendEvents>) => {
-      const [envelopes, , lease] = args
-      const fault = faults.append
+      const [envelopes, scope, lease] = args
+      if (envelopes.length === 0) return actual.appendEvents(...args)
+      const streamId = scope?.streamId ?? envelopes[0]?.stream.streamId
+      const fixture = streamId ? worker.runs.get(streamId) : undefined
+      if (!fixture) {
+        worker.unexpectedRequests.push({ path: 'appendEvents', reason: 'unknown_append_stream' })
+        throw new Error('Append has no registered recovery fixture')
+      }
+      const fault = fixture.append
       const hit =
         lease &&
         fault &&
@@ -85,7 +115,7 @@ vi.mock('@/lib/mothership/request/session/buffer', async (importOriginal) => {
       if (hit && fault.effect === 'throw') throw new Error('simulated Redis write failure')
       /** A Redis blip that outlasts the append retries, after which Redis is healthy again. */
       if (hit && fault.effect === 'throw_once') {
-        faults.append = undefined
+        fixture.append = undefined
         throw new Error('simulated transient Redis write failure')
       }
       /** The lock expires under a live controller, and nobody else holds it. */
@@ -93,8 +123,13 @@ vi.mock('@/lib/mothership/request/session/buffer', async (importOriginal) => {
       return actual.appendEvents(...args)
     },
     readEvents: async (...args: Parameters<typeof actual.readEvents>) => {
-      const [, afterCursor] = args
-      if (faults.recoveryRead && afterCursor === '0')
+      const [streamId, afterCursor] = args
+      const fixture = worker.runs.get(streamId)
+      if (!fixture) {
+        worker.unexpectedRequests.push({ path: 'readEvents', reason: 'unknown_read_stream' })
+        throw new Error('Read has no registered recovery fixture')
+      }
+      if (fixture.recoveryRead && afterCursor === '0')
         throw new Error('simulated Redis read failure')
       return actual.readEvents(...args)
     },
@@ -141,6 +176,7 @@ async function orphanedRun(
   options: {
     status?: 'active' | 'paused_waiting_for_tool'
     recoveryBackoff?: Record<string, number>
+    mode?: 'frames' | 'json500' | 'drop'
   } = {}
 ) {
   const chatId = generateId()
@@ -180,6 +216,13 @@ async function orphanedRun(
       ...(options.recoveryBackoff ? { recoveryBackoff: options.recoveryBackoff } : {}),
     },
   })
+  const fixture: NonNullable<ReturnType<typeof worker.runs.get>> = {
+    mode: options.mode ?? 'frames',
+    frames: [],
+    posts: [],
+    recoveryRead: false,
+  }
+  worker.runs.set(streamId, fixture)
   await appendEvents(
     [1, 2].map((seq) =>
       createEvent({
@@ -201,7 +244,7 @@ async function orphanedRun(
     stream: { streamId, chatId },
     payload,
   })
-  worker.frames = [
+  fixture.frames = [
     frame(1, 'tool', {
       phase: 'call',
       toolCallId: 'go-call',
@@ -221,7 +264,7 @@ async function orphanedRun(
     }),
     frame(3, 'complete', { status: 'complete', textLength: 14 }),
   ]
-  return { chatId, streamId, runId }
+  return { chatId, streamId, runId, fixture }
 }
 
 async function storedRun(runId: string) {
@@ -245,8 +288,12 @@ async function storedRun(runId: string) {
  * lock released, or `windowMs` passes, and returns the worker requests made meanwhile.
  */
 async function reconnect(
-  { chatId, streamId, runId }: { chatId: string; streamId: string; runId: string },
-  { tails = 1, windowMs }: { tails?: number; windowMs: number }
+  { chatId, streamId, runId, fixture }: Awaited<ReturnType<typeof orphanedRun>>,
+  {
+    tails = 1,
+    windowMs,
+    waitForLeaseRelease = true,
+  }: { tails?: number; windowMs: number; waitForLeaseRelease?: boolean }
 ) {
   const startedAt = Date.now()
   const controllers = Array.from({ length: tails }, () => new AbortController())
@@ -270,8 +317,9 @@ async function reconnect(
   }
   for (const controller of controllers) controller.abort()
   await Promise.allSettled(drains)
-  for (let i = 0; i < 50 && (await redis().get(chatStreamLockKey(chatId))); i++) await sleep(100)
-  const requests = worker.posts.filter((post) => post.at >= startedAt)
+  if (waitForLeaseRelease)
+    for (let i = 0; i < 50 && (await redis().get(chatStreamLockKey(chatId))); i++) await sleep(100)
+  const requests = fixture.posts.filter((post) => post.at >= startedAt)
   return {
     startedAt,
     turns: requests.filter((post) => post.path === '/api/mothership'),
@@ -281,10 +329,12 @@ async function reconnect(
 
 afterAll(async () => {
   await new Promise<void>((resolve) => worker.server.close(() => resolve()))
+  worker.runs.clear()
   for (const [key, value] of Object.entries(inheritedEnv)) {
     if (value === undefined) delete process.env[key]
     else process.env[key] = value
   }
+  expect(worker.unexpectedRequests).toEqual([])
 })
 
 describe.runIf(Boolean(redisUrl))('reconnecting to an orphaned Chat run', () => {
@@ -332,7 +382,6 @@ describe.runIf(Boolean(redisUrl))('reconnecting to an orphaned Chat run', () => 
   it.each(['active', 'paused_waiting_for_tool'] as const)(
     'takes over an orphaned %s run at once and completes it',
     async (status) => {
-      worker.mode = 'frames'
       const run = await orphanedRun({ status })
 
       const { startedAt, turns } = await reconnect(run, { windowMs: 10_000 })
@@ -347,9 +396,8 @@ describe.runIf(Boolean(redisUrl))('reconnecting to an orphaned Chat run', () => 
   )
 
   it('hands off a turn whose append fails once, and the next controller completes it', async () => {
-    worker.mode = 'frames'
     const run = await orphanedRun()
-    faults.append = { frames: 'any_tool', effect: 'throw_once' }
+    run.fixture.append = { frames: 'any_tool', effect: 'throw_once' }
     try {
       const { turns, stops } = await reconnect(run, { windowMs: 15_000 })
 
@@ -360,11 +408,11 @@ describe.runIf(Boolean(redisUrl))('reconnecting to an orphaned Chat run', () => 
         recoveryBackoff: { attempts: 2 },
       })
     } finally {
-      faults.append = undefined
+      run.fixture.append = undefined
     }
   }, 60_000)
 
-  it.each([
+  it.concurrent.for([
     { frames: 'any_tool', effect: 'throw', tails: 1 },
     { frames: 'any_tool', effect: 'throw', tails: 3 },
     { frames: 'tool_result', effect: 'throw', tails: 1 },
@@ -372,10 +420,10 @@ describe.runIf(Boolean(redisUrl))('reconnecting to an orphaned Chat run', () => 
     { frames: 'any_tool', effect: 'lose_lease', tails: 3 },
   ] as const)(
     'gives up on a run whose recovered controllers keep failing ($effect on $frames, $tails tails)',
-    async ({ frames, effect, tails }) => {
-      worker.mode = 'frames'
+    { timeout: 120_000 },
+    async ({ frames, effect, tails }, { expect }) => {
       const run = await orphanedRun()
-      faults.append = { frames, effect }
+      run.fixture.append = { frames, effect }
       try {
         const { turns, stops } = await reconnect(run, { tails, windowMs: 60_000 })
 
@@ -391,14 +439,12 @@ describe.runIf(Boolean(redisUrl))('reconnecting to an orphaned Chat run', () => 
           recoveryBackoff: { attempts: MAX_RECOVERY_ATTEMPTS + 1 },
         })
       } finally {
-        faults.append = undefined
+        run.fixture.append = undefined
       }
-    },
-    120_000
+    }
   )
 
   it('waits out the backoff of a recent takeover, then takes over and completes the run', async () => {
-    worker.mode = 'frames'
     const now = Date.now()
     const notBefore = now + 3_000
     const run = await orphanedRun({
@@ -415,7 +461,6 @@ describe.runIf(Boolean(redisUrl))('reconnecting to an orphaned Chat run', () => 
   }, 30_000)
 
   it('starts a fresh budget once the previous takeover is older than the reset window', async () => {
-    worker.mode = 'frames'
     const claimedAt = Date.now() - RECOVERY_BUDGET_RESET_MS - 1_000
     const run = await orphanedRun({
       recoveryBackoff: { attempts: MAX_RECOVERY_ATTEMPTS, claimedAt, notBefore: claimedAt },
@@ -431,14 +476,13 @@ describe.runIf(Boolean(redisUrl))('reconnecting to an orphaned Chat run', () => 
   }, 30_000)
 
   it('leaves the run untouched when a takeover fails before it starts, then ends it once exhausted', async () => {
-    worker.mode = 'frames'
     const claimedAt = Date.now() - 1_000
     const recoveryBackoff = { attempts: MAX_RECOVERY_ATTEMPTS, claimedAt, notBefore: claimedAt }
     const run = await orphanedRun({ recoveryBackoff })
     const { controllerToken } = (await storedRun(run.runId)).requestContext as {
       controllerToken: string
     }
-    faults.recoveryRead = true
+    run.fixture.recoveryRead = true
     try {
       const { turns } = await reconnect(run, { windowMs: 2_000 })
 
@@ -449,7 +493,7 @@ describe.runIf(Boolean(redisUrl))('reconnecting to an orphaned Chat run', () => 
         recoveryBackoff,
       })
     } finally {
-      faults.recoveryRead = false
+      run.fixture.recoveryRead = false
     }
 
     const { turns, stops } = await reconnect(run, { windowMs: 10_000 })
@@ -464,17 +508,21 @@ describe.runIf(Boolean(redisUrl))('reconnecting to an orphaned Chat run', () => 
   }, 30_000)
 
   it('never takes over a parked run whose controller still holds the chat lock', async () => {
-    worker.mode = 'frames'
     const run = await orphanedRun({ status: 'paused_waiting_for_tool' })
     const liveController = `${run.streamId}\n${generateId()}`
     await redis().set(chatStreamLockKey(run.chatId), liveController, 'EX', 60)
     try {
-      const { turns } = await reconnect(run, { tails: 3, windowMs: 3_000 })
+      const { turns } = await reconnect(run, {
+        tails: 3,
+        windowMs: 3_000,
+        waitForLeaseRelease: false,
+      })
 
       expect(turns).toHaveLength(0)
       const stored = await storedRun(run.runId)
       expect(stored.status).toBe('paused_waiting_for_tool')
       expect(stored.recoveryBackoff).toBeUndefined()
+      expect(await redis().get(chatStreamLockKey(run.chatId))).toBe(liveController)
     } finally {
       await redis().del(chatStreamLockKey(run.chatId))
     }
@@ -483,16 +531,11 @@ describe.runIf(Boolean(redisUrl))('reconnecting to an orphaned Chat run', () => 
   it.each(['json500', 'drop'] as const)(
     'ends the run after its bounded retries when the worker fails every leg (%s)',
     async (mode) => {
-      worker.mode = mode
-      const run = await orphanedRun()
-      try {
-        const { turns } = await reconnect(run, { windowMs: 20_000 })
+      const run = await orphanedRun({ mode })
+      const { turns } = await reconnect(run, { windowMs: 20_000 })
 
-        expect(turns).toHaveLength(4)
-        expect((await storedRun(run.runId)).status).toBe('error')
-      } finally {
-        worker.mode = 'frames'
-      }
+      expect(turns).toHaveLength(4)
+      expect((await storedRun(run.runId)).status).toBe('error')
     },
     60_000
   )

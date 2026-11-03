@@ -1,8 +1,9 @@
 /**
- * Real PostgreSQL behavior of single-file operations addressed by a `files/…` VFS path instead
- * of an id: the path names exactly one live file in the asserted workspace, never a same-named
- * file in another folder or workspace, a chat upload or an archived file, and authorization is
- * unchanged. A caller who cannot reach the workspace learns nothing about the paths in it.
+ * Real PostgreSQL behavior of file operations addressed by a `files/…` VFS path instead of an id:
+ * the path names exactly one live file in the asserted workspace, never a same-named file in
+ * another folder or workspace, a chat upload or an archived file, and authorization is
+ * unchanged. A caller who cannot reach the workspace learns nothing about the paths in it, and a
+ * bulk delete with one unresolved path deletes nothing.
  */
 import { db } from '@sim/db'
 import { permissions, user, workspace, workspaceFiles } from '@sim/db/schema'
@@ -13,6 +14,7 @@ import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/file-manager'
+import { archiveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/archive-workspace-file-items'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import { readWorkspaceFileMetadataWithVersion } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
@@ -62,6 +64,12 @@ const deleteFile = (fileId: string, userId = alice) =>
   deleteWorkspaceFileOperation.execute({
     principal: session(userId),
     input: { fileId, acceptVfsPath: true, assertedWorkspaceId: workspaceId },
+  })
+
+const bulkDelete = (fileIds: string[], userId = alice, acceptVfsPath = true) =>
+  archiveWorkspaceFileItemsOperation.execute({
+    principal: session(userId),
+    input: { workspaceId, fileIds, acceptVfsPath },
   })
 
 /** The `{ code, message }` each path is refused with, or null where it resolved. */
@@ -372,5 +380,85 @@ describe('single-file operations addressed by VFS path', () => {
       code: 'validation',
     })
     expect((await row(ids.rootReport))?.deletedAt).toBeNull()
+  })
+
+  describe('bulk delete', () => {
+    const bulk = { folder: generateId(), one: '', two: '', three: '', rootOne: '' }
+
+    beforeAll(async () => {
+      await db.execute(sql`
+        INSERT INTO folder (id, name, user_id, workspace_id, resource_type, parent_id)
+        VALUES (${bulk.folder}, 'Bulk', ${alice}, ${workspaceId}, 'file', NULL)`)
+      bulk.one = await insertFile({ name: 'one.csv', folderId: bulk.folder })
+      bulk.two = await insertFile({ name: 'two.csv', folderId: bulk.folder })
+      bulk.three = await insertFile({ name: 'three.csv', folderId: bulk.folder })
+      bulk.rootOne = await insertFile({ name: 'one.csv' })
+    })
+
+    const live = async (ids: string[]) =>
+      Promise.all(ids.map(async (id) => (await row(id))?.deletedAt === null))
+
+    it('refuses the whole request when one path names no single live file', async () => {
+      await expect(
+        bulkDelete(['files/Bulk/three.csv', 'files/Bulk/missing.csv'])
+      ).rejects.toMatchObject({
+        code: 'not_found',
+        message: 'No live file at "files/Bulk/missing.csv"',
+      })
+      await expect(
+        bulkDelete([bulk.three, 'files/Bulk/one.csv,files/Bulk/two.csv'])
+      ).rejects.toMatchObject({
+        message: expect.stringContaining('pass each path as its own entry'),
+      })
+      await expect(bulkDelete([bulk.three, await ambiguousPath()])).rejects.toMatchObject({
+        code: 'validation',
+      })
+      await expect(bulkDelete([bulk.three, 'files/notes.txt'])).rejects.toMatchObject({
+        code: 'not_found',
+      })
+      expect(await live([bulk.one, bulk.two, bulk.three, ids.chatUpload])).toEqual([
+        true,
+        true,
+        true,
+        true,
+      ])
+    })
+
+    it('keeps authorization and answers a non-member the same for every path', async () => {
+      await expect(bulkDelete(['files/Bulk/one.csv'], bob)).rejects.toMatchObject({
+        code: 'forbidden',
+      })
+      const refusal = (fileIds: string[]) =>
+        bulkDelete(fileIds, carol).then(
+          () => null,
+          (error: { code?: string; message?: string }) => ({
+            code: error.code,
+            message: error.message,
+          })
+        )
+      const existing = await refusal(['files/Bulk/one.csv', 'files/Bulk/two.csv'])
+      expect(existing).toMatchObject({ code: 'forbidden' })
+      expect(await refusal(['files/Bulk/one.csv', 'files/Bulk/missing.csv'])).toEqual(existing)
+      expect(await live([bulk.one, bulk.two])).toEqual([true, true])
+    })
+
+    it('resolves no path for a caller that did not opt in', async () => {
+      await expect(bulkDelete(['files/Bulk/one.csv'], alice, false)).rejects.toMatchObject({
+        code: 'not_found',
+      })
+      expect(await live([bulk.one])).toEqual([true])
+    })
+
+    it('deletes the files a mix of paths and ids names, and no same-named file elsewhere', async () => {
+      expect(
+        await bulkDelete(['files/Bulk/one.csv', bulk.two, 'files/Bulk/two.csv'])
+      ).toMatchObject({ deletedItems: { files: 2 } })
+      expect(await live([bulk.one, bulk.two, bulk.three, bulk.rootOne])).toEqual([
+        false,
+        false,
+        true,
+        true,
+      ])
+    })
   })
 })

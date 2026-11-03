@@ -330,7 +330,8 @@ export async function prePersistClientExecutableToolCall(
           context,
           options ?? {},
           frameRequestsApproval,
-          data.arguments
+          data.arguments,
+          data.execName
         )
   if (gated) {
     data.status = TOOL_AWAITING_APPROVAL_STATUS
@@ -1029,7 +1030,14 @@ async function dispatchToolExecution(
     isAssistantIntegrationTool(getToolMetadata(toolCall.execName ?? toolName))
   const gated = assistantAction
     ? frameRequestsApproval
-    : toolCallNeedsApproval(toolName, context, options, frameRequestsApproval, args)
+    : toolCallNeedsApproval(
+        toolName,
+        context,
+        options,
+        frameRequestsApproval,
+        args,
+        toolCall.execName
+      )
   if (gated || clientExecutable) await adoptRecordedToolDeadline(toolCall)
   if (gated) {
     registerPendingToolPromise(

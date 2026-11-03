@@ -17,7 +17,19 @@
       "task": "ci:e2e-desktop-inbox"
     },
     {
-      "group": "browser-extension",
+      "group": "assistant-actions",
+      "task": "ci:e2e-assistant-actions"
+    },
+    {
+      "group": "organization-search",
+      "task": "ci:e2e-organization-search"
+    },
+    {
+      "group": "browser-extension-native",
+      "task": "ci:e2e-browser-extension"
+    },
+    {
+      "group": "browser-extension-access",
       "task": "ci:e2e-browser-extension"
     },
     {

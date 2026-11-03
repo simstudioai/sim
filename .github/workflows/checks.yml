@@ -76,7 +76,7 @@ jobs:
     name: integration (${{ matrix.provision }}, ${{ matrix.shard == 'db' && 'db' || format('{0}/8', matrix.shard) }})
     needs: changes
     if: needs.changes.outputs.integration == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-24.04' }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -135,7 +135,7 @@ jobs:
       - name: Setup workspace
         uses: ./.github/actions/setup
         with:
-          provider: github
+          provider: ${{ vars.CI_PROVIDER }}
 
       - name: Provision a fresh database through the supported command
         working-directory: packages/db
@@ -219,7 +219,7 @@ jobs:
           --health-retries 10
       # Desktop inbox, browser extension, and Project Files use Redis.
       redis:
-        image: ${{ (matrix.group == 'desktop-inbox' || matrix.group == 'browser-extension' || matrix.group == 'project-files') && 'redis:8.2-alpine' || '' }}
+        image: ${{ (matrix.group == 'desktop-inbox' || matrix.group == 'assistant-actions' || matrix.group == 'organization-search' || startsWith(matrix.group, 'browser-extension-') || matrix.group == 'project-files') && 'redis:8.2-alpine' || '' }}
         ports:
           - 6379:6379
         options: >-
@@ -298,7 +298,7 @@ jobs:
           name: e2e-reports-${{ matrix.group }}
           path: |
             ${{ runner.temp }}/e2e/**/*.json
-            ${{ runner.temp }}/e2e/browser-extension/**/*.png
+            ${{ runner.temp }}/e2e/browser-extension*/**/*.png
             ${{ runner.temp }}/e2e/*-ui-report.json.artifacts/*.png
           if-no-files-found: ignore
           retention-days: 7
@@ -685,7 +685,10 @@ jobs:
           "$RUNNER_TEMP/actionlint" -color -shellcheck= -pyflakes=
 
       - name: Generate documentation modules for import audits
-        run: bun run --cwd apps/docs content:generate
+        uses: ./.github/actions/docs-content-cache
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          namespace: lint
 
       # Every zero-argument `check:*` script, run concurrently. The list is derived in
       # scripts/run-audits.ts, which also writes the per-audit timing table to the job
@@ -726,6 +729,10 @@ jobs:
             exit 1
           fi
           echo "✅ Schema and migrations are in sync"
+
+      - name: Bound documentation content cache
+        if: always()
+        run: bash .github/actions/docs-content-cache/prune.sh content
 
   # Type errors in apps/sim's unit tests, ratcheted per file and TS code against a committed
   # baseline (scripts/check-test-types.ts). It type-checks the whole app with its ~3.4k test files:

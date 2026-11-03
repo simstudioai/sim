@@ -21,6 +21,7 @@ import {
   cursorSlot,
   flagNameFor,
   isProfileWorkspacePath,
+  otherSpellings,
   PROFILE_INJECTED_FIELD,
   trailingListField,
 } from './request'
@@ -359,35 +360,34 @@ function assertSelectorIsUsable(operation: V2OperationName, flags: Record<string
 }
 
 /**
- * Moves a value supplied under a flag's former name onto its current one.
+ * Moves a value supplied under a flag's former name or hidden alias onto its
+ * documented one.
  *
  * Done here rather than in `buildRequest` because this is where the parsed
  * flags are assembled and still keyed by what the caller typed; by the time the
  * request is built, only the current spelling has meaning.
  *
- * Supplying both spellings is refused rather than resolved. They are the same
+ * Supplying two spellings is refused rather than resolved. They are the same
  * field, so a caller who sets both has two different values in mind and no
- * reading of "the new one wins" is more likely to be the intended one.
+ * reading of "the documented one wins" is more likely to be the intended one.
  */
-function foldRenamedFlags(
+function foldOtherSpellings(
   operation: V2OperationName,
   commandSpec: CommandSpec,
   flags: Record<string, unknown>
 ): void {
   for (const [field, flag] of Object.entries(commandSpec.flags ?? {})) {
-    if (!flag.renamedFrom?.length) continue
-
     const current = flagNameFor(operation, field)
-    for (const previous of flag.renamedFrom) {
-      const supplied = flags[camel(previous)]
+    for (const { name, renamed } of otherSpellings(flag)) {
+      const supplied = flags[camel(name)]
       if (supplied === undefined) continue
       if (flags[camel(current)] !== undefined) {
         throw new SimApiError(
-          `--${previous} is the former name of --${current}; pass one, not both`,
+          `--${name} is ${renamed ? 'the former name' : 'another spelling'} of --${current}; pass one, not both`,
           0
         )
       }
-      warnRenamedFlag(previous, current)
+      if (renamed) warnRenamedFlag(name, current)
       flags[camel(current)] = supplied
     }
   }
@@ -429,7 +429,7 @@ export async function executeOperation(
     requestFlags[camel(name)] = trailingValues
   }
 
-  foldRenamedFlags(operation, commandSpec, requestFlags)
+  foldOtherSpellings(operation, commandSpec, requestFlags)
   assertCapIsUsable(operation, requestFlags)
   assertSelectorIsUsable(operation, requestFlags)
 

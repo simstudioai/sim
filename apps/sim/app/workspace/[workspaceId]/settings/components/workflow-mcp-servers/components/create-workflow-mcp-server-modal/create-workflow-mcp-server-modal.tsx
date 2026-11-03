@@ -29,6 +29,7 @@ interface CreateWorkflowMcpServerModalProps {
   onOpenChange: (open: boolean) => void
   workspaceId: string
   workflowOptions?: ComboboxOption[]
+  canChangeVisibility: boolean
 }
 
 export function CreateWorkflowMcpServerModal({
@@ -36,6 +37,7 @@ export function CreateWorkflowMcpServerModal({
   onOpenChange,
   workspaceId,
   workflowOptions,
+  canChangeVisibility,
 }: CreateWorkflowMcpServerModalProps) {
   const createServerMutation = useCreateWorkflowMcpServer()
 
@@ -118,6 +120,7 @@ export function CreateWorkflowMcpServerModal({
             <ChipButtonGroup
               value={formData.isPublic ? 'public' : 'private'}
               onValueChange={(value) => setFormData({ ...formData, isPublic: value === 'public' })}
+              disabled={!canChangeVisibility}
             >
               <ChipButtonGroupItem value='private'>Private</ChipButtonGroupItem>
               <ChipButtonGroupItem value='public'>Public</ChipButtonGroupItem>

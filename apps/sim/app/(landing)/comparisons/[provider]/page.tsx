@@ -76,6 +76,7 @@ export async function generateMetadata({
       'AI agent workspace',
       'AI workflow automation comparison',
     ].join(', '),
+    routeImage: true,
   })
 }
 

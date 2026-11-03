@@ -3500,7 +3500,7 @@ interface PlanUsageLimitDisplayProps {
  * The payer's plan limit, or a free plan that does not include Chat: the card links to where
  * the plan or the limit can change, and a workspace's plan to its upgrade page.
  */
-function PlanUsageLimitDisplay({ data }: PlanUsageLimitDisplayProps) {
+export function PlanUsageLimitDisplay({ data }: PlanUsageLimitDisplayProps) {
   const { data: session } = useSession()
   const hostContext = useOptionalWorkspaceHostContext()
   const organizationContext = useOptionalOrganizationContext()

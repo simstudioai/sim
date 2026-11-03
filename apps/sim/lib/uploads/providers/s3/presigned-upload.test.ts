@@ -4,16 +4,12 @@
  * missing from `headers`, or a metadata key both signed as a header and hoisted
  * into the query, makes the provider reject or strip the upload.
  */
-import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { setUploadsConfig, uploadsConfigMock } from '@sim/testing/mocks/uploads-config.mock'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
 
 import { getS3PresignedUploadUrl, resetS3ClientForTesting } from '@/lib/uploads/providers/s3/client'
-
-setEnv({ AWS_ACCESS_KEY_ID: 'test-access-key', AWS_SECRET_ACCESS_KEY: 'test-secret-key' })
-afterAll(resetEnvMock)
 
 /** Headers the browser sets itself and the uploader never supplies. */
 const TRANSPORT_HEADERS = new Set(['host', 'content-length'])
@@ -44,7 +40,12 @@ async function presign() {
 }
 
 describe('getS3PresignedUploadUrl', () => {
-  beforeEach(() => configure(undefined))
+  beforeEach(() => {
+    // The client resolves credentials through the SDK's default chain, which reads process.env.
+    vi.stubEnv('AWS_ACCESS_KEY_ID', 'test-access-key')
+    vi.stubEnv('AWS_SECRET_ACCESS_KEY', 'test-secret-key')
+    configure(undefined)
+  })
 
   it('signs metadata as uploader-sent headers for a custom S3-compatible endpoint', async () => {
     configure('https://s3.de.io.cloud.ovh.net')

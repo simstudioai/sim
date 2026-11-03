@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { TERMINAL_TOOL_NAME } from '@sim/terminal-protocol'
+import { TERMINAL_TOOL_NAME, type TerminalOperation } from '@sim/terminal-protocol'
 import { getErrorMessage } from '@sim/utils/errors'
+import { cliCommandToolName } from '@/lib/mothership/agent-cli/approval'
 import type { AsyncCompletionSignal } from '@/lib/mothership/async-runs/lifecycle'
 import { PERMISSION_WAIT_TIMEOUT_MS } from '@/lib/mothership/constants'
 import {
@@ -18,6 +19,7 @@ import {
   decisionSuppressesFuturePrompts,
   waitForToolPermissionDecision,
 } from '@/lib/mothership/persistence/tool-permission'
+import { toolApprovalKey } from '@/lib/mothership/persistence/tool-permission/approval-key'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { markToolResultSeen } from '@/lib/mothership/request/sse-utils'
 import { setTerminalToolCallState } from '@/lib/mothership/request/tool-call-state'
@@ -38,16 +40,32 @@ import { getToolEntry, toolRequiresApproval } from '@/lib/mothership/tool-execut
 const logger = createLogger('CopilotToolPermissionGate')
 
 /**
- * Whether a `terminal` call is one worth stopping for.
+ * `terminal` operations that never deliver keystrokes to a shell, so they run
+ * without a prompt.
  *
  * The catalog's approval flag is per tool, but the terminal tool covers both
- * running commands and merely looking at the screen. Only running one is
- * consequential; gating `read` or `list` would put a card in front of the user
- * every time the agent glanced at a terminal, which trains them to click
- * through the ones that matter.
+ * running commands and merely looking at the screen; gating `read` or `list`
+ * would put a card in front of the user every time the agent glanced at a
+ * terminal, which trains them to click through the ones that matter. `input`
+ * is not here: in a tmux pane it is typed at the shell prompt and Enter submits
+ * it, so it runs commands just as `run` does. Anything not listed, including an
+ * operation added later, is gated.
  */
+const UNGATED_TERMINAL_OPERATIONS: ReadonlySet<string> = new Set<TerminalOperation>([
+  'read',
+  'list',
+  'cwd',
+  'panes',
+  'new',
+  'switch',
+  'close',
+  'kill',
+  'handoff',
+])
+
 function terminalOperationNeedsApproval(args: Record<string, unknown> | undefined): boolean {
-  return args?.operation === 'run'
+  const operation = args?.operation
+  return typeof operation !== 'string' || !UNGATED_TERMINAL_OPERATIONS.has(operation)
 }
 
 export const TOOL_AWAITING_APPROVAL_STATUS = MothershipStreamV1ToolStatus.awaiting_approval
@@ -74,13 +92,19 @@ export function toolCallNeedsApproval(
    */
   frameRequestsApproval = false,
   /** The call's arguments, for a tool whose gate depends on what it is doing. */
-  args?: Record<string, unknown>
+  args?: Record<string, unknown>,
+  /**
+   * The tool that executes the call, when the frame names it apart from its display
+   * name: a `sim_cli` call is shown as the command it runs (`cli_workflows_deploy`),
+   * and always-allow is saved under that name.
+   */
+  executableName = toolName
 ): boolean {
   if (!context.toolPermissions.enabled) return false
   if (options.interactive === false) return false
 
   if (!frameRequestsApproval) {
-    if (!toolRequiresApproval(toolName)) return false
+    if (!toolRequiresApproval(executableName, args)) return false
     if (toolName === TERMINAL_TOOL_NAME && !terminalOperationNeedsApproval(args)) return false
     // A go-routed tool executes inside mothership and never reaches Sim's
     // dispatch, so there is nothing here to hold. Stamping the frame anyway
@@ -100,8 +124,9 @@ export function toolCallNeedsApproval(
    * leave every entry saved before the policy changed still silencing prompts.
    */
   if (!context.toolPermissions.autoAllowPermitted) return true
+  if (!context.toolPermissions.autoAllowed.has(toolApprovalKey(toolName))) return true
 
-  return !context.toolPermissions.autoAllowed.has(toolName)
+  return executableName === 'sim_cli' && cliCommandToolName(args?.request) !== toolName
 }
 
 function skipOutput(toolName: string) {
@@ -316,7 +341,7 @@ export function runGatedToolExecution(
          * endpoint reads the capability on its own request and refuses the
          * durable write.
          */
-        context.toolPermissions.autoAllowed.add(toolName)
+        context.toolPermissions.autoAllowed.add(toolApprovalKey(toolName))
       }
 
       if (!decisionAllowsExecution(decision.decision)) {

@@ -1,5 +1,5 @@
 name: setup
-description: Install the pinned Bun and Node toolchain, mount the dependency (and optionally Turbo) caches, and install workspace dependencies.
+description: Install the pinned toolchain and workspace dependencies, using sticky dependency disks on Blacksmith and optional Turbo output caching on either provider.
 
 inputs:
   provider:
@@ -19,12 +19,13 @@ inputs:
     required: false
     default: ''
 
-# Cache keys are scoped by event name, and fork PRs get their own namespace on
+# Sticky disk keys are scoped by event name, and fork PRs get their own namespace on
 # top: untrusted fork runs must never share a cache with push runs (whose caches
 # feed production image builds) or with trusted internal-PR runs.
 #
-# node_modules also keys on the lockfile hash: a sticky disk is a mutable volume,
-# and `bun install --frozen-lockfile` adds what the lockfile needs without
+# GitHub runners install directly: restoring both dependency archives takes longer
+# than a clean Bun install. node_modules on sticky disks keys on the lockfile hash:
+# `bun install --frozen-lockfile` adds what the lockfile needs without
 # pruning what it dropped, so branches on different lockfiles were contaminating
 # each other (a stale @next/swc 16.2.6 outlived the 16.2.11 bump). The bun and
 # Turbo caches are content/hash-addressed, so they stay shared — that is what
@@ -45,6 +46,7 @@ runs:
         registry-url: ${{ inputs.registry-url }}
 
     - name: Mount Bun cache
+      if: inputs.provider == '' || inputs.provider == 'blacksmith'
       uses: ./.github/actions/cache
       with:
         provider: ${{ inputs.provider }}
@@ -52,6 +54,7 @@ runs:
         path: ~/.bun/install/cache
 
     - name: Mount node_modules
+      if: inputs.provider == '' || inputs.provider == 'blacksmith'
       uses: ./.github/actions/cache
       with:
         provider: ${{ inputs.provider }}
@@ -59,11 +62,19 @@ runs:
         path: ./node_modules
 
     - name: Mount Turbo cache
-      if: inputs.turbo-cache-key != ''
+      if: inputs.turbo-cache-key != '' && (inputs.provider == '' || inputs.provider == 'blacksmith')
       uses: ./.github/actions/cache
       with:
         provider: ${{ inputs.provider }}
         key: ${{ github.repository }}-${{ inputs.turbo-cache-key }}-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+        path: ./.turbo
+
+    - name: Restore and save Turbo cache
+      if: inputs.turbo-cache-key != '' && inputs.provider != '' && inputs.provider != 'blacksmith'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+      with:
+        key: ${{ github.repository }}-${{ inputs.turbo-cache-key }}-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ github.sha }}
+        restore-keys: ${{ github.repository }}-${{ inputs.turbo-cache-key }}-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-
         path: ./.turbo
 
     # Bun retries a failed request itself, but a registry connection that stalls
