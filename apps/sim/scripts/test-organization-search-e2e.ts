@@ -412,6 +412,21 @@ try {
       await expect(assistantInput).toHaveValue('Summarize launch readiness')
     }
   )
+  await check('Returning to Search restores the last selected view', async () => {
+    await page.goto(`${baseUrl.origin}${root}/search`)
+    const views = page.getByRole('navigation', { name: 'Search views' })
+    for (const mode of ['Assistant', 'Search'] as const) {
+      const tab = views.getByRole('button', { name: mode, exact: true })
+      await tab.click()
+      await expect(tab).toHaveAttribute('aria-current', 'page')
+      await page.getByRole('link', { name: 'Home', exact: true }).click()
+      await expect(page).toHaveURL(`${baseUrl.origin}${root}/home`)
+      await page.getByRole('link', { name: 'Search', exact: true }).click()
+      await expect(tab).toHaveAttribute('aria-current', 'page')
+      await page.goto(`${baseUrl.origin}${root}/search`)
+      await expect(tab).toHaveAttribute('aria-current', 'page')
+    }
+  })
   await check(
     'Traditional search submits the organization query and keeps results in Search',
     async () => {
@@ -750,7 +765,7 @@ try {
       await input.fill('Edited launch query')
       await expect(input).toHaveValue('Edited launch query')
       await page.getByRole('button', { name: 'New search', exact: true }).click()
-      await expect(page).toHaveURL(`${baseUrl.origin}${root}/search`)
+      await expect(page).toHaveURL(`${baseUrl.origin}${root}/search?mode=search`)
       await expect(input).toHaveValue('')
       await page.goBack()
       await expect(input).toHaveValue('Edited launch query')
@@ -1001,7 +1016,7 @@ try {
       values (${generateId()}, ${organizationId}, 'Search only',
         ${sql.json({ disableWorkspaceCreation: true })}, ${userId}, true)`
       await page.goto(`${baseUrl.origin}${root}/home`)
-      await expect(page).toHaveURL(`${baseUrl.origin}${root}/search`)
+      await expect(page).toHaveURL((url) => url.pathname === `${root}/search`)
       await page.goto(`${baseUrl.origin}${root}/search/chat/${assistantId}`)
       await expect(page.getByText(answer, { exact: true })).toBeVisible()
     }
