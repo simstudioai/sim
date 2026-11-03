@@ -65,9 +65,8 @@ describe('Video provider client', () => {
         }),
         jsonResponse({ status: 'COMPLETED' }),
         jsonResponse({
-          video: { url: 'https://cdn.example/fal.mp4', width: 1920, height: 1080, duration: 8 },
+          video: { url: 'data:video/mp4;base64,dmlkZW8=', width: 1920, height: 1080, duration: 8 },
         }),
-        new Response(Buffer.from('video')),
       ],
       submitUrl: 'https://queue.fal.run/fal-ai/veo3.1',
     },
@@ -95,6 +94,27 @@ describe('Video provider client', () => {
         ([, init]) => (init as RequestInit | undefined)?.method === 'POST'
       )
     ).toHaveLength(1)
+  })
+
+  it('keeps the fal API key off a foreign polling origin', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ request_id: 'fal-1', status_url: 'https://untrusted.example/job' })
+      )
+      .mockResolvedValue(jsonResponse({ status: 'FAILED' }))
+    vi.stubGlobal('fetch', mockFetch)
+
+    const result = generateVideo(
+      { provider: 'falai', apiKey: 'private-key', model: 'veo-3.1', prompt: 'A cinematic sunrise' },
+      { requestId: 'request-1' }
+    )
+    const rejection = expect(result).rejects.toThrow()
+    await vi.advanceTimersByTimeAsync(5000)
+    await rejection
+    expect(mockFetch.mock.calls.map(([url]) => new URL(url).origin)).not.toContain(
+      'https://untrusted.example'
+    )
   })
 
   it('cancels during the provider wait without polling or resubmitting', async () => {
