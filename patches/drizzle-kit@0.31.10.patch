@@ -13,6 +13,16 @@ diff --git a/bin.cjs b/bin.cjs
 +      WHERE tc.table_name = '${tableName}' and constraint_schema = '${tableSchema}'
 +      ORDER BY constraint_name, kcu.ordinal_position;`
              );
+@@ -29040,8 +29041,8 @@
+       jsonStatements.push(...jsonAddColumnsStatemets);
++      jsonStatements.push(...jsonAddedUniqueConstraints);
+       jsonStatements.push(...jsonCreateReferencesForCreatedTables);
+       jsonStatements.push(...jsonCreateIndexesForCreatedTables);
+       jsonStatements.push(...jsonCreatedReferencesForAlteredTables);
+       jsonStatements.push(...jsonCreateIndexesFoAlteredTables);
+       jsonStatements.push(...jsonDropColumnsStatemets);
+       jsonStatements.push(...jsonAlteredCompositePKs);
+-      jsonStatements.push(...jsonAddedUniqueConstraints);
 @@ -32694,3 +32695,3 @@
      promptColumnsConflicts = async (tableName, newColumns, missingColumns) => {
 -      if (newColumns.length === 0 || missingColumns.length === 0) {
@@ -33,6 +43,11 @@ diff --git a/bin.cjs b/bin.cjs
 -      if (missingSchemas.length === 0 || newSchemas.length === 0) {
 +      if (process.env.SIM_DB_PUSH_RENAME_MODE === "create" || missingSchemas.length === 0 || newSchemas.length === 0) {
          return { created: newSchemas, renamed: [], deleted: missingSchemas };
+@@ -80441,3 +80442,3 @@
+           const count = Number(res[0].count);
+-          if (count > 0) {
++          if (count > 0 && process.env.SIM_DB_PUSH_RENAME_MODE !== "create") {
+             const unsquashedUnique = PgSquasher.unsquashUnique(statement.data);
 @@ -82741,3 +82742,3 @@
                  (0, import_hanji13.render)(`[${source_default.red("x")}] All changes were aborted`);
 -                process.exit(0);
