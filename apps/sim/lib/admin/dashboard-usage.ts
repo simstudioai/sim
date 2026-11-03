@@ -2,8 +2,8 @@ import { db } from '@sim/db'
 import { member, permissions, usageLog, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresCancellationReason } from '@sim/utils/errors'
-import { and, countDistinct, eq, inArray, notExists, type SQL, sql } from 'drizzle-orm'
-import { alias, unionAll } from 'drizzle-orm/pg-core'
+import { and, countDistinct, eq, inArray, notInArray, type SQL, sql } from 'drizzle-orm'
+import { unionAll } from 'drizzle-orm/pg-core'
 import { readLedgerBounded } from '@/lib/billing/core/ledger-read'
 import type { ResolvedUsagePeriod } from '@/lib/billing/core/reporting-period'
 import { buildUsageAnalyticsScope } from '@/lib/billing/core/usage-analytics'
@@ -50,6 +50,8 @@ interface DashboardWorkflowRuns {
   total: number
   /** Runs per acting user; a run with rows from two actors counts for each. */
   byUser: Map<string, number>
+  /** Distinct runs across the organization's former actors together. */
+  formerActors: number
 }
 
 /**
@@ -139,25 +141,58 @@ export async function readDashboardLedgerSpendByUser(
 }
 
 /**
- * One entity's workflow runs over its period, in total and per acting user, from one
- * scan. `null` when the count does not finish within {@link WORKFLOW_RUNS_BUDGET_MS}.
+ * Who no longer represents an organization's usage: an actor who is neither a member nor a
+ * collaborator on one of its workspaces any more. Uncorrelated, so each list is hashed once
+ * rather than probed for every ledger row.
  */
-export async function readDashboardWorkflowRuns(
-  window: DashboardLedgerWindow
+function isFormerActor(organizationId: string): SQL {
+  const members = db
+    .select({ userId: member.userId })
+    .from(member)
+    .where(eq(member.organizationId, organizationId))
+  const collaborators = db
+    .select({ userId: permissions.userId })
+    .from(permissions)
+    .innerJoin(
+      workspace,
+      and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspace.id))
+    )
+    .where(eq(workspace.organizationId, organizationId))
+  return sql`(${notInArray(usageLog.userId, members)} and ${notInArray(usageLog.userId, collaborators)})`
+}
+
+/**
+ * An organization's workflow runs over its period, in total, per acting user and across its
+ * former actors, from one scan. `null` when the count does not finish within
+ * {@link WORKFLOW_RUNS_BUDGET_MS}.
+ */
+export async function readDashboardOrganizationWorkflowRuns(
+  organizationId: string,
+  period: ResolvedUsagePeriod
 ): Promise<DashboardWorkflowRuns | null> {
-  let rows: { userId: string | null; workflowRuns: number }[]
+  let rows: { userId: string | null; formerActor: boolean | null; workflowRuns: number }[]
   try {
     rows = await readLedgerBounded(
       db,
-      (tx) =>
-        tx
+      (tx) => {
+        const workflowRows = tx
           .select({
-            userId: sql<string | null>`${usageLog.userId}`,
-            workflowRuns: countDistinct(usageLog.executionId),
+            userId: usageLog.userId,
+            executionId: usageLog.executionId,
+            formerActor: sql<boolean>`${isFormerActor(organizationId)}`.as('former_actor'),
           })
           .from(usageLog)
-          .where(and(...windowScope(window), WORKFLOW_SOURCE))
-          .groupBy(sql`grouping sets ((${usageLog.userId}), ())`),
+          .where(and(...windowScope(organizationWindow(organizationId, period)), WORKFLOW_SOURCE))
+          .as('workflow_rows')
+        return tx
+          .select({
+            userId: sql<string | null>`${workflowRows.userId}`,
+            formerActor: sql<boolean | null>`${workflowRows.formerActor}`,
+            workflowRuns: countDistinct(workflowRows.executionId),
+          })
+          .from(workflowRows)
+          .groupBy(sql`grouping sets ((${workflowRows.userId}), (${workflowRows.formerActor}), ())`)
+      },
       WORKFLOW_RUNS_BUDGET_MS
     )
   } catch (error) {
@@ -166,59 +201,26 @@ export async function readDashboardWorkflowRuns(
       getPostgresCancellationReason(error) === 'statement_timeout'
     if (!overBudget) throw error
     logger.warn('Workflow run count exceeded its budget', {
-      entityType: window.entity.type,
-      entityId: window.entity.id,
+      organizationId,
       budgetMs: WORKFLOW_RUNS_BUDGET_MS,
     })
     return null
   }
 
-  const runs: DashboardWorkflowRuns = { total: 0, byUser: new Map() }
+  const runs: DashboardWorkflowRuns = { total: 0, byUser: new Map(), formerActors: 0 }
   for (const row of rows) {
-    if (row.userId === null) runs.total = row.workflowRuns
-    else runs.byUser.set(row.userId, row.workflowRuns)
+    if (row.userId !== null) runs.byUser.set(row.userId, row.workflowRuns)
+    else if (row.formerActor === null) runs.total = row.workflowRuns
+    else if (row.formerActor) runs.formerActors = row.workflowRuns
   }
   return runs
 }
 
-const historicalUsageMember = alias(member, 'historical_usage_member')
-const historicalUsagePermission = alias(permissions, 'historical_usage_permission')
-const historicalUsageWorkspace = alias(workspace, 'historical_usage_workspace')
-
-/**
- * An organization's period spend per actor who is neither a member nor a collaborator on
- * one of its workspaces any more.
- */
+/** An organization's period spend per former actor (see {@link isFormerActor}). */
 export async function readDashboardHistoricalActorSpend(
   organizationId: string,
   period: ResolvedUsagePeriod
 ): Promise<Map<string, number>> {
-  const currentMember = db
-    .select({ value: sql`1` })
-    .from(historicalUsageMember)
-    .where(
-      and(
-        eq(historicalUsageMember.organizationId, organizationId),
-        eq(historicalUsageMember.userId, usageLog.userId)
-      )
-    )
-  const currentCollaborator = db
-    .select({ value: sql`1` })
-    .from(historicalUsagePermission)
-    .innerJoin(
-      historicalUsageWorkspace,
-      and(
-        eq(historicalUsagePermission.entityType, 'workspace'),
-        eq(historicalUsagePermission.entityId, historicalUsageWorkspace.id)
-      )
-    )
-    .where(
-      and(
-        eq(historicalUsageWorkspace.organizationId, organizationId),
-        eq(historicalUsagePermission.userId, usageLog.userId)
-      )
-    )
-
   const rows = await db
     .select({
       userId: usageLog.userId,
@@ -226,11 +228,7 @@ export async function readDashboardHistoricalActorSpend(
     })
     .from(usageLog)
     .where(
-      and(
-        ...windowScope(organizationWindow(organizationId, period)),
-        notExists(currentMember),
-        notExists(currentCollaborator)
-      )
+      and(...windowScope(organizationWindow(organizationId, period)), isFormerActor(organizationId))
     )
     .groupBy(usageLog.userId)
   return new Map(rows.map((row) => [row.userId, Number(row.cost)]))

@@ -13,7 +13,7 @@ import {
   readDashboardHistoricalActorSpend,
   readDashboardLedgerSpend,
   readDashboardLedgerSpendByUser,
-  readDashboardWorkflowRuns,
+  readDashboardOrganizationWorkflowRuns,
 } from '@/lib/admin/dashboard-usage'
 import type { ResolvedUsagePeriod } from '@/lib/billing/core/reporting-period'
 
@@ -86,6 +86,9 @@ beforeAll(async () => {
       ('u3', 'model', 'copilot', 0.1, 'organization', 'org-a', ${P}, NULL, '2026-08-07'),
       ('u4', 'model', 'copilot', 0.2, 'organization', 'org-a', ${P}, NULL, '2026-08-07'),
       ('u5', 'model', 'workflow', 0.3, 'organization', 'org-a', ${P}, 'e11', '2026-08-07'),
+      -- one run shared by two former actors
+      ('u3', 'model', 'workflow', 0.1, 'organization', 'org-a', ${P}, 'e12', '2026-08-08'),
+      ('u5', 'model', 'workflow', 0.1, 'organization', 'org-a', ${P}, 'e12', '2026-08-08'),
 
       -- org-b, reporting period: matched on created_at, start inclusive and end exclusive,
       -- whatever the rows are stamped with.
@@ -119,7 +122,7 @@ describe('dashboard ledger usage', () => {
       { entity: { type: 'user', id: 'p1' }, period: stampedPeriod },
     ])
 
-    expect(Object.fromEntries(spend)).toEqual({ 'org-a': 3.38, 'org-b': 1.75, p1: 0.6 })
+    expect(Object.fromEntries(spend)).toEqual({ 'org-a': 3.58, 'org-b': 1.75, p1: 0.6 })
   })
 
   it('reads an entity once however many times it is asked for', async () => {
@@ -127,7 +130,7 @@ describe('dashboard ledger usage', () => {
       organizationWindow('org-a', stampedPeriod),
       organizationWindow('org-a', stampedPeriod),
     ])
-    expect(spend.get('org-a')).toBe(3.38)
+    expect(spend.get('org-a')).toBe(3.58)
   })
 
   it('splits spend by acting user', async () => {
@@ -139,9 +142,9 @@ describe('dashboard ledger usage', () => {
     expect(Object.fromEntries(spend.get('org-a') ?? [])).toEqual({
       u1: 1.51,
       u2: 0.37,
-      u3: 1,
+      u3: 1.1,
       u4: 0.2,
-      u5: 0.3,
+      u5: 0.4,
     })
     expect(Object.fromEntries(spend.get('org-b') ?? [])).toEqual({ u6: 1.75 })
   })
@@ -154,18 +157,21 @@ describe('dashboard ledger usage', () => {
     expect((await readDashboardLedgerSpendByUser([window], [])).size).toBe(0)
   })
 
-  it('counts distinct workflow runs in total and for each actor of a shared run', async () => {
-    const orgA = await readDashboardWorkflowRuns(organizationWindow('org-a', stampedPeriod))
-    expect(orgA?.total).toBe(5)
-    expect(Object.fromEntries(orgA?.byUser ?? [])).toEqual({ u1: 2, u2: 2, u3: 1, u5: 1 })
+  it('counts distinct workflow runs in total, for each actor of a shared run, and once across former actors', async () => {
+    const orgA = await readDashboardOrganizationWorkflowRuns('org-a', stampedPeriod)
+    expect(orgA?.total).toBe(6)
+    expect(Object.fromEntries(orgA?.byUser ?? [])).toEqual({ u1: 2, u2: 2, u3: 2, u5: 2 })
+    expect(orgA?.formerActors).toBe(3)
 
-    const orgB = await readDashboardWorkflowRuns(organizationWindow('org-b', reportingPeriod))
+    const orgB = await readDashboardOrganizationWorkflowRuns('org-b', reportingPeriod)
     expect(orgB?.total).toBe(3)
     expect(Object.fromEntries(orgB?.byUser ?? [])).toEqual({ u6: 3 })
+    expect(orgB?.formerActors).toBe(3)
 
-    const empty = await readDashboardWorkflowRuns(organizationWindow('org-c', stampedPeriod))
+    const empty = await readDashboardOrganizationWorkflowRuns('org-c', stampedPeriod)
     expect(empty?.total).toBe(0)
     expect(empty?.byUser.size).toBe(0)
+    expect(empty?.formerActors).toBe(0)
   })
 
   it('reports runs as unknown when the count outlasts its budget', async () => {
@@ -190,7 +196,7 @@ describe('dashboard ledger usage', () => {
     })
     try {
       await locked
-      expect(await readDashboardWorkflowRuns(organizationWindow('org-a', stampedPeriod))).toBeNull()
+      expect(await readDashboardOrganizationWorkflowRuns('org-a', stampedPeriod)).toBeNull()
     } finally {
       release()
       await holder
@@ -200,6 +206,6 @@ describe('dashboard ledger usage', () => {
 
   it('spends only for actors who are neither members nor collaborators of the organization', async () => {
     const spend = await readDashboardHistoricalActorSpend('org-a', stampedPeriod)
-    expect(Object.fromEntries(spend)).toEqual({ u3: 1, u4: 0.2, u5: 0.3 })
+    expect(Object.fromEntries(spend)).toEqual({ u3: 1.1, u4: 0.2, u5: 0.4 })
   })
 })
