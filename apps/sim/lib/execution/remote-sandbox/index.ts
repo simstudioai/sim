@@ -190,6 +190,11 @@ function throwIfAborted(signal?: AbortSignal): void {
   throw signal.reason instanceof Error ? signal.reason : new Error('Execution cancelled')
 }
 
+/** Throws for a cancellation; the run's own deadline passes so a timed-out run can report. */
+function throwIfCancelled(signal: AbortSignal): void {
+  if (!isTimeoutAbortReason(signal.reason)) throwIfAborted(signal)
+}
+
 function abortReason(signal: AbortSignal): Error {
   return signal.reason instanceof Error
     ? signal.reason
@@ -325,6 +330,7 @@ async function throwIfRunTimedOut(
   }
 ): Promise<void> {
   if (!result.timedOut) return
+  throwIfCancelled(run.signal)
   if (!run.lease.session) throw new DOMException('timeout', 'AbortError')
   const { outputSandboxDir, sandbox } = run
   // Half of what the call has left, so the report lands before the call's deadline.
@@ -332,6 +338,7 @@ async function throwIfRunTimedOut(
     TIMED_OUT_OUTPUT_LISTING_MS,
     (getRemainingExecutionMs(run.signal) ?? Number.POSITIVE_INFINITY) / 2
   )
+  // withinDeadline refuses an aborted signal, so a run its own deadline stopped lists no files.
   const listed = outputSandboxDir
     ? await withinDeadline(
         () => sandbox.listFiles(outputSandboxDir, { depth: SANDBOX_OUTPUT_DIR_MAX_DEPTH }),
@@ -340,7 +347,7 @@ async function throwIfRunTimedOut(
       ).catch(() => [])
     : []
   // A cancellation that arrives while listing stays a cancellation.
-  throwIfAborted(run.signal)
+  throwIfCancelled(run.signal)
   throw new SandboxExecutionTimeoutError(sandboxTimeoutProgress(streams, run.timeoutMs, listed))
 }
 
@@ -1092,7 +1099,6 @@ async function executeInSandboxWithinBudget(
       throwIfAborted(signal)
       throw error
     }
-    throwIfAborted(signal)
     await throwIfRunTimedOut(execution, [execution.text, execution.stdout, execution.stderr], {
       sandbox,
       lease,
@@ -1100,6 +1106,7 @@ async function executeInSandboxWithinBudget(
       timeoutMs: runTimeoutMs,
       signal,
     })
+    throwIfAborted(signal)
 
     if (execution.error) {
       const errorMessage = `${execution.error.name}: ${execution.error.value}`
@@ -1316,7 +1323,6 @@ async function executeShellInSandboxWithinBudget(
       throwIfAborted(signal)
       throw error
     }
-    throwIfAborted(signal)
     await throwIfRunTimedOut(result, [result.stdout, result.stderr], {
       sandbox,
       lease,
@@ -1324,6 +1330,7 @@ async function executeShellInSandboxWithinBudget(
       timeoutMs: runTimeoutMs,
       signal,
     })
+    throwIfAborted(signal)
 
     const stdout = [result.stdout, result.stderr].filter(Boolean).join('\n')
 

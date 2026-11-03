@@ -93,7 +93,7 @@ describe('E2B session recovery', () => {
     const sandbox = {
       sandboxId: 'retained',
       getInfo,
-      files: { write: writeFile, read: readFile },
+      files: { write: writeFile, read: readFile, remove: vi.fn().mockResolvedValue(undefined) },
       setTimeout,
       commands: {
         run: (command: string, options: { background?: boolean }) =>
@@ -644,6 +644,71 @@ describe('E2B session recovery', () => {
       stderr: 'slow frame\n',
     })
   })
+  describe('when an abort lands before E2B replies', () => {
+    /** Streams one chunk, then the abort lands while the command waits on E2B. */
+    function abortWhileWaiting(controller: AbortController, reason: Error): void {
+      runCommand.mockImplementationOnce(
+        async (_command: string, options: { onStdout?: (chunk: string) => void }) => {
+          options.onStdout?.('rendered 1 of 3\n')
+          return {
+            pid: 8,
+            wait: () =>
+              new Promise((_resolve, reject) => {
+                controller.signal.addEventListener(
+                  'abort',
+                  () => reject(new Error('stream aborted')),
+                  { once: true }
+                )
+                controller.abort(reason)
+              }),
+          }
+        }
+      )
+    }
+
+    async function run(kind: 'code' | 'command', signal: AbortSignal, oneShot = false) {
+      const sandbox = oneShot
+        ? await e2bProvider.create('mothership', {})
+        : await sessionSandbox('reconnected')
+      if (!sandbox) throw new Error('Missing sandbox')
+      return kind === 'code'
+        ? sandbox.runCode('render()', { timeoutMs: 10_000, signal })
+        : sandbox.runCommand('render', { timeoutMs: 10_000, signal })
+    }
+
+    it.each(['code', 'command'] as const)(
+      'returns what the %s printed when its own deadline stops it',
+      async (kind) => {
+        const controller = new AbortController()
+        abortWhileWaiting(controller, new DOMException('timeout', 'AbortError'))
+        const result = await run(kind, controller.signal)
+        expect(result).toMatchObject({ timedOut: true, stdout: 'rendered 1 of 3\n' })
+        expect(stopCommand).toHaveBeenCalledOnce()
+      }
+    )
+
+    it('keeps a Stop of running code a cancellation', async () => {
+      const controller = new AbortController()
+      abortWhileWaiting(controller, new Error('User Stop'))
+      await expect(run('code', controller.signal)).rejects.toThrow('stream aborted')
+      expect(stopCommand).toHaveBeenCalledOnce()
+    })
+
+    it('leaves a one-shot sandbox’s deadline to the caller', async () => {
+      const controller = new AbortController()
+      abortWhileWaiting(controller, new DOMException('timeout', 'AbortError'))
+      await expect(run('code', controller.signal, true)).rejects.toThrow('stream aborted')
+    })
+
+    it('never reports a Stop of a command as its timeout', async () => {
+      const controller = new AbortController()
+      abortWhileWaiting(controller, new Error('User Stop'))
+      const result = await run('command', controller.signal)
+      expect(result.timedOut).toBeUndefined()
+      expect(stopCommand).toHaveBeenCalledOnce()
+    })
+  })
+
   it.each([
     ['stale', SessionCliStaleError],
     ['failed', Error],
