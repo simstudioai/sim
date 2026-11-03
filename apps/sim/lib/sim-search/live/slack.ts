@@ -1,5 +1,6 @@
 import { dateSortDirection, nativeDateBounds, nativeText } from '@/lib/sim-search/live/dates'
 import { array, NativeSearchError, object, string } from '@/lib/sim-search/live/http'
+import { joinMessages } from '@/lib/sim-search/live/pages'
 import {
   slackConversationName,
   slackConversationUrl,
@@ -35,6 +36,19 @@ function slackResult(value: unknown) {
   return data
 }
 
+/** Results one Real-time Search call returns at most. */
+const SLACK_PAGE_SIZE = 20
+/**
+ * Real-time Search pages a search aimed at Slack reads to fill a limit above one page. Each page
+ * counts against the member's RTS rate limit of about 10 calls a minute.
+ */
+const MAX_SLACK_SEARCH_PAGES = 3
+
+/**
+ * A search across every source reads one page, so Slack shares the result list with the other
+ * sources. A Slack-scoped or native Slack search follows the cursor until it fills its limit.
+ * A later page that fails keeps the earlier pages and returns the cursor it could not read.
+ */
 export async function searchSlack(
   client: NativeClient,
   input: NativeSearchInput
@@ -44,6 +58,37 @@ export async function searchSlack(
       'reconnect',
       'Reconnect your Slack account to grant permission to search.'
     )
+  const pages =
+    input.native || input.filters?.source === 'slack'
+      ? Math.min(Math.ceil(input.limit / SLACK_PAGE_SIZE), MAX_SLACK_SEARCH_PAGES)
+      : 1
+  const first = await searchSlackPage(client, input, input.native?.cursor, input.limit)
+  const documents = [...first.documents]
+  let nextCursor = first.nextCursor
+  for (let page = 1; page < pages && nextCursor && documents.length < input.limit; page++) {
+    try {
+      const more = await searchSlackPage(client, input, nextCursor, input.limit - documents.length)
+      documents.push(...more.documents)
+      nextCursor = more.nextCursor
+    } catch (error) {
+      if (!(error instanceof NativeSearchError)) throw error
+      return {
+        documents,
+        nextCursor,
+        partial: true,
+        message: joinMessages([first.message, error.message, 'Continue with nextCursor for more.']),
+      }
+    }
+  }
+  return { documents, nextCursor, message: first.message }
+}
+
+async function searchSlackPage(
+  client: NativeClient,
+  input: NativeSearchInput,
+  cursor: string | undefined,
+  limit: number
+): Promise<NativePage> {
   const channels = [
     ['public_channel', 'search:read.public'],
     ['private_channel', 'search:read.private'],
@@ -80,13 +125,13 @@ export async function searchSlack(
           ? ['messages', 'files']
           : ['messages'],
         include_context_messages: true,
-        limit: Math.min(input.limit, 20),
+        limit: Math.min(limit, SLACK_PAGE_SIZE),
         ...(dates.start ? { after: Math.floor(Date.parse(dates.start) / 1000) - 1 } : {}),
         ...(dates.end ? { before: Math.ceil(Date.parse(dates.end) / 1000) } : {}),
         ...(dateSortDirection(input.filters)
           ? { sort: 'timestamp', sort_dir: dateSortDirection(input.filters) }
           : {}),
-        ...(input.native?.cursor ? { cursor: input.native.cursor } : {}),
+        ...(cursor ? { cursor } : {}),
         ...(input.native?.termClauses ? { term_clauses: input.native.termClauses } : {}),
         ...(modifiers ? { modifiers } : {}),
         ...(input.native?.keywordOnly || !nativeText(input)

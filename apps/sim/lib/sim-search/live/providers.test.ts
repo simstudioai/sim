@@ -188,3 +188,149 @@ describe('native search endpoints', () => {
     expect(api.json).not.toHaveBeenCalled()
   })
 })
+
+describe('Slack RTS pages', () => {
+  const scopes = ['search:read.public']
+  const slackPage = (first: number, count: number, nextCursor?: string) => ({
+    ok: true,
+    results: {
+      messages: Array.from({ length: count }, (_, index) => ({
+        message_ts: `${first + index}.000100`,
+        channel_id: 'C1',
+        channel_name: 'team',
+        content: 'Launch',
+        permalink: `https://team.slack.com/archives/C1/p${first + index}000100`,
+      })),
+    },
+    response_metadata: { next_cursor: nextCursor ?? '' },
+  })
+  const sentBodies = (api: ReturnType<typeof client>) =>
+    api.json.mock.calls.map(([, options]) => options?.body as Record<string, unknown>)
+
+  it('follows the cursor until a native Slack query fills its limit', async () => {
+    const api = client()
+    api.json
+      .mockResolvedValueOnce(slackPage(1, 20, 'page-2'))
+      .mockResolvedValueOnce(slackPage(21, 20, 'page-3'))
+    const result = await searchSlack(api, {
+      ...input,
+      limit: 30,
+      scopes,
+      native: { provider: 'slack', query: 'launch' },
+    })
+    expect(sentBodies(api).map(({ cursor, limit }) => ({ cursor, limit }))).toEqual([
+      { cursor: undefined, limit: 20 },
+      { cursor: 'page-2', limit: 10 },
+    ])
+    expect(result.documents).toHaveLength(40)
+    expect(result.nextCursor).toBe('page-3')
+    expect(result.partial).toBeUndefined()
+  })
+
+  it('pages a plain query scoped to the Slack source', async () => {
+    const api = client()
+    api.json
+      .mockResolvedValueOnce(slackPage(1, 20, 'page-2'))
+      .mockResolvedValueOnce(slackPage(21, 5))
+    const result = await searchSlack(api, {
+      ...input,
+      limit: 50,
+      scopes,
+      filters: { source: 'slack' },
+    })
+    expect(api.json).toHaveBeenCalledTimes(2)
+    expect(result.documents).toHaveLength(25)
+    expect(result.nextCursor).toBeUndefined()
+  })
+
+  it('reads one page for a search across every source, whatever its limit', async () => {
+    const api = client()
+    api.json.mockResolvedValue(slackPage(1, 20, 'page-2'))
+    const result = await searchSlack(api, { ...input, limit: 30, scopes })
+    expect(api.json).toHaveBeenCalledTimes(1)
+    expect(result.nextCursor).toBe('page-2')
+  })
+
+  it('stops when Slack reports no further page', async () => {
+    const api = client()
+    api.json.mockResolvedValue(slackPage(1, 12))
+    await searchSlack(api, {
+      ...input,
+      limit: 50,
+      scopes,
+      native: { provider: 'slack', query: 'launch' },
+    })
+    expect(api.json).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads at most three pages', async () => {
+    const api = client()
+    api.json.mockImplementation(async (_path, options) => {
+      const cursor = (options?.body as { cursor?: string }).cursor
+      const index = cursor ? Number(cursor) : 0
+      return slackPage(index * 20 + 1, 1, String(index + 1))
+    })
+    const result = await searchSlack(api, {
+      ...input,
+      limit: 100,
+      scopes,
+      native: { provider: 'slack', query: 'launch' },
+    })
+    expect(api.json).toHaveBeenCalledTimes(3)
+    expect(result.nextCursor).toBe('3')
+  })
+
+  it('stops once matched files fill the limit alongside messages', async () => {
+    const api = client()
+    const withFiles = slackPage(1, 20, 'page-2')
+    api.json.mockResolvedValue({
+      ...withFiles,
+      results: {
+        ...withFiles.results,
+        files: Array.from({ length: 10 }, (_, index) => ({
+          file_id: `F${index}`,
+          title: 'Launch plan',
+          permalink: `https://team.slack.com/files/F${index}`,
+        })),
+      },
+    })
+    const result = await searchSlack(api, {
+      ...input,
+      limit: 30,
+      scopes: [...scopes, 'search:read.files'],
+      native: { provider: 'slack', query: 'launch' },
+    })
+    expect(api.json).toHaveBeenCalledTimes(1)
+    expect(result.documents).toHaveLength(30)
+  })
+
+  it('keeps earlier pages and the unread cursor when a later page fails', async () => {
+    const api = client()
+    api.json
+      .mockResolvedValueOnce(slackPage(1, 20, 'page-2'))
+      .mockResolvedValueOnce({ ok: false, error: 'ratelimited' })
+    const result = await searchSlack(api, {
+      ...input,
+      limit: 50,
+      scopes,
+      native: { provider: 'slack', query: 'launch' },
+    })
+    expect(result.documents).toHaveLength(20)
+    expect(result.nextCursor).toBe('page-2')
+    expect(result.partial).toBe(true)
+    expect(result.message).toContain('nextCursor')
+  })
+
+  it('still fails when the first page fails', async () => {
+    const api = client()
+    api.json.mockResolvedValue({ ok: false, error: 'ratelimited' })
+    await expect(
+      searchSlack(api, {
+        ...input,
+        limit: 50,
+        scopes,
+        native: { provider: 'slack', query: 'launch' },
+      })
+    ).rejects.toMatchObject({ status: 'rate_limited' })
+  })
+})

@@ -58,7 +58,7 @@ Each event must exist under the source's delegated token, be in an allowed calen
 
 ### Slack
 
-Member mode only. Search uses the connected user's Slack real-time search grant and provider search syntax. Date bounds are sent as numeric provider timestamps; date ordering selects keyword retrieval and timestamp sort, because Slack semantic retrieval uses relevance ordering. Channels, messages, direct messages, and files are limited by that grant and provider scopes; there is no admin channel filter in member mode. Missing required search scopes produce a reconnect status. Thread/file reads use the same connected identity.
+Member mode only. Search uses the connected user's Slack real-time search grant and provider search syntax. Date bounds are sent as numeric provider timestamps; date ordering selects keyword retrieval and timestamp sort, because Slack semantic retrieval uses relevance ordering. Channels, messages, direct messages, and files are limited by that grant and provider scopes; there is no admin channel filter in member mode. Missing required search scopes produce a reconnect status. Thread/file reads use the same connected identity. Real-time Search returns at most 20 results a call and counts every page against the member's rate limit, so a search across every source reads one page; a Slack-scoped or native Slack search follows the cursor for up to three pages to fill its limit, and a later page that fails keeps the earlier pages and returns the unread cursor.
 
 ### GitHub
 
