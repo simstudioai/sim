@@ -44,3 +44,23 @@ describe('dev push index options', () => {
     expect(statements[1]).toContain('WITH (m=16,ef_construction=64)')
   })
 })
+
+describe('dev push Project bootstrap switch', () => {
+  async function importWorkspaceProjectId() {
+    vi.resetModules()
+    const { workspace } = await import('@sim/db/schema')
+    return workspace.projectId
+  }
+
+  it('keeps workspace.project_id required when only the bootstrap flag is set', async () => {
+    vi.stubEnv('SIM_DEV_DB_PUSH', undefined)
+    vi.stubEnv('SIM_DB_PUSH_PROJECT_BOOTSTRAP', '1')
+    expect((await importWorkspaceProjectId()).notNull).toBe(true)
+  })
+
+  it('pushes workspace.project_id nullable only during a development push bootstrap', async () => {
+    vi.stubEnv('SIM_DEV_DB_PUSH', '1')
+    vi.stubEnv('SIM_DB_PUSH_PROJECT_BOOTSTRAP', '1')
+    expect((await importWorkspaceProjectId()).notNull).toBe(false)
+  })
+})

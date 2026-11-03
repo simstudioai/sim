@@ -17,6 +17,7 @@ import {
   SANDBOX_RELEASE_GENERATION_ERROR,
 } from '@sim/utils/sandbox-references'
 import { env } from '@/lib/core/config/env'
+import { isTimeoutAbortReason } from '@/lib/core/execution-limits'
 import { recordSandboxProviderLimit } from '@/lib/core/execution-limits/metrics'
 import {
   isPayloadSizeLimitError,
@@ -749,6 +750,11 @@ class E2BSandboxHandle implements SandboxHandle {
           providerFailure: 'provider_limit',
         }
       }
+      // A short workbench run hands the command its whole budget, so the caller's deadline can
+      // stop it before E2B's own timeout replies; a Stop stays a cancellation.
+      const timedOut =
+        isE2BExecutionTimeout(error) ||
+        (this.sessionKey !== undefined && isTimeoutAbortReason(options.signal?.reason))
       // The SDK throws on non-zero exit; callers want the streams, not a throw.
       const failure = error as {
         stdout?: string
@@ -761,7 +767,7 @@ class E2BSandboxHandle implements SandboxHandle {
         failure.stdout === undefined &&
         failure.stderr === undefined &&
         failure.exitCode === undefined &&
-        !isE2BExecutionTimeout(error)
+        !timedOut
       ) {
         throw error
       }
@@ -771,7 +777,7 @@ class E2BSandboxHandle implements SandboxHandle {
       )
       const tailIfStreamed = (value: string | undefined, retain: boolean) =>
         retain || value === undefined ? value : tailStreamedSandboxOutput(value)
-      if (isE2BExecutionTimeout(error)) {
+      if (timedOut) {
         // The SDK's timeout error carries no streams; the callbacks observed the run's output.
         const stdout = mergeObservedOutput(observedStdout, failure.stdout ?? '')
         const stderr = mergeObservedOutput(observedStderr, failure.stderr ?? '')
