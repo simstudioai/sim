@@ -31,6 +31,7 @@ import {
   useMemberRemovalImpact,
   useOrganization,
   useOrganizationRoster,
+  useOrganizationSummary,
   useRemoveMember,
   useTransferOwnership,
 } from '@/hooks/queries/organization'
@@ -93,13 +94,19 @@ export function TeamManagement({
     refetch: refetchRoster,
   } = useOrganizationRoster(organizationId)
 
-  // Prefer the roster row: Better Auth's full-organization read caps its member list and can omit
-  // the caller. An unknown role hides Leave rather than offering an owner a request that always fails.
-  const currentUserRole =
-    roster?.members.find((member) => member.userId === session?.user?.id)?.role ??
-    organization?.members.find((member) => member.user.email === session?.user?.email)?.role
-  const adminOrOwner = isOrgAdminRole(currentUserRole ?? 'member')
-  const canLeave = currentUserRole !== undefined && currentUserRole !== 'owner'
+  // Only a row naming the caller (the roster) or the server's own role read is authoritative:
+  // Better Auth's full-organization read caps its member list and can omit or lag the caller.
+  const rosterRole = roster?.members.find((member) => member.userId === session?.user?.id)?.role
+  const { data: organizationSummary } = useOrganizationSummary(organizationId, {
+    enabled: rosterError !== null,
+  })
+  const confirmedRole = rosterRole ?? organizationSummary?.userRole
+  const adminOrOwner = isOrgAdminRole(
+    confirmedRole ??
+      organization?.members.find((member) => member.user.email === session?.user?.email)?.role ??
+      'member'
+  )
+  const canLeave = confirmedRole !== undefined && confirmedRole !== 'owner'
 
   const {
     data: organizationBillingData,
