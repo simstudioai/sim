@@ -201,7 +201,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar({
           >
             <OrganizationHeader
               organization={organization}
-              canEditLogo={viewer.isAdmin}
+              canEditIdentity={viewer.isAdmin}
               canInviteMembers={viewer.canInviteMembers}
               isCollapsed={isCollapsed}
               onExpandSidebar={toggleCollapsed}

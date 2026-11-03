@@ -29,7 +29,10 @@ import {
   SIDEBAR_RAIL_CHIP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { interleaveSiblings } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
+import {
+  holdRowFocus,
+  interleaveSiblings,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
@@ -215,15 +218,6 @@ interface CollapsedWorkflowFlyoutItemProps {
   onOpenInNewTab?: () => void
   onRename?: () => void
   canRename?: boolean
-}
-
-/**
- * Prevents Radix's mouse pointer handlers from transferring focus. Row handlers keep
- * actions submenus open; content capture handlers preserve inline rename focus,
- * including inside portaled folders. Radix skips handlers for defaulted events.
- */
-const holdRowFocus = (e: React.PointerEvent) => {
-  if (e.pointerType === 'mouse') e.preventDefault()
 }
 
 const EDIT_ROW_CLASS = cn(

@@ -65,6 +65,8 @@ export interface McpServerFormModalProps {
   allowedMcpDomains: string[] | null
   domainPolicyUnavailable?: boolean
   domainPolicyError?: string
+  /** False locks the URL field: the server refuses a destination change from a non-admin. */
+  canChangeDestination?: boolean
 }
 
 const ENV_VAR_PATTERN = /\{\{[^{}]+\}\}/
@@ -130,6 +132,7 @@ interface FormattedInputProps {
   envVarProps: EnvVarDropdownConfig
   availableEnvVars?: Set<string>
   className?: string
+  disabled?: boolean
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   onScroll: (scrollLeft: number) => void
 }
@@ -143,6 +146,7 @@ function FormattedInput({
   envVarProps,
   availableEnvVars,
   className,
+  disabled,
   onChange,
   onScroll,
 }: FormattedInputProps) {
@@ -159,12 +163,18 @@ function FormattedInput({
         ref={ref}
         placeholder={placeholder}
         value={value}
+        disabled={disabled}
         onChange={onChange}
         onScroll={handleScroll}
         onInput={handleScroll}
         inputClassName='font-sans text-transparent caret-[var(--text-primary)]'
       />
-      <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-2 py-1.5 font-sans text-sm'>
+      <div
+        className={cn(
+          'pointer-events-none absolute inset-0 flex items-center overflow-hidden px-2 py-1.5 font-sans text-sm',
+          disabled && 'opacity-50'
+        )}
+      >
         <div className='whitespace-nowrap' style={{ transform: `translateX(-${scrollLeft}px)` }}>
           {formatDisplayText(value, { availableEnvVars })}
         </div>
@@ -316,6 +326,7 @@ export function McpServerFormModal({
   allowedMcpDomains,
   domainPolicyUnavailable = false,
   domainPolicyError,
+  canChangeDestination = true,
 }: McpServerFormModalProps) {
   const urlInputRef = useRef<HTMLInputElement>(null)
 
@@ -715,6 +726,9 @@ export function McpServerFormModal({
               type='custom'
               title='Server URL'
               error={isDomainBlocked ? 'Domain not permitted by server policy' : undefined}
+              hint={
+                canChangeDestination ? undefined : 'Only workspace admins can change the server URL'
+              }
             >
               <FormattedInput
                 ref={urlInputRef}
@@ -730,6 +744,7 @@ export function McpServerFormModal({
                   onClose: resetEnvVarState,
                 }}
                 availableEnvVars={availableEnvVars}
+                disabled={!canChangeDestination}
                 onChange={(e) => handleInputChange('url', e.target.value)}
                 onScroll={setUrlScrollLeft}
               />

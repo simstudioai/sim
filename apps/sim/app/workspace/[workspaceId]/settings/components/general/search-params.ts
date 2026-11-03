@@ -6,7 +6,7 @@ import { parseAsStringLiteral } from 'nuqs/server'
  */
 export const generalViewParam = {
   key: 'view',
-  parser: parseAsStringLiteral(['privacy', 'authorized-apps'] as const),
+  parser: parseAsStringLiteral(['privacy', 'authorized-apps', 'organization-accounts'] as const),
 } as const
 
 /** Opening the sub-view is a destination — Back should return to General. */

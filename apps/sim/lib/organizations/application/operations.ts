@@ -68,6 +68,18 @@ export const organizationOperations = {
     oauthScope: 'api:write',
   }),
   /**
+   * permission-group-exempt: the application allows administrators to preview any member's removal and members to preview leaving.
+   */
+  previewMemberRemoval: defineOrganizationOperation({
+    id: 'organizations.members.removal_impact.read',
+    contentDelivery: 'none',
+    minimumRole: 'member',
+    capability: 'none',
+    principalKinds: ['session', 'organization_delegated'],
+    delegationAudience: 'sim:settings',
+    delegatedServices: ['copilot'],
+  }),
+  /**
    * permission-group-exempt: administrators can inspect existing invitations even when new invitations are disabled.
    */
   listInvitations: defineOrganizationOperation({

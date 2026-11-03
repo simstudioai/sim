@@ -48,7 +48,8 @@ const STREAMED_OUTPUT_TRUNCATION_NOTE =
  */
 export function tailStreamedSandboxOutput(
   value: string | undefined,
-  limitBytes = MAX_SANDBOX_STREAMED_OUTPUT_TAIL_BYTES
+  limitBytes = MAX_SANDBOX_STREAMED_OUTPUT_TAIL_BYTES,
+  truncationNote = STREAMED_OUTPUT_TRUNCATION_NOTE
 ): string {
   if (!value) return ''
   const buffer = Buffer.from(value, 'utf8')
@@ -56,7 +57,7 @@ export function tailStreamedSandboxOutput(
 
   let start = buffer.length - limitBytes
   while (start < buffer.length && (buffer[start] & 0xc0) === 0x80) start += 1
-  return `${STREAMED_OUTPUT_TRUNCATION_NOTE}${buffer.subarray(start).toString('utf8')}`
+  return `${truncationNote}${buffer.subarray(start).toString('utf8')}`
 }
 
 /**

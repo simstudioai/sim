@@ -30,7 +30,7 @@ export function AccountConnectionActions({
   canConnect,
   connectionPending,
 }: AccountConnectionActionsProps) {
-  const disconnect = useDisconnectPersonalOrganizationAccount(organizationId)
+  const disconnect = useDisconnectPersonalOrganizationAccount()
   const [confirming, setConfirming] = useState(false)
   const pending = connectionPending || disconnect.isPending
   const actions: SettingsAction[] = []
@@ -79,7 +79,10 @@ export function AccountConnectionActions({
             pending: disconnect.isPending,
             disabled: disconnect.isPending,
             onClick: () =>
-              disconnect.mutate(account.credentialId, { onSuccess: () => setConfirming(false) }),
+              disconnect.mutate(
+                { credentialId: account.credentialId, organizationId },
+                { onSuccess: () => setConfirming(false) }
+              ),
           }}
         >
           <ChipModalError>{disconnect.error?.message}</ChipModalError>

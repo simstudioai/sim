@@ -291,7 +291,14 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
           </DetailSection>
         )}
 
-        {!isPersonal && <CredentialMembersSection credentialId={credential.id} isAdmin={isAdmin} />}
+        {!isPersonal && (
+          <CredentialMembersSection
+            credentialId={credential.id}
+            credentialName={credential.displayName}
+            isAdmin={isAdmin}
+            leaveHref={secretsHref}
+          />
+        )}
       </CredentialDetailLayout>
 
       {!isPersonal && (

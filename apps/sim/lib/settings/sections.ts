@@ -53,6 +53,13 @@ export const settingsSections: Record<MothershipSettingsScope, readonly Settings
       cli: ['audit-logs list', 'audit-logs get'],
     },
     { id: 'access-control', label: 'Permission groups', uiSection: 'access-control' },
+    { id: 'requests', label: 'Access requests', uiSection: 'requests' },
+    {
+      id: 'sim-links',
+      label: 'Sim links',
+      userSetup:
+        'Members browse and follow links on the organization Links page. Available only where Sim links are enabled for the organization.',
+    },
     {
       id: 'sso',
       label: 'Single sign-on and provisioning',
@@ -100,6 +107,7 @@ export const settingsSections: Record<MothershipSettingsScope, readonly Settings
     },
   ],
   workspace: [
+    { id: 'general', label: 'Workspace name and logo' },
     {
       id: 'teammates',
       label: 'Teammates',

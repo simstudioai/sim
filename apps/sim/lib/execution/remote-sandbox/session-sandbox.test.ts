@@ -14,11 +14,14 @@ import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { SANDBOX_OUTPUT_DIR_SENTINEL } from '@/lib/execution/remote-sandbox/paths'
+import { SessionCliStaleError } from '@/lib/execution/remote-sandbox/session-cli'
 import type {
   SandboxCodeResult,
   SandboxCommandResult,
   SandboxHandle,
   SandboxProvider,
+  SandboxSessionRequest,
+  SessionCliVerification,
 } from '@/lib/execution/remote-sandbox/types'
 
 const { mockCreate, mockFindSessionSandbox, mockResolveWorkspaceSandbox } = vi.hoisted(() => ({
@@ -41,6 +44,7 @@ vi.mock('@/lib/core/execution-limits/metrics', () => ({
   recordSandboxProviderLimit: vi.fn(),
 }))
 
+import { isTimeoutAbortReason } from '@/lib/core/execution-limits'
 import {
   executeInSandbox,
   executeShellInSandbox,
@@ -56,6 +60,10 @@ import {
   recordSessionFileInput,
 } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { writeSessionSandboxFile } from '@/lib/execution/remote-sandbox/session-files'
+import {
+  MAX_SANDBOX_TIMEOUT_OUTPUT_TAIL_BYTES,
+  SandboxExecutionTimeoutError,
+} from '@/lib/execution/remote-sandbox/timeout'
 
 remoteSandboxProviderMockFns.mockResolveProvider.mockImplementation(
   (): SandboxProvider => ({
@@ -159,6 +167,46 @@ function slowDown(handle: SandboxHandle): void {
 }
 
 const CLI = { path: '/home/user/.sim-cli/release/cli.mjs', content: 'deployment-code' }
+
+/**
+ * A session handle whose launches verify the CLI first, as E2B's supervisor does: a launch whose
+ * CLI no longer matches starts nothing and rejects.
+ */
+function launchVerifyingSandbox(id: string, options: { alwaysStale?: boolean } = {}) {
+  const { handle: base, calls } = fakeSandbox(id)
+  const ran: string[] = []
+  const unverifiedLaunches: string[] = []
+  const verify = async (launched: string, verifyCli: SessionCliVerification | undefined) => {
+    if (!verifyCli) {
+      unverifiedLaunches.push(launched)
+      return
+    }
+    const check = await base.runCommand('verify', {
+      timeoutMs: 1_000,
+      envs: {
+        SIM_CLI_PATH: verifyCli.path,
+        SIM_CLI_ARTIFACTS: JSON.stringify(verifyCli.artifacts),
+      },
+    })
+    calls.runCommand.pop()
+    if (options.alwaysStale || check.exitCode !== 0) throw new SessionCliStaleError()
+  }
+  const handle: SandboxHandle = {
+    ...base,
+    verifiesCliAtLaunch: true,
+    async runCommand(command, runOptions) {
+      await verify(command, runOptions.verifyCli)
+      ran.push(command)
+      return base.runCommand(command, runOptions)
+    },
+    async runCode(code, runOptions) {
+      await verify(code, runOptions.verifyCli)
+      ran.push(code)
+      return base.runCode(code, runOptions)
+    },
+  }
+  return { handle, calls, ran, unverifiedLaunches }
+}
 
 const CODE_REQUEST = {
   code: 'print(1)',
@@ -805,6 +853,56 @@ describe('session sandbox lease', () => {
     }
   })
 
+  describe('a reused workbench that verifies its CLI at launch', () => {
+    it.each(['code', 'shell'] as const)(
+      'runs %s with no separate CLI check command',
+      async (kind) => {
+        const { handle, calls, ran, unverifiedLaunches } = launchVerifyingSandbox(`launch-${kind}`)
+        mockFindSessionSandbox.mockResolvedValue(handle)
+        const request = { ...CODE_REQUEST, session: { key: `launch-${kind}`, cli: CLI } }
+        const execute = () =>
+          kind === 'code'
+            ? executeInSandbox(request)
+            : executeShellInSandbox({ ...request, envs: {} })
+        await execute()
+        calls.runCommand.length = 0
+        ran.length = 0
+        await execute()
+        expect(calls.runCommand.filter(({ envs }) => envs?.SIM_CLI_PATH)).toEqual([])
+        expect(ran).toEqual([CODE_REQUEST.code])
+        expect(unverifiedLaunches).not.toContain(CODE_REQUEST.code)
+      }
+    )
+
+    it.each(['code', 'shell'] as const)(
+      'repairs a changed CLI and runs the %s exactly once',
+      async (kind) => {
+        const { handle, calls, ran, unverifiedLaunches } = launchVerifyingSandbox(`repair-${kind}`)
+        mockFindSessionSandbox.mockResolvedValue(handle)
+        const request = { ...CODE_REQUEST, session: { key: `repair-${kind}`, cli: CLI } }
+        await (kind === 'code'
+          ? executeInSandbox(request)
+          : executeShellInSandbox({ ...request, envs: {} }))
+        expect(ran.filter((launched) => launched === CODE_REQUEST.code)).toHaveLength(1)
+        expect(calls.runCommand.some(({ envs }) => envs?.SIM_FILE_TARGET === CLI.path)).toBe(true)
+        expect(unverifiedLaunches).not.toContain(CODE_REQUEST.code)
+      }
+    )
+
+    it('fails without running the code when the CLI cannot be kept verified', async () => {
+      const { handle, ran } = launchVerifyingSandbox('stale', { alwaysStale: true })
+      mockFindSessionSandbox.mockResolvedValue(handle)
+      await expect(
+        executeShellInSandbox({
+          ...CODE_REQUEST,
+          envs: {},
+          session: { key: 'stale', cli: CLI },
+        })
+      ).rejects.toThrow('Workbench CLI installation could not be verified')
+      expect(ran).not.toContain(CODE_REQUEST.code)
+    })
+  })
+
   it('does not rewrite an unchanged executable while earlier code can still use it', async () => {
     const { handle } = fakeSandbox('unchanged-tooling')
     mockFindSessionSandbox.mockResolvedValue(handle)
@@ -939,6 +1037,277 @@ describe('session sandbox lease', () => {
     expect(calls.runCommand[0]?.envs).toMatchObject({ USER_VAR: '1', SIM_WORKSPACE: 'ws-1' })
     expect(calls.runCommand[0]?.rootUser).toBe(false)
     expect(calls.killed).toBe(false)
+  })
+
+  describe('a workbench run stopped by its own timeout', () => {
+    const OUTPUT_DIR = '/tmp/sim/outputs/call-timeout'
+
+    async function timedOutRun(
+      kind: 'code' | 'shell',
+      streams: { stdout: string; stderr: string },
+      listFiles: SandboxHandle['listFiles'],
+      options: {
+        acceptOutputProvenance?: SandboxSessionRequest['acceptOutputProvenance']
+        /** Holds the provider's timed-out reply until it settles. */
+        reply?: (signal: AbortSignal | undefined) => Promise<void>
+        signal?: AbortSignal
+        timeoutMs?: number
+      } = {}
+    ): Promise<unknown> {
+      const { acceptOutputProvenance, reply, signal, timeoutMs } = options
+      const { handle } = fakeSandbox(`timeout-${kind}`)
+      mockFindSessionSandbox.mockResolvedValue(handle)
+      mockCreate.mockResolvedValue(handle)
+      handle.runCode = async (_code, runOptions) => {
+        await reply?.(runOptions.signal)
+        return { text: '', ...streams, timedOut: true }
+      }
+      handle.runCommand = async (_command, runOptions) => {
+        await reply?.(runOptions.signal)
+        return { ...streams, exitCode: 124, timedOut: true }
+      }
+      handle.listFiles = listFiles
+      const request = {
+        ...CODE_REQUEST,
+        ...(timeoutMs ? { timeoutMs } : {}),
+        session: {
+          key: `timeout-${kind}`,
+          ...(acceptOutputProvenance ? { acceptOutputProvenance } : {}),
+        },
+        outputSandboxDir: OUTPUT_DIR,
+        ...(signal ? { signal } : {}),
+      }
+      return (
+        kind === 'code'
+          ? executeInSandbox(request)
+          : executeShellInSandbox({ ...request, envs: {} })
+      ).then(
+        () => {
+          throw new Error('Expected the run to time out')
+        },
+        (error: unknown) => error
+      )
+    }
+
+    it.each(['code', 'shell'] as const)(
+      'reports the %s output so far and the files already exported',
+      async (kind) => {
+        const error = await timedOutRun(
+          kind,
+          { stdout: 'rendered 1 of 3\nrendered 2 of 3', stderr: 'slow frame' },
+          async () => [
+            {
+              path: `${OUTPUT_DIR}/${SANDBOX_OUTPUT_DIR_SENTINEL}`,
+              relativePath: SANDBOX_OUTPUT_DIR_SENTINEL,
+              kind: 'file',
+              size: 0,
+            },
+            { path: `${OUTPUT_DIR}/frames`, relativePath: 'frames', kind: 'directory', size: 0 },
+            {
+              path: `${OUTPUT_DIR}/frames/2.png`,
+              relativePath: 'frames/2.png',
+              kind: 'file',
+              size: 9,
+            },
+            {
+              path: `${OUTPUT_DIR}/frames/1.png`,
+              relativePath: 'frames/1.png',
+              kind: 'file',
+              size: 9,
+            },
+          ]
+        )
+        expect(isTimeoutAbortReason(error)).toBe(true)
+        if (!(error instanceof SandboxExecutionTimeoutError)) throw error
+        expect(error.progress.output).toBe('rendered 1 of 3\nrendered 2 of 3\nslow frame')
+        expect(error.progress.outputFiles).toEqual([
+          `${OUTPUT_DIR}/frames/1.png`,
+          `${OUTPUT_DIR}/frames/2.png`,
+        ])
+        expect(error.progress.stoppedAfterMs).toBeGreaterThan(0)
+        expect(error.progress.stoppedAfterMs).toBeLessThanOrEqual(CODE_REQUEST.timeoutMs)
+      }
+    )
+
+    it.each([
+      ['fails', async () => Promise.reject(new Error('listing unavailable'))],
+      ['never answers', () => new Promise<never>(() => {})],
+    ] as const)('still reports the output when the file listing %s', async (_case, listFiles) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      try {
+        const pending = timedOutRun('shell', { stdout: 'step 1', stderr: '' }, listFiles)
+        await vi.runAllTimersAsync()
+        const error = await pending
+        if (!(error instanceof SandboxExecutionTimeoutError)) throw error
+        expect(error.progress.output).toBe('step 1')
+        expect(error.progress.outputFiles).toEqual([])
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('reports the output of a short run whose own timeout answers after a round trip', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+      try {
+        const { handle } = fakeSandbox('timeout-short')
+        mockFindSessionSandbox.mockResolvedValue(handle)
+        // The provider answers its own timeout one round trip late, and stops on the call's abort.
+        handle.runCommand = (_command, options) =>
+          new Promise((resolve, reject) => {
+            const timer = setTimeout(
+              () => resolve({ stdout: 'step 1', stderr: '', exitCode: 124, timedOut: true }),
+              (options?.timeoutMs ?? 0) + 300
+            )
+            options?.signal?.addEventListener('abort', () => {
+              clearTimeout(timer)
+              reject(options.signal?.reason)
+            })
+          })
+        handle.listFiles = () => new Promise<never>(() => {})
+        const pending = executeShellInSandbox({
+          ...CODE_REQUEST,
+          timeoutMs: 10_000,
+          envs: {},
+          session: { key: 'timeout-short' },
+          outputSandboxDir: OUTPUT_DIR,
+        }).then(
+          () => undefined,
+          (rejection: unknown) => rejection
+        )
+        await vi.runAllTimersAsync()
+        const error = await pending
+        if (!(error instanceof SandboxExecutionTimeoutError)) throw error
+        expect(error.progress.output).toBe('step 1')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('keeps a cancellation that arrives while listing the outputs a cancellation', async () => {
+      const { handle } = fakeSandbox('timeout-cancelled')
+      mockFindSessionSandbox.mockResolvedValue(handle)
+      const controller = new AbortController()
+      handle.runCommand = async () => ({
+        stdout: 'step 1',
+        stderr: '',
+        exitCode: 124,
+        timedOut: true,
+      })
+      handle.listFiles = async () => {
+        controller.abort(new Error('User Stop'))
+        return new Promise<never>(() => {})
+      }
+      const error = await executeShellInSandbox({
+        ...CODE_REQUEST,
+        envs: {},
+        session: { key: 'timeout-cancelled' },
+        outputSandboxDir: OUTPUT_DIR,
+        signal: controller.signal,
+      }).then(
+        () => undefined,
+        (rejection: unknown) => rejection
+      )
+      expect(error).not.toBeInstanceOf(SandboxExecutionTimeoutError)
+      expect(isTimeoutAbortReason(error)).toBe(false)
+    })
+
+    describe('when an abort lands before the provider replies', () => {
+      /**
+       * The provider never replies within the command's budget, while any abort makes the run
+       * yield what already streamed as timed out, so only the caller tells its own deadline apart
+       * from a Stop.
+       */
+      function shortRun(
+        kind: 'code' | 'shell',
+        options: { onLaunch?: () => void; signal?: AbortSignal } = {}
+      ): Promise<unknown> {
+        return timedOutRun(kind, { stdout: 'rendered 1 of 3', stderr: '' }, async () => [], {
+          timeoutMs: 10_000,
+          signal: options.signal,
+          reply: (signal) =>
+            new Promise<void>((resolve) => {
+              signal?.addEventListener('abort', () => resolve(), { once: true })
+              options.onLaunch?.()
+            }),
+        })
+      }
+
+      it.each(['code', 'shell'] as const)(
+        'reports the %s output that already streamed when its own deadline fires',
+        async (kind) => {
+          vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+          try {
+            const pending = shortRun(kind)
+            await vi.advanceTimersByTimeAsync(10_000)
+            const error = await pending
+            if (!(error instanceof SandboxExecutionTimeoutError)) throw error
+            expect(error.progress.output).toBe('rendered 1 of 3')
+            expect(error.progress.outputFiles).toEqual([])
+          } finally {
+            vi.useRealTimers()
+          }
+        }
+      )
+
+      it.each(['code', 'shell'] as const)('keeps a %s Stop a cancellation', async (kind) => {
+        const controller = new AbortController()
+        const error = await shortRun(kind, {
+          signal: controller.signal,
+          onLaunch: () => controller.abort(new Error('User Stop')),
+        })
+        expect(error).not.toBeInstanceOf(SandboxExecutionTimeoutError)
+        expect(getErrorMessage(error)).toBe('User Stop')
+      })
+
+      it('keeps a Stop a cancellation on a provider without workbenches', async () => {
+        const { mockResolveProvider } = remoteSandboxProviderMockFns
+        const workbenchProvider = mockResolveProvider.getMockImplementation()
+        if (!workbenchProvider) throw new Error('Missing provider mock')
+        mockResolveProvider.mockImplementation(() => ({
+          ...workbenchProvider(),
+          findSessionSandbox: undefined,
+        }))
+        try {
+          const controller = new AbortController()
+          const error = await shortRun('shell', {
+            signal: controller.signal,
+            onLaunch: () => controller.abort(new Error('User Stop')),
+          })
+          expect(isTimeoutAbortReason(error)).toBe(false)
+          expect(getErrorMessage(error)).toBe('User Stop')
+        } finally {
+          mockResolveProvider.mockImplementation(workbenchProvider)
+        }
+      })
+    })
+
+    it('withholds the output when the workbench secret provenance is unavailable', async () => {
+      const error = await timedOutRun(
+        'shell',
+        { stdout: 'token=secret-value', stderr: '' },
+        async () => [],
+        {
+          acceptOutputProvenance: async () => {
+            throw new Error(
+              'Workbench output withheld because its secret provenance is unavailable'
+            )
+          },
+        }
+      )
+      expect(error).not.toBeInstanceOf(SandboxExecutionTimeoutError)
+      expect(getErrorMessage(error)).not.toContain('secret-value')
+    })
+
+    it('keeps only the end of an output too large to return', async () => {
+      const lines = Array.from({ length: 20_000 }, (_, index) => `frame ${index}`).join('\n')
+      const error = await timedOutRun('shell', { stdout: lines, stderr: '' }, async () => [])
+      if (!(error instanceof SandboxExecutionTimeoutError)) throw error
+      expect(Buffer.byteLength(error.progress.output)).toBeLessThanOrEqual(
+        MAX_SANDBOX_TIMEOUT_OUTPUT_TAIL_BYTES + 64
+      )
+      expect(error.progress.output.endsWith('frame 19999')).toBe(true)
+      expect(error.progress.output.startsWith('[earlier output omitted]')).toBe(true)
+    })
   })
 
   it('keeps the one-shot teardown when no session is requested', async () => {

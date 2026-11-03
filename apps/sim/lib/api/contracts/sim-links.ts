@@ -35,21 +35,23 @@ export type SimLinkBody = z.input<typeof simLinkFieldsSchema>
 
 const linkResponse = z.object({ link: simLinkSchema })
 
+export const listSimLinksQuerySchema = z
+  .object({
+    search: z.string().max(200).optional(),
+    cursor: z.string().min(1).max(128).optional(),
+    sort: z.enum(SIM_LINK_SORTS).optional(),
+    dir: z.enum(SORT_DIRECTIONS).optional(),
+  })
+  .refine((query) => !(query.sort === 'popular' && query.cursor), {
+    path: ['cursor'],
+    message: 'The most-used view is a single page',
+  })
+
 export const listSimLinksContract = defineRouteContract({
   method: 'GET',
   path: '/api/organizations/[id]/sim-links',
   params,
-  query: z
-    .object({
-      search: z.string().max(200).optional(),
-      cursor: z.string().min(1).max(128).optional(),
-      sort: z.enum(SIM_LINK_SORTS).optional(),
-      dir: z.enum(SORT_DIRECTIONS).optional(),
-    })
-    .refine((query) => !(query.sort === 'popular' && query.cursor), {
-      path: ['cursor'],
-      message: 'The most-used view is a single page',
-    }),
+  query: listSimLinksQuerySchema,
   response: {
     mode: 'json',
     schema: z.object({ links: z.array(simLinkSchema), nextCursor: z.string().nullable() }),

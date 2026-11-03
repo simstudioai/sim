@@ -47,6 +47,8 @@ export interface OrganizationMembershipContext extends OrganizationAuthorization
 export interface OrganizationAuthorizationOptions {
   executor?: DbOrTx
   forUpdate?: boolean
+  /** Holds the membership row until commit, so a concurrent removal waits for this write. */
+  forShare?: boolean
 }
 
 /** Rechecks routed organization membership; owning a workspace is irrelevant to this grant. */
@@ -83,7 +85,11 @@ export async function requireOrganizationSubjectMembership(
     .select({ role: member.role })
     .from(member)
     .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
-  const [membership] = options.forUpdate ? await query.for('update').limit(1) : await query.limit(1)
+  const [membership] = options.forUpdate
+    ? await query.for('update').limit(1)
+    : options.forShare
+      ? await query.for('share').limit(1)
+      : await query.limit(1)
   const parsedRole = organizationRoleSchema.safeParse(membership?.role)
   if (!parsedRole.success) throw new OrganizationMembershipNotFoundError()
   if (minimumRole === 'admin' && !isOrgAdminRole(parsedRole.data)) {
@@ -110,16 +116,24 @@ export async function requireOrganizationSubjectMembership(
   return { organizationId, userId, role: parsedRole.data }
 }
 
+/** Refuses a principal kind or OAuth grant the operation does not admit, before any lookup. */
+export function requireAllowedOrganizationPrincipal(
+  principal: Principal,
+  operation: OrganizationOperation
+): void {
+  if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
+    throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
+  }
+  requireOAuthOperationScope(principal, operation)
+}
+
 export async function authorizeOrganizationOperation(
   principal: Principal,
   operation: OrganizationOperation,
   context: OrganizationAuthorizationContext,
   options: OrganizationAuthorizationOptions = {}
 ): Promise<OrganizationMembershipContext> {
-  if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
-    throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
-  }
-  requireOAuthOperationScope(principal, operation)
+  requireAllowedOrganizationPrincipal(principal, operation)
   if (principal.kind === 'organization_delegated') {
     const now = Date.now()
     if (

@@ -39,7 +39,7 @@ export const GET = defineV2JsonRoute({
   }),
   useCase: listCredentialMembersUseCase,
   present: ({ members, nextCursorKeys }, { params, query }) => ({
-    data: members.map((member) => ({
+    data: members.map(({ explicitAdmin, ...member }) => ({
       ...member,
       joinedAt: member.joinedAt?.toISOString() ?? null,
     })),

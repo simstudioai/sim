@@ -17,6 +17,7 @@ import {
   SANDBOX_RELEASE_GENERATION_ERROR,
 } from '@sim/utils/sandbox-references'
 import { env } from '@/lib/core/config/env'
+import { isTimeoutAbortReason } from '@/lib/core/execution-limits'
 import { recordSandboxProviderLimit } from '@/lib/core/execution-limits/metrics'
 import {
   isPayloadSizeLimitError,
@@ -55,6 +56,10 @@ import {
   tailStreamedSandboxOutput,
 } from '@/lib/execution/remote-sandbox/output-limits'
 import { resolveSandboxDirectoryEntryPath } from '@/lib/execution/remote-sandbox/paths'
+import {
+  SessionCliStaleError,
+  SessionCliVerificationError,
+} from '@/lib/execution/remote-sandbox/session-cli'
 import { withSandboxSessionLock } from '@/lib/execution/remote-sandbox/session-lock'
 import {
   type SessionProcessIdentity,
@@ -82,6 +87,7 @@ import type {
   SandboxImageMaterialization,
   SandboxKind,
   SandboxProvider,
+  SessionCliVerification,
 } from '@/lib/execution/remote-sandbox/types'
 
 const logger = createLogger('E2BSandboxProvider')
@@ -319,11 +325,17 @@ async function listAllSandboxes(paginator: SandboxPaginator): Promise<SandboxInf
   return sandboxes
 }
 
+/** What a session command's launch found when it verified the deployment CLI; absent when it matched. */
+interface SessionCommandReceipt {
+  cli?: 'stale' | 'failed'
+}
+
+/** Settles the command; the receipt is the only proof that a refused launch started nothing. */
 async function stopSessionCommand(
   sandbox: E2BSandbox,
   processId: string,
   signal = AbortSignal.timeout(10_000)
-): Promise<void> {
+): Promise<SessionCommandReceipt> {
   signal.throwIfAborted()
   const result = await sandbox.commands.run(sessionProcessStopCommand(processId), {
     user: 'root',
@@ -335,6 +347,7 @@ async function stopSessionCommand(
   if (result.exitCode !== 0 || !isRecordLike(receipt) || receipt.settled !== true) {
     throw new Error('Sandbox command namespace exit is unconfirmed')
   }
+  return receipt.cli === 'stale' || receipt.cli === 'failed' ? { cli: receipt.cli } : {}
 }
 
 /** Recovers the exact recorded workbench; expiry is absence, while lookup failure stays unresolved. */
@@ -373,6 +386,14 @@ export async function stopE2BSessionProcess(
   if (sandbox) await stopSessionCommand(sandbox, process.id, signal)
 }
 
+/** Joins what the stream callbacks observed with the streams the SDK returned, without repeating either. */
+function mergeObservedOutput(observed: string, returned: string): string {
+  if (!observed) return returned
+  if (!returned || observed.endsWith(returned)) return observed
+  if (returned.startsWith(observed)) return returned
+  return observed + returned
+}
+
 class E2BSandboxHandle implements SandboxHandle {
   private killed = false
   private killPromise: Promise<void> | null = null
@@ -405,6 +426,10 @@ class E2BSandboxHandle implements SandboxHandle {
     return this.sandbox.sandboxId
   }
 
+  get verifiesCliAtLaunch(): boolean {
+    return this.sessionKey !== undefined
+  }
+
   outlives(lifetimeMs: number, fromMs: number): boolean {
     return (
       this.sessionDeadlineAtMs !== undefined &&
@@ -433,6 +458,7 @@ class E2BSandboxHandle implements SandboxHandle {
       javascriptPreload?: string
       maxOutputBytes?: number
       signal?: AbortSignal
+      verifyCli?: SessionCliVerification
     }
   ): Promise<SandboxCodeResult> {
     const runId = generateShortId(12)
@@ -459,6 +485,7 @@ class E2BSandboxHandle implements SandboxHandle {
           maxOutputBytes: options.maxOutputBytes,
           signal: options.signal,
           atMostOnce: true,
+          verifyCli: options.verifyCli,
           envs: {
             ...options.envs,
             SIM_CODE_PATH: codePath,
@@ -512,6 +539,25 @@ class E2BSandboxHandle implements SandboxHandle {
     options: RunCommandOptions,
     operation: 'code' | 'command'
   ): Promise<SandboxCommandResult> {
+    let refusal: SessionCommandReceipt['cli']
+    const outcome = await this.runOwnedCommand(command, options, operation, (receipt) => {
+      refusal = receipt.cli
+    }).then(
+      (result) => ({ result }),
+      (error: unknown) => ({ error })
+    )
+    if (refusal === 'stale') throw new SessionCliStaleError()
+    if (refusal === 'failed') throw new SessionCliVerificationError()
+    if ('error' in outcome) throw outcome.error
+    return outcome.result
+  }
+
+  private async runOwnedCommand(
+    command: string,
+    options: RunCommandOptions,
+    operation: 'code' | 'command',
+    onReceipt: (receipt: SessionCommandReceipt) => void
+  ): Promise<SandboxCommandResult> {
     if (this.sessionKey !== undefined) options.signal?.throwIfAborted()
     let commandDeadlineAtMs: number | undefined
     const outputBudget = new SandboxProcessOutputBudget(
@@ -529,9 +575,9 @@ class E2BSandboxHandle implements SandboxHandle {
     let observedStderr = ''
     const processId = this.sessionKey !== undefined ? generateId() : undefined
     let processRecorded = false
-    let stopping: Promise<void> | undefined
-    const stopCommand = (): Promise<void> => {
-      if (!processId || !processRecorded) return Promise.resolve()
+    let stopping: Promise<SessionCommandReceipt> | undefined
+    const stopCommand = (): Promise<SessionCommandReceipt | undefined> => {
+      if (!processId || !processRecorded) return Promise.resolve(undefined)
       stopping ??= stopSessionCommand(this.sandbox, processId).catch((error: unknown) => {
         logger.warn('Failed to stop sandbox process', {
           sandboxId: this.sandboxId,
@@ -587,7 +633,12 @@ class E2BSandboxHandle implements SandboxHandle {
         commandDeadlineAtMs = Date.now() + processOptions.timeoutMs
         started = await this.sandbox.commands.run(
           processId
-            ? sessionProcessCommand(processId, prepared.command, options.rootUser)
+            ? sessionProcessCommand(
+                processId,
+                prepared.command,
+                options.rootUser,
+                options.verifyCli
+              )
             : prepared.command,
           {
             ...processOptions,
@@ -676,12 +727,6 @@ class E2BSandboxHandle implements SandboxHandle {
         // process handle because `background: true` is fixed above.
         result = started
       }
-      const mergeObservedOutput = (observed: string, returned: string): string => {
-        if (!observed) return returned
-        if (!returned || observed.endsWith(returned)) return observed
-        if (returned.startsWith(observed)) return returned
-        return observed + returned
-      }
       const stdout = mergeObservedOutput(observedStdout, result.stdout ?? '')
       const stderr = mergeObservedOutput(observedStderr, result.stderr ?? '')
       assertSandboxProcessOutputWithinLimit([stdout, stderr], options.maxOutputBytes)
@@ -705,6 +750,11 @@ class E2BSandboxHandle implements SandboxHandle {
           providerFailure: 'provider_limit',
         }
       }
+      // A short workbench run hands the command its whole budget, so the caller's deadline can
+      // stop it before E2B's own timeout replies; a Stop stays a cancellation.
+      const timedOut =
+        isE2BExecutionTimeout(error) ||
+        (this.sessionKey !== undefined && isTimeoutAbortReason(options.signal?.reason))
       // The SDK throws on non-zero exit; callers want the streams, not a throw.
       const failure = error as {
         stdout?: string
@@ -717,7 +767,7 @@ class E2BSandboxHandle implements SandboxHandle {
         failure.stdout === undefined &&
         failure.stderr === undefined &&
         failure.exitCode === undefined &&
-        !isE2BExecutionTimeout(error)
+        !timedOut
       ) {
         throw error
       }
@@ -727,16 +777,21 @@ class E2BSandboxHandle implements SandboxHandle {
       )
       const tailIfStreamed = (value: string | undefined, retain: boolean) =>
         retain || value === undefined ? value : tailStreamedSandboxOutput(value)
-      const failureStdout = tailIfStreamed(failure.stdout, retainStdout)
-      const failureStderr = tailIfStreamed(failure.stderr, retainStderr)
-      if (isE2BExecutionTimeout(error)) {
+      if (timedOut) {
+        // The SDK's timeout error carries no streams; the callbacks observed the run's output.
+        const stdout = mergeObservedOutput(observedStdout, failure.stdout ?? '')
+        const stderr = mergeObservedOutput(observedStderr, failure.stderr ?? '')
         return {
-          stdout: failureStdout ?? '',
-          stderr: failureStderr ?? failure.message ?? '',
+          stdout: retainStdout ? stdout : tailStreamedSandboxOutput(stdout),
+          stderr:
+            (retainStderr ? stderr : tailStreamedSandboxOutput(stderr)) ||
+            `Command timed out after ${options.timeoutMs}ms`,
           exitCode: 124,
           timedOut: true,
         }
       }
+      const failureStdout = tailIfStreamed(failure.stdout, retainStdout)
+      const failureStderr = tailIfStreamed(failure.stderr, retainStderr)
       return {
         stdout: failureStdout ?? '',
         stderr: failureStderr ?? failure.message ?? getErrorMessage(error),
@@ -746,11 +801,12 @@ class E2BSandboxHandle implements SandboxHandle {
       options.signal?.removeEventListener('abort', onAbort)
       /** The named SDK process can exit before its namespace; only the kernel receipt settles it. */
       if (processId && processRecorded) {
-        await stopCommand().catch((error: unknown) => {
+        const receipt = await stopCommand().catch((error: unknown) => {
           reportUnsettledSandboxProcess(processId)
           throw error
         })
         await settleSandboxProcess(processId)
+        if (receipt) onReceipt(receipt)
       }
     }
   }

@@ -12,6 +12,7 @@ import {
   ConnectorActionFeedback,
   ConnectorActions,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-actions'
+import { ConnectorMemberEnrollment } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-member-enrollment'
 import { ConnectorRecovery } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-recovery'
 import { ConnectorSyncHistory } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-sync-history'
 import { getConnectorSyncState } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-sync-state'
@@ -170,6 +171,14 @@ function ConnectorCard({
           <Loader className='size-3' animate />
           Updating access
         </span>
+      )}
+      {connector.viewerMembership && connector.viewerMembership !== 'connected' && (
+        <ConnectorMemberEnrollment
+          knowledgeBaseId={knowledgeBaseId}
+          connectorId={connector.id}
+          isSearchIndex={isSearchIndex}
+          membership={connector.viewerMembership}
+        />
       )}
       <ConnectorRecovery
         connector={connector}

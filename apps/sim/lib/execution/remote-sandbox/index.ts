@@ -9,6 +9,7 @@ import {
   isTimeoutAbortReason,
 } from '@/lib/core/execution-limits'
 import { recordSandboxTeardownFailure } from '@/lib/core/execution-limits/metrics'
+import { withinDeadline } from '@/lib/core/utils/deadline'
 import { buildJavaScriptRuntimeBindingsSource } from '@/lib/execution/code-placeholders/javascript-runtime'
 import { SANDBOX_SYSTEM_PATH } from '@/lib/execution/remote-sandbox/cli-tools.server'
 import { describeProcessExit } from '@/lib/execution/remote-sandbox/code-failure'
@@ -59,12 +60,21 @@ import {
   ensureSessionSandbox,
   SESSION_SANDBOX_IDLE_MS,
 } from '@/lib/execution/remote-sandbox/session'
-import { sessionCommandPath } from '@/lib/execution/remote-sandbox/session-cli'
+import {
+  ensureSessionCli,
+  SessionCliStaleError,
+  sessionCliVerification,
+  sessionCommandPath,
+} from '@/lib/execution/remote-sandbox/session-cli'
 import {
   readSessionSecretProvenance,
   recordSessionFileInput,
 } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { withSandboxSessionLock } from '@/lib/execution/remote-sandbox/session-lock'
+import {
+  SandboxExecutionTimeoutError,
+  sandboxTimeoutProgress,
+} from '@/lib/execution/remote-sandbox/timeout'
 import type {
   CreateSandboxOptions,
   SandboxCodeResult,
@@ -82,6 +92,7 @@ import type {
   SandboxProviderId,
   SandboxSessionRequest,
   SandboxShellExecutionRequest,
+  SessionCliVerification,
 } from '@/lib/execution/remote-sandbox/types'
 
 export type {
@@ -179,6 +190,11 @@ function throwIfAborted(signal?: AbortSignal): void {
   throw signal.reason instanceof Error ? signal.reason : new Error('Execution cancelled')
 }
 
+/** Throws for a cancellation; the run's own deadline passes so a timed-out run can report. */
+function throwIfCancelled(signal: AbortSignal): void {
+  if (!isTimeoutAbortReason(signal.reason)) throwIfAborted(signal)
+}
+
 function abortReason(signal: AbortSignal): Error {
   return signal.reason instanceof Error
     ? signal.reason
@@ -254,8 +270,85 @@ async function withSandboxExecutionBudget<T>(
   }
 }
 
+/**
+ * Launches a session command that verifies the deployment CLI as it starts. A launch that found
+ * the CLI changed started nothing, so the CLI is repaired under the session lock and the command
+ * launched once more; a second refusal means something keeps changing it, and the call fails.
+ */
+async function launchWithVerifiedCli<T>(
+  sandbox: SandboxHandle,
+  lease: SandboxLease,
+  session: SandboxSessionRequest | undefined,
+  signal: AbortSignal,
+  phases: SandboxPhaseTimer,
+  launch: (verifyCli: SessionCliVerification | undefined) => Promise<T>
+): Promise<T> {
+  const cli = lease.session && sandbox.verifiesCliAtLaunch ? session?.cli : undefined
+  if (!session || !cli) return launch(undefined)
+  const verifyCli = sessionCliVerification(cli)
+  try {
+    return await launch(verifyCli)
+  } catch (error) {
+    if (!(error instanceof SessionCliStaleError)) throw error
+  }
+  const endCli = phases.start('cli')
+  await withSandboxSessionLock(session.key, signal, (lockSignal) =>
+    ensureSessionCli(sandbox, cli, lockSignal, remainingSandboxBudgetMs(signal))
+  )
+  endCli()
+  try {
+    return await launch(verifyCli)
+  } catch (error) {
+    if (error instanceof SessionCliStaleError) {
+      throw new Error('Workbench CLI installation could not be verified')
+    }
+    throw error
+  }
+}
+
 function throwIfSandboxTimedOut(result: { timedOut?: boolean }): void {
   if (result.timedOut) throw new DOMException('timeout', 'AbortError')
+}
+
+/** Bounds the output-directory listing a timeout report adds; a slow listing reports no files. */
+const TIMED_OUT_OUTPUT_LISTING_MS = 3_000
+
+/**
+ * A workbench run stopped by its own timeout reports what it produced, because the workbench and
+ * its files outlive the call and the next call can resume from them. A one-shot sandbox is torn
+ * down with everything in it, so it keeps the plain timeout.
+ */
+async function throwIfRunTimedOut(
+  result: { timedOut?: boolean },
+  streams: Array<string | undefined>,
+  run: {
+    sandbox: SandboxHandle
+    lease: SandboxLease
+    outputSandboxDir: string | undefined
+    timeoutMs: number
+    signal: AbortSignal
+  }
+): Promise<void> {
+  if (!result.timedOut) return
+  throwIfCancelled(run.signal)
+  if (!run.lease.session) throw new DOMException('timeout', 'AbortError')
+  const { outputSandboxDir, sandbox } = run
+  // Half of what the call has left, so the report lands before the call's deadline.
+  const listingMs = Math.min(
+    TIMED_OUT_OUTPUT_LISTING_MS,
+    (getRemainingExecutionMs(run.signal) ?? Number.POSITIVE_INFINITY) / 2
+  )
+  // withinDeadline refuses an aborted signal, so a run its own deadline stopped lists no files.
+  const listed = outputSandboxDir
+    ? await withinDeadline(
+        () => sandbox.listFiles(outputSandboxDir, { depth: SANDBOX_OUTPUT_DIR_MAX_DEPTH }),
+        Date.now() + listingMs,
+        run.signal
+      ).catch(() => [])
+    : []
+  // A cancellation that arrives while listing stays a cancellation.
+  throwIfCancelled(run.signal)
+  throw new SandboxExecutionTimeoutError(sandboxTimeoutProgress(streams, run.timeoutMs, listed))
 }
 
 function bindSandboxAbort(
@@ -828,20 +921,31 @@ function installBudgetMs(timeoutMs: number): number {
 const MIN_EXPORT_BUDGET_MS = 10_000
 
 /**
+ * Held back from a workbench run without an export reserve, capped at a quarter of its budget,
+ * so the run's own timeout answers and reports its progress before the call's deadline.
+ */
+const MAX_TIMEOUT_REPORT_BUDGET_MS = 4_000
+
+/**
  * The budget handed to user code, less an export reserve when this request will
  * read files back. Short budgets are left alone: taking the reserve out of one
- * would starve the code to buy time for an export it never reaches.
+ * would starve the code to buy time for an export it never reaches. A workbench
+ * run, whose timeout reports progress, still keeps a smaller report reserve.
  */
 function codeBudgetMs(
   req: { outputSandboxPath?: string; outputSandboxPaths?: string[]; outputSandboxDir?: string },
-  signal: AbortSignal
+  signal: AbortSignal,
+  reportsTimeout: boolean
 ): number {
   const remainingMs = remainingSandboxBudgetMs(signal)
   const exportsFiles = Boolean(
     req.outputSandboxDir || req.outputSandboxPath || req.outputSandboxPaths?.length
   )
-  if (!exportsFiles || remainingMs <= MIN_EXPORT_BUDGET_MS * 2) return remainingMs
-  return remainingMs - MIN_EXPORT_BUDGET_MS
+  if (exportsFiles && remainingMs > MIN_EXPORT_BUDGET_MS * 2) {
+    return remainingMs - MIN_EXPORT_BUDGET_MS
+  }
+  if (!reportsTimeout) return remainingMs
+  return remainingMs - Math.min(MAX_TIMEOUT_REPORT_BUDGET_MS, Math.floor(remainingMs / 4))
 }
 
 /**
@@ -969,22 +1073,40 @@ async function executeInSandboxWithinBudget(
       Object.keys(privateInputFiles.environment).length > 0
 
     let execution: SandboxCodeResult
+    let runTimeoutMs = 0
     try {
       const endRun = phases.start('run')
-      execution = await sandbox.runCode(code, {
-        timeoutMs: codeBudgetMs(req, signal),
-        javascriptPreload: buildJavaScriptRuntimeBindingsSource(req.runtimeBindings ?? []),
-        maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+      execution = await launchWithVerifiedCli(
+        sandbox,
+        lease,
+        req.session,
         signal,
-        ...(hasExecutionEnvironment ? { envs: executionEnvironment } : {}),
-      })
+        phases,
+        (verifyCli) => {
+          runTimeoutMs = codeBudgetMs(req, signal, Boolean(lease.session))
+          return sandbox.runCode(code, {
+            timeoutMs: runTimeoutMs,
+            javascriptPreload: buildJavaScriptRuntimeBindingsSource(req.runtimeBindings ?? []),
+            maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+            signal,
+            ...(hasExecutionEnvironment ? { envs: executionEnvironment } : {}),
+            verifyCli,
+          })
+        }
+      )
       endRun()
     } catch (error) {
       throwIfAborted(signal)
       throw error
     }
+    await throwIfRunTimedOut(execution, [execution.text, execution.stdout, execution.stderr], {
+      sandbox,
+      lease,
+      outputSandboxDir: req.outputSandboxDir,
+      timeoutMs: runTimeoutMs,
+      signal,
+    })
     throwIfAborted(signal)
-    throwIfSandboxTimedOut(execution)
 
     if (execution.error) {
       const errorMessage = `${execution.error.name}: ${execution.error.value}`
@@ -1166,30 +1288,49 @@ async function executeShellInSandboxWithinBudget(
     endPrepare()
 
     let result: SandboxCommandResult
+    let runTimeoutMs = 0
     try {
       const endRun = phases.start('run')
-      result = await sandbox.runCommand(code, {
-        envs: {
-          ...selected?.envs,
-          ...envs,
-          ...req.session?.envs,
-          PATH: sessionCommandPath(req.session, selected?.envs?.PATH ?? SANDBOX_SYSTEM_PATH),
-          ...privateInputFiles.environment,
-          ...(req.session && req.outputSandboxDir ? { SIM_OUTPUT_DIR: req.outputSandboxDir } : {}),
-        },
-        timeoutMs: codeBudgetMs(req, signal),
-        maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+      const commandEnvironment = {
+        ...selected?.envs,
+        ...envs,
+        ...req.session?.envs,
+        PATH: sessionCommandPath(req.session, selected?.envs?.PATH ?? SANDBOX_SYSTEM_PATH),
+        ...privateInputFiles.environment,
+        ...(req.session && req.outputSandboxDir ? { SIM_OUTPUT_DIR: req.outputSandboxDir } : {}),
+      }
+      result = await launchWithVerifiedCli(
+        sandbox,
+        lease,
+        req.session,
         signal,
-        rootUser: !lease.session,
-        atMostOnce: true,
-      })
+        phases,
+        (verifyCli) => {
+          runTimeoutMs = codeBudgetMs(req, signal, Boolean(lease.session))
+          return sandbox.runCommand(code, {
+            envs: commandEnvironment,
+            timeoutMs: runTimeoutMs,
+            maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+            signal,
+            rootUser: !lease.session,
+            atMostOnce: true,
+            verifyCli,
+          })
+        }
+      )
       endRun()
     } catch (error) {
       throwIfAborted(signal)
       throw error
     }
+    await throwIfRunTimedOut(result, [result.stdout, result.stderr], {
+      sandbox,
+      lease,
+      outputSandboxDir: req.outputSandboxDir,
+      timeoutMs: runTimeoutMs,
+      signal,
+    })
     throwIfAborted(signal)
-    throwIfSandboxTimedOut(result)
 
     const stdout = [result.stdout, result.stderr].filter(Boolean).join('\n')
 

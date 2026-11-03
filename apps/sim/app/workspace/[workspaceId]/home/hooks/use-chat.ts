@@ -142,6 +142,7 @@ import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { snapAllSmoothText } from '@/hooks/use-smooth-text'
 import { useChatPanelStore } from '@/stores/chat-panel/store'
+import { useChatPlanModalStore } from '@/stores/modals/chat-plan/store'
 import {
   useMothershipEffortStore,
   useMothershipPlanEffortStore,
@@ -4441,7 +4442,10 @@ export function useChat(
       options?: SendMessageOptions
     ) => {
       if ((!message.trim() && !fileAttachments?.length) || !scopeKey) return
-      if (chatPlanRequired) return
+      if (chatPlanRequired) {
+        useChatPlanModalStore.getState().open(workspaceId)
+        return
+      }
 
       const queueStore = useMothershipQueueStore.getState()
       const activeChatKey = chatKeyRef.current
@@ -5302,7 +5306,10 @@ export function useChat(
       const msg = id === undefined ? queue?.[0] : queue?.find((queued) => queued.id === id)
       if (!msg || queueState.editing[chatKey] === msg.id) return
       if (queuedMessageDispatchIds.has(msg.id)) return
-      if (chatPlanRequired) return
+      if (chatPlanRequired) {
+        useChatPlanModalStore.getState().open(workspaceId)
+        return
+      }
       /* Sent by hand, it still must not run a second turn: if the history shows it
          accepted, it is already in the chat. A history that cannot be read does not
          hold it back here; the user asked to send it, and the server deduplicates it

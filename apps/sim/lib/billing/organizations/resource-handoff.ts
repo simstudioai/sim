@@ -2,11 +2,12 @@ import {
   knowledgeBase,
   member,
   permissionGroup,
+  simLink,
   ssoProvider,
   user,
   workspaceFiles,
 } from '@sim/db/schema'
-import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm'
+import { and, asc, eq, isNull, ne, notInArray, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
@@ -103,6 +104,7 @@ export async function reassignOrganizationSharedResourcesTx(
         eq(permissionGroup.createdBy, departingUserId)
       )
     )
+  await reassignSimLinksTx(tx, organizationId, departingUserId, userId)
   await tx
     .update(ssoProvider)
     .set({ userId })
@@ -110,4 +112,61 @@ export async function reassignOrganizationSharedResourcesTx(
       and(eq(ssoProvider.organizationId, organizationId), eq(ssoProvider.userId, departingUserId))
     )
   return userId
+}
+
+async function reassignSimLinksTx(
+  tx: DbTransaction,
+  organizationId: string,
+  fromUserId: string,
+  toUserId: string
+) {
+  await tx
+    .update(simLink)
+    .set({ createdBy: toUserId, updatedAt: new Date() })
+    .where(and(eq(simLink.organizationId, organizationId), eq(simLink.createdBy, fromUserId)))
+}
+
+/**
+ * Organizations where a former member still created Sim links outside `excludedOrganizationIds`.
+ * Account deletion locks these with the shared organizations, but they never block erasure.
+ */
+export async function listLeftoverSimLinkOrganizationIdsForUser(
+  executor: DbOrTx,
+  userId: string,
+  excludedOrganizationIds: string[]
+) {
+  const rows = await executor
+    .selectDistinct({ organizationId: simLink.organizationId })
+    .from(simLink)
+    .where(
+      and(
+        eq(simLink.createdBy, userId),
+        excludedOrganizationIds.length > 0
+          ? notInArray(simLink.organizationId, excludedOrganizationIds)
+          : undefined
+      )
+    )
+    .orderBy(asc(simLink.organizationId))
+  return rows.map((row) => row.organizationId)
+}
+
+/**
+ * Repairs Sim links a former member kept after leaving before departures handed them off. The
+ * caller holds each organization's mutation lock. Never blocks erasure: an organization without
+ * an owner successor keeps the FK's `SET NULL`.
+ */
+export async function handoffLeftoverSimLinksTx(
+  tx: DbTransaction,
+  departingUserId: string,
+  organizationIds: string[]
+) {
+  for (const organizationId of organizationIds) {
+    const successorId = await findOrganizationSharedResourceSuccessor(
+      tx,
+      organizationId,
+      departingUserId,
+      true
+    )
+    if (successorId) await reassignSimLinksTx(tx, organizationId, departingUserId, successorId)
+  }
 }

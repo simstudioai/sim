@@ -10,7 +10,7 @@ vi.mock('@/lib/core/config/env-flags', () => ({
 }))
 
 async function loadRuntime() {
-  const [{ db }, schema, { eq, inArray, sql }, { alias }, membership, entitlement] =
+  const [{ db }, schema, { and, eq, inArray, sql }, { alias }, membership, entitlement] =
     await Promise.all([
       import('@sim/db'),
       import('@sim/db/schema'),
@@ -19,7 +19,27 @@ async function loadRuntime() {
       import('@/ee/scim/lib/managed-membership'),
       import('@/ee/scim/lib/entitlement'),
     ])
-  return { db, schema, eq, inArray, sql, alias, ...membership, ...entitlement }
+  const [
+    { removeOrganizationMemberRecord },
+    { removeUserFromOrganization, transferOrganizationOwnership },
+  ] = await Promise.all([
+    import('@/lib/organizations/member-manager'),
+    import('@/lib/billing/organizations/membership'),
+  ])
+  return {
+    db,
+    schema,
+    and,
+    eq,
+    inArray,
+    sql,
+    alias,
+    removeOrganizationMemberRecord,
+    removeUserFromOrganization,
+    transferOrganizationOwnership,
+    ...membership,
+    ...entitlement,
+  }
 }
 
 describe('SCIM managed membership in PostgreSQL', () => {
@@ -29,6 +49,7 @@ describe('SCIM managed membership in PostgreSQL', () => {
   let connectionId: string
   let managedUserId: string
   let unmanagedUserId: string
+  let adminUserId: string
   let managedEmail: string
 
   beforeAll(async () => {
@@ -42,6 +63,7 @@ describe('SCIM managed membership in PostgreSQL', () => {
     connectionId = generateId()
     managedUserId = generateId()
     unmanagedUserId = generateId()
+    adminUserId = generateId()
     managedEmail = `${managedUserId}@scim-membership.test`
     const { db, schema } = runtime
     const now = new Date()
@@ -54,7 +76,7 @@ describe('SCIM managed membership in PostgreSQL', () => {
       }))
     )
     await db.insert(schema.user).values(
-      [managedUserId, unmanagedUserId].map((id) => ({
+      [managedUserId, unmanagedUserId, adminUserId].map((id) => ({
         id,
         name: 'SCIM predicate test',
         email: `${id}@scim-membership.test`,
@@ -99,7 +121,9 @@ describe('SCIM managed membership in PostgreSQL', () => {
     const { db, schema, eq, inArray } = runtime
     await db.delete(schema.subscription).where(eq(schema.subscription.referenceId, orgId))
     await db.delete(schema.organization).where(inArray(schema.organization.id, [orgId, otherOrgId]))
-    await db.delete(schema.user).where(inArray(schema.user.id, [managedUserId, unmanagedUserId]))
+    await db
+      .delete(schema.user)
+      .where(inArray(schema.user.id, [managedUserId, unmanagedUserId, adminUserId]))
   })
 
   async function invitee(organizationId: string, email: string) {
@@ -193,5 +217,128 @@ describe('SCIM managed membership in PostgreSQL', () => {
         await isScimEntitledForOrganization(orgId, executor)
       })
     ).rejects.toMatchObject({ cause: { code: '42P01' } })
+  })
+
+  describe('removing a member', () => {
+    beforeEach(async () => {
+      const { db, schema } = runtime
+      await db.insert(schema.member).values([
+        { id: generateId(), organizationId: orgId, userId: adminUserId, role: 'owner' },
+        { id: generateId(), organizationId: orgId, userId: managedUserId, role: 'member' },
+        { id: generateId(), organizationId: orgId, userId: unmanagedUserId, role: 'member' },
+      ])
+    })
+
+    async function isMember(userId: string) {
+      const { db, schema, and, eq } = runtime
+      const rows = await db
+        .select({ id: schema.member.id })
+        .from(schema.member)
+        .where(and(eq(schema.member.organizationId, orgId), eq(schema.member.userId, userId)))
+      return rows.length > 0
+    }
+
+    it('refuses a managed member leaving on their own and keeps the membership', async () => {
+      const { removeOrganizationMemberRecord } = runtime
+      await expect(
+        removeOrganizationMemberRecord({
+          organizationId: orgId,
+          userId: managedUserId,
+          actorUserId: managedUserId,
+        })
+      ).rejects.toMatchObject({
+        detailCode: 'SCIM_MANAGED_MEMBERSHIP',
+        message: expect.stringContaining('Ask your identity provider administrator'),
+      })
+      expect(await isMember(managedUserId)).toBe(true)
+    })
+
+    it('lets an administrator remove the same managed member', async () => {
+      const { removeOrganizationMemberRecord } = runtime
+      await expect(
+        removeOrganizationMemberRecord({
+          organizationId: orgId,
+          userId: managedUserId,
+          actorUserId: adminUserId,
+        })
+      ).resolves.toMatchObject({ membershipType: 'internal' })
+      expect(await isMember(managedUserId)).toBe(false)
+    })
+
+    it('lets an unmanaged member leave on their own', async () => {
+      const { removeOrganizationMemberRecord } = runtime
+      await expect(
+        removeOrganizationMemberRecord({
+          organizationId: orgId,
+          userId: unmanagedUserId,
+          actorUserId: unmanagedUserId,
+        })
+      ).resolves.toMatchObject({ membershipType: 'internal' })
+      expect(await isMember(unmanagedUserId)).toBe(false)
+    })
+  })
+
+  describe('transferring ownership', () => {
+    beforeEach(async () => {
+      const { db, schema } = runtime
+      await db.insert(schema.member).values([
+        { id: generateId(), organizationId: orgId, userId: managedUserId, role: 'owner' },
+        { id: generateId(), organizationId: orgId, userId: adminUserId, role: 'member' },
+      ])
+    })
+
+    async function roleOf(userId: string) {
+      const { db, schema, and, eq } = runtime
+      const [row] = await db
+        .select({ role: schema.member.role })
+        .from(schema.member)
+        .where(and(eq(schema.member.organizationId, orgId), eq(schema.member.userId, userId)))
+      return row?.role
+    }
+
+    it('transfers a managed owner’s ownership but keeps them as admin when they try to leave', async () => {
+      const { db, schema, and, eq, transferOrganizationOwnership, removeUserFromOrganization } =
+        runtime
+      await expect(
+        transferOrganizationOwnership({
+          organizationId: orgId,
+          currentOwnerUserId: managedUserId,
+          newOwnerUserId: adminUserId,
+        })
+      ).resolves.toMatchObject({ success: true })
+      const [previousOwner] = await db
+        .select({ id: schema.member.id })
+        .from(schema.member)
+        .where(
+          and(eq(schema.member.organizationId, orgId), eq(schema.member.userId, managedUserId))
+        )
+      await expect(
+        removeUserFromOrganization({
+          userId: managedUserId,
+          organizationId: orgId,
+          memberId: previousOwner.id,
+          actorUserId: managedUserId,
+        })
+      ).resolves.toMatchObject({
+        success: false,
+        refusalCode: 'SCIM_MANAGED_MEMBERSHIP',
+        error: expect.stringContaining('Ask your identity provider administrator'),
+      })
+      expect(await roleOf(managedUserId)).toBe('admin')
+      expect(await roleOf(adminUserId)).toBe('owner')
+    })
+
+    it('lets a managed owner transfer ownership and stay', async () => {
+      const { transferOrganizationOwnership } = runtime
+      await expect(
+        transferOrganizationOwnership({
+          organizationId: orgId,
+          currentOwnerUserId: managedUserId,
+          newOwnerUserId: adminUserId,
+        })
+      ).resolves.toMatchObject({ success: true })
+      expect(await roleOf(managedUserId)).toBe('admin')
+      expect(await roleOf(adminUserId)).toBe('owner')
+    })
   })
 })

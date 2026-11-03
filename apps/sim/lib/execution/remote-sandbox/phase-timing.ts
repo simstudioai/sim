@@ -1,7 +1,8 @@
 /**
  * Phases of one sandbox execution, in the order they run. `lease` spans the whole acquisition
- * (session lock included); for a session, `lookup` and `cli` are the parts of it spent finding or
- * creating the machine and verifying its deployment tooling.
+ * (session lock included); for a session, `lookup` is the part of it spent finding or creating the
+ * machine. `cli` is time spent installing or repairing deployment tooling: on a new machine, or
+ * after a launch refused a changed CLI. A reused machine verifies it inside `run`.
  */
 type SandboxPhase =
   | 'resolve'

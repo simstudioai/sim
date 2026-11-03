@@ -124,7 +124,7 @@ export async function listSimLinks(
 }
 
 export async function getSimLink(
-  tx: DbTransaction,
+  tx: DbOrTx,
   organizationId: string,
   id: string
 ): Promise<SimLinkRecord | null> {

@@ -75,6 +75,7 @@ describe('/api/credentials/[id]/members compatibility', () => {
         joinedAt: new Date('2026-08-02T00:00:00.000Z'),
         userName: 'Member',
         userEmail: 'member@example.com',
+        explicitAdmin: false,
       },
     ])
   })

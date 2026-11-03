@@ -50,6 +50,7 @@ import { useHydrated } from '@/hooks/use-hydrated'
 import { isMobileViewport } from '@/hooks/use-is-mobile'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useVoiceInput } from '@/hooks/use-voice-input'
+import { useChatPlanModalStore } from '@/stores/modals/chat-plan/store'
 import { type DraftPayload, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
 
@@ -322,8 +323,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   const canSubmit =
     (editor.value.trim().length > 0 || hasFiles || hasAdditionalAttachments) &&
     !isSending &&
-    !hasUploadingFiles &&
-    !chatPlanRequired
+    !hasUploadingFiles
 
   /**
    * Sync the editor when the `defaultValue` prop changes post-mount — e.g.
@@ -532,7 +532,10 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   }, [resetTranscript, history.reset])
 
   const handleSubmit = useCallback(() => {
-    if (chatPlanRequired) return
+    if (chatPlanRequired) {
+      useChatPlanModalStore.getState().open(workspaceId)
+      return
+    }
     const currentFiles = filesRef.current
     const currentEditor = editorRef.current
 
@@ -558,7 +561,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     )
     if (accepted === false) return
     clearComposer()
-  }, [chatPlanRequired, onSubmit, clearComposer])
+  }, [chatPlanRequired, workspaceId, onSubmit, clearComposer])
 
   /**
    * Enter policy for the editor: mirror canSubmit's uploading guard (Enter

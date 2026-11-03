@@ -41,7 +41,6 @@ import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import type { ChatContext } from '@/stores/panel'
 import {
-  ChatPlanNotice,
   ChatSurfaceProvider,
   CreditsChip,
   MothershipChat,
@@ -443,7 +442,6 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
                 What should we get done{firstName ? `, ${firstName}` : ''}?
               </h1>
               <div ref={initialViewInputRef} className='relative w-full max-w-chat'>
-                <ChatPlanNotice />
                 <ChatSurfaceProvider
                   userId={userId}
                   onContextAdd={handleContextAdd}
