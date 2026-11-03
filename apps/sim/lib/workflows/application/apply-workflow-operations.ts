@@ -39,7 +39,7 @@ import {
 } from '@/lib/workflows/editing/block-enablement'
 import { applyOperationsToWorkflowState } from '@/lib/workflows/editing/engine'
 import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
-import { formatWorkflowLintMessage, hasWorkflowLintIssues } from '@/lib/workflows/editing/lint'
+import { hasWorkflowLintIssues, summarizeWorkflowLintIssues } from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
 import { operationsReferenceSimSandbox } from '@/lib/workflows/editing/sandbox-projection'
 import {
@@ -365,10 +365,10 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
       input.checkAborted?.()
 
       /**
-       * The findings also ride in `warnings`, where a caller that projects the
-       * response down to its warnings still sees them.
+       * A caller that projects the response down to its warnings still learns
+       * the findings exist; the findings themselves stay only in `lint`.
        */
-      const lintWarnings = hasWorkflowLintIssues(lint) ? [formatWorkflowLintMessage(lint)] : []
+      const lintWarnings = hasWorkflowLintIssues(lint) ? [summarizeWorkflowLintIssues(lint)] : []
 
       /**
        * A dry run still runs the whole engine — operations are applied, refusals

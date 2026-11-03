@@ -436,7 +436,7 @@ const declaredRoutes = [
                 notes: [],
               },
               warnings: [
-                'Workflow lint found issues. Fix these before continuing: Blocks missing required fields: "Triage" (systemPrompt)',
+                'Workflow lint found issues (Blocks missing required fields: 1). The findings are in `lint`.',
               ],
               needsRedeployment: true,
               dryRun: false,
