@@ -89,7 +89,7 @@ Evaluate each platform across these rollout questions:
 3. How much workspace, identity, and credential setup is required?
 4. Which permissions and production controls are available for the planned rollout?
 5. Does the deployment model match the organization's cloud or self-hosting requirements?
-6. What must builders, administrators, and end users learn?
+6. What must builders, administrators, and other team members learn?
 
 These questions avoid false precision. A team with approved credentials and existing app connections will move differently from a team that must complete security review, provision environments, and establish data policies first.
 
@@ -110,11 +110,11 @@ These questions avoid false precision. A team with approved credentials and exis
 
 Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Sim's core uses the Apache 2.0 license, while code in `apps/sim/ee` uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). That license permits development, testing, and internal nonproduction use, while production use requires an active Sim Enterprise subscription and modification and redistribution are not permitted.
 
-Sim supports Sim Cloud and self-hosted deployments. Workspace BYOK keys work on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise. Any self-hosted Sim deployment can connect local models through Ollama, vLLM, LM Studio, or LiteLLM without Enterprise.
+Sim supports Sim Cloud and self-hosted deployments. Workspace bring your own model-provider key (BYOK) access works on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise. Any self-hosted Sim deployment can connect local models through Ollama, vLLM, LM Studio, or LiteLLM without Enterprise.
 
 ### Zapier Agents
 
-[Zapier Agents](https://zapier.com/agents) is a managed cloud product designed to let agents use connected business apps. Zapier presents agent templates and access to its app ecosystem, which can reduce setup when a team already maintains the needed connections. [Zapier's pricing page](https://zapier.com/pricing) documents task-based allowances, shared app connections, SAML SSO, and administration features across its plans.
+[Zapier Agents](https://zapier.com/agents) is a managed cloud product designed to let agents use connected business apps. Zapier presents agent templates and access to its app ecosystem, which can reduce setup when a team already maintains the needed connections. [Zapier's pricing page](https://zapier.com/pricing) documents task-based allowances, shared app connections, SAML single sign-on (SSO), and administration features across its plans.
 
 ### Gumloop
 
@@ -138,7 +138,7 @@ Sim fits teams that want visual construction, collaborative testing, and deploym
 
 A builder can start with a template or an empty workflow, connect a model and tools, inspect runs, and deploy without assembling a separate agent framework, user interface, scheduler, execution service, and observability stack. That removes several handoffs from a focused pilot.
 
-The rollout path can also grow with the use case. Teams can begin with workspace-level BYOK and restricted connections. Enterprise capabilities such as SSO, SCIM, access control, audit logs, credential groups, and data retention are covered by the separate Sim Enterprise License and require an Enterprise subscription for production use.
+The rollout path can also grow with the use case. Teams can begin with workspace-level BYOK and restricted connections. Enterprise capabilities such as SSO, System for Cross-domain Identity Management (SCIM), access control, audit logs, credential groups, and data retention are covered by the separate Sim Enterprise License and require an Enterprise subscription for production use.
 
 ## When does Zapier Agents fit a fast rollout?
 
