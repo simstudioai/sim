@@ -18,6 +18,11 @@ const logger = createLogger('MothershipSandboxResources')
 const CONTEXT_TTL_SECONDS = 600
 /** A running call renews its scope well inside the TTL; the TTL only bounds a crashed owner. */
 const CONTEXT_RENEW_MS = (CONTEXT_TTL_SECONDS * 1000) / 3
+/**
+ * Outlives the longest code call (15 minutes plus its settle margin). State keyed by a scope token
+ * is reachable only through that token's live context, so outliving the context widens nothing.
+ */
+export const SANDBOX_SCOPE_STATE_TTL_SECONDS = 20 * 60
 const POLL_MS = 200
 const scopeSchema = z
   .object({

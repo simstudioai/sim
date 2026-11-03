@@ -200,7 +200,10 @@ describe('sandbox resource ownership and publication', () => {
   it('keeps the callback scope live for a call that outlasts its expiry, and revokes it after', async () => {
     vi.useFakeTimers()
     try {
-      const finish = Promise.withResolvers<void>()
+      let release = () => {}
+      const finished = new Promise<void>((resolve) => {
+        release = resolve
+      })
       let token = ''
       const call = withSandboxResourceScope(
         identity,
@@ -210,12 +213,12 @@ describe('sandbox resource ownership and publication', () => {
           token =
             (await sandboxResourceEndpoint('https://sim.test', args, 'secret')).split('/').at(-1) ??
             ''
-          await finish.promise
+          await finished
         }
       )
       await vi.advanceTimersByTimeAsync(15 * 60_000)
       expect(await readSandboxResourceScope(token, 'secret')).not.toBeNull()
-      finish.resolve()
+      release()
       await vi.advanceTimersByTimeAsync(1_000)
       await call
       expect(await readSandboxResourceScope(token, 'secret')).toBeNull()

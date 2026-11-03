@@ -17,6 +17,7 @@ import {
 } from '@/lib/mothership/tools/sandbox-callback'
 import {
   recordSandboxResourceEffects,
+  SANDBOX_SCOPE_STATE_TTL_SECONDS,
   type SandboxResourceScope,
 } from '@/lib/mothership/tools/sandbox-resources'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
@@ -66,10 +67,11 @@ export async function proxySandboxProjectFileRequest(
     uploadBinding: {
       async record(uploadId) {
         await redis().eval(
-          "redis.call('SADD', KEYS[1], ARGV[1]); redis.call('EXPIRE', KEYS[1], 600); return 1",
+          "redis.call('SADD', KEYS[1], ARGV[1]); redis.call('EXPIRE', KEYS[1], ARGV[2]); return 1",
           1,
           bindingKey,
-          uploadId
+          uploadId,
+          SANDBOX_SCOPE_STATE_TTL_SECONDS
         )
       },
       async contains(uploadId) {
