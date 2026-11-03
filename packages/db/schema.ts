@@ -2174,13 +2174,14 @@ export type WorkspaceMode = (typeof workspaceModeEnum.enumValues)[number]
 /**
  * A development push that bootstraps Projects first pushes this column nullable, so the columns
  * `0032_project_membership` reads exist before it fills the column and enforces NOT NULL; the
- * push that follows uses the required column. Every other push and generation reads it required.
+ * push that follows uses the required column. Every other push and generation reads it required,
+ * including one that inherits a stray bootstrap flag outside a development push.
  */
 function workspaceProjectIdColumn() {
   const column = text('project_id').references((): AnyPgColumn => project.id, {
     onDelete: 'restrict',
   })
-  return process.env.SIM_DB_PUSH_PROJECT_BOOTSTRAP === '1'
+  return process.env.SIM_DEV_DB_PUSH === '1' && process.env.SIM_DB_PUSH_PROJECT_BOOTSTRAP === '1'
     ? (column as ReturnType<typeof column.notNull>)
     : column.notNull()
 }
