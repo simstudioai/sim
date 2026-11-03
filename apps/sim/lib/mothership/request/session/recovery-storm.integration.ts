@@ -26,6 +26,8 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
   }
   const worker = {
     runs: new Map<string, RunFixture>(),
+    /** The backoff each successful takeover persisted, in claim order, by run id. */
+    claims: new Map<string, { attempts: number; claimedAt: number; notBefore: number }[]>(),
     unexpectedRequests: [] as { path: string; reason: string }[],
   }
   const server = createServer(async (request, response) => {
@@ -88,6 +90,19 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
 })
 
 vi.mock('@/lib/auth', () => authMock)
+vi.mock('@/lib/mothership/request/lifecycle/controller-ownership', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/mothership/request/lifecycle/controller-ownership')>()
+  return {
+    ...actual,
+    claimRunController: async (...args: Parameters<typeof actual.claimRunController>) => {
+      const claimed = await actual.claimRunController(...args)
+      const [{ runId, recoveryBackoff }] = args
+      if (claimed) worker.claims.set(runId, [...(worker.claims.get(runId) ?? []), recoveryBackoff])
+      return claimed
+    },
+  }
+})
 vi.mock('@/lib/mothership/request/session/buffer', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/mothership/request/session/buffer')>()
   const { getRedisClient } = await import('@/lib/core/config/redis')
@@ -330,6 +345,7 @@ async function reconnect(
 afterAll(async () => {
   await new Promise<void>((resolve) => worker.server.close(() => resolve()))
   worker.runs.clear()
+  worker.claims.clear()
   for (const [key, value] of Object.entries(inheritedEnv)) {
     if (value === undefined) delete process.env[key]
     else process.env[key] = value
@@ -428,9 +444,20 @@ describe.runIf(Boolean(redisUrl))('reconnecting to an orphaned Chat run', () => 
         const { turns, stops } = await reconnect(run, { tails, windowMs: 60_000 })
 
         expect(turns).toHaveLength(MAX_RECOVERY_ATTEMPTS)
-        /** Each takeover waits at least the jittered floor of the one before it. */
-        turns.slice(1).forEach((turn, i) => {
-          expect(turn.at - turns[i].at).toBeGreaterThanOrEqual(0.7 * 1_000 * 2 ** i)
+        /**
+         * Each takeover is planned no earlier than the jittered floor of the one before it,
+         * read from the backoff each claim persisted. Worker request arrival would add the
+         * variable work between a claim and its POST, which concurrent cases stretch.
+         */
+        const claims = worker.claims.get(run.runId) ?? []
+        expect(claims.map((claim) => claim.attempts)).toEqual(
+          Array.from({ length: MAX_RECOVERY_ATTEMPTS + 1 }, (_, i) => i + 1)
+        )
+        claims.slice(1).forEach((claim, i) => {
+          expect(claim.claimedAt).toBeGreaterThanOrEqual(claims[i].notBefore)
+          expect(claims[i].notBefore - claims[i].claimedAt).toBeGreaterThanOrEqual(
+            0.8 * 1_000 * 2 ** i
+          )
         })
         expect(stops).toHaveLength(1)
         expect(await storedRun(run.runId)).toMatchObject({
