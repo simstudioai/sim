@@ -81,8 +81,15 @@ export const POST = withRouteHandler(
         organizationId,
         currentOwnerUserId: session.user.id,
         newOwnerUserId,
+        currentOwnerLeaves: alsoLeave,
       })
 
+      if (transferResult.refusalCode) {
+        return NextResponse.json(
+          { error: transferResult.error, details: { code: transferResult.refusalCode } },
+          { status: 403 }
+        )
+      }
       if (!transferResult.success) {
         return NextResponse.json(
           { error: transferResult.error ?? 'Failed to transfer ownership' },
@@ -149,6 +156,7 @@ export const POST = withRouteHandler(
         userId: session.user.id,
         organizationId,
         memberId: selfMember.id,
+        actorUserId: session.user.id,
         spareSessionToken: session.session.token,
       })
       deliverRunStops(removeResult.stoppedRuns)

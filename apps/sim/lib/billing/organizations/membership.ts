@@ -52,6 +52,7 @@ import {
   enqueueCancelAtPeriodEndSync,
   isCancelAtPeriodEndSettled,
 } from '@/lib/billing/webhooks/subscription-sync'
+import { type ForbiddenDetailCode, ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
@@ -1836,11 +1837,19 @@ export interface TransferOwnershipParams {
   organizationId: string
   currentOwnerUserId: string
   newOwnerUserId: string
+  /**
+   * The current owner leaves once the transfer commits. Their self-leave is
+   * vetted inside the transfer, so a leave the directory would undo refuses the
+   * transfer too instead of half-applying it.
+   */
+  currentOwnerLeaves?: boolean
 }
 
 export interface TransferOwnershipResult {
   success: boolean
   error?: string
+  /** Set when the transfer was refused by policy rather than failed. */
+  refusalCode?: ForbiddenDetailCode
   workspacesReassigned: number
   billedAccountReassigned: number
   overageMigrated: string
@@ -1850,7 +1859,7 @@ export interface TransferOwnershipResult {
 export async function transferOrganizationOwnership(
   params: TransferOwnershipParams
 ): Promise<TransferOwnershipResult> {
-  const { organizationId, currentOwnerUserId, newOwnerUserId } = params
+  const { organizationId, currentOwnerUserId, newOwnerUserId, currentOwnerLeaves } = params
 
   const result: TransferOwnershipResult = {
     success: false,
@@ -1883,6 +1892,12 @@ export async function transferOrganizationOwnership(
       if (!currentOwnerMember) {
         throw new Error('Current user is not the owner of this organization')
       }
+      if (currentOwnerLeaves)
+        await assertSelfLeaveNotScimManaged({
+          organizationId,
+          userId: currentOwnerUserId,
+          executor: tx,
+        })
 
       const [newOwnerMember] = await tx
         .select({ id: member.id, role: member.role })
@@ -2052,6 +2067,8 @@ export async function transferOrganizationOwnership(
 
     return { ...result, success: true }
   } catch (error) {
+    if (error instanceof ForbiddenOperationError)
+      return { ...result, error: error.message, refusalCode: error.detailCode }
     logger.error('Failed to transfer organization ownership', {
       organizationId,
       currentOwnerUserId,
