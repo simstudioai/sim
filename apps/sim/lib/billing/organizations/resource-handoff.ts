@@ -127,28 +127,40 @@ async function reassignSimLinksTx(
 }
 
 /**
- * Repairs Sim links a former member kept after leaving before departures handed them off. Never
- * blocks erasure: an organization without an owner successor keeps the FK's `SET NULL`. Takes
- * only the successor's row locks, so it is safe after the deleting account's user barrier.
+ * Organizations where a former member still created Sim links outside `excludedOrganizationIds`.
+ * Account deletion locks these with the shared organizations, but they never block erasure.
  */
-export async function handoffLeftoverSimLinksTx(
-  tx: DbTransaction,
-  departingUserId: string,
-  handledOrganizationIds: string[]
+export async function listLeftoverSimLinkOrganizationIdsForUser(
+  executor: DbOrTx,
+  userId: string,
+  excludedOrganizationIds: string[]
 ) {
-  const rows = await tx
+  const rows = await executor
     .selectDistinct({ organizationId: simLink.organizationId })
     .from(simLink)
     .where(
       and(
-        eq(simLink.createdBy, departingUserId),
-        handledOrganizationIds.length > 0
-          ? notInArray(simLink.organizationId, handledOrganizationIds)
+        eq(simLink.createdBy, userId),
+        excludedOrganizationIds.length > 0
+          ? notInArray(simLink.organizationId, excludedOrganizationIds)
           : undefined
       )
     )
     .orderBy(asc(simLink.organizationId))
-  for (const { organizationId } of rows) {
+  return rows.map((row) => row.organizationId)
+}
+
+/**
+ * Repairs Sim links a former member kept after leaving before departures handed them off. The
+ * caller holds each organization's mutation lock. Never blocks erasure: an organization without
+ * an owner successor keeps the FK's `SET NULL`.
+ */
+export async function handoffLeftoverSimLinksTx(
+  tx: DbTransaction,
+  departingUserId: string,
+  organizationIds: string[]
+) {
+  for (const organizationId of organizationIds) {
     const successorId = await findOrganizationSharedResourceSuccessor(
       tx,
       organizationId,

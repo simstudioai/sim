@@ -19,7 +19,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
-import { formatQuotedNameList } from '@sim/utils/string'
+import { compareStrings, formatQuotedNameList } from '@sim/utils/string'
 import { and, eq, gt, inArray, isNotNull, isNull, lte, ne, notExists, or, sql } from 'drizzle-orm'
 import type {
   AccountDeletionBlocker,
@@ -35,6 +35,7 @@ import {
 import {
   findOrganizationSharedResourceSuccessor,
   handoffLeftoverSimLinksTx,
+  listLeftoverSimLinkOrganizationIdsForUser,
   listSharedResourceOrganizationIdsForUser,
   reassignOrganizationSharedResourcesTx,
 } from '@/lib/billing/organizations/resource-handoff'
@@ -813,7 +814,16 @@ export async function deleteUserAccount(
   await db.transaction(async (tx) => {
     /** Organization and Project gates precede workspace rows, which precede user FK barriers. */
     const sharedOrganizationIds = await listSharedResourceOrganizationIdsForUser(tx, userId)
-    for (const organizationId of sharedOrganizationIds) {
+    const leftoverSimLinkOrganizationIds = await listLeftoverSimLinkOrganizationIdsForUser(
+      tx,
+      userId,
+      sharedOrganizationIds
+    )
+    const lockedOrganizationIds = [
+      ...sharedOrganizationIds,
+      ...leftoverSimLinkOrganizationIds,
+    ].sort(compareStrings)
+    for (const organizationId of lockedOrganizationIds) {
       await acquireOrganizationMutationLock(tx, organizationId)
     }
     const workspaceIds = new Set([
@@ -853,9 +863,15 @@ export async function deleteUserAccount(
       ...(await listSharedResourceWorkspaceIdsForUser(tx, userId)),
     ]
     const currentOrganizationIds = await listSharedResourceOrganizationIdsForUser(tx, userId)
+    const currentSimLinkOrganizationIds = await listLeftoverSimLinkOrganizationIdsForUser(
+      tx,
+      userId,
+      currentOrganizationIds
+    )
     if (
       currentWorkspaceIds.some((id) => !workspaceIds.has(id)) ||
-      currentOrganizationIds.some((id) => !sharedOrganizationIds.includes(id))
+      currentOrganizationIds.some((id) => !sharedOrganizationIds.includes(id)) ||
+      currentSimLinkOrganizationIds.some((id) => !lockedOrganizationIds.includes(id))
     ) {
       throw new AccountDeletionBlockedError([
         {
@@ -966,7 +982,7 @@ export async function deleteUserAccount(
     for (const organizationId of sharedOrganizationIds) {
       await reassignOrganizationSharedResourcesTx(tx, organizationId, userId)
     }
-    await handoffLeftoverSimLinksTx(tx, userId, sharedOrganizationIds)
+    await handoffLeftoverSimLinksTx(tx, userId, leftoverSimLinkOrganizationIds)
 
     const sharedWorkspaceIds = await listSharedResourceWorkspaceIdsForUser(tx, userId)
     const { unresolved: resourceUnresolved } =
