@@ -103,6 +103,7 @@ const EMPTY_LINT = {
   fieldIssues: [],
   unresolvedReferences: [],
   tableFieldIssues: [],
+  manualRunIssue: null,
   notes: [],
 }
 
@@ -174,6 +175,13 @@ const FULL_LINT = {
       tableName: 'Leads',
     },
   ],
+  manualRunIssue: {
+    reason: 'trigger-not-connected',
+    message: 'Start must be connected to other blocks to execute',
+    blockId: 'block-1',
+    blockName: 'Start',
+    blockType: 'start_trigger',
+  },
   notes: ['lint note'],
 }
 

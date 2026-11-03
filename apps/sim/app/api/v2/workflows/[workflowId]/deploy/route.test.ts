@@ -61,6 +61,7 @@ const unquotedRowJson = {
     },
   ],
   tableFieldIssues: [],
+  manualRunIssue: null,
   notes: [],
 }
 

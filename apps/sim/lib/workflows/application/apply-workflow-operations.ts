@@ -39,6 +39,7 @@ import {
 } from '@/lib/workflows/editing/block-enablement'
 import { applyOperationsToWorkflowState } from '@/lib/workflows/editing/engine'
 import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
+import { formatWorkflowLintMessage, hasWorkflowLintIssues } from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
 import { operationsReferenceSimSandbox } from '@/lib/workflows/editing/sandbox-projection'
 import {
@@ -379,6 +380,12 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
       input.checkAborted?.()
 
       /**
+       * The findings also ride in `warnings`, where a caller that projects the
+       * response down to its warnings still sees them.
+       */
+      const lintWarnings = hasWorkflowLintIssues(lint) ? [formatWorkflowLintMessage(lint)] : []
+
+      /**
        * A dry run still runs the whole engine — operations are applied, refusals
        * collected, the result validated and linted — and stops at the write. An
        * atomic batch has already thrown by here if anything was refused, so a
@@ -433,6 +440,7 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
             ...validation.warnings,
             ...prepared.warnings,
             ...(Object.keys(mintedBlockIds).length > 0 ? [DRY_RUN_PREVIEW_BLOCK_IDS_WARNING] : []),
+            ...lintWarnings,
           ],
           needsRedeployment: await checkNeedsRedeployment(context.workflowId),
           dryRun: true,
@@ -473,7 +481,7 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
         inputValidationErrors: validationErrors,
         mintedBlockIds,
         lint,
-        warnings: [...validation.warnings, ...persisted.warnings],
+        warnings: [...validation.warnings, ...persisted.warnings, ...lintWarnings],
         needsRedeployment: await checkNeedsRedeployment(context.workflowId),
         dryRun: false,
       }

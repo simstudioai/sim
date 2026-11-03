@@ -439,6 +439,23 @@ const v2WorkflowLintSchema = z
       .describe(
         "Table block `filter` and `order` fields checked against the bound table's live schema that name no column (nor the implicit `id`, `createdAt`, `updatedAt`). Such a run fails inside the block's error edge. A filter holding a `<block.output>` reference, or one that is not JSON, is not checked."
       ),
+    manualRunIssue: z
+      .object({
+        reason: z
+          .enum(['no-trigger', 'multiple-api-triggers', 'trigger-not-connected'])
+          .describe('Why the run is refused.'),
+        message: z.string().describe('The error the manual run raises.'),
+        blockId: z
+          .string()
+          .nullable()
+          .describe('Trigger the run would start from, when the problem is that trigger.'),
+        blockName: z.string().nullable().describe('Display name of that trigger.'),
+        blockType: z.string().nullable().describe('Registered type of that trigger.'),
+      })
+      .nullable()
+      .describe(
+        "Why a manual run from the editor's Run button would be refused before it starts: no enabled trigger it can start from, more than one API trigger, or a selected trigger with no outgoing connection. `null` when no manual-run issue is reported: the run can begin, only a chat trigger can start the workflow, or the graph is empty (reported in `notes` instead)."
+      ),
     notes: z.array(z.string()).describe('Advisory notes about the report itself.'),
   })
   .meta({
@@ -3626,6 +3643,11 @@ export const v2ApplyWorkflowOperationsDataSchema = v2WorkflowGraphWriteResultSch
         'Dry run only: the provisional id the evaluation assigned to each block whose `block_id` was not already a UUID, keyed by the `block_id` you asked for. These are not the ids a committed apply produces — the real apply mints new ones — so never wire a later request against them. Wire edges by `block_id` within one batch, or by the `mintedBlockIds` the real apply returns.'
       ),
     lint: v2WorkflowLintSchema,
+    warnings: z
+      .array(z.string())
+      .describe(
+        'Non-fatal notes about blocks and edges that were normalized or dropped before persistence and, when `lint` has findings, one summary of them, so the findings are not lost to a caller that reads only `warnings`. Empty when there is nothing to report.'
+      ),
     dryRun: z
       .boolean()
       .describe(

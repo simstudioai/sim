@@ -116,6 +116,7 @@ const EMPTY_LINT_EXAMPLE = {
   fieldIssues: [],
   unresolvedReferences: [],
   tableFieldIssues: [],
+  manualRunIssue: null,
   notes: [],
 } as const
 
@@ -402,8 +403,20 @@ const declaredRoutes = [
               inputValidationErrors: [],
               mintedBlockIds: { 'agent-1': 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77' },
               lint: {
-                sources: [],
-                sinks: [],
+                sources: [
+                  {
+                    blockId: 'start-1',
+                    blockName: 'Start',
+                    blockType: 'start_trigger',
+                  },
+                ],
+                sinks: [
+                  {
+                    blockId: 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77',
+                    blockName: 'Triage',
+                    blockType: 'agent',
+                  },
+                ],
                 orphanBlocks: [],
                 emptyOutgoingPorts: [],
                 invalidBranchPorts: [],
@@ -419,9 +432,12 @@ const declaredRoutes = [
                 ],
                 unresolvedReferences: [],
                 tableFieldIssues: [],
+                manualRunIssue: null,
                 notes: [],
               },
-              warnings: [],
+              warnings: [
+                'Workflow lint found issues. Fix these before continuing: Blocks missing required fields: "Triage" (systemPrompt)',
+              ],
               needsRedeployment: true,
               dryRun: false,
             },

@@ -77,7 +77,8 @@ vi.mock('@/lib/workflows/editing/validation', () => ({
   preValidateCredentialInputs: hoisted.preValidate,
   UNRESOLVABLE_AT_LINT_NOTE: 'lint note',
 }))
-vi.mock('@/lib/workflows/editing/lint', () => ({
+vi.mock('@/lib/workflows/editing/lint', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/workflows/editing/lint')>()),
   collectWorkflowFieldIssues: () => [],
   collectDanglingBlockOutputReferences: () => [],
   collectUnquotedJsonStringReferences: () => [],
@@ -257,8 +258,36 @@ describe('applyWorkflowOperations', () => {
       fieldIssues: [],
       unresolvedReferences: [],
       tableFieldIssues: [],
+      manualRunIssue: null,
       notes: ['No entry block: nothing can start this workflow.'],
     })
+  })
+
+  /**
+   * An agent piping the apply response through a projection of `warnings`
+   * never saw lint findings, which lived only under `lint`.
+   */
+  it('summarizes lint findings in warnings, on commit and on dry run', async () => {
+    const orphan = { blockId: 'block-1', blockName: 'Start', blockType: 'starter' }
+    mocks.lintGraph.mockReturnValue({ ...EMPTY_GRAPH_LINT, orphanBlocks: [orphan] })
+
+    for (const dryRun of [false, true]) {
+      const result = await applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations, dryRun },
+      })
+      expect(result.warnings).toEqual([
+        'Workflow lint found issues. Fix these before continuing: Blocks with no incoming edge: "Start" (starter)',
+      ])
+    }
+  })
+
+  it('adds no lint warning when lint finds nothing', async () => {
+    const result = await applyWorkflowOperations.execute({
+      principal: sessionPrincipal,
+      input: { workflowId: 'workflow-1', operations },
+    })
+    expect(result.warnings).toEqual([])
   })
 
   describe('dry run', () => {
