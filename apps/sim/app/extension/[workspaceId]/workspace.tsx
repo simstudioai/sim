@@ -5,6 +5,7 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import { ExtensionChat } from '@/app/extension/[workspaceId]/chat'
 import ExtensionLoading from '@/app/extension/loading'
 import { ExtensionSignIn } from '@/app/extension/sign-in'
+import { ChatPlanModal } from '@/app/workspace/[workspaceId]/home/components/chat-plan-modal'
 import { BlockVisibilityLoader } from '@/app/workspace/[workspaceId]/providers/block-visibility-loader'
 import { CustomBlocksLoader } from '@/app/workspace/[workspaceId]/providers/custom-blocks-loader'
 import { ProviderModelsLoader } from '@/app/workspace/[workspaceId]/providers/provider-models-loader'
@@ -65,6 +66,7 @@ export function ExtensionWorkspace({ workspaceId }: ExtensionWorkspaceProps) {
           >
             <ExtensionChat workspaceId={workspaceId} workspaceName={data.workspace.name} />
           </PermissionAccessBoundary>
+          <ChatPlanModal />
         </WorkspacePermissionsProvider>
       </BrandingProvider>
     </WorkspaceHostProvider>
