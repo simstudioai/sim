@@ -34,6 +34,7 @@ import {
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
 import { inboxSettingsPatchSchema } from '@/lib/mothership/inbox/settings-input'
 import type { BaseServerTool } from '@/lib/mothership/tools/server/base-tool'
+import { readSettingsAccessRequests } from '@/lib/mothership/tools/server/settings-access-requests'
 import { readSettingsUsageLimit } from '@/lib/mothership/tools/server/settings-billing'
 import { readArchivedSettingsChats } from '@/lib/mothership/tools/server/settings-chats'
 import {
@@ -252,6 +253,7 @@ const adapters: Record<string, SettingAdapter> = {
       }),
   },
   'organization/members': { get: readSettingsRoster },
+  'organization/requests': { get: (context) => readSettingsAccessRequests(context) },
   'organization/sim-links': { get: (context) => readSettingsSimLinks(context) },
   'organization/whitelabeling': {
     schema: updateOrganizationWhitelabelBodySchema.strict(),

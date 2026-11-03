@@ -53,6 +53,7 @@ export const settingsSections: Record<MothershipSettingsScope, readonly Settings
       cli: ['audit-logs list', 'audit-logs get'],
     },
     { id: 'access-control', label: 'Permission groups', uiSection: 'access-control' },
+    { id: 'requests', label: 'Access requests', uiSection: 'requests' },
     {
       id: 'sim-links',
       label: 'Sim links',

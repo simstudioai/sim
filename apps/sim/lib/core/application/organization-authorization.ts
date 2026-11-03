@@ -110,16 +110,24 @@ export async function requireOrganizationSubjectMembership(
   return { organizationId, userId, role: parsedRole.data }
 }
 
+/** Refuses a principal kind or OAuth grant the operation does not admit, before any lookup. */
+export function requireAllowedOrganizationPrincipal(
+  principal: Principal,
+  operation: OrganizationOperation
+): void {
+  if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
+    throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
+  }
+  requireOAuthOperationScope(principal, operation)
+}
+
 export async function authorizeOrganizationOperation(
   principal: Principal,
   operation: OrganizationOperation,
   context: OrganizationAuthorizationContext,
   options: OrganizationAuthorizationOptions = {}
 ): Promise<OrganizationMembershipContext> {
-  if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
-    throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
-  }
-  requireOAuthOperationScope(principal, operation)
+  requireAllowedOrganizationPrincipal(principal, operation)
   if (principal.kind === 'organization_delegated') {
     const now = Date.now()
     if (
