@@ -6,7 +6,7 @@ export {
   SKILL_EDITOR_ROLE_OPTIONS,
   type SkillEditorRole,
 } from './member-role-options'
-export { MemberRow, type MemberRowMember } from './member-row'
+export { MemberRow, type MemberRowAction, type MemberRowMember } from './member-row'
 export {
   type OrgRole,
   OrgRoleSelector,
