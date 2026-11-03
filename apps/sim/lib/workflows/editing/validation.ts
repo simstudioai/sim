@@ -516,6 +516,11 @@ function validateFallbackModelEntry(item: any, index: number): string | null {
   return null
 }
 
+/** A file object as the file-upload editor stores it: at least its name and serve path. */
+function isStoredFile(value: unknown): boolean {
+  return isPlainRecord(value) && Boolean(value.name) && Boolean(value.path)
+}
+
 /**
  * Validates a value against its expected subBlock type
  * Returns validation result with the value or an error
@@ -609,9 +614,12 @@ export function validateValueForSubBlockType(
     }
 
     case 'file-upload': {
-      // File upload should be an object with specific properties or null
-      if (value === null) return { valid: true, value: null }
-      if (typeof value !== 'object') {
+      // A multi-file field stores the editor's list of file objects; removing its last file
+      // stores null, so an empty list clears it the same way.
+      if (subBlockConfig.multiple && Array.isArray(value)) {
+        if (value.length === 0) return { valid: true, value: null }
+        const index = value.findIndex((file) => !isStoredFile(file))
+        if (index === -1) return { valid: true, value }
         return {
           valid: false,
           error: {
@@ -619,12 +627,11 @@ export function validateValueForSubBlockType(
             blockType,
             field: fieldName,
             value,
-            error: `Invalid file-upload value for field "${fieldName}" - expected object with name and path properties, or null`,
+            error: `Invalid file-upload entry ${fieldName}[${index}] - each file must be an object with "name" and "path" properties`,
           },
         }
       }
-      // Validate file object has required properties
-      if (value && (!value.name || !value.path)) {
+      if (!isStoredFile(value)) {
         return {
           valid: false,
           error: {
@@ -632,7 +639,9 @@ export function validateValueForSubBlockType(
             blockType,
             field: fieldName,
             value,
-            error: `Invalid file-upload object for field "${fieldName}" - must have "name" and "path" properties`,
+            error: subBlockConfig.multiple
+              ? `Invalid file-upload value for field "${fieldName}" - expected a list of objects with "name" and "path" properties, or null`
+              : `Invalid file-upload value for field "${fieldName}" - expected one object with "name" and "path" properties, or null`,
           },
         }
       }

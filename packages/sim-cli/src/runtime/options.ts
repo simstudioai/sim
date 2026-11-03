@@ -1,5 +1,5 @@
 import { type Command, Option } from 'commander'
-import type { CommandSpec } from '../contract/types'
+import type { CommandSpec, FlagSpec } from '../contract/types'
 import type { V2OperationName } from '../generated/v2-api'
 import {
   cursorSlot,
@@ -122,6 +122,11 @@ function withoutWireVocabulary(documented: string): string {
 const NON_PAGINATED_LIMIT_HINT =
   ' (caps a --filter match only; omit it to act on every match, and note 0 is not accepted)'
 
+/** The undocumented spellings a flag also answers to: former names, then hidden aliases. */
+function hiddenSpellings(flag: FlagSpec): readonly string[] {
+  return [...(flag.renamedFrom ?? []), ...(flag.hiddenAliases ?? [])]
+}
+
 function addFieldOption(
   command: Command,
   operation: V2OperationName,
@@ -196,7 +201,7 @@ function addFieldOption(
     if (!flag.boolean || flag.negatable) {
       command.option(`--no-${name}`, `Send --${name} as false`)
     }
-    for (const previous of flag.renamedFrom ?? []) {
+    for (const previous of hiddenSpellings(flag)) {
       command.addOption(new Option(`--${previous}`).hideHelp())
       if (!flag.boolean || flag.negatable)
         command.addOption(new Option(`--no-${previous}`).hideHelp())
@@ -241,26 +246,26 @@ function addFieldOption(
       : ''
   }${literalNull ? literalNullHint(documented, name) : ''}`
 
-  const renamedFrom = flag.renamedFrom ?? []
+  const otherSpellings = hiddenSpellings(flag)
   const option = new Option(`${short}--${name} ${placeholder}`, describe)
   if (flag.hidden) option.hideHelp()
   if (choices && !takesList) option.choices([...choices])
   if (descriptor.default !== undefined && field !== 'limit') {
     option.default(undefined, String(descriptor.default))
   }
-  // Commander's mandatory check runs before `executeOperation` can fold a
-  // renamed spelling or trailing arguments onto the flag, so a required field
-  // supplied either way would be rejected. The requirement is not lost:
-  // `buildRequest` raises it once every spelling has had its chance.
-  if (descriptor.required && renamedFrom.length === 0 && !flag.trailing) {
+  // Commander's mandatory check runs before `executeOperation` can fold another
+  // spelling or trailing arguments onto the flag, so a required field supplied
+  // either way would be rejected. The requirement is not lost: `buildRequest`
+  // raises it once every spelling has had its chance.
+  if (descriptor.required && otherSpellings.length === 0 && !flag.trailing) {
     option.makeOptionMandatory()
   }
   command.addOption(option)
 
-  for (const previous of renamedFrom) {
-    const retired = new Option(`--${previous} ${placeholder}`).hideHelp()
-    if (choices && !takesList) retired.choices([...choices])
-    command.addOption(retired)
+  for (const previous of otherSpellings) {
+    const hidden = new Option(`--${previous} ${placeholder}`).hideHelp()
+    if (choices && !takesList) hidden.choices([...choices])
+    command.addOption(hidden)
   }
 }
 

@@ -16,6 +16,12 @@ const pageResultSchema = z.object({
 function requestedPages(pages?: string): { first: number; last: number } | undefined {
   if (pages === undefined) return undefined
   const match = /^(\d+)(?:-(\d+))?$/.exec(pages.trim())
+  if (!match && /^\d+(?:-\d+)?(?:\s*,\s*\d+(?:-\d+)?)+$/.test(pages.trim())) {
+    throw new OrchestrationError(
+      'validation',
+      `"${pages.trim()}" lists several pages; pass one page or one contiguous range per read, such as 5 or 2-5, and read the others separately`
+    )
+  }
   if (!match)
     throw new OrchestrationError('validation', 'Pages must be a page number or range, such as 2-5')
   const first = Number(match[1])

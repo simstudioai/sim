@@ -272,6 +272,33 @@ export async function readArgumentSource(
   }
 }
 
+/**
+ * The file references one list value carries: a JSON array's strings, a comma-joined run of
+ * ids, or the value itself. See {@link FlagSpec.fileReferences} for why neither reading can
+ * misread a single id or path.
+ */
+function fileReferenceEntries(value: string): string[] {
+  if (value.startsWith('[')) {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      return [value]
+    }
+    if (Array.isArray(parsed) && parsed.every((entry) => typeof entry === 'string')) {
+      return parsed.map((entry) => entry.trim()).filter(Boolean)
+    }
+    return [value]
+  }
+  if (value.includes(',') && !value.includes('/')) {
+    return value
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+  }
+  return [value]
+}
+
 /** A manifest line that carries no value: blank, or a `#` comment. */
 function isManifestNoise(line: string): boolean {
   const trimmed = line.trim()
@@ -439,8 +466,9 @@ export async function coerce(
    *   or failed validation outright.
    */
   if (flag.list) {
-    const values = (await readListValues(raw, flagName, flag.manifest === true)).map((value) =>
-      flag.folderPath ? encodeFolderPath(value) : value
+    const listed = await readListValues(raw, flagName, flag.manifest === true)
+    const values = (flag.fileReferences ? listed.flatMap(fileReferenceEntries) : listed).map(
+      (value) => (flag.folderPath ? encodeFolderPath(value) : value)
     )
     // Encoding first is also what keeps the comma-joined form unambiguous: a
     // folder name containing a comma leaves here as `%2C`, so the route's split
