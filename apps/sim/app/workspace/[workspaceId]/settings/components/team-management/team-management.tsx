@@ -99,6 +99,7 @@ export function TeamManagement({
   const rosterRole = roster?.members.find((member) => member.userId === session?.user?.id)?.role
   const organizationSummary = useOrganizationSummary(organizationId, {
     enabled: rosterError !== null,
+    refetchOnMount: 'always',
   })
   // Fetched on this mount, so the identity-scoped role belongs to the current session.
   const summaryRole = organizationSummary.isFetchedAfterMount
