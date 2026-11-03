@@ -14,6 +14,7 @@ import {
   createPermissionGroupBodySchema,
   updatePermissionGroupBodySchema,
 } from '@/lib/api/contracts/permission-groups'
+import { v2BulkAddPermissionGroupMembersBodySchema } from '@/lib/api/contracts/v2/permission-groups'
 import { updateWorkspacePermissionsBodySchema } from '@/lib/api/contracts/workspaces'
 import { getOrganizationUsageBreakdown } from '@/lib/billing/application/organization-usage/get-organization-usage-breakdown'
 import { getOrganizationUsageSummary } from '@/lib/billing/application/organization-usage/get-organization-usage-summary'
@@ -47,6 +48,7 @@ import {
   removeSlackSearchInstallation,
 } from '@/lib/knowledge/application/slack-search/installations'
 import { slackSearchSettingsPatchSchema } from '@/lib/knowledge/application/slack-search/settings-projection'
+import { accessRequestSettingsActions } from '@/lib/mothership/tools/server/settings-access-requests'
 import {
   memberUsageLimitSettingsActions,
   usageLimitSettingsActions,
@@ -77,12 +79,15 @@ import {
   settingsWorkspaceId,
 } from '@/lib/mothership/tools/server/settings-operation'
 import { organizationDomainSettingsActions } from '@/lib/mothership/tools/server/settings-security'
+import { simLinkSettingsActions } from '@/lib/mothership/tools/server/settings-sim-links'
 import {
+  previewOrganizationMemberRemoval,
   removeOrganizationMember,
   updateOrganizationMember,
 } from '@/lib/organizations/application/members'
 import {
   addPermissionGroupMember,
+  bulkAddPermissionGroupMembers,
   createPermissionGroup,
   deletePermissionGroup,
   getPermissionGroup,
@@ -370,6 +375,22 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
         ).member,
       })
     ),
+    bulk_add_members: settingsOperation(
+      'write',
+      z.strictObject({
+        groupId: z.string().min(1),
+        userIds: v2BulkAddPermissionGroupMembersBodySchema.shape.userIds,
+        addAllOrganizationMembers:
+          v2BulkAddPermissionGroupMembersBodySchema.shape.addAllOrganizationMembers,
+      }),
+      async (context, input) => {
+        const { added, skipped } = await bulkAddPermissionGroupMembers.execute({
+          principal: context.principal,
+          input: { ...input, organizationId: settingsOrganizationId(context) },
+        })
+        return { added, skipped }
+      }
+    ),
     remove_member: settingsOperation(
       'write',
       z.strictObject({ groupId: z.string().min(1), memberId: z.string().min(1) }),
@@ -412,6 +433,15 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
           input: { ...input, organizationId: settingsOrganizationId(context) },
         })
     ),
+    removal_impact: settingsOperation(
+      'read',
+      z.strictObject({ userId: z.string().min(1).max(200) }),
+      (context, input) =>
+        previewOrganizationMemberRemoval.execute({
+          principal: context.principal,
+          input: { ...input, organizationId: settingsOrganizationId(context) },
+        })
+    ),
     remove: settingsOperation(
       'write',
       z.strictObject({ userId: z.string().min(1) }),
@@ -443,6 +473,8 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
         })
     ),
   },
+  'organization/requests': accessRequestSettingsActions,
+  'organization/sim-links': simLinkSettingsActions,
   'organization/usage': {
     summary: settingsOperation(
       'read',

@@ -3,12 +3,31 @@ import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { deleteWorkspaceBodySchema, updateWorkspaceContract } from '@/lib/api/contracts'
-import { parseRequest, validationErrorResponse } from '@/lib/api/server'
+import {
+  deleteWorkspaceBodySchema,
+  updateWorkspaceContract,
+  updateWorkspacePutContract,
+} from '@/lib/api/contracts'
+import { validationErrorResponse } from '@/lib/api/server'
 import { orchestrationFailureResponse } from '@/lib/api/server/orchestration-response'
+import {
+  defineInternalJsonRoute,
+  type InternalErrorPolicy,
+  internalErrorResponse,
+  internalOrchestrationErrorPolicy,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
 import { getSession } from '@/lib/auth'
-import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
+import {
+  InsufficientWorkspacePermissionsError,
+  NoWorkspaceAccessError,
+} from '@/lib/core/application'
 import { captureServerEvent } from '@/lib/posthog/server'
+import {
+  updateWorkspace,
+  workspaceUpdateOperations,
+} from '@/lib/workspaces/application/update-workspace'
 import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
 import { presentWorkspace } from '@/lib/workspaces/response'
 
@@ -18,10 +37,8 @@ import { db } from '@sim/db'
 import { permissions, workspace } from '@sim/db/schema'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
-import {
-  getEffectiveWorkspacePermission,
-  getUserEntityPermissions,
-} from '@/lib/workspaces/permissions/utils'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import type { WorkspaceUpdatePatch, WorkspaceUpdateResult } from '@/lib/workspaces/update'
 
 export const GET = withRouteHandler(
   async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -60,174 +77,35 @@ export const GET = withRouteHandler(
   }
 )
 
-export const PATCH = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const session = await getSession()
+const updateWorkspaceErrorPolicy: InternalErrorPolicy = {
+  project: (error) =>
+    error instanceof NoWorkspaceAccessError ||
+    error instanceof InsufficientWorkspacePermissionsError
+      ? internalErrorResponse(403, { error: 'Insufficient permissions' })
+      : internalOrchestrationErrorPolicy.project(error),
+  unhandled: () => internalErrorResponse(500, { error: 'Failed to update workspace' }),
+}
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+const updateWorkspaceRoute = {
+  auth: internalSessionAuth,
+  operation: workspaceUpdateOperations.update,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing workspace update admission' }),
+  errorPolicy: updateWorkspaceErrorPolicy,
+  mapInput: ({ params, body }: { params: { id: string }; body: WorkspaceUpdatePatch }) => ({
+    workspaceId: params.id,
+    patch: body,
+  }),
+  useCase: updateWorkspace,
+  /** Only a workspace admin reaches a successful update, so the caller's role is known. */
+  present: ({ updated }: WorkspaceUpdateResult) => ({
+    workspace: { ...presentWorkspace(updated), permissions: 'admin' as const },
+  }),
+}
 
-    const parsed = await parseRequest(updateWorkspaceContract, request, context)
-    if (!parsed.success) return parsed.response
-
-    const workspaceId = parsed.data.params.id
-
-    // Check if user has admin permissions to update workspace
-    const userPermission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
-    if (userPermission !== 'admin') {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-    }
-
-    try {
-      const body = parsed.data.body
-      const { name, logoUrl, billedAccountUserId, allowPersonalApiKeys } = body
-
-      if (
-        name === undefined &&
-        logoUrl === undefined &&
-        billedAccountUserId === undefined &&
-        allowPersonalApiKeys === undefined
-      ) {
-        return NextResponse.json({ error: 'No updates provided' }, { status: 400 })
-      }
-
-      const existingWorkspace = await db
-        .select()
-        .from(workspace)
-        .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
-        .then((rows) => rows[0])
-
-      if (!existingWorkspace) {
-        return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
-      }
-
-      const updateData: Record<string, unknown> = {}
-
-      if (name !== undefined) {
-        updateData.name = name
-      }
-
-      if (logoUrl !== undefined) {
-        updateData.logoUrl = logoUrl
-      }
-
-      if (allowPersonalApiKeys !== undefined) {
-        updateData.allowPersonalApiKeys = Boolean(allowPersonalApiKeys)
-      }
-
-      if (billedAccountUserId !== undefined) {
-        if (
-          existingWorkspace.organizationId &&
-          existingWorkspace.workspaceMode === 'organization'
-        ) {
-          return NextResponse.json(
-            {
-              error:
-                'Organization workspaces use organization billing and cannot change billed account.',
-            },
-            { status: 400 }
-          )
-        }
-
-        if (existingWorkspace.workspaceMode === 'personal') {
-          return NextResponse.json(
-            {
-              error:
-                'Personal workspaces are always billed to their owner and cannot change billed account.',
-            },
-            { status: 400 }
-          )
-        }
-
-        const candidateId = billedAccountUserId
-
-        const candidatePermission = await getEffectiveWorkspacePermission(
-          candidateId,
-          existingWorkspace
-        )
-        if (candidatePermission !== 'admin') {
-          return NextResponse.json(
-            { error: 'Billed account must be a workspace admin' },
-            { status: 400 }
-          )
-        }
-      }
-
-      if (Object.keys(updateData).length === 0 && billedAccountUserId === undefined) {
-        return NextResponse.json({ error: 'No valid updates provided' }, { status: 400 })
-      }
-
-      updateData.updatedAt = new Date()
-
-      if (billedAccountUserId !== undefined) {
-        await db.transaction(async (tx) => {
-          await changeWorkspaceStoragePayerInTx(tx, {
-            workspaceId,
-            organizationId: existingWorkspace.organizationId,
-            billedAccountUserId,
-            expectedCurrentPayer: {
-              organizationId: existingWorkspace.organizationId,
-              billedAccountUserId: existingWorkspace.billedAccountUserId,
-            },
-          })
-          await tx.update(workspace).set(updateData).where(eq(workspace.id, workspaceId))
-        })
-      } else {
-        await db.update(workspace).set(updateData).where(eq(workspace.id, workspaceId))
-      }
-
-      const updatedWorkspace = await db
-        .select()
-        .from(workspace)
-        .where(eq(workspace.id, workspaceId))
-        .then((rows) => rows[0])
-
-      recordAudit({
-        workspaceId,
-        actorId: session.user.id,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        action: AuditAction.WORKSPACE_UPDATED,
-        resourceType: AuditResourceType.WORKSPACE,
-        resourceId: workspaceId,
-        resourceName: updatedWorkspace?.name ?? existingWorkspace.name,
-        description: `Updated workspace "${updatedWorkspace?.name ?? existingWorkspace.name}"`,
-        metadata: {
-          changes: {
-            ...(name !== undefined && { name: { from: existingWorkspace.name, to: name } }),
-            ...(logoUrl !== undefined && {
-              logoUrl: { from: existingWorkspace.logoUrl, to: logoUrl },
-            }),
-            ...(allowPersonalApiKeys !== undefined && {
-              allowPersonalApiKeys: {
-                from: existingWorkspace.allowPersonalApiKeys,
-                to: allowPersonalApiKeys,
-              },
-            }),
-            ...(billedAccountUserId !== undefined && {
-              billedAccountUserId: {
-                from: existingWorkspace.billedAccountUserId,
-                to: billedAccountUserId,
-              },
-            }),
-          },
-        },
-        request,
-      })
-
-      return NextResponse.json({
-        workspace: {
-          ...(updatedWorkspace ? presentWorkspace(updatedWorkspace) : {}),
-          permissions: userPermission,
-        },
-      })
-    } catch (error) {
-      logger.error('Error updating workspace:', error)
-      return NextResponse.json({ error: 'Failed to update workspace' }, { status: 500 })
-    }
-  }
-)
+export const PATCH = defineInternalJsonRoute({
+  contract: updateWorkspaceContract,
+  ...updateWorkspaceRoute,
+})
 
 export const DELETE = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -344,9 +222,7 @@ export const DELETE = withRouteHandler(
   }
 )
 
-export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    // Reuse the PATCH handler implementation for PUT requests
-    return PATCH(request, { params })
-  }
-)
+export const PUT = defineInternalJsonRoute({
+  contract: updateWorkspacePutContract,
+  ...updateWorkspaceRoute,
+})

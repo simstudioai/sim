@@ -6,7 +6,6 @@ import {
   Button,
   Chip,
   ChipCombobox,
-  ChipConfirmModal,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -18,11 +17,9 @@ import {
   Label,
   Switch,
   Tooltip,
-  toast,
 } from '@sim/emcn'
 import { Camera, Check, CircleInfo, Pencil } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -50,7 +47,6 @@ import { useBrandConfig } from '@/ee/whitelabeling'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import {
   useResetPassword,
-  useSignOutOtherDevices,
   useUpdateUserProfile,
   useUserProfile,
 } from '@/hooks/queries/user-profile'
@@ -61,6 +57,14 @@ const AuthorizedApps = dynamic(
     import(
       '@/app/workspace/[workspaceId]/settings/components/authorized-apps/authorized-apps'
     ).then((module) => module.AuthorizedApps),
+  { loading: () => null }
+)
+
+const OrganizationAccounts = dynamic(
+  () =>
+    import(
+      '@/app/workspace/[workspaceId]/settings/components/organization-accounts/organization-accounts'
+    ).then((module) => module.OrganizationAccounts),
   { loading: () => null }
 )
 
@@ -122,8 +126,6 @@ export function General() {
   })
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false)
   const resetPassword = useResetPassword()
-  const [showSignOutOtherDevicesModal, setShowSignOutOtherDevicesModal] = useState(false)
-  const signOutOtherDevices = useSignOutOtherDevices()
 
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false)
 
@@ -227,14 +229,6 @@ export function General() {
     )
   }
 
-  const confirmSignOutOtherDevices = () => {
-    signOutOtherDevices.mutate(undefined, {
-      onSuccess: () => toast.success('Signed out of other devices'),
-      onError: (error) => toast.error(getErrorMessage(error)),
-      onSettled: () => setShowSignOutOtherDevicesModal(false),
-    })
-  }
-
   const handleThemeChange = async (value: string) => {
     await updateSetting.mutateAsync({ key: 'theme', value: value as 'system' | 'light' | 'dark' })
   }
@@ -289,6 +283,10 @@ export function General() {
     return <AuthorizedApps onBack={() => setView(null, { history: 'replace' })} />
   }
 
+  if (view === 'organization-accounts' && !isAuthDisabled) {
+    return <OrganizationAccounts onBack={() => setView(null, { history: 'replace' })} />
+  }
+
   const actions: SettingsAction[] = [
     ...(hosted
       ? [
@@ -302,11 +300,6 @@ export function General() {
     ...(session?.user?.id && !isAuthDisabled
       ? [
           { id: 'sign-out', text: 'Sign out', onSelect: () => signOutAndRedirect(router.push) },
-          {
-            id: 'sign-out-other-devices',
-            text: 'Sign out other devices',
-            onSelect: () => setShowSignOutOtherDevicesModal(true),
-          },
           {
             id: 'reset-password',
             text: 'Reset password',
@@ -620,6 +613,10 @@ export function General() {
                 <Chip onClick={() => setView('authorized-apps')}>Manage</Chip>
               </div>
               <div className='flex items-center justify-between'>
+                <Label>Connected organization accounts</Label>
+                <Chip onClick={() => setView('organization-accounts')}>Manage</Chip>
+              </div>
+              <div className='flex items-center justify-between'>
                 <Label>Delete account</Label>
                 <Chip onClick={() => setShowDeleteAccountModal(true)}>Delete</Chip>
               </div>
@@ -658,19 +655,6 @@ export function General() {
           }}
         />
       </ChipModal>
-
-      <ChipConfirmModal
-        open={showSignOutOtherDevicesModal}
-        onOpenChange={setShowSignOutOtherDevicesModal}
-        title='Sign out other devices'
-        text='This device and your authorized apps stay signed in.'
-        confirm={{
-          label: 'Sign out',
-          onClick: confirmSignOutOtherDevices,
-          pending: signOutOtherDevices.isPending,
-          pendingLabel: 'Signing out...',
-        }}
-      />
 
       <DeleteAccountModal
         open={showDeleteAccountModal}

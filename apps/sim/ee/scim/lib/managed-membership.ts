@@ -14,7 +14,8 @@ import { isScimDeploymentEnabled, isScimEntitledForOrganization } from '@/ee/sci
  * remedy.
  *
  * Deliberately not applied to deprovisioning: an administrator must always be
- * able to remove someone in an emergency, whatever the directory believes.
+ * able to remove someone in an emergency, whatever the directory believes. A
+ * member removing themselves is refused, since the directory would re-add them.
  */
 
 /**
@@ -63,6 +64,32 @@ export async function assertMembershipNotScimManaged(params: {
   userId: string
   executor: DbOrTx
 }): Promise<void> {
+  await refuseIfDirectoryManaged(
+    params,
+    'This member is managed by the organization’s identity provider. Make the change there, or turn off managed-membership locking in the organization’s directory settings.'
+  )
+}
+
+/**
+ * Refuses a directory-managed member leaving on their own. Unlike an
+ * administrator's removal, which must always succeed, a self-leave only lasts
+ * until the next sync re-adds the member, so it is refused with the remedy.
+ */
+export async function assertSelfLeaveNotScimManaged(params: {
+  organizationId: string
+  userId: string
+  executor: DbOrTx
+}): Promise<void> {
+  await refuseIfDirectoryManaged(
+    params,
+    'Your membership is managed by your organization’s identity provider. Ask your identity provider administrator to remove you there.'
+  )
+}
+
+async function refuseIfDirectoryManaged(
+  params: { organizationId: string; userId: string; executor: DbOrTx },
+  message: string
+): Promise<void> {
   if (!isScimDeploymentEnabled()) return
   const [row] = await params.executor
     .select({ managed: scimManagedUserPredicate(params.organizationId, sql`${params.userId}`) })
@@ -74,10 +101,7 @@ export async function assertMembershipNotScimManaged(params: {
    * once a managed row is found, so the common case costs nothing.
    */
   if (!(await isScimEntitledForOrganization(params.organizationId, params.executor))) return
-  throw new ForbiddenOperationError(
-    'SCIM_MANAGED_MEMBERSHIP',
-    'This member is managed by the organization’s identity provider. Make the change there, or turn off managed-membership locking in the organization’s directory settings.'
-  )
+  throw new ForbiddenOperationError('SCIM_MANAGED_MEMBERSHIP', message)
 }
 
 /** Refuses an invitation to someone the directory already provisions, while the directory can still sync. */

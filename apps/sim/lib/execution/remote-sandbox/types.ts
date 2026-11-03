@@ -236,6 +236,12 @@ export interface SandboxCodeResult {
   providerFailure?: 'provider_limit'
 }
 
+/** Expected digests of a session's deployment CLI artifacts, keyed by sandbox path. */
+export interface SessionCliVerification {
+  path: string
+  artifacts: Record<string, string>
+}
+
 export interface RunCommandOptions {
   envs?: Record<string, string>
   timeoutMs: number
@@ -247,6 +253,11 @@ export interface RunCommandOptions {
   rootUser?: boolean
   /** Never relaunch this command when provider acknowledgement is ambiguous. */
   atMostOnce?: boolean
+  /**
+   * Session commands only: start the command only if these artifacts still match. A mismatch
+   * rejects with `SessionCliStaleError` and runs nothing.
+   */
+  verifyCli?: SessionCliVerification
   onStdout?: (chunk: string) => void
   onStderr?: (chunk: string) => void
 }
@@ -257,6 +268,11 @@ export interface RunCommandOptions {
  */
 export interface SandboxHandle {
   readonly sandboxId: string
+  /**
+   * Every command this session handle launches honors `verifyCli` inside its own owned process,
+   * so a reused session needs no separate verification command.
+   */
+  readonly verifiesCliAtLaunch?: boolean
   /**
    * Runs code in the language fixed at {@link SandboxProvider.create} time.
    * Language is bound at creation rather than per call because Daytona applies it
@@ -273,6 +289,7 @@ export interface SandboxHandle {
       javascriptPreload?: string
       maxOutputBytes?: number
       signal?: AbortSignal
+      verifyCli?: SessionCliVerification
     }
   ): Promise<SandboxCodeResult>
   runCommand(command: string, options: RunCommandOptions): Promise<SandboxCommandResult>

@@ -52,6 +52,7 @@ import {
   enqueueCancelAtPeriodEndSync,
   isCancelAtPeriodEndSettled,
 } from '@/lib/billing/webhooks/subscription-sync'
+import { type ForbiddenDetailCode, ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
@@ -76,6 +77,7 @@ import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import { reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx } from '@/lib/workspaces/resource-handoff'
 import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
 import { endDirectoryMembershipTx } from '@/ee/scim/lib/identity/end-directory-membership'
+import { assertSelfLeaveNotScimManaged } from '@/ee/scim/lib/managed-membership'
 
 export { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 export { WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR } from '@/lib/workspaces/utils'
@@ -533,6 +535,8 @@ export interface RemoveMemberParams {
 export interface RemoveMemberResult {
   success: boolean
   error?: string
+  /** Set when policy refused the removal, as opposed to it failing. */
+  refusalCode?: ForbiddenDetailCode
   /**
    * Whether the member row was actually deleted. `false` (with `success: true`)
    * when `requireNoOrgWorkspaceAccess` was set and the user still had workspace
@@ -1384,8 +1388,11 @@ export async function removeUserFromOrganization(
     const result = await withInvitationSafeOrganizationAccessMutation(
       { userId, organizationId, scope: 'all' },
       async (tx, { workspaceIds, invitationIds }) => {
-        if (actorUserId)
+        if (actorUserId) {
           await requireMemberManagementAuthority(tx, organizationId, actorUserId, userId)
+          if (actorUserId === userId)
+            await assertSelfLeaveNotScimManaged({ organizationId, userId, executor: tx })
+        }
         if (requireNoOrgWorkspaceAccess && workspaceIds.length > 0) {
           const [remainingAccess] = await tx
             .select({ id: permissions.id })
@@ -1616,6 +1623,15 @@ export async function removeUserFromOrganization(
       return { success: false, error: error.message, billingActions, stoppedRuns: [] }
     }
     if (onError === 'throw') throw error
+    if (error instanceof ForbiddenOperationError) {
+      return {
+        success: false,
+        error: error.message,
+        refusalCode: error.detailCode,
+        billingActions,
+        stoppedRuns: [],
+      }
+    }
 
     logger.error('Failed to remove user from organization', {
       userId,

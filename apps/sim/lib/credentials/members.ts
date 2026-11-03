@@ -30,6 +30,11 @@ export interface CredentialMemberView {
   userEmail: string | null
   userImage: string | null
   roleSource: 'explicit' | 'workspace-admin'
+  /**
+   * Whether the user holds an active explicit admin grant, independent of any
+   * inherited workspace-admin role. This is what the last-admin guards count.
+   */
+  explicitAdmin: boolean
 }
 
 export async function listCredentialMembers(
@@ -52,7 +57,14 @@ export async function listCredentialMembers(
     .where(eq(credentialMember.credentialId, credential.id))
 
   const byUser = new Map<string, CredentialMemberView>(
-    explicitMembers.map((member) => [member.userId, { ...member, roleSource: 'explicit' as const }])
+    explicitMembers.map((member) => [
+      member.userId,
+      {
+        ...member,
+        roleSource: 'explicit' as const,
+        explicitAdmin: member.role === 'admin' && member.status === 'active',
+      },
+    ])
   )
 
   if (isSharedCredentialType(credential.type)) {
@@ -75,6 +87,7 @@ export async function listCredentialMembers(
           userEmail: workspaceMember.email,
           userImage: workspaceMember.image ?? null,
           roleSource: 'workspace-admin',
+          explicitAdmin: false,
         })
       }
     }
@@ -148,6 +161,7 @@ export async function listCredentialMembersPage(
       roleSource: sql<
         'explicit' | 'workspace-admin'
       >`case when ${inheritedAdmin} then 'workspace-admin' else 'explicit' end`,
+      explicitAdmin: sql<boolean>`coalesce(${credentialMember.role} = 'admin' and ${credentialMember.status} = 'active', false)`,
     })
     .from(user)
     .leftJoin(
