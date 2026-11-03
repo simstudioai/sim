@@ -781,7 +781,8 @@ async function generateWithFalAI(
     throw new Error('Fal.ai queue response missing request_id')
   }
 
-  const requestUrl = `https://queue.fal.run/${endpoint}/requests/${encodeURIComponent(requestIdFal)}`
+  const app = endpoint.split('/', 2).join('/')
+  const requestUrl = `https://queue.fal.run/${app}/requests/${encodeURIComponent(requestIdFal)}`
   const statusUrl = falQueueUrl(
     getStringProperty(createData, 'status_url') || `${requestUrl}/status`
   )

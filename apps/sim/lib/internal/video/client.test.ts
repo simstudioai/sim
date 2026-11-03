@@ -98,6 +98,31 @@ describe('Video provider client', () => {
     ).toHaveLength(1)
   })
 
+  it('retrieves a nested endpoint result when fal omits the queue URLs', async () => {
+    const app = 'fal-ai/kandinsky5'
+    const model = `${app}/text-to-video`
+    const request = `/${app}/requests/fal-1`
+    vi.stubGlobal('fetch', async (url: string | URL) => {
+      switch (new URL(url).pathname) {
+        case `/${model}`:
+          return jsonResponse({ request_id: 'fal-1' })
+        case `${request}/status`:
+          return jsonResponse({ status: 'COMPLETED' })
+        case request:
+          return jsonResponse({ video: { url: 'data:video/mp4;base64,dmlkZW8=' } })
+        default:
+          return new Response(null, { status: 405 })
+      }
+    })
+    const result = generateVideo(
+      { provider: 'falai', apiKey: 'key', model, prompt: 'A cinematic sunrise' },
+      { requestId: 'request-1' }
+    )
+    const completion = expect(result).resolves.toMatchObject({ buffer: Buffer.from('video') })
+    await vi.advanceTimersByTimeAsync(5000)
+    await completion
+  })
+
   it('keeps the fal API key off a foreign polling origin', async () => {
     const mockFetch = vi
       .fn()
