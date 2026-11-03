@@ -23,6 +23,7 @@ import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
 import { SidebarRenameRow } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-rename-row'
 import { SIDEBAR_RAIL_CHIP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+import { holdRowFocus } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useRenameOrganization } from '@/hooks/queries/organization'
 import { useUploadOrganizationLogo } from '@/hooks/queries/organization-logo'
 
@@ -56,12 +57,14 @@ export function OrganizationHeader({
   onExpandSidebar,
 }: OrganizationHeaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const nameInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const { mutate: uploadLogo, isPending: isUploadingLogo } = useUploadOrganizationLogo(
     organization.id
   )
   const renameOrganization = useRenameOrganization()
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [draftName, setDraftName] = useState<string | null>(null)
   const initial = getOrganizationInitial(organization.name)
 
@@ -104,7 +107,13 @@ export function OrganizationHeader({
       stopRenaming()
       return
     }
-    renameOrganization.mutate({ orgId: organization.id, name }, { onSuccess: stopRenaming })
+    renameOrganization.mutate(
+      { orgId: organization.id, name },
+      {
+        onSuccess: stopRenaming,
+        onError: () => requestAnimationFrame(() => nameInputRef.current?.focus()),
+      }
+    )
   }
 
   const logo = (
@@ -133,8 +142,11 @@ export function OrganizationHeader({
         />
       )}
       <DropdownMenu
+        open={isMenuOpen}
         onOpenChange={(open) => {
-          if (!open) stopRenaming()
+          // The input's blur saves the draft; closing now would unmount it and hide a failure.
+          if (!open && draftName !== null) return
+          setIsMenuOpen(open)
         }}
       >
         <DropdownMenuTrigger asChild>
@@ -152,6 +164,8 @@ export function OrganizationHeader({
           side='bottom'
           sideOffset={8}
           className='w-64 max-w-[calc(100vw-24px)]'
+          onPointerMoveCapture={draftName !== null ? holdRowFocus : undefined}
+          onPointerOutCapture={draftName !== null ? holdRowFocus : undefined}
         >
           <div className='flex items-center gap-2 px-2 py-1.5'>
             {canEditIdentity ? (
@@ -179,6 +193,7 @@ export function OrganizationHeader({
             <div className='flex min-w-0 flex-1 flex-col'>
               {draftName !== null ? (
                 <SidebarRenameRow
+                  ref={nameInputRef}
                   aria-label='Organization name'
                   aria-invalid={renameOrganization.isError || undefined}
                   autoFocus

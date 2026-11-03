@@ -1,9 +1,18 @@
-import type { MouseEvent } from 'react'
+import type { MouseEvent, PointerEvent } from 'react'
 import type { MothershipResource } from '@/lib/mothership/resource-types'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+
+/**
+ * Prevents Radix's mouse pointer handlers from transferring focus. Row handlers keep
+ * actions submenus open; content capture handlers preserve inline rename focus,
+ * including inside portaled folders. Radix skips handlers for defaulted events.
+ */
+export function holdRowFocus(event: PointerEvent) {
+  if (event.pointerType === 'mouse') event.preventDefault()
+}
 
 /** Distinguishes sidebar background clicks from controls and portaled overlays. */
 export function isSidebarBackgroundClick(event: MouseEvent<HTMLElement>): boolean {
