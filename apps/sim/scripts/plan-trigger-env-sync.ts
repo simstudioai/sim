@@ -113,17 +113,28 @@ async function main() {
   })
 
   if (!applySecretFlags || toFlag.length === 0) return
+  // The import resubmits each value, so re-read right before each batch and skip any variable
+  // rotated since the plan: flagging must never write back an older value.
+  const skipped: string[] = []
   for (const batch of chunkArray(toFlag, IMPORT_BATCH_SIZE)) {
+    const { variables: latest } = await request<{ variables: Record<string, string> }>(envvarsUrl)
+    const unrotated = batch.filter((v) => latest[v.name] === v.value)
+    skipped.push(...batch.filter((v) => latest[v.name] !== v.value).map((v) => v.name))
+    if (unrotated.length === 0) continue
     await request(`${envvarsUrl}/${environment}/import`, {
-      variables: Object.fromEntries(batch.map((v) => [v.name, current[v.name]])),
+      variables: Object.fromEntries(unrotated.map((v) => [v.name, v.value])),
       override: true,
       isSecret: true,
     })
   }
   const stillPlain = await listPlainNames()
-  const unflagged = names(toFlag.filter((v) => stillPlain.has(v.name)))
+  const unflagged = names(toFlag.filter((v) => stillPlain.has(v.name) && !skipped.includes(v.name)))
   if (unflagged.length > 0) throw new Error(`Still plain after flagging: ${unflagged.join(', ')}`)
-  logger.info('Marked unchanged variables as secrets', { environment, flagged: toFlag.length })
+  logger.info('Marked unchanged variables as secrets', {
+    environment,
+    flagged: toFlag.length - skipped.length,
+    skippedAsRotated: skipped.sort(),
+  })
 }
 
 main().catch((error) => {
