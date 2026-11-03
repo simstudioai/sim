@@ -33,8 +33,29 @@ permissions:
 jobs:
   checks:
     name: checks
-    if: github.ref != 'refs/heads/dev' || github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request'
     uses: ./.github/workflows/checks.yml
+
+  push-checks:
+    name: push-checks
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    runs-on: ubuntu-24.04
+    # Validation can chain a 25-minute build and a 30-minute acceptance job.
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+    steps:
+      - name: Checkout admission gate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+      - name: Require this commit's independent push validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/wait-for-push-checks.sh
 
   # Detect if this is a version release commit (e.g., "v0.5.24: ...")
   # Smallest runner on purpose: a few seconds of pure shell over the commit
@@ -116,14 +137,14 @@ jobs:
       contents: read
       id-token: write
     name: migrate
-    needs: [checks]
+    needs: [push-checks]
     # Explicit need results instead of the implicit success(): a skipped job
     # anywhere in the transitive needs chain silently fails implicit success()
     # and cascade-skips the deploy chain (migrate -> promote ->
     # CodeDeploy) — this bit us on 2026-07-23. State requirements explicitly.
     if: >-
       !cancelled() &&
-      needs.checks.result == 'success' &&
+      needs.push-checks.result == 'success' &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     uses: ./.github/workflows/migrate.yml
