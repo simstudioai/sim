@@ -483,7 +483,9 @@ interface ConnectMemberAccountParams {
  * Connects the viewer's own account to a per-member connector. Desktop and
  * direct OAuth settle when the connection completes. An ordinary knowledge
  * base hands the viewer an invitation page in a new tab that reports nothing
- * back, so its refresh waits for the viewer to return to this tab.
+ * back, so it refreshes each time the viewer returns to this tab until the
+ * viewer's membership reads `connected`. The listener belongs to the attempt's
+ * abort signal, so a newer attempt or unmount removes it.
  */
 export function useStartConnectorMemberEnrollment() {
   const queryClient = useQueryClient()
@@ -545,12 +547,15 @@ export function useStartConnectorMemberEnrollment() {
         tab?.close()
         throw error
       }
-      const refreshOnReturn = () => {
+      const refreshUntilConnected = async () => {
         if (document.visibilityState !== 'visible') return
-        document.removeEventListener('visibilitychange', refreshOnReturn)
-        void refresh(knowledgeBaseId)
+        await refresh(knowledgeBaseId)
+        const connector = getCachedConnector(queryClient, knowledgeBaseId, connectorId)
+        if (connector?.viewerMembership === 'connected') controller.abort()
       }
-      document.addEventListener('visibilitychange', refreshOnReturn)
+      document.addEventListener('visibilitychange', () => void refreshUntilConnected(), {
+        signal: controller.signal,
+      })
       return false
     },
     onSettled: (completed, _error, { knowledgeBaseId }) =>
