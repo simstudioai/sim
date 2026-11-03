@@ -1,6 +1,12 @@
 /** The failure message a browser-settled Copilot workflow tool reads back, against real PostgreSQL. */
 import { db } from '@sim/db'
-import { user, workflow, workflowExecutionSnapshots, workspace } from '@sim/db/schema'
+import {
+  user,
+  workflow,
+  workflowExecutionLogs,
+  workflowExecutionSnapshots,
+  workspace,
+} from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
@@ -97,10 +103,11 @@ beforeAll(async () => {
 }, 30_000)
 
 afterAll(async () => {
-  await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspace))
+  await db.delete(workflowExecutionLogs).where(eq(workflowExecutionLogs.workflowId, ids.workflow))
   await db
     .delete(workflowExecutionSnapshots)
     .where(eq(workflowExecutionSnapshots.workflowId, ids.workflow))
+  await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspace))
   await db.delete(user).where(eq(user.id, ids.owner))
 })
 
