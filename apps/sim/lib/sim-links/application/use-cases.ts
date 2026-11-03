@@ -163,6 +163,29 @@ export const listSimLinks = defineAuthorizedOrganizationUseCase({
   },
 })
 
+/**
+ * One link by id or by name as typed. Hidden exactly as browsing hides it: an unlisted link reads
+ * as missing to anyone who cannot manage it.
+ */
+export const getSimLinkView = defineAuthorizedOrganizationUseCase({
+  operation: simLinkOperations.get,
+  ...rollout,
+  async execute({
+    input,
+    context,
+  }: OrganizationUseCaseContext<OrganizationInput & ({ linkId: string } | { name: string })>) {
+    const viewer = viewerOf(context)
+    const linkId =
+      'linkId' in input
+        ? input.linkId
+        : (await repository.findSimLinkDestination(input.organizationId, input.name))?.id
+    const record = linkId ? await repository.getSimLink(db, input.organizationId, linkId) : null
+    if (!record || (record.unlisted && !canManage(record.createdBy?.id ?? null, viewer)))
+      throw new OrchestrationError('not_found', 'Sim link not found')
+    return toView(record, viewer)
+  },
+})
+
 export const createSimLink = defineAuthorizedOrganizationUseCase({
   operation: simLinkOperations.create,
   ...rollout,

@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
+import { getOrganizationTransferCredentialDependencies } from '@/lib/billing/organizations/membership'
 import {
   defineAuthorizedOrganizationUseCase,
   type OrganizationUseCaseContext,
@@ -77,5 +78,29 @@ export const removeOrganizationMember = defineAuthorizedOrganizationUseCase({
         ? { membershipType: 'external', ...result.removal }
         : { wasSelfRemoval: result.wasSelfRemoval, seatReduction: result.seatReduction }),
     },
+  }),
+})
+
+/**
+ * Identity-bound credentials the target user owns in this organization's workspaces: the set that
+ * stops working when their workspace access is revoked. Administrators preview removing anyone;
+ * members preview leaving.
+ */
+export const previewOrganizationMemberRemoval = defineAuthorizedOrganizationUseCase({
+  operation: organizationOperations.previewMemberRemoval,
+  authorizeResource: ({ input, context }) => {
+    if (!isOrgAdminRole(context.role) && input.userId !== context.userId)
+      throw new ForbiddenOperationError(
+        'ORGANIZATION_ADMIN_REQUIRED',
+        'Forbidden - Admin access required'
+      )
+  },
+  execute: async ({
+    input,
+  }: OrganizationUseCaseContext<{ organizationId: string; userId: string }>) => ({
+    credentials: await getOrganizationTransferCredentialDependencies(
+      input.userId,
+      input.organizationId
+    ),
   }),
 })
