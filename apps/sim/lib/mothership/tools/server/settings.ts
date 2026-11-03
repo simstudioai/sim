@@ -64,6 +64,7 @@ import {
 } from '@/lib/organizations/application/settings'
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 import { type SettingsSection, settingsSections } from '@/lib/settings/sections'
+import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import {
   delegatedAccountPreferencesSchema,
   updateCurrentUserPreferences,
@@ -314,6 +315,12 @@ const adapters: Record<string, SettingAdapter> = {
 }
 
 async function describeSection(context: SettingsContext, section: SettingsSection) {
+  if (
+    context.scope === 'organization' &&
+    section.id === 'sim-links' &&
+    !(await isSimLinksEnabled(organizationInput(context).organizationId))
+  )
+    return null
   const adapter = adapters[`${context.scope}/${section.id}`]
   const uiSection =
     context.scope === 'organization' &&
