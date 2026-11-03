@@ -11,19 +11,33 @@ vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 const { values, lists, seen, persist, redis } = vi.hoisted(() => {
   const values = new Map<string, string>()
+  const expiresAt = new Map<string, number>()
   const lists = new Map<string, string[]>()
   const seen = new Map<string, Set<string>>()
+  const live = (key: string) => {
+    if ((expiresAt.get(key) ?? Number.POSITIVE_INFINITY) <= Date.now()) {
+      values.delete(key)
+      expiresAt.delete(key)
+    }
+    return values.has(key)
+  }
   return {
     values,
     lists,
     seen,
     persist: vi.fn(async () => {}),
     redis: {
-      set: vi.fn(async (key: string, value: string) => {
+      set: vi.fn(async (key: string, value: string, _mode?: 'EX', ttlSeconds?: number) => {
         values.set(key, value)
+        if (ttlSeconds) expiresAt.set(key, Date.now() + ttlSeconds * 1000)
       }),
-      get: vi.fn(async (key: string) => values.get(key) ?? null),
-      exists: vi.fn(async (key: string) => (values.has(key) ? 1 : 0)),
+      expire: vi.fn(async (key: string, ttlSeconds: number) => {
+        if (!live(key)) return 0
+        expiresAt.set(key, Date.now() + ttlSeconds * 1000)
+        return 1
+      }),
+      get: vi.fn(async (key: string) => (live(key) ? (values.get(key) ?? null) : null)),
+      exists: vi.fn(async (key: string) => (live(key) ? 1 : 0)),
       del: vi.fn(async (key: string) => {
         values.delete(key)
         lists.delete(key)
@@ -181,6 +195,33 @@ describe('sandbox resource ownership and publication', () => {
       activeOwner.mockResolvedValue(false)
       expect(await readSandboxResourceScope(endpoint.split('/').at(-1)!, 'secret')).toBeNull()
     })
+  })
+
+  it('keeps the callback scope live for a call that outlasts its expiry, and revokes it after', async () => {
+    vi.useFakeTimers()
+    try {
+      const finish = Promise.withResolvers<void>()
+      let token = ''
+      const call = withSandboxResourceScope(
+        identity,
+        new AbortController().signal,
+        undefined,
+        async () => {
+          token =
+            (await sandboxResourceEndpoint('https://sim.test', args, 'secret')).split('/').at(-1) ??
+            ''
+          await finish.promise
+        }
+      )
+      await vi.advanceTimersByTimeAsync(15 * 60_000)
+      expect(await readSandboxResourceScope(token, 'secret')).not.toBeNull()
+      finish.resolve()
+      await vi.advanceTimersByTimeAsync(1_000)
+      await call
+      expect(await readSandboxResourceScope(token, 'secret')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('revokes on cancellation and never emits an abandoned callback', async () => {
