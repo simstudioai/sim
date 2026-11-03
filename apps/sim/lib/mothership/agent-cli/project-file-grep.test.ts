@@ -105,6 +105,23 @@ describe('Project grep corpus', () => {
     expect(list).toHaveBeenCalledTimes(1)
     expect(result.stderr).toContain(`searched the first ${MAX_GREP_FILES} selected files`)
   })
+  it('skips a file with no text extractor without reading it or failing the search', async () => {
+    list.mockResolvedValue({
+      files: [
+        { id: 'file', name: 'notes.txt', type: 'text/plain', folderPath: '/' },
+        { id: 'clip', name: 'notes-demo.mp4', type: 'video/mp4', folderPath: '/' },
+      ],
+      nextKeys: null,
+    })
+    const result = await grepProjectFiles(invocation, context(), 'project')
+    expect(textRead).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({
+      exitCode: 0,
+      stdout: 'files/notes.txt (file):2: needle',
+      stderr:
+        'Skipped 1 file with no searchable text (images, media, archives, and other binary formats).',
+    })
+  })
   it('marks truncated inventory incomplete instead of claiming a missing selector has no matches', async () => {
     list.mockResolvedValue({ files: [], nextKeys: [{ value: 'cursor', direction: 'asc' }] })
     const result = await grepProjectFiles(invocation, context(), 'project')

@@ -11,9 +11,9 @@ import {
   type AgentCliFlags,
   type AgentCliRuntime,
   agentCliFail,
-  agentCliOk,
 } from '@/lib/mothership/agent-cli/types'
 import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
+import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { OPAQUE_RESOLVED_SECRET_REPLACEMENT } from '@/executor/utils/resolved-secret-matcher'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -61,6 +61,7 @@ const PLATFORM_SCOPES: ReadonlySet<Scope> = new Set<Scope>(['blocks', 'tools'])
 
 interface GrepRuntime extends AgentCliRuntime {
   reportIncomplete(message: string): void
+  reportNonText(): void
 }
 
 /**
@@ -370,8 +371,14 @@ const FETCHERS: Record<
   credentials: async (_runtime, item) => render('credentials', item.id, item.label, item.raw),
 }
 
-function concurrencyFor(scope: Scope): number {
-  return scope === 'files' ? FILE_READ_CONCURRENCY : FETCH_CONCURRENCY
+/**
+ * A listed file the agent's text read has no extractor for (fonts, media, archives, images), by
+ * the same gate that read applies. A listing without a name cannot say, so that file is read.
+ */
+function lacksText(file: unknown): boolean {
+  if (!isRecordLike(file)) return false
+  const name = str(file.name)
+  return name !== undefined && !workspaceFileTextFormat({ name, type: str(file.type) ?? '' })
 }
 
 async function fetchAll(
@@ -379,13 +386,29 @@ async function fetchAll(
   scope: Scope,
   entries: IndexEntry[]
 ): Promise<GrepMaterialized[]> {
-  if (scope === 'files' && entries.length > MAX_GREP_FILES) {
+  if (scope !== 'files') {
+    return mapConcurrent(entries, FETCH_CONCURRENCY, (item) => FETCHERS[scope](runtime, item))
+  }
+  // Skipped files keep their identity, so `--in` naming one is not an unknown selector.
+  const skipped: GrepMaterialized[] = []
+  const readable: IndexEntry[] = []
+  for (const item of entries) {
+    if (lacksText(item.raw)) {
+      runtime.reportNonText()
+      skipped.push({ scope, id: item.id, label: item.label, text: null })
+    } else readable.push(item)
+  }
+  if (readable.length > MAX_GREP_FILES) {
     runtime.reportIncomplete(
-      `files: searched the first ${MAX_GREP_FILES} of ${entries.length} selected files; narrow with --in files/<name-or-id>.`
+      `files: searched the first ${MAX_GREP_FILES} of ${readable.length} selected files; narrow with --in files/<name-or-id>.`
     )
   }
-  const selected = scope === 'files' ? entries.slice(0, MAX_GREP_FILES) : entries
-  return mapConcurrent(selected, concurrencyFor(scope), (item) => FETCHERS[scope](runtime, item))
+  const read = await mapConcurrent(
+    readable.slice(0, MAX_GREP_FILES),
+    FILE_READ_CONCURRENCY,
+    (item) => FETCHERS.files(runtime, item)
+  )
+  return [...read, ...skipped]
 }
 
 /** A whole world, for a search with no `--in`: every resource the index lists. */
@@ -566,10 +589,15 @@ export interface GrepSource {
   registry?: AgentCliRuntime['resolvedSecretTraceRegistry']
   /** The only scopes this corpus holds, and the refusal for a search that names another. */
   scopeLimit?: { scopes: readonly Scope[]; refusal: string }
+  /**
+   * `reportNonText` counts a file skipped unread because it has no text to extract: a note,
+   * not an incomplete search. The skipped file is still returned with null text.
+   */
   materialize(
     scopes: Scope[],
     nameFilter: string | undefined,
-    reportIncomplete: (message: string) => void
+    reportIncomplete: (message: string) => void,
+    reportNonText: () => void
   ): Promise<GrepMaterialized[]>
 }
 
@@ -624,15 +652,24 @@ export async function executeGrep(positionals: string[], flags: AgentCliFlags, s
     issueCount++
     if (issues.length < 10) issues.push(clip(message))
   }
-  const finish = (stdout: string) =>
-    issueCount === 0
-      ? agentCliOk(stdout)
-      : {
-          exitCode: 1,
-          stdout,
-          stderr: `Search incomplete (${issueCount} issue${issueCount === 1 ? '' : 's'}); matches and counts cover only the content read.\n${issues.join('\n')}${issueCount > issues.length ? `\n${issueCount - issues.length} further issues omitted.` : ''}`,
-        }
-  const candidates = await source.materialize(searched, nameFilter, reportIncomplete)
+  let nonTextCount = 0
+  const reportNonText = () => {
+    nonTextCount++
+  }
+  const finish = (stdout: string) => {
+    const skipped = nonTextCount
+      ? `Skipped ${nonTextCount} file${nonTextCount === 1 ? '' : 's'} with no searchable text (images, media, archives, and other binary formats).`
+      : ''
+    const incomplete =
+      issueCount &&
+      `Search incomplete (${issueCount} issue${issueCount === 1 ? '' : 's'}); matches and counts cover only the content read.\n${issues.join('\n')}${issueCount > issues.length ? `\n${issueCount - issues.length} further issues omitted.` : ''}`
+    return {
+      exitCode: issueCount ? 1 : 0,
+      stdout,
+      stderr: [incomplete, skipped].filter(Boolean).join('\n'),
+    }
+  }
+  const candidates = await source.materialize(searched, nameFilter, reportIncomplete, reportNonText)
   source.signal?.throwIfAborted()
   /**
    * A resource nothing in the searched worlds answers to is a wrong selector, not a
@@ -721,8 +758,8 @@ export const universalGrepCommand: AgentCliEngine = {
     executeGrep(positionals, flags, {
       signal: runtime.signal,
       registry: runtime.resolvedSecretTraceRegistry,
-      async materialize(scopes, nameFilter, reportIncomplete) {
-        const bounded = gatedRuntime({ ...runtime, reportIncomplete })
+      async materialize(scopes, nameFilter, reportIncomplete, reportNonText) {
+        const bounded = gatedRuntime({ ...runtime, reportIncomplete, reportNonText })
         return nameFilter
           ? materializeWithin(bounded, scopes, nameFilter)
           : (await settleAll(scopes.map((scope) => materializeScope(bounded, scope)))).flat()
