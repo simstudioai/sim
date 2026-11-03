@@ -61,7 +61,9 @@ export function usePlanUpgradeLink(data: PlanUpgradeLinkInput): PlanUpgradeLink 
       ? organizationContext.viewer.isAdmin
       : Boolean(hostContext && canManageWorkspaceBilling(hostContext, session?.user?.id)))
   const action = planRequired
-    ? 'upgrade this workspace’s plan'
+    ? organizationContext
+      ? 'upgrade the organization’s plan'
+      : 'upgrade this workspace’s plan'
     : 'manage this workspace’s usage limits'
   const unavailableMessage = organizationContext
     ? planRequired

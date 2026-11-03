@@ -327,10 +327,15 @@ async function throwIfRunTimedOut(
   if (!result.timedOut) return
   if (!run.lease.session) throw new DOMException('timeout', 'AbortError')
   const { outputSandboxDir, sandbox } = run
+  // Half of what the call has left, so the report lands before the call's deadline.
+  const listingMs = Math.min(
+    TIMED_OUT_OUTPUT_LISTING_MS,
+    (getRemainingExecutionMs(run.signal) ?? Number.POSITIVE_INFINITY) / 2
+  )
   const listed = outputSandboxDir
     ? await withinDeadline(
         () => sandbox.listFiles(outputSandboxDir, { depth: SANDBOX_OUTPUT_DIR_MAX_DEPTH }),
-        Date.now() + TIMED_OUT_OUTPUT_LISTING_MS,
+        Date.now() + listingMs,
         run.signal
       ).catch(() => [])
     : []
@@ -909,20 +914,31 @@ function installBudgetMs(timeoutMs: number): number {
 const MIN_EXPORT_BUDGET_MS = 10_000
 
 /**
+ * Held back from a workbench run without an export reserve, capped at a quarter of its budget,
+ * so the run's own timeout answers and reports its progress before the call's deadline.
+ */
+const MAX_TIMEOUT_REPORT_BUDGET_MS = 4_000
+
+/**
  * The budget handed to user code, less an export reserve when this request will
  * read files back. Short budgets are left alone: taking the reserve out of one
- * would starve the code to buy time for an export it never reaches.
+ * would starve the code to buy time for an export it never reaches. A workbench
+ * run, whose timeout reports progress, still keeps a smaller report reserve.
  */
 function codeBudgetMs(
   req: { outputSandboxPath?: string; outputSandboxPaths?: string[]; outputSandboxDir?: string },
-  signal: AbortSignal
+  signal: AbortSignal,
+  reportsTimeout: boolean
 ): number {
   const remainingMs = remainingSandboxBudgetMs(signal)
   const exportsFiles = Boolean(
     req.outputSandboxDir || req.outputSandboxPath || req.outputSandboxPaths?.length
   )
-  if (!exportsFiles || remainingMs <= MIN_EXPORT_BUDGET_MS * 2) return remainingMs
-  return remainingMs - MIN_EXPORT_BUDGET_MS
+  if (exportsFiles && remainingMs > MIN_EXPORT_BUDGET_MS * 2) {
+    return remainingMs - MIN_EXPORT_BUDGET_MS
+  }
+  if (!reportsTimeout) return remainingMs
+  return remainingMs - Math.min(MAX_TIMEOUT_REPORT_BUDGET_MS, Math.floor(remainingMs / 4))
 }
 
 /**
@@ -1060,7 +1076,7 @@ async function executeInSandboxWithinBudget(
         signal,
         phases,
         (verifyCli) => {
-          runTimeoutMs = codeBudgetMs(req, signal)
+          runTimeoutMs = codeBudgetMs(req, signal, Boolean(lease.session))
           return sandbox.runCode(code, {
             timeoutMs: runTimeoutMs,
             javascriptPreload: buildJavaScriptRuntimeBindingsSource(req.runtimeBindings ?? []),
@@ -1283,7 +1299,7 @@ async function executeShellInSandboxWithinBudget(
         signal,
         phases,
         (verifyCli) => {
-          runTimeoutMs = codeBudgetMs(req, signal)
+          runTimeoutMs = codeBudgetMs(req, signal, Boolean(lease.session))
           return sandbox.runCommand(code, {
             envs: commandEnvironment,
             timeoutMs: runTimeoutMs,

@@ -533,7 +533,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
   const handleSubmit = useCallback(() => {
     if (chatPlanRequired) {
-      useChatPlanModalStore.getState().open()
+      useChatPlanModalStore.getState().open(workspaceId)
       return
     }
     const currentFiles = filesRef.current
@@ -561,7 +561,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     )
     if (accepted === false) return
     clearComposer()
-  }, [chatPlanRequired, onSubmit, clearComposer])
+  }, [chatPlanRequired, workspaceId, onSubmit, clearComposer])
 
   /**
    * Enter policy for the editor: mirror canSubmit's uploading guard (Enter
