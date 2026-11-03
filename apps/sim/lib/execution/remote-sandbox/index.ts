@@ -308,10 +308,17 @@ function throwIfSandboxTimedOut(result: { timedOut?: boolean }): void {
 /** Bounds the output-directory listing a timeout report adds; a slow listing reports no files. */
 const TIMED_OUT_OUTPUT_LISTING_MS = 3_000
 
+/** Throws when the call was cancelled; a passed deadline is not a cancellation. */
+function throwIfCancelled(signal: AbortSignal): void {
+  if (!isTimeoutAbortReason(signal.reason)) throwIfAborted(signal)
+}
+
 /**
- * A workbench run stopped by its own timeout reports what it produced, because the workbench and
- * its files outlive the call and the next call can resume from them. A one-shot sandbox is torn
- * down with everything in it, so it keeps the plain timeout.
+ * Settles a finished run against the call's signal. A workbench run stopped by its own timeout
+ * reports what it produced, because the workbench and its files outlive the call and the next
+ * call can resume from them; the call's deadline passing while that stop settles keeps the
+ * report, and a cancellation at any point stays a cancellation. A one-shot sandbox is torn down
+ * with everything in it, so it keeps the plain timeout.
  */
 async function throwIfRunTimedOut(
   result: { timedOut?: boolean },
@@ -324,8 +331,12 @@ async function throwIfRunTimedOut(
     signal: AbortSignal
   }
 ): Promise<void> {
-  if (!result.timedOut) return
-  if (!run.lease.session) throw new DOMException('timeout', 'AbortError')
+  if (!result.timedOut || !run.lease.session) {
+    throwIfAborted(run.signal)
+    throwIfSandboxTimedOut(result)
+    return
+  }
+  throwIfCancelled(run.signal)
   const { outputSandboxDir, sandbox } = run
   // Half of what the call has left, so the report lands before the call's deadline.
   const listingMs = Math.min(
@@ -339,8 +350,7 @@ async function throwIfRunTimedOut(
         run.signal
       ).catch(() => [])
     : []
-  // A cancellation that arrives while listing stays a cancellation.
-  throwIfAborted(run.signal)
+  throwIfCancelled(run.signal)
   throw new SandboxExecutionTimeoutError(sandboxTimeoutProgress(streams, run.timeoutMs, listed))
 }
 
@@ -1092,7 +1102,6 @@ async function executeInSandboxWithinBudget(
       throwIfAborted(signal)
       throw error
     }
-    throwIfAborted(signal)
     await throwIfRunTimedOut(execution, [execution.text, execution.stdout, execution.stderr], {
       sandbox,
       lease,
@@ -1316,7 +1325,6 @@ async function executeShellInSandboxWithinBudget(
       throwIfAborted(signal)
       throw error
     }
-    throwIfAborted(signal)
     await throwIfRunTimedOut(result, [result.stdout, result.stderr], {
       sandbox,
       lease,

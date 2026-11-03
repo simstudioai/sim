@@ -1167,6 +1167,52 @@ describe('session sandbox lease', () => {
       }
     })
 
+    it('reports a short run whose stop settles after the call deadline', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+      try {
+        const { handle } = fakeSandbox('timeout-slow-stop')
+        mockFindSessionSandbox.mockResolvedValue(handle)
+        handle.listFiles = async () => []
+        // The provider's own timeout stops the command, and that stop settles after the call's
+        // deadline; an abort before the stop interrupts the command.
+        handle.runCommand = (_command, options) =>
+          new Promise<SandboxCommandResult>((resolve, reject) => {
+            let stopping = false
+            const stop = () => {
+              stopping = true
+              setTimeout(
+                () => resolve({ stdout: 'step 1', stderr: '', exitCode: 124, timedOut: true }),
+                3_000
+              )
+            }
+            setTimeout(() => setTimeout(stop, options.timeoutMs), 300)
+            options.signal?.addEventListener(
+              'abort',
+              () => {
+                if (!stopping) reject(options.signal?.reason)
+              },
+              { once: true }
+            )
+          })
+        const pending = executeShellInSandbox({
+          ...CODE_REQUEST,
+          timeoutMs: 10_000,
+          envs: {},
+          session: { key: 'timeout-slow-stop' },
+          outputSandboxDir: OUTPUT_DIR,
+        }).then(
+          () => undefined,
+          (rejection: unknown) => rejection
+        )
+        await vi.runAllTimersAsync()
+        const error = await pending
+        if (!(error instanceof SandboxExecutionTimeoutError)) throw error
+        expect(error.progress.output).toBe('step 1')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('keeps a cancellation that arrives while listing the outputs a cancellation', async () => {
       const { handle } = fakeSandbox('timeout-cancelled')
       mockFindSessionSandbox.mockResolvedValue(handle)
