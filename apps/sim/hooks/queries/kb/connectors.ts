@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react'
+import { generateId } from '@sim/utils/id'
 import {
   keepPreviousData,
   type QueryClient,
@@ -48,6 +50,9 @@ import {
   resourceScopeFromOwner,
   resourceScopeKey,
 } from '@/lib/core/resource-scope'
+import { connectCredentialGroupInPopup } from '@/lib/credential-groups/oauth-popup'
+import { isDesktopApp } from '@/lib/desktop'
+import { connectDesktopSource } from '@/lib/desktop/source-connect'
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE } from '@/lib/knowledge/constants'
 import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
 import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
@@ -388,16 +393,19 @@ async function updateConnectorAccess({
 interface StartConnectorMemberEnrollmentParams extends SearchConnectionOAuthQuery {
   knowledgeBaseId: string
   connectorId: string
+  signal?: AbortSignal
 }
 
 async function startConnectorMemberEnrollment({
   knowledgeBaseId,
   connectorId,
   oauthCompletionId,
+  signal,
 }: StartConnectorMemberEnrollmentParams): Promise<StartKnowledgeConnectorMemberEnrollmentData> {
   const response = await requestJson(startKnowledgeConnectorMemberEnrollmentContract, {
     params: { id: knowledgeBaseId, connectorId },
     query: { oauthCompletionId },
+    signal,
   })
   return response.data
 }
@@ -464,17 +472,89 @@ export function useSearchSources(
   })
 }
 
-/** Mints the viewer's enrollment link for a per-member connector; the caller navigates to it. */
+interface ConnectMemberAccountParams {
+  knowledgeBaseId: string
+  connectorId: string
+  /** Search sources only: the server opens provider OAuth directly and reports its completion. */
+  directOAuth: boolean
+}
+
+/**
+ * Connects the viewer's own account to a per-member connector. Desktop and
+ * direct OAuth settle when the connection completes. An ordinary knowledge
+ * base hands the viewer an invitation page in a new tab that reports nothing
+ * back, so its refresh waits for the viewer to return to this tab.
+ */
 export function useStartConnectorMemberEnrollment() {
   const queryClient = useQueryClient()
+  const pending = useRef<AbortController | null>(null)
+  useEffect(() => () => pending.current?.abort(), [])
+  const refresh = (knowledgeBaseId: string) =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: connectorKeys.lists(knowledgeBaseId) }),
+      queryClient.invalidateQueries({ queryKey: credentialGroupKeys.details() }),
+      queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() }),
+      queryClient.invalidateQueries({ queryKey: searchIntegrationKeys.lists() }),
+    ])
   return useMutation({
-    mutationFn: startConnectorMemberEnrollment,
-    onSuccess: () =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: credentialGroupKeys.details() }),
-        queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() }),
-        queryClient.invalidateQueries({ queryKey: searchIntegrationKeys.lists() }),
-      ]),
+    mutationFn: async ({
+      knowledgeBaseId,
+      connectorId,
+      directOAuth,
+    }: ConnectMemberAccountParams) => {
+      pending.current?.abort()
+      const controller = new AbortController()
+      pending.current = controller
+      const params = { id: knowledgeBaseId, connectorId }
+      const completionId = directOAuth ? generateId() : undefined
+      if (isDesktopApp()) {
+        await connectDesktopSource(
+          { kind: 'member-enrollment', params, completionId },
+          controller.signal
+        )
+        return true
+      }
+      if (completionId) {
+        await connectCredentialGroupInPopup(
+          completionId,
+          async (signal) => ({
+            invitationLink: (
+              await startConnectorMemberEnrollment({
+                knowledgeBaseId,
+                connectorId,
+                oauthCompletionId: completionId,
+                signal,
+              })
+            ).url,
+          }),
+          controller.signal
+        )
+        return true
+      }
+      const tab = window.open('about:blank', '_blank')
+      if (tab) tab.opener = null
+      try {
+        const { url } = await startConnectorMemberEnrollment({
+          knowledgeBaseId,
+          connectorId,
+          signal: controller.signal,
+        })
+        if (tab) tab.location.replace(url)
+        else window.location.assign(url)
+      } catch (error) {
+        tab?.close()
+        throw error
+      }
+      const refreshOnReturn = () => {
+        if (document.visibilityState !== 'visible') return
+        document.removeEventListener('visibilitychange', refreshOnReturn)
+        void refresh(knowledgeBaseId)
+      }
+      document.addEventListener('visibilitychange', refreshOnReturn)
+      return false
+    },
+    onSettled: (completed, _error, { knowledgeBaseId }) =>
+      completed === false ? undefined : refresh(knowledgeBaseId),
   })
 }
 
