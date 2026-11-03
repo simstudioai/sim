@@ -27,7 +27,6 @@ export {
   credentialTagHasVisibleCard,
   formatCredentialSubmissionMessage,
   isHttpUrl,
-  PlanUsageLimitDisplay,
   parseCredentialSubmissionMessage,
   parseCredentialSubmissionProgress,
   parseCredentialTagBody,

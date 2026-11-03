@@ -3,8 +3,8 @@
 import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 
 /**
- * Whether this workspace's payer may not use Chat, so the composer shows the upgrade card and
- * holds sends that run admission would refuse.
+ * Whether this workspace's payer may not use Chat, so sends that run admission would refuse are
+ * held and answered with the Chat plan modal instead.
  *
  * The verdict is the host context's `features.chat`, which the server resolves with the same
  * check admission runs. A surface without a workspace host (an organization conversation), or a
