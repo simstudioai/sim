@@ -18319,7 +18319,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/files/[fileId]',
     pathParams: ['fileId'] as const,
-    pathParamDocs: { fileId: 'File identifier.' },
+    pathParamDocs: {
+      fileId:
+        'File identifier, or the VFS path of a live file: `files/<folder>/<name>`. Pass the id when two files in a folder have names that display alike.',
+    },
     responseMode: 'binary',
     summary: 'Download file',
     query: {

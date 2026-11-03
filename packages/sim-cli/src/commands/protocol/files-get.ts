@@ -352,8 +352,10 @@ async function downloadToOutput<Operation extends DownloadOperation>(
   }
 
   const savedTarget = await saveToFile(response.body, target, Boolean(options.force))
+  // A VFS path names the file but is not its id, and the download response carries none.
+  const fileId = pathParams.fileId?.startsWith('files/') ? undefined : pathParams.fileId
   printProtocolResult(profile.output, {
-    ...(pathParams.fileId ? { id: pathParams.fileId } : {}),
+    ...(fileId ? { id: fileId } : {}),
     path: savedTarget,
     status: 'saved',
   })
@@ -429,7 +431,10 @@ export function attachProjectFileSnapshotExport(files: Command): void {
 export function attachFileGet(files: Command): void {
   const [command, connect] = apiCommand(files, 'get', ['downloadFile'])
   command
-    .argument('<fileId>', 'File whose content to read')
+    .argument(
+      '<fileId>',
+      'File whose content to read: its id, or its `files/<folder>/<name>` VFS path'
+    )
     .allowExcessArguments(false)
     .description('Download a file’s content to stdout or a local file')
     .option('-o, --output-file <path>', 'Write content to a file instead of stdout')

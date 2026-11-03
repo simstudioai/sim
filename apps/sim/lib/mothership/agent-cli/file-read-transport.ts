@@ -109,6 +109,7 @@ export function createFileReadTransport(context: {
             principal,
             input: {
               fileId: parsed.data.params.fileId,
+              acceptVfsPath: true,
               assertedWorkspaceId: parsed.data.query.workspaceId,
             },
           })
