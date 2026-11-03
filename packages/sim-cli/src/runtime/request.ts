@@ -285,13 +285,18 @@ export async function readArgumentSource(
  * ids, or the value itself. See {@link FlagSpec.fileReferences} for why neither reading can
  * misread a single id or path.
  */
-function fileReferenceEntries(value: string): string[] {
+function fileReferenceEntries(value: string, flagName: string): string[] {
   const entries = value.startsWith('[')
     ? jsonStringArray(value)
     : value.includes(',') && !value.includes('/')
       ? value.split(',')
       : undefined
-  return entries ? entries.map((entry) => entry.trim()).filter(Boolean) : [value]
+  if (!entries) return [value]
+  const trimmed = entries.map((entry) => entry.trim())
+  if (trimmed.some((entry) => !entry)) {
+    throw new SimApiError(`--${flagName} values cannot be empty: ${value}`, 0)
+  }
+  return trimmed
 }
 
 function jsonStringArray(value: string): string[] | undefined {
@@ -473,9 +478,11 @@ export async function coerce(
    */
   if (flag.list) {
     const listed = await readListValues(raw, flagName, flag.manifest === true)
-    const values = (flag.fileReferences ? listed.flatMap(fileReferenceEntries) : listed).map(
-      (value) => (flag.folderPath ? encodeFolderPath(value) : value)
-    )
+    const values = (
+      flag.fileReferences
+        ? listed.flatMap((value) => fileReferenceEntries(value, flagName))
+        : listed
+    ).map((value) => (flag.folderPath ? encodeFolderPath(value) : value))
     // Encoding first is also what keeps the comma-joined form unambiguous: a
     // folder name containing a comma leaves here as `%2C`, so the route's split
     // cannot cut one path in half.

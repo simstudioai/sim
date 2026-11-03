@@ -40,6 +40,15 @@ describe('files batch-delete reads the references a caller writes', () => {
     expect(await sentFileIds(['wf_a,wf_b'])).toEqual([['wf_a', 'wf_b']])
   })
 
+  it('refuses a JSON array or comma-joined run with an empty entry, before any request', async () => {
+    for (const value of ['["wf_a",""]', 'wf_a,,wf_b', 'wf_a,']) {
+      const result = await run(['files', 'batch-delete', '--ids', value, '--yes'])
+      expect(result.exitCode).toBe(1)
+      expect(result.stderr).toContain('--file-ids values cannot be empty')
+      expect(result.bodies).toEqual([])
+    }
+  })
+
   it('keeps a comma inside a path, so one file is never read as two', async () => {
     expect(await sentFileIds(['--paths', 'files/qc/a,b.png', 'files/c.png'])).toEqual([
       ['files/qc/a,b.png', 'files/c.png'],
