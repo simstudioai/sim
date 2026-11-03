@@ -739,7 +739,7 @@
                           "notes": []
                         },
                         "warnings": [
-                          "Workflow lint found issues. Fix these before continuing: Blocks missing required fields: \"Triage\" (systemPrompt)"
+                          "Workflow lint found issues (Blocks missing required fields: 1). The findings are in `lint`."
                         ],
                         "needsRedeployment": true,
                         "dryRun": false
@@ -8885,7 +8885,7 @@
                 "type": "null"
               }
             ],
-            "description": "Why a manual run from the editor's Run button would be refused before it starts: no enabled trigger it can start from, more than one API trigger, or a selected trigger with no outgoing connection. `null` when no manual-run issue is reported: the run can begin, only a chat trigger can start the workflow, or the graph is empty (reported in `notes` instead)."
+            "description": "Why a manual run from the editor's Run button would be refused before it starts: no enabled trigger it can start from, more than one API trigger, or a selected trigger with no outgoing connection. The API run endpoints do not apply these checks. `null` when no manual-run issue is reported: the run can begin, only a chat trigger can start the workflow, or the graph is empty (reported in `notes` instead)."
           },
           "notes": {
             "type": "array",
@@ -9537,7 +9537,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Non-fatal notes about blocks and edges that were normalized or dropped before persistence and, when `lint` has findings, one summary of them, so the findings are not lost to a caller that reads only `warnings`. Empty when there is nothing to report."
+            "description": "Non-fatal notes about blocks and edges that were normalized or dropped before persistence and, when `lint` has findings, one line counting them by category, so a caller that reads only `warnings` still learns they exist. The findings themselves are in `lint`. Empty when there is nothing to report."
           },
           "needsRedeployment": {
             "type": "boolean",
@@ -9673,7 +9673,7 @@
                 "notes": []
               },
               "warnings": [
-                "Workflow lint found issues. Fix these before continuing: Blocks missing required fields: \"Triage\" (systemPrompt)"
+                "Workflow lint found issues (Blocks missing required fields: 1). The findings are in `lint`."
               ],
               "needsRedeployment": true,
               "dryRun": false

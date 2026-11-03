@@ -6,8 +6,10 @@ import {
   collectTableBlockFieldIssues,
   collectWorkflowFieldIssues,
   collectWorkflowTableIds,
+  formatWorkflowLintMessage,
   hasWorkflowLintIssues,
   lintEditedWorkflowState,
+  summarizeWorkflowLintIssues,
 } from './lint'
 
 const mockGetToolParams = getToolParams as Mock
@@ -533,5 +535,56 @@ describe('collectWorkflowTableIds', () => {
     })
 
     expect(ids).toEqual(['tbl_1'])
+  })
+})
+
+/**
+ * The agent's own runs name their trigger and skip the Run button's checks, so
+ * a Run-button refusal told under "Fix these before continuing" pushed agents
+ * to wire a stray Start into the graph instead of removing it.
+ */
+describe('formatWorkflowLintMessage', () => {
+  const clean = {
+    sources: [],
+    sinks: [],
+    orphanBlocks: [],
+    emptyOutgoingPorts: [],
+    invalidBranchPorts: [],
+    invalidConnectionTargets: [],
+  }
+  const strayStart = {
+    reason: 'trigger-not-connected' as const,
+    message: 'Start must be connected to other blocks to execute',
+    blockId: 'start-1',
+    blockName: 'Start',
+    blockType: 'start_trigger',
+  }
+
+  it('reports a Run-button refusal as advice outside the blocking findings, naming both remedies', () => {
+    const message = formatWorkflowLintMessage({ ...clean, manualRunIssue: strayStart })
+    expect(message).not.toContain('Fix these before continuing')
+    expect(message).toBe(
+      'The editor\'s Run button would fail: Start must be connected to other blocks to execute. Run starts from "Start" (start_trigger) ahead of any other trigger: connect it, or delete it if the workflow starts from another trigger. Runs that name their trigger are not affected.'
+    )
+  })
+
+  it('points at a Run-button refusal alone without calling it a lint issue', () => {
+    expect(summarizeWorkflowLintIssues({ ...clean, manualRunIssue: strayStart })).toBe(
+      "The editor's Run button would fail. The findings are in `lint`."
+    )
+  })
+
+  it('keeps blocking findings first and the Run-button advice after them', () => {
+    const message = formatWorkflowLintMessage({
+      ...clean,
+      orphanBlocks: [{ blockId: 'fn', blockName: 'Fn', blockType: 'function' }],
+      manualRunIssue: {
+        reason: 'multiple-api-triggers',
+        message: 'Multiple API Trigger blocks found. Keep only one.',
+      },
+    })
+    expect(message).toBe(
+      'Workflow lint found issues. Fix these before continuing: Blocks with no incoming edge: "Fn" (function). The editor\'s Run button would fail: Multiple API Trigger blocks found. Keep only one.'
+    )
   })
 })

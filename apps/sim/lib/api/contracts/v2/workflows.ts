@@ -454,7 +454,7 @@ const v2WorkflowLintSchema = z
       })
       .nullable()
       .describe(
-        "Why a manual run from the editor's Run button would be refused before it starts: no enabled trigger it can start from, more than one API trigger, or a selected trigger with no outgoing connection. `null` when no manual-run issue is reported: the run can begin, only a chat trigger can start the workflow, or the graph is empty (reported in `notes` instead)."
+        "Why a manual run from the editor's Run button would be refused before it starts: no enabled trigger it can start from, more than one API trigger, or a selected trigger with no outgoing connection. The API run endpoints do not apply these checks. `null` when no manual-run issue is reported: the run can begin, only a chat trigger can start the workflow, or the graph is empty (reported in `notes` instead)."
       ),
     notes: z.array(z.string()).describe('Advisory notes about the report itself.'),
   })
@@ -3646,7 +3646,7 @@ export const v2ApplyWorkflowOperationsDataSchema = v2WorkflowGraphWriteResultSch
     warnings: z
       .array(z.string())
       .describe(
-        'Non-fatal notes about blocks and edges that were normalized or dropped before persistence and, when `lint` has findings, one summary of them, so the findings are not lost to a caller that reads only `warnings`. Empty when there is nothing to report.'
+        'Non-fatal notes about blocks and edges that were normalized or dropped before persistence and, when `lint` has findings, one line counting them by category, so a caller that reads only `warnings` still learns they exist. The findings themselves are in `lint`. Empty when there is nothing to report.'
       ),
     dryRun: z
       .boolean()

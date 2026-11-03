@@ -269,9 +269,12 @@ describe('applyWorkflowOperations', () => {
    * An agent piping the apply response through a projection of `warnings`
    * never saw lint findings, which lived only under `lint`.
    */
-  it('summarizes lint findings in warnings, on commit and on dry run', async () => {
+  it('points at lint findings from warnings, on commit and on dry run', async () => {
     const orphan = { blockId: 'block-1', blockName: 'Start', blockType: 'starter' }
-    mocks.lintGraph.mockReturnValue({ ...EMPTY_GRAPH_LINT, orphanBlocks: [orphan] })
+    mocks.lintGraph.mockReturnValue({
+      ...EMPTY_GRAPH_LINT,
+      orphanBlocks: [orphan, { ...orphan, blockId: 'block-2', blockName: 'Fn' }],
+    })
 
     for (const dryRun of [false, true]) {
       const result = await applyWorkflowOperations.execute({
@@ -279,7 +282,7 @@ describe('applyWorkflowOperations', () => {
         input: { workflowId: 'workflow-1', operations, dryRun },
       })
       expect(result.warnings).toEqual([
-        'Workflow lint found issues. Fix these before continuing: Blocks with no incoming edge: "Start" (starter)',
+        'Workflow lint found issues (Blocks with no incoming edge: 2). The findings are in `lint`.',
       ])
     }
   })
