@@ -346,6 +346,7 @@ export const env = createEnv({
     TRIGGER_PROJECT_ID:                    z.string().optional(),                  // Trigger.dev project ID
     TRIGGER_SECRET_KEY:                    z.string().min(1).optional(),           // Trigger.dev secret key for background jobs
     TRIGGER_DEV_ENABLED:                   z.boolean().optional(),                 // Toggle to enable/disable Trigger.dev for async jobs
+    TRIGGER_ENV_SYNC_TARGETS:              z.string().optional(),                  // Deploy-time only: comma-separated Trigger.dev environments (prod,staging,preview) synced from the app's env-vars secret
     CRON_SECRET:                           z.string().optional(),                  // Secret for authenticating cron job requests
     SCHEDULE_EXECUTION_CONCURRENCY_LIMIT:  z.string().optional().default('30'),
     WORKFLOW_EXECUTION_CONCURRENCY_LIMIT:  z.string().optional().default('75'),

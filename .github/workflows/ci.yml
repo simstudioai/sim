@@ -249,6 +249,9 @@ jobs:
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     runs-on: &runner-4vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
     outputs:
       version: ${{ steps.deploy.outputs.deploymentVersion }}
       environment: ${{ steps.target.outputs.environment }}
@@ -274,6 +277,15 @@ jobs:
           echo "environment=$TRIGGER_ENV" >> "$GITHUB_OUTPUT"
           echo "preview_branch=$TRIGGER_BRANCH" >> "$GITHUB_OUTPUT"
 
+      # The deploy syncs an environment listed in `vars.TRIGGER_ENV_SYNC_TARGETS` from the app's
+      # env-vars secret (see `@sim/runtime-secrets/trigger-env`), which needs read access to that secret.
+      - name: Configure AWS credentials for the env sync
+        if: contains(format(',{0},', vars.TRIGGER_ENV_SYNC_TARGETS), format(',{0},', steps.target.outputs.environment))
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6
+        with:
+          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
+
       - name: Upload Trigger.dev version without promotion
         id: deploy
         working-directory: ./apps/sim
@@ -282,6 +294,7 @@ jobs:
           TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
           TRIGGER_ENV: ${{ steps.target.outputs.environment }}
           TRIGGER_BRANCH: ${{ steps.target.outputs.preview_branch }}
+          TRIGGER_ENV_SYNC_TARGETS: ${{ vars.TRIGGER_ENV_SYNC_TARGETS }}
         run: |
           set -eo pipefail
           if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
