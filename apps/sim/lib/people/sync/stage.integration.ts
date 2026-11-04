@@ -99,12 +99,12 @@ it('refuses cyclic components, including cycles outside otherwise publishable tr
   await expect(db.transaction(publish)).rejects.toThrow(/loop|cycle/i)
   expect((await published()).map((p) => p.externalId)).toEqual(['root'])
 })
-it('resumes relationship pages from stored continuations and refuses incomplete or contradictory Graph data', async () => {
+it('resumes relationship pages from stored continuations, refuses incomplete Graph data, and keeps the latest manager read', async () => {
   await db
     .update(peopleDirectorySync)
     .set({ source: 'entra' })
     .where(eq(peopleDirectorySync.organizationId, run.organizationId))
-  await writeUsers(null, [person('lead'), person('worker'), person('other')])
+  await writeUsers(null, [person('lead'), person('worker'), person('other'), person('peer')])
   await expect(db.transaction((tx) => publishStagedSnapshot(tx, run, 'entra'))).rejects.toThrow(
     /relationship|report/i
   )
@@ -123,12 +123,18 @@ it('resumes relationship pages from stored continuations and refuses incomplete 
     cursor: 'continuation',
   })
   await record('lead', 'continuation', ['worker'], null)
-  await expect(record('other', null, ['worker'], null)).rejects.toThrow(/manager/i)
-  await record('other', null, [], null)
-  await record('worker', null, [], null)
+  await record('other', null, ['worker'], null)
+  await db.transaction((tx) =>
+    stageRelationships(tx, run, [
+      { managerId: 'worker', cursor: null, reportIds: ['other'], nextCursor: null },
+      { managerId: 'peer', cursor: null, reportIds: ['other'], nextCursor: null },
+    ])
+  )
   expect(await pendingManagers(db, run)).toEqual([])
   await db.transaction((tx) => publishStagedSnapshot(tx, run, 'entra'))
-  expect((await published()).find((r) => r.externalId === 'worker')?.managerExternalId).toBe('lead')
+  const managers = new Map((await published()).map((r) => [r.externalId, r.managerExternalId]))
+  expect(managers.get('worker')).toBe('other')
+  expect(managers.get('other')).toBe('peer')
 })
 it('refuses to publish a replaced generation', async () => {
   await writeUsers(null, [person('live')])

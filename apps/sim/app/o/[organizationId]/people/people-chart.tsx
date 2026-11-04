@@ -102,7 +102,10 @@ export function PeopleChart({ organizationId, viewSwitch, onImport, onSync }: Pe
   const { focus, page } = origin
   const size = useIsMobile() ? 1 : 4
   const chart = usePeopleChart(organizationId, focus, Math.max(1, Math.min(page, 1_000_000)), size)
-  const branch = chart.isError ? undefined : chart.data
+  const notFound = isApiClientError(chart.error) && chart.error.status === 404
+  const refused = isApiClientError(chart.error) && chart.error.status < 500
+  // A transient refresh failure keeps the chart on screen; a refusal replaces it.
+  const branch = refused ? undefined : chart.data
   const profileQuery = serializePeopleView({
     ...origin,
     view: 'chart',
@@ -264,7 +267,7 @@ export function PeopleChart({ organizationId, viewSwitch, onImport, onSync }: Pe
           </div>
         </>
       ) : chart.error ? (
-        isApiClientError(chart.error) && chart.error.status === 404 ? (
+        notFound ? (
           <EmptyState
             title='Person unavailable'
             description='This person is no longer in your organization’s directory.'

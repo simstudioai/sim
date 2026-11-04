@@ -167,7 +167,7 @@ function OrganizationSearchContent({ userId, chatId }: OrganizationSearchProps) 
   const { recordQuery } = useSearchHistoryActions()
   const router = useRouter()
   const pathname = usePathname()
-  const hasSearchParams = useSearchParams().size > 0
+  const hasSearchParams = useSearchParams().toString() !== ''
   const routes = organizationRoutes(organization.id)
   const hasConversation = Boolean(chatId) || pathname.startsWith(`${routes.search}/chat/`)
   const queryClient = useQueryClient()

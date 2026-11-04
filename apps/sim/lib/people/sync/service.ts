@@ -10,7 +10,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { oktaDirectoryHost } from '@/lib/people/provider-import'
 import { lockProfiles } from '@/lib/people/repository'
-import { CLEARED_RUN, runDirectorySync } from '@/lib/people/sync/runner'
+import { CLEARED_RUN, RELEASED, runDirectorySync } from '@/lib/people/sync/runner'
 import { pendingScimChange } from '@/lib/people/sync/scim-changes'
 import { discardStage } from '@/lib/people/sync/stage'
 import { isScimEntitledForOrganization } from '@/ee/scim/lib/entitlement'
@@ -132,10 +132,9 @@ export async function configureDirectorySync(
       existing && existing.retryCount > 0 && existing.nextSyncAt.getTime() > Date.now()
     const values = {
       ...CLEARED_RUN,
+      ...RELEASED,
       ...stored,
       configuredBy: actorUserId,
-      leaseToken: null,
-      leaseExpiresAt: null,
       nextSyncAt: coolingDown ? existing.nextSyncAt : new Date(),
       retryCount: coolingDown ? existing.retryCount : 0,
       lastError: coolingDown ? existing.lastError : null,

@@ -14,8 +14,8 @@ type RetrievalCitationSource = {
   snippet?: string
 }
 
-/** Tools whose successful results supply sources: connected-source retrieval and public web research. */
 const WEB_TOOLS = new Set(['web_search', 'web_fetch'])
+/** Tools whose successful results supply sources: connected-source retrieval and public web research. */
 const CITATION_TOOLS = new Set(['search_workspace', 'read_document', ...WEB_TOOLS])
 
 /** Whether a successful result of this tool may supply source destinations. */
@@ -80,7 +80,9 @@ export function collectRetrievalCitationEvidence(blocks: readonly RetrievalCitat
         continue
       try {
         const url = new URL(result.citationUrl)
+        // A web page can steer a fetched URL, so `https://trusted.example@other.example` never cites.
         if (url.protocol !== 'https:' && url.protocol !== 'http:') continue
+        if (url.username || url.password) continue
       } catch {
         continue
       }
