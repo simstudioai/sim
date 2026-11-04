@@ -63,8 +63,11 @@ export function buildDirectVideoRequest(input: VideoGenerationInput) {
       `${model.label} does not support camera controls; describe camera motion in the prompt`
     )
 
-  const concepts =
-    typeof input.cameraControl === 'string' ? [{ key: input.cameraControl }] : input.cameraControl
+  const concepts = input.cameraControl
+    ? typeof input.cameraControl === 'string'
+      ? [{ key: input.cameraControl }]
+      : input.cameraControl
+    : undefined
   if (
     concepts !== undefined &&
     (!Array.isArray(concepts) ||

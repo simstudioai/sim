@@ -46,6 +46,7 @@ export const directVideoModels: readonly DirectVideoModel[] = [
     label: 'Ray 3.2',
     protocol: 'luma',
     text: {
+      maxPromptLength: 6000,
       durations: [5, 10],
       aspectRatios: ratios,
       resolutions: ['360p', '540p', '720p', '1080p'],
@@ -73,6 +74,7 @@ export const directVideoModels: readonly DirectVideoModel[] = [
       label: id.replace('MiniMax-', 'MiniMax '),
       protocol: 'minimax-v2',
       text: {
+        maxPromptLength: 7000,
         durations: range(id === 'MiniMax-H3-Max' ? 5 : 4, 15),
         aspectRatios: ratios,
         resolutions: id === 'MiniMax-H3' ? ['768P', '2K'] : ['480P', '768P'],
