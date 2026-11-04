@@ -29,6 +29,7 @@ import {
   FILE_SEARCH_BACKFILL_PAGE_SIZE,
   FILE_SEARCH_DISPATCH_HANDOFF_MS,
   FILE_SEARCH_INDEX_DISPATCH_WORKSPACES,
+  FILE_SEARCH_INDEX_MAX_OUTSTANDING,
   FILE_SEARCH_INDEX_STALE_DISPATCH_MS,
   FILE_SEARCH_RECONCILE_INTERVAL_MS,
 } from '@/lib/workspace-files/search/constants'
@@ -378,6 +379,84 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       await connection`SELECT count(*)::int AS active FROM workspace_file_search_revision
       WHERE status = 'pending' AND dispatched_at IS NOT NULL`
     expect(row.active).toBe(100)
+  })
+
+  /** Live files with ready revisions: owners a backfill page wakes with nothing to claim. */
+  async function seedIndexedOwners(prefix: string, count: number) {
+    await connection`INSERT INTO workspace_files (id, workspace_id, context, content_updated_at)
+      SELECT ${prefix} || lpad(n::text, 4, '0') || '-file', ${prefix} || lpad(n::text, 4, '0'),
+        'workspace', '2026-09-16'
+      FROM generate_series(1, ${count}) n`
+    await connection`INSERT INTO workspace_file_search_revision
+      (file_id, workspace_id, entity_type, entity_id, source_content_updated_at, status, updated_at)
+      SELECT id, workspace_id, 'workspace', workspace_id, content_updated_at, 'ready', '2026-09-16'
+      FROM workspace_files WHERE id LIKE ${`${prefix}%`}`
+  }
+
+  /**
+   * Writes a file through the real `workspace_file_search_mark_pending` trigger, attached only for
+   * this insert so the other fixtures keep seeding revisions and queue rows directly.
+   */
+  async function writeFile(workspaceId: string) {
+    await connection.begin(async (tx) => {
+      await tx`CREATE TRIGGER write_marks_pending
+        AFTER INSERT OR UPDATE OF content_updated_at, deleted_at, context, workspace_id
+        ON workspace_files FOR EACH ROW EXECUTE FUNCTION workspace_file_search_mark_pending()`
+      await tx`INSERT INTO workspace_files (id, workspace_id, context, content_updated_at)
+        VALUES (${`${workspaceId}-written`}, ${workspaceId}, 'workspace', '2026-09-16')`
+      await tx`DROP TRIGGER write_marks_pending ON workspace_files`
+    })
+  }
+
+  it('serves an owner woken by a file write ahead of a backfill page of reconciliation wake-ups', async () => {
+    const wakeUps = FILE_SEARCH_INDEX_DISPATCH_WORKSPACES * 2 + 50
+    await seedIndexedOwners('reconciled-', wakeUps)
+    const first = await prepareWorkspaceFileSearchDispatch()
+    expect(first.backfilledFiles).toBe(wakeUps)
+    expect(first.payloads).toEqual([])
+
+    await writeFile('written-workspace')
+    const next = await prepareWorkspaceFileSearchDispatch()
+    expect(next.payloads.map((payload) => payload.fileId)).toEqual(['written-workspace-written'])
+  })
+
+  it('serves a fresh write before work the backfill found, then the backfill work', async () => {
+    await seedQueue('workspace-active', 0, FILE_SEARCH_INDEX_MAX_OUTSTANDING)
+    await connection`DELETE FROM file_search_dispatch_queue WHERE entity_id = 'workspace-active'`
+    await connection`UPDATE workspace_file_search_backfill SET completed_at = NULL`
+    await connection`INSERT INTO workspace_files (id, workspace_id, context, content_updated_at)
+      VALUES ('backfill-found-file', 'backfill-found', 'workspace', '2026-09-16')`
+    /** No capacity: the page seeds and queues the unindexed file's owner but claims nothing. */
+    const seeded = await prepareWorkspaceFileSearchDispatch()
+    expect(seeded.backfilledFiles).toBeGreaterThan(0)
+    expect(seeded.payloads).toEqual([])
+
+    await writeFile('fresh-write')
+    const served: string[] = []
+    for (let pass = 0; pass < 2; pass++) {
+      /** Free exactly one slot, so each pass claims for one owner. */
+      await connection`UPDATE workspace_file_search_revision SET status = 'ready'
+        WHERE file_id = (SELECT file_id FROM workspace_file_search_revision
+          WHERE status = 'pending' AND dispatched_at IS NOT NULL ORDER BY file_id LIMIT 1)`
+      const result = await prepareWorkspaceFileSearchDispatch()
+      served.push(...result.payloads.map((payload) => payload.fileId))
+    }
+    expect(served).toEqual(['fresh-write-written', 'backfill-found-file'])
+  })
+
+  it('leaves an owner queued by a file write at the front when a backfill page passes it', async () => {
+    await seedQueue('workspace-active', 0, FILE_SEARCH_INDEX_MAX_OUTSTANDING - 1)
+    await connection`DELETE FROM file_search_dispatch_queue WHERE entity_id = 'workspace-active'`
+    /** Queued first and served an hour ago: it wins the single slot only if the write is demoted. */
+    await seedQueue('earlier-served', 1)
+    await connection`UPDATE file_search_dispatch_queue
+      SET last_dispatched_at = now() - interval '1 hour' WHERE entity_id = 'earlier-served'`
+    await writeFile('written-workspace')
+    await connection`UPDATE workspace_file_search_backfill SET completed_at = NULL`
+
+    const result = await prepareWorkspaceFileSearchDispatch()
+    expect(result.backfilledFiles).toBeGreaterThan(0)
+    expect(result.payloads.map((payload) => payload.fileId)).toEqual(['written-workspace-written'])
   })
 
   it('walks every live workspace file exactly once across backfill pages', async () => {
