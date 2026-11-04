@@ -80,39 +80,37 @@ function SourceActions({ source, onSummarize }: SourceActionsProps) {
   const simLinkOrganizationId = useSimLinkOrganizationId()
   const openSimLinkForm = useOpenSimLinkForm()
   return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Chip
-            leftIcon={copied ? Check : MoreHorizontal}
-            aria-label={copied ? 'Link copied' : `Actions for ${sourceLabel(source)}`}
-          />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align='end'>
-          {onSummarize && (
-            <DropdownMenuItem onSelect={() => onSummarize(source)}>
-              <Sparkles className='size-[14px]' />
-              Summarize
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem
-            onSelect={async () => {
-              if (!(await copy(source.url))) toast.error('Unable to copy link')
-            }}
-          >
-            <LinkIcon className='size-[14px]' />
-            Copy link
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Chip
+          leftIcon={copied ? Check : MoreHorizontal}
+          aria-label={copied ? 'Link copied' : `Actions for ${sourceLabel(source)}`}
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end'>
+        {onSummarize && (
+          <DropdownMenuItem onSelect={() => onSummarize(source)}>
+            <Sparkles className='size-[14px]' />
+            Summarize
           </DropdownMenuItem>
-          {simLinkOrganizationId && (
-            <SimLinkMenuItem
-              organizationId={simLinkOrganizationId}
-              url={source.url}
-              onCreate={() => openSimLinkForm(source.url, sourceLabel(source))}
-            />
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </>
+        )}
+        <DropdownMenuItem
+          onSelect={async () => {
+            if (!(await copy(source.url))) toast.error('Unable to copy link')
+          }}
+        >
+          <LinkIcon className='size-[14px]' />
+          Copy link
+        </DropdownMenuItem>
+        {simLinkOrganizationId && (
+          <SimLinkMenuItem
+            organizationId={simLinkOrganizationId}
+            url={source.url}
+            onCreate={() => openSimLinkForm(source.url, sourceLabel(source))}
+          />
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
