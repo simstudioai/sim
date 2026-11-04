@@ -1,10 +1,11 @@
+import { directVideoDefaults } from '@/lib/media/direct-video-catalog'
 import type { InternalToolConfig } from '@/tools/types'
 import type { VideoParams, VideoResponse } from '@/tools/video/types'
 
 export const runwayVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
   id: 'video_runway',
-  name: 'Runway Gen-4 Video',
-  description: 'Generate videos using Runway Gen-4 with world consistency and visual references',
+  name: 'Runway Video',
+  description: 'Generate videos using Runway models with optional visual references',
   version: '1.0.0',
 
   params: {
@@ -24,7 +25,7 @@ export const runwayVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Runway model: gen-4 (default, higher quality) or gen-4-turbo (faster)',
+      description: 'Runway model ID, such as gen4.5, gen4_turbo, kling3.0_pro, or seedance2_5',
     },
     prompt: {
       type: 'string',
@@ -36,26 +37,33 @@ export const runwayVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Video duration in seconds (5 or 10, default: 5)',
+      description: 'Video duration in seconds, within the selected model limits',
     },
     aspectRatio: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Aspect ratio: 16:9 (landscape), 9:16 (portrait), or 1:1 (square)',
+      description:
+        'Native frame size or aspect ratio supported by the selected model, such as 1280:720',
     },
     resolution: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Video resolution (720p output). Note: Gen-4 Turbo outputs at 720p natively',
+      description:
+        'Separate resolution setting when supported; most Runway models encode resolution in aspectRatio',
+    },
+    generateAudio: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Generate audio when supported by the selected model',
     },
     visualReference: {
       type: 'file',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description:
-        'Reference image REQUIRED for Gen-4 (UserFile object). Gen-4 only supports image-to-video, not text-only generation',
+      description: 'Reference image (UserFile); required for gen4_turbo, optional for other models',
     },
   },
 
@@ -67,12 +75,13 @@ export const runwayVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
     input: (params) => ({
       provider: 'runway',
       apiKey: params.apiKey,
-      model: 'gen-4-turbo',
+      model: params.model || directVideoDefaults.runway,
       prompt: params.prompt,
-      duration: params.duration || 5,
-      aspectRatio: params.aspectRatio || '16:9',
-      resolution: params.resolution || '720p',
+      duration: params.duration,
+      aspectRatio: params.aspectRatio,
+      resolution: params.resolution,
       visualReference: params.visualReference,
+      generateAudio: params.generateAudio,
     }),
   },
 

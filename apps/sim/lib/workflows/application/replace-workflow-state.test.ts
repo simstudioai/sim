@@ -55,6 +55,7 @@ import { validateInputsForBlock } from '@/lib/workflows/editing/validation'
 import { AgentBlock } from '@/blocks/blocks/agent'
 import { ExaBlock } from '@/blocks/blocks/exa'
 import { ImageGeneratorV2Block } from '@/blocks/blocks/image_generator'
+import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import { getBlock } from '@/blocks/registry'
 
 const mockNeedsRedeployment = workflowDeploymentStatusMockFns.mockCheckNeedsRedeployment
@@ -94,13 +95,15 @@ const input = { workflowId: 'workflow-1', blocks: { 'block-1': BLOCK }, edges: [
 describe('replaceWorkflowState', () => {
   beforeEach(() => {
     vi.mocked(getBlock).mockImplementation((type) =>
-      type === 'image_generator_v2'
-        ? ImageGeneratorV2Block
-        : type === 'exa'
-          ? ExaBlock
-          : type === 'agent'
-            ? AgentBlock
-            : defaultGetBlock?.(type)
+      type === 'video_generator_v3'
+        ? VideoGeneratorV3Block
+        : type === 'image_generator_v2'
+          ? ImageGeneratorV2Block
+          : type === 'exa'
+            ? ExaBlock
+            : type === 'agent'
+              ? AgentBlock
+              : defaultGetBlock?.(type)
     )
     mockResolveContext.mockResolvedValue(context)
     mockResolvePermission.mockResolvedValue('write')
@@ -140,6 +143,29 @@ describe('replaceWorkflowState', () => {
     const block = {
       ...BLOCK,
       type: 'image_generator_v2',
+      subBlocks: Object.fromEntries(
+        Object.entries(settings).map(([id, value]) => [
+          id,
+          { id, type: 'dropdown' as const, value },
+        ])
+      ),
+    }
+    await expect(
+      replaceWorkflowState.execute({
+        principal: sessionPrincipal,
+        input: { ...input, blocks: { 'block-1': block } },
+      })
+    ).resolves.toMatchObject({ workflowId: 'workflow-1' })
+  })
+
+  it.each([
+    { provider: 'runway', model: 'gen4.5', duration: '5', aspectRatio: '1280:720' },
+    { provider: 'minimax', model: 'MiniMax-H3', resolution: '2K', duration: '7' },
+    { provider: 'falai', model: 'fal-ai/kandinsky5/text-to-video', falDuration: '5' },
+  ])('saves configured $provider video workflows through the state API', async (settings) => {
+    const block = {
+      ...BLOCK,
+      type: 'video_generator_v3',
       subBlocks: Object.fromEntries(
         Object.entries(settings).map(([id, value]) => [
           id,

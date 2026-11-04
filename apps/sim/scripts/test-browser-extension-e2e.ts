@@ -1546,15 +1546,24 @@ try {
         if (enabled) await expect(globe).toHaveText('Current page')
         else await expect(globe).not.toHaveText('Current page')
       }
-      try {
+      const openScenario = async (target: string) => {
+        // A rejected send can recover from this tab's session after navigation.
+        await shell.close()
+        panel = await openPanel()
+        shell = panel
         await setPanelViewport(320, 844)
+        await shell.goto(`chrome-extension://${extensionId}/sidepanel.html`)
+        await observeCaptureReceipts()
+        await navigate(base.origin + target)
+        await setReference(true)
+      }
+      try {
         for (const org of [false, true]) {
           const target = org ? `/extension/o/${organizationId}` : `/extension/${alphaId}`
           const input = () =>
             frame().getByRole('textbox', { name: org ? 'Ask Sim' : 'Message', exact: true })
-          await navigate(base.origin + target)
+          await openScenario(target)
           await expect(input()).toBeVisible()
-          await setReference(true)
           await input().fill('Summarize the current page')
           const submit = frame().getByRole('button', {
             name: org ? 'Send' : 'Send message',
@@ -1575,7 +1584,7 @@ try {
             org ? organizationId : alphaId
           )
 
-          await navigate(base.origin + target)
+          await openScenario(target)
           await expect(input()).toBeVisible()
           await capture()
           await second.bringToFront()
@@ -1587,7 +1596,7 @@ try {
           assert.equal(manual.length, 1)
           assert(manual[0].text.includes('ORCHID-482') && !manual[0].text.includes('JADE-231'))
 
-          await navigate(base.origin + target)
+          await openScenario(target)
           await expect(input()).toBeVisible()
           await restricted.bringToFront()
           const draft = 'Keep this draft if access is unavailable'

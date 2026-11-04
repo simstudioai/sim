@@ -3,9 +3,17 @@ import {
   executionLimitsMock,
   executionLimitsMockFns,
 } from '@sim/testing/mocks/execution-limits.mock'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/lib/uploads', () => uploadsMock)
 vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { generateVideo } from '@/lib/internal/video/client'
 import { executeVideoOperation } from '@/lib/internal/video/operations'
@@ -14,38 +22,85 @@ import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
 executionLimitsMockFns.mockGetMaxExecutionTimeout.mockReturnValue(5000)
 
 describe('Video provider client', () => {
-  beforeEach(() => vi.useFakeTimers())
+  beforeEach(() => {
+    vi.useFakeTimers()
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.1',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response(Buffer.from('video'))
+    )
+  })
 
   afterEach(() => {
     vi.useRealTimers()
   })
 
   it.each([
-    {
-      provider: 'veo' as const,
-      responses: [
-        jsonResponse({ name: 'operations/veo-1' }),
-        jsonResponse({
-          done: true,
-          response: {
-            generateVideoResponse: {
-              generatedSamples: [{ video: { uri: 'https://cdn.example/veo.mp4' } }],
-            },
-          },
-        }),
-        new Response(Buffer.from('video')),
-      ],
-      submitUrl:
-        'https://generativelanguage.googleapis.com/v1beta/models/veo-3.0-generate-001:predictLongRunning',
-    },
+    { provider: 'runway' as const, model: 'gen4.5', limit: 1000 },
+    { provider: 'runway' as const, model: 'klingO3_4k', limit: 2500 },
+    { provider: 'runway' as const, model: 'kling_4', limit: 26000 },
+    { provider: 'luma' as const, model: 'ray-3.2', limit: 6000 },
+    { provider: 'minimax' as const, model: 'MiniMax-H3', limit: 7000 },
+  ])(
+    'accepts the published prompt limit for $model and rejects overflow before submission',
+    async ({ provider, model, limit }) => {
+      const mockFetch = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(jsonResponse({ id: 'job' }))
+        .mockResolvedValueOnce(
+          jsonResponse(
+            provider === 'luma'
+              ? {
+                  state: 'completed',
+                  output: [{ type: 'video', url: 'data:video/mp4;base64,dmlkZW8=' }],
+                }
+              : provider === 'minimax'
+                ? {
+                    task: {
+                      status: 'succeeded',
+                      content: { url: 'data:video/mp4;base64,dmlkZW8=' },
+                    },
+                  }
+                : { status: 'SUCCEEDED', output: ['data:video/mp4;base64,dmlkZW8='] }
+          )
+        )
+      vi.stubGlobal('fetch', mockFetch)
+      storageServiceMockFns.mockUploadFile.mockResolvedValue({
+        path: '/api/files/video.mp4',
+        size: 5,
+      })
+      const input = { provider, model, apiKey: 'key', prompt: 'a'.repeat(limit) }
+      const context = { requestId: 'prompt-boundary', userId: 'user', headers: new Headers() }
+      const completion = expect(executeVideoOperation(input, context)).resolves.toMatchObject({
+        model,
+      })
+      await Promise.all([completion, vi.advanceTimersByTimeAsync(5000)])
+      expect(JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body))).toMatchObject(
+        provider === 'runway'
+          ? { promptText: input.prompt }
+          : provider === 'luma'
+            ? { prompt: input.prompt }
+            : { content: [{ type: 'text', text: input.prompt }] }
+      )
+
+      mockFetch.mockClear()
+      await expect(
+        executeVideoOperation({ ...input, prompt: `${input.prompt}a` }, context)
+      ).rejects.toThrow(`Prompt must be between 3 and ${limit} characters`)
+      expect(mockFetch).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
     {
       provider: 'luma' as const,
       responses: [
         jsonResponse({ id: 'luma-1' }),
         jsonResponse({ state: 'completed', assets: { video: 'https://cdn.example/luma.mp4' } }),
-        new Response(Buffer.from('video')),
       ],
-      submitUrl: 'https://api.lumalabs.ai/dream-machine/v1/generations',
+      submitUrl: 'https://api.lumalabs.ai/dream-machine/v1/generations/video',
     },
     {
       provider: 'minimax' as const,
@@ -53,7 +108,6 @@ describe('Video provider client', () => {
         jsonResponse({ base_resp: { status_code: 0 }, task_id: 'minimax-1' }),
         jsonResponse({ base_resp: { status_code: 0 }, status: 'Success', file_id: 'file-1' }),
         jsonResponse({ file: { download_url: 'https://cdn.example/minimax.mp4' } }),
-        new Response(Buffer.from('video')),
       ],
       submitUrl: 'https://api.minimax.io/v1/video_generation',
     },
@@ -86,8 +140,11 @@ describe('Video provider client', () => {
       },
       { requestId: 'request-1' }
     )
-    await vi.advanceTimersByTimeAsync(5000)
-    await resultPromise
+    const [result] = await Promise.all([resultPromise, vi.advanceTimersByTimeAsync(5000)])
+    if (testCase.provider === 'luma')
+      expect(result).toMatchObject({ width: 1920, height: 1080, duration: 5 })
+    if (testCase.provider === 'minimax')
+      expect(result).toMatchObject({ width: 1360, height: 768, duration: 6 })
 
     expect(String(mockFetch.mock.calls[0]?.[0])).toBe(testCase.submitUrl)
     expect((mockFetch.mock.calls[0]?.[1] as RequestInit).method).toBe('POST')
@@ -96,6 +153,190 @@ describe('Video provider client', () => {
         ([, init]) => (init as RequestInit | undefined)?.method === 'POST'
       )
     ).toHaveLength(1)
+  })
+
+  it.each([
+    {
+      provider: 'luma' as const,
+      model: 'ray-2',
+      submit: '/dream-machine/v1/generations/video',
+      poll: '/dream-machine/v1/generations/job',
+      payload: { model: 'ray-2', prompt: 'A cinematic sunrise' },
+      created: { id: 'job' },
+      completed: { state: 'completed', assets: { video: 'data:video/mp4;base64,dmlkZW8=' } },
+    },
+    {
+      provider: 'runway' as const,
+      model: 'gen4.5',
+      submit: '/v1/text_to_video',
+      poll: '/v1/tasks/job',
+      payload: { model: 'gen4.5', promptText: 'A cinematic sunrise' },
+      created: { id: 'job' },
+      completed: { status: 'SUCCEEDED', output: ['data:video/mp4;base64,dmlkZW8='] },
+    },
+    {
+      provider: 'luma' as const,
+      model: 'ray-3.2',
+      submit: '/v1/generations',
+      poll: '/v1/generations/job',
+      payload: { model: 'ray-3.2', type: 'video', prompt: 'A cinematic sunrise' },
+      created: { id: 'job' },
+      completed: {
+        state: 'completed',
+        output: [{ type: 'video', url: 'data:video/mp4;base64,dmlkZW8=' }],
+      },
+    },
+    {
+      provider: 'minimax' as const,
+      model: 'MiniMax-H3-Max',
+      submit: '/v2/video_generation',
+      poll: '/v2/query/video_generation/job',
+      payload: {
+        model: 'MiniMax-H3-Max',
+        content: [{ type: 'text', text: 'A cinematic sunrise' }],
+      },
+      created: { task_id: 'job' },
+      completed: {
+        task: {
+          id: 'job',
+          status: 'succeeded',
+          content: { url: 'data:video/mp4;base64,dmlkZW8=' },
+        },
+      },
+    },
+    {
+      provider: 'veo' as const,
+      model: 'gemini-omni-1.1-flash',
+      submit: '/v1beta/interactions',
+      poll: '/v1beta/interactions/job',
+      payload: { model: 'gemini-omni-1.1-flash', input: 'A cinematic sunrise' },
+      created: { id: 'job', status: 'in_progress' },
+      completed: {
+        status: 'completed',
+        steps: [
+          {
+            type: 'model_output',
+            content: [{ type: 'video', mime_type: 'video/mp4', data: 'dmlkZW8=' }],
+          },
+        ],
+      },
+    },
+  ])('executes $model through its native submit, poll and result protocol', async (testCase) => {
+    let submissions = 0
+    vi.stubGlobal('fetch', async (url: string | URL, init?: RequestInit) => {
+      const path = new URL(url).pathname
+      if (path === testCase.submit && init?.method === 'POST') {
+        const payload = JSON.parse(String(init.body))
+        expect(payload).toMatchObject(testCase.payload)
+        submissions++
+        return jsonResponse(testCase.created)
+      }
+      if (path === testCase.poll) return jsonResponse(testCase.completed)
+      return new Response('Unsupported provider endpoint', { status: 400 })
+    })
+    const pending = generateVideo(
+      {
+        provider: testCase.provider,
+        model: testCase.model,
+        apiKey: 'key',
+        prompt: 'A cinematic sunrise',
+      },
+      { requestId: 'native-model' }
+    )
+    const completion = expect(pending).resolves.toMatchObject({
+      buffer: Buffer.from('video'),
+      jobId: 'job',
+    })
+    await Promise.all([completion, vi.advanceTimersByTimeAsync(5000)])
+    expect(submissions).toBe(1)
+  })
+
+  it('reports a failed MiniMax job immediately instead of polling until timeout', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'job' }))
+      .mockResolvedValue(jsonResponse({ status: 'Failed', failure_reason: 'Generation rejected' }))
+    vi.stubGlobal('fetch', fetchMock)
+    const result = generateVideo(
+      { provider: 'minimax', apiKey: 'key', prompt: 'A cinematic sunrise' },
+      { requestId: 'failed-minimax' }
+    )
+    const rejected = expect(result).rejects.toThrow('Generation rejected')
+    await Promise.all([rejected, vi.advanceTimersByTimeAsync(10_000)])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps a saved MiniMax Pro preference compatible with a 720P-only model', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'job' }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'Success', file_id: 'file' }))
+      .mockResolvedValueOnce(
+        jsonResponse({ file: { download_url: 'https://cdn.example/video.mp4' } })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    const result = generateVideo(
+      {
+        provider: 'minimax',
+        model: 'T2V-01',
+        endpoint: 'pro',
+        apiKey: 'key',
+        prompt: 'A cinematic sunrise',
+      },
+      { requestId: 'legacy-pro' }
+    )
+    const completion = expect(result).resolves.toMatchObject({ buffer: Buffer.from('video') })
+    await Promise.all([completion, vi.advanceTimersByTimeAsync(5000)])
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+      model: 'T2V-01',
+      resolution: '720P',
+    })
+  })
+
+  it.each([null, '', false, 0])(
+    'ignores an empty camera control (%s) when submitting a Luma job',
+    async (cameraControl) => {
+      const fetchMock = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(jsonResponse({ id: 'job' }))
+        .mockResolvedValueOnce(
+          jsonResponse({ state: 'completed', assets: { video: 'data:video/mp4;base64,dmlkZW8=' } })
+        )
+      vi.stubGlobal('fetch', fetchMock)
+      const result = generateVideo(
+        {
+          provider: 'luma',
+          model: 'ray-2',
+          apiKey: 'key',
+          prompt: 'A cinematic sunrise',
+          cameraControl,
+        },
+        { requestId: 'empty-camera' }
+      )
+      const completion = expect(result).resolves.toMatchObject({ buffer: Buffer.from('video') })
+      await Promise.all([completion, vi.advanceTimersByTimeAsync(5000)])
+      expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).not.toHaveProperty('concepts')
+    }
+  )
+
+  it('rejects malformed camera controls before submitting a paid Luma job', async () => {
+    const fetchMock = vi.fn(() => {
+      throw new Error('Unexpected paid request')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(
+      generateVideo(
+        {
+          provider: 'luma',
+          model: 'ray-2',
+          apiKey: 'key',
+          prompt: 'A cinematic sunrise',
+          cameraControl: { pan: 1 },
+        },
+        { requestId: 'invalid-camera' }
+      )
+    ).rejects.toThrow('Camera controls must be an array of concept keys')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('retrieves a nested endpoint result when fal omits the queue URLs', async () => {
@@ -137,8 +378,7 @@ describe('Video provider client', () => {
       { requestId: 'request-1' }
     )
     const rejection = expect(result).rejects.toThrow()
-    await vi.advanceTimersByTimeAsync(5000)
-    await rejection
+    await Promise.all([rejection, vi.advanceTimersByTimeAsync(5000)])
     expect(mockFetch.mock.calls.map(([url]) => new URL(url).origin)).not.toContain(
       'https://untrusted.example'
     )
@@ -191,8 +431,7 @@ describe('Video provider client', () => {
       }
     )
     const rejection = expect(result).rejects.toThrow('Stopped')
-    await vi.advanceTimersByTimeAsync(5000)
-    await rejection
+    await Promise.all([rejection, vi.advanceTimersByTimeAsync(5000)])
     expect(pending).toHaveLength(1)
     expect(pending[0]).toContain(requestId)
     expect(pending[0]).toContain('0.4')
@@ -206,6 +445,7 @@ describe('Video provider client', () => {
     const resultPromise = generateVideo(
       {
         provider: 'runway',
+        model: 'gen4.5',
         apiKey: 'key',
         prompt: 'A cinematic sunrise',
       },
@@ -225,22 +465,21 @@ describe('Video provider client', () => {
       .mockResolvedValueOnce(
         jsonResponse({ status: 'SUCCEEDED', output: ['https://cdn.example/video.mp4'] })
       )
-      .mockResolvedValueOnce(
-        new Response(Buffer.from('video'), {
-          headers: { 'Content-Length': String(250 * 1024 * 1024 + 1) },
-        })
-      )
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      new Response(Buffer.from('video'), {
+        headers: { 'Content-Length': String(250 * 1024 * 1024 + 1) },
+      })
+    )
     vi.stubGlobal('fetch', mockFetch)
 
     const resultPromise = generateVideo(
-      { provider: 'runway', apiKey: 'key', prompt: 'A cinematic sunrise' },
+      { provider: 'runway', model: 'gen4.5', apiKey: 'key', prompt: 'A cinematic sunrise' },
       { requestId: 'request-1' }
     )
     const rejection = expect(resultPromise).rejects.toMatchObject({
       name: 'PayloadSizeLimitError',
     })
-    await vi.advanceTimersByTimeAsync(5000)
-    await rejection
+    await Promise.all([rejection, vi.advanceTimersByTimeAsync(5000)])
   })
 
   it('times out after the execution deadline without resubmitting', async () => {
@@ -251,12 +490,11 @@ describe('Video provider client', () => {
     vi.stubGlobal('fetch', mockFetch)
 
     const resultPromise = generateVideo(
-      { provider: 'runway', apiKey: 'key', prompt: 'A cinematic sunrise' },
+      { provider: 'runway', model: 'gen4.5', apiKey: 'key', prompt: 'A cinematic sunrise' },
       { requestId: 'request-1' }
     )
-    const rejection = expect(resultPromise).rejects.toThrow('Runway generation timed out')
-    await vi.advanceTimersByTimeAsync(5000)
-    await rejection
+    const rejection = expect(resultPromise).rejects.toThrow(/generation timed out/)
+    await Promise.all([rejection, vi.advanceTimersByTimeAsync(5000)])
     expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 })

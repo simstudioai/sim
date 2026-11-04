@@ -1,15 +1,20 @@
-import { createLogger, type Logger } from '@sim/logger'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
+import {
   assertKnownSizeWithinLimit,
   DEFAULT_MAX_ERROR_BODY_BYTES,
-  PayloadSizeLimitError,
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { buildDirectVideoRequest } from '@/lib/internal/video/direct-request'
 import { buildFalVideoRequest, getFalAIValidationError } from '@/lib/internal/video/fal-request'
 import { getFalVideoModel } from '@/lib/media/fal-video-catalog'
 import { downloadFalMedia } from '@/lib/media/falai'
@@ -19,7 +24,6 @@ import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('VideoProviderClient')
 const MAX_VIDEO_OUTPUT_BYTES = 250 * 1024 * 1024
-const MAX_VIDEO_REFERENCE_IMAGE_BYTES = 25 * 1024 * 1024
 const MAX_VIDEO_JSON_BYTES = 2 * 1024 * 1024
 const POLL_INTERVAL_MS = 5000
 
@@ -56,13 +60,6 @@ export interface VideoGenerationContext {
   signal?: AbortSignal
 }
 
-async function readVideoResponseBuffer(response: Response, label: string): Promise<Buffer> {
-  return readResponseToBufferWithLimit(response, {
-    maxBytes: MAX_VIDEO_OUTPUT_BYTES,
-    label,
-  })
-}
-
 async function readVideoJson<T = Record<string, unknown>>(
   response: Response,
   label: string
@@ -86,39 +83,17 @@ async function waitForProvider(context: VideoGenerationContext): Promise<void> {
 }
 
 export function getVideoInputValidationError(input: VideoGenerationInput): string | undefined {
-  if (input.prompt.length < 3 || input.prompt.length > 2000) {
-    return 'Prompt must be between 3 and 2000 characters'
-  }
-  if (
-    input.provider === 'veo' &&
-    input.duration !== undefined &&
-    ![4, 6, 8].includes(input.duration)
-  ) {
-    return 'Duration must be 4, 6, or 8 seconds for Veo'
-  }
-  if (
-    input.provider === 'minimax' &&
-    input.duration !== undefined &&
-    ![6, 10].includes(input.duration)
-  ) {
-    return 'Duration must be 6 or 10 seconds for MiniMax'
-  }
-  if (
-    input.provider !== 'falai' &&
-    input.provider !== 'veo' &&
-    input.provider !== 'minimax' &&
-    input.duration !== undefined &&
-    (input.duration < 5 || input.duration > 10)
-  ) {
-    return 'Duration must be between 5 and 10 seconds'
-  }
-  if (input.provider !== 'falai' && input.aspectRatio) {
-    const valid = input.provider === 'veo' ? ['16:9', '9:16'] : ['16:9', '9:16', '1:1']
-    if (!valid.includes(input.aspectRatio)) return `Aspect ratio must be ${valid.join(', ')}`
-  }
   if (input.provider === 'falai') {
+    if (input.prompt.length < 3 || input.prompt.length > 2000)
+      return 'Prompt must be between 3 and 2000 characters'
     return getFalAIValidationError(input)
   }
+  try {
+    buildDirectVideoRequest(input)
+  } catch (error) {
+    return getErrorMessage(error)
+  }
+
   return undefined
 }
 
@@ -130,591 +105,203 @@ export async function generateVideo(
   logger.info(`[${context.requestId}] Generating video with ${input.provider}`, {
     model: input.model || 'default',
   })
-  switch (input.provider) {
-    case 'runway':
-      return generateWithRunway(
-        input.apiKey,
-        input.prompt,
-        input.duration || 5,
-        input.aspectRatio || '16:9',
-        input.resolution || '1080p',
-        input.visualReference,
-        context,
-        logger
-      )
-    case 'veo':
-      return generateWithVeo(
-        input.apiKey,
-        input.model || 'veo-3',
-        input.prompt,
-        input.duration || 8,
-        input.aspectRatio || '16:9',
-        input.resolution || '1080p',
-        context,
-        logger
-      )
-    case 'luma':
-      return generateWithLuma(
-        input.apiKey,
-        input.model || 'ray-2',
-        input.prompt,
-        input.duration || 5,
-        input.aspectRatio || '16:9',
-        input.resolution || '1080p',
-        input.cameraControl,
-        context,
-        logger
-      )
-    case 'minimax':
-      return generateWithMiniMax(
-        input.apiKey,
-        input.model || 'hailuo-2.3',
-        input.prompt,
-        input.duration || 6,
-        input.promptOptimizer !== false,
-        input.endpoint,
-        context,
-        logger
-      )
-    case 'falai':
-      return generateWithFalAI(input, context)
-  }
+  return input.provider === 'falai'
+    ? generateWithFalAI(input, context)
+    : generateWithDirectProvider(input, context)
 }
 
-async function generateWithRunway(
-  apiKey: string,
-  prompt: string,
-  duration: number,
-  aspectRatio: string,
-  resolution: string,
-  visualReference: UserFile | undefined,
-  context: VideoGenerationContext,
-  logger: Logger
-): Promise<{ buffer: Buffer; width: number; height: number; jobId: string; duration: number }> {
-  const { requestId, signal } = context
-  signal?.throwIfAborted()
-  logger.info(`[${requestId}] Starting Runway Gen-4 generation`)
+async function generateWithDirectProvider(
+  input: VideoGenerationInput,
+  context: VideoGenerationContext
+): Promise<VideoGenerationResult> {
+  const prepared = buildDirectVideoRequest(input)
+  const { protocol } = prepared.model
+  const { signal, requestId } = context
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (protocol === 'gemini') {
+    headers['x-goog-api-key'] = input.apiKey
+    headers['Api-Revision'] = '2026-05-20'
+  } else headers.Authorization = `Bearer ${input.apiKey}`
+  if (protocol === 'runway') headers['X-Runway-Version'] = '2024-11-06'
 
-  const dimensions = getVideoDimensions(aspectRatio, resolution)
-
-  const ratioMap: Record<string, string> = {
-    '16:9': '1280:720',
-    '9:16': '720:1280',
-    '1:1': '960:960',
-  }
-  const runwayRatio = ratioMap[aspectRatio] || '1280:720'
-
-  const createPayload: Record<string, unknown> = {
-    promptText: prompt,
-    duration,
-    ratio: runwayRatio,
-    model: 'gen4_turbo',
-  }
-
-  if (visualReference) {
-    if (visualReference.size > MAX_VIDEO_REFERENCE_IMAGE_BYTES) {
-      throw new PayloadSizeLimitError({
-        label: 'video visual reference',
-        maxBytes: MAX_VIDEO_REFERENCE_IMAGE_BYTES,
-        observedBytes: visualReference.size,
-      })
-    }
-    const refBuffer = await downloadFileFromStorage(visualReference, requestId, logger, {
-      maxBytes: MAX_VIDEO_REFERENCE_IMAGE_BYTES,
-    })
+  if (input.visualReference) {
+    const maxReferenceBytes = Math.floor(((5 * 1024 * 1024 - 512) * 3) / 4)
     assertKnownSizeWithinLimit(
-      refBuffer.length,
-      MAX_VIDEO_REFERENCE_IMAGE_BYTES,
-      'video visual reference'
+      input.visualReference.size,
+      maxReferenceBytes,
+      'Runway reference image'
     )
-    const refBase64 = refBuffer.toString('base64')
-    createPayload.promptImage = `data:${visualReference.type};base64,${refBase64}`
+    const buffer = await downloadFileFromStorage(input.visualReference, requestId, logger, {
+      maxBytes: maxReferenceBytes,
+    })
+    assertKnownSizeWithinLimit(buffer.length, maxReferenceBytes, 'Runway reference image')
+    prepared.body.promptImage = `data:${input.visualReference.type};base64,${buffer.toString('base64')}`
   }
-
-  const createResponse = await fetch('https://api.dev.runwayml.com/v1/image_to_video', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'X-Runway-Version': '2024-11-06',
-    },
-    body: JSON.stringify(createPayload),
-    signal,
-  })
-
-  if (!createResponse.ok) {
-    const error = await readVideoErrorText(createResponse, 'Runway create error response')
-    throw new Error(`Runway API error: ${createResponse.status} - ${error}`)
+  signal?.throwIfAborted()
+  const readProviderResponse = async (response: Response): Promise<Record<string, unknown>> => {
+    if (!response.ok) {
+      const message = await readVideoErrorText(response, 'Video provider error response')
+      throw new Error(`${input.provider} API error: ${response.status} - ${message}`)
+    }
+    const value = await readVideoJson<unknown>(response, 'Video provider response')
+    if (!isRecordLike(value)) throw new Error(`Invalid ${input.provider} response`)
+    const base = isRecordLike(value.base_resp) ? value.base_resp : undefined
+    if (base?.status_code !== undefined && base.status_code !== 0)
+      throw new Error(
+        `${input.provider} error: ${getStringProperty(base, 'status_msg') || 'Request failed'}`
+      )
+    return value
   }
-
-  const createData = await readVideoJson<{ id: string }>(createResponse, 'Runway create response')
-  const taskId = createData.id
-
-  logger.info(`[${requestId}] Runway task created: ${taskId}`)
-
-  const maxAttempts = Math.ceil(getMaxExecutionTimeout() / POLL_INTERVAL_MS)
-  let attempts = 0
-
-  while (attempts < maxAttempts) {
-    await waitForProvider(context)
-
-    const statusResponse = await fetch(`https://api.dev.runwayml.com/v1/tasks/${taskId}`, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'X-Runway-Version': '2024-11-06',
-      },
+  let data = await readProviderResponse(
+    await fetch(prepared.url, {
+      method: 'POST',
+      redirect: 'error',
+      headers,
+      body: JSON.stringify(prepared.body),
       signal,
     })
-
-    if (!statusResponse.ok) {
-      await readVideoErrorText(statusResponse, 'Runway status error response')
-      throw new Error(`Runway status check failed: ${statusResponse.status}`)
-    }
-
-    const statusData = await readVideoJson<{
-      status?: string
-      output?: string[]
-      failure?: string
-    }>(statusResponse, 'Runway status response')
-
-    if (statusData.status === 'SUCCEEDED') {
-      logger.info(`[${requestId}] Runway generation completed after ${attempts * 5}s`)
-
-      const videoUrl = statusData.output?.[0]
-      if (!videoUrl) {
-        throw new Error('No video URL in response')
-      }
-
-      const videoResponse = await fetch(videoUrl, { signal })
-      if (!videoResponse.ok) {
-        await readVideoErrorText(videoResponse, 'Runway video error response')
-        throw new Error(`Failed to download video: ${videoResponse.status}`)
-      }
-
-      return {
-        buffer: await readVideoResponseBuffer(videoResponse, 'Runway video response'),
-        width: dimensions.width,
-        height: dimensions.height,
-        jobId: taskId,
-        duration,
-      }
-    }
-
-    if (statusData.status === 'FAILED') {
-      throw new Error(`Runway generation failed: ${statusData.failure || 'Unknown error'}`)
-    }
-
-    attempts++
-  }
-
-  throw new Error('Runway generation timed out')
-}
-
-async function generateWithVeo(
-  apiKey: string,
-  model: string,
-  prompt: string,
-  duration: number,
-  aspectRatio: string,
-  resolution: string,
-  context: VideoGenerationContext,
-  logger: Logger
-): Promise<{ buffer: Buffer; width: number; height: number; jobId: string; duration: number }> {
-  const { requestId, signal } = context
-  signal?.throwIfAborted()
-  logger.info(`[${requestId}] Starting Google Veo generation`)
-
-  const dimensions = getVideoDimensions(aspectRatio, resolution)
-
-  const modelNameMap: Record<string, string> = {
-    'veo-3': 'veo-3.0-generate-001',
-    'veo-3-fast': 'veo-3.0-fast-generate-001',
-    'veo-3.1': 'veo-3.1-generate-preview',
-  }
-  const modelName = modelNameMap[model] || 'veo-3.1-generate-preview'
-
-  const createPayload = {
-    instances: [
-      {
-        prompt,
-      },
-    ],
-    parameters: {
-      aspectRatio,
-      resolution: resolution,
-      durationSeconds: duration,
-    },
-  }
-
-  const createResponse = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:predictLongRunning`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey,
-      },
-      body: JSON.stringify(createPayload),
-      signal,
-    }
   )
-
-  if (!createResponse.ok) {
-    const error = await readVideoErrorText(createResponse, 'Veo create error response')
-    throw new Error(`Veo API error: ${createResponse.status} - ${error}`)
-  }
-
-  const createData = await readVideoJson<{ name: string }>(createResponse, 'Veo create response')
-  const operationName = createData.name
-
-  logger.info(`[${requestId}] Veo operation created: ${operationName}`)
-
+  const jobId = getStringProperty(data, 'id') || getStringProperty(data, 'task_id')
+  if (!jobId) throw new Error(`${input.provider} response missing job ID`)
+  const encodedId = encodeURIComponent(jobId)
+  const pollUrl =
+    protocol === 'runway'
+      ? `https://api.dev.runwayml.com/v1/tasks/${encodedId}`
+      : protocol === 'minimax-v1'
+        ? `https://api.minimax.io/v1/query/video_generation?task_id=${encodedId}`
+        : protocol === 'luma-legacy'
+          ? `https://api.lumalabs.ai/dream-machine/v1/generations/${encodedId}`
+          : protocol === 'minimax-v2'
+            ? `https://api.minimax.io/v2/query/video_generation/${encodedId}`
+            : `${prepared.url}/${encodedId}`
   const maxAttempts = Math.ceil(getMaxExecutionTimeout() / POLL_INTERVAL_MS)
-  let attempts = 0
-
-  while (attempts < maxAttempts) {
-    await waitForProvider(context)
-
-    const statusResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/${operationName}`,
-      {
-        headers: {
-          'x-goog-api-key': apiKey,
-        },
-        signal,
+  for (let attempt = 0; attempt <= maxAttempts; attempt++) {
+    const task = protocol === 'minimax-v2' && isRecordLike(data.task) ? data.task : data
+    const status = getStringProperty(task, 'status') || getStringProperty(task, 'state')
+    if (['SUCCEEDED', 'completed', 'succeeded', 'Success', 'success'].includes(status || '')) {
+      signal?.throwIfAborted()
+      let videoUrl: string | undefined
+      let buffer: Buffer | undefined
+      if (protocol === 'runway') {
+        videoUrl = Array.isArray(task.output)
+          ? task.output.find((item): item is string => typeof item === 'string')
+          : undefined
+      } else if (protocol === 'luma') {
+        const output = Array.isArray(task.output)
+          ? task.output.find((item) => isRecordLike(item) && typeof item.url === 'string')
+          : undefined
+        videoUrl = isRecordLike(output) ? getStringProperty(output, 'url') : undefined
+      } else if (protocol === 'luma-legacy') {
+        videoUrl = isRecordLike(task.assets) ? getStringProperty(task.assets, 'video') : undefined
+      } else if (protocol === 'minimax-v2') {
+        videoUrl = isRecordLike(task.content) ? getStringProperty(task.content, 'url') : undefined
+      } else if (protocol === 'minimax-v1') {
+        const fileId = getStringProperty(task, 'file_id')
+        if (!fileId) throw new Error('MiniMax response missing file_id')
+        const fileData = await readProviderResponse(
+          await fetch(
+            `https://api.minimax.io/v1/files/retrieve?file_id=${encodeURIComponent(fileId)}`,
+            { headers, redirect: 'error', signal }
+          )
+        )
+        videoUrl = isRecordLike(fileData.file)
+          ? getStringProperty(fileData.file, 'download_url')
+          : undefined
+      } else {
+        for (const step of Array.isArray(task.steps) ? task.steps : []) {
+          if (!isRecordLike(step) || step.type !== 'model_output' || !Array.isArray(step.content))
+            continue
+          const video = step.content.find((item) => isRecordLike(item) && item.type === 'video')
+          if (!isRecordLike(video)) continue
+          videoUrl = getStringProperty(video, 'uri')
+          const inline = getStringProperty(video, 'data')
+          if (inline) {
+            assertKnownSizeWithinLimit(
+              Math.floor((inline.length * 3) / 4),
+              MAX_VIDEO_OUTPUT_BYTES,
+              'Google video'
+            )
+            buffer = Buffer.from(inline, 'base64')
+          }
+          if (videoUrl || buffer) break
+        }
       }
-    )
-
-    if (!statusResponse.ok) {
-      await readVideoErrorText(statusResponse, 'Veo status error response')
-      throw new Error(`Veo status check failed: ${statusResponse.status}`)
+      if (!buffer && videoUrl) {
+        if (
+          protocol === 'gemini' &&
+          new URL(videoUrl).origin === 'https://generativelanguage.googleapis.com'
+        ) {
+          const validation = await validateUrlWithDNS(videoUrl, 'videoUrl', 'contentFetch', {
+            signal,
+          })
+          if (!validation.isValid) throw new Error(validation.error)
+          const response = await secureFetchWithPinnedIP(videoUrl, validation.resolvedIP, {
+            profile: 'contentFetch',
+            headers: { 'x-goog-api-key': input.apiKey },
+            maxResponseBytes: MAX_VIDEO_OUTPUT_BYTES,
+            signal,
+          })
+          if (!response.ok) throw new Error(`Google video download failed: ${response.status}`)
+          buffer = await readResponseToBufferWithLimit(response, {
+            maxBytes: MAX_VIDEO_OUTPUT_BYTES,
+            label: 'Google video download',
+            signal,
+          })
+        } else buffer = (await downloadFalMedia(videoUrl, signal)).buffer
+      }
+      if (!buffer) throw new Error(`No video in ${input.provider} response`)
+      const pixelRatio =
+        protocol === 'runway' && typeof prepared.body.ratio === 'string'
+          ? prepared.body.ratio.split(':').map(Number)
+          : []
+      const dimensions =
+        pixelRatio.length === 2 && pixelRatio.every((value) => value >= 100)
+          ? { width: pixelRatio[0], height: pixelRatio[1] }
+          : protocol === 'luma-legacy'
+            ? getVideoDimensions(
+                String(prepared.body.aspect_ratio),
+                String(prepared.body.resolution)
+              )
+            : protocol === 'minimax-v1' && prepared.model.id.startsWith('hailuo-')
+              ? prepared.body.resolution === '1080P'
+                ? { width: 1920, height: 1080 }
+                : { width: 1360, height: 768 }
+              : {}
+      const videoOptions = isRecordLike(prepared.body.video) ? prepared.body.video : undefined
+      const duration =
+        typeof task.duration === 'number'
+          ? task.duration
+          : typeof prepared.body.duration === 'number'
+            ? prepared.body.duration
+            : typeof prepared.body.duration === 'string'
+              ? Number.parseFloat(prepared.body.duration)
+              : typeof videoOptions?.duration === 'string'
+                ? Number.parseFloat(videoOptions.duration)
+                : undefined
+      return { buffer, jobId, duration, ...dimensions }
     }
-
-    const statusData = await readVideoJson<{
-      done?: boolean
-      error?: { message?: string }
-      response?: {
-        generateVideoResponse?: { generatedSamples?: Array<{ video?: { uri?: string } }> }
-      }
-    }>(statusResponse, 'Veo status response')
-
-    if (statusData.done) {
-      if (statusData.error) {
-        throw new Error(`Veo generation failed: ${statusData.error.message}`)
-      }
-
-      logger.info(`[${requestId}] Veo generation completed after ${attempts * 5}s`)
-
-      const videoUri = statusData.response?.generateVideoResponse?.generatedSamples?.[0]?.video?.uri
-      if (!videoUri) {
-        throw new Error('No video URI in response')
-      }
-
-      const videoResponse = await fetch(videoUri, {
-        headers: {
-          'x-goog-api-key': apiKey,
-        },
-        signal,
-      })
-
-      if (!videoResponse.ok) {
-        await readVideoErrorText(videoResponse, 'Veo video error response')
-        throw new Error(`Failed to download video: ${videoResponse.status}`)
-      }
-
-      return {
-        buffer: await readVideoResponseBuffer(videoResponse, 'Veo video response'),
-        width: dimensions.width,
-        height: dimensions.height,
-        jobId: operationName,
-        duration,
-      }
-    }
-
-    attempts++
-  }
-
-  throw new Error('Veo generation timed out')
-}
-
-async function generateWithLuma(
-  apiKey: string,
-  model: string,
-  prompt: string,
-  duration: number,
-  aspectRatio: string,
-  resolution: string,
-  cameraControl: unknown,
-  context: VideoGenerationContext,
-  logger: Logger
-): Promise<{ buffer: Buffer; width: number; height: number; jobId: string; duration: number }> {
-  const { requestId, signal } = context
-  signal?.throwIfAborted()
-  logger.info(`[${requestId}] Starting Luma Dream Machine generation`)
-
-  const dimensions = getVideoDimensions(aspectRatio, resolution)
-
-  const createPayload: Record<string, unknown> = {
-    prompt,
-    model: model || 'ray-2',
-    aspect_ratio: aspectRatio,
-    loop: false,
-  }
-
-  if (duration) {
-    createPayload.duration = `${duration}s`
-  }
-
-  if (resolution) {
-    createPayload.resolution = resolution
-  }
-
-  if (cameraControl) {
-    createPayload.concepts = Array.isArray(cameraControl) ? cameraControl : [{ key: cameraControl }]
-  }
-
-  const createResponse = await fetch('https://api.lumalabs.ai/dream-machine/v1/generations', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(createPayload),
-    signal,
-  })
-
-  if (!createResponse.ok) {
-    const error = await readVideoErrorText(createResponse, 'Luma create error response')
-    throw new Error(`Luma API error: ${createResponse.status} - ${error}`)
-  }
-
-  const createData = await readVideoJson<{ id: string }>(createResponse, 'Luma create response')
-  const generationId = createData.id
-
-  logger.info(`[${requestId}] Luma generation created: ${generationId}`)
-
-  const maxAttempts = Math.ceil(getMaxExecutionTimeout() / POLL_INTERVAL_MS)
-  let attempts = 0
-
-  while (attempts < maxAttempts) {
-    await waitForProvider(context)
-
-    const statusResponse = await fetch(
-      `https://api.lumalabs.ai/dream-machine/v1/generations/${generationId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-        },
-        signal,
-      }
-    )
-
-    if (!statusResponse.ok) {
-      await readVideoErrorText(statusResponse, 'Luma status error response')
-      throw new Error(`Luma status check failed: ${statusResponse.status}`)
-    }
-
-    const statusData = await readVideoJson<{
-      state?: string
-      failure_reason?: string
-      assets?: { video?: string }
-    }>(statusResponse, 'Luma status response')
-
-    if (statusData.state === 'completed') {
-      logger.info(`[${requestId}] Luma generation completed after ${attempts * 5}s`)
-
-      const videoUrl = statusData.assets?.video
-      if (!videoUrl) {
-        throw new Error('No video URL in response')
-      }
-
-      const videoResponse = await fetch(videoUrl, { signal })
-      if (!videoResponse.ok) {
-        await readVideoErrorText(videoResponse, 'Luma video error response')
-        throw new Error(`Failed to download video: ${videoResponse.status}`)
-      }
-
-      return {
-        buffer: await readVideoResponseBuffer(videoResponse, 'Luma video response'),
-        width: dimensions.width,
-        height: dimensions.height,
-        jobId: generationId,
-        duration,
-      }
-    }
-
-    if (statusData.state === 'failed') {
-      throw new Error(`Luma generation failed: ${statusData.failure_reason || 'Unknown error'}`)
-    }
-
-    attempts++
-  }
-
-  throw new Error('Luma generation timed out')
-}
-
-async function generateWithMiniMax(
-  apiKey: string,
-  model: string,
-  prompt: string,
-  duration: number,
-  promptOptimizer: boolean,
-  endpoint: string | undefined,
-  context: VideoGenerationContext,
-  logger: Logger
-): Promise<{ buffer: Buffer; width: number; height: number; jobId: string; duration: number }> {
-  const { requestId, signal } = context
-  signal?.throwIfAborted()
-  logger.info(`[${requestId}] Starting MiniMax Hailuo generation via MiniMax Platform API`)
-  logger.info(
-    `[${requestId}] Request params - model: ${model}, duration: ${duration}, endpoint: ${endpoint || 'standard'}, promptOptimizer: ${promptOptimizer}`
-  )
-
-  const useProResolution = endpoint === 'pro' && duration === 6
-  const resolution = useProResolution ? '1080P' : '768P'
-  const dimensions = useProResolution ? { width: 1920, height: 1080 } : { width: 1360, height: 768 }
-
-  logger.info(
-    `[${requestId}] Using resolution: ${resolution}, dimensions: ${dimensions.width}x${dimensions.height}`
-  )
-
-  const minimaxModel = model === 'hailuo-02' ? 'MiniMax-Hailuo-02' : 'MiniMax-Hailuo-2.3'
-
-  const createResponse = await fetch('https://api.minimax.io/v1/video_generation', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: minimaxModel,
-      prompt: prompt,
-      duration: duration,
-      resolution: resolution,
-      prompt_optimizer: promptOptimizer,
-    }),
-    signal,
-  })
-
-  if (!createResponse.ok) {
-    const errorText = await readVideoErrorText(createResponse, 'MiniMax create error response')
-    if (createResponse.status === 401 || createResponse.status === 1004) {
-      throw new Error(
-        `MiniMax API authentication failed (${createResponse.status}). Please ensure you're using a valid MiniMax API key from platform.minimax.io. Error: ${errorText}`
-      )
-    }
-    throw new Error(`MiniMax API error: ${createResponse.status} - ${errorText}`)
-  }
-
-  const createData = await readVideoJson<{
-    base_resp?: { status_code?: number; status_msg?: string }
-    task_id?: string
-  }>(createResponse, 'MiniMax create response')
-
-  if (createData.base_resp?.status_code !== 0) {
-    throw new Error(`MiniMax API error: ${createData.base_resp?.status_msg || 'Unknown error'}`)
-  }
-
-  const taskId = createData.task_id
-  if (!taskId) {
-    throw new Error('MiniMax response missing task_id')
-  }
-
-  logger.info(`[${requestId}] MiniMax task created: ${taskId}`)
-
-  const maxAttempts = Math.ceil(getMaxExecutionTimeout() / POLL_INTERVAL_MS)
-  let attempts = 0
-
-  while (attempts < maxAttempts) {
-    await waitForProvider(context)
-
-    const statusResponse = await fetch(
-      `https://api.minimax.io/v1/query/video_generation?task_id=${taskId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-        },
-        signal,
-      }
-    )
-
-    if (!statusResponse.ok) {
-      await readVideoErrorText(statusResponse, 'MiniMax status error response')
-      throw new Error(`MiniMax status check failed: ${statusResponse.status}`)
-    }
-
-    const statusData = await readVideoJson<{
-      base_resp?: { status_code?: number; status_msg?: string }
-      status?: string
-      file_id?: string
-      error?: string
-    }>(statusResponse, 'MiniMax status response')
-
     if (
-      statusData.base_resp?.status_code !== 0 &&
-      statusData.base_resp?.status_code !== undefined
+      [
+        'FAILED',
+        'CANCELED',
+        'CANCELLED',
+        'failed',
+        'cancelled',
+        'canceled',
+        'incomplete',
+        'Fail',
+        'Failed',
+      ].includes(status || '')
     ) {
       throw new Error(
-        `MiniMax status query error: ${statusData.base_resp?.status_msg || 'Unknown error'}`
+        `${input.provider} generation failed: ${getStringProperty(task, 'failure_reason') || getStringProperty(task, 'failure') || getStringProperty(task, 'error') || 'Request failed'}`
       )
     }
-
-    if (statusData.status === 'Success' || statusData.status === 'success') {
-      logger.info(`[${requestId}] MiniMax generation completed after ${attempts * 5}s`)
-
-      const fileId = statusData.file_id
-      if (!fileId) {
-        throw new Error('No file_id in response')
-      }
-
-      const fileResponse = await fetch(
-        `https://api.minimax.io/v1/files/retrieve?file_id=${fileId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-          },
-          signal,
-        }
-      )
-
-      if (!fileResponse.ok) {
-        await readVideoErrorText(fileResponse, 'MiniMax file error response')
-        throw new Error(`Failed to download video: ${fileResponse.status}`)
-      }
-
-      const fileData = await readVideoJson<{ file?: { download_url?: string } }>(
-        fileResponse,
-        'MiniMax file response'
-      )
-      const videoUrl = fileData.file?.download_url
-
-      if (!videoUrl) {
-        throw new Error('No download URL in file response')
-      }
-
-      const videoResponse = await fetch(videoUrl, { signal })
-      if (!videoResponse.ok) {
-        await readVideoErrorText(videoResponse, 'MiniMax video error response')
-        throw new Error(`Failed to download video from URL: ${videoResponse.status}`)
-      }
-
-      return {
-        buffer: await readVideoResponseBuffer(videoResponse, 'MiniMax video response'),
-        width: dimensions.width,
-        height: dimensions.height,
-        jobId: taskId,
-        duration,
-      }
-    }
-
-    if (statusData.status === 'Failed' || statusData.status === 'failed') {
-      throw new Error(`MiniMax generation failed: ${statusData.error || 'Unknown error'}`)
-    }
-
-    attempts++
+    if (attempt === maxAttempts) break
+    await waitForProvider(context)
+    data = await readProviderResponse(await fetch(pollUrl, { headers, redirect: 'error', signal }))
   }
-
-  throw new Error('MiniMax generation timed out')
+  throw new Error(`${input.provider} video generation timed out`)
 }
 
 function getStringProperty(
