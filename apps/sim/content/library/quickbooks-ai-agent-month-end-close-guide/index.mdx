@@ -25,7 +25,7 @@ faq:
   - q: "Should an AI agent post journal entries to QuickBooks automatically?"
     a: "A QuickBooks AI agent should not post unrestricted journal entries automatically because material ledger changes require deterministic validation, limited permissions, and an accountable human approval process."
   - q: "How does Human in the Loop work in Sim?"
-    a: "Sim’s Human in the Loop block pauses a workflow and resumes after a reviewer submits form fields, while a downstream Condition must inspect the approval field and choose the next path."
+    a: "Sim’s Human in the Loop block pauses a workflow and resumes after an authorized workspace caller submits form fields, while a downstream Condition must inspect the approval field and choose the next path. The block does not restrict submission to an assigned reviewer, so the approver’s identity needs a separate check."
   - q: "Can Sim stop a month end workflow when data is incomplete?"
     a: "Sim can route incomplete or failed inputs to an exception path so the close summary does not report completion when required QuickBooks, Stripe, or bank data is missing."
   - q: "What records should a QuickBooks reconciliation agent retain?"
@@ -43,7 +43,7 @@ faq:
   - q: "How do you prevent duplicate accounting actions when a workflow retries?"
     a: "Sim should use source record identifiers, idempotency keys, status checks, and a separate approved write path so a retry cannot create the same accounting action twice."
   - q: "Can an AI agent certify that month end close is complete?"
-    a: "A QuickBooks AI agent should not certify completion unless every required source succeeded, reconciliation thresholds were met, material exceptions were resolved, and the designated finance owner approved the close."
+    a: "A QuickBooks AI agent should not certify completion unless every required source succeeded, reconciliation thresholds were met, material exceptions were resolved, and the designated finance owner approved the close. The approval process must verify the finance owner’s identity separately from the Human in the Loop submission."
 ---
 
 ## TL;DR
@@ -94,6 +94,8 @@ Sim should retrieve each source through a separately authenticated connection wi
 
 Use Sim's native QuickBooks integration for approved QuickBooks operations and connect Stripe for payment, refund, fee, and settlement records. Bank data can enter through an approved API, a governed data store, a webhook, or a securely delivered file.
 
+Sim’s native Stripe List Charges operation returns at most 100 charges and reports whether more results exist, but it does not accept the cursor needed to retrieve the next page. For a complete close, use the API block to call Stripe’s [charge](https://docs.stripe.com/api/charges/list), [payout](https://docs.stripe.com/api/payouts/list), and [balance transaction](https://docs.stripe.com/api/balance_transactions/list) list endpoints for the closing period. Request each next page with `starting_after` set to the final record ID from the prior page, and continue until `has_more` is false before calculating totals.
+
 Each source should be transformed into a common reconciliation record containing:
 
 1. Source system
@@ -123,11 +125,11 @@ Every AI generated classification should retain the source records, rule results
 
 ## How does Sim route month end exceptions to a human approver?
 
-Sim routes month end exceptions through the Human in the Loop block, which pauses the run and resumes after the assigned reviewer submits the requested form fields.
+Sim routes month end exceptions through the Human in the Loop block, which pauses the run and resumes after a caller with workspace write access, including a workspace API key, submits the requested form fields. The block does not restrict submission to an assigned reviewer, so notifying a finance approver does not by itself enforce that person’s identity.
 
 The review form can show the QuickBooks record, Stripe record, bank record, calculated difference, matching rule, AI explanation, and supporting identifiers. It can collect an approval decision, resolution category, corrected account, reviewer note, and escalation owner.
 
-Approve or reject is a form field rather than an automatic branch. A downstream Condition must inspect that field and route the run to the approved, rejected, or escalation path.
+Approve or reject is a form field rather than an automatic branch. Before treating that response as the designated finance owner’s approval, use a separately authenticated approval system or authorization check that records and verifies the approver. A downstream Condition must then inspect the verified approval result and route the run to the approved, rejected, or escalation path.
 
 For material accounting changes, the approved path should normally create a reviewed work item or a proposed entry rather than granting the model unrestricted authority to modify the ledger.
 
@@ -159,8 +161,8 @@ Important controls include:
 1. Use separate credentials for QuickBooks, Stripe, and each bank data source.
 2. Grant read access by default and add write permissions only when a reviewed action requires them.
 3. Keep deterministic reconciliation rules outside the model prompt.
-4. Require human approval for material exceptions and ledger affecting actions.
-5. Route the submitted approval field through a Condition before continuing.
+4. Require independently authenticated human approval for material exceptions and ledger affecting actions.
+5. Verify the approver’s identity separately, then route the approval result through a Condition before continuing.
 6. Record the workflow version, source identifiers, rule result, model output, reviewer response, and final action for each exception.
 7. Stop the close summary from reporting completion when required inputs fail.
 8. Test the workflow on a copied or sandbox data set before using production credentials.
