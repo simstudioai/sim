@@ -5068,7 +5068,6 @@ describe('File Parameter Normalization', () => {
         expect(providerTool?.parameters?.properties?.visualReference).toMatchObject({
           type: 'string',
         })
-        expect(providerTool?.parameters?.required).toContain('visualReference')
         const prepared = prepareToolExecution(
           providerTool!,
           {

@@ -4,7 +4,7 @@ import type { VideoParams, VideoResponse } from '@/tools/video/types'
 export const lumaVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
   id: 'video_luma',
   name: 'Luma Dream Machine Video',
-  description: 'Generate videos using Luma Dream Machine with advanced camera controls',
+  description: 'Generate videos using Luma Ray models',
   version: '1.0.0',
 
   params: {
@@ -24,7 +24,8 @@ export const lumaVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Luma model: ray-2 (default)',
+      description:
+        'Luma model: ray-3.2, ray-2, or ray-flash-2 (legacy models depend on account availability)',
     },
     prompt: {
       type: 'string',
@@ -36,26 +37,27 @@ export const lumaVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Video duration in seconds (5 or 9, default: 5)',
+      description: 'Video duration in seconds: 5 or 10 for Ray 3.2; 5 or 9 for legacy models',
     },
     aspectRatio: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Aspect ratio: 16:9 (landscape), 9:16 (portrait), or 1:1 (square)',
+      description: 'Aspect ratio supported by the selected model, such as 16:9, 9:16, or 1:1',
     },
     resolution: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Video resolution: 540p, 720p, or 1080p (default: 1080p)',
+      description:
+        'Video resolution: 360p, 540p, 720p, or 1080p for Ray 3.2; legacy models also support 4k',
     },
     cameraControl: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Camera controls as array of concept objects. Format: [{ "key": "concept_name" }]. Valid keys: truck_left, truck_right, pan_left, pan_right, tilt_up, tilt_down, zoom_in, zoom_out, push_in, pull_out, orbit_left, orbit_right, crane_up, crane_down, static, handheld, and 20+ more predefined options',
+        'Legacy Ray camera controls as an array of concept objects; omit for Ray 3.2 and describe camera motion in the prompt. Format: [{ "key": "concept_name" }]. Valid keys: truck_left, truck_right, pan_left, pan_right, tilt_up, tilt_down, zoom_in, zoom_out, push_in, pull_out, orbit_left, orbit_right, crane_up, crane_down, static, handheld, and 20+ more predefined options',
     },
   },
 
@@ -69,9 +71,9 @@ export const lumaVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
       apiKey: params.apiKey,
       model: params.model || 'ray-2',
       prompt: params.prompt,
-      duration: params.duration || 5,
-      aspectRatio: params.aspectRatio || '16:9',
-      resolution: params.resolution || '1080p',
+      duration: params.duration,
+      aspectRatio: params.aspectRatio,
+      resolution: params.resolution,
       cameraControl: params.cameraControl,
     }),
   },

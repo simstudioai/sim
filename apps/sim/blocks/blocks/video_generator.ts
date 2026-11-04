@@ -1,4 +1,9 @@
 import { VideoIcon } from '@/components/icons'
+import {
+  directVideoDefaults,
+  directVideoModels,
+  getDirectVideoModel,
+} from '@/lib/media/direct-video-catalog'
 import { falVideoModels, getFalVideoModel } from '@/lib/media/fal-video-catalog'
 import { AuthMode, type BlockConfig, IntegrationType, type SubBlockConfig } from '@/blocks/types'
 import { normalizeFileInput, parseOptionalBooleanInput } from '@/blocks/utils'
@@ -57,6 +62,19 @@ function tuningField(
     },
     dependsOn: ['model'],
     options: (params) => {
+      if (!params) {
+        const values = endpointModels.flatMap((model) => {
+          const choices = model[key]
+          return Array.isArray(choices)
+            ? choices.map((value) =>
+                key === 'durations' ? String(Number.parseFloat(String(value))) : String(value)
+              )
+            : choices
+              ? ['true', 'false']
+              : []
+        })
+        return [FAL_MODEL_DEFAULT, ...[...new Set(values)].map((id) => ({ id, label: id }))]
+      }
       const model = getFalVideoModel(params?.values.model)
       if (!model?.[key]) return []
       if (key === 'audioField' || key === 'promptOptimizer') {
@@ -124,6 +142,171 @@ function withFalVideoCatalog(subBlocks: SubBlockConfig[]): SubBlockConfig[] {
     }
     if (subBlock.id === 'apiKey' && !condition.not) return [...falVideoFields, subBlock]
     return [subBlock]
+  })
+}
+
+function selectedDirectModel(values?: Record<string, unknown>) {
+  const withImage = [
+    values?.visualReference,
+    values?.visualReferenceInput,
+    values?.visualReferenceUpload,
+  ].some((reference) => (Array.isArray(reference) ? reference.length > 0 : Boolean(reference)))
+  return getDirectVideoModel(values?.provider, values?.model, withImage)
+}
+
+const directVideoFields = (
+  [
+    ['directDuration', 'Duration (seconds)', 'durations'],
+    ['directAspectRatio', 'Aspect Ratio', 'aspectRatios'],
+    ['directResolution', 'Resolution', 'resolutions'],
+    ['directGenerateAudio', 'Generate Audio', 'audio'],
+    ['directPromptOptimizer', 'Prompt Optimizer', 'promptOptimizer'],
+  ] as const
+).map(
+  ([id, title, key]): SubBlockConfig => ({
+    id,
+    title,
+    type: 'dropdown',
+    value: () => FAL_MODEL_DEFAULT.id,
+    dependsOn: ['provider', 'model', 'visualReferenceInput', 'visualReferenceUpload'],
+    condition: (values) => ({
+      field: 'model',
+      value: selectedDirectModel(values)?.settings?.[key] ? [String(values?.model)] : [],
+    }),
+    options: (params) => {
+      if (!params) {
+        const values = directVideoModels.flatMap((model) =>
+          [model.text, model.image].flatMap((settings) => {
+            const choices = settings?.[key]
+            return Array.isArray(choices) ? choices.map(String) : choices ? ['true', 'false'] : []
+          })
+        )
+        return [FAL_MODEL_DEFAULT, ...[...new Set(values)].map((id) => ({ id, label: id }))]
+      }
+      const model = selectedDirectModel(params?.values)
+      const choices = model?.settings?.[key]
+      if (!choices) return []
+      if (typeof choices === 'boolean')
+        return [FAL_MODEL_DEFAULT, { id: 'true', label: 'On' }, { id: 'false', label: 'Off' }]
+      return [
+        FAL_MODEL_DEFAULT,
+        ...choices
+          .filter((value) => {
+            if (model?.protocol !== 'minimax-v1') return true
+            if (key === 'durations' && params?.values.directResolution === '1080P')
+              return value === 6
+            if (key === 'resolutions' && Number(params?.values.directDuration) === 10)
+              return value !== '1080P'
+            return true
+          })
+          .map((value) => ({ id: String(value), label: String(value) })),
+      ]
+    },
+  })
+)
+
+function withDirectVideoCatalog(subBlocks: SubBlockConfig[]): SubBlockConfig[] {
+  return subBlocks.flatMap((field): SubBlockConfig[] => {
+    if (
+      field.id === 'model' &&
+      typeof field.condition === 'object' &&
+      field.condition.value === 'falai'
+    ) {
+      const options = field.options
+      return [
+        {
+          ...field,
+          options: (params) => {
+            const falOptions = typeof options === 'function' ? options(params) : (options ?? [])
+            return params
+              ? falOptions
+              : [
+                  ...falOptions,
+                  ...directVideoModels.flatMap((model) => [
+                    { id: model.id, label: model.label },
+                    ...(model.aliases ?? []).map((id) => ({
+                      id,
+                      label: model.label,
+                      hidden: true,
+                    })),
+                  ]),
+                ]
+          },
+        },
+      ]
+    }
+    if (field.id === 'provider')
+      return [
+        {
+          ...field,
+          options: [
+            { id: 'runway', label: 'Runway' },
+            { id: 'veo', label: 'Google Gemini' },
+            { id: 'luma', label: 'Luma' },
+            { id: 'minimax', label: 'MiniMax' },
+            { id: 'falai', label: 'Fal.ai (Multi-Model)' },
+          ],
+        },
+        ...(['runway', 'veo', 'luma', 'minimax'] as const).map(
+          (provider): SubBlockConfig => ({
+            id: 'model',
+            title: 'Model',
+            type: 'dropdown',
+            searchable: true,
+            condition: { field: 'provider', value: provider },
+            options: directVideoModels
+              .filter((model) => model.provider === provider)
+              .flatMap((model) => [
+                { id: model.id, label: model.label },
+                ...(model.aliases ?? []).map((id) => ({ id, label: model.label, hidden: true })),
+              ]),
+            value: () => directVideoDefaults[provider],
+            dependsOn: ['provider'],
+            required: true,
+          })
+        ),
+      ]
+    if (field.id === 'prompt') return [field, ...directVideoFields]
+    const condition = field.condition
+    const isDirect =
+      typeof condition === 'object' &&
+      condition.field === 'provider' &&
+      typeof condition.value === 'string' &&
+      condition.value !== 'falai'
+    if (
+      isDirect &&
+      ['model', 'duration', 'aspectRatio', 'resolution', 'promptOptimizer'].includes(field.id)
+    )
+      return []
+    if (field.id === 'endpoint')
+      return [
+        {
+          ...field,
+          condition: {
+            field: 'provider',
+            value: 'minimax',
+            and: { field: 'model', value: ['hailuo-2.3', 'hailuo-02'] },
+          },
+          dependsOn: ['provider', 'model'],
+        },
+      ]
+    if (field.id === 'cameraControl')
+      return [
+        {
+          ...field,
+          condition: {
+            field: 'provider',
+            value: 'luma',
+            and: { field: 'model', value: ['ray-2', 'ray-flash-2'] },
+          },
+          dependsOn: ['provider', 'model'],
+        },
+      ]
+    if (field.id === 'visualReferenceUpload' || field.id === 'visualReferenceInput')
+      return [
+        { ...field, required: { field: 'model', value: ['gen4_turbo', 'gen-4', 'gen-4-turbo'] } },
+      ]
+    return [field]
   })
 }
 
@@ -1733,16 +1916,71 @@ export const VideoGeneratorV3Block: BlockConfig = {
   name: 'Video Generator',
   description: 'Generate videos from text using AI',
   longDescription:
-    'Generate high-quality videos from text prompts using leading AI providers. Supports Runway, Google Veo, Luma, MiniMax, and Fal.ai multi-model generation with provider-specific durations, aspect ratios, resolutions, prompt optimization, and native audio controls.',
+    'Generate high-quality videos from text prompts using leading AI providers. Supports Runway, Google Gemini, Luma, MiniMax, and Fal.ai multi-model generation with provider-specific durations, aspect ratios, resolutions, prompt optimization, and native audio controls.',
   docsLink: 'https://docs.sim.ai/integrations/video_generator',
   category: 'blocks',
   integrationType: IntegrationType.AI,
   bgColor: '#181C1E',
   icon: VideoIcon,
   hideFromToolbar: false,
-  subBlocks: withFalVideoCatalog(VideoGeneratorV2Block.subBlocks),
+  subBlocks: withDirectVideoCatalog(withFalVideoCatalog(VideoGeneratorV2Block.subBlocks)),
+  tools: {
+    ...VideoGeneratorV2Block.tools,
+    config: {
+      tool: (params) => VideoGeneratorV2Block.tools.config?.tool(params) ?? 'video_runway',
+      params: (params) => {
+        if (params.provider === 'falai')
+          return VideoGeneratorV2Block.tools.config?.params?.(params) ?? params
+        const visualReference =
+          params.provider === 'runway'
+            ? normalizeFileInput(params.visualReference, { single: true })
+            : undefined
+        const model = getDirectVideoModel(params.provider, params.model, Boolean(visualReference))
+        const setting = (legacy: string, current: string, supported: unknown) => {
+          if (!supported) return undefined
+          const value = params[current] ?? params[legacy]
+          return value === FAL_MODEL_DEFAULT.id ? undefined : value
+        }
+        const duration = setting('duration', 'directDuration', model?.settings?.durations)
+        return {
+          provider: params.provider,
+          model: params.model,
+          apiKey: params.apiKey,
+          prompt: params.prompt,
+          visualReference,
+          duration: duration ? Number(duration) : undefined,
+          aspectRatio: setting('aspectRatio', 'directAspectRatio', model?.settings?.aspectRatios),
+          resolution: setting('resolution', 'directResolution', model?.settings?.resolutions),
+          generateAudio: parseOptionalBooleanInput(
+            setting('generateAudio', 'directGenerateAudio', model?.settings?.audio)
+          ),
+          promptOptimizer: parseOptionalBooleanInput(
+            setting('promptOptimizer', 'directPromptOptimizer', model?.settings?.promptOptimizer)
+          ),
+          endpoint: model?.protocol === 'minimax-v1' ? params.endpoint : undefined,
+          cameraControl:
+            model?.protocol === 'luma-legacy' && params.cameraControl
+              ? typeof params.cameraControl === 'string'
+                ? JSON.parse(params.cameraControl)
+                : params.cameraControl
+              : undefined,
+        }
+      },
+    },
+  },
   inputs: {
     ...VideoGeneratorV2Block.inputs,
+    directDuration: { type: 'number', description: 'Duration for the selected provider model' },
+    directAspectRatio: {
+      type: 'string',
+      description: 'Frame size or aspect ratio for the selected provider model',
+    },
+    directResolution: { type: 'string', description: 'Resolution for the selected provider model' },
+    directGenerateAudio: { type: 'boolean', description: 'Generate audio when supported' },
+    directPromptOptimizer: {
+      type: 'boolean',
+      description: 'Enable prompt optimization when supported',
+    },
     falDuration: {
       type: 'number',
       description: 'Duration in seconds for the selected fal endpoint',

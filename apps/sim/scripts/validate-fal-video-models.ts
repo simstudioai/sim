@@ -24,8 +24,12 @@ const picker = block.subBlocks.find(
   (field) =>
     field.id === 'model' && typeof field.condition === 'object' && field.condition.value === 'falai'
 )
-assert(Array.isArray(picker?.options))
-const visible = picker.options.filter((option) => !option.hidden)
+const options =
+  typeof picker?.options === 'function'
+    ? picker.options({ values: { provider: 'falai' } })
+    : picker?.options
+assert(Array.isArray(options))
+const visible = options.filter((option) => !option.hidden)
 assert.deepEqual(
   new Set(visible.map((option) => option.id)),
   new Set(falVideoModels.map((model) => model.modelId))

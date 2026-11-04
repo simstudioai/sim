@@ -9,15 +9,9 @@ export interface VideoParams {
   duration?: number
   aspectRatio?: string
   resolution?: string
-  /** Runway only, required for Runway generation */
+  /** Runway reference image; required for image-only models */
   visualReference?: UserFile
-  cameraControl?: {
-    pan?: number
-    zoom?: number
-    tilt?: number
-    truck?: number
-    tracking?: boolean
-  }
+  cameraControl?: { key: string }[]
   endpoint?: string
   promptOptimizer?: boolean
   generateAudio?: boolean
