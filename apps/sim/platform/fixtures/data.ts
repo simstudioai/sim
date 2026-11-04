@@ -144,7 +144,7 @@ export const scenarios: Record<Scenario, PreviewData> = {
     },
     charts: { trend: [], bars: [], distribution: [] },
     specimen: {},
-    organization: { name: 'Sample studio', members: [], workspaces: [] },
+    organization: { name: 'Sample studio', members: [], permissionGroups: [], workspaces: [] },
   },
   full: {
     collections,
@@ -183,6 +183,7 @@ export const scenarios: Record<Scenario, PreviewData> = {
     organization: {
       name: 'Sample studio',
       members: ['Alex Rowan', 'Jo Bell', 'Remy Chen'],
+      permissionGroups: ['Standard access', 'Customer operations', 'Finance team'],
       workspaces: [
         {
           id: 'operations',
@@ -303,6 +304,12 @@ export const scenarios: Record<Scenario, PreviewData> = {
     organization: {
       name: 'Sample studio for international operations and research',
       members: ['Alex Rowan', 'Jo Bell', 'Remy Chen', 'Sam Kim', 'Kit Gray', 'Robin Park'],
+      permissionGroups: [
+        'Standard access',
+        'Customer operations',
+        'Finance team',
+        'Regional operations and service delivery',
+      ],
       workspaces: Array.from({ length: 27 }, (_, index) => ({
         id: `workspace-${index}`,
         name: `Workspace ${index + 1} — International operations and research`,

@@ -16,10 +16,6 @@
   background: var(--ui-hover);
 }
 
-.menuLayer {
-  z-index: 1;
-}
-
 @media (pointer: coarse) {
   .trigger {
     position: relative;

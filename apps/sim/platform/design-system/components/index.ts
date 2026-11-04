@@ -1,4 +1,9 @@
-export { ActionMenu, BrowserActionsMenu, MenuItem, VisibilityMenu } from './action-menu'
+export {
+  ActionMenu,
+  BrowserActionsMenu,
+  MenuItem,
+  VisibilityMenu,
+} from './action-menu'
 export { AttachmentGrid } from './attachment-grid'
 export { ChartTooltip } from './chart-tooltip'
 export { BarChart, DonutChart, TrendChart } from './charts'
@@ -20,7 +25,7 @@ export { Disclosure } from './disclosure'
 export { ExecutionSteps } from './execution-steps'
 export { FieldFrame, SelectField, TextAreaField, TextField } from './fields'
 export { Icon } from './icon'
-export { Input, Select, TextArea } from './inputs'
+export { Input, TextArea } from './inputs'
 export { Modal, MultiStepModal } from './modal'
 export { ModalBody, ModalFooter, ModalHeader } from './modal-parts'
 export { OverflowText } from './overflow-text'
@@ -32,6 +37,7 @@ export { ScrollArea } from './scroll-area'
 export { SearchField } from './search-field'
 export { SearchableSelect } from './searchable-select'
 export { SegmentedControl, SelectionItem } from './segmented-control'
+export { Select } from './select'
 export { TasksRunChart } from './tasks-run-chart'
 export { Tooltip } from './tooltip'
 export { TouchTarget } from './touch-target'

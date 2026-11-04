@@ -5,7 +5,7 @@
   --ui-secondary: var(--color-app-text-secondary);
   --ui-muted: var(--color-app-text-muted);
   --ui-border: var(--color-light-border);
-  --ui-focus: var(--color-light-accent);
+  --ui-divider: var(--color-light-divider);
   --ui-hover: var(--color-light-hover);
   --ui-selected: var(--color-light-selected);
   --ui-shell: var(--color-light-glass-shell);
@@ -27,7 +27,7 @@
   --ui-secondary: var(--color-app-dark-text-secondary);
   --ui-muted: var(--color-app-dark-text-muted);
   --ui-border: var(--color-dark-border);
-  --ui-focus: var(--color-dark-blue);
+  --ui-divider: var(--color-dark-border);
   --ui-hover: var(--color-app-dark-hover);
   --ui-selected: var(--color-dark-selected);
   --ui-shell: var(--color-dark-glass-shell);

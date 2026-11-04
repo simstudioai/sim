@@ -371,7 +371,13 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
         <SearchField
           label='Search'
           placeholder='Search'
-          variant={family.includes('/menu') ? 'menu' : 'outlined'}
+          variant={
+            family.startsWith('Sidebar/Search')
+              ? 'sidebar'
+              : family.endsWith('/menu')
+                ? 'menu'
+                : 'outlined'
+          }
           defaultValue={family.includes('query') ? value : undefined}
           shortcut={
             key === 'C0925'
@@ -385,10 +391,11 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
     case 'SearchableSelect':
       return (
         <SearchableSelect
-          label={label}
-          options={data?.organization.members ?? []}
-          defaultValue={people[0]?.name ?? ''}
-          searchLabel='Search'
+          label='Permission group'
+          options={['None', ...(data?.organization.permissionGroups ?? [])]}
+          defaultValue='None'
+          searchLabel='Search permission groups…'
+          createLabel='Create permission group…'
         />
       )
     case 'LogoUploadField':
@@ -477,6 +484,32 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
         />
       )
     case 'ActionMenu': {
+      const download = menuChoices['Menu/HelpDownloads'][0]
+      if (family === 'Menu/HelpDownloads')
+        return (
+          <ActionMenu label='Download apps'>
+            <MenuItem label={download} icon='I041' trailingIcon='I037' />
+          </ActionMenu>
+        )
+      if (family === 'Menu/Help/downloads-hover') {
+        const [apps, support, docs, changelog] = menuChoices[family]
+        return (
+          <ActionMenu
+            label='Help'
+            actions={[
+              {
+                id: 'downloads',
+                label: apps,
+                icon: 'I102',
+                children: [{ id: 'macos', label: download, icon: 'I041', trailingIcon: 'I037' }],
+              },
+              { id: 'support', label: support, icon: 'I047' },
+              { id: 'documentation', label: docs, icon: 'I079', trailingIcon: 'I037' },
+              { id: 'changelog', label: changelog, icon: 'I046', separatorBefore: true },
+            ]}
+          />
+        )
+      }
       const options = menuChoices[family] ?? []
       const range = family.includes('ChartRange')
       const sort = family.includes('CollectionSort')
@@ -579,9 +612,10 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
               content: (
                 <SearchableSelect
                   label='Permission group'
-                  options={data?.organization.members ?? []}
-                  defaultValue={people[0]?.name ?? ''}
-                  searchLabel='Search groups'
+                  options={['None', ...(data?.organization.permissionGroups ?? [])]}
+                  defaultValue='None'
+                  searchLabel='Search permission groups…'
+                  createLabel='Create permission group…'
                 />
               ),
             },

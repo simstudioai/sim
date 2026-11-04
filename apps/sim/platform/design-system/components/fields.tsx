@@ -1,6 +1,7 @@
 import { type ReactNode, useId } from 'react'
 import styles from '@/platform/design-system/components/components.module.css'
-import { Input, Select, TextArea } from '@/platform/design-system/components/inputs'
+import { Input, TextArea } from '@/platform/design-system/components/inputs'
+import { Select } from '@/platform/design-system/components/select'
 
 interface FieldProps {
   label: string

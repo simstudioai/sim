@@ -131,6 +131,13 @@ function resolveImport(file: string, specifier: string) {
 function checkImport(file: string, specifier: string, dynamic = false) {
   const target = resolveImport(file, specifier)
   const inPlatform = file.startsWith(platform)
+  if (
+    inPlatform &&
+    /^@base-ui\/react(?:\/|$)/.test(specifier) &&
+    !file.startsWith(`${system}components/`)
+  ) {
+    report('primitive-owner', file, 'Use the Platform component that owns this Base UI primitive')
+  }
   const privateOwner = target?.match(/^(platform\/app\/(?:.+?\/)?)_components(?:\/|$)/)?.[1]
   if (privateOwner && !file.startsWith(privateOwner)) {
     report('private-composition', file, `Promote ${specifier} before using it outside its route`)
@@ -214,6 +221,11 @@ function themeUtility(utility: string) {
     kind === 'rounded' ? 'radius' : ['bg', 'border', 'text'].includes(kind) ? 'color' : 'spacing'
   return themeTokens.has(`--${namespace}-${role}`)
 }
+const positionerMeasurements = new Set([
+  '--anchor-width',
+  '--available-width',
+  '--available-height',
+])
 const sheets = new Map<string, postcss.Root>()
 const classOwners = new Map<string, Set<string>>()
 const variantProps = new Set(Object.values(variants).flatMap((props) => Object.keys(props)))
@@ -247,6 +259,27 @@ function checkCss(file: string, sheet: postcss.Root) {
       report('css-owner', file, `@${rule.name} outside foundations`)
     }
   })
+  sheet.walkRules((rule) => {
+    if (
+      !/(?::focus(?:-visible|-within)?\b|\[data-focus(?:ed|-visible)?(?:\]|[=\s]))/i.test(
+        rule.selector
+      )
+    )
+      return
+    if (
+      file === `${foundation}globals.css` &&
+      rule.selector === '[data-platform-ui] :focus' &&
+      rule.nodes.every(
+        (node) => node.type === 'decl' && node.prop === 'outline' && node.value === 'none'
+      )
+    )
+      return
+    report(
+      'focus-style',
+      file,
+      `DOM focus preserves the recipe's resting appearance: ${rule.selector}`
+    )
+  })
   if (!base && !preview) {
     sheet.walkRules((rule) => {
       for (const selector of rule.selectors) {
@@ -278,7 +311,9 @@ function checkCss(file: string, sheet: postcss.Root) {
   sheet.walkDecls(({ prop, value, source }) => {
     const location = `${file}:${source?.start?.line ?? 1}`
     for (const [, token] of value.matchAll(/var\(\s*(--[\w-]+)/g)) {
-      if (!tokens.has(token)) report('unknown-token', location, token)
+      const positioned =
+        file.startsWith(`${system}components/`) && positionerMeasurements.has(token)
+      if (!tokens.has(token) && !positioned) report('unknown-token', location, token)
     }
     if (base) return
     if (
@@ -394,6 +429,13 @@ function checkJs(file: string, content: string) {
         ) {
           primitives.add(node.importClause.name.text)
         }
+        if (ts.isImportDeclaration(node) && /^@base-ui\/react(?:\/|$)/.test(specifier.text)) {
+          const bindings = node.importClause?.namedBindings
+          if (bindings && ts.isNamespaceImport(bindings)) primitives.add(bindings.name.text)
+          else if (bindings) {
+            for (const binding of bindings.elements) primitives.add(binding.name.text)
+          }
+        }
         if (ts.isImportDeclaration(node) && specifier.text.startsWith('@radix-ui/react-')) {
           const bindings = node.importClause?.namedBindings
           if (bindings && ts.isNamespaceImport(bindings)) primitives.add(bindings.name.text)
@@ -426,6 +468,8 @@ function checkJs(file: string, content: string) {
       report('prop-spread', location(node), 'Pass named props explicitly')
     if (inPlatform && (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))) {
       const tag = node.tagName.getText(sf)
+      if (tag === 'select')
+        report('native-picker', location(node), 'Use the shared Platform value picker')
       const native = /^[a-z][\w-]*$/.test(tag) || (owner && primitives.has(tag.split('.')[0]))
       if (
         tag === 'style' ||

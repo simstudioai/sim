@@ -1,19 +1,29 @@
 'use client'
 
-import { useId, useState } from 'react'
-import * as Popover from '@radix-ui/react-popover'
-import styles from '@/platform/design-system/components/components.module.css'
+import { useId, useMemo, useRef } from 'react'
+import { Combobox } from '@base-ui/react/combobox'
 import { FieldFrame } from '@/platform/design-system/components/fields'
 import { Icon } from '@/platform/design-system/components/icon'
-import { usePopoverContainer } from '@/platform/design-system/components/use-popover-container'
+import picker from '@/platform/design-system/components/picker.module.css'
+import popup from '@/platform/design-system/components/popup.module.css'
+import { usePickerValue } from '@/platform/design-system/components/use-picker-value'
+
+type Option = string | { value: string; label: string }
 
 interface SearchableSelectProps {
   label: string
-  options: readonly string[]
+  options: readonly Option[]
   defaultValue: string
   searchLabel: string
+  name?: string
+  disabled?: boolean
   createLabel?: string
   onCreate?: () => void
+}
+
+const collectionKeys = {
+  getValue: (option: Option) => (typeof option === 'string' ? option : option.value),
+  getLabel: (option: Option) => (typeof option === 'string' ? option : option.label),
 }
 
 export function SearchableSelect({
@@ -21,91 +31,104 @@ export function SearchableSelect({
   options,
   defaultValue,
   searchLabel,
+  name,
+  disabled,
   createLabel,
   onCreate,
 }: SearchableSelectProps) {
   const id = useId()
-  const { trigger, container } = usePopoverContainer()
-  const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState('')
-  const [selected, setSelected] = useState(defaultValue)
-  const matches = options.filter((option) =>
-    option.toLowerCase().includes(query.trim().toLowerCase())
-  )
-
+  const actions = useRef<Combobox.Root.Actions>(null)
+  const input = useRef<HTMLInputElement>(null)
+  const selection = usePickerValue(options, collectionKeys.getValue, defaultValue)
+  const items = useMemo(() => Combobox.createItems(options, collectionKeys), [options])
   return (
     <FieldFrame id={id} label={label}>
-      <Popover.Root
-        open={open}
-        onOpenChange={(next) => {
-          setOpen(next)
-          if (!next) setQuery('')
-        }}
+      <Combobox.Root
+        items={items}
+        value={selection.value}
+        name={name}
+        onValueChange={selection.setValue}
+        autoHighlight
+        actionsRef={actions}
+        disabled={disabled || (options.length === 0 && !createLabel)}
+        modal={false}
       >
-        <Popover.Trigger
-          ref={trigger}
+        <Combobox.Trigger
           id={id}
-          type='button'
-          className={styles.selectTrigger}
+          ref={selection.trigger}
+          aria-label={label}
+          className={picker.trigger}
           data-type='T043'
-          aria-label={`${label}, ${selected}`}
         >
-          {selected}
+          <span className={picker.value}>
+            <Combobox.Value />
+          </span>
           <Icon name='I051' />
-        </Popover.Trigger>
-        {container && (
-          <Popover.Portal container={container}>
-            <Popover.Content
-              className={styles.selectMenu}
-              aria-label={label}
+        </Combobox.Trigger>
+        {selection.container && (
+          <Combobox.Portal container={selection.container}>
+            <Combobox.Positioner
               align='start'
-              data-material='floating'
-              data-elevation='menu'
+              positionMethod='fixed'
+              sideOffset={8}
+              className={popup.anchorWidth}
             >
-              <div className={styles.search}>
-                <Icon name='I089' />
-                <input
-                  aria-label={searchLabel}
-                  placeholder={searchLabel}
-                  value={query}
-                  data-type='T060'
-                  onChange={(event) => setQuery(event.target.value)}
-                />
-              </div>
-              {matches.map((option) => (
-                <Popover.Close
-                  key={option}
-                  className={styles.option}
-                  data-type='T060'
-                  aria-pressed={selected === option}
-                  onClick={() => setSelected(option)}
-                >
-                  {option}
-                  {selected === option && <Icon name='I072' />}
-                </Popover.Close>
-              ))}
-              {matches.length === 0 && (
-                <p role='status' className={styles.noResults} data-type='T060'>
-                  No matches
-                </p>
-              )}
-              {createLabel && (
-                <>
-                  <hr className={styles.rule} />
-                  <Popover.Close
-                    className={styles.createOption}
+              <Combobox.Popup
+                className={popup.popup}
+                data-material='floating'
+                data-elevation='menu'
+                aria-label={label}
+                initialFocus={input}
+              >
+                <div className={picker.search}>
+                  <Icon name='I089' />
+                  <Combobox.Input
+                    ref={input}
+                    aria-label={searchLabel}
+                    placeholder={searchLabel}
                     data-type='T060'
-                    onClick={onCreate}
-                  >
-                    <Icon name='I074' />
-                    {createLabel}
-                  </Popover.Close>
-                </>
-              )}
-            </Popover.Content>
-          </Popover.Portal>
+                  />
+                </div>
+                <Combobox.Empty className={picker.empty} data-type='T060'>
+                  No matches
+                </Combobox.Empty>
+                <Combobox.List aria-label={label} className={popup.list}>
+                  {(option: Option) => (
+                    <Combobox.Item
+                      key={collectionKeys.getValue(option)}
+                      value={collectionKeys.getValue(option)}
+                      className={popup.item}
+                      data-type='T060'
+                    >
+                      <span className={popup.label}>{collectionKeys.getLabel(option)}</span>
+                      <Combobox.ItemIndicator className={popup.indicator}>
+                        <Icon name='I072' />
+                      </Combobox.ItemIndicator>
+                    </Combobox.Item>
+                  )}
+                </Combobox.List>
+                {createLabel && (
+                  <>
+                    <Combobox.Separator className={popup.separator} />
+                    <button
+                      type='button'
+                      className={popup.item}
+                      data-type='T060'
+                      onClick={() => {
+                        actions.current?.close()
+                        onCreate?.()
+                      }}
+                    >
+                      <Icon name='I074' />
+                      {createLabel}
+                    </button>
+                  </>
+                )}
+              </Combobox.Popup>
+            </Combobox.Positioner>
+          </Combobox.Portal>
         )}
-      </Popover.Root>
+      </Combobox.Root>
     </FieldFrame>
   )
 }

@@ -37,6 +37,7 @@ export interface PreviewData {
   organization: {
     name: string
     members: string[]
+    permissionGroups: string[]
     workspaces: { id: string; name: string; chats: string[] }[]
   }
 }
