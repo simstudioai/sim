@@ -312,7 +312,7 @@ it('rotates credentials without bypassing a provider cooldown or publishing the 
   expect(rows).toEqual([{ id: director, title: 'President' }])
 })
 
-it('resumes a large Entra hierarchy without replaying successful batch siblings or creating accounts', async () => {
+it('resumes a large Entra hierarchy past a user deleted mid-read without replaying successful batch siblings or creating accounts', async () => {
   const total = 10007
   const tenantId = generateId()
   const graphConfig = {
@@ -378,6 +378,12 @@ it('resumes a large Entra hierarchy without replaying successful batch siblings 
           body: { error: graphConfig.clientSecret },
         }
       }
+      if (managerId === employee(2))
+        return {
+          id: request.id,
+          status: 404,
+          body: { error: { code: 'Request_ResourceNotFound' } },
+        }
       if (managerId !== lead) return { id: request.id, status: 200, body: { value: [] } }
       const offset = Number(target.searchParams.get('$skiptoken') || 0)
       const length = Math.min(1000, total - 1 - offset)

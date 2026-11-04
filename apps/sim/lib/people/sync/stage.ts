@@ -101,7 +101,11 @@ export async function pendingManagers(executor: DbOrTx, run: StageRun) {
     .limit(GRAPH_BATCH_SIZE)
 }
 
-/** Commits only completed subrequests, rejecting a cursor replay or a second parent for an active person. */
+/**
+ * Commits only completed subrequests and rejects a cursor replay. Graph gives a person one
+ * manager, so a person claimed again was moved during a read that spans many slices: the
+ * latest read wins, and publication's cycle check still guards the finished graph.
+ */
 export async function stageRelationships(
   tx: DbTransaction,
   run: StageRun,
@@ -135,27 +139,17 @@ export async function stageRelationships(
       'conflict',
       'The directory relationship page no longer matches its checkpoint.'
     )
-  const [result] = await tx.execute<{ conflict: boolean }>(sql`
+  await tx.execute(sql`
     WITH claims AS (
       SELECT p."managerId" AS manager, jsonb_array_elements_text(p."reportIds") AS report
       FROM jsonb_to_recordset(${JSON.stringify(pages.map(({ managerId, reportIds }) => ({ managerId, reportIds })))}::text::jsonb)
         AS p("managerId" text,"reportIds" jsonb)
     ), assignments AS (
-      SELECT s.external_id, min(c.manager) AS manager, count(*) > 1 OR bool_or(s.manager_external_id IS NOT NULL) AS conflict
-      FROM claims c JOIN ${stage} s ON s.organization_id = ${run.organizationId} AND s.run_id = ${run.runId} AND s.external_id = c.report
-      GROUP BY s.external_id
-    ), written AS (
-      UPDATE ${stage} s SET manager_external_id = a.manager FROM assignments a
-      WHERE s.organization_id = ${run.organizationId} AND s.run_id = ${run.runId} AND s.external_id = a.external_id
-        AND NOT EXISTS (SELECT 1 FROM assignments WHERE conflict)
+      SELECT c.report AS external_id, min(c.manager) AS manager FROM claims c GROUP BY c.report
     )
-    SELECT EXISTS (SELECT 1 FROM assignments WHERE conflict) AS conflict
+    UPDATE ${stage} s SET manager_external_id = a.manager FROM assignments a
+    WHERE s.organization_id = ${run.organizationId} AND s.run_id = ${run.runId} AND s.external_id = a.external_id
   `)
-  if (result.conflict)
-    throw new OrchestrationError(
-      'validation',
-      'The directory returned multiple manager assignments for the same person. Correct the reporting lines and sync again.'
-    )
 }
 
 /** Clears private pages and rows on reset, replacement, or completion with the organization's sync row locked. */

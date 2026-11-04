@@ -160,6 +160,13 @@ describe('evidence-linked citations', () => {
       true
     )
     expect(persisted.sources).toEqual(live.sources)
+    const disguised = {
+      ...webOutput,
+      results: [{ ...webOutput.results[0], url: 'https://docs.example.test@attacker.test/cli' }],
+    }
+    expect(
+      resolveMessageCitations(webBlocks('success', true, disguised), '', true).sources
+    ).toEqual([])
     expect(
       resolveMessageCitations(webBlocks('error', false, webOutput), '', true).blocks[1].content
     ).toBe('Install it ')

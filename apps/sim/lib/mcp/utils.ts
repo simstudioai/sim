@@ -189,8 +189,8 @@ export function categorizeMcpServerError(
 }
 
 /**
- * Enhanced error categorization for more specific HTTP status codes.
- * Returns safe, generic messages to prevent leaking internal details.
+ * HTTP status and safe, generic message for any error: Sim's own MCP error classes
+ * first, then message matching for SDK and third-party errors.
  */
 export function categorizeError(error: unknown): { message: string; status: number } {
   if (!(error instanceof Error)) {

@@ -100,7 +100,10 @@ export function Person({ organizationId, memberId }: PersonProps) {
   const [editing, setEditing] = useState(false)
   const routes = organizationRoutes(organizationId)
   const originQuery = serializePeopleView({ ...origin, view: origin.view ?? 'directory' })
-  const data = query.isError ? undefined : query.data
+  const notFound = isApiClientError(query.error) && query.error.status === 404
+  // A failed background refresh keeps the loaded profile, and any edit open on it.
+  const loadError = query.data && !notFound ? null : query.error
+  const data = loadError ? undefined : query.data
 
   const chartHref = serializePeopleView(routes.people, {
     ...origin,
@@ -129,14 +132,14 @@ export function Person({ organizationId, memberId }: PersonProps) {
         ) : undefined
       }
     >
-      {query.error ? (
-        isApiClientError(query.error) && query.error.status === 404 ? (
+      {loadError ? (
+        notFound ? (
           <SettingsEmptyState variant='inline'>
             This person isn't in your organization.
           </SettingsEmptyState>
         ) : (
           <SettingsQueryErrorState
-            error={query.error}
+            error={loadError}
             fallback='Could not load this person'
             isRetrying={query.isFetching}
             onRetry={() => void query.refetch()}

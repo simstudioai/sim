@@ -166,7 +166,9 @@ function parseErrorGuidance(command: Command, message: string): string[] {
   const missingOption = MISSING_OPTION_ERROR.exec(message)?.[1]
   if (missingOption) {
     const extra = extraOperands(command)
-    const flag = missingOption.split(' ', 1)[0]
+    const flag =
+      command.options.find((option) => option.flags === missingOption)?.long ??
+      missingOption.split(' ', 1)[0]
     const moved =
       extra.length === 1
         ? [`"${extra[0]}" was passed as a positional; pass it as ${flag} "${extra[0]}".`]

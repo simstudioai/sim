@@ -539,9 +539,8 @@ describe('collectWorkflowTableIds', () => {
 })
 
 /**
- * The agent's own runs name their trigger and skip the Run button's checks, so
- * a Run-button refusal told under "Fix these before continuing" pushed agents
- * to wire a stray Start into the graph instead of removing it.
+ * The agent's own runs name their trigger and skip the Run button's checks, so a
+ * Run-button refusal is advice, never listed under "Fix these before continuing".
  */
 describe('formatWorkflowLintMessage', () => {
   const clean = {

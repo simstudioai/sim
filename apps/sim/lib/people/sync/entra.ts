@@ -101,6 +101,8 @@ async function readReportPages(
     const timing = { get: (name: string) => headers.get(name) ?? null }
     const retryAfterMs = directoryRetryDelay(response.status, timing)
     if (retryAfterMs !== null) return { managerId: page.managerId, retryAfterMs }
+    // A user deleted after the users phase has no reports left to read.
+    if (response.status === 404) return { managerId: page.managerId, reportIds: [], next: null }
     requireDirectorySuccess(response.status, timing)
     const parsedReports = reportsResponse.safeParse(response.body)
     if (!parsedReports.success)

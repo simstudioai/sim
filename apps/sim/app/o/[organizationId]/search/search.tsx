@@ -167,7 +167,7 @@ function OrganizationSearchContent({ userId, chatId }: OrganizationSearchProps) 
   const { recordQuery } = useSearchHistoryActions()
   const router = useRouter()
   const pathname = usePathname()
-  const hasSearchParams = useSearchParams().size > 0
+  const hasSearchParams = useSearchParams().toString() !== ''
   const routes = organizationRoutes(organization.id)
   const hasConversation = Boolean(chatId) || pathname.startsWith(`${routes.search}/chat/`)
   const queryClient = useQueryClient()
@@ -187,11 +187,7 @@ function OrganizationSearchContent({ userId, chatId }: OrganizationSearchProps) 
     []
   )
   useEffect(() => {
-    if (!mothershipAvailable) return
-    if (routeMode) {
-      BrowserStorage.setItem(preferenceKey, routeMode)
-      return
-    }
+    if (!mothershipAvailable || routeMode) return
     const savedMode = BrowserStorage.getItem<unknown>(preferenceKey, null)
     // Pin the mode to this history entry so Back survives a later preference change.
     void setParams({ mode: savedMode === 'assistant' ? 'assistant' : 'search' })
@@ -200,6 +196,7 @@ function OrganizationSearchContent({ userId, chatId }: OrganizationSearchProps) 
   if (activeMode === 'assistant' && !assistantOpened) setAssistantOpened(true)
 
   const changeMode = (next: 'search' | 'assistant') => {
+    BrowserStorage.setItem(preferenceKey, next)
     void setParams({ mode: next }, { history: 'push' })
   }
   const startNew = () => {

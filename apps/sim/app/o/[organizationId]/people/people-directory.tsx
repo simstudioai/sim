@@ -190,7 +190,7 @@ export function PeopleDirectory({ organizationId }: PeopleProps) {
         rows={rows}
         onRowClick={(memberId) => router.push(profileHref(memberId))}
         onLoadMore={() => void people.fetchNextPage()}
-        hasMore={people.hasNextPage}
+        hasMore={people.hasNextPage && !changingFilter}
         isLoadingMore={people.isFetchingNextPage}
         isFetching={people.isFetching}
         loadMoreFailed={people.isFetchNextPageError}

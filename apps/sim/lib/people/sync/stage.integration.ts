@@ -99,7 +99,7 @@ it('refuses cyclic components, including cycles outside otherwise publishable tr
   await expect(db.transaction(publish)).rejects.toThrow(/loop|cycle/i)
   expect((await published()).map((p) => p.externalId)).toEqual(['root'])
 })
-it('resumes relationship pages from stored continuations and refuses incomplete or contradictory Graph data', async () => {
+it('resumes relationship pages from stored continuations, refuses incomplete Graph data, and keeps the latest manager read', async () => {
   await db
     .update(peopleDirectorySync)
     .set({ source: 'entra' })
@@ -123,12 +123,13 @@ it('resumes relationship pages from stored continuations and refuses incomplete 
     cursor: 'continuation',
   })
   await record('lead', 'continuation', ['worker'], null)
-  await expect(record('other', null, ['worker'], null)).rejects.toThrow(/manager/i)
-  await record('other', null, [], null)
+  await record('other', null, ['worker'], null)
   await record('worker', null, [], null)
   expect(await pendingManagers(db, run)).toEqual([])
   await db.transaction((tx) => publishStagedSnapshot(tx, run, 'entra'))
-  expect((await published()).find((r) => r.externalId === 'worker')?.managerExternalId).toBe('lead')
+  expect((await published()).find((r) => r.externalId === 'worker')?.managerExternalId).toBe(
+    'other'
+  )
 })
 it('refuses to publish a replaced generation', async () => {
   await writeUsers(null, [person('live')])

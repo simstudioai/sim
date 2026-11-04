@@ -16,9 +16,9 @@ function jsonKind(value: unknown): string {
 
 /**
  * The refusal for a body variant given the wrong JSON shape, stating what came
- * in and the spelling that takes it. `--rows '{"rows":[...]}'` and `--rows`
- * with a single row were the recurring misses; neither value is reshaped,
- * because guessing which part the caller meant is the server's write to make.
+ * in and the spelling that takes it (e.g. `--rows '{"rows":[...]}'`, or `--rows`
+ * with a single row). Neither value is reshaped, because guessing which part the
+ * caller meant is the server's write to make.
  */
 function bodyVariantShapeError(
   variant: BodyVariantSpec,

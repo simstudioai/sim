@@ -265,10 +265,6 @@ describe('applyWorkflowOperations', () => {
     })
   })
 
-  /**
-   * An agent piping the apply response through a projection of `warnings`
-   * never saw lint findings, which lived only under `lint`.
-   */
   it('points at lint findings from warnings, on commit and on dry run', async () => {
     const orphan = { blockId: 'block-1', blockName: 'Start', blockType: 'starter' }
     mocks.lintGraph.mockReturnValue({
