@@ -85,7 +85,26 @@ const chatResponses: {
   events: { type: string | null; seq: number | null }[]
   error?: string
 }[] = []
+const uploadRequests: { event: string; stage: string; method: string; status?: number }[] = []
 const responseDiagnostics: Promise<void>[] = []
+const chatTurns = new Map<string, number>()
+const chatAttempts: {
+  attempt: number
+  turn: number | null
+  check: string
+  scenario: string
+  phase: string
+  scope: string
+  sender: string
+}[] = []
+const dropReceipts: {
+  scope: string
+  phase: string
+  receipt: Awaited<ReturnType<typeof dropOnChat>>
+}[] = []
+let currentCheck = ''
+let scenario = ''
+let phase = ''
 let failureState: { path: string; chatId: string | null; text: string }[] = []
 let pendingAtFailure: { path: string; method: string; resourceType: string }[] = []
 const uploadedPaths = new Set<string>()
@@ -145,6 +164,9 @@ async function check(
   run: () => Promise<void>
 ) {
   if (group !== 'all' && group !== owner && !(group === 'native' && owner !== 'access')) return
+  currentCheck = name
+  scenario = ''
+  phase = ''
   const started = performance.now()
   try {
     await run()
@@ -325,8 +347,8 @@ try {
   // Only the synthetic page is pregranted; native permission prompts are a separate acceptance check.
   manifest.host_permissions.push(`${fixtureOrigin}/*`)
   await writeFile(resolve(extensionPath, 'manifest.json'), JSON.stringify(manifest))
-  const launchBrowserContext = () =>
-    chromium.launchPersistentContext(resolve(temporary, 'profile'), {
+  const launchBrowserContext = async () => {
+    const opened = await chromium.launchPersistentContext(resolve(temporary, 'profile'), {
       channel: 'chromium',
       headless: process.env.EXTENSION_APP_E2E_HEADED !== '1',
       viewport: { width: 390, height: 844 },
@@ -336,6 +358,38 @@ try {
         '--use-fake-device-for-media-stream',
       ],
     })
+    opened.on('request', (request) => {
+      const url = new URL(request.url())
+      if (
+        url.origin !== base.origin ||
+        url.pathname !== '/api/mothership/chat' ||
+        request.method() !== 'POST'
+      )
+        return
+      const body = toRecord(request.postDataJSON())
+      const id = toStringOrNull(body.userMessageId)
+      if (id && !chatTurns.has(id)) chatTurns.set(id, chatTurns.size + 1)
+      let sender = 'unknown'
+      try {
+        sender = request.frame().page() === panel ? 'current-panel' : 'other-page'
+      } catch {}
+      chatAttempts.push({
+        attempt: chatAttempts.length + 1,
+        turn: id ? (chatTurns.get(id) ?? null) : null,
+        check: currentCheck,
+        scenario,
+        phase,
+        scope:
+          body.organizationId === organizationId
+            ? 'organization'
+            : body.workspaceId === alphaId
+              ? 'workspace'
+              : 'other',
+        sender,
+      })
+    })
+    return opened
+  }
   context = await launchBrowserContext()
   let browserContext = context
   context.setDefaultTimeout(30_000)
@@ -366,7 +420,16 @@ try {
       route.fulfill({ json: { sttAvailable: true } })
     )
     page.on('pageerror', (error) => browserErrors.push(error.message))
-    page.on('request', (request) => pendingRequests.add(request))
+    page.on('request', (request) => {
+      pendingRequests.add(request)
+      const url = new URL(request.url())
+      if (url.origin === base.origin && url.pathname.startsWith('/api/files/uploads'))
+        uploadRequests.push({
+          event: 'request',
+          stage: url.pathname.endsWith('/complete') ? 'complete' : 'session',
+          method: request.method(),
+        })
+    })
     page.on('requestfinished', (request) => pendingRequests.delete(request))
     page.on('requestfailed', (request) => {
       pendingRequests.delete(request)
@@ -377,6 +440,13 @@ try {
     })
     page.on('response', (response) => {
       const url = new URL(response.url())
+      if (url.origin === base.origin && url.pathname.startsWith('/api/files/uploads'))
+        uploadRequests.push({
+          event: 'response',
+          stage: url.pathname.endsWith('/complete') ? 'complete' : 'session',
+          method: response.request().method(),
+          status: response.status(),
+        })
       if (url.origin === base.origin && url.pathname === '/api/mothership/chat') {
         const entry: (typeof chatResponses)[number] = {
           status: response.status(),
@@ -558,9 +628,12 @@ try {
     )
     return { name, png }
   }
-  const attachScreenshot = async (target: Locator) => {
+  const attachScreenshot = async (target: Locator, scope?: string) => {
     const { name, png } = await screenshotFile()
-    return uploadFile(name, () => dropOnChat(shell, target, { files: [png] }))
+    return uploadFile(name, async () => {
+      const receipt = await dropOnChat(shell, target, { files: [png] })
+      if (scope) dropReceipts.push({ scope, phase: 'recovery', receipt })
+    })
   }
   const installCaptureGate = () =>
     shell.addInitScript((parentOrigin) => {
@@ -689,7 +762,8 @@ try {
       const { name, png } = await screenshotFile()
       const pageCount = browserContext.pages().length
       const previousUrl = app.url()
-      await dropOnChat(shell, greeting, { files: [png] })
+      const receipt = await dropOnChat(shell, greeting, { files: [png] })
+      dropReceipts.push({ scope, phase: 'held-capture', receipt })
       await app.evaluate(
         () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
       )
@@ -730,7 +804,7 @@ try {
       ).toHaveCount(0)
       assert.equal(uploadAttempts, 0)
       await browserContext.unroute(uploadEndpoint, interceptUpload)
-      await attachScreenshot(input)
+      await attachScreenshot(input, scope)
       await screenshot(`pending-capture-drop-${scope}-recovered`)
       await app.getByRole('button', { name: `Remove ${name}`, exact: true }).click()
       assert.equal(submitted.length, 1, `${scope}: recovering drops duplicated the turn`)
@@ -1840,8 +1914,9 @@ try {
         if (enabled) await expect(globe).toHaveText('Current page')
         else await expect(globe).not.toHaveText('Current page')
       }
-      const openScenario = async (target: string) => {
-        // A rejected send can recover from this tab's session after navigation.
+      const openScenario = async (target: string, name: string) => {
+        scenario = name
+        phase = 'opening'
         await shell.close()
         panel = await openPanel()
         shell = panel
@@ -1849,6 +1924,9 @@ try {
         await shell.goto(`chrome-extension://${extensionId}/sidepanel.html`)
         await observeCaptureReceipts()
         await navigate(base.origin + target)
+        await expect(
+          frame().getByRole('heading', { name: 'How can I help?', exact: true })
+        ).toBeVisible()
         await setReference(true)
       }
       try {
@@ -1856,7 +1934,7 @@ try {
           const target = org ? `/extension/o/${organizationId}` : `/extension/${alphaId}`
           const input = () =>
             frame().getByRole('textbox', { name: org ? 'Ask Sim' : 'Message', exact: true })
-          await openScenario(target)
+          await openScenario(target, `${org ? 'organization' : 'workspace'}-reference`)
           await expect(input()).toBeVisible()
           await input().fill('Summarize the current page')
           const submit = frame().getByRole('button', {
@@ -1867,6 +1945,7 @@ try {
           await screenshot(`reference-${org ? 'organization' : 'workspace'}-enabled-320`)
           await second.bringToFront()
           let count = received.length
+          phase = 'send'
           await input().press('Enter')
           await expect.poll(() => received.length).toBe(count + 1)
           const pages = submittedPages(received[count])
@@ -1878,24 +1957,26 @@ try {
             org ? organizationId : alphaId
           )
 
-          await openScenario(target)
+          await openScenario(target, `${org ? 'organization' : 'workspace'}-manual`)
           await expect(input()).toBeVisible()
           await capture()
           await second.bringToFront()
           await input().fill('Compare the attached snapshot')
           count = received.length
+          phase = 'send'
           await input().press('Enter')
           await expect.poll(() => received.length).toBe(count + 1)
           const manual = submittedPages(received[count])
           assert.equal(manual.length, 1)
           assert(manual[0].text.includes('ORCHID-482') && !manual[0].text.includes('JADE-231'))
 
-          await openScenario(target)
+          await openScenario(target, `${org ? 'organization' : 'workspace'}-denied`)
           await expect(input()).toBeVisible()
           await restricted.bringToFront()
           const draft = 'Keep this draft if access is unavailable'
           await input().fill(draft)
           count = received.length
+          phase = 'denied-send'
           await input().press('Enter')
           await expect(
             shell.getByRole('button', { name: 'Request site access', exact: true })
@@ -1914,6 +1995,7 @@ try {
             'Access guidance covered the composer twice'
           )
           await setReference(false)
+          phase = 'opt-out-send'
           await input().press('Enter')
           await expect.poll(() => received.length).toBe(count + 1)
           assert.equal(submittedPages(received[count]).length, 0)
@@ -2873,6 +2955,9 @@ try {
         failureState,
         httpErrors,
         chatResponses,
+        chatAttempts,
+        dropReceipts,
+        uploadRequests,
       },
       null,
       2
