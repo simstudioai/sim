@@ -58,7 +58,7 @@ faq:
 
 ## TL;DR
 
-Sim fits teams building a Notion AI agent that must read documents, update databases, use AI models, and apply approval logic in one visual workflow.
+Sim is the open-source AI workspace for teams building a Notion AI agent that must read documents, update databases, use AI models, and apply approval logic in one visual workflow.
 
 A practical Notion agent usually needs two capabilities. It must retrieve pages for context, and it must create or update database records without exceeding the permissions granted in Notion. Sim combines those operations with model calls, conditions, webhooks, and human review.
 
@@ -148,7 +148,7 @@ Sim can build a Q&A agent that retrieves permitted Notion pages, gives the model
 
 1. Define the permitted knowledge area in Notion. Share only the team spaces, pages, or databases that the agent should search.
 
-2. Accept the user's question in Sim. The input can come from Chat, an API request, or another deployed interface.
+2. Accept a team member's question in Sim. The input can come from Chat, an API request, or another deployed interface.
 
 3. Search Notion for relevant content. Use the native Notion connection or a Notion MCP server to identify candidate pages.
 
@@ -156,7 +156,7 @@ Sim can build a Q&A agent that retrieves permitted Notion pages, gives the model
 
 5. Build a grounded prompt. Tell the model to answer only from the supplied Notion content and to say when the available material does not support an answer.
 
-6. Return citations with the answer. Include the relevant Notion page titles and URLs so the user can inspect the source material.
+6. Return citations with the answer. Include the relevant Notion page titles and URLs so the team member can inspect the source material.
 
 7. Log retrieval quality. Capture the query, selected pages, answer, and user feedback so the retrieval rules can be improved.
 
