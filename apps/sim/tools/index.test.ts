@@ -5097,6 +5097,7 @@ describe('File Parameter Normalization', () => {
         } else {
           expect(mockExecuteInternalToolOperation.mock.calls[0]?.[0].input).toMatchObject({
             provider: 'runway',
+            model: 'gen4_turbo',
             apiKey: 'test-runway-key',
             prompt: 'Animate the boat',
             visualReference: file,

@@ -156,22 +156,22 @@ function selectedDirectModel(values?: Record<string, unknown>) {
 
 const directVideoFields = (
   [
-    ['directDuration', 'Duration (seconds)', 'durations'],
-    ['directAspectRatio', 'Aspect Ratio', 'aspectRatios'],
-    ['directResolution', 'Resolution', 'resolutions'],
+    ['duration', 'Duration (seconds)', 'durations'],
+    ['aspectRatio', 'Aspect Ratio', 'aspectRatios'],
+    ['resolution', 'Resolution', 'resolutions'],
     ['directGenerateAudio', 'Generate Audio', 'audio'],
-    ['directPromptOptimizer', 'Prompt Optimizer', 'promptOptimizer'],
+    ['promptOptimizer', 'Prompt Optimizer', 'promptOptimizer'],
   ] as const
 ).map(
   ([id, title, key]): SubBlockConfig => ({
     id,
     title,
-    type: 'dropdown',
-    value: () => FAL_MODEL_DEFAULT.id,
+    type: key === 'promptOptimizer' ? 'switch' : 'dropdown',
+    value: key === 'promptOptimizer' ? undefined : () => FAL_MODEL_DEFAULT.id,
     dependsOn: ['provider', 'model', 'visualReferenceInput', 'visualReferenceUpload'],
     condition: (values) => ({
-      field: 'model',
-      value: selectedDirectModel(values)?.settings?.[key] ? [String(values?.model)] : [],
+      field: 'provider',
+      value: selectedDirectModel(values)?.settings?.[key] ? [String(values?.provider)] : [],
     }),
     options: (params) => {
       if (!params) {
@@ -193,9 +193,8 @@ const directVideoFields = (
         ...choices
           .filter((value) => {
             if (model?.protocol !== 'minimax-v1') return true
-            if (key === 'durations' && params?.values.directResolution === '1080P')
-              return value === 6
-            if (key === 'resolutions' && Number(params?.values.directDuration) === 10)
+            if (key === 'durations' && params?.values.resolution === '1080P') return value === 6
+            if (key === 'resolutions' && Number(params?.values.duration) === 10)
               return value !== '1080P'
             return true
           })
@@ -1936,12 +1935,12 @@ export const VideoGeneratorV3Block: BlockConfig = {
             ? normalizeFileInput(params.visualReference, { single: true })
             : undefined
         const model = getDirectVideoModel(params.provider, params.model, Boolean(visualReference))
-        const setting = (legacy: string, current: string, supported: unknown) => {
+        const setting = (key: string, supported: unknown) => {
           if (!supported) return undefined
-          const value = params[current] ?? params[legacy]
+          const value = params[key]
           return value === FAL_MODEL_DEFAULT.id ? undefined : value
         }
-        const duration = setting('duration', 'directDuration', model?.settings?.durations)
+        const duration = setting('duration', model?.settings?.durations)
         return {
           provider: params.provider,
           model: params.model,
@@ -1949,13 +1948,13 @@ export const VideoGeneratorV3Block: BlockConfig = {
           prompt: params.prompt,
           visualReference,
           duration: duration ? Number(duration) : undefined,
-          aspectRatio: setting('aspectRatio', 'directAspectRatio', model?.settings?.aspectRatios),
-          resolution: setting('resolution', 'directResolution', model?.settings?.resolutions),
+          aspectRatio: setting('aspectRatio', model?.settings?.aspectRatios),
+          resolution: setting('resolution', model?.settings?.resolutions),
           generateAudio: parseOptionalBooleanInput(
-            setting('generateAudio', 'directGenerateAudio', model?.settings?.audio)
+            setting('directGenerateAudio', model?.settings?.audio)
           ),
           promptOptimizer: parseOptionalBooleanInput(
-            setting('promptOptimizer', 'directPromptOptimizer', model?.settings?.promptOptimizer)
+            setting('promptOptimizer', model?.settings?.promptOptimizer)
           ),
           endpoint: model?.protocol === 'minimax-v1' ? params.endpoint : undefined,
           cameraControl:
@@ -1970,14 +1969,14 @@ export const VideoGeneratorV3Block: BlockConfig = {
   },
   inputs: {
     ...VideoGeneratorV2Block.inputs,
-    directDuration: { type: 'number', description: 'Duration for the selected provider model' },
-    directAspectRatio: {
+    duration: { type: 'number', description: 'Duration for the selected provider model' },
+    aspectRatio: {
       type: 'string',
       description: 'Frame size or aspect ratio for the selected provider model',
     },
-    directResolution: { type: 'string', description: 'Resolution for the selected provider model' },
+    resolution: { type: 'string', description: 'Resolution for the selected provider model' },
     directGenerateAudio: { type: 'boolean', description: 'Generate audio when supported' },
-    directPromptOptimizer: {
+    promptOptimizer: {
       type: 'boolean',
       description: 'Enable prompt optimization when supported',
     },

@@ -289,6 +289,7 @@ async function generateWithDirectProvider(
         'canceled',
         'incomplete',
         'Fail',
+        'Failed',
       ].includes(status || '')
     ) {
       throw new Error(

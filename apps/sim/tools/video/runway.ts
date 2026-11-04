@@ -1,3 +1,4 @@
+import { directVideoDefaults } from '@/lib/media/direct-video-catalog'
 import type { InternalToolConfig } from '@/tools/types'
 import type { VideoParams, VideoResponse } from '@/tools/video/types'
 
@@ -74,7 +75,7 @@ export const runwayVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
     input: (params) => ({
       provider: 'runway',
       apiKey: params.apiKey,
-      model: params.model,
+      model: params.model || directVideoDefaults.runway,
       prompt: params.prompt,
       duration: params.duration,
       aspectRatio: params.aspectRatio,

@@ -39,6 +39,7 @@ export function buildDirectVideoRequest(input: VideoGenerationInput) {
     model.protocol === 'minimax-v1' &&
     !resolution &&
     input.endpoint === 'pro' &&
+    spec.resolutions?.includes('1080P') &&
     (input.duration ?? 6) === 6
   )
     resolution = '1080P'

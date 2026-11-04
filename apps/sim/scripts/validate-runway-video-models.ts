@@ -95,9 +95,9 @@ for (const mode of ['text', 'image'] as const) {
         assert(validate(request.body), JSON.stringify(validate.errors))
         assert.equal(request.body.model, model.id)
         const wireKeys: Record<string, string> = {
-          directDuration: 'duration',
-          directAspectRatio: 'ratio',
-          directResolution: 'resolution',
+          duration: 'duration',
+          aspectRatio: 'ratio',
+          resolution: 'resolution',
           directGenerateAudio: 'audio',
         }
         for (const [field, value] of Object.entries(settings)) {
@@ -108,7 +108,10 @@ for (const mode of ['text', 'image'] as const) {
       }
       check({})
       for (const field of VideoGeneratorV3Block.subBlocks) {
-        if (!field.id.startsWith('direct') || !evaluateSubBlockCondition(field.condition, base))
+        if (
+          !['duration', 'aspectRatio', 'resolution', 'directGenerateAudio'].includes(field.id) ||
+          !evaluateSubBlockCondition(field.condition, base)
+        )
           continue
         const options =
           typeof field.options === 'function' ? field.options({ values: base }) : field.options

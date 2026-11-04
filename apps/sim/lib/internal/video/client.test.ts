@@ -192,6 +192,48 @@ describe('Video provider client', () => {
     expect(submissions).toBe(1)
   })
 
+  it('reports a failed MiniMax job immediately instead of polling until timeout', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'job' }))
+      .mockResolvedValue(jsonResponse({ status: 'Failed', failure_reason: 'Generation rejected' }))
+    vi.stubGlobal('fetch', fetchMock)
+    const result = generateVideo(
+      { provider: 'minimax', apiKey: 'key', prompt: 'A cinematic sunrise' },
+      { requestId: 'failed-minimax' }
+    )
+    const rejected = expect(result).rejects.toThrow('Generation rejected')
+    await Promise.all([rejected, vi.advanceTimersByTimeAsync(10_000)])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps a saved MiniMax Pro preference compatible with a 720P-only model', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'job' }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'Success', file_id: 'file' }))
+      .mockResolvedValueOnce(
+        jsonResponse({ file: { download_url: 'https://cdn.example/video.mp4' } })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    const result = generateVideo(
+      {
+        provider: 'minimax',
+        model: 'T2V-01',
+        endpoint: 'pro',
+        apiKey: 'key',
+        prompt: 'A cinematic sunrise',
+      },
+      { requestId: 'legacy-pro' }
+    )
+    const completion = expect(result).resolves.toMatchObject({ buffer: Buffer.from('video') })
+    await Promise.all([completion, vi.advanceTimersByTimeAsync(5000)])
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+      model: 'T2V-01',
+      resolution: '720P',
+    })
+  })
+
   it('rejects malformed camera controls before submitting a paid Luma job', async () => {
     const fetchMock = vi.fn(() => {
       throw new Error('Unexpected paid request')

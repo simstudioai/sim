@@ -159,8 +159,8 @@ describe('replaceWorkflowState', () => {
   })
 
   it.each([
-    { provider: 'runway', model: 'gen4.5', directDuration: '5', directAspectRatio: '1280:720' },
-    { provider: 'minimax', model: 'MiniMax-H3', directResolution: '2K', directDuration: '7' },
+    { provider: 'runway', model: 'gen4.5', duration: '5', aspectRatio: '1280:720' },
+    { provider: 'minimax', model: 'MiniMax-H3', resolution: '2K', duration: '7' },
     { provider: 'falai', model: 'fal-ai/kandinsky5/text-to-video', falDuration: '5' },
   ])('saves configured $provider video workflows through the state API', async (settings) => {
     const block = {

@@ -691,7 +691,8 @@
       "durations": [2, 3, 4, 5, 6, 7, 8, 9, 10],
       "maxPromptLength": 1000,
       "defaults": {
-        "ratio": "1280:720"
+        "ratio": "1280:720",
+        "duration": 5
       }
     }
   }
