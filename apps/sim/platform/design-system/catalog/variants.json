@@ -101,5 +101,23 @@
       "activity": ["C0180", "C0181", "C0182"],
       "more": ["C0288", "C0290"]
     }
+  },
+  "AttachmentGrid": {
+    "layout": {
+      "grid": ["C0211"],
+      "list": ["C0212"]
+    }
+  },
+  "WorkspaceList": {
+    "target": {
+      "standard": ["C1283", "C1284", "C1286"],
+      "touch": ["C1288"]
+    }
+  },
+  "TasksRunChart": {
+    "inset": {
+      "flush": ["C0160", "C0162"],
+      "padded": ["C0161", "C0163", "C0165", "C0169", "C0175"]
+    }
   }
 }

@@ -19,52 +19,96 @@ export function MetricGroup({ metrics }: MetricGroupProps) {
   )
 }
 
+type TableColumn = { key: string; label: string; showFrom?: 'compact' | 'wide' } & (
+  | { kind: 'text' | 'status' | 'number' | 'percent' }
+  | { kind: 'duration'; unit: 'millisecond' | 'second' | 'minute' | 'hour' | 'day' }
+  | { kind: 'currency'; currency: string }
+)
+
 interface DataTableProps {
   title: string
   control?: ReactNode
-  columns: readonly {
-    key: string
-    label: string
-    kind: 'text' | 'number' | 'duration' | 'currency'
-  }[]
-  rows: readonly { id: string; values: Readonly<Record<string, string | number>> }[]
+  locale?: string
+  columns: readonly TableColumn[]
+  rows: readonly { id: string; values: Readonly<Partial<Record<string, string | number | null>>> }[]
 }
 
-export function DataTable({ title, control, columns, rows }: DataTableProps) {
+function columnFormat(column: TableColumn, locale: string) {
+  switch (column.kind) {
+    case 'percent':
+      return new Intl.NumberFormat(locale, {
+        style: 'percent',
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })
+    case 'currency':
+      return new Intl.NumberFormat(locale, {
+        style: 'currency',
+        currency: column.currency,
+        minimumFractionDigits: 0,
+      })
+    case 'duration':
+      return new Intl.NumberFormat(locale, { style: 'unit', unit: column.unit })
+    case 'number':
+      return new Intl.NumberFormat(locale)
+    default:
+      return null
+  }
+}
+
+function cellText(value: string | number | null | undefined, format: Intl.NumberFormat | null) {
+  if (format)
+    return typeof value === 'number' && Number.isFinite(value) ? format.format(value) : '—'
+  return value === '' || value == null ? '—' : value
+}
+
+export function DataTable({ title, control, locale = 'en-US', columns, rows }: DataTableProps) {
+  const fields = columns.map((column) => ({ ...column, format: columnFormat(column, locale) }))
   return (
     <section className={styles.section}>
       <header className={styles.header}>
         <h2 data-type='T042'>{title}</h2>
         {control}
       </header>
-      <ScrollArea label={title} axis='horizontal'>
-        <table className={styles.table} aria-label={title}>
-          <thead>
-            <tr>
-              {columns.map((column) => (
-                <th key={column.key} scope='col' data-kind={column.kind} data-type='T050'>
-                  {column.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id}>
-                {columns.map((column) => (
-                  <td
+      <div className={styles.tableViewport}>
+        <ScrollArea label={title} axis='horizontal'>
+          <table className={styles.table} aria-label={title}>
+            <thead>
+              <tr>
+                {fields.map((column) => (
+                  <th
                     key={column.key}
+                    scope='col'
                     data-kind={column.kind}
-                    data-type={column.kind === 'text' ? 'T059' : 'T060'}
+                    data-from={column.showFrom}
+                    data-numeric={Boolean(column.format)}
+                    data-type='T050'
                   >
-                    {row.values[column.key]}
-                  </td>
+                    {column.label}
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </ScrollArea>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  {fields.map((column) => (
+                    <td
+                      key={column.key}
+                      data-kind={column.kind}
+                      data-from={column.showFrom}
+                      data-numeric={Boolean(column.format)}
+                      data-type={column.kind === 'text' ? 'T059' : 'T060'}
+                    >
+                      {cellText(row.values[column.key], column.format)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ScrollArea>
+      </div>
     </section>
   )
 }

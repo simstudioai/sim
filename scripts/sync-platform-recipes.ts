@@ -108,6 +108,19 @@ for (const [owner, props] of Object.entries(variants)) {
   }
 }
 const nativeOwners = {
+  TasksRunChart: ['C0160', 'C0161', 'C0162', 'C0163', 'C0165', 'C0169', 'C0175'],
+  ChartTooltip: ['C0176', 'C0177'],
+  WorkspaceList: ['C1283', 'C1284', 'C1286', 'C1288'],
+  SidebarWorkspaceItems: ['C1080'],
+  ExecutionSteps: ['C1340', 'C1341'],
+  RecentItems: ['C0866', 'C0867', 'C0869', 'C0898', 'C0899', 'C0902', 'C0903', 'C0904'],
+  AttachmentGrid: ['C0211', 'C0212'],
+  PropertyList: ['C1362', 'C1363'],
+  TrendChart: ['C1320', 'C1321'],
+  BarChart: ['C1322', 'C1323'],
+  DonutChart: ['C1324', 'C1325'],
+  BrowserActionsMenu: ['C0633'],
+  VisibilityMenu: ['C0647'],
   OverflowText: ['C0806', 'C0807'],
   SearchableSelect: ['C1294', 'C1295'],
   LogoUploadField: ['C1298', 'C1299'],
@@ -344,15 +357,15 @@ const textNames: Record<string, string> = {
   IssueGroup: 'title column',
   ChangeEntry: 'title timestamp description contributor ticket',
   RunRow: 'workflow status trigger duration units started',
-  MetadataField: 'label value',
-  DashboardTrend: 'trendTitle axisMax axisMiddle axisMin startDate midDate endDate',
-  DashboardBars:
-    'barTitle axisMax axisMiddle axisMin day1 day2 day3 day4 day5 day6 day7 completedSeries retrySeries',
-  DashboardDonut:
-    'donutTitle total totalLabel category1 share1 category2 share2 category3 share3 category4 share4',
-  DashboardMetrics:
-    'metric1 metricValue1 metric2 metricValue2 metric3 metricValue3 metric4 metricValue4',
-
+  MetadataField: 'metadataLabel metadataValue',
+  'Organization/Summary': 'organizationName memberCount',
+  'Chat/UserMessage/default': 'message',
+  'Chat/WorkingHeader': 'activity',
+  'Chat/AssistantTimestamp': 'timestamp',
+  'Email/SubjectPreview/16px-fade': 'subject excerpt',
+  IssueHeader: 'title description',
+  TraceRow: 'stepName duration',
+  TracePayload: 'payloadTitle format payload',
   ActivityRow: 'title description time',
   Browser: 'address',
   Launcher: 'launcherTitle launcherHint alternateTitle alternateHint',
@@ -412,6 +425,7 @@ for (const row of registry.components
     recipe.slots[target.slot] = kind
   }
   const layout: Style = { ...contract.root, ...live.style }
+  if (family.startsWith('Chat/Attachment/')) layout.width = '100%'
   if (
     typeof layout.height === 'string' &&
     /^\d+px$/.test(layout.height) &&
@@ -502,7 +516,9 @@ for (const row of registry.components
       } else if (type) {
         atom.type = type
         blocked.add(at)
-        const custom = textNames[family.split('/')[0]]?.split(' ')[textIndex++]
+        const custom = (textNames[family] ?? textNames[family.split('/')[0]])?.split(' ')[
+          textIndex++
+        ]
         slot(
           atom,
           custom ??

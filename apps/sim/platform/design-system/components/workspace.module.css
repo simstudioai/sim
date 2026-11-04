@@ -58,32 +58,39 @@
 .section {
   display: grid;
   gap: var(--spacing-16);
-  max-inline-size: var(--container-reading);
+  container-type: inline-size;
 }
 .header {
   @apply flex items-center justify-between;
   gap: var(--spacing-16);
   min-block-size: var(--spacing-28);
+  margin-inline-end: calc(-1 * var(--spacing-8));
+}
+.tableViewport {
+  margin-inline: calc(-1 * var(--spacing-8));
 }
 .table {
-  width: 100%;
+  inline-size: calc(100cqi + var(--spacing-16));
+  table-layout: fixed;
   border-spacing: 0;
   border-collapse: separate;
 }
 .table th,
 .table td {
   padding-inline: var(--spacing-8);
-  text-align: end;
+  text-align: start;
   color: var(--ui-secondary);
-  inline-size: var(--ui-table-compact);
+  overflow-wrap: anywhere;
+}
+.table [data-numeric="true"] {
+  inline-size: calc(var(--ui-table-compact) + var(--spacing-16));
+  text-align: end;
 }
 .table [data-kind="number"] {
-  inline-size: var(--ui-table-number);
+  inline-size: calc(var(--ui-table-number) + var(--spacing-16));
 }
-.table [data-kind="text"] {
-  inline-size: auto;
-  text-align: start;
-  overflow-wrap: anywhere;
+.table :is([data-kind="status"], [data-kind="percent"]) {
+  inline-size: calc(var(--ui-table-wide) + var(--spacing-16));
 }
 .table td[data-kind="text"] {
   color: var(--ui-ink);
@@ -95,16 +102,37 @@
   height: var(--spacing-40);
   padding-block: var(--spacing-8);
 }
-.table td:first-child {
-  border-radius: var(--radius-item) 0 0 var(--radius-item);
-}
-.table td:last-child {
-  border-radius: 0 var(--radius-item) var(--radius-item) 0;
-}
-.table tbody tr:hover td {
+.table tbody tr:hover {
   background: var(--ui-hover);
+  clip-path: inset(0 round var(--radius-item));
+}
+@container (width < 48rem) {
+  .table [data-from="wide"] {
+    display: none;
+  }
+  .table [data-kind="number"] {
+    inline-size: calc(var(--ui-table-compact) + var(--spacing-16));
+  }
+  .table [data-kind="status"] {
+    inline-size: calc(var(--spacing-96) + var(--spacing-16));
+  }
+}
+@container (width < 30rem) {
+  .table [data-from="compact"] {
+    display: none;
+  }
+  .table [data-kind="number"] {
+    inline-size: calc(var(--spacing-76) + var(--spacing-16));
+  }
+  .table [data-kind="duration"] {
+    inline-size: calc(var(--spacing-72) + var(--spacing-16));
+  }
 }
 @media (pointer: coarse) {
+  .header {
+    min-block-size: var(--spacing-app-touch-target);
+  }
+  .table th,
   .table td {
     height: var(--spacing-app-touch-target);
   }

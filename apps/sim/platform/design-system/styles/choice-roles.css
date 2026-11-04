@@ -1,4 +1,5 @@
 [data-platform-ui] {
+  --menu-browser-width: 16.5rem;
   --menu-action-width: 15rem;
   --menu-choice-width: 10rem;
   --choice-track: var(--color-black-4);

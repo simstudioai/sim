@@ -102,5 +102,15 @@
 
 [data-platform-ui] {
   --ui-table-number: 5.5rem;
+  --ui-table-wide: 6.5rem;
   --ui-table-compact: var(--spacing-80);
+}
+
+[data-platform-ui] {
+  --chart-plot-height: 9.5rem;
+  --chart-donut-block: 11rem;
+  --chart-ring-size: 10rem;
+  --plot-gradient-ink: var(--ui-plot-primary);
+  --plot-stroke-width: var(--spacing-2);
+  --ui-plot-area-opacity: 0.16;
 }

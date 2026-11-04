@@ -624,7 +624,8 @@
     "family": "Chart/TasksRun/default",
     "theme": "D",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "TasksRunChart",
+    "icon": "I001",
     "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3WV-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y9A-0"]
   },
@@ -633,7 +634,7 @@
     "family": "Chart/TasksRun/default",
     "theme": "D",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "TasksRunChart",
     "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "213-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2XFX-0"]
   },
@@ -642,7 +643,8 @@
     "family": "Chart/TasksRun/default",
     "theme": "L",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "TasksRunChart",
+    "icon": "I056",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3PD-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EI6-0"]
   },
@@ -651,7 +653,7 @@
     "family": "Chart/TasksRun/default",
     "theme": "L",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "TasksRunChart",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1Z9-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1C4T-0"]
   },
@@ -660,7 +662,7 @@
     "family": "Chart/TasksRun/empty",
     "theme": "L",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "TasksRunChart",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "211-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1DQO-0"]
   },
@@ -669,7 +671,8 @@
     "family": "Chart/TasksRun/hover",
     "theme": "L",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "TasksRunChart",
+    "icon": "I056",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "200-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1G0A-0"]
   },
@@ -678,7 +681,8 @@
     "family": "Chart/TasksRun/range-open",
     "theme": "L",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "TasksRunChart",
+    "icon": "I056",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "23O-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1D7M-0"]
   },
@@ -687,7 +691,7 @@
     "family": "Chart/Tooltip",
     "theme": "D",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "ChartTooltip",
     "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "D1M-0"],
     "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "RMP-0"]
   },
@@ -696,7 +700,7 @@
     "family": "Chart/Tooltip",
     "theme": "L",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "ChartTooltip",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "EFT-1"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1G1F-0"]
   },
@@ -914,7 +918,7 @@
     "family": "Chat/AttachmentBatchGrid",
     "theme": "L",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "AttachmentGrid",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2TS-0"],
     "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1ORV-0"]
   },
@@ -923,7 +927,7 @@
     "family": "Chat/AttachmentBatchGrid",
     "theme": "L",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "AttachmentGrid",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "3RY-0"],
     "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1RIS-0"]
   },
@@ -2775,7 +2779,8 @@
     "family": "Menu/Browser actions",
     "theme": "L",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "BrowserActionsMenu",
+    "icon": "I006",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-4-0", "5HE-0"],
     "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3UV8-0"]
   },
@@ -2834,7 +2839,8 @@
     "family": "Menu/DashboardVisibility",
     "theme": "L",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "VisibilityMenu",
+    "icon": "I072",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "50-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "P7A-0"]
   },
@@ -3563,7 +3569,8 @@
     "family": "Recents/1-items/fits",
     "theme": "D",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "RecentItems",
+    "icon": "I015",
     "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-4-0", "3LD-0"],
     "use": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-4-0", "3LD-0"],
     "parentKey": "C0071"
@@ -3573,7 +3580,8 @@
     "family": "Recents/1-items/fits",
     "theme": "L",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "RecentItems",
+    "icon": "I015",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-4-0", "3G9-0"],
     "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3NDB-0"]
   },
@@ -3582,7 +3590,8 @@
     "family": "Recents/2-items/fits",
     "theme": "L",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "RecentItems",
+    "icon": "I015",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-4-0", "3IL-0"],
     "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3NYK-0"]
   },
@@ -3591,7 +3600,8 @@
     "family": "Recents/Strip/end",
     "theme": "L",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "RecentItems",
+    "icon": "I032",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "28O-0"],
     "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3GC1-2"]
   },
@@ -3600,7 +3610,8 @@
     "family": "Recents/Strip/middle",
     "theme": "L",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "RecentItems",
+    "icon": "I032",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "4HH-0"],
     "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3GSD-2"]
   },
@@ -3609,7 +3620,8 @@
     "family": "Recents/Strip/start",
     "theme": "D",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "RecentItems",
+    "icon": "I045",
     "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "48H-0"],
     "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3GK7-2"]
   },
@@ -3618,7 +3630,8 @@
     "family": "Recents/Strip/start",
     "theme": "L",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "RecentItems",
+    "icon": "I045",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "2MM-0"],
     "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3GG4-2"]
   },
@@ -3627,7 +3640,8 @@
     "family": "Recents/Strip/touch",
     "theme": "D",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "RecentItems",
+    "icon": "I045",
     "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "4KI-0"],
     "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3IER-2"]
   },
@@ -4524,7 +4538,7 @@
     "family": "Sidebar/ScrollableItems",
     "theme": "L",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "SidebarWorkspaceItems",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1F-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "W0U-0"]
   },
@@ -4990,7 +5004,7 @@
     "family": "WorkspaceList/Scrollable",
     "theme": "D",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "WorkspaceList",
     "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-4-0", "3PO-0"],
     "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3E9P-2"]
   },
@@ -4999,7 +5013,7 @@
     "family": "WorkspaceList/Scrollable",
     "theme": "L",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "WorkspaceList",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-4-0", "3KK-0"],
     "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3ED3-2"]
   },
@@ -5008,7 +5022,7 @@
     "family": "WorkspaceList/scrolled",
     "theme": "L",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "WorkspaceList",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "4LA-0"],
     "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3FET-2"]
   },
@@ -5017,7 +5031,7 @@
     "family": "WorkspaceList/touch",
     "theme": "D",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "WorkspaceList",
     "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "4OA-0"],
     "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3EJX-2"]
   },
@@ -5286,7 +5300,8 @@
     "family": "DashboardTrend",
     "theme": "L",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "TrendChart",
+    "icon": "I080",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "COY-0"],
     "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "JI8-0"]
   },
@@ -5295,7 +5310,8 @@
     "family": "DashboardTrend",
     "theme": "D",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "TrendChart",
+    "icon": "I080",
     "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "BB5-0"],
     "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "P7Q-0"]
   },
@@ -5304,7 +5320,8 @@
     "family": "DashboardBars",
     "theme": "L",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "BarChart",
+    "icon": "I080",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "CRB-0"],
     "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "KIQ-0"]
   },
@@ -5313,7 +5330,8 @@
     "family": "DashboardBars",
     "theme": "D",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "BarChart",
+    "icon": "I080",
     "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "BE3-0"],
     "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "PD2-0"]
   },
@@ -5322,7 +5340,8 @@
     "family": "DashboardDonut",
     "theme": "L",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "DonutChart",
+    "icon": "I080",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "CVG-0"],
     "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "KKB-0"]
   },
@@ -5331,7 +5350,8 @@
     "family": "DashboardDonut",
     "theme": "D",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "DonutChart",
+    "icon": "I080",
     "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "BIM-0"],
     "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "P6Q-0"]
   },
@@ -5432,7 +5452,7 @@
     "family": "IssueSteps",
     "theme": "L",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "ExecutionSteps",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "EK1-0"],
     "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "T4S-0"]
   },
@@ -5441,7 +5461,7 @@
     "family": "IssueSteps",
     "theme": "D",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "ExecutionSteps",
     "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "D5U-0"],
     "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "12W9-0"]
   },
@@ -5486,7 +5506,7 @@
     "family": "PropertyList",
     "theme": "L",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "PropertyList",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "EUX-0"],
     "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "XSO-0"]
   },
@@ -5495,7 +5515,7 @@
     "family": "PropertyList",
     "theme": "D",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "PropertyList",
     "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "DGQ-0"],
     "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "12VU-0"]
   },

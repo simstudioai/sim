@@ -298,8 +298,8 @@ textarea.input {
   max-width: none;
   max-height: calc(100dvh - var(--spacing-32));
   margin: auto;
-  overflow-y: auto;
-  padding: var(--spacing-modal-inset);
+  overflow: visible;
+  padding: 0;
   border: var(--spacing-stroke-default) solid var(--ui-border);
   border-radius: var(--radius-dialog);
   color: var(--ui-ink);
@@ -310,6 +310,9 @@ textarea.input {
 }
 
 .modalLayout {
+  max-height: calc(100dvh - var(--spacing-32) - 2 * var(--spacing-stroke-default));
+  padding: var(--spacing-modal-inset);
+  overflow-y: auto;
   gap: var(--spacing-modal-section);
 }
 
@@ -381,6 +384,7 @@ textarea.input {
 }
 
 .selectMenu {
+  z-index: 1;
   width: var(--radix-popover-trigger-width);
   max-height: var(--radix-popover-content-available-height);
   margin-block: var(--spacing-field-label-gap);
@@ -579,7 +583,7 @@ textarea.input[data-density="expanded"] {
   width: min(var(--container-app-modal-sm), calc(100% - var(--spacing-32)));
 }
 
-.modal[data-presentation="feedback"] {
+.modal[data-presentation="feedback"] .modalLayout {
   padding: clamp(var(--spacing-modal-inset-compact), 4vw, var(--spacing-modal-inset));
 }
 
