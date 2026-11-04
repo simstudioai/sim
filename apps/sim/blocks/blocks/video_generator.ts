@@ -1834,7 +1834,7 @@ export const VideoGeneratorV2Block: BlockConfig = {
         const model = params.provider === 'falai' ? getFalVideoModel(params.model) : undefined
         const useFalFields = model && !model.legacyId
         const setting = (legacy: string, catalog: string) => {
-          const value = params[useFalFields ? catalog : legacy]
+          const value = useFalFields ? (params[catalog] ?? params[legacy]) : params[legacy]
           return useFalFields && value === FAL_MODEL_DEFAULT.id ? undefined : value
         }
         const duration = setting('duration', 'falDuration')
@@ -1956,7 +1956,7 @@ export const VideoGeneratorV3Block: BlockConfig = {
           promptOptimizer: parseOptionalBooleanInput(
             setting('promptOptimizer', model?.settings?.promptOptimizer)
           ),
-          endpoint: model?.protocol === 'minimax-v1' ? params.endpoint : undefined,
+          endpoint: params.provider === 'minimax' ? params.endpoint : undefined,
           cameraControl:
             model?.protocol === 'luma-legacy' && params.cameraControl
               ? typeof params.cameraControl === 'string'

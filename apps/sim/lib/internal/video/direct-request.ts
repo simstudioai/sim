@@ -15,6 +15,10 @@ export function buildDirectVideoRequest(input: VideoGenerationInput) {
     throw new Error(
       `${model.label} ${input.visualReference ? 'does not accept a reference image' : 'requires a reference image'}`
     )
+  if (model.protocol === 'minimax-v2' && input.endpoint)
+    throw new Error(
+      `${model.label} does not support quality endpoints; select a resolution instead`
+    )
   const maxLength = spec.maxPromptLength ?? 2000
   if (input.prompt.length < 3 || input.prompt.length > maxLength)
     throw new Error(`Prompt must be between 3 and ${maxLength} characters for ${model.label}`)
@@ -95,7 +99,9 @@ export function buildDirectVideoRequest(input: VideoGenerationInput) {
       body = {
         model: model.id,
         input: input.prompt,
-        background: true,
+        background: false,
+        store: false,
+        stream: false,
         response_format: {
           type: 'video',
           delivery: 'uri',

@@ -1,6 +1,9 @@
 import type { ImageGenerationInput, ImageProvider } from '@/lib/internal/image/schema'
 import { getImageModel, imageModelDefaults, imageOptionFields } from '@/lib/media/image-catalog'
 
+/** Sim limits image prompts independently of larger provider model allowances. */
+const MAX_IMAGE_PROMPT_CHARACTERS = 4000
+
 /** Builds only supported settings for the selected image model before a paid request is sent. */
 export function buildImageGenerationRequest(input: ImageGenerationInput) {
   const model = getImageModel(
@@ -12,7 +15,10 @@ export function buildImageGenerationRequest(input: ImageGenerationInput) {
     throw new Error('Image generation returns one image per tool execution; numImages must be 1')
   }
   const minLength = Math.max(3, model.minPromptLength ?? 3)
-  const maxLength = Math.min(4000, model.maxPromptLength ?? 4000)
+  const maxLength = Math.min(
+    MAX_IMAGE_PROMPT_CHARACTERS,
+    model.maxPromptLength ?? MAX_IMAGE_PROMPT_CHARACTERS
+  )
   if (input.prompt.length < minLength || input.prompt.length > maxLength) {
     throw new Error(
       `Prompt must be between ${minLength} and ${maxLength} characters for ${model.label}`

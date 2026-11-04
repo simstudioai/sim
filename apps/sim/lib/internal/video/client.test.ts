@@ -28,9 +28,9 @@ describe('Video provider client', () => {
       isValid: true,
       resolvedIP: '203.0.113.1',
     })
-    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
-      new Response(Buffer.from('video'))
-    )
+    inputValidationMockFns.mockSecureFetchWithPinnedIP
+      .mockReset()
+      .mockResolvedValue(new Response(Buffer.from('video')))
   })
 
   afterEach(() => {
@@ -204,23 +204,6 @@ describe('Video provider client', () => {
         },
       },
     },
-    {
-      provider: 'veo' as const,
-      model: 'gemini-omni-1.1-flash',
-      submit: '/v1beta/interactions',
-      poll: '/v1beta/interactions/job',
-      payload: { model: 'gemini-omni-1.1-flash', input: 'A cinematic sunrise' },
-      created: { id: 'job', status: 'in_progress' },
-      completed: {
-        status: 'completed',
-        steps: [
-          {
-            type: 'model_output',
-            content: [{ type: 'video', mime_type: 'video/mp4', data: 'dmlkZW8=' }],
-          },
-        ],
-      },
-    },
   ])('executes $model through its native submit, poll and result protocol', async (testCase) => {
     let submissions = 0
     vi.stubGlobal('fetch', async (url: string | URL, init?: RequestInit) => {
@@ -249,6 +232,156 @@ describe('Video provider client', () => {
     })
     await Promise.all([completion, vi.advanceTimersByTimeAsync(5000)])
     expect(submissions).toBe(1)
+  })
+
+  describe('Gemini URI delivery', () => {
+    const input = { provider: 'veo' as const, apiKey: 'key', prompt: 'A cinematic sunrise' }
+    const videoUri =
+      'https://generativelanguage.googleapis.com/v1beta/files/video-file:download?alt=media'
+    const completed = (uri = videoUri) => ({
+      id: 'interaction-1',
+      status: 'completed',
+      steps: [{ type: 'model_output', content: [{ type: 'video', uri }] }],
+    })
+
+    it('downloads a normal-sized video after Files becomes ACTIVE without reading inline polling data', async () => {
+      const video = Buffer.alloc(2 * 1024 * 1024)
+      let filePolls = 0
+      let submissions = 0
+      vi.stubGlobal('fetch', async (url: string | URL, init?: RequestInit) => {
+        const path = new URL(url).pathname
+        if (path === '/v1beta/interactions' && init?.method === 'POST') {
+          submissions++
+          const body = JSON.parse(String(init.body))
+          return jsonResponse(
+            body.background ? { id: 'interaction-1', status: 'in_progress' } : completed()
+          )
+        }
+        if (path === '/v1beta/interactions/interaction-1')
+          return jsonResponse({
+            ...completed(),
+            steps: [
+              {
+                type: 'model_output',
+                content: [{ type: 'video', data: video.toString('base64') }],
+              },
+            ],
+          })
+        if (path === '/v1beta/files/video-file') {
+          filePolls++
+          expect(new Headers(init?.headers).get('x-goog-api-key')).toBe('key')
+          return jsonResponse({ state: filePolls === 1 ? 'PROCESSING' : 'ACTIVE' })
+        }
+        return new Response(null, { status: 404 })
+      })
+      inputValidationMockFns.mockSecureFetchWithPinnedIP.mockImplementationOnce(
+        async (_url, _ip, options) => {
+          expect(new Headers(options.headers).get('x-goog-api-key')).toBe('key')
+          return filePolls >= 2
+            ? new Response(video)
+            : new Response('File is not ACTIVE', { status: 409 })
+        }
+      )
+      const result = generateVideo(input, { requestId: 'google-uri' })
+      const completion = result.then((output) => {
+        expect(output.buffer.equals(video)).toBe(true)
+        expect(output.jobId).toBe('interaction-1')
+      })
+      await Promise.all([
+        completion,
+        vi.advanceTimersByTimeAsync(0).then(() => vi.advanceTimersByTimeAsync(5000)),
+      ])
+      expect(submissions).toBe(1)
+    })
+
+    it.each([
+      { state: 'FAILED', error: /Google video processing failed/ },
+      { state: 'PROCESSING', error: /Google video processing timed out/ },
+    ])('does not download a file that remains $state', async ({ state, error }) => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValueOnce(jsonResponse(completed()))
+          .mockImplementation(() => Promise.resolve(jsonResponse({ state })))
+      )
+      const rejection = expect(
+        generateVideo(input, { requestId: 'google-processing' })
+      ).rejects.toThrow(error)
+      await Promise.all([rejection, vi.advanceTimersByTimeAsync(5000)])
+      expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    })
+
+    it('stops during Files processing without downloading or polling again', async () => {
+      const controller = new AbortController()
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(completed()))
+        .mockResolvedValueOnce(jsonResponse({ state: 'PROCESSING' }))
+      vi.stubGlobal('fetch', fetchMock)
+      const result = generateVideo(input, {
+        requestId: 'google-stopped',
+        signal: controller.signal,
+      })
+      const rejection = expect(result).rejects.toMatchObject({ name: 'AbortError' })
+      await Promise.all([
+        rejection,
+        vi.advanceTimersByTimeAsync(0).then(() => {
+          controller.abort(new DOMException('Stopped', 'AbortError'))
+        }),
+      ])
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      'https://foreign.example/v1beta/files/video-file:download?alt=media',
+      'https://generativelanguage.googleapis.com/v1beta/models/model:download?alt=media',
+      'https://generativelanguage.googleapis.com/v1beta/files/nested%2Ffile:download?alt=media',
+    ])('rejects a non-Files download URI before sending credentials: %s', async (uri) => {
+      const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(completed(uri)))
+      vi.stubGlobal('fetch', fetchMock)
+      await expect(generateVideo(input, { requestId: 'google-invalid-uri' })).rejects.toThrow(
+        /Invalid Google video file URI/
+      )
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    })
+
+    it('keeps Files metadata within the ordinary JSON response limit', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValueOnce(jsonResponse(completed()))
+          .mockResolvedValueOnce(
+            jsonResponse(
+              { state: 'ACTIVE' },
+              { headers: { 'Content-Length': String(2 * 1024 * 1024 + 1) } }
+            )
+          )
+      )
+      await expect(
+        generateVideo(input, { requestId: 'google-metadata-limit' })
+      ).rejects.toMatchObject({
+        name: 'PayloadSizeLimitError',
+      })
+      expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    })
+
+    it('does not poll a full interaction when synchronous generation does not complete', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockImplementation(() =>
+          Promise.resolve(jsonResponse({ id: 'interaction-1', status: 'in_progress' }))
+        )
+      vi.stubGlobal('fetch', fetchMock)
+      const rejection = expect(
+        generateVideo(input, { requestId: 'google-incomplete' })
+      ).rejects.toThrow(/Google synchronous video generation did not complete/)
+      await Promise.all([rejection, vi.advanceTimersByTimeAsync(5000)])
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('reports a failed MiniMax job immediately instead of polling until timeout', async () => {
