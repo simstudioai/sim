@@ -258,10 +258,7 @@ export const ImageGeneratorBlock: BlockConfig = {
     },
   },
   inputs: {
-    prompt: {
-      type: 'string',
-      description: 'Image description, up to 4,000 characters. Some models have a lower limit.',
-    },
+    prompt: { type: 'string', description: 'Image description prompt' },
     model: { type: 'string', description: 'Image generation model' },
     size: { type: 'string', description: 'Image dimensions' },
     quality: { type: 'string', description: 'Image quality level' },
