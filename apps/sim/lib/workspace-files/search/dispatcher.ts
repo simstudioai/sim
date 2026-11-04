@@ -171,16 +171,30 @@ function queuedOwnerFilter(owners: readonly EditableFileOwner[]): SQL | undefine
   return or(...owners.map(queuedOwner))
 }
 
+/**
+ * Queues owners for the claim pass. A `reconciliation` wake-up, from the backfill walk, enters as
+ * if just dispatched: claims take owners never dispatched first, so marking it served keeps a page
+ * of owners with nothing new behind the owners the file trigger woke for a write, and its row still
+ * rotates in by dispatch age. An owner already queued keeps its place either way.
+ */
 async function enqueueOwners(
   tx: DbTransaction,
   owners: readonly EditableFileOwner[],
-  now: Date
+  now: Date,
+  { reconciliation = false }: { reconciliation?: boolean } = {}
 ): Promise<void> {
   const unique = [...new Map(owners.map((owner) => [JSON.stringify(owner), owner])).values()]
   if (unique.length === 0) return
   await tx
     .insert(fileSearchDispatchQueue)
-    .values(unique.map((owner) => ({ ...owner, enqueuedAt: now, updatedAt: now })))
+    .values(
+      unique.map((owner) => ({
+        ...owner,
+        enqueuedAt: now,
+        updatedAt: now,
+        lastDispatchedAt: reconciliation ? now : null,
+      }))
+    )
     .onConflictDoUpdate({
       target: [fileSearchDispatchQueue.entityType, fileSearchDispatchQueue.entityId],
       set: { updatedAt: now },
@@ -316,7 +330,7 @@ async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
       .onConflictDoNothing()
   }
   /** Every owner the page passed is woken, indexed or not, so the pass reconciles its builds. */
-  await enqueueOwners(tx, rows.map(rowOwner), now)
+  await enqueueOwners(tx, rows.map(rowOwner), now, { reconciliation: true })
 
   const last = rows.at(-1)
   await tx
