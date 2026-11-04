@@ -35,16 +35,16 @@ export function toSimLinkName(input: string): string {
 }
 
 /**
- * A starting name for a link made from a page's title: lower case, words joined by single hyphens,
- * cut to the name length limit. Empty when no letter or digit survives, so the person types one
- * instead of being handed a name that is only punctuation.
+ * A starting name for a link made from a page's title: its letters and digits in lower case, every
+ * other run of characters (spaces, colons, dots, dashes) turned into one hyphen, cut to the name
+ * length limit. Empty when no letter or digit survives, so the person types one instead.
  */
 export function suggestSimLinkName(title: string): string {
-  const name = toSimLinkName(title.trim().toLowerCase())
-    .replace(/-{2,}/g, '-')
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
     .slice(0, SIM_LINK_NAME_MAX_LENGTH)
     .replace(/^-+|-+$/g, '')
-  return /[a-z0-9]/.test(name) ? name : ''
 }
 
 /** Sentence punctuation and closing quotes or brackets that follow a link pasted from prose. */

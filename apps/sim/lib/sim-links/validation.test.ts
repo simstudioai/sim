@@ -9,6 +9,13 @@ describe('suggestSimLinkName', () => {
     expect(simLinkNameSchema.safeParse(name).success).toBe(true)
   })
 
+  it('joins words across colons, dots, and other name punctuation with a single hyphen', () => {
+    expect(suggestSimLinkName('Sim: Build and govern every AI agent')).toBe(
+      'sim-build-and-govern-every-ai-agent'
+    )
+    expect(suggestSimLinkName('docs.sim.ai @ v2 ~ draft')).toBe('docs-sim-ai-v2-draft')
+  })
+
   it('cuts a long title to the name limit without a trailing hyphen', () => {
     const word = 'a'.repeat(SIM_LINK_NAME_MAX_LENGTH - 1)
     const name = suggestSimLinkName(`${word} appendix`)

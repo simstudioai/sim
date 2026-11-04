@@ -21,9 +21,10 @@ import { formatDate } from '@sim/utils/formatting'
 import { findTermMatches, queryTerms } from '@/lib/knowledge/search/snippet'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import {
-  SimLinkMenuItem,
-  useSimLinkCreator,
-} from '@/app/o/[organizationId]/links/sim-link-shortcut'
+  useOpenSimLinkForm,
+  useSimLinkOrganizationId,
+} from '@/app/o/[organizationId]/links/sim-link-organization-provider'
+import { SimLinkMenuItem } from '@/app/o/[organizationId]/links/sim-link-shortcut'
 import {
   SourceIcon,
   sourceLabel,
@@ -76,7 +77,8 @@ interface SourceActionsProps {
 
 function SourceActions({ source, onSummarize }: SourceActionsProps) {
   const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
-  const simLink = useSimLinkCreator(source.url, sourceLabel(source))
+  const simLinkOrganizationId = useSimLinkOrganizationId()
+  const openSimLinkForm = useOpenSimLinkForm()
   return (
     <>
       <DropdownMenu>
@@ -101,16 +103,15 @@ function SourceActions({ source, onSummarize }: SourceActionsProps) {
             <LinkIcon className='size-[14px]' />
             Copy link
           </DropdownMenuItem>
-          {simLink.organizationId && (
+          {simLinkOrganizationId && (
             <SimLinkMenuItem
-              organizationId={simLink.organizationId}
+              organizationId={simLinkOrganizationId}
               url={source.url}
-              onCreate={simLink.openCreate}
+              onCreate={() => openSimLinkForm(source.url, sourceLabel(source))}
             />
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-      {simLink.modal}
     </>
   )
 }
