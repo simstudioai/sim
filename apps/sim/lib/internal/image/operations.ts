@@ -654,6 +654,7 @@ async function storeGeneratedImage(
   return {
     content: imageUrl,
     imageUrl,
+    imageFile: fileInfo,
     fileName: safeFileName,
     contentType: imageResult.contentType,
     provider: imageResult.provider,
