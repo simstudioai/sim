@@ -56,13 +56,15 @@ export const minimaxVideoTool: InternalToolConfig<VideoParams, VideoResponse> = 
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Quality endpoint: standard (768P) or pro (1080P for 6s videos)',
+      description:
+        'Legacy Hailuo/T2V quality preference: standard or pro (1080P for supported 6s videos). Omit for H3; use resolution instead.',
     },
     promptOptimizer: {
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Enable prompt optimization for better results (default: true)',
+      description:
+        'Enable prompt optimization for legacy Hailuo/T2V models (default: true). Omit for H3 models.',
     },
   },
 
@@ -79,7 +81,7 @@ export const minimaxVideoTool: InternalToolConfig<VideoParams, VideoResponse> = 
       duration: params.duration,
       aspectRatio: params.aspectRatio,
       resolution: params.resolution,
-      endpoint: params.endpoint || 'standard',
+      endpoint: params.endpoint,
       promptOptimizer:
         params.promptOptimizer === undefined
           ? undefined

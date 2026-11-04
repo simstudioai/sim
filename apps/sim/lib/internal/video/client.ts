@@ -227,10 +227,29 @@ async function generateWithDirectProvider(
         }
       }
       if (!buffer && videoUrl) {
-        if (
-          protocol === 'gemini' &&
-          new URL(videoUrl).origin === 'https://generativelanguage.googleapis.com'
-        ) {
+        if (protocol === 'gemini') {
+          const fileUrl = new URL(videoUrl)
+          const fileId = fileUrl.pathname.match(/^\/v1beta\/files\/([a-zA-Z0-9_-]+):download$/)?.[1]
+          if (
+            fileUrl.origin !== 'https://generativelanguage.googleapis.com' ||
+            fileUrl.username ||
+            fileUrl.password ||
+            fileUrl.hash ||
+            !fileId
+          )
+            throw new Error('Invalid Google video file URI')
+          const metadataUrl = `https://generativelanguage.googleapis.com/v1beta/files/${fileId}`
+          for (let fileAttempt = 0; ; fileAttempt++) {
+            const file = await readProviderResponse(
+              await fetch(metadataUrl, { headers, redirect: 'error', signal })
+            )
+            const state = getStringProperty(file, 'state')
+            if (state === 'ACTIVE') break
+            if (state === 'FAILED') throw new Error('Google video processing failed')
+            if (fileAttempt === maxAttempts) throw new Error('Google video processing timed out')
+            await waitForProvider(context)
+          }
+          signal?.throwIfAborted()
           const validation = await validateUrlWithDNS(videoUrl, 'videoUrl', 'contentFetch', {
             signal,
           })
@@ -297,6 +316,8 @@ async function generateWithDirectProvider(
         `${input.provider} generation failed: ${getStringProperty(task, 'failure_reason') || getStringProperty(task, 'failure') || getStringProperty(task, 'error') || 'Request failed'}`
       )
     }
+    if (protocol === 'gemini')
+      throw new Error('Google synchronous video generation did not complete')
     if (attempt === maxAttempts) break
     await waitForProvider(context)
     data = await readProviderResponse(await fetch(pollUrl, { headers, redirect: 'error', signal }))
