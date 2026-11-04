@@ -4,6 +4,7 @@ import { hmacSha256Hex } from '@sim/security/hmac'
 import { generateId } from '@sim/utils/id'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -144,7 +145,7 @@ export const rootlyHandler: WebhookProviderHandler = {
       }
 
       if (!apiKey) {
-        throw new Error(
+        throw new WebhookDeploymentConfigurationError(
           'Rootly API key is required. Please provide your Rootly API key in the trigger configuration.'
         )
       }
@@ -221,6 +222,7 @@ export const rootlyHandler: WebhookProviderHandler = {
       )
       return { providerConfigUpdates: { externalId, webhookSecret: signingSecret } }
     } catch (error: unknown) {
+      if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
       logger.error(
         `[${ctx.requestId}] Exception during Rootly webhook creation for webhook ${ctx.webhook.id}.`,

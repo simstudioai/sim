@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   DeleteSubscriptionContext,
   FormatInputContext,
@@ -37,7 +38,7 @@ export const calendlyHandler: WebhookProviderHandler = {
         logger.warn(`[${ctx.requestId}] Missing apiKey for Calendly webhook creation.`, {
           webhookId: ctx.webhook.id,
         })
-        throw new Error(
+        throw new WebhookDeploymentConfigurationError(
           'Personal Access Token is required to create Calendly webhook. Please provide your Calendly Personal Access Token.'
         )
       }
@@ -46,7 +47,7 @@ export const calendlyHandler: WebhookProviderHandler = {
         logger.warn(`[${ctx.requestId}] Missing organization URI for Calendly webhook creation.`, {
           webhookId: ctx.webhook.id,
         })
-        throw new Error(
+        throw new WebhookDeploymentConfigurationError(
           'Organization URI is required to create Calendly webhook. Please provide your Organization URI from the "Get Current User" operation.'
         )
       }
@@ -55,7 +56,9 @@ export const calendlyHandler: WebhookProviderHandler = {
         logger.warn(`[${ctx.requestId}] Missing triggerId for Calendly webhook creation.`, {
           webhookId: ctx.webhook.id,
         })
-        throw new Error('Trigger ID is required to create Calendly webhook')
+        throw new WebhookDeploymentConfigurationError(
+          'Trigger ID is required to create Calendly webhook'
+        )
       }
 
       const notificationUrl = getNotificationUrl(ctx.webhook)
@@ -152,6 +155,7 @@ export const calendlyHandler: WebhookProviderHandler = {
       )
       return { providerConfigUpdates: { externalId: webhookId } }
     } catch (error: unknown) {
+      if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
       logger.error(
         `[${ctx.requestId}] Exception during Calendly webhook creation for webhook ${ctx.webhook.id}.`,

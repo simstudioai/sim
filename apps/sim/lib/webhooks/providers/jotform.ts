@@ -4,6 +4,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   DeleteSubscriptionContext,
   FormatInputContext,
@@ -167,7 +168,7 @@ export const jotformHandler: WebhookProviderHandler = {
     const credentials = readCredentials(ctx.webhook)
     if ('error' in credentials) {
       logger.warn(`[${ctx.requestId}] ${credentials.error}`, { webhookId: ctx.webhook.id })
-      throw new Error(credentials.error)
+      throw new WebhookDeploymentConfigurationError(credentials.error)
     }
 
     const notificationUrl = getNotificationUrl(ctx.webhook)

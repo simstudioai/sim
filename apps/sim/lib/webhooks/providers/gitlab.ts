@@ -5,6 +5,7 @@ import { isRecordLike, toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -182,15 +183,22 @@ export const gitlabHandler: WebhookProviderHandler = {
     const triggerId = config.triggerId as string | undefined
     const host = config.host as string | undefined
 
-    if (!accessToken)
-      throw new Error('GitLab Personal Access Token is required to create the webhook.')
-    if (!projectId) throw new Error('GitLab Project ID is required to create the webhook.')
+    if (!accessToken) {
+      throw new WebhookDeploymentConfigurationError(
+        'GitLab Personal Access Token is required to create the webhook.'
+      )
+    }
+    if (!projectId) {
+      throw new WebhookDeploymentConfigurationError(
+        'GitLab Project ID is required to create the webhook.'
+      )
+    }
 
     try {
       getGitLabApiBase(host)
     } catch (error) {
       if (error instanceof UnsafeGitLabHostError) {
-        throw new Error(
+        throw new WebhookDeploymentConfigurationError(
           'GitLab host is invalid. Provide a domain like gitlab.example.com (no protocol, path, or credentials).'
         )
       }

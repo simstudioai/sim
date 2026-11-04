@@ -434,16 +434,18 @@ export async function executeResumeWorkflow({
     return { kind: 'started', executionId: enqueueResult.resumeExecutionId }
   } catch (error) {
     if (error instanceof ResumeWorkflowExecutionError) throw error
-    logger.error(
-      'Resume request failed',
-      projectResolvedSecretDiagnosticError(error, undefined, {
-        workflowId,
-        executionId,
-        contextId,
-      })
-    )
     const statusCode =
       isRecordLike(error) && typeof error.statusCode === 'number' ? error.statusCode : undefined
+    const diagnostics = projectResolvedSecretDiagnosticError(error, undefined, {
+      workflowId,
+      executionId,
+      contextId,
+    })
+    if (statusCode !== undefined && statusCode < 500) {
+      logger.warn('Resume request refused', diagnostics)
+    } else {
+      logger.error('Resume request failed', diagnostics)
+    }
     if (statusCode !== undefined) {
       throw new ResumeWorkflowExecutionError(statusCode, toError(error).message, statusCode < 500)
     }
