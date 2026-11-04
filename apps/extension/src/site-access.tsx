@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Chip, ChipModalBody, ChipModalHeader, ChipModalSurface } from '@sim/emcn'
-
-const PAGE_ACCESS_ORIGINS = ['https://*/*', 'http://*/*']
+import { PAGE_ACCESS_ORIGINS } from '@/config'
 
 interface PageAccessButtonProps {
   allowed?: boolean

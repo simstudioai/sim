@@ -4,7 +4,7 @@ import {
   pageSnapshotSchema,
 } from '@sim/browser-extension-protocol'
 import { generateId } from '@sim/utils/id'
-import { SIM_ORIGIN } from '@/config'
+import { PAGE_ACCESS_ORIGINS, SIM_ORIGIN } from '@/config'
 import { extractPageText } from '@/extract'
 import { digestUrl } from '@/utils'
 
@@ -51,7 +51,12 @@ export async function captureActivePage(
   if (expected && expected.tabId !== tab.id) {
     throw new PageCaptureError('The page changed before reading. Attach it again.')
   }
-  if (!tab.url) throw new SiteAccessRequiredError(tab.id, tab.windowId)
+  if (!tab.url) {
+    const allowed = await chrome.permissions.contains({ origins: PAGE_ACCESS_ORIGINS })
+    signal?.throwIfAborted()
+    if (allowed) throw new PageCaptureError('This page cannot be attached.')
+    throw new SiteAccessRequiredError(tab.id, tab.windowId)
+  }
   let changed = false
   const activated = (active: chrome.tabs.OnActivatedInfo) => {
     if (active.windowId === tab.windowId && active.tabId !== tab.id) changed = true
