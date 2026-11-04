@@ -318,10 +318,19 @@ JS
     export INTERNAL_API_SECRET=mobile-http-ci-local-secret-at-least-32-characters
     export NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:3025 SOCKET_SERVER_URL=http://127.0.0.1:3025
     read -ra browsers <<< "${MOBILE_E2E_BROWSER:-chromium webkit}"
-    start_browser_install mobile --only-shell "${browsers[@]}"
+    if [ "${PLAYWRIGHT_WEBKIT_WS_ENDPOINT+x}" = x ]; then
+      if [ "${MOBILE_E2E_BROWSER:-}" != webkit ]; then
+        echo "::error::A remote endpoint requires explicit WebKit selection." >&2
+        exit 1
+      fi
+    else
+      start_browser_install mobile --only-shell "${browsers[@]}"
+    fi
     start_app mobile 3024 'mobile browser' record-http-status
     start_realtime mobile 3025
-    wait_for_browsers
+    if [ "${PLAYWRIGHT_WEBKIT_WS_ENDPOINT+x}" != x ]; then
+      wait_for_browsers
+    fi
     MOBILE_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
     MOBILE_E2E_DATABASE_URL="$DATABASE_URL" \
     MOBILE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \

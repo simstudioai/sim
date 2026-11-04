@@ -1,0 +1,83 @@
+name: WebKit image probe wave
+on:
+  workflow_call:
+    inputs:
+      provider:
+        type: string
+        required: true
+      wave:
+        type: string
+        required: true
+permissions:
+  contents: read
+  actions: read
+jobs:
+  probe:
+    name: ${{ matrix.suite }} / ${{ matrix.variant }}
+    runs-on: ${{ inputs.provider == 'blacksmith' && 'blacksmith-8vcpu-ubuntu-2404' || (matrix.suite == 'docs-webkit' && 'linux-x64-8-core' || 'ubuntu-latest') }}
+    timeout-minutes: ${{ matrix.suite == 'docs-webkit' && 45 || 25 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [mobile-webkit-1, mobile-webkit-2, docs-webkit]
+        variant: [local, remote]
+    services:
+      postgres:
+        image: ${{ matrix.suite != 'docs-webkit' && 'pgvector/pgvector:pg17' || '' }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sim_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sim_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout reviewed experiment
+        id: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Clean pinned workspace setup
+        uses: ./.github/actions/setup
+        with:
+          provider: github
+          node-version: 24.22.1
+      - name: Verify runtime and unchanged check bodies
+        run: bash .github/scripts/webkit-probe.sh verify
+      - name: Provision the original disposable database
+        if: matrix.suite != 'docs-webkit'
+        working-directory: packages/db
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
+        run: bun run db:migrate
+      - name: Download and verify frozen production artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WEBKIT_PROBE_PROVIDER: ${{ inputs.provider }}
+        run: bash .github/scripts/webkit-probe.sh prepare "${{ matrix.suite }}" "${{ matrix.variant }}" "${{ inputs.wave }}"
+      - name: Run the existing WebKit suite
+        env:
+          WEBKIT_PROBE_PROVIDER: ${{ inputs.provider }}
+        run: bash .github/scripts/webkit-probe.sh run "${{ matrix.suite }}" "${{ matrix.variant }}" "${{ inputs.wave }}"
+      - name: Verify frozen cases and host screenshots
+        run: bash .github/scripts/webkit-probe.sh results "${{ matrix.suite }}"
+      - name: Stop only the owned WebKit server
+        if: always() && steps.checkout.outcome == 'success'
+        run: bash .github/scripts/playwright-server.sh stop "$RUNNER_TEMP/webkit-probe-server"
+      - name: Upload existing reports and lifecycle proof
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: webkit-probe-${{ inputs.wave }}-${{ matrix.suite }}-${{ matrix.variant }}
+          path: |
+            ${{ runner.temp }}/webkit-probe/
+            ${{ runner.temp }}/webkit-probe-server/
+            ${{ runner.temp }}/e2e/
+            apps/docs/test-results/
+          if-no-files-found: warn
+          retention-days: 3

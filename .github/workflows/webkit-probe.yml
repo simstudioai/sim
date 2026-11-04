@@ -1,0 +1,56 @@
+name: WebKit image probe
+on:
+  push:
+    branches: [codex/ci-webkit-container-probe]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: webkit-probe-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  plan:
+    if: github.repository == 'simstudioai/sim'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      provider: ${{ steps.plan.outputs.provider }}
+    steps:
+      - name: Checkout reviewed experiment
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Freeze provider and validate immutable inputs
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_PROVIDER_INPUT: ${{ vars.CI_PROVIDER }}
+        run: bash .github/scripts/webkit-probe.sh plan
+      - name: Upload input proof
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: webkit-probe-inputs
+          path: ${{ runner.temp }}/webkit-probe/
+          if-no-files-found: warn
+          retention-days: 3
+  wave-1:
+    needs: plan
+    uses: ./.github/workflows/webkit-probe-wave.yml
+    with:
+      provider: ${{ needs.plan.outputs.provider }}
+      wave: '1'
+  wave-2:
+    needs: [plan, wave-1]
+    uses: ./.github/workflows/webkit-probe-wave.yml
+    with:
+      provider: ${{ needs.plan.outputs.provider }}
+      wave: '2'
+  wave-3:
+    needs: [plan, wave-2]
+    uses: ./.github/workflows/webkit-probe-wave.yml
+    with:
+      provider: ${{ needs.plan.outputs.provider }}
+      wave: '3'
