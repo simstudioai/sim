@@ -24,6 +24,10 @@ test('a chat panel preserves its file, tabs and focus across resize, collapse an
     page.getByRole('heading', { level: 1, name: 'Review the renewal brief' })
   ).toBeVisible()
   await page.setViewportSize({ width: 673, height: 823 })
+  const opener = await page.getByRole('button', { name: 'Expand sidebar' }).boundingBox()
+  const add = await panel.getByRole('button', { name: 'New panel tab' }).boundingBox()
+  if (!opener || !add) throw new Error('Both mobile navigation controls must be visible')
+  expect(add.x).toBeGreaterThanOrEqual(opener.x + opener.width)
   await expect(
     page.getByRole('heading', { level: 1, name: 'Review the renewal brief' })
   ).toBeHidden()

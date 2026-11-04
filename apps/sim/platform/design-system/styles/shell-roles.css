@@ -12,6 +12,12 @@
     --ui-navigation-inset: var(--spacing-52);
   }
 }
+@media (40rem <= width <= 48rem) {
+  [data-platform-ui],
+  [data-platform-ui] [data-sidebar-collapsed] {
+    --ui-navigation-inset: var(--spacing-60);
+  }
+}
 [data-platform-ui] [data-desktop] {
   --ui-navigation-inset: 0px;
 }
