@@ -114,7 +114,7 @@ await writeFile(
       name: development ? 'Sim (Development)' : 'Sim',
       version: packageJson.version,
       description:
-        "Ask Sim about the page you are reading, and open your organization's go/ links from the address bar.",
+        "Ask Sim about the page you are reading, and open your organization's go/ and sim/ links from the address bar.",
       minimum_chrome_version: '120',
       permissions: [
         'activeTab',
