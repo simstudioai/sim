@@ -13,12 +13,15 @@ interface SimLinkCreator {
   /** Null where Sim links are off; render no shortcut then. */
   organizationId: string | null
   openCreate: () => void
-  /** The new-link form while it is open; render it outside any menu, which unmounts on close. */
+  /** The new-link form while it is open, rendered inside the dialog that opened it. */
   modal: ReactNode
 }
 
-/** Opens the new-link form for `url`, prefilled with a name suggested from `title`. */
-export function useSimLinkCreator(url: string, title: string): SimLinkCreator {
+/**
+ * A new-link form nested in the dialog that opens it, so it stacks above that dialog and keeps its
+ * focus trap. Menus and popovers use the layout-hosted form (`useOpenSimLinkForm`) instead.
+ */
+function useNestedSimLinkCreator(url: string, title: string): SimLinkCreator {
   const organizationId = useSimLinkOrganizationId()
   const [open, setOpen] = useState(false)
   return {
@@ -112,7 +115,7 @@ interface SimLinkChipProps {
 
 /** The same choice as a footer chip, for a dialog that already shows the address it shortens. */
 export function SimLinkChip({ url, title }: SimLinkChipProps) {
-  const { organizationId, openCreate, modal } = useSimLinkCreator(url, title)
+  const { organizationId, openCreate, modal } = useNestedSimLinkCreator(url, title)
   if (!organizationId) return null
   return (
     <>
