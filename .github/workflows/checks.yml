@@ -129,7 +129,15 @@ jobs:
       ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
 
     steps:
-      - name: Checkout code
+      # The writable mirror is shared per repository, so only trusted PR jobs use it.
+      # Forks and deployment-gating pushes use a plain checkout, matching cache isolation.
+      - &checkout-mirror
+        name: Checkout code (mirror)
+        if: (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        uses: useblacksmith/checkout@2b9fe87d796feea153b455ec2f3125b471a7b0e7 # v1.8.2
+      - &checkout-plain
+        name: Checkout code
+        if: (vars.CI_PROVIDER != '' && vars.CI_PROVIDER != 'blacksmith') || github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
 
       - name: Setup workspace
@@ -348,19 +356,8 @@ jobs:
       ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
 
     steps:
-      # A same-repository pull request checks out through a git mirror on a sticky disk, so a slow
-      # clone from GitHub (1 in 10 took a minute or more, up to 4) no longer sets the run's pace.
-      # The mirror is one disk per repository that job steps can write to, so fork pull requests
-      # and pushes, whose checks gate a deploy, keep the plain checkout: same trust split as the
-      # setup action's caches.
-      - &checkout-mirror
-        name: Checkout code (mirror)
-        if: (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
-        uses: useblacksmith/checkout@2b9fe87d796feea153b455ec2f3125b471a7b0e7 # v1.8.2
-      - &checkout-plain
-        name: Checkout code
-        if: (vars.CI_PROVIDER != '' && vars.CI_PROVIDER != 'blacksmith') || github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+      - *checkout-mirror
+      - *checkout-plain
 
 
       - name: Setup workspace
