@@ -109,11 +109,6 @@
   background: var(--control-danger-pressed);
 }
 
-:is(.button, .iconButton, .chip):focus-visible {
-  outline: var(--spacing-stroke-focus) solid var(--ui-focus);
-  outline-offset: var(--spacing-stroke-focus);
-}
-
 :is(.button, .iconButton, .input):disabled {
   opacity: var(--opacity-disabled);
   cursor: default;
@@ -254,11 +249,6 @@
   border-color: var(--control-hover-border);
 }
 
-.input:focus {
-  border-color: var(--ui-focus);
-  outline: var(--spacing-stroke-default) solid var(--ui-focus);
-}
-
 .input[aria-invalid="true"] {
   border-color: var(--control-danger);
 }
@@ -272,23 +262,6 @@ textarea.input {
   min-height: var(--spacing-76);
   padding-block: var(--spacing-8);
   resize: vertical;
-}
-
-.select {
-  position: relative;
-}
-
-.select select {
-  appearance: none;
-  padding-inline-end: var(--spacing-32);
-}
-
-.select svg {
-  position: absolute;
-  inset-inline-end: var(--spacing-8);
-  top: 50%;
-  translate: 0 -50%;
-  pointer-events: none;
 }
 
 .modal {
@@ -358,7 +331,6 @@ textarea.input {
   min-width: min(100%, var(--spacing-96));
 }
 
-.selectTrigger,
 .upload,
 .recipients {
   border: var(--spacing-stroke-default) solid var(--ui-border);
@@ -367,40 +339,6 @@ textarea.input {
   color: var(--ui-ink);
 }
 
-.selectTrigger,
-.option,
-.createOption,
-.search {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-8);
-  height: var(--spacing-app-chip);
-  padding-inline: var(--spacing-8);
-}
-
-.selectTrigger,
-.option {
-  justify-content: space-between;
-}
-
-.selectMenu {
-  z-index: 1;
-  width: var(--radix-popover-trigger-width);
-  max-height: var(--radix-popover-content-available-height);
-  margin-block: var(--spacing-field-label-gap);
-  padding: var(--spacing-menu-inset);
-  overflow-y: auto;
-  border: var(--spacing-stroke-default) solid var(--ui-border);
-  border-radius: var(--radius-menu-shared);
-  color: var(--ui-ink);
-}
-
-.search {
-  height: var(--spacing-app-control-md);
-  margin-block-end: var(--spacing-4);
-}
-
-.search input,
 .recipientViewport input {
   flex: 1;
   min-width: 0;
@@ -408,43 +346,6 @@ textarea.input {
   border: 0;
   background: transparent;
   color: inherit;
-}
-
-.search input:focus,
-.recipientViewport input:focus {
-  outline: 0;
-}
-
-.search:focus-within,
-.selectTrigger:focus-visible,
-.upload:focus-within,
-.recipients:focus-within {
-  outline: var(--spacing-stroke-default) solid var(--ui-focus);
-}
-
-.option,
-.createOption {
-  width: 100%;
-  border: 0;
-  border-radius: var(--radius-item);
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-
-:is(.option, .createOption):is(:hover, :focus-visible) {
-  background: var(--ui-hover);
-}
-
-.rule {
-  margin: var(--spacing-4);
-  border: 0;
-  border-block-start: var(--spacing-stroke-default) solid var(--ui-border);
-}
-
-.noResults {
-  padding: var(--spacing-8);
-  color: var(--ui-secondary);
 }
 
 .upload {
@@ -475,10 +376,6 @@ textarea.input {
 
 .recipients[data-invalid] {
   border-color: var(--control-danger);
-}
-
-.recipients:not([data-invalid]):focus-within {
-  border-color: var(--ui-focus);
 }
 
 .recipientViewport {
@@ -526,12 +423,12 @@ textarea.input {
   pointer-events: none;
 }
 
-.recipient:is(:hover, :focus-within, [data-selected]) .removeRecipient {
+.recipient:is(:hover, [data-selected]) .removeRecipient {
   opacity: 1;
   pointer-events: auto;
 }
 
-.recipient:has(.removeRecipient):is(:hover, :focus-within, [data-selected]) .address {
+.recipient:has(.removeRecipient):is(:hover, [data-selected]) .address {
   mask-image: linear-gradient(
     to right,
     var(--color-light-text-strong) calc(100% - var(--spacing-48)),

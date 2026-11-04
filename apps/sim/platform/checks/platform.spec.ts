@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, type Locator, test } from '@playwright/test'
 import { load } from 'cheerio'
 import evidence from '@/platform/design-system/catalog/evidence.json'
 
@@ -61,18 +61,22 @@ test('keyboard users can advance, dismiss and reopen the workspace dialog from i
   await next.focus()
   await page.keyboard.press('Enter')
   await expect(dialog.getByText(/^Step 2 of/)).toBeVisible()
-  await dialog.getByRole('button', { name: 'Default role, Member' }).click()
-  await dialog.getByRole('button', { name: 'Viewer', exact: true }).click()
+  await dialog.getByRole('combobox', { name: 'Default role', exact: true }).click()
+  await dialog.getByRole('option', { name: 'Viewer', exact: true }).click()
   await dialog.getByRole('button', { name: 'Back' }).click()
   await next.click()
-  await expect(dialog.getByRole('button', { name: 'Default role, Viewer' })).toBeVisible()
+  await expect(dialog.getByRole('combobox', { name: 'Default role', exact: true })).toContainText(
+    'Viewer'
+  )
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
   await expect(trigger).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(dialog.getByText(/^Step 1 of/)).toBeVisible()
   await next.click()
-  await expect(dialog.getByRole('button', { name: 'Default role, Member' })).toBeVisible()
+  await expect(dialog.getByRole('combobox', { name: 'Default role', exact: true })).toContainText(
+    'Member'
+  )
 })
 
 for (const width of [390, 647, 901, 1440]) {
@@ -266,21 +270,48 @@ test('chart labels and totals follow the supplied series', async ({ page }) => {
 test('a picker can extend beyond the modal and keeps the pointer and Escape on the right layer', async ({
   page,
 }) => {
+  const popupRecipe = (option: Locator) =>
+    option.evaluate((row) => {
+      const surface = row.closest('[data-material="floating"]')
+      if (!surface) throw new Error('Missing floating menu surface')
+      const panel = getComputedStyle(surface)
+      const item = getComputedStyle(row)
+      return [
+        panel.backgroundColor,
+        panel.backdropFilter,
+        panel.boxShadow,
+        panel.border,
+        panel.borderRadius,
+        panel.padding,
+        item.borderRadius,
+        item.paddingInline,
+        row.getBoundingClientRect().height,
+      ]
+    })
   await page.setViewportSize({ width: 320, height: 500 })
-  await page.goto(enabled)
+  await page.goto(`${enabled}/?theme=dark`)
+  await page.getByRole('combobox', { name: 'Access', exact: true }).click()
+  const mainRecipe = await popupRecipe(page.getByRole('option', { name: 'Private', exact: true }))
+  await page.keyboard.press('Escape')
   const open = page.getByRole('button', { name: 'Create workspace', exact: true })
   await open.click()
   const modal = page.getByRole('dialog', { name: 'Create workspace' })
   await modal.getByRole('button', { name: 'Continue' }).click()
-  const group = modal.getByRole('button', { name: 'Default role, Member' })
+  const group = modal.getByRole('combobox', { name: 'Default role', exact: true })
   await group.click()
-  const option = modal.getByRole('button', { name: 'Viewer', exact: true })
+  const option = modal.getByRole('option', { name: 'Viewer', exact: true })
   await expect(option).toBeInViewport({ ratio: 1 })
+  expect(await popupRecipe(option)).toEqual(mainRecipe)
+  const search = modal.getByRole('combobox', { name: 'Find a role' })
+  await expect(search).toBeFocused()
+  await expect(search).toHaveCSS('outline-style', 'none')
   const bounds = await option.boundingBox()
   if (!bounds) throw new Error('The menu option disappeared before pointer selection')
   await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
-  const selected = modal.getByRole('button', { name: 'Default role, Viewer' })
+  const selected = modal.getByRole('combobox', { name: 'Default role', exact: true })
+  await expect(selected).toContainText('Viewer')
   await selected.click()
+  await expect(modal.getByRole('combobox', { name: 'Find a role' })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(selected).toBeFocused()
   await page.keyboard.press('Escape')
@@ -403,6 +434,56 @@ test('series tooltips stay beside the inspected mark at both edges of the plot',
   }
 })
 
+test('choices support keyboard typeahead and disable an empty collection', async ({ page }) => {
+  await page.goto(`${enabled}/?theme=dark`)
+  const access = page.getByRole('combobox', { name: 'Access', exact: true })
+  await access.focus()
+  await access.press('ArrowDown')
+  const options = page.getByRole('listbox')
+  await expect(options.getByRole('option', { name: 'Private' })).toBeFocused()
+  await page.keyboard.press('o')
+  await expect(options.getByRole('option', { name: 'Organization' })).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(access).toContainText('Organization')
+  await expect(access).toBeFocused()
+  await page.goto(`${enabled}/?recipe=C0347&state=empty`)
+  const empty = page.getByRole('combobox', { name: 'ChipSelect', exact: true })
+  await expect(empty).toBeDisabled()
+  await expect(empty).toHaveText('')
+})
+
+test('the Paper catalog searches its full list and submits and resets the selected key', async ({
+  page,
+}) => {
+  await page.goto(`${disabled}/?recipe=C1332`)
+  const picker = page.getByRole('combobox', { name: 'Paper master', exact: true })
+  await picker.click()
+  const search = page.getByRole('combobox', { name: 'Search masters' })
+  const list = page.getByRole('listbox', { name: 'Paper master' })
+  await expect(list.getByRole('option')).toHaveCount(
+    evidence.filter((row) => row.theme === 'L').length
+  )
+  await expect(list).toBeInViewport({ ratio: 1 })
+  await search.fill('C0162')
+  await search.press('ArrowDown')
+  await search.press('Enter')
+  const form = page.locator('form').filter({ has: picker })
+  await expect
+    .poll(() => form.evaluate((el) => new FormData(el as HTMLFormElement).get('recipe')))
+    .toBe('C0162')
+  await form.evaluate((el) => (el as HTMLFormElement).reset())
+  await expect(picker).toContainText('C1332')
+  await expect
+    .poll(() => form.evaluate((el) => new FormData(el as HTMLFormElement).get('recipe')))
+    .toBe('C1332')
+  await picker.click()
+  await search.fill('OverflowText')
+  await page.getByRole('option', { name: /C0807/ }).click()
+  await page.getByRole('button', { name: 'View master' }).click()
+  await expect(page).toHaveURL(/recipe=C0807/)
+  await expect(picker).toContainText('C0807')
+})
+
 test('every registered master resolves through its production workbench URL', async ({
   request,
 }) => {
@@ -420,11 +501,127 @@ test('every registered master resolves through its production workbench URL', as
         try {
           expect(response.status(), key).toBe(200)
           const page = load(await response.text())
-          expect(page('select[name="recipe"] option[selected]').val(), key).toBe(key)
+          expect(page('input[name="recipe"]').val(), key).toBe(key)
         } finally {
           await response.dispose()
         }
       })
     )
   }
+})
+
+test('Help keyboard navigation enters Downloads, returns to its parent, and restores focus after choosing the child action', async ({
+  page,
+}) => {
+  await page.goto(`${enabled}/?recipe=C0651`)
+  const trigger = page.getByRole('button', { name: 'Help', exact: true })
+  await trigger.focus()
+  await page.keyboard.press('ArrowDown')
+  const root = page.getByRole('menu', { name: 'Help', exact: true })
+  const downloads = root.getByRole('menuitem', { name: 'Download apps' })
+  await expect(downloads).toBeFocused()
+  await page.keyboard.press('ArrowRight')
+  const child = page.getByRole('menu', { name: 'Download apps', exact: true })
+  const mac = child.getByRole('menuitem', { name: 'Sim for macOS' })
+  await expect(mac).toBeFocused()
+  await page.keyboard.press('ArrowLeft')
+  await expect(child).toBeHidden()
+  await expect(downloads).toBeFocused()
+  await page.keyboard.press('ArrowRight')
+  await expect(mac).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(child).toBeHidden()
+  await expect(downloads).toBeFocused()
+  await page.keyboard.press('ArrowRight')
+  await expect(mac).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(root).toBeHidden()
+  await expect(trigger).toBeFocused()
+})
+
+test('Help submenu flips at either edge and remains open while the pointer travels diagonally into it', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 760, height: 440 })
+  await page.goto(`${enabled}/?recipe=C0651`)
+  const trigger = page.getByRole('button', { name: 'Help', exact: true })
+  for (const edge of ['left', 'right'] as const) {
+    await trigger.evaluate((element, corner) => {
+      element.style.position = 'fixed'
+      element.style.inset = 'auto'
+      element.style[corner] = '8px'
+      element.style.bottom = '8px'
+    }, edge)
+    await trigger.click()
+    const root = page.getByRole('menu', { name: 'Help', exact: true })
+    const downloads = root.getByRole('menuitem', { name: 'Download apps' })
+    await downloads.hover()
+    const highlighted = await downloads.evaluate(
+      (element) => getComputedStyle(element).backgroundColor
+    )
+    const child = page.getByRole('menu', { name: 'Download apps' })
+    await expect(child).toBeVisible()
+    const mac = child.getByRole('menuitem', { name: 'Sim for macOS' })
+    await expect
+      .poll(async () => {
+        const [box, head, button] = await Promise.all([
+          child.locator('..').boundingBox(),
+          root.locator('..').boundingBox(),
+          trigger.boundingBox(),
+        ])
+        if (!box || !head || !button) return false
+        const gap = edge === 'left' ? box.x - head.x - head.width : head.x - box.x - box.width
+        return (
+          box.x >= 0 &&
+          box.x + box.width <= 760 &&
+          box.y >= 0 &&
+          box.y + box.height <= 440 &&
+          head.y + head.height <= button.y &&
+          Math.abs(gap - 4) < 1
+        )
+      })
+      .toBe(true)
+    const [row, item] = await Promise.all([downloads.boundingBox(), mac.boundingBox()])
+    if (!row || !item) throw new Error('Missing submenu geometry')
+    await page.mouse.move(
+      edge === 'left' ? row.x + row.width - 2 : row.x + 2,
+      row.y + row.height - 3
+    )
+    await page.mouse.move(
+      edge === 'left' ? item.x + 2 : item.x + item.width - 2,
+      item.y + item.height - 3,
+      { steps: 16 }
+    )
+    await page.mouse.move(item.x + item.width / 2, item.y + item.height / 2, { steps: 10 })
+    await expect(mac).toBeVisible()
+    await expect(downloads).toHaveCSS('background-color', highlighted)
+    await mac.click()
+    await expect(root).toBeHidden()
+  }
+})
+
+test('a long range menu scrolls inside its themed surface and selecting its final choice restores focus', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 360 })
+  await page.goto(`${enabled}/?recipe=C1331&theme=dark&state=stress`)
+  const trigger = page.getByRole('button', { name: 'Agents: All agents' })
+  await trigger.focus()
+  await page.keyboard.press('ArrowDown')
+  const menu = page.getByRole('menu', { name: 'Agents' })
+  const choices = menu.getByRole('menuitemradio')
+  await expect(choices).toHaveCount(26)
+  expect(
+    await menu.evaluate((el) => el.closest('[data-platform-ui]')?.getAttribute('data-theme'))
+  ).toBe('dark')
+  expect(await menu.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true)
+  await page.keyboard.press('End')
+  await expect(choices.last()).toBeFocused()
+  expect(await menu.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+  const label = await choices.last().innerText()
+  await page.keyboard.press('Enter')
+  await expect(menu).toBeHidden()
+  const updated = page.getByRole('button', { name: `Agents: ${label}` })
+  await expect(updated).toBeFocused()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
 })

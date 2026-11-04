@@ -10,7 +10,7 @@ interface SearchFieldProps {
   placeholder?: string
   defaultValue?: string
   shortcut?: '⌘K' | '/'
-  variant?: 'outlined' | 'menu'
+  variant?: 'outlined' | 'sidebar' | 'menu'
   onValueChange?: (query: string) => void
 }
 
@@ -72,7 +72,7 @@ export function SearchField({
         value={query}
         onChange={(event) => change(event.currentTarget.value)}
       />
-      {variant === 'outlined' &&
+      {variant !== 'menu' &&
         (query ? (
           <IconButton
             label='Clear search'

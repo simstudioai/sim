@@ -39,7 +39,6 @@
   color-scheme: dark;
 }
 
-[data-platform-ui] :focus-visible {
-  outline: var(--spacing-stroke-focus) solid var(--ui-focus);
-  outline-offset: var(--spacing-stroke-focus);
+[data-platform-ui] :focus {
+  outline: none;
 }

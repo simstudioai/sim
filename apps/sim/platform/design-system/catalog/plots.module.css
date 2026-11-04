@@ -45,10 +45,10 @@
   overflow: visible;
 }
 .point {
-  r: calc((var(--spacing-8) - var(--spacing-stroke-focus)) / 2);
+  r: calc((var(--spacing-8) - var(--spacing-2)) / 2);
   fill: var(--ui-plot-primary);
   stroke: var(--ui-canvas);
-  stroke-width: var(--spacing-stroke-focus);
+  stroke-width: var(--spacing-2);
 }
 
 .columns {

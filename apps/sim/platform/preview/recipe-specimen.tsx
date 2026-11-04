@@ -5,7 +5,7 @@ import {
   recipeSlots,
 } from '@/platform/design-system/catalog/component-recipe'
 import evidence from '@/platform/design-system/catalog/evidence.json'
-import { Button, MenuItem, SelectField } from '@/platform/design-system/components'
+import { Button, MenuItem, SearchableSelect } from '@/platform/design-system/components'
 import type { PreviewData, Scenario } from '@/platform/fixtures'
 import { ControlSpecimen } from '@/platform/preview/control-specimen'
 import styles from '@/platform/preview/specimen.module.css'
@@ -99,8 +99,10 @@ export function RecipeSpecimen({
       <form className={styles.picker} action='/' method='get'>
         <input name='theme' type='hidden' value={theme} />
         <input name='state' type='hidden' value={scenario} />
-        <SelectField
+        <SearchableSelect
+          key={key}
           label='Paper master'
+          searchLabel='Search masters'
           name='recipe'
           defaultValue={key}
           options={choices.map((row) => ({ value: row.key, label: `${row.family} (${row.key})` }))}

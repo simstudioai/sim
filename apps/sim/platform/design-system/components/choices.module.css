@@ -34,35 +34,28 @@
 }
 
 .menu {
-  display: grid;
-  inline-size: min(100%, var(--menu-action-width));
-  padding: var(--spacing-menu-inset);
-  border: var(--spacing-stroke-default) solid var(--ui-border);
-  border-radius: var(--radius-menu-shared);
+  composes: popup from "./popup.module.css";
+  inline-size: var(--menu-action-width);
 }
 .menu:has(.menuItem[data-option]) {
-  inline-size: min(100%, var(--menu-choice-width));
+  inline-size: var(--menu-choice-width);
 }
 .menuItem {
-  width: 100%;
-  min-height: var(--spacing-app-chip);
-  padding-inline: var(--spacing-8);
-  gap: var(--spacing-8);
-  border-radius: var(--radius-item);
-  color: var(--ui-ink);
-  cursor: pointer;
-  text-align: start;
+  composes: item from "./popup.module.css";
 }
 .menuItem[data-option] {
   min-height: var(--spacing-app-control-md);
 }
-.menuItem:is(:hover, :focus-visible) {
+.menuItem[data-popup-open],
+.menu[data-navigating] .menuItem[tabindex="0"] {
   background: var(--ui-hover);
 }
-.menuLabel {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
+.trailing {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: end;
+  inline-size: var(--spacing-32);
 }
 .hint {
   min-width: var(--spacing-32);
@@ -79,6 +72,9 @@
   background: var(--ui-reading);
   color: var(--ui-secondary);
 }
+.search[data-variant="sidebar"] {
+  border-color: var(--ui-divider);
+}
 .search[data-variant="menu"] {
   min-height: var(--spacing-app-control-md);
   padding-inline: var(--spacing-8);
@@ -88,9 +84,6 @@
   border-radius: 0;
   background: transparent;
 }
-.search:focus-within {
-  outline: var(--spacing-stroke-default) solid var(--ui-focus);
-}
 .query {
   flex: 1;
   min-inline-size: 0;
@@ -98,9 +91,6 @@
   appearance: none;
   color: var(--ui-ink);
   background: transparent;
-}
-.query:focus-visible {
-  outline: none;
 }
 .query::placeholder {
   color: var(--ui-secondary);
@@ -165,10 +155,6 @@
   border-color: var(--choice-edge);
   box-shadow: var(--choice-shadow);
 }
-.radio:focus-visible + .choiceLabel {
-  outline: var(--spacing-stroke-focus) solid var(--ui-focus);
-  outline-offset: var(--spacing-stroke-focus);
-}
 
 .disclosure[data-variant="activity"] > .summary {
   width: 100%;
@@ -185,7 +171,7 @@
 .disclosure[data-variant="more"][open] > .summary {
   color: var(--ui-ink);
 }
-.disclosure[data-variant="more"] > .summary:not(:hover, :focus-visible) .collapsed svg {
+.disclosure[data-variant="more"] > .summary:not(:hover) .collapsed svg {
   visibility: hidden;
 }
 .disclosure[data-variant="more"] > .summary .expanded svg {
@@ -193,14 +179,14 @@
 }
 
 .menu[data-menu="browser"] {
-  inline-size: min(100%, var(--menu-browser-width));
+  inline-size: var(--menu-browser-width);
   gap: var(--spacing-2);
 }
 .separator {
   margin: var(--spacing-4) var(--spacing-8);
   height: var(--spacing-stroke-default);
   border: 0;
-  background: var(--choice-edge);
+  background: var(--ui-divider);
 }
 .menuTitle {
   display: flex;

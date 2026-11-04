@@ -280,7 +280,7 @@ function normalize(property: string, value: string) {
   if (/Width$/.test(property) && /^border/.test(property)) {
     if (value === '1px') return 'var(--spacing-stroke-default)'
     if (value === '0.5px') return 'var(--spacing-stroke-hairline)'
-    if (value === '2px') return 'var(--spacing-stroke-focus)'
+    if (value === '2px') return 'var(--spacing-2)'
   }
   if (
     property === 'maskImage' ||

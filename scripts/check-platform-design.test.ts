@@ -228,6 +228,12 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       'platform/preview/chrome.tsx',
       'export const Preview = () => <div className="catalog-row"/>'
     )
+    write(
+      'platform/preview/raw-picker.tsx',
+      `import {Select} from '@base-ui/react/select'
+      export function RawPicker(){return <><select/><Select.Root/></>}`
+    )
+    write(`${component}/focus.module.css`, '.field:focus-within{border-color:var(--color-ink)}')
     write('platform/preview/chrome.css', '.catalog-row button{color:var(--color-ink)}')
     write(
       'platform/preview/gallery.tsx',
@@ -253,6 +259,9 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       'css-owner',
       'preview-selector',
       'unknown-token',
+      'focus-style',
+      'native-picker',
+      'primitive-owner',
       'raw-color',
       'utility-token',
       'untokenized-style',
