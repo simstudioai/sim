@@ -133,10 +133,15 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
   const prevDefaultValueRef = useRef(defaultValue)
 
+  const { pending: preparingSubmission, accept: acceptSubmission } = useComposerSubmission({
+    scope: draftScopeKey,
+    mode: requestMode,
+  })
   const files = useFileAttachments({
     fileDropTarget,
     userId,
     workspaceId,
+    disabled: preparingSubmission,
   })
   const hasFiles = files.attachedFiles.some((f) => !f.uploading && f.key)
   const hasUploadingFiles = files.attachedFiles.some((f) => f.uploading)
@@ -535,10 +540,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     filesRef.current = { ...filesRef.current, attachedFiles: [] }
   }, [resetTranscript, history.reset])
 
-  const { pending: preparingSubmission, accept: acceptSubmission } = useComposerSubmission({
-    scope: draftScopeKey,
-    mode: requestMode,
-  })
   const handleSubmit = useCallback(() => {
     if (chatPlanRequired) {
       useChatPlanModalStore.getState().open(workspaceId)

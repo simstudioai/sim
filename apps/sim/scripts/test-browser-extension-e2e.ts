@@ -15,6 +15,7 @@ import {
   type Locator,
   type Page,
   type Request,
+  type Route,
 } from '@playwright/test'
 import { pageSnapshotSchema } from '@sim/browser-extension-protocol'
 import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
@@ -495,6 +496,8 @@ try {
         )
           return
         document.body.dataset.captureReceipts = String(++receipts)
+        if ('sessionId' in event.data && typeof event.data.sessionId === 'string')
+          document.body.dataset.captureSession = event.data.sessionId
       })
     }, base.origin)
   await observeCaptureReceipts()
@@ -543,7 +546,7 @@ try {
           buffer: Buffer.from('This synthetic file belongs only to extension QA.'),
         })
     )
-  const attachScreenshot = async (target: Locator) => {
+  const screenshotFile = async () => {
     const name = 'drop-fixture.png'
     const png = resolve(temporary, name)
     await writeFile(
@@ -553,7 +556,199 @@ try {
         'base64'
       )
     )
+    return { name, png }
+  }
+  const attachScreenshot = async (target: Locator) => {
+    const { name, png } = await screenshotFile()
     return uploadFile(name, () => dropOnChat(shell, target, { files: [png] }))
+  }
+  const installCaptureGate = () =>
+    shell.addInitScript((parentOrigin) => {
+      if (window.parent === window) return
+      let held: MessageEvent<unknown> | undefined
+      let armed = false
+      const receive = (event: MessageEvent<unknown>) => {
+        const message = event.data
+        if (
+          !armed ||
+          event.source !== window.parent ||
+          event.origin !== parentOrigin ||
+          typeof message !== 'object' ||
+          message === null ||
+          !('channel' in message) ||
+          message.channel !== 'sim-extension' ||
+          !('type' in message) ||
+          message.type !== 'send-context'
+        )
+          return
+        held = event
+        document.documentElement.dataset.qaCaptureGate = 'held'
+        event.stopImmediatePropagation()
+      }
+      const arm = () => {
+        armed = true
+        document.documentElement.dataset.qaCaptureGate = 'armed'
+      }
+      const release = () => {
+        armed = false
+        const received = held
+        held = undefined
+        if (received)
+          window.dispatchEvent(
+            new MessageEvent('message', {
+              data: received.data,
+              origin: received.origin,
+              source: received.source,
+              lastEventId: received.lastEventId,
+              ports: [...received.ports],
+            })
+          )
+        document.documentElement.dataset.qaCaptureGate = 'released'
+      }
+      const dispose = () => {
+        armed = false
+        held = undefined
+        window.removeEventListener('message', receive, true)
+        window.removeEventListener('sim-qa-arm-capture', arm)
+        window.removeEventListener('sim-qa-release-capture', release)
+        window.removeEventListener('sim-qa-dispose-capture', dispose)
+      }
+      // Window message listeners run in registration order, including capture listeners.
+      window.addEventListener('message', receive, true)
+      window.addEventListener('sim-qa-arm-capture', arm)
+      window.addEventListener('sim-qa-release-capture', release)
+      window.addEventListener('sim-qa-dispose-capture', dispose)
+    }, `chrome-extension://${extensionId}`)
+  const verifyPendingCaptureDrop = async (scope: 'workspace' | 'organization' | 'assistant') => {
+    const app = frame()
+    const input = app.getByRole('textbox', {
+      name: scope === 'workspace' ? 'Message' : 'Ask Sim',
+      exact: true,
+    })
+    await expect(input).toBeVisible()
+    const editorElement = await input.elementHandle()
+    assert(editorElement, 'The pending capture needs a mounted composer')
+    await expect(attachments()).toHaveCount(0)
+    const greeting = app.getByRole('heading', { name: 'How can I help?', exact: true })
+    await expect(greeting).toBeVisible()
+    const priorPreference = await worker.evaluate(() =>
+      chrome.storage.local.get('referenceCurrentPage')
+    )
+    const endpoint = `${base.origin}/api/mothership/chat`
+    const uploadEndpoint = `${base.origin}/api/files/uploads`
+    const submitted: Record<string, unknown>[] = []
+    let uploadAttempts = 0
+    const interceptChat = (route: Route) => {
+      if (route.request().method() !== 'POST') return route.continue()
+      submitted.push(toRecord(route.request().postDataJSON()))
+      injectedRequests.add(route.request())
+      return route.fulfill({ status: 403, json: { error: 'QA pending capture admission check' } })
+    }
+    const interceptUpload = (route: Route) => {
+      if (route.request().method() !== 'POST') return route.continue()
+      uploadAttempts++
+      injectedRequests.add(route.request())
+      return route.fulfill({ status: 409, json: { error: 'QA unexpected pending upload' } })
+    }
+    await browserContext.route(endpoint, interceptChat)
+    await browserContext.route(uploadEndpoint, interceptUpload)
+    try {
+      await app.getByRole('button', { name: 'Add resources', exact: true }).press('Enter')
+      const preference = app.getByRole('menuitemcheckbox', { name: 'Reference current page' })
+      await expect(preference).toBeVisible()
+      if ((await preference.getAttribute('aria-checked')) !== 'true')
+        await preference.press('Enter')
+      else await preference.press('Escape')
+      await expect(
+        app.getByRole('button', { name: 'Attach current page', exact: true })
+      ).toHaveText('Current page')
+      const draft = `Preserve the original ${scope} send during a screenshot drop.`
+      await input.fill(draft)
+      await expect(attachments()).toHaveCount(0)
+      await app.evaluate(() => window.dispatchEvent(new Event('sim-qa-arm-capture')))
+      await expect(
+        app.locator('html'),
+        `${scope}: capture gate installed before app startup`
+      ).toHaveAttribute('data-qa-capture-gate', 'armed')
+      await source.bringToFront()
+      await input.press('Enter')
+      await expect(
+        app.locator('html'),
+        `${scope}: genuine send-context held before app delivery`
+      ).toHaveAttribute('data-qa-capture-gate', 'held')
+      const preparing = () =>
+        editorElement.evaluate((element) => Boolean(element.closest('[inert][aria-busy="true"]')))
+      await expect
+        .poll(preparing, { message: `${scope}: held capture keeps the composer inert` })
+        .toBe(true)
+      assert.equal(
+        submitted.length,
+        0,
+        `${scope}: the capture gate did not defer the original send`
+      )
+      const { name, png } = await screenshotFile()
+      const pageCount = browserContext.pages().length
+      const previousUrl = app.url()
+      await dropOnChat(shell, greeting, { files: [png] })
+      await app.evaluate(
+        () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+      )
+      await screenshot(`pending-capture-drop-${scope}`)
+      assert.equal(uploadAttempts, 0, `${scope}: a body drop started uploading during capture`)
+      await expect.poll(() => editorElement.inputValue()).toBe(draft)
+      await expect(app.getByRole('button', { name: `Remove ${name}`, exact: true })).toHaveCount(0)
+      assert.equal(submitted.length, 0, `${scope}: the held capture committed early`)
+      assert.equal(app.url(), previousUrl)
+      assert.equal(browserContext.pages().length, pageCount)
+      await expect
+        .poll(preparing, { message: `${scope}: held capture keeps the composer inert` })
+        .toBe(true)
+      await app.evaluate(() => window.dispatchEvent(new Event('sim-qa-release-capture')))
+      await expect.poll(() => submitted.length).toBe(1)
+      const body = submitted[0]
+      assert(String(body.message).startsWith(draft))
+      assert.equal(
+        body[scope === 'workspace' ? 'workspaceId' : 'organizationId'],
+        scope === 'workspace' ? alphaId : organizationId
+      )
+      if (scope === 'assistant') assert.equal(body.mode, 'assistant')
+      const pages = submittedPages(body)
+      assert.equal(pages.length, 1)
+      assert(pages[0].text.includes('ORCHID-482'))
+      assert.equal(pages[0].url, `${fixtureOrigin}/page`)
+      assert.equal(body.fileAttachments, undefined)
+      await expect
+        .poll(
+          () => input.evaluate((element) => Boolean(element.closest('[inert][aria-busy="true"]'))),
+          { message: `${scope}: the current composer resumes after capture` }
+        )
+        .toBe(false)
+      await expect(
+        app.getByText('Your draft changed while the page was being read. Send again to continue.', {
+          exact: true,
+        })
+      ).toHaveCount(0)
+      assert.equal(uploadAttempts, 0)
+      await browserContext.unroute(uploadEndpoint, interceptUpload)
+      await attachScreenshot(input)
+      await screenshot(`pending-capture-drop-${scope}-recovered`)
+      await app.getByRole('button', { name: `Remove ${name}`, exact: true }).click()
+      assert.equal(submitted.length, 1, `${scope}: recovering drops duplicated the turn`)
+    } finally {
+      await app
+        .evaluate(() => window.dispatchEvent(new Event('sim-qa-release-capture')))
+        .catch(() => {})
+      await app
+        .evaluate(() => window.dispatchEvent(new Event('sim-qa-dispose-capture')))
+        .catch(() => {})
+      await editorElement.dispose()
+      await browserContext.unroute(endpoint, interceptChat)
+      await browserContext.unroute(uploadEndpoint, interceptUpload)
+      await worker.evaluate(async (previous) => {
+        if ('referenceCurrentPage' in previous) await chrome.storage.local.set(previous)
+        else await chrome.storage.local.remove('referenceCurrentPage')
+      }, priorPreference)
+    }
   }
   await checkNavigation(
     'Capture, preview, removal, and the three-page cap use the real composer',
@@ -572,7 +767,106 @@ try {
         captureText.replace('QA_PRIVATE_PAGE_MARKER:', 'Delivery plan\nQA_PRIVATE_PAGE_MARKER:')
       )
       await screenshot('page-preview')
-      await preview.getByRole('button', { name: 'Close', exact: true }).click()
+      const focusSession = await shell.locator('body').getAttribute('data-capture-session')
+      assert(focusSession, 'The real capture did not acknowledge its session')
+      const focusObserver = await shell.evaluateHandle(
+        ({ origin, sessionId }) => {
+          let focused = 0
+          let processed = 0
+          document.body.dataset.composerFocused = '0'
+          document.body.dataset.focusProcessed = '0'
+          const receive = (event: MessageEvent<unknown>) => {
+            if (
+              event.origin !== origin ||
+              event.source !== document.querySelector('iframe')?.contentWindow ||
+              typeof event.data !== 'object' ||
+              event.data === null ||
+              !('sessionId' in event.data) ||
+              event.data.sessionId !== sessionId ||
+              !('type' in event.data)
+            )
+              return
+            if (event.data.type === 'composer-focused')
+              document.body.dataset.composerFocused = String(++focused)
+            if (event.data.type === 'e2e-focus-processed')
+              document.body.dataset.focusProcessed = String(++processed)
+          }
+          window.addEventListener('message', receive)
+          return () => window.removeEventListener('message', receive)
+        },
+        { origin: base.origin, sessionId: focusSession }
+      )
+      const focusBarrier = await frame().evaluateHandle(
+        ({ origin, sessionId }) => {
+          const receive = (event: MessageEvent<unknown>) => {
+            if (
+              event.origin !== origin ||
+              event.source !== parent ||
+              typeof event.data !== 'object' ||
+              event.data === null ||
+              !('sessionId' in event.data) ||
+              event.data.sessionId !== sessionId ||
+              !('type' in event.data) ||
+              event.data.type !== 'focus-composer'
+            )
+              return
+            parent.postMessage({ type: 'e2e-focus-processed', sessionId }, origin)
+          }
+          window.addEventListener('message', receive)
+          return () => window.removeEventListener('message', receive)
+        },
+        { origin: `chrome-extension://${extensionId}`, sessionId: focusSession }
+      )
+      const requestComposerFocus = async (processed: number) => {
+        await shell.evaluate(
+          ({ origin, sessionId }) =>
+            document
+              .querySelector('iframe')
+              ?.contentWindow?.postMessage(
+                { channel: 'sim-extension', version: 1, type: 'focus-composer', sessionId },
+                origin
+              ),
+          { origin: base.origin, sessionId: focusSession }
+        )
+        await expect(shell.locator('body')).toHaveAttribute(
+          'data-focus-processed',
+          String(processed)
+        )
+      }
+      try {
+        await shell.bringToFront()
+        const close = preview.getByRole('button', { name: 'Close', exact: true })
+        await close.focus()
+        await expect(close).toBeFocused()
+        assert(await frame().evaluate(() => document.hasFocus()))
+        await requestComposerFocus(1)
+        assert.equal(
+          await shell.locator('body').getAttribute('data-composer-focused'),
+          '0',
+          'An app dialog must not acknowledge composer focus'
+        )
+        await expect(close).toBeFocused()
+        await close.press('Tab')
+        assert(await preview.evaluate((element) => element.contains(document.activeElement)))
+        await requestComposerFocus(2)
+        assert.equal(await shell.locator('body').getAttribute('data-composer-focused'), '0')
+        await screenshot('focus-deferred-by-page-preview')
+        await close.click()
+        await expect(preview).toHaveCount(0)
+        await requestComposerFocus(3)
+        const editor = frame().getByRole('textbox', { name: 'Message', exact: true })
+        await expect(editor).toBeFocused()
+        await expect(shell.locator('body')).toHaveAttribute('data-composer-focused', '1')
+        await shell.keyboard.type('Keyboard input belongs to the composer.')
+        await expect(editor).toHaveValue('Keyboard input belongs to the composer.')
+        await screenshot('focus-confirmed-in-composer')
+        await editor.fill('')
+      } finally {
+        await focusBarrier.evaluate((stop) => stop())
+        await focusObserver.evaluate((stop) => stop())
+        await focusBarrier.dispose()
+        await focusObserver.dispose()
+      }
       await capture()
       await capture()
       await capture()
@@ -1634,6 +1928,27 @@ try {
     }
   )
   await checkComposer(
+    'Pending page reference freezes body file drops in workspace and organization chat',
+    async () => {
+      for (const scope of ['workspace', 'organization'] as const) {
+        await shell.close()
+        panel = await openPanel()
+        shell = panel
+        const captureGate = await installCaptureGate()
+        try {
+          await shell.goto(`chrome-extension://${extensionId}/sidepanel.html`)
+          await observeCaptureReceipts()
+          await navigate(
+            `${base.origin}/extension/${scope === 'workspace' ? alphaId : `o/${organizationId}`}`
+          )
+          await verifyPendingCaptureDrop(scope)
+        } finally {
+          await captureGate.dispose()
+        }
+      }
+    }
+  )
+  await checkComposer(
     'A screenshot dropped on the workspace or organization chat body uploads once and can be sent by itself',
     async () => {
       // A previous rejected send can be restored from tab session storage on navigation.
@@ -2156,6 +2471,27 @@ try {
         ).toBeVisible({ timeout: 120_000 })
         await screenshot('organization-assistant-response')
       } else await shell.unroute('**/api/mothership/chat')
+    }
+  )
+  await checkAccess(
+    'Restricted Assistant freezes body file drops while a page reference is pending',
+    async () => {
+      await shell.close()
+      panel = await openPanel()
+      shell = panel
+      if (!liveChat) await shell.clock.install()
+      const captureGate = await installCaptureGate()
+      try {
+        await shell.goto(`chrome-extension://${extensionId}/sidepanel.html`)
+        await observeCaptureReceipts()
+        await navigate(`${base.origin}/extension/o/${organizationId}`)
+        await expect(
+          frame().getByRole('button', { name: 'Attach image', exact: true })
+        ).toBeVisible()
+        await verifyPendingCaptureDrop('assistant')
+      } finally {
+        await captureGate.dispose()
+      }
     }
   )
   await checkAccess(
