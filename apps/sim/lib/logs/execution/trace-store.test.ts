@@ -561,6 +561,27 @@ describe('projectExecutionDataForDisplay envelope isolation', () => {
     expect(JSON.stringify(displayData)).not.toContain('12345678')
   })
 
+  it('never mistakes a stored span for an envelope value', async () => {
+    const displayData = await projectExecutionDataForDisplay(
+      {
+        error: 'Run failed',
+        traceSpans: [
+          functionSpan('secret-safe-log-display-projection-error', { value: 'from a span' }),
+        ],
+        executionState: { resolvedSecretTraceProvenance: RUN_PROVENANCE },
+      },
+      CONTEXT
+    )
+
+    expect(displayData.error).toBe('Run failed')
+    expect(displayData.traceSpans).toEqual([
+      expect.objectContaining({
+        id: 'secret-safe-log-display-projection-error',
+        output: { value: 'from a span' },
+      }),
+    ])
+  })
+
   it('spends the shared content budget on the trace before the block dumps', async () => {
     const displayData = await projectExecutionDataForDisplay(
       {

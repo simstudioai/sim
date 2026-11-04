@@ -1265,9 +1265,9 @@ function projectBoundedTraceSpans(
     span: TraceSpan,
     state: BoundedTraceStructureState,
     depth: number
-  ) => TraceSpan | undefined
+  ) => TraceSpan | undefined,
+  state: BoundedTraceStructureState = { nodes: 0, truncated: false }
 ): TraceSpan[] {
-  const state: BoundedTraceStructureState = { nodes: 0, truncated: false }
   const projected = projectBoundedArray(traceSpans, (span) => project(span, state, 0))
   if (state.truncated) {
     logger.warn('Trace structure exceeded projection limits; truncating projected structure')
@@ -1275,9 +1275,13 @@ function projectBoundedTraceSpans(
   return projected
 }
 
-function structuralOnlyTraceSpans(traceSpans: TraceSpan[]): TraceSpan[] {
+/** Pass `state` to continue a structure budget that earlier spans of the same trace already spent. */
+function structuralOnlyTraceSpans(
+  traceSpans: TraceSpan[],
+  state?: BoundedTraceStructureState
+): TraceSpan[] {
   try {
-    return projectBoundedTraceSpans(traceSpans, structuralOnlySpan)
+    return projectBoundedTraceSpans(traceSpans, structuralOnlySpan, state)
   } catch (error) {
     logger.warn('Trace structure could not be safely traversed; omitting projected spans', {
       failure: describeProjectionFailure(error),
@@ -1697,7 +1701,7 @@ export async function projectTraceSpansForSecrets(
             failure: describeProjectionFailure(error),
           }
         )
-        return [...projected, ...structuralOnlyTraceSpans(traceSpans.slice(index))]
+        return [...projected, ...structuralOnlyTraceSpans(traceSpans.slice(index), state)]
       }
     }
     return projected

@@ -1127,6 +1127,28 @@ describe('projectTraceSpansForSecrets whole-trace content budget', () => {
     )
   })
 
+  it('keeps the retained spans and the withheld fallback within one structure budget', async () => {
+    const emptyChildren = (prefix: string) =>
+      Array.from({ length: 60_000 }, (_, index) => createSpan({ id: `${prefix}-${index}` }))
+    const projected = await projectTraceSpansForSecrets(
+      [
+        heavySpan('span-a', 'first', { children: emptyChildren('a') }),
+        createSpan({
+          id: 'span-b',
+          output: { items: Array.from({ length: 70_000 }, (_, index) => `row-${index}`) },
+          children: emptyChildren('b'),
+        }),
+      ],
+      { registry: SECRET_REGISTRY, store: STORE, allowLargeValueWrites: false }
+    )
+    const countSpans = (spans: TraceSpan[]): number =>
+      spans.reduce((total, span) => total + 1 + countSpans(span.children ?? []), 0)
+
+    expect(projected[0].output?.marker).toBe('first')
+    expect(projected[1]).not.toHaveProperty('output')
+    expect(countSpans(projected)).toBeLessThanOrEqual(100_000)
+  })
+
   it('withholds the whole top-level span whose descendant crossed the budget', async () => {
     const projected = await projectTraceSpansForSecrets(
       [

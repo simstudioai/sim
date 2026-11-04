@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import { isRecordLike, omit } from '@sim/utils/object'
 import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
@@ -743,6 +744,8 @@ export async function projectExecutionDataForDisplay(
   reportStoredDisplayProvenanceFaults('traceStore.displayProjection', context, provenanceFaults)
 
   const now = new Date().toISOString()
+  /** Unguessable per call, so no stored span id can be mistaken for an envelope value. */
+  const envelopeSpanIdPrefix = `${LOG_DISPLAY_PROJECTION_SPAN_ID}-${generateShortId()}`
   const envelopeKeysBySpanId = new Map<string, LogDisplayContentKey>()
   const envelopeSpans = (keys: readonly LogDisplayContentKey[]): TraceSpan[] =>
     keys.flatMap((key) => {
@@ -754,7 +757,7 @@ export async function projectExecutionDataForDisplay(
       ) {
         return []
       }
-      const id = `${LOG_DISPLAY_PROJECTION_SPAN_ID}-${key}`
+      const id = `${envelopeSpanIdPrefix}-${key}`
       envelopeKeysBySpanId.set(id, key)
       return [
         {
