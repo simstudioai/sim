@@ -104,7 +104,7 @@ it('resumes relationship pages from stored continuations, refuses incomplete Gra
     .update(peopleDirectorySync)
     .set({ source: 'entra' })
     .where(eq(peopleDirectorySync.organizationId, run.organizationId))
-  await writeUsers(null, [person('lead'), person('worker'), person('other')])
+  await writeUsers(null, [person('lead'), person('worker'), person('other'), person('peer')])
   await expect(db.transaction((tx) => publishStagedSnapshot(tx, run, 'entra'))).rejects.toThrow(
     /relationship|report/i
   )
@@ -124,12 +124,17 @@ it('resumes relationship pages from stored continuations, refuses incomplete Gra
   })
   await record('lead', 'continuation', ['worker'], null)
   await record('other', null, ['worker'], null)
-  await record('worker', null, [], null)
+  await db.transaction((tx) =>
+    stageRelationships(tx, run, [
+      { managerId: 'worker', cursor: null, reportIds: ['other'], nextCursor: null },
+      { managerId: 'peer', cursor: null, reportIds: ['other'], nextCursor: null },
+    ])
+  )
   expect(await pendingManagers(db, run)).toEqual([])
   await db.transaction((tx) => publishStagedSnapshot(tx, run, 'entra'))
-  expect((await published()).find((r) => r.externalId === 'worker')?.managerExternalId).toBe(
-    'other'
-  )
+  const managers = new Map((await published()).map((r) => [r.externalId, r.managerExternalId]))
+  expect(managers.get('worker')).toBe('other')
+  expect(managers.get('other')).toBe('peer')
 })
 it('refuses to publish a replaced generation', async () => {
   await writeUsers(null, [person('live')])

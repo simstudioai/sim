@@ -103,8 +103,10 @@ export async function pendingManagers(executor: DbOrTx, run: StageRun) {
 
 /**
  * Commits only completed subrequests and rejects a cursor replay. Graph gives a person one
- * manager, so a person claimed again was moved during a read that spans many slices: the
- * latest read wins, and publication's cycle check still guards the finished graph.
+ * manager, so a person claimed again was moved during a read that spans many slices: a later
+ * batch overwrites an earlier one, and publication's cycle check still guards the finished
+ * graph. Reads inside one batch are concurrent, so a claim repeated there resolves to the
+ * lowest manager ID, independent of response order.
  */
 export async function stageRelationships(
   tx: DbTransaction,
