@@ -13,16 +13,13 @@ import type { SubjectDelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { auditLog, organization, user, workspace, workspaceFiles } from '@sim/db/schema'
 import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { createDelegatedPrincipal } from '@sim/testing'
+import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const fixtureStorage = vi.hoisted(() => ({ root: '' }))
-vi.mock('@/lib/uploads/core/setup.server', () => ({
-  get UPLOAD_DIR_SERVER() {
-    return fixtureStorage.root
-  },
-}))
+vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
 import { executeFileTool } from '@/lib/internal/file/execute-tool'
 import {
@@ -44,18 +41,12 @@ type Fixture = Awaited<ReturnType<typeof seed>>
 
 /** The chat principal `tools execute` hands to the tool layer. */
 function toolExecutionPrincipal(subjectUserId: string, workspaceId: string) {
-  const issuedAt = new Date()
-  return {
-    kind: 'delegated',
-    serviceId: 'copilot',
+  return createDelegatedPrincipal({
     subjectUserId,
     workspaceId,
-    delegationId: generateId(),
     audience: 'sim:tool-execution',
-    issuedAt,
-    expiresAt: new Date(issuedAt.getTime() + 60_000),
     resourceScope: { chatId: generateId() },
-  } satisfies SubjectDelegatedPrincipal
+  })
 }
 
 /** A generated image as `image_generate` stores it outside a workflow run. */
@@ -99,8 +90,10 @@ async function writeCopy(
   return { status: response.status, saved }
 }
 
+const uploadRoot = mkdtempSync(path.join(tmpdir(), 'sim-delegated-caller-write-'))
+
 beforeAll(() => {
-  fixtureStorage.root = mkdtempSync(path.join(tmpdir(), 'sim-delegated-caller-write-'))
+  setUploadDirServer(uploadRoot)
 })
 
 afterAll(async () => {
@@ -114,7 +107,7 @@ afterAll(async () => {
       await db.delete(organization).where(eq(organization.id, ids.organizationId))
       await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
     }
-    await rm(fixtureStorage.root, { recursive: true, force: true })
+    await rm(uploadRoot, { recursive: true, force: true })
   } finally {
     await db.$client.end()
   }
@@ -137,7 +130,7 @@ describe('a File write run directly from a Mothership chat', () => {
 
     const result = await writeCopy(ids, toolExecutionPrincipal(ids.bobId, ids.workspaceId), image)
 
-    expect(result.status).toBeGreaterThanOrEqual(400)
+    expect(result.status).toBe(403)
     expect(result.saved).toBeUndefined()
   })
 
@@ -147,7 +140,7 @@ describe('a File write run directly from a Mothership chat', () => {
 
     const result = await writeCopy(ids, toolExecutionPrincipal(ids.aliceId, generateId()), image)
 
-    expect(result.status).toBeGreaterThanOrEqual(400)
+    expect(result.status).toBe(403)
     expect(result.saved).toBeUndefined()
   })
 })

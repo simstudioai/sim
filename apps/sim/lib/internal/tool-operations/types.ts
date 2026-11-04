@@ -22,7 +22,10 @@ export interface InternalToolOperationContext {
   executorDelegationOrigin?: ExecutorDelegationOrigin
   /** Trusted source block for saved MCP operation restrictions. */
   mcpBlockId?: string
-  /** Authenticated direct caller, supplied by an authorized use case, never tool input. */
+  /**
+   * Authenticated direct caller, supplied by an authorized use case, never tool input. A
+   * delegated principal carries that use case's audience; rebind it before another use case.
+   */
   callerPrincipal?: Principal
   copilotToolExecution?: boolean
   copilotInteractionMode?: 'interactive' | 'headless'

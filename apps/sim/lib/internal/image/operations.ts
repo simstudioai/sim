@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, omit } from '@sim/utils/object'
 import { getUserFacingErrorMessage } from '@/lib/core/errors/database-query-error'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
@@ -23,6 +23,7 @@ import { recordServiceMeteringFailure } from '@/lib/mothership/billing/service-o
 import { type FalAICostMetadata, getFalAICostMetadata } from '@/lib/tools/falai-pricing'
 import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
+import { resolveStoredFileMetadata } from '@/lib/uploads/utils/stored-file-metadata'
 
 const logger = createLogger('ImageOperations')
 const MAX_IMAGE_BYTES = MAX_REMOTE_IMAGE_BYTES
@@ -595,8 +596,11 @@ async function storeGeneratedImage(
   context: ImageOperationContext
 ): Promise<StoredImageResponse> {
   context.signal?.throwIfAborted()
-  const timestamp = Date.now()
-  const safeFileName = imageResult.fileName || `image-${imageResult.provider}-${timestamp}.png`
+  const { fileName, mimeType: contentType } = resolveStoredFileMetadata(
+    imageResult.fileName || `image-${imageResult.provider}-${Date.now()}.png`,
+    imageResult.contentType,
+    imageResult.buffer
+  )
   const executionContext =
     context.workspaceId && context.workflowId && context.executionId
       ? {
@@ -606,57 +610,32 @@ async function storeGeneratedImage(
         }
       : null
 
-  if (executionContext) {
-    const imageFile = await uploadExecutionFile(
-      executionContext,
-      imageResult.buffer,
-      safeFileName,
-      imageResult.contentType,
-      context.userId
-    )
-    context.signal?.throwIfAborted()
-
-    return {
-      content: imageFile.url,
-      imageUrl: imageFile.url,
-      imageFile,
-      fileName: safeFileName,
-      contentType: imageResult.contentType,
-      provider: imageResult.provider,
-      model: imageResult.model,
-      metadata: {
-        provider: imageResult.provider,
-        model: imageResult.model,
-        description: imageResult.description,
-        revisedPrompt: imageResult.revisedPrompt,
-        seed: imageResult.seed,
-        jobId: imageResult.jobId,
-        contentType: imageResult.contentType,
-      },
-      __falaiCostDollars: imageResult.falaiCost?.costDollars,
-      __falaiBilling: imageResult.falaiCost,
-    }
-  }
-
-  const fileInfo = await uploadCopilotFile({
-    buffer: imageResult.buffer,
-    fileName: safeFileName,
-    contentType: imageResult.contentType,
-    userId: context.userId,
-  })
+  // A stored file output is kept as is; a bare URL would be downloaded and stored again.
+  const imageFile = executionContext
+    ? await uploadExecutionFile(
+        executionContext,
+        imageResult.buffer,
+        fileName,
+        contentType,
+        context.userId
+      )
+    : omit(
+        await uploadCopilotFile({
+          buffer: imageResult.buffer,
+          fileName,
+          contentType,
+          userId: context.userId,
+        }),
+        ['mimeType']
+      )
   context.signal?.throwIfAborted()
-  const imageUrl = fileInfo.url
-  logger.info(`[${context.requestId}] Stored generated image fallback`, {
-    fileName: safeFileName,
-    size: imageResult.buffer.length,
-  })
 
   return {
-    content: imageUrl,
-    imageUrl,
-    imageFile: fileInfo,
-    fileName: safeFileName,
-    contentType: imageResult.contentType,
+    content: imageFile.url,
+    imageUrl: imageFile.url,
+    imageFile,
+    fileName,
+    contentType,
     provider: imageResult.provider,
     model: imageResult.model,
     metadata: {
@@ -666,7 +645,7 @@ async function storeGeneratedImage(
       revisedPrompt: imageResult.revisedPrompt,
       seed: imageResult.seed,
       jobId: imageResult.jobId,
-      contentType: imageResult.contentType,
+      contentType,
     },
     __falaiCostDollars: imageResult.falaiCost?.costDollars,
     __falaiBilling: imageResult.falaiCost,

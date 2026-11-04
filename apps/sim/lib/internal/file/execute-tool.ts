@@ -85,11 +85,9 @@ const fileSearchInputSchema = z
   .strict()
 
 /**
- * A delegated caller reaches a file tool through a use case that authorized it for
- * its own audience (`sim:tool-execution` for a direct tool call), while every
- * workspace-file use case admits only `sim:workspace-files`. Rebinding keeps the
- * subject, workspace, expiry ceiling, and resource scope, so the file use cases
- * still check the subject's current workspace access.
+ * A delegated caller arrives with its calling use case's audience (`sim:tool-execution`),
+ * but workspace-file use cases admit only `sim:workspace-files`; they still check the
+ * subject's access. A delegation for another workspace is left for them to refuse.
  */
 function bindWorkspaceFilePrincipal(
   principal: Principal,
@@ -98,7 +96,8 @@ function bindWorkspaceFilePrincipal(
 ): Principal {
   if (
     principal.kind !== 'delegated' ||
-    principal.audience === WORKSPACE_FILES_DELEGATION_AUDIENCE
+    principal.audience === WORKSPACE_FILES_DELEGATION_AUDIENCE ||
+    principal.workspaceId !== workspaceId
   ) {
     return principal
   }
@@ -107,9 +106,9 @@ function bindWorkspaceFilePrincipal(
     principal,
     workspaceId,
     delegationId: `file-tool:${requestId}`,
-    ...(scope?.fileId ? { fileId: scope.fileId } : {}),
-    ...(scope?.chatId ? { chatId: scope.chatId } : {}),
-    ...(scope?.executionId ? { executionId: scope.executionId } : {}),
+    fileId: scope?.fileId,
+    chatId: scope?.chatId,
+    executionId: scope?.executionId,
   })
 }
 
