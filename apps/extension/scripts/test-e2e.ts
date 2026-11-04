@@ -532,14 +532,28 @@ try {
     }
     assert(snapshot.url === `${pageOrigin}/ticket`, 'Source URL contains query or fragment')
   })
-  await check('Selection attaches only the selected excerpt', async () => {
+  await check('A focused read-only custom element attaches only the selected excerpt', async () => {
     await page.evaluate(() => {
       const selected = document.getElementById('selected')
       if (!selected) throw new Error('Missing selection fixture')
+      customElements.define('readable-article', class extends HTMLElement {})
+      const host = document.createElement('readable-article')
+      host.tabIndex = 0
+      selected.replaceWith(host)
+      host.append(selected)
+      host.focus()
       const range = document.createRange()
       range.selectNodeContents(selected)
-      window.getSelection()?.removeAllRanges()
-      window.getSelection()?.addRange(range)
+      const selection = window.getSelection()
+      selection?.removeAllRanges()
+      selection?.addRange(range)
+      if (
+        document.activeElement !== host ||
+        host.isContentEditable ||
+        host.shadowRoot ||
+        selection?.toString() !== selected.textContent
+      )
+        throw new Error('Fixture did not focus and select ordinary custom-element text')
     })
     await capture('Selection')
     await app.waitForFunction(
@@ -551,6 +565,7 @@ try {
         snapshot.text === 'The customer needs a replacement by Friday.',
       'Selection widened beyond the user excerpt'
     )
+    await page.locator('readable-article').evaluate((host) => host.replaceWith(...host.childNodes))
   })
   await check('A focused child frame cannot substitute an old parent-page selection', async () => {
     await page.evaluate(() => {

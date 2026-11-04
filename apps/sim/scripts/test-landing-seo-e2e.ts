@@ -327,6 +327,34 @@ async function run() {
     assert.deepEqual(failures, [])
   })
 
+  await check(
+    'legacy Sim aliases preserve queries without redirecting the Sim Links entry',
+    async () => {
+      const entry = await get('/sim')
+      assert.equal(entry.status, 307)
+      assert(entry.location, 'The Sim Links entry must offer sign-in')
+      const login = new URL(entry.location, baseUrl)
+      assert.equal(login.pathname, '/login')
+      assert.equal(login.searchParams.get('callbackUrl'), '/sim')
+      for (const path of ['/Sim', '/SIM', '/sIm']) {
+        const { status, location } = await get(`${path}?home&utm_source=legacy`)
+        assert.equal(status, 308, path)
+        assert(location, `${path}: expected the legacy homepage redirect`)
+        const target = new URL(location, baseUrl)
+        assert.equal(target.origin, baseUrl.origin, path)
+        assert.equal(target.pathname, '/', path)
+        assert.deepEqual(
+          [...target.searchParams],
+          [
+            ['home', ''],
+            ['utm_source', 'legacy'],
+          ],
+          path
+        )
+      }
+    }
+  )
+
   await check('integration sitemap dates are per integration, not one catalog date', async () => {
     const mismatches: string[] = []
     for (const integration of integrations) {

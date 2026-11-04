@@ -203,7 +203,8 @@ export function Composer({
         history.reset()
         editor.clear()
       },
-      () => editorRef.current.getValue() === raw && attachedFilesRef.current === filesAtSend
+      () => editorRef.current.getValue() === raw && attachedFilesRef.current === filesAtSend,
+      textareaRef.current
     )
   }
 
