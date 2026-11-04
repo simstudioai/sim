@@ -87,19 +87,6 @@ const chatResponses: {
 }[] = []
 const uploadRequests: { event: string; stage: string; method: string; status?: number }[] = []
 const draftRemovalReceipts: { scope: string; phase: string; matches: number }[] = []
-const submissionFocusReceipts: {
-  scope: string
-  events: {
-    event: string
-    activeTag: string | null
-    activeLabel: string | null
-    inputFocused: boolean
-    inputConnected: boolean
-    documentFocused: boolean
-    inert: boolean
-    oldInert: string | null
-  }[]
-}[] = []
 const responseDiagnostics: Promise<void>[] = []
 const chatTurns = new Map<string, number>()
 const chatAttempts: {
@@ -2043,70 +2030,25 @@ try {
           await input().fill(draft)
           count = received.length
           phase = 'denied-send'
-          const focusTrace = await input().evaluateHandle((element) => {
-            const events: (typeof submissionFocusReceipts)[number]['events'] = []
-            const record = (event: string, oldInert: string | null = null) => {
-              if (events.length >= 64) return
-              events.push({
-                event,
-                activeTag: document.activeElement?.tagName ?? null,
-                activeLabel: document.activeElement?.getAttribute('aria-label') ?? null,
-                inputFocused: document.activeElement === element,
-                inputConnected: element.isConnected,
-                documentFocused: document.hasFocus(),
-                inert: Boolean(element.closest('[inert]')),
-                oldInert,
-              })
-            }
-            const observeEvent = (event: Event) => record(event.type)
-            const types = ['pointerdown', 'click', 'focus', 'blur'] as const
-            for (const type of types) window.addEventListener(type, observeEvent, true)
-            const observer = new MutationObserver((records) => {
-              for (const mutation of records) record('inert-mutation', mutation.oldValue)
-            })
-            observer.observe(document.body, {
-              attributes: true,
-              subtree: true,
-              attributeFilter: ['inert'],
-              attributeOldValue: true,
-            })
-            record('before-mouse-send')
-            return {
-              finish() {
-                record('after-mouse-send')
-                observer.disconnect()
-                for (const type of types) window.removeEventListener(type, observeEvent, true)
-                return events
-              },
-            }
-          })
-          try {
-            await frame()
-              .getByRole('button', { name: org ? 'Send' : 'Send message', exact: true })
-              .click()
-            await expect(
-              shell.getByRole('button', { name: 'Request site access', exact: true })
-            ).toBeEnabled()
-            await expect(input()).toHaveValue(draft)
-            await expect
-              .poll(() => input().evaluate((element) => Boolean(element.closest('[inert]'))))
-              .toBe(false)
-            assert.equal(received.length, count)
-            assert(
-              await frame().evaluate(() => document.hasFocus()),
-              'The denied mouse send must keep the chat document focused'
-            )
-            await expect(input()).toBeFocused()
-            await shell.keyboard.type(' Continue typing after the denied capture.')
-            await expect(input()).toHaveValue(`${draft} Continue typing after the denied capture.`)
-            assert.equal(received.length, count)
-          } finally {
-            submissionFocusReceipts.push({
-              scope: org ? 'organization' : 'workspace',
-              events: await focusTrace.evaluate((trace) => trace.finish()),
-            })
-            await focusTrace.dispose()
-          }
+          await frame()
+            .getByRole('button', { name: org ? 'Send' : 'Send message', exact: true })
+            .click()
+          await expect(
+            shell.getByRole('button', { name: 'Request site access', exact: true })
+          ).toBeEnabled()
+          await expect(input()).toHaveValue(draft)
+          await expect
+            .poll(() => input().evaluate((element) => Boolean(element.closest('[inert]'))))
+            .toBe(false)
+          assert.equal(received.length, count)
+          assert(
+            await frame().evaluate(() => document.hasFocus()),
+            'The denied mouse send must keep the chat document focused'
+          )
+          await expect(input()).toBeFocused()
+          await shell.keyboard.type(' Continue typing after the denied capture.')
+          await expect(input()).toHaveValue(`${draft} Continue typing after the denied capture.`)
+          assert.equal(received.length, count)
           await screenshot(`reference-${org ? 'organization' : 'workspace'}-denied`)
           const accessNotice = await shell
             .getByRole('status')
@@ -3087,7 +3029,6 @@ try {
         dropReceipts,
         uploadRequests,
         draftRemovalReceipts,
-        submissionFocusReceipts,
       },
       null,
       2

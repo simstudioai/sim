@@ -26,7 +26,10 @@ interface UseComposerSubmissionProps {
 
 export function useComposerSubmission({ scope, mode }: UseComposerSubmissionProps) {
   const active = useRef<PendingComposerSubmission | null>(null)
-  const focusAfterSend = useRef<HTMLTextAreaElement | null>(null)
+  const focusAfterSend = useRef<{
+    input: HTMLTextAreaElement
+    initiator: Element | null
+  } | null>(null)
   const [pending, setPending] = useState(false)
 
   useLayoutEffect(() => {
@@ -39,10 +42,14 @@ export function useComposerSubmission({ scope, mode }: UseComposerSubmissionProp
 
   useLayoutEffect(() => {
     if (pending) return
-    const input = focusAfterSend.current
+    const focus = focusAfterSend.current
     focusAfterSend.current = null
-    if (input?.isConnected && document.hasFocus() && document.activeElement === document.body) {
-      input.focus({ preventScroll: true })
+    if (
+      focus?.input.isConnected &&
+      document.hasFocus() &&
+      (document.activeElement === document.body || document.activeElement === focus.initiator)
+    ) {
+      focus.input.focus({ preventScroll: true })
     }
   }, [pending])
 
@@ -60,7 +67,7 @@ export function useComposerSubmission({ scope, mode }: UseComposerSubmissionProp
         return
       }
       active.current = result
-      focusAfterSend.current = input
+      focusAfterSend.current = input ? { input, initiator: document.activeElement } : null
       setPending(true)
       void result.ready
         .then((commit) => {
