@@ -35,8 +35,7 @@ export function grepProjectFiles(
       scopes: ['files'],
       refusal: 'Project grep supports only --scope files. Search workspace resources separately.',
     },
-    async materialize(_scopes, nameFilter, reportIncomplete, reportNonText) {
-      // Kept so `--in` naming an unread non-text file is not an unknown selector.
+    async materialize(_scopes, nameFilter, reportIncomplete) {
       const skipped: GrepMaterialized[] = []
       const selectedFiles: {
         item: Awaited<ReturnType<typeof listProjectFiles.execute>>['files'][number]
@@ -72,8 +71,7 @@ export function grepProjectFiles(
               type: observedMediaType(item.type, item.name),
             })
           ) {
-            reportNonText()
-            skipped.push({ scope: 'files', id: item.id, label, text: null })
+            skipped.push({ scope: 'files', id: item.id, label, text: null, nonText: true })
             continue
           }
           if (selectedFiles.length >= MAX_GREP_FILES) {

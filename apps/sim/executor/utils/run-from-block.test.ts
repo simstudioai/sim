@@ -200,6 +200,7 @@ describe('validateRunFromBlock', () => {
         subflowType: 'loop',
       }),
     ])
+    dag.loopConfigs.set('loop-1', { id: 'loop-1', nodes: ['A'], iterations: 2, loopType: 'for' })
     const executedBlocks = new Set(['A'])
 
     const result = validateRunFromBlock('A', dag, executedBlocks)

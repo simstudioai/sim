@@ -2,6 +2,7 @@ import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/princip
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { formatQuotedNameList } from '@sim/utils/string'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
@@ -19,6 +20,7 @@ import {
   getExecutionStateForWorkflow,
   getLatestExecutionStateWithExecutionId,
 } from '@/lib/workflows/executor/execution-state'
+import { quotedBlockLabel } from '@/lib/workflows/labels'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
@@ -261,10 +263,7 @@ function describeRunFromBlockRefusal(
 ): string {
   const refusal = error.refusal
   if (!refusal) return error.message
-  const label = (id: string) => {
-    const name = blocks[id]?.name
-    return name ? `"${name}" (${id})` : `"${id}"`
-  }
+  const label = (id: string) => quotedBlockLabel(id, blocks[id]?.name, { withId: true })
 
   switch (refusal.kind) {
     case 'upstream_not_executed': {
@@ -291,11 +290,8 @@ function describeRunFromBlockRefusal(
       if (existing) {
         return `Block ${label(refusal.blockId)} is not an executable block, so it cannot be run.`
       }
-      const all = Object.keys(blocks)
-      const listed = all.slice(0, MAX_LISTED_BLOCKS).map(label).join(', ')
-      const more =
-        all.length > MAX_LISTED_BLOCKS ? ` and ${all.length - MAX_LISTED_BLOCKS} more` : ''
-      return `Block "${refusal.blockId}" is not in the ${state} workflow. Its blocks are: ${listed}${more}.`
+      const listed = formatQuotedNameList(Object.keys(blocks), MAX_LISTED_BLOCKS, label)
+      return `Block "${refusal.blockId}" is not in the ${state} workflow. Its blocks are: ${listed}.`
     }
   }
 }

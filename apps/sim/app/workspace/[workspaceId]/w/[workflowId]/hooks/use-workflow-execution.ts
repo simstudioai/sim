@@ -1076,7 +1076,7 @@ export function useWorkflowExecution() {
       selectedOutputs = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
     }
 
-    let startBlockId: string | undefined
+    let startBlockId: string
     let finalWorkflowInput = workflowInput
 
     if (isExecutingFromChat) {
@@ -1126,18 +1126,6 @@ export function useWorkflowExecution() {
           finalWorkflowInput = builtInput
         }
       }
-    }
-
-    if (!startBlockId) {
-      const error = new WorkflowValidationError(
-        'No valid trigger block found to start execution',
-        'validation',
-        'validation',
-        'Workflow Validation'
-      )
-      logger.error('No startBlockId found after trigger search')
-      if (activeWorkflowId) finishOwnedExecution(activeWorkflowId, persistenceExecution)
-      throw error
     }
 
     logger.info('Final execution setup:', {
@@ -1316,7 +1304,7 @@ export function useWorkflowExecution() {
               }
 
               // Add trigger block to executed blocks so downstream blocks can use run-from-block
-              if (data.success && startBlockId) {
+              if (data.success) {
                 executedBlockIds.add(startBlockId)
               }
 

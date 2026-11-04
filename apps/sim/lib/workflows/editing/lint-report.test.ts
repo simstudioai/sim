@@ -143,11 +143,7 @@ describe('buildWorkflowLintReport notes', () => {
   })
 })
 
-/**
- * The editor's Run button refuses some graphs before they start. Lint said
- * nothing about them, so an agent-built workflow looked clean until a user
- * pressed Run.
- */
+/** Graphs the editor's Run button refuses before they start surface as `manualRunIssue`. */
 describe('buildWorkflowLintReport manual run', () => {
   async function manualRunIssue(blocks: Record<string, unknown>, edges: unknown[]) {
     return (await buildWorkflowLintReport({ blocks, edges } as never, scope)).manualRunIssue

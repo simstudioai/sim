@@ -211,18 +211,20 @@ export function sanitizeValueForJsonb<T>(value: T): T {
 
 /**
  * Formats a list of names as quoted values with an overflow tail, listing at
- * most `maxListed` names.
+ * most `maxListed` names. `quote` renders each listed name, for a caller whose
+ * label carries more than the quoted name.
  *
  * @example
  * formatQuotedNameList(['A', 'B'], 3)            // '"A", "B"'
  * formatQuotedNameList(['A', 'B', 'C', 'D'], 3)  // '"A", "B", "C" and 1 more'
  * formatQuotedNameList([], 3)                    // ''
  */
-export function formatQuotedNameList(names: string[], maxListed: number): string {
-  const listed = names
-    .slice(0, maxListed)
-    .map((name) => `"${name}"`)
-    .join(', ')
+export function formatQuotedNameList(
+  names: string[],
+  maxListed: number,
+  quote: (name: string) => string = (name) => `"${name}"`
+): string {
+  const listed = names.slice(0, maxListed).map(quote).join(', ')
   const overflow = names.length - maxListed
   return overflow > 0 ? `${listed} and ${overflow} more` : listed
 }
