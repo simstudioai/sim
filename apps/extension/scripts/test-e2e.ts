@@ -718,10 +718,9 @@ try {
     )
     await page.goto('https://ungranted.example/')
     await capture()
-    await panel
-      .getByRole('status')
-      .filter({ hasText: /access|permission|cannot/i })
-      .waitFor()
+    await expect(
+      panel.getByRole('button', { name: 'Allow across websites', exact: true })
+    ).toBeEnabled()
     assert((await snapshots()).length === 3, 'Unpermitted page was captured')
   })
   await check('Changing the receiving conversation expires an undelivered capture', async () => {
