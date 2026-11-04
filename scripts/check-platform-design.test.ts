@@ -198,6 +198,15 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       'platform/app/chats/private.ts',
       `export { Section } from '@/platform/app/settings/_components/section'`
     )
+    const feature = 'platform/design-system/features/settings'
+    write(
+      `${feature}/trigger.tsx`,
+      `import styles from '@/platform/design-system/components/button.module.css'; export const Trigger = () => <button className={styles.button}/>`
+    )
+    write(
+      `${feature}/actions.module.css`,
+      '.action { composes: button from "../../components/button.module.css"; }'
+    )
     write(`${component}/private.ts`, `import '@/platform/preview/chrome'`)
     write('app/legacy.ts', `export { Button } from '../platform/design-system/components/button'`)
     write(
@@ -250,6 +259,8 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     writeCatalog('variants', { Button: { variant: { primary: ['C0092'], ghost: ['C0093'] } } })
     const result = audit()
     expect(result.status).toBe(1)
+    expect(result.output).toContain(`${feature}/trigger.tsx [private-recipe]`)
+    expect(result.output).toContain(`${feature}/actions.module.css [private-recipe]`)
     for (const issue of [
       'legacy-import',
       'consumer-style',

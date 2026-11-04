@@ -8,6 +8,8 @@
 @import "./chart-roles.css";
 @import "./control-roles.css";
 @import "./choice-roles.css";
+@import "./panel-roles.css";
+@import "./shell-roles.css";
 @import "./recipe-values.css";
 
 @font-face {
@@ -41,4 +43,19 @@
 
 [data-platform-ui] :focus {
   outline: none;
+}
+
+[data-platform-ui][data-system-font] {
+  --font-sans: var(--font-native);
+}
+
+[data-platform-ui][data-system-mono] {
+  --font-mono: ui-monospace, monospace;
+}
+
+[data-sim-desktop-title-bar] [data-desktop-drag] {
+  -webkit-app-region: drag;
+}
+[data-sim-desktop-title-bar] [data-desktop-drag] :is(button, a, input, textarea, [role="tab"]) {
+  -webkit-app-region: no-drag;
 }

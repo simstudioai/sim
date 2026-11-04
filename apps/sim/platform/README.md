@@ -1,6 +1,6 @@
 # Sim Platform
 
-The new Platform starts here as a standalone Next.js App Router project inside `apps/sim`. Its root route is a component workbench. It shares the repository's installed dependencies, but has no production routes, database, API, authentication, legacy EMCN or app providers. The existing Sim app continues to start and build as before.
+The new Platform starts here as a standalone Next.js App Router project inside `apps/sim`. Its root opens the product Home screen. Home, Chat and Settings use the new EMCN library. These routes share installed dependencies with Sim and have no database, API, authentication or legacy app providers. The existing Sim app continues to start and build as before.
 
 From the repository root:
 
@@ -9,7 +9,20 @@ bun run --cwd apps/sim dev:platform
 SIM_PLATFORM_FIXTURES=1 bun run --cwd apps/sim dev:platform
 ```
 
-Run one of those commands and open [localhost:3100](http://localhost:3100). With the flag on, select Empty, Populated or Long content; links retain state and theme. For example, [dark, long content](http://localhost:3100/?theme=dark&state=stress) exercises wrapping and overflow. Without the flag, no simulated organization is loaded, including on a URL requesting populated data. The data module is server-only. The picker and specimen labels are available either way.
+Open [Home](http://localhost:3100/home), [Chat](http://localhost:3100/chat/weekly-review?state=full), [Settings](http://localhost:3100/settings), or the separate [component workbench](http://localhost:3100/workbench). With the flag on, `?state=empty|full|stress` selects the fixture on any of them. `?theme=light|dark|system` selects the product appearance. Product navigation preserves these choices; nothing writes examples to storage. The URL cannot activate the server flag. Old catalog links with a recipe still open the workbench.
+
+The product routes live under `app/(shell)/`. A persistent layout holds transient interface preferences, sidebar state and chat edits. Pages choose the server fixture and compose a few owners. `design-system/features/{shell,home,chat,settings}/` owns product-specific anatomy; `design-system/components/` owns reusable controls and their interactions. The [Paper state inventory](docs/core-chat-states.md) enumerates the source rows in scope. Integrations, workspace destinations and workspace create/sort return to Home; Wiki is deferred.
+
+## Desktop
+
+Sim Desktop loads **the same routes and styles** in its Electron window. [The shell](../../desktop/README.md) owns preload, window buttons, fullscreen and native capabilities. The isolated renderer detects the existing bridge in `design-system/components/desktop-host.tsx`. Its shared titlebar observer synchronizes native insets and fullscreen. Local preview interactions never run a terminal, drive a browser or change native settings. Do not copy the UI into Electron or use a viewport width as a desktop detector.
+
+Start the Platform above, then launch the existing desktop shell using a disposable profile:
+
+```sh
+SIM_DESKTOP_ORIGIN=http://127.0.0.1:3100 SIM_DESKTOP_USER_DATA="$(mktemp -d)" bun run --cwd apps/desktop dev
+```
+
 
 ## Using EMCN
 
@@ -23,7 +36,7 @@ import { Button } from '@/platform/design-system/components'
 <ComponentRecipe recipe="C1332" slots={{ title: 'Needs review', column: 'Created' }} />
 ```
 
-Shared and Platform still own different recipes; `catalog/evidence.json` preserves that ownership and a path from the Base to a Platform product use. Registered states without a Platform use, canvas organizers and the other products are outside this library. Product-specific compositions and real data adapters belong to later phases.
+Shared and Platform still own different recipes; `catalog/evidence.json` preserves that ownership and a path from the Base to a Platform product use. Registered states without a Platform use, canvas organizers and the other products are outside this library. Keep feature-specific compositions in their feature owner. Real data adapters belong to Phase 3.
 
 Workspace lists, sidebar items, recents and attachment batches accept typed arrays with stable item IDs. Use the named components for these collection masters: a Paper specimen's item count is sample data. An empty array renders zero items, and adding items preserves their registered row/card appearance. Each scroll viewport determines fades and controls from its actual contents. Chart labels, marks, inspected values and legends come from the same series. Supply raw numeric values and their units to data tables. The column schema determines alignment and which columns remain visible as the table narrows.
 
@@ -48,6 +61,9 @@ bun run check:platform-design
 bun run --cwd apps/sim build:platform
 bunx --no-install playwright install chromium
 bun run --cwd apps/sim test:platform:e2e
+# On macOS, also exercise the real shell and preload:
+bun run --cwd apps/desktop build
+bun run --cwd apps/sim test:platform:desktop
 ```
 
 The browser suite starts separate production servers with fixtures enabled and disabled. Supply `PLATFORM_REPORT_PATH` to save JSON, failure screenshots and traces. Next uses webpack for this nested app: the installed Turbopack also discovers the parent Sim project's proxy and instrumentation. Watch for that boundary when upgrading Next.

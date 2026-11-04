@@ -26,7 +26,7 @@
         "trigger.config.ts",
         // The nested Platform project loads its PostCSS config and Playwright discovers its specs.
         "platform/postcss.config.mjs",
-        "platform/checks/*.spec.ts",
+        "platform/checks/**/*.spec.ts",
         "background/**/*.ts",
         "scripts/**/*.{ts,tsx}",
         "**/*.integration.ts",

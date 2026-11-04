@@ -3750,6 +3750,26 @@
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "10C2-0"]
   },
   {
+    "key": "C0953",
+    "family": "Select/Theme/dark-selected",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Select",
+    "icon": "I051",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "BJ-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2ZKO-0"]
+  },
+  {
+    "key": "C0954",
+    "family": "Select/Theme/system-selected",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Select",
+    "icon": "I051",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1UN-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "B8P-0"]
+  },
+  {
     "key": "C0955",
     "family": "Selection/Item/default",
     "theme": "D",
@@ -3960,7 +3980,7 @@
     "family": "SettingsRow/default",
     "theme": "D",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "SettingsRow",
     "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3QN-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "30HS-0"]
   },
@@ -3969,7 +3989,7 @@
     "family": "SettingsRow/default",
     "theme": "D",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "SettingsRow",
     "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1IY-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "308Q-0"]
   },
@@ -3978,7 +3998,7 @@
     "family": "SettingsRow/default",
     "theme": "L",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "SettingsRow",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3C4-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "28FK-0"]
   },
@@ -3987,7 +4007,7 @@
     "family": "SettingsRow/default",
     "theme": "L",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "SettingsRow",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1IY-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1Q6P-0"]
   },
@@ -3996,7 +4016,8 @@
     "family": "SettingsRow/stacked",
     "theme": "D",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "SettingsRow",
+    "icon": "I051",
     "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1FF-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "30IM-0"]
   },
@@ -4005,7 +4026,8 @@
     "family": "SettingsRow/stacked",
     "theme": "L",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "SettingsRow",
+    "icon": "I051",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1SQ-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "28GE-0"]
   },
@@ -4014,7 +4036,7 @@
     "family": "SettingsSection/group",
     "theme": "D",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "SettingsSection",
     "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1IV-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2ZKX-0"]
   },
@@ -4023,7 +4045,7 @@
     "family": "SettingsSection/group",
     "theme": "L",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "SettingsSection",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1IV-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "B7H-0"]
   },
@@ -4032,7 +4054,7 @@
     "family": "SettingsSection/Surface",
     "theme": "D",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "SettingsSurface",
     "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3QM-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "30HK-0"]
   },
@@ -4041,7 +4063,7 @@
     "family": "SettingsSection/Surface",
     "theme": "D",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "SettingsSurface",
     "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1IX-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "308I-0"]
   },
@@ -4050,7 +4072,7 @@
     "family": "SettingsSection/Surface",
     "theme": "L",
     "scope": "shared",
-    "owner": "ComponentRecipe",
+    "owner": "SettingsSurface",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3C3-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "28FC-0"]
   },
@@ -4059,7 +4081,7 @@
     "family": "SettingsSection/Surface",
     "theme": "L",
     "scope": "platform",
-    "owner": "ComponentRecipe",
+    "owner": "SettingsSurface",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1IX-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1Q6H-0"]
   },
@@ -4919,6 +4941,42 @@
     "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3AZN-2"]
   },
   {
+    "key": "C1171",
+    "family": "Switch/off",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Switch",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1OG-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2ZJN-0"]
+  },
+  {
+    "key": "C1173",
+    "family": "Switch/off",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Switch",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "167-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "B9U-0"]
+  },
+  {
+    "key": "C1180",
+    "family": "Switch/on",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Switch",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1OK-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2ZJU-0"]
+  },
+  {
+    "key": "C1181",
+    "family": "Switch/on",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Switch",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "16B-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "B9M-0"]
+  },
+  {
     "key": "C1214",
     "family": "Tab/Label clip",
     "theme": "D",
@@ -5190,7 +5248,7 @@
     "family": "SearchInput/menu",
     "theme": "L",
     "scope": "shared",
-    "owner": "SearchField",
+    "owner": "MenuSearchField",
     "icon": "I089",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "AWJ-0"],
     "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "4RM-0"]
@@ -5200,7 +5258,7 @@
     "family": "SearchInput/menu",
     "theme": "D",
     "scope": "shared",
-    "owner": "SearchField",
+    "owner": "MenuSearchField",
     "icon": "I089",
     "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "9JJ-0"],
     "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "4T1-0"]

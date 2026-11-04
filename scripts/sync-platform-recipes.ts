@@ -81,6 +81,18 @@ for (const row of registry.components) {
   )
   if (use) uses.set(row.key, { use })
 }
+// Core Preferences predates named Uses for these controls. The registered masters and the
+// matching rendered switches and theme triggers were compared in both product themes.
+for (const [key, pageId, nodeId] of [
+  ['C0953', 'p-17-0', '2ZKO-0'],
+  ['C0954', 'p-L-0', 'B8P-0'],
+  ['C1171', 'p-17-0', '2ZJN-0'],
+  ['C1173', 'p-L-0', 'B9U-0'],
+  ['C1180', 'p-17-0', '2ZJU-0'],
+  ['C1181', 'p-L-0', 'B9M-0'],
+]) {
+  uses.set(key, { use: { fileId: registry.files.platform.id, pageId, nodeId } })
+}
 for (const key of uses.keys()) {
   const contract = contracts[key]
   for (const part of contract.parts) {
@@ -108,6 +120,10 @@ for (const [owner, props] of Object.entries(variants)) {
   }
 }
 const nativeOwners = {
+  SettingsRow: ['C0999', 'C1000', 'C1002', 'C1003', 'C1004', 'C1005'],
+  SettingsSection: ['C1006', 'C1007'],
+  SettingsSurface: ['C1008', 'C1009', 'C1010', 'C1011'],
+  Switch: ['C1171', 'C1173', 'C1180', 'C1181'],
   TasksRunChart: ['C0160', 'C0161', 'C0162', 'C0163', 'C0165', 'C0169', 'C0175'],
   ChartTooltip: ['C0176', 'C0177'],
   WorkspaceList: ['C1283', 'C1284', 'C1286', 'C1288'],
@@ -122,6 +138,7 @@ const nativeOwners = {
   BrowserActionsMenu: ['C0633'],
   VisibilityMenu: ['C0647'],
   OverflowText: ['C0806', 'C0807'],
+  MenuSearchField: ['C1308', 'C1309'],
   SearchableSelect: ['C1294', 'C1295'],
   LogoUploadField: ['C1298', 'C1299'],
   RecipientTag: ['C1304', 'C1305'],

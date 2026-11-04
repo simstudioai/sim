@@ -185,14 +185,6 @@
   white-space: pre-wrap;
   width: 100%;
 }
-.r06275521f2 {
-  color: var(--color-app-text-secondary);
-  max-width: calc(var(--spacing-1) * 260);
-  min-width: 0;
-  overflow-wrap: anywhere;
-  text-wrap: pretty;
-  white-space: pre-wrap;
-}
 .r06acda119e {
   align-items: center;
   background-color: var(--color-dark-selected);
@@ -554,22 +546,6 @@
   position: absolute;
   right: var(--spacing-0);
   top: var(--spacing-0);
-}
-.r1b0ce85ecf {
-  align-items: start;
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 1;
-  gap: var(--spacing-8);
-  height: fit-content;
-  justify-content: space-between;
-  max-width: 100%;
-  min-height: var(--spacing-68);
-  min-width: 0;
-  overflow-wrap: anywhere;
-  padding-block: var(--spacing-12);
-  position: relative;
-  width: min(100%, calc(var(--spacing-1) * 358));
 }
 .r1b44b0d689 {
   width: max-content;
@@ -971,14 +947,6 @@
   gap: var(--spacing-48);
   padding-block: var(--spacing-12);
 }
-.r3055d82548 {
-  display: flex;
-  flex-basis: 0%;
-  flex-direction: column;
-  gap: var(--spacing-4);
-  min-width: var(--spacing-0);
-  width: 100%;
-}
 .r3090ebfb9b {
   color: var(--color-app-dark-text-muted);
   flex-shrink: 0;
@@ -1183,19 +1151,6 @@
   position: absolute;
   top: var(--spacing-8);
   width: 100%;
-}
-.r3be540af44 {
-  align-items: center;
-  background-color: var(--color-surface-muted);
-  border-color: var(--color-light-divider);
-  border-radius: var(--radius-full);
-  border-style: solid;
-  border-width: var(--spacing-stroke-default);
-  display: flex;
-  flex-shrink: 0;
-  height: var(--spacing-32);
-  justify-content: center;
-  width: var(--spacing-32);
 }
 .r3c8e7e9896 {
   align-items: center;
@@ -1633,15 +1588,6 @@
   height: var(--spacing-16);
   width: var(--spacing-16);
 }
-.r4efd531dcb {
-  align-items: center;
-  display: flex;
-  gap: var(--spacing-24);
-  justify-content: space-between;
-  min-height: var(--spacing-64);
-  overflow-wrap: anywhere;
-  padding-block: var(--spacing-12);
-}
 .r4fca39d0c8 {
   align-items: start;
   border-radius: var(--radius-control);
@@ -2029,19 +1975,6 @@
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
-.r63324d37b8 {
-  align-items: center;
-  background-color: var(--color-dark-selected);
-  border-color: var(--color-dark-border);
-  border-radius: var(--radius-full);
-  border-style: solid;
-  border-width: var(--spacing-stroke-default);
-  display: flex;
-  flex-shrink: 0;
-  height: var(--spacing-32);
-  justify-content: center;
-  width: var(--spacing-32);
-}
 .r63b9d8e8f7 {
   display: flex;
   flex-direction: column;
@@ -2268,16 +2201,6 @@
   white-space: pre;
   width: max-content;
 }
-.r6dcd04ce08 {
-  align-items: center;
-  display: flex;
-  gap: var(--spacing-16);
-  height: fit-content;
-  justify-content: space-between;
-  min-height: var(--spacing-68);
-  overflow-wrap: anywhere;
-  padding-block: var(--spacing-12);
-}
 .r6f4ad3297e {
   align-items: center;
   display: flex;
@@ -2433,12 +2356,6 @@
   position: relative;
   width: min(100%, calc(var(--spacing-1) * 158));
 }
-.r7329bb5574 {
-  display: flex;
-  flex-shrink: 0;
-  justify-content: end;
-  min-width: calc(var(--spacing-1) * 180);
-}
 .r7349c87b0d {
   backdrop-filter: blur(var(--spacing-glass-blur));
   background-color: var(--color-dark-glass-shell);
@@ -2473,23 +2390,6 @@
   padding-block: var(--spacing-12);
   padding-inline: var(--spacing-8);
   width: var(--container-sidebar);
-}
-.r743a91ab4e {
-  background-color: var(--color-light-reading);
-  border-color: var(--color-light-divider);
-  border-radius: var(--radius-12);
-  border-style: solid;
-  border-width: var(--spacing-stroke-default);
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 1;
-  max-width: 100%;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  padding-block: var(--spacing-4);
-  padding-inline: var(--spacing-16);
-  position: relative;
-  width: min(100%, calc(var(--spacing-1) * 700));
 }
 .r752ce9972f {
   color: var(--color-light-text);
@@ -3434,20 +3334,6 @@
   text-underline-position: from-font;
   white-space: pre-wrap;
 }
-.r9ccdffcbe5 {
-  align-items: center;
-  background-color: var(--color-dark-reading);
-  border-color: var(--color-dark-border);
-  border-radius: var(--radius-control);
-  border-style: solid;
-  border-width: var(--spacing-stroke-default);
-  display: flex;
-  height: var(--spacing-32);
-  justify-content: space-between;
-  min-height: var(--spacing-44);
-  padding-inline: var(--spacing-10);
-  width: 100%;
-}
 .r9cf76f22b6 {
   max-width: var(--spacing-28);
   min-width: var(--spacing-28);
@@ -3579,15 +3465,6 @@
   position: relative;
   width: min(100%, calc(var(--spacing-1) * 560));
 }
-.ra395427aeb {
-  align-items: center;
-  display: flex;
-  flex-shrink: 0;
-  height: fit-content;
-  justify-content: end;
-  min-width: var(--spacing-0);
-  width: fit-content;
-}
 .ra3dc8bf808 {
   color: var(--color-light-text);
   max-width: 100%;
@@ -3678,14 +3555,6 @@
   position: relative;
   width: min(100%, calc(var(--spacing-1) * 138));
 }
-.ra6e65d3f0c {
-  color: var(--color-dark-muted);
-  max-width: calc(var(--spacing-1) * 260);
-  min-width: 0;
-  overflow-wrap: anywhere;
-  text-wrap: pretty;
-  white-space: pre-wrap;
-}
 .ra7a0ed62b2 {
   align-self: end;
   background-color: var(--color-surface-muted);
@@ -3711,18 +3580,6 @@
   height: var(--spacing-48);
   padding-left: var(--spacing-24);
   padding-right: var(--spacing-16);
-}
-.ra8ee1f22b6 {
-  background-color: var(--color-dark-reading);
-  border-color: var(--color-dark-border);
-  border-radius: var(--radius-12);
-  border-style: solid;
-  border-width: var(--spacing-stroke-default);
-  display: flex;
-  flex-direction: column;
-  overflow-wrap: anywhere;
-  padding-block: var(--spacing-4);
-  padding-inline: var(--spacing-20);
 }
 .ra93e705250 {
   align-self: center;
@@ -3840,15 +3697,6 @@
   min-width: 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
-}
-.rada67c39da {
-  display: flex;
-  flex-basis: 0%;
-  flex-direction: column;
-  flex-grow: 1;
-  gap: var(--spacing-4);
-  min-width: var(--spacing-0);
-  width: var(--spacing-0);
 }
 .rae320c31da {
   display: flex;
@@ -4138,38 +3986,6 @@
   position: relative;
   width: min(100%, calc(var(--spacing-1) * 560));
 }
-.rbafa31c91c {
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 1;
-  gap: var(--spacing-12);
-  max-width: 100%;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  position: relative;
-  width: min(100%, calc(var(--spacing-1) * 700));
-}
-.rbb4605b3e2 {
-  align-items: center;
-  border-color: var(--color-light-divider);
-  border-radius: var(--radius-control);
-  border-style: solid;
-  border-width: var(--spacing-stroke-default);
-  display: flex;
-  height: var(--spacing-32);
-  justify-content: space-between;
-  min-height: var(--spacing-44);
-  padding-inline: var(--spacing-10);
-  width: 100%;
-}
-.rbb530f7d99 {
-  display: flex;
-  flex-shrink: 0;
-  height: fit-content;
-  justify-content: start;
-  min-width: var(--spacing-0);
-  width: 100%;
-}
 .rbb91130a6e {
   align-items: center;
   border-radius: var(--radius-full);
@@ -4194,20 +4010,6 @@
   flex-grow: 1;
   gap: var(--spacing-2);
   min-width: var(--spacing-0);
-}
-.rbbebdefdbd {
-  align-items: center;
-  background-color: var(--color-surface-muted);
-  border-color: var(--color-light-divider);
-  border-radius: var(--radius-full);
-  border-style: solid;
-  border-width: var(--spacing-stroke-default);
-  display: flex;
-  flex-shrink: 0;
-  height: var(--spacing-44);
-  justify-content: center;
-  min-height: var(--spacing-44);
-  width: var(--spacing-44);
 }
 .rbc3e6910ec {
   align-items: center;
@@ -4315,23 +4117,6 @@
   min-width: var(--spacing-0);
   overflow-wrap: anywhere;
   width: fit-content;
-}
-.rc1becc2c0d {
-  background-color: var(--color-dark-reading);
-  border-color: var(--color-dark-border);
-  border-radius: var(--radius-12);
-  border-style: solid;
-  border-width: var(--spacing-stroke-default);
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 1;
-  max-width: 100%;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  padding-block: var(--spacing-4);
-  padding-inline: var(--spacing-16);
-  position: relative;
-  width: min(100%, calc(var(--spacing-1) * 700));
 }
 .rc1d582ac3a {
   flex-shrink: 0;
@@ -4631,13 +4416,6 @@
   justify-content: center;
   width: var(--spacing-28);
 }
-.rd4fe68ab34 {
-  display: flex;
-  flex-basis: 0%;
-  flex-direction: column;
-  flex-grow: 1;
-  gap: var(--spacing-4);
-}
 .rd523c79f81 {
   align-items: center;
   display: flex;
@@ -4814,18 +4592,6 @@
   padding-top: var(--spacing-8);
   width: 100%;
 }
-.rde8a0e2101 {
-  background-color: var(--color-light-reading);
-  border-color: var(--color-light-divider);
-  border-radius: var(--radius-12);
-  border-style: solid;
-  border-width: var(--spacing-stroke-default);
-  display: flex;
-  flex-direction: column;
-  overflow-wrap: anywhere;
-  padding-block: var(--spacing-4);
-  padding-inline: var(--spacing-20);
-}
 .rde9b847d88 {
   align-items: center;
   display: flex;
@@ -4860,14 +4626,6 @@
   gap: var(--spacing-2);
   overflow-wrap: anywhere;
 }
-.re18bd10567 {
-  color: var(--color-light-text);
-  display: inline-block;
-  max-width: 100%;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
 .re19bf29a44 {
   align-items: center;
   border-bottom-color: var(--color-dark-border);
@@ -4896,14 +4654,6 @@
   opacity: var(--opacity-hidden);
   overflow-wrap: anywhere;
   padding-left: var(--spacing-8);
-}
-.re21026f39a {
-  color: var(--color-dark-text);
-  display: inline-block;
-  max-width: 100%;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
 }
 .re241ff5e7e {
   align-items: center;
@@ -4994,20 +4744,6 @@
   position: absolute;
   top: 0%;
   width: 100%;
-}
-.re5ab69edf4 {
-  align-items: center;
-  background-color: var(--color-dark-selected);
-  border-color: var(--color-dark-border);
-  border-radius: var(--radius-full);
-  border-style: solid;
-  border-width: var(--spacing-stroke-default);
-  display: flex;
-  flex-shrink: 0;
-  height: var(--spacing-44);
-  justify-content: center;
-  min-height: var(--spacing-44);
-  width: var(--spacing-44);
 }
 .re5efaa5865 {
   align-items: center;

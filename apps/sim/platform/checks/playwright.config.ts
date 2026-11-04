@@ -7,6 +7,7 @@ const report = process.env.PLATFORM_REPORT_PATH ?? 'test-results/platform/report
 export default defineConfig({
   testDir: __dirname,
   testMatch: '*.spec.ts',
+  testIgnore: '**/desktop/**',
   workers: 1,
   reporter: [['list'], ['json', { outputFile: report }]],
   outputDir: path.join(path.dirname(report), 'artifacts'),

@@ -23,6 +23,8 @@
 }
 
 .button {
+  max-inline-size: 100%;
+  min-inline-size: 0;
   min-height: var(--spacing-app-control-md);
   padding-inline: var(--spacing-control-inline);
 }
@@ -89,7 +91,8 @@
 }
 
 :is(.button, .iconButton, .chip):enabled:active,
-.chip[aria-pressed="true"] {
+.chip[aria-pressed="true"],
+.chip[aria-current="page"] {
   background: var(--ui-selected);
 }
 
@@ -570,4 +573,27 @@ textarea.input[data-density="expanded"] {
     inline-size: var(--spacing-app-touch-target);
     block-size: var(--spacing-app-touch-target);
   }
+}
+
+a.chip {
+  justify-content: start;
+  min-inline-size: 0;
+}
+a.chip:hover {
+  background: var(--ui-hover);
+}
+.controlLabel {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal[data-presentation="command"] {
+  inline-size: min(var(--container-app-command), calc(100% - var(--spacing-32)));
+  overflow: clip;
+}
+.modal[data-presentation="command"] .modalLayout {
+  padding: 0;
+  gap: 0;
 }

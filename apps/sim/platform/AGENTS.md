@@ -9,7 +9,7 @@ Applies to this independent Next.js application. In this tree “EMCN” means t
 | Shared: Styles, type, icons and media | `design-system/styles`, `fonts`, registered geometry/assets | Component recipes |
 | Shared and Platform component masters | `design-system/components` (semantic primitives) and `design-system/catalog` (structural recipes and evidence) | Other components and product compositions |
 | Product: Platform Core, Chat, Workspaces | A matching `app/<segment>/page.tsx` and style-free private `_components/`; page-only recipes in `design-system/features/<feature>/` | Route composition |
-| Engineering workbench, outside Product | `preview/` | Phase 1's root route |
+| Engineering workbench, outside Product | `preview/` | The separate /workbench route |
 | Temporary example data | `fixtures/` | Server-only, default-off loader |
 
 Search Shared → Platform → Product before adding anything. Use the stable Paper key, live Base and an actual product Use (or a nested use rooted in one). Reference artwork, archive files, guides and specimen-only variants are not product uses. Do not use Marcus's files. Two systems that can share a recipe use Shared. If a second feature needs a page-owned component, promote the existing implementation, register it centrally and replace the original import in the same change. Do not copy it or import directly from another feature. Once product routes exist, remove unreached public variants from code and keep deferred states in Paper until a product or nested component needs them.
@@ -26,6 +26,12 @@ Search Shared → Platform → Product before adding anything. Use the stable Pa
 - Default to Server Components. Keep browser event handling, focus, measurement and transient UI state at the leaf. Phase 1 supplies foundations; Phase 2 composes product routes and their unique parts; Phase 3 connects existing operations and real resources. No DB, API, global user state, auth or new schema in the design phases.
 - The isolated project root owns its globals, fonts and PostCSS entry. Keep the legacy root layout, proxy, globals and routes intact. Do not add a new provider or styling package just to define a variant.
 - Only the server loader may import example data, and only when `SIM_PLATFORM_FIXTURES=1`. No fallbacks in components. Delete the fixture module/gate and workbench consumers together once real data takes over. Never write examples to storage, send an invite or imply successful backend work.
+
+## Product UI and desktop
+
+- The same product entry under `app/(shell)/` serves the web browser and the existing `apps/desktop` Electron shell. Feature-detect `window.simDesktop` in the typed desktop adapter only. Consult the shared `@sim/desktop-bridge` contract and native titlebar observer. Electron owns real window controls and privileged operations. Reserve their inset only in a native window; keep interactive areas outside drag regions. Do not draw traffic lights, mock the bridge in product code, or fork pages by viewport or user agent.
+- On every shell or panel change, test the real Electron window as well as web, keyboard, narrow and intermediate layouts. Exercise inset/fullscreen, sidebar expand/collapse, panel takeover, tabs and focus return. Browser-only views must remain usable without the preload. Native capability integration remains Phase 3.
+- Keep unique content in its feature owner. A calendar event, attention row or two-line workspace summary can have its own anatomy. Reuse semantic ink, type, icon size, first-line alignment, row insets and spacing. Its overflow trigger still uses EMCN's icon button/menu; do not extract a generic row on resemblance alone. When a second feature needs the same semantic recipe, promote the original implementation and migrate both consumers.
 
 ## Verification
 

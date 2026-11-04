@@ -52,6 +52,8 @@ export function FieldFrame({ id, label, optional, error, children }: FieldFrameP
 }
 
 interface TextFieldProps extends FieldProps {
+  required?: boolean
+  pattern?: string
   placeholder?: string
 }
 
@@ -63,12 +65,16 @@ export function TextField({
   name,
   defaultValue,
   placeholder,
+  required,
+  pattern,
 }: TextFieldProps) {
   const id = useId()
   return (
     <FieldFrame id={id} label={label} optional={optional} error={error}>
       <Input
         id={id}
+        required={required}
+        pattern={pattern}
         label={label}
         name={name}
         defaultValue={defaultValue}

@@ -42,8 +42,26 @@ export interface PreviewData {
   }
 }
 
-export async function loadPreviewData(scenario: Scenario): Promise<PreviewData | null> {
-  if (process.env.SIM_PLATFORM_FIXTURES !== '1') return null
-  const { scenarios } = await import('@/platform/fixtures/data')
-  return scenarios[scenario]
+/** Only invoke the scenario's import on a server that opted into preview data. */
+function fixture<T>(read: (scenario: Scenario) => Promise<T>) {
+  return (scenario: Scenario): Promise<T | null> =>
+    process.env.SIM_PLATFORM_FIXTURES === '1' ? read(scenario) : Promise.resolve(null)
 }
+
+export const loadPreviewData = fixture(
+  async (scenario) => (await import('@/platform/fixtures/data')).scenarios[scenario]
+)
+export const loadShellData = fixture(
+  async (scenario) => (await import('@/platform/fixtures/shell-data')).shellScenarios[scenario]
+)
+export const loadSettingsData = fixture(
+  async (scenario) =>
+    (await import('@/platform/fixtures/settings-data')).settingsScenarios[scenario]
+)
+export const loadConversationData = fixture(
+  async (scenario) =>
+    (await import('@/platform/fixtures/conversation-data')).conversationScenarios[scenario]
+)
+export const loadPanelData = fixture(
+  async (scenario) => (await import('@/platform/fixtures/panel-data')).panelScenarios[scenario]
+)

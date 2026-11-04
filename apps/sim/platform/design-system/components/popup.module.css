@@ -71,3 +71,14 @@
   margin: var(--spacing-4);
   background: var(--ui-divider);
 }
+
+.panel {
+  composes: popup;
+  max-inline-size: var(--available-width);
+  overflow-y: auto;
+}
+
+.dialogPanel {
+  composes: panel;
+  border-radius: var(--radius-panel);
+}

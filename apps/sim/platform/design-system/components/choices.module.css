@@ -37,7 +37,7 @@
   composes: popup from "./popup.module.css";
   inline-size: var(--menu-action-width);
 }
-.menu:has(.menuItem[data-option]) {
+.menu:not([data-menu]):has(.menuItem[data-option]) {
   inline-size: var(--menu-choice-width);
 }
 .menuItem {
@@ -75,15 +75,17 @@
 .search[data-variant="sidebar"] {
   border-color: var(--ui-divider);
 }
-.search[data-variant="menu"] {
-  min-height: var(--spacing-app-control-md);
+.menuSearch {
+  display: flex;
+  flex: none;
+  align-items: center;
+  block-size: var(--spacing-app-control-md);
   padding-inline: var(--spacing-8);
-  gap: var(--spacing-8);
   margin-block-end: var(--spacing-4);
-  border: 0;
-  border-radius: 0;
-  background: transparent;
+  gap: var(--spacing-8);
+  color: var(--ui-secondary);
 }
+.menuSearch input,
 .query {
   flex: 1;
   min-inline-size: 0;
@@ -92,9 +94,11 @@
   color: var(--ui-ink);
   background: transparent;
 }
+.menuSearch input::placeholder,
 .query::placeholder {
   color: var(--ui-secondary);
 }
+.menuSearch input::-webkit-search-cancel-button,
 .query::-webkit-search-cancel-button {
   display: none;
 }
@@ -197,4 +201,44 @@
 }
 .menuItem[role="menuitemcheckbox"] {
   min-block-size: var(--spacing-app-control-md);
+}
+
+.collection {
+  position: relative;
+}
+.collection > .disclosure > .summary {
+  min-block-size: var(--spacing-28);
+  margin-inline: var(--spacing-8);
+  gap: var(--spacing-4);
+  color: var(--ui-secondary);
+}
+.collection > .disclosure[open] > .summary:not(:hover) svg {
+  visibility: hidden;
+}
+.collection > .disclosure > .summary svg {
+  inline-size: var(--spacing-12);
+  block-size: var(--spacing-12);
+}
+.collectionActions {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: var(--spacing-8);
+  display: flex;
+}
+
+.collection > .disclosure[open] > .summary {
+  margin-block-end: var(--spacing-2);
+}
+
+.menu:is([data-menu="browser"], [data-menu="zoom"]) .menuItem {
+  min-height: var(--spacing-app-chip);
+}
+.menu[data-menu="zoom"] {
+  inline-size: var(--menu-zoom-width);
+}
+.menu:is([data-menu="browser"], [data-menu="zoom"]) [role="group"],
+.menu[data-menu="browser"] [aria-label="Browser actions"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
 }

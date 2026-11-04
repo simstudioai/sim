@@ -3,8 +3,8 @@ import type { Metadata } from 'next'
 import '@/platform/design-system/styles/globals.css'
 
 export const metadata: Metadata = {
-  title: 'Platform design system · Sim',
-  description: 'The component workbench for Sim Platform.',
+  title: 'Sim Platform',
+  description: 'Home, conversations, and account preferences in Sim.',
   robots: { index: false, follow: false },
 }
 

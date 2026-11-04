@@ -1,0 +1,32 @@
+[data-platform-ui] {
+  --shell-inbox-width: 27rem;
+  --shell-notice-width: 22.5rem;
+  --shell-org-menu-width: 16.5rem;
+  --ui-navigation-inset: 0px;
+}
+[data-platform-ui] [data-sidebar-collapsed] {
+  --ui-navigation-inset: var(--spacing-52);
+}
+@media (max-width: 48rem) {
+  [data-platform-ui] {
+    --ui-navigation-inset: var(--spacing-52);
+  }
+}
+[data-platform-ui] [data-desktop] {
+  --ui-navigation-inset: 0px;
+}
+
+[data-platform-ui] [data-desktop][data-conversation][data-sidebar-collapsed] {
+  --ui-navigation-inset: var(--spacing-128);
+}
+[data-sim-desktop-title-bar="inset"] [data-desktop][data-conversation][data-sidebar-collapsed] {
+  --ui-navigation-inset: var(--spacing-192);
+}
+@media (max-width: 48rem) {
+  [data-platform-ui] [data-desktop][data-conversation] {
+    --ui-navigation-inset: var(--spacing-128);
+  }
+  [data-sim-desktop-title-bar="inset"] [data-desktop][data-conversation] {
+    --ui-navigation-inset: var(--spacing-192);
+  }
+}

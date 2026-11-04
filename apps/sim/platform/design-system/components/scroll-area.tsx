@@ -8,6 +8,7 @@ interface ScrollAreaProps {
   label: string
   axis?: 'vertical' | 'horizontal'
   arrows?: boolean
+  startAtEnd?: boolean
   children: ReactNode
 }
 
@@ -15,6 +16,7 @@ export function ScrollArea({
   label,
   axis = 'vertical',
   arrows = false,
+  startAtEnd = false,
   children,
 }: ScrollAreaProps) {
   const viewport = useRef<HTMLDivElement>(null)
@@ -22,9 +24,15 @@ export function ScrollArea({
     const el = viewport.current
     const content = el?.firstElementChild
     if (!el || !content) return
+    let positionAtEnd = startAtEnd
     function measure() {
       if (!el || !content) return
       const vertical = axis === 'vertical'
+      if (positionAtEnd && el.clientHeight && el.clientWidth) {
+        if (vertical) el.scrollTop = el.scrollHeight
+        else el.scrollLeft = el.scrollWidth
+        positionAtEnd = false
+      }
       const offset = vertical ? el.scrollTop : Math.abs(el.scrollLeft)
       const limit = vertical ? el.scrollHeight - el.clientHeight : el.scrollWidth - el.clientWidth
       el.tabIndex = limit > 1 ? 0 : -1
@@ -49,7 +57,7 @@ export function ScrollArea({
       observer.disconnect()
       el.removeEventListener('scroll', measure)
     }
-  }, [axis, arrows])
+  }, [axis, arrows, startAtEnd])
   const region = (
     <div
       ref={viewport}

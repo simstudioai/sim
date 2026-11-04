@@ -30,7 +30,7 @@ export function Workbench({ theme, scenario, data, recipe, destination }: Workbe
   const href = (nextTheme: string, nextState: string) => {
     const params = new URLSearchParams({ theme: nextTheme, state: nextState })
     if (recipe) params.set('recipe', recipe)
-    return `/?${params}`
+    return `/workbench?${params}`
   }
 
   return (

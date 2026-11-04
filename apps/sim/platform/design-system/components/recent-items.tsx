@@ -12,10 +12,12 @@ export interface RecentItem {
 interface RecentItemsProps {
   label: string
   title?: string
+  onSelect?: (id: string) => void
+  onRemove?: (id: string) => void
   items: readonly RecentItem[]
 }
 
-export function RecentItems({ label, title = label, items }: RecentItemsProps) {
+export function RecentItems({ label, title = label, items, onSelect, onRemove }: RecentItemsProps) {
   return (
     <section className={styles.recents}>
       <h3 className={styles.heading} data-type='T067'>
@@ -25,8 +27,26 @@ export function RecentItems({ label, title = label, items }: RecentItemsProps) {
         <ul className={styles.recentLane} aria-label={label}>
           {items.map((item) => (
             <li key={item.id} className={styles.recentItem} data-type='T067'>
-              <Icon name={item.icon} />
-              {item.label}
+              {onRemove ? (
+                <button
+                  className={styles.removeRecent}
+                  type='button'
+                  aria-label={`Remove ${item.label} from recents`}
+                  onClick={() => onRemove(item.id)}
+                >
+                  <Icon name={item.icon} />
+                  <Icon name='I105' />
+                </button>
+              ) : (
+                <Icon name={item.icon} />
+              )}
+              {onSelect ? (
+                <button type='button' onClick={() => onSelect(item.id)}>
+                  {item.label}
+                </button>
+              ) : (
+                item.label
+              )}
             </li>
           ))}
         </ul>

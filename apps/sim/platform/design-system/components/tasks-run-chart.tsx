@@ -6,6 +6,7 @@ import { chartNumber, chartTick } from '@/platform/design-system/components/char
 import { ChartTooltip } from '@/platform/design-system/components/chart-tooltip'
 import { RangePicker } from '@/platform/design-system/components/range-picker'
 import styles from '@/platform/design-system/components/tasks-run-chart.module.css'
+import { useCompactViewport } from '@/platform/design-system/components/use-compact-viewport'
 import { usePlotInspection } from '@/platform/design-system/components/use-plot-inspection'
 
 interface TaskPoint {
@@ -32,7 +33,9 @@ function TaskSeries({ title, points, initialPoint }: TaskSeriesProps) {
   const active = inspection.active
   const point = active === undefined ? undefined : points[active]
   const values = points.map((item) => item.value)
-  const peak = values.reduce((max, value) => Math.max(max, value), 2)
+  const max = values.reduce((max, value) => Math.max(max, value), 2)
+  const power = 10 ** Math.floor(Math.log10(max))
+  const peak = ([1, 2, 5, 10].find((step) => step * power >= max) ?? 10) * power
   const labels = points.filter(
     (_, i) => i === 0 || i === Math.floor((points.length - 1) / 2) || i === points.length - 1
   )
@@ -61,7 +64,7 @@ function TaskSeries({ title, points, initialPoint }: TaskSeriesProps) {
           <i />
           <i />
         </div>
-        <TrendPlot label={title} values={values} maximum={peak} active={active} />
+        <TrendPlot label={title} values={values} maximum={peak} active={active} straight />
         {point && (
           <div ref={inspection.tooltipAnchor} className={styles.tooltipPosition}>
             <ChartTooltip
@@ -88,6 +91,7 @@ export function TasksRunChart({
   initialPoint,
   initiallyOpen,
 }: TasksRunChartProps) {
+  const compact = useCompactViewport()
   const [selection, setSelection] = useState(ranges[0]?.label)
   const range = ranges.find((item) => item.label === selection) ?? ranges[0]
   const points = (range?.points ?? []).filter(
@@ -104,6 +108,7 @@ export function TasksRunChart({
           </span>
         </div>
         <RangePicker
+          size={compact ? 'compact' : 'regular'}
           label='Range'
           options={ranges.map((item) => item.label)}
           defaultValue={range?.label}

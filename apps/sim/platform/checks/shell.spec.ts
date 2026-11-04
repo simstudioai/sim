@@ -1,0 +1,113 @@
+import { expect, test } from '@playwright/test'
+
+const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+
+test('a keyboard search navigates to the matching chat and shell edits survive the return trip', async ({
+  page,
+}) => {
+  await page.goto(`${origin}/home?state=full&theme=dark`)
+  const trigger = page.getByRole('button', { name: 'Search', exact: true })
+  await trigger.click()
+  await expect(page.getByRole('dialog', { name: 'Search', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(trigger).toBeFocused()
+  await page.keyboard.press('Control+k')
+  const search = page.getByRole('combobox', { name: 'Search the platform' })
+  await expect(search).toBeFocused()
+  await search.fill('missing destination')
+  await expect(page.getByText('No results found')).toBeVisible()
+  await search.fill('renewal')
+  await expect(page.getByRole('option')).toHaveCount(1)
+  await search.press('Enter')
+  await expect(page).toHaveURL(/\/chat\/weekly-review\?state=full&theme=dark/)
+  const collection = page.getByRole('region', { name: 'Chats', exact: true })
+  await collection.getByRole('link', { name: 'Review the renewal brief' }).hover()
+  await collection.getByRole('button', { name: 'Actions for Review the renewal brief' }).click()
+  await page.getByRole('menuitem', { name: 'Rename' }).click()
+  await page.getByRole('textbox', { name: 'Chat name' }).fill('Renewal follow-up')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Renewal follow-up' })).toBeVisible()
+  await page.getByRole('button', { name: 'Organization menu' }).click()
+  await page
+    .getByRole('dialog', { name: 'Organization menu' })
+    .getByRole('button', { name: 'Settings' })
+    .click()
+  await page.getByRole('button', { name: 'Back to app' }).click()
+  await expect(collection.getByRole('link', { name: 'Renewal follow-up' })).toBeVisible()
+  await collection.getByRole('link', { name: 'Renewal follow-up' }).hover()
+  await collection.getByRole('button', { name: 'Actions for Renewal follow-up' }).click()
+  await page.getByRole('menuitem', { name: 'Archive' }).click()
+  await page
+    .getByRole('dialog', { name: 'Archive chat' })
+    .getByRole('button', { name: 'Archive', exact: true })
+    .click()
+  await expect(collection.getByRole('link', { name: 'Renewal follow-up' })).toHaveCount(0)
+})
+
+test('the narrow drawer returns focus on Escape, routes through settings, and keeps nesting inside the viewport', async ({
+  page,
+}) => {
+  for (const width of [356, 730]) {
+    await page.setViewportSize({ width, height: 640 })
+    await page.goto(`${origin}/home?state=stress&theme=light`)
+    const toggle = page.getByRole('button', { name: 'Expand sidebar' })
+    await toggle.click()
+    const drawer = page.getByRole('dialog', { name: 'Navigation drawer' })
+    await expect(drawer).toBeVisible()
+    await drawer.getByRole('button', { name: 'Help', exact: true }).click()
+    const download = page.getByRole('menuitem', { name: 'Download apps' })
+    await download.hover()
+    const child = page.getByRole('menuitem', { name: 'Sim for macOS' })
+    await expect(child).toBeVisible()
+    const bounds = await child.boundingBox()
+    expect(bounds && bounds.x >= 0 && bounds.x + bounds.width <= width).toBe(true)
+    await child.press('Escape')
+    await download.press('Escape')
+    await page.keyboard.press('Escape')
+    await expect(drawer).not.toBeVisible()
+    await expect(toggle).toBeFocused()
+    await toggle.click()
+    await drawer.getByRole('button', { name: 'Organization menu' }).click()
+    await page
+      .getByRole('dialog', { name: 'Organization menu' })
+      .getByRole('button', { name: 'Settings' })
+      .click()
+    await expect(page).toHaveURL(/\/settings\/members\?state=stress&theme=light/)
+    await expect(drawer).not.toBeVisible()
+  }
+})
+
+test('the inbox filters unread items and each notification can be dismissed separately', async ({
+  page,
+}) => {
+  await page.goto(`${origin}/home?state=full`)
+  const open = page.getByRole('button', { name: 'Notifications', exact: true })
+  await open.click()
+  const inbox = page.getByRole('dialog', { name: 'Notifications', exact: true })
+  await inbox.getByRole('radio', { name: 'Unread' }).check()
+  await expect(inbox.getByRole('button', { name: /Review the renewal brief/ })).toHaveCount(0)
+  await inbox.getByRole('button', { name: /Reconnect Salesforce/ }).click()
+  await open.click()
+  await expect(inbox.getByRole('button', { name: /Reconnect Salesforce/ })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  const customize = page.getByRole('button', { name: 'Customize Home', exact: true })
+  await customize.click()
+  await page.getByRole('menuitemcheckbox', { name: 'Email', exact: true }).click()
+  const notices = page.getByRole('region', { name: 'Notification stack' })
+  await expect(notices.getByRole('article', { name: 'Email hidden' })).toBeVisible()
+  await page.getByRole('menuitemcheckbox', { name: 'Calendar', exact: true }).click()
+  await page.keyboard.press('Escape')
+  await notices.getByRole('button', { name: '4 notifications' }).click()
+  await notices.getByRole('button', { name: 'Dismiss Syncing knowledge' }).click()
+  await expect(notices.getByRole('button', { name: '3 notifications' })).toBeVisible()
+  await notices
+    .getByRole('article', { name: 'Email hidden' })
+    .getByRole('button', { name: 'Undo' })
+    .click()
+  await expect(page.getByRole('heading', { name: 'Email', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Calendar', exact: true })).toHaveCount(0)
+  await notices.getByRole('button', { name: '2 notifications' }).click()
+  await expect(notices.getByRole('button', { name: 'Dismiss Workspace updated' })).toHaveCount(0)
+  await notices.getByRole('button', { name: '2 notifications' }).click()
+  await expect(notices.getByRole('button', { name: 'Dismiss Workspace updated' })).toBeVisible()
+})

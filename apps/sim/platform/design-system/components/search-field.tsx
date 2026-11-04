@@ -10,7 +10,7 @@ interface SearchFieldProps {
   placeholder?: string
   defaultValue?: string
   shortcut?: '⌘K' | '/'
-  variant?: 'outlined' | 'sidebar' | 'menu'
+  variant?: 'outlined' | 'sidebar'
   onValueChange?: (query: string) => void
 }
 
@@ -68,27 +68,26 @@ export function SearchField({
         aria-label={label}
         placeholder={placeholder}
         className={styles.query}
-        data-type={variant === 'menu' ? 'T060' : 'T043'}
+        data-type='T043'
         value={query}
         onChange={(event) => change(event.currentTarget.value)}
       />
-      {variant !== 'menu' &&
-        (query ? (
-          <IconButton
-            label='Clear search'
-            icon='I105'
-            onClick={() => {
-              change('')
-              input.current?.focus()
-            }}
-          />
-        ) : (
-          shortcut && (
-            <kbd className={styles.shortcut} data-type='T001'>
-              {shortcut === '/' ? <Icon name='I044' /> : shortcut}
-            </kbd>
-          )
-        ))}
+      {query ? (
+        <IconButton
+          label='Clear search'
+          icon='I105'
+          onClick={() => {
+            change('')
+            input.current?.focus()
+          }}
+        />
+      ) : (
+        shortcut && (
+          <kbd className={styles.shortcut} data-type='T001'>
+            {shortcut === '/' ? <Icon name='I044' /> : shortcut}
+          </kbd>
+        )
+      )}
     </div>
   )
 }

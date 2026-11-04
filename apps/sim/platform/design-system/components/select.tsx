@@ -10,6 +10,9 @@ import { usePickerValue } from '@/platform/design-system/components/use-picker-v
 const optionValue = (option: { value: string }) => option.value
 
 interface SelectProps extends ControlProps {
+  variant?: 'quiet'
+  value?: string
+  onValueChange?: (value: string) => void
   options: ReadonlyArray<{ value: string; label: string }>
 }
 
@@ -18,6 +21,9 @@ export function Select({
   label,
   name,
   options,
+  variant,
+  value,
+  onValueChange,
   defaultValue,
   disabled,
   invalid,
@@ -28,8 +34,11 @@ export function Select({
     <BaseSelect.Root
       items={options}
       name={name}
-      value={selection.value}
-      onValueChange={selection.setValue}
+      value={value ?? selection.value}
+      onValueChange={(value) => {
+        selection.setValue(value)
+        if (value !== null) onValueChange?.(value)
+      }}
       disabled={disabled || options.length === 0}
       modal={false}
     >
@@ -40,7 +49,8 @@ export function Select({
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
         className={picker.trigger}
-        data-type='T043'
+        data-variant={variant}
+        data-type={variant === 'quiet' ? 'T057' : 'T043'}
       >
         <BaseSelect.Value className={picker.value} />
         <Icon name='I051' />

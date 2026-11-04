@@ -23,6 +23,7 @@ import {
   Input,
   LogoUploadField,
   MenuItem,
+  MenuSearchField,
   MetricGroup,
   Modal,
   ModalBody,
@@ -44,7 +45,11 @@ import {
   Select,
   SelectField,
   SelectionItem,
+  SettingsRow,
+  SettingsSection,
+  SettingsSurface,
   SidebarWorkspaceItems,
+  Switch,
   TextArea,
   TextAreaField,
   TextField,
@@ -54,6 +59,7 @@ import {
   VisibilityMenu,
   WorkspaceList,
 } from '@/platform/design-system/components'
+import { HelpMenu } from '@/platform/design-system/components/help-menu'
 import type { PreviewData } from '@/platform/fixtures'
 import { HomeChartSpecimen } from '@/platform/preview/home-chart-specimen'
 import styles from '@/platform/preview/specimen.module.css'
@@ -83,7 +89,6 @@ const menuChoices: Readonly<Record<string, string[]>> = {
   'Menu/ChatActions': ['Rename', 'Archive'],
   'Menu/CollectionSort': ['Recent activity', 'Name (A–Z)', 'Name (Z–A)'],
   'Menu/CollectionSort/hover': ['Recent activity', 'Name (A–Z)', 'Name (Z–A)'],
-  'Menu/Help/downloads-hover': ['Download apps', 'Contact support', 'Documentation', 'Changelog'],
   'Menu/HelpDownloads': ['Sim for macOS'],
   'Menu/More actions': ['Rename', 'Duplicate', 'Move to', 'Archive'],
   'Menu/Theme/dark-selected': ['Light', 'Dark', 'System'],
@@ -142,6 +147,39 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
       : 'I108'
   const refs = 'parts' in master && Array.isArray(master.parts) ? master.parts : []
   switch (master.owner) {
+    case 'Switch':
+      return <Switch label={label} defaultChecked={family === 'Switch/on'} />
+    case 'SettingsRow':
+      return (
+        <SettingsRow
+          label={value || label}
+          description={sample?.captions[0]}
+          field={family.endsWith('stacked')}
+        >
+          {family.endsWith('stacked') ? (
+            <Select
+              label='Theme'
+              variant='quiet'
+              options={[{ value: 'system', label: 'System' }]}
+            />
+          ) : (
+            data?.organization.members[0] && <Avatar name={data.organization.members[0]} />
+          )}
+        </SettingsRow>
+      )
+    case 'SettingsSurface':
+    case 'SettingsSection': {
+      const rows = (data?.samples.labels ?? [])
+        .slice(0, 3)
+        .map((text, i) => (
+          <SettingsRow key={text} label={text} description={data?.samples.captions[i]} />
+        ))
+      return master.owner === 'SettingsSurface' ? (
+        <SettingsSurface>{rows}</SettingsSurface>
+      ) : (
+        <SettingsSection title={value || label}>{rows}</SettingsSection>
+      )
+    }
     case 'ExecutionSteps':
       return <ExecutionSteps title='Plan' steps={data?.collections.steps ?? []} />
     case 'TasksRunChart':
@@ -351,12 +389,21 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
     case 'Input':
       return <Input label={label} defaultValue={value} />
     case 'Select':
-      return <Select label={label} options={options} defaultValue={value} />
+      return family.startsWith('Select/Theme') ? (
+        <Select
+          label='Theme'
+          variant='quiet'
+          options={['Light', 'Dark', 'System'].map((option) => ({ value: option, label: option }))}
+          defaultValue={location.theme === 'dark' ? 'Dark' : 'System'}
+        />
+      ) : (
+        <Select label={label} options={options} defaultValue={value} />
+      )
     case 'TextArea':
       return (
         <TextArea
           label={label}
-          density={key === 'C0350' || key === 'C0353' ? 'expanded' : 'regular'}
+          density={key === 'C0350' || key === 'C0353' ? 'expanded' : undefined}
           defaultValue={sample?.notes}
         />
       )
@@ -366,18 +413,14 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
       return <SelectField label={label} options={options} defaultValue={value} />
     case 'TextAreaField':
       return <TextAreaField label={label} defaultValue={sample?.notes} />
+    case 'MenuSearchField':
+      return <MenuSearchField label='Search' />
     case 'SearchField':
       return (
         <SearchField
           label='Search'
           placeholder='Search'
-          variant={
-            family.startsWith('Sidebar/Search')
-              ? 'sidebar'
-              : family.endsWith('/menu')
-                ? 'menu'
-                : 'outlined'
-          }
+          variant={family.startsWith('Sidebar/Search') ? 'sidebar' : 'outlined'}
           defaultValue={family.includes('query') ? value : undefined}
           shortcut={
             key === 'C0925'
@@ -491,25 +534,7 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
             <MenuItem label={download} icon='I041' trailingIcon='I037' />
           </ActionMenu>
         )
-      if (family === 'Menu/Help/downloads-hover') {
-        const [apps, support, docs, changelog] = menuChoices[family]
-        return (
-          <ActionMenu
-            label='Help'
-            actions={[
-              {
-                id: 'downloads',
-                label: apps,
-                icon: 'I102',
-                children: [{ id: 'macos', label: download, icon: 'I041', trailingIcon: 'I037' }],
-              },
-              { id: 'support', label: support, icon: 'I047' },
-              { id: 'documentation', label: docs, icon: 'I079', trailingIcon: 'I037' },
-              { id: 'changelog', label: changelog, icon: 'I046', separatorBefore: true },
-            ]}
-          />
-        )
-      }
+      if (family === 'Menu/Help/downloads-hover') return <HelpMenu />
       const options = menuChoices[family] ?? []
       const range = family.includes('ChartRange')
       const sort = family.includes('CollectionSort')

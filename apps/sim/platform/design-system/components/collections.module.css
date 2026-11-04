@@ -71,7 +71,22 @@
   grid-template-columns: minmax(0, 1fr);
 }
 .attachmentItem {
+  position: relative;
   min-inline-size: 0;
+}
+.previewFile {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  border-radius: var(--radius-item);
+}
+.previewFile:hover {
+  background: var(--ui-hover);
+}
+.removeFile {
+  position: absolute;
+  inset-block-start: var(--spacing-4);
+  inset-inline-end: var(--spacing-4);
 }
 .attachmentViewport {
   display: grid;
@@ -120,4 +135,27 @@
   white-space: pre-wrap;
   min-inline-size: 0;
   overflow-wrap: anywhere;
+}
+
+.workspaceHit {
+  width: 100%;
+  cursor: pointer;
+  text-align: start;
+  border-radius: var(--radius-control);
+}
+.workspaceHit:hover,
+.recentItem:has(button):hover {
+  background: var(--ui-hover);
+}
+.removeRecent {
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.removeRecent > svg:last-child,
+.recentItem:hover .removeRecent > svg:first-child {
+  display: none;
+}
+.recentItem:hover .removeRecent > svg:last-child {
+  display: block;
 }

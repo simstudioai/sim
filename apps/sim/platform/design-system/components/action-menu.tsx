@@ -25,11 +25,24 @@ interface InlineSelection {
   select: (value: string) => void
 }
 const InlineMenu = createContext<InlineSelection | null>(null)
+const BrowserRows = createContext(false)
 const FloatingMenu = createContext<RefObject<HTMLDivElement | null> | null>(null)
 
-type MenuAction = { id: string; label: string; icon?: IconName; separatorBefore?: boolean } & (
+export type MenuAction = {
+  id: string
+  label: string
+  icon?: IconName
+  separatorBefore?: boolean
+} & (
   | { children: readonly [MenuAction, ...MenuAction[]]; onSelect?: never; trailingIcon?: never }
-  | { children?: never; onSelect?: () => void; trailingIcon?: IconName }
+  | {
+      children?: never
+      onSelect?: () => void
+      trailingIcon?: IconName
+      checked?: boolean
+      disabled?: boolean
+      shortcut?: string
+    }
 )
 
 interface ActionMenuProps {
@@ -42,12 +55,28 @@ interface ActionMenuProps {
 interface TriggeredMenuProps {
   label: string
   actions: readonly MenuAction[]
+  icon?: IconName
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  align?: 'start' | 'end'
+  heading?: string
   children?: never
   defaultValue?: never
 }
 
 export function ActionMenu(props: ActionMenuProps | TriggeredMenuProps) {
-  if (props.actions) return <TriggeredMenu label={props.label} actions={props.actions} />
+  if (props.actions)
+    return (
+      <TriggeredMenu
+        label={props.label}
+        actions={props.actions}
+        icon={props.icon}
+        open={props.open}
+        onOpenChange={props.onOpenChange}
+        align={props.align}
+        heading={props.heading}
+      />
+    )
   return (
     <MenuSurface label={props.label} defaultValue={props.defaultValue}>
       {props.children}
@@ -68,6 +97,9 @@ function actionRows(actions: readonly MenuAction[]): ReactNode {
           label={action.label}
           icon={action.icon}
           trailingIcon={action.trailingIcon}
+          checked={action.checked}
+          disabled={action.disabled}
+          shortcut={action.shortcut}
           onSelect={action.onSelect}
         />
       )}
@@ -75,21 +107,48 @@ function actionRows(actions: readonly MenuAction[]): ReactNode {
   ))
 }
 
-function TriggeredMenu({ label, actions }: TriggeredMenuProps) {
+function TriggeredMenu({
+  label,
+  actions,
+  icon,
+  open,
+  onOpenChange,
+  align,
+  heading,
+}: TriggeredMenuProps) {
   const { trigger, container } = usePopoverContainer()
   return (
-    <Menu.Root modal={false}>
-      <Menu.Trigger
-        ref={trigger}
-        disabled={!actions.length}
-        className={controls.button}
-        data-type='T060'
-        data-variant='quiet'
-        data-size='regular'
-      >
-        {label}
-      </Menu.Trigger>
-      <ActionMenuPopup label={label} container={container}>
+    <Menu.Root modal={false} open={open} onOpenChange={onOpenChange}>
+      {icon ? (
+        <Menu.Trigger
+          ref={trigger}
+          className={controls.iconButton}
+          disabled={!actions.length}
+          aria-label={label}
+          title={label}
+          data-variant='quiet'
+          data-size='small'
+        >
+          <Icon name={icon} />
+        </Menu.Trigger>
+      ) : (
+        <Menu.Trigger
+          ref={trigger}
+          disabled={!actions.length}
+          className={controls.button}
+          data-type='T060'
+          data-variant='quiet'
+          data-size='regular'
+        >
+          {label}
+        </Menu.Trigger>
+      )}
+      <ActionMenuPopup label={label} container={container} align={align}>
+        {heading && (
+          <div className={styles.menuTitle} data-type='T052'>
+            {heading}
+          </div>
+        )}
         {actionRows(actions)}
       </ActionMenuPopup>
     </Menu.Root>
@@ -100,6 +159,7 @@ interface ActionMenuPopupProps {
   label: string
   container: HTMLElement | null
   submenu?: boolean
+  browser?: boolean
   align?: 'start' | 'end'
   children: ReactNode
 }
@@ -109,17 +169,22 @@ function panelSpacing(panel: HTMLDivElement | null | undefined) {
   if (!panel) return { gap: 4, edge: 0 }
   const style = getComputedStyle(panel)
   const gap = Number.parseFloat(style.paddingInlineStart)
-  return { gap, edge: gap + Number.parseFloat(style.borderInlineStartWidth) }
+  return {
+    gap: panel.dataset.menu === 'browser' ? gap * 2 : gap,
+    edge: gap + Number.parseFloat(style.borderInlineStartWidth),
+  }
 }
 
 export function ActionMenuPopup({
   label,
   container,
   submenu,
+  browser,
   align = 'start',
   children,
 }: ActionMenuPopupProps) {
   const parent = useContext(FloatingMenu)
+  const browserRows = useContext(BrowserRows) || Boolean(browser)
   const panel = useRef<HTMLDivElement>(null)
   if (!container) return null
   return (
@@ -135,20 +200,25 @@ export function ActionMenuPopup({
                   const { gap, edge } = panelSpacing(parent?.current)
                   return edge + gap
                 }
-              : 4
+              : browserRows
+                ? 8
+                : 4
           }
           alignOffset={submenu ? () => -panelSpacing(parent?.current).edge : 0}
           collisionPadding={8}
         >
           <Menu.Popup
             ref={panel}
+            data-menu={browserRows ? (submenu ? 'zoom' : 'browser') : undefined}
             className={styles.menu}
             data-material='floating'
             data-elevation='menu'
           >
-            <Menu.List className={popup.list} aria-label={label}>
-              {children}
-            </Menu.List>
+            <BrowserRows.Provider value={browserRows}>
+              <Menu.List className={popup.list} aria-label={label}>
+                {children}
+              </Menu.List>
+            </BrowserRows.Provider>
           </Menu.Popup>
         </Menu.Positioner>
       </Menu.Portal>
@@ -157,12 +227,14 @@ export function ActionMenuPopup({
 }
 
 interface SubmenuItemProps {
+  detail?: string
   label: string
   icon?: IconName
   children: ReactNode
 }
 
-function SubmenuItem({ label, icon, children }: SubmenuItemProps) {
+function SubmenuItem({ label, icon, children, detail }: SubmenuItemProps) {
+  const browser = useContext(BrowserRows)
   const { trigger, container } = usePopoverContainer()
   return (
     <Menu.SubmenuRoot>
@@ -172,10 +244,15 @@ function SubmenuItem({ label, icon, children }: SubmenuItemProps) {
         nativeButton
         className={styles.menuItem}
         label={label}
-        data-type='T060'
+        data-type={browser ? 'T067' : 'T060'}
       >
         {icon && <Icon name={icon} />}
         <span className={popup.label}>{label}</span>
+        {detail && (
+          <span className={styles.hint} data-type='T052'>
+            {detail}
+          </span>
+        )}
         <span className={styles.trailing}>
           <Icon name='I032' />
         </span>
@@ -252,6 +329,7 @@ interface MenuItemProps {
   detail?: string
   trailingIcon?: IconName
   checked?: boolean
+  disabled?: boolean
   value?: string
   selected?: boolean
   onSelect?: () => void
@@ -266,6 +344,7 @@ export function MenuItem({
   value,
   selected,
   checked,
+  disabled,
   onSelect,
 }: MenuItemProps) {
   const inline = useContext(InlineMenu)
@@ -273,7 +352,8 @@ export function MenuItem({
   const choice = value !== undefined || selected !== undefined
   const active =
     checked ?? (inline?.value === undefined ? selected : inline.value === (value ?? label))
-  const type = inline?.layout === 'browser' ? 'T067' : 'T060'
+  const browser = useContext(BrowserRows)
+  const type = browser || inline?.layout === 'browser' ? 'T067' : 'T060'
   const content = (
     <>
       {icon && <Icon name={icon} />}
@@ -299,6 +379,7 @@ export function MenuItem({
       return (
         <Menu.CheckboxItem
           checked={checked}
+          disabled={disabled}
           onClick={onSelect}
           label={label}
           className={styles.menuItem}
@@ -328,7 +409,13 @@ export function MenuItem({
         </Menu.RadioItem>
       )
     return (
-      <Menu.Item className={styles.menuItem} label={label} data-type={type} onClick={onSelect}>
+      <Menu.Item
+        disabled={disabled}
+        className={styles.menuItem}
+        label={label}
+        data-type={type}
+        onClick={onSelect}
+      >
         {content}
       </Menu.Item>
     )
@@ -373,12 +460,18 @@ type BrowserAction = 'copy' | 'open' | 'find' | 'zoom' | 'downloads'
 
 interface BrowserActionsMenuProps {
   zoomPercent?: number
+  onZoom?: (percent: number) => void
   onAction?: (action: BrowserAction) => void
 }
 
-export function BrowserActionsMenu({ zoomPercent = 100, onAction }: BrowserActionsMenuProps) {
-  return (
-    <MenuSurface label='Browser actions' layout='browser'>
+export function BrowserActionsMenu({
+  zoomPercent = 100,
+  onAction,
+  onZoom,
+}: BrowserActionsMenuProps) {
+  const { trigger, container } = usePopoverContainer()
+  const rows = (
+    <>
       <MenuItem icon='I006' label='Copy link' onSelect={() => onAction?.('copy')} />
       <MenuItem icon='I037' label='Open in default browser' onSelect={() => onAction?.('open')} />
       <MenuItem
@@ -387,16 +480,51 @@ export function BrowserActionsMenu({ zoomPercent = 100, onAction }: BrowserActio
         shortcut='⌘F'
         onSelect={() => onAction?.('find')}
       />
-      <MenuItem
-        icon='I089'
-        label='Zoom'
-        detail={`${zoomPercent}%`}
-        trailingIcon='I032'
-        onSelect={() => onAction?.('zoom')}
-      />
+      {onZoom ? (
+        <SubmenuItem label='Zoom' icon='I089' detail={`${zoomPercent}%`}>
+          <Menu.RadioGroup
+            value={String(zoomPercent)}
+            onValueChange={(value) => onZoom(Number(value))}
+          >
+            {[75, 100, 125, 150, 200].map((percent) => (
+              <MenuItem key={percent} value={String(percent)} label={`${percent}%`} />
+            ))}
+          </Menu.RadioGroup>
+        </SubmenuItem>
+      ) : (
+        <MenuItem
+          icon='I089'
+          label='Zoom'
+          detail={`${zoomPercent}%`}
+          trailingIcon='I032'
+          onSelect={() => onAction?.('zoom')}
+        />
+      )}
       <hr className={styles.separator} />
       <MenuItem icon='I049' label='Downloads' onSelect={() => onAction?.('downloads')} />
-    </MenuSurface>
+    </>
+  )
+  if (!onZoom)
+    return (
+      <MenuSurface label='Browser actions' layout='browser'>
+        {rows}
+      </MenuSurface>
+    )
+  return (
+    <Menu.Root modal={false}>
+      <Menu.Trigger
+        ref={trigger}
+        className={controls.iconButton}
+        aria-label='Browser actions'
+        data-size='small'
+        data-variant='quiet'
+      >
+        <Icon name='I108' />
+      </Menu.Trigger>
+      <ActionMenuPopup label='Browser actions' container={container} align='end' browser>
+        {rows}
+      </ActionMenuPopup>
+    </Menu.Root>
   )
 }
 

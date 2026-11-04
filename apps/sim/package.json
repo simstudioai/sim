@@ -11,6 +11,7 @@
     "dev": "bun run build:cli-runtime && bun run dev:cache:cap && next dev --port 3000",
     "dev:platform": "cd platform && next dev --webpack --port 3100",
     "build:platform": "cd platform && next build --webpack",
+    "test:platform:desktop": "playwright test --config platform/checks/desktop/playwright.config.ts",
     "test:platform:e2e": "playwright test --config platform/checks/playwright.config.ts",
     "start:platform": "cd platform && next start --port 3100",
     "dev:capped": "bun run build:cli-runtime && bun run dev:cache:cap && NODE_OPTIONS='--max-old-space-size=4096' next dev --port 3000",

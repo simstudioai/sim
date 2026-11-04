@@ -1,21 +1,23 @@
 import { useId } from 'react'
-import { area, curveMonotoneX, line } from 'd3-shape'
+import { area, curveLinear, curveMonotoneX, line } from 'd3-shape'
 import styles from '@/platform/design-system/catalog/plots.module.css'
 
 interface TrendPlotProps {
   label: string
   values: readonly number[]
   maximum: number
+  straight?: boolean
   active?: number
 }
 
-export function TrendPlot({ label, values, maximum, active }: TrendPlotProps) {
+export function TrendPlot({ label, values, maximum, active, straight }: TrendPlotProps) {
   const gradient = useId()
   const x = (_value: number, index: number) =>
     values.length === 1 ? 240 : (480 * index) / (values.length - 1)
   const y = (value: number) => 144 - Math.max(0, Math.min(1, value / maximum)) * 136
-  const stroke = line<number>().x(x).y(y).curve(curveMonotoneX)(values)
-  const fill = area<number>().x(x).y0(152).y1(y).curve(curveMonotoneX)(values)
+  const curve = straight ? curveLinear : curveMonotoneX
+  const stroke = line<number>().x(x).y(y).curve(curve)(values)
+  const fill = area<number>().x(x).y0(152).y1(y).curve(curve)(values)
   const point =
     active !== undefined && values[active] !== undefined
       ? active

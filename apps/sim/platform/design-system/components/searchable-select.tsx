@@ -4,6 +4,7 @@ import { useId, useMemo, useRef } from 'react'
 import { Combobox } from '@base-ui/react/combobox'
 import { FieldFrame } from '@/platform/design-system/components/fields'
 import { Icon } from '@/platform/design-system/components/icon'
+import { MenuSearchField } from '@/platform/design-system/components/menu-search-field'
 import picker from '@/platform/design-system/components/picker.module.css'
 import popup from '@/platform/design-system/components/popup.module.css'
 import { usePickerValue } from '@/platform/design-system/components/use-picker-value'
@@ -80,15 +81,15 @@ export function SearchableSelect({
                 aria-label={label}
                 initialFocus={input}
               >
-                <div className={picker.search}>
-                  <Icon name='I089' />
-                  <Combobox.Input
-                    ref={input}
-                    aria-label={searchLabel}
-                    placeholder={searchLabel}
-                    data-type='T060'
-                  />
-                </div>
+                <MenuSearchField
+                  input={
+                    <Combobox.Input
+                      ref={input}
+                      aria-label={searchLabel}
+                      placeholder={searchLabel}
+                    />
+                  }
+                />
                 <Combobox.Empty className={picker.empty} data-type='T060'>
                   No matches
                 </Combobox.Empty>

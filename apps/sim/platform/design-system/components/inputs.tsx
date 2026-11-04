@@ -11,6 +11,8 @@ export interface ControlProps {
 }
 
 interface InputProps extends ControlProps {
+  required?: boolean
+  pattern?: string
   placeholder?: string
 }
 
@@ -23,10 +25,14 @@ export function Input({
   invalid,
   describedBy,
   placeholder,
+  required,
+  pattern,
 }: InputProps) {
   return (
     <input
       id={id}
+      required={required}
+      pattern={pattern}
       aria-label={label}
       className={styles.input}
       data-type='T043'
@@ -41,7 +47,7 @@ export function Input({
 }
 
 interface TextAreaProps extends InputProps {
-  density?: 'regular' | 'expanded'
+  density?: 'expanded'
 }
 
 export function TextArea({
@@ -53,7 +59,7 @@ export function TextArea({
   invalid,
   describedBy,
   placeholder,
-  density = 'regular',
+  density,
 }: TextAreaProps) {
   return (
     <textarea

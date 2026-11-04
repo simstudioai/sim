@@ -12,7 +12,7 @@ test('typing preserves the resting field and wrapper appearance in both themes',
       [textarea, 'ChipTextarea'],
       [search, 'Search'],
     ]) {
-      await page.goto(`http://127.0.0.1:3181/?recipe=${key}&theme=${theme}&state=full`)
+      await page.goto(`http://127.0.0.1:3181/workbench?recipe=${key}&theme=${theme}&state=full`)
       const field =
         key === search
           ? page.getByRole('searchbox')

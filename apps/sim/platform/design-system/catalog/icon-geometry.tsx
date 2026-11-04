@@ -752,6 +752,22 @@ export const glyphs = {
       </>
     ),
   },
+  I061: {
+    label: 'archive',
+    viewBox: '0 0 24 24',
+    draw: (): ReactNode => (
+      <g
+        fill='none'
+        stroke='var(--color-text-secondary)'
+        strokeWidth='1.55'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      >
+        <rect x='3' y='3' width='18' height='4' rx='1' />
+        <path d='M5 7v13h14V7M10 11h4' />
+      </g>
+    ),
+  },
   I064: {
     label: 'chevron-down',
     viewBox: '-1.75 -2.25 24 24',

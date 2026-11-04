@@ -138,6 +138,13 @@ function checkImport(file: string, specifier: string, dynamic = false) {
   ) {
     report('primitive-owner', file, 'Use the Platform component that owns this Base UI primitive')
   }
+  if (
+    target?.startsWith(`${system}components/`) &&
+    target.endsWith('.module.css') &&
+    !file.startsWith(`${system}components/`)
+  ) {
+    report('private-recipe', file, `Use the component that owns ${specifier}; its CSS is private`)
+  }
   const privateOwner = target?.match(/^(platform\/app\/(?:.+?\/)?)_components(?:\/|$)/)?.[1]
   if (privateOwner && !file.startsWith(privateOwner)) {
     report('private-composition', file, `Promote ${specifier} before using it outside its route`)
@@ -159,14 +166,24 @@ function checkImport(file: string, specifier: string, dynamic = false) {
   }
   if (
     (target && (target === 'platform' || target.startsWith(platform)) !== inPlatform) ||
-    (inPlatform && /^@sim\/(?!utils(?:\/|$))/.test(specifier))
+    (inPlatform &&
+      /^@sim\/(?!utils(?:\/|$))/.test(specifier) &&
+      !(
+        file === 'platform/design-system/components/desktop-host.tsx' &&
+        specifier === '@sim/desktop-bridge'
+      ))
   ) {
     report('legacy-import', file, specifier)
   }
   if (
     target &&
     /^platform\/fixtures\/(?!index(?:\.|$)|types(?:\.|$))/.test(target) &&
-    !(file === 'platform/fixtures/index.ts' && dynamic)
+    !(file === 'platform/fixtures/index.ts' && dynamic) &&
+    !(
+      /^platform\/fixtures\/[\w-]+-data\.ts$/.test(file) &&
+      target.startsWith('platform/fixtures/media/') &&
+      /\.(?:png|jpe?g|webp)$/.test(target)
+    )
   ) {
     report(
       'fixture-boundary',
@@ -309,6 +326,10 @@ function checkCss(file: string, sheet: postcss.Root) {
     })
   }
   sheet.walkDecls(({ prop, value, source }) => {
+    if (prop === 'composes') {
+      const from = value.match(/\bfrom\s+['"]([^'"]+)['"]/u)?.[1]
+      if (from) checkImport(file, from)
+    }
     const location = `${file}:${source?.start?.line ?? 1}`
     for (const [, token] of value.matchAll(/var\(\s*(--[\w-]+)/g)) {
       const positioned =

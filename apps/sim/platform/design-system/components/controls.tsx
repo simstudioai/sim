@@ -1,5 +1,7 @@
 import type { MouseEventHandler, ReactNode } from 'react'
+import Link from 'next/link'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
+import { avatarInitials } from '@/platform/design-system/components/avatar-initials'
 import styles from '@/platform/design-system/components/components.module.css'
 import { Icon } from '@/platform/design-system/components/icon'
 import { Tooltip } from '@/platform/design-system/components/tooltip'
@@ -37,7 +39,7 @@ export function Button({
       onClick={onClick}
     >
       {icon && <Icon name={icon} />}
-      {children}
+      <span className={styles.controlLabel}>{children}</span>
       {trailingIcon && <Icon name={trailingIcon} />}
     </button>
   )
@@ -80,14 +82,34 @@ export function IconButton({
   )
 }
 
-interface ChipProps {
+type ChipProps = {
   children: ReactNode
   icon?: IconName
   selected?: boolean
-  onClick?: MouseEventHandler<HTMLButtonElement>
-}
+} & (
+  | { href: string; onClick?: never }
+  | { href?: never; onClick?: MouseEventHandler<HTMLButtonElement> }
+)
 
-export function Chip({ children, icon, selected = false, onClick }: ChipProps) {
+export function Chip({ children, icon, selected = false, onClick, href }: ChipProps) {
+  const content = (
+    <>
+      {icon && <Icon name={icon} />}
+      <span className={styles.controlLabel}>{children}</span>
+    </>
+  )
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className={styles.chip}
+        data-type='T043'
+        aria-current={selected ? 'page' : undefined}
+      >
+        {content}
+      </Link>
+    )
+  }
   return (
     <button
       type='button'
@@ -96,8 +118,7 @@ export function Chip({ children, icon, selected = false, onClick }: ChipProps) {
       aria-pressed={selected}
       onClick={onClick}
     >
-      {icon && <Icon name={icon} />}
-      {children}
+      {content}
     </button>
   )
 }
@@ -109,13 +130,7 @@ interface AvatarProps {
 }
 
 export function Avatar({ name, src, organization }: AvatarProps) {
-  const initials = name
-    .trim()
-    .split(/\s+/u)
-    .slice(0, organization ? 1 : 2)
-    .map((word) => Array.from(word)[0])
-    .join('')
-    .toUpperCase()
+  const initials = avatarInitials(name, organization ? 1 : 2)
   return (
     <span
       className={styles.avatar}

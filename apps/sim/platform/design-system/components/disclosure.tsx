@@ -7,6 +7,7 @@ interface DisclosureProps {
   expandedLabel?: string
   initiallyOpen?: boolean
   variant?: 'section' | 'activity' | 'more'
+  actions?: ReactNode
   children: ReactNode
 }
 
@@ -15,9 +16,10 @@ export function Disclosure({
   expandedLabel,
   initiallyOpen,
   variant = 'section',
+  actions,
   children,
 }: DisclosureProps) {
-  return (
+  const disclosure = (
     <details className={styles.disclosure} data-variant={variant} open={initiallyOpen}>
       <summary className={styles.summary} data-type={variant === 'section' ? 'T052' : 'T060'}>
         {expandedLabel ? (
@@ -41,5 +43,12 @@ export function Disclosure({
       </summary>
       {children}
     </details>
+  )
+  if (!actions) return disclosure
+  return (
+    <section className={styles.collection} aria-label={label}>
+      {disclosure}
+      <div className={styles.collectionActions}>{actions}</div>
+    </section>
   )
 }

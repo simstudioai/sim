@@ -9,10 +9,17 @@ interface WorkspaceItemsProps {
 }
 
 interface WorkspaceListProps extends WorkspaceItemsProps {
+  onSelect?: (id: string) => void
   target?: 'standard' | 'touch'
 }
 
-export function WorkspaceList({ label, items, theme, target = 'standard' }: WorkspaceListProps) {
+export function WorkspaceList({
+  label,
+  items,
+  theme,
+  onSelect,
+  target = 'standard',
+}: WorkspaceListProps) {
   return (
     <section className={styles.workspaces} data-target={target}>
       <h3 className={styles.heading} data-type='T067'>
@@ -21,14 +28,29 @@ export function WorkspaceList({ label, items, theme, target = 'standard' }: Work
       <div className={styles.workspaceViewport}>
         <ScrollArea label={label}>
           <ul className={styles.rows} aria-label={label}>
-            {items.map((item) => (
-              <li className={styles.workspaceRow} key={item.id}>
+            {items.map((item) => {
+              const row = (
                 <ComponentRecipe
                   recipe={theme === 'light' ? 'C1282' : 'C1281'}
                   slots={{ label: item.name }}
                 />
-              </li>
-            ))}
+              )
+              return (
+                <li className={styles.workspaceRow} key={item.id}>
+                  {onSelect ? (
+                    <button
+                      type='button'
+                      className={styles.workspaceHit}
+                      onClick={() => onSelect(item.id)}
+                    >
+                      {row}
+                    </button>
+                  ) : (
+                    row
+                  )}
+                </li>
+              )
+            })}
           </ul>
         </ScrollArea>
       </div>

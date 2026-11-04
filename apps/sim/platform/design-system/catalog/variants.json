@@ -73,13 +73,11 @@
   "SearchField": {
     "variant": {
       "outlined": ["C0925", "C0926", "C0928"],
-      "sidebar": ["C1083", "C1084", "C1086", "C1088"],
-      "menu": ["C1308", "C1309"]
+      "sidebar": ["C1083", "C1084", "C1086", "C1088"]
     }
   },
   "TextArea": {
     "density": {
-      "regular": ["C0351", "C0352", "C0354"],
       "expanded": ["C0350", "C0353"]
     }
   },
@@ -119,6 +117,11 @@
     "inset": {
       "flush": ["C0160", "C0162"],
       "padded": ["C0161", "C0163", "C0165", "C0169", "C0175"]
+    }
+  },
+  "Select": {
+    "variant": {
+      "quiet": ["C0953", "C0954"]
     }
   }
 }

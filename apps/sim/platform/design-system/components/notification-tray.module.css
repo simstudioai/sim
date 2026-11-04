@@ -1,0 +1,54 @@
+.stack,
+.copy {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+.stack {
+  position: fixed;
+  z-index: 2;
+  inset-block-end: var(--spacing-20);
+  inset-inline-end: var(--spacing-20);
+  inline-size: min(var(--shell-notice-width), calc(100vw - var(--spacing-40)));
+  max-block-size: calc(100dvh - var(--spacing-40));
+  overflow-y: auto;
+  gap: var(--spacing-8);
+  pointer-events: none;
+}
+.notice,
+.count {
+  display: flex;
+  gap: var(--spacing-8);
+  border: var(--spacing-stroke-default) solid var(--ui-divider);
+  pointer-events: auto;
+}
+.notice {
+  align-items: flex-start;
+  border-radius: var(--radius-dialog);
+  padding: var(--spacing-12);
+}
+.notice > svg {
+  margin-block: var(--spacing-6);
+  flex: none;
+}
+.copy {
+  flex: 1;
+  align-self: center;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+.copy > span + span {
+  color: var(--ui-secondary);
+}
+.count {
+  align-items: center;
+  align-self: flex-end;
+  gap: var(--spacing-6);
+  min-block-size: var(--spacing-32);
+  padding-inline: var(--spacing-12) var(--spacing-6);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+}
+.count:hover {
+  background: var(--ui-hover);
+}
