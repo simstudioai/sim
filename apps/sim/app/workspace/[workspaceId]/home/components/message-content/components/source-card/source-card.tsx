@@ -21,6 +21,10 @@ import { formatDate } from '@sim/utils/formatting'
 import { findTermMatches, queryTerms } from '@/lib/knowledge/search/snippet'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import {
+  SimLinkMenuItem,
+  useSimLinkCreator,
+} from '@/app/o/[organizationId]/links/sim-link-shortcut'
+import {
   SourceIcon,
   sourceLabel,
   sourceSiteName,
@@ -72,31 +76,42 @@ interface SourceActionsProps {
 
 function SourceActions({ source, onSummarize }: SourceActionsProps) {
   const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
+  const simLink = useSimLinkCreator(source.url, sourceLabel(source))
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Chip
-          leftIcon={copied ? Check : MoreHorizontal}
-          aria-label={copied ? 'Link copied' : `Actions for ${sourceLabel(source)}`}
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='end'>
-        {onSummarize && (
-          <DropdownMenuItem onSelect={() => onSummarize(source)}>
-            <Sparkles className='size-[14px]' />
-            Summarize
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Chip
+            leftIcon={copied ? Check : MoreHorizontal}
+            aria-label={copied ? 'Link copied' : `Actions for ${sourceLabel(source)}`}
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='end'>
+          {onSummarize && (
+            <DropdownMenuItem onSelect={() => onSummarize(source)}>
+              <Sparkles className='size-[14px]' />
+              Summarize
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem
+            onSelect={async () => {
+              if (!(await copy(source.url))) toast.error('Unable to copy link')
+            }}
+          >
+            <LinkIcon className='size-[14px]' />
+            Copy link
           </DropdownMenuItem>
-        )}
-        <DropdownMenuItem
-          onSelect={async () => {
-            if (!(await copy(source.url))) toast.error('Unable to copy link')
-          }}
-        >
-          <LinkIcon className='size-[14px]' />
-          Copy link
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          {simLink.organizationId && (
+            <SimLinkMenuItem
+              organizationId={simLink.organizationId}
+              url={source.url}
+              onCreate={simLink.openCreate}
+            />
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {simLink.modal}
+    </>
   )
 }
 

@@ -152,6 +152,7 @@ export const listSimLinks = defineAuthorizedOrganizationUseCase({
   }: OrganizationUseCaseContext<
     OrganizationInput & {
       search?: string
+      url?: string
       cursor?: string
       sort?: SimLinkSort
       dir?: SortDirection

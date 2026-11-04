@@ -6,7 +6,7 @@ import { Link } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useQueryStates } from 'nuqs'
 import type { SimLink } from '@/lib/api/contracts/sim-links'
-import { simLinkPath } from '@/lib/navigation/paths'
+import { simLinkPath, simLinkUrl } from '@/lib/navigation/paths'
 import { toSimLinkName } from '@/lib/sim-links/validation'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
@@ -62,7 +62,7 @@ function openLink(name: string) {
 
 async function copyLink(name: string) {
   try {
-    await writeTextToClipboard(new URL(simLinkPath(name), window.location.origin).href)
+    await writeTextToClipboard(simLinkUrl(window.location.origin, name))
   } catch (error) {
     logger.error('Failed to copy Sim link', { error })
   }

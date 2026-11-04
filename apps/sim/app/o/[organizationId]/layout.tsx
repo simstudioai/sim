@@ -120,6 +120,7 @@ export default async function OrganizationLayout({
           'mothership-plan-mode': benchmarkEnabled,
           'mothership-memory-spaces': benchmarkEnabled,
           projects: projectsEnabled,
+          'sim-links': simLinksEnabled,
         }}
       >
         <OrganizationProvider context={context}>

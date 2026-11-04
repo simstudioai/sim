@@ -16,6 +16,7 @@ import {
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
 import { isProjectsEnabled } from '@/lib/projects/rollout.server'
+import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { ApplicationLoading } from '@/app/_shell/application-loading'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
@@ -134,6 +135,7 @@ async function WorkspaceContent({
     desktopExecutorRegistered,
     computerUseEnabled,
     projectsEnabled,
+    simLinksEnabled,
   ] = await Promise.all([
     cookies(),
     orgSettings,
@@ -153,6 +155,9 @@ async function WorkspaceContent({
     hasDesktopBackgroundExecutor(session.user.id),
     isComputerUseAvailable(hostContext.hostOrganizationId),
     isProjectsEnabled(),
+    hostContext.hostOrganizationId
+      ? isSimLinksEnabled(hostContext.hostOrganizationId)
+      : Promise.resolve(false),
     prefetchWorkspaceAccess(queryClient, workspaceId, principal),
     prefetchWorkspaceForkAvailability(queryClient, workspaceId, principal, hostContext),
   ])
@@ -169,6 +174,7 @@ async function WorkspaceContent({
           'mothership-computer-use': computerUseEnabled,
           'mothership-plan-mode': planModeEnabled,
           projects: projectsEnabled,
+          'sim-links': simLinksEnabled,
         }}
       >
         <WorkspaceHostProvider workspaceId={workspaceId} initialContext={hostContext}>

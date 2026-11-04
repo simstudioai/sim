@@ -34,6 +34,18 @@ export function toSimLinkName(input: string): string {
     .replace(NAME_DISALLOWED, '')
 }
 
+/**
+ * A starting name for a link made from a page's title: lower case, words joined by single hyphens,
+ * cut to the name length limit. Empty when the title has no character a name can hold, so the
+ * person types one instead.
+ */
+export function suggestSimLinkName(title: string): string {
+  return toSimLinkName(title.trim().toLowerCase())
+    .replace(/-{2,}/g, '-')
+    .slice(0, SIM_LINK_NAME_MAX_LENGTH)
+    .replace(/^-+|-+$/g, '')
+}
+
 /** Sentence punctuation and closing quotes or brackets that follow a link pasted from prose. */
 const PASTED_TRAILING_PUNCTUATION = /[.,;:!?'"’”)\]}>]+$/
 
