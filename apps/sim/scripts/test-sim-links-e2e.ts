@@ -338,6 +338,52 @@ async function run() {
     await api({ ...outsider, orgId }, '', { expected: 404 })
   })
 
+  await check(
+    'a team bookmark keeps its organization across sign-in and a same-name link elsewhere',
+    async () => {
+      const name = 'managed-help'
+      const path = `/sim-links/${encodeURIComponent(orgId)}/${name}`
+      const destination = 'https://team.example.com/help'
+      await create(owner, { name, url: destination })
+      await create(outsider, { name, url: 'https://another-team.example.com/help' })
+      const signedOut = await send(path, null)
+      const login = new URL(signedOut.headers.get('location') ?? '/', baseUrl)
+      assert.equal(login.pathname, '/login')
+      assert.equal(login.searchParams.get('callbackUrl'), path)
+      assert.equal((await send(path, member)).headers.get('location'), destination)
+      const denied = await send(path, outsider)
+      assert.equal(denied.status, 404)
+      assert(!denied.headers.get('location'))
+    }
+  )
+
+  await check(
+    'bookmark export requires admin access and drops stale or foreign selections',
+    async () => {
+      const name = 'managed-directory'
+      const id = await create(owner, { name, url: 'https://directory.example.com' })
+      const otherId = await create(outsider, { name, url: 'https://other.example.com' })
+      const request = {
+        links: [
+          { id, name },
+          { id: otherId, name },
+        ],
+      }
+      const exportPolicy = (caller: Member, expected = 200) =>
+        api(caller, '/bookmarks', { method: 'POST', body: request, expected })
+      assert.deepEqual((await exportPolicy(owner)).links, [{ id, name }])
+      await exportPolicy(member, 403)
+      await api(owner, `/${id}`, {
+        method: 'PUT',
+        body: fields({ name, url: 'https://directory.example.com', unlisted: true }),
+      })
+      assert.deepEqual((await exportPolicy(owner)).links, [])
+      await api(owner, `/${id}`, { method: 'DELETE' })
+      await create(owner, { name, url: 'https://replacement.example.com' })
+      assert.deepEqual((await exportPolicy(owner)).links, [])
+    }
+  )
+
   await check('redirects are counted and order the most-used view', async () => {
     const { links } = await api(member, '?sort=popular', {})
     assert(Array.isArray(links), 'Expected a link list')

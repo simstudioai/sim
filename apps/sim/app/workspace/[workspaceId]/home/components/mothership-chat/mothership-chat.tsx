@@ -1,6 +1,6 @@
 'use client'
 
-import type { ComponentType } from 'react'
+import type { ComponentType, RefObject } from 'react'
 import {
   memo,
   type ReactNode,
@@ -95,6 +95,7 @@ interface MothershipChatProps {
   isReconnecting?: boolean
   isLoading?: boolean
   /** Returning false synchronously preserves the composer draft. */
+  onComposerSubmit?: MothershipChatProps['onSubmit']
   onSubmit: (
     text: string,
     fileAttachments?: FileAttachmentForApi[],
@@ -123,6 +124,7 @@ interface MothershipChatProps {
   draftScopeKey?: string
   /** Keeps the live composer mounted when a pending conversation receives its durable ID. */
   composerKey?: string
+  fileDropTarget?: RefObject<HTMLElement | null>
   layout?: 'mothership-view' | 'copilot-view'
   reserveResourceHeader?: boolean
   initialScrollBlocked?: boolean
@@ -401,6 +403,7 @@ export function MothershipChat({
   isReconnecting = false,
   isLoading = false,
   onSubmit,
+  onComposerSubmit,
   onStopGeneration,
   messageQueue,
   editingQueuedId,
@@ -418,6 +421,7 @@ export function MothershipChat({
   onWorkspaceResourceSelect,
   draftScopeKey,
   composerKey,
+  fileDropTarget,
   layout = 'mothership-view',
   reserveResourceHeader = true,
   initialScrollBlocked = false,
@@ -1050,7 +1054,8 @@ export function MothershipChat({
                 <UserInput
                   key={composerKey ?? draftScopeKey}
                   ref={userInputRef}
-                  onSubmit={onSubmit}
+                  fileDropTarget={fileDropTarget}
+                  onSubmit={onComposerSubmit ?? onSubmit}
                   attachments={composerAttachments}
                   resourceActions={composerResourceActions}
                   toolbarActions={composerToolbarActions}

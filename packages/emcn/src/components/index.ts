@@ -86,6 +86,7 @@ export { ComposerActionButton } from './composer-action-button/composer-action-b
 export { DetailsPanel } from './details-panel/details-panel'
 export {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuItemAction,

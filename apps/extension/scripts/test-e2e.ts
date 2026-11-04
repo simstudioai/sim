@@ -7,7 +7,11 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createElement } from 'react'
 import { type BrowserContext, chromium, expect, type Frame, type Page } from '@playwright/test'
-import { pageSnapshotSchema } from '@sim/browser-extension-protocol'
+import {
+  type AppToExtensionMessage,
+  extensionToAppMessageSchema,
+  pageSnapshotSchema,
+} from '@sim/browser-extension-protocol'
 import { SecretReveal } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -43,6 +47,17 @@ const fixture = Bun.serve({
         window.addEventListener('message', event => {
           if (event.source !== parent || !event.origin.startsWith('chrome-extension://')) return;
           if (event.data.type === 'e2e-barrier') document.body.dataset.barrierId = event.data.id;
+          if (event.data.type === 'connected') {
+            document.body.dataset.connected = event.data.sessionId;
+            document.body.dataset.preferenceAtConnect = document.body.dataset.reference ?? 'unknown';
+          }
+          if (event.data.sessionId === document.body.dataset.sessionId) {
+            if (event.data.type === 'reference-preference') document.body.dataset.reference = String(event.data.enabled);
+            if (event.data.type === 'send-context' || event.data.type === 'send-context-error') {
+              document.body.dataset.referenceReply = JSON.stringify(event.data);
+              document.body.dataset.referenceRequest = event.data.requestId;
+            }
+          }
           if (event.data.type === 'context' && event.data.sessionId === document.body.dataset.sessionId) {
             if (document.body.dataset.ignoreCaptures) return;
             received.push(event.data.snapshot);
@@ -126,7 +141,11 @@ try {
   context = await chromium.launchPersistentContext(resolve(temporary, 'profile'), {
     channel: 'chromium',
     headless: true,
-    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`],
+    args: [
+      '--enable-unsafe-extension-debugging',
+      `--disable-extensions-except=${extensionPath}`,
+      `--load-extension=${extensionPath}`,
+    ],
   })
   const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'))
   context.setDefaultTimeout(15_000)
@@ -188,14 +207,56 @@ try {
   const snapshots = async () =>
     pageSnapshotSchema.array().parse(JSON.parse(await app.locator('#received').innerText()))
   let receiverSessionId = generateId()
+  const post = (message: AppToExtensionMessage) =>
+    app.evaluate(({ message, origin }) => parent.postMessage(message, origin), {
+      message,
+      origin: `chrome-extension://${extensionId}`,
+    })
+  const setReference = async (enabled: boolean) => {
+    await post({
+      channel: 'sim-extension',
+      version: 1,
+      sessionId: receiverSessionId,
+      type: 'set-reference-preference',
+      enabled,
+    })
+    await expect(app.locator('body')).toHaveAttribute('data-reference', String(enabled))
+  }
+  const referenceRequest = () =>
+    ({
+      channel: 'sim-extension',
+      version: 1,
+      sessionId: receiverSessionId,
+      type: 'capture-for-send',
+      requestId: generateId(),
+    }) as const
+  const readReply = async (requestId: string) => {
+    await expect(app.locator('body')).toHaveAttribute('data-reference-request', requestId)
+    const raw = await app.locator('body').getAttribute('data-reference-reply')
+    assert(raw, 'No reply for the current reference request')
+    const reply = extensionToAppMessageSchema.parse(JSON.parse(raw))
+    assert(
+      (reply.type === 'send-context' || reply.type === 'send-context-error') &&
+        reply.requestId === requestId,
+      'Unexpected reference reply'
+    )
+    return reply
+  }
+  const reference = async () => {
+    const message = referenceRequest()
+    await post(message)
+    return readReply(message.requestId)
+  }
   await app.evaluate((sessionId) => {
     document.body.dataset.sessionId = sessionId
   }, receiverSessionId)
-  const ready = () => {
+  const ready = async () => {
     receiverReady = true
-    return app.evaluate(
+    await app.evaluate(
       ({ targetOrigin, sessionId }) => {
         document.body.dataset.sessionId = sessionId
+        delete document.body.dataset.connected
+        delete document.body.dataset.reference
         parent.postMessage(
           { channel: 'sim-extension', version: 1, type: 'ready', sessionId },
           targetOrigin
@@ -203,6 +264,7 @@ try {
       },
       { targetOrigin: `chrome-extension://${extensionId}`, sessionId: receiverSessionId }
     )
+    await expect(app.locator('body')).toHaveAttribute('data-connected', receiverSessionId)
   }
   const pendingIntent = () =>
     worker.evaluate(async () => {
@@ -240,11 +302,16 @@ try {
   }
 
   await check(
-    'A typed sim/ link opens the Sim link resolver on the configured origin',
+    'HTTP and HTTPS navigations to the sim host reach the configured resolver',
     async () => {
       const tab = await page.context().newPage()
       for (const scheme of ['http', 'https']) {
-        for (const path of ['handbook', 'jira/123?view=board', 'jira/a%2Fb?view=board%20view']) {
+        for (const path of [
+          'handbook',
+          'handbook/',
+          'jira/123?view=board',
+          'jira/a%2Fb?view=board%20view',
+        ]) {
           await tab.goto(`${scheme}://sim/${path}`)
           assert(tab.url() === `${origin}/sim/${path}`, `sim/${path} reached ${tab.url()}`)
         }
@@ -399,6 +466,45 @@ try {
       .waitFor()
     assert((await snapshots()).length === 2, 'Editable content was transmitted')
   })
+  await check(
+    'A selection inside a closed shadow field cannot become a whole-page reference',
+    async () => {
+      await setReference(true)
+      await page.evaluate(() => {
+        const host = document.createElement('div')
+        document.body.appendChild(host)
+        const field = document.createElement('input')
+        field.type = 'password'
+        field.value = 'PRIVATE_SHADOW_SENTINEL'
+        host.attachShadow({ mode: 'closed' }).append(field)
+        field.focus()
+        field.select()
+      })
+      await capture('Selection')
+      await expect(panel.getByRole('status')).toContainText('outside an editable or embedded field')
+      const refused = await reference()
+      assert(
+        refused.type === 'send-context-error' && refused.reason === 'selection',
+        'A private selection fell back to the surrounding page'
+      )
+      assert((await snapshots()).length === 2, 'Private selection produced an attachment')
+      const next = await page.context().newPage()
+      try {
+        await next.goto(`${pageOrigin}/after-selection`)
+        await next.bringToFront()
+        const accepted = await reference()
+        assert(
+          accepted.type === 'send-context' &&
+            accepted.snapshot.url === `${pageOrigin}/after-selection`,
+          'The previous failed selection blocked a different tab'
+        )
+      } finally {
+        await next.close()
+        await page.bringToFront()
+        await setReference(false)
+      }
+    }
+  )
   await check('Large multilingual pages remain bounded and mark truncation', async () => {
     await page.evaluate(() => {
       document.body.textContent = '界'.repeat(200_000)
@@ -601,6 +707,7 @@ try {
   await check(
     'Composer capture requests require a current user gesture and conversation',
     async () => {
+      await setReference(true)
       const before = (await snapshots()).length
       await panel.evaluate(() => {
         let queries = 0
@@ -659,6 +766,15 @@ try {
         expression: `parent.postMessage(${JSON.stringify(action)}, ${JSON.stringify(`chrome-extension://${extensionId}`)})`,
         userGesture: false,
       })
+      const unactivated = referenceRequest()
+      await cdp.send('Runtime.evaluate', {
+        expression: `parent.postMessage(${JSON.stringify(unactivated)}, ${JSON.stringify(`chrome-extension://${extensionId}`)})`,
+        userGesture: false,
+      })
+      assert(
+        (await readReply(unactivated.requestId)).type === 'send-context-error',
+        'Send captured the page without a user gesture'
+      )
       await expect
         .poll(async () => {
           const { result } = await parentCdp.send('Runtime.evaluate', {
@@ -691,6 +807,7 @@ try {
       )
       await cdp.detach()
       await parentCdp.detach()
+      await setReference(false)
     }
   )
   await check('Ordinary Sim and encoded remote pages attach without sensitive fields', async () => {
@@ -821,6 +938,247 @@ try {
       await panel.mouse.click(1, 1)
       await expect(dialog, 'The backdrop dismisses the modal').toBeHidden()
       assert(policyErrors.length === 0, `Site access violated CSP: ${policyErrors.join('\n')}`)
+    }
+  )
+  await check(
+    'Only the latest conversation connects, after receiving the saved reference preference',
+    async () => {
+      await setReference(true)
+      await panel.evaluate(() => {
+        const original = chrome.storage.local.get.bind(chrome.storage.local)
+        chrome.storage.local.get = (async (keys: string) => {
+          chrome.storage.local.get = original
+          const result = await original(keys)
+          document.body.dataset.preferenceRead = 'held'
+          await new Promise<void>((resolve) =>
+            document.addEventListener('release-preference', () => resolve(), { once: true })
+          )
+          document.body.dataset.preferenceRead = 'finished'
+          return result
+        }) as typeof chrome.storage.local.get
+      })
+      await app.evaluate(
+        ({ origin, sessionId }) => {
+          delete document.body.dataset.reference
+          delete document.body.dataset.connected
+          document.body.dataset.sessionId = sessionId
+          parent.postMessage(
+            { channel: 'sim-extension', version: 1, type: 'ready', sessionId },
+            origin
+          )
+        },
+        { origin: `chrome-extension://${extensionId}`, sessionId: generateId() }
+      )
+      await expect(panel.locator('body')).toHaveAttribute('data-preference-read', 'held')
+      await settleMessages()
+      assert(
+        (await app.locator('body').getAttribute('data-connected')) === null,
+        'Shell connected before its preference was known'
+      )
+      receiverSessionId = generateId()
+      await ready()
+      await expect(app.locator('body')).toHaveAttribute('data-preference-at-connect', 'true')
+      await panel.evaluate(() => document.dispatchEvent(new Event('release-preference')))
+      await expect(panel.locator('body')).toHaveAttribute('data-preference-read', 'finished')
+      await settleMessages()
+      await expect(app.locator('body')).toHaveAttribute('data-connected', receiverSessionId)
+      await setReference(false)
+    }
+  )
+  await check('A failed preference read keeps manual attachment available', async () => {
+    await panel.evaluate(() => {
+      const get = chrome.storage.local.get.bind(chrome.storage.local)
+      chrome.storage.local.get = (() => {
+        chrome.storage.local.get = get
+        return Promise.reject(new Error('Storage unavailable'))
+      }) as typeof chrome.storage.local.get
+    })
+    receiverSessionId = generateId()
+    await ready()
+    await expect(app.locator('body')).toHaveAttribute('data-connected', receiverSessionId)
+    await expect(app.locator('body')).toHaveAttribute('data-preference-at-connect', 'false')
+    await expect(panel.getByRole('status')).toContainText('Attach the page manually')
+    const before = (await snapshots()).length
+    await page.goto(`${origin}/workspace/example`)
+    await page.bringToFront()
+    await capture()
+    await expect.poll(async () => (await snapshots()).length).toBe(before + 1)
+  })
+  await check(
+    'Toolbar access on a new site allows an explicit retry without pinning it in Reference mode',
+    async () => {
+      const browser = page.context().browser()
+      assert(browser, 'Missing Chromium browser')
+      const cdp = await browser.newBrowserCDPSession()
+      try {
+        await setReference(true)
+        await page
+          .context()
+          .route('https://reference-source.example/**', (route) =>
+            route.fulfill({ contentType: 'text/html', body: '<p>NEW_REFERENCE_SOURCE</p>' })
+          )
+        await page.goto('https://reference-source.example/new-source?token=PRIVATE#fragment')
+        await page.bringToFront()
+        assert((await reference()).type === 'send-context-error', 'An ungranted site was captured')
+        await panel.evaluate(() => {
+          let intents = 0
+          document.body.dataset.toolbarIntents = '0'
+          chrome.storage.onChanged.addListener((changes, area) => {
+            if (
+              area === 'session' &&
+              Object.entries(changes).some(
+                ([key, change]) => key.startsWith('captureIntent:') && change.newValue
+              )
+            )
+              document.body.dataset.toolbarIntents = String(++intents)
+          })
+        })
+        const targets = await cdp.send('Target.getTargets', { filter: [{ type: 'tab' }] })
+        const target = targets.targetInfos.find((item) => item.url === page.url())
+        assert(target, 'Missing toolbar action target')
+        const action = { id: extensionId, targetId: target.targetId }
+        await cdp.send('Extensions.triggerAction', action)
+        const retried = await reference()
+        assert(
+          retried.type === 'send-context' && retried.snapshot.text.includes('NEW_REFERENCE_SOURCE'),
+          'Toolbar access did not allow the explicit retry'
+        )
+        assert(
+          retried.snapshot.url === 'https://reference-source.example/new-source',
+          'Reference retained a private URL parameter'
+        )
+        await expect(panel.locator('body')).toHaveAttribute('data-toolbar-intents', '0')
+        await setReference(false)
+        await cdp.send('Extensions.triggerAction', action)
+        await expect(panel.locator('body')).toHaveAttribute('data-toolbar-intents', '1')
+      } finally {
+        await cdp.detach()
+        await page.context().unroute('https://reference-source.example/**')
+      }
+    }
+  )
+  await check(
+    'Switching away and back during extraction discards the send-time reference',
+    async () => {
+      await setReference(true)
+      await page.goto(`${pageOrigin}/switch-source`)
+      await page.bringToFront()
+      await panel.evaluate(() => {
+        const original = chrome.scripting.executeScript.bind(chrome.scripting)
+        // Hold the real Chrome result while the source changes, even on a fast runner.
+        chrome.scripting.executeScript = (async (
+          injection: chrome.scripting.ScriptInjection<unknown[], unknown>
+        ) => {
+          chrome.scripting.executeScript = original
+          const result = await original(injection)
+          document.body.dataset.extraction = 'complete'
+          await new Promise<void>((resolve) =>
+            document.addEventListener('release-extraction', () => resolve(), { once: true })
+          )
+          return result
+        }) as typeof chrome.scripting.executeScript
+      })
+      const pending = reference()
+      await expect(panel.locator('body')).toHaveAttribute('data-extraction', 'complete')
+      const alternate = await page.context().newPage()
+      try {
+        await alternate.goto(`${pageOrigin}/alternate`)
+        await alternate.bringToFront()
+        await page.bringToFront()
+      } finally {
+        await alternate.close()
+        await panel.evaluate(() => document.dispatchEvent(new Event('release-extraction')))
+      }
+      const reply = await pending
+      assert(
+        reply.type === 'send-context-error' && reply.message.includes('changed'),
+        'Returning to the same tab released stale page content'
+      )
+      await setReference(false)
+    }
+  )
+  await check(
+    'Site access requests only the address the user confirms, without reading the page',
+    async () => {
+      const source = 'https://private-source.example'
+      const privateUrl = `${source}/sensitive-path?token=PRIVATE_URL_SENTINEL#fragment`
+      await page
+        .context()
+        .route(`${source}/**`, (route) =>
+          route.fulfill({ contentType: 'text/html', body: '<p>PRIVATE_CONTENT_SENTINEL</p>' })
+        )
+      await page.goto(privateUrl)
+      await page.bringToFront()
+      await setReference(true)
+      const before = (await snapshots()).length
+      const denied = await reference()
+      assert(denied.type === 'send-context-error', 'Reference read the private site without access')
+      assert(
+        !denied.message.includes('private-source') && !denied.message.includes('PRIVATE'),
+        'Access failure exposed the private URL'
+      )
+      await panel.evaluate(() => {
+        const requests: chrome.permissions.Permissions[] = []
+        const request = chrome.permissions.request.bind(chrome.permissions)
+        chrome.permissions.request = ((permissions: chrome.permissions.Permissions) => {
+          requests.push(permissions)
+          document.body.dataset.requestedAccess = JSON.stringify(requests)
+          document.body.dataset.requestGesture = String(navigator.userActivation.isActive)
+          return request(permissions)
+        }) as typeof chrome.permissions.request
+        const execute = chrome.scripting.executeScript.bind(chrome.scripting)
+        chrome.scripting.executeScript = ((...args: Parameters<typeof execute>) => {
+          document.body.dataset.unrequestedRead = 'true'
+          return execute(...args)
+        }) as typeof chrome.scripting.executeScript
+      })
+      await panel.getByRole('button', { name: 'Request site access' }).click()
+      const dialog = panel.getByRole('dialog', { name: 'Site access' })
+      await expect(dialog).toBeVisible()
+      const address = dialog.getByRole('textbox', { name: 'Site address' })
+      await expect(address).toHaveValue('')
+      const allow = dialog.getByRole('button', { name: /^Allow access/ })
+      for (const unsafe of [
+        'https://user:password@example.com/',
+        'https://*.example.com/',
+        'https://%2A.example.com/',
+        'https://＊.example.com/',
+        '<all_urls>',
+        'chrome://settings/',
+      ]) {
+        await address.fill(unsafe)
+        await expect(allow, `Do not offer to grant access for ${unsafe}`).toHaveAccessibleName(
+          'Allow access'
+        )
+        await expect(allow).toBeDisabled()
+      }
+      await address.fill('http://intranet.example:8080/private-path')
+      await expect(allow).toHaveAccessibleName('Allow access to http://intranet.example:8080')
+      const allowedHost = 'https://approved-site.example'
+      await address.fill(`${allowedHost}/private-path?token=INPUT_SECRET#fragment`)
+      await expect(allow).toHaveAccessibleName(`Allow access to ${allowedHost}`)
+      assert(
+        (await panel.locator('body').getAttribute('data-requested-access')) === null,
+        'Typing initiated a permission request'
+      )
+      const grantedSites = () =>
+        worker.evaluate(async () => ((await chrome.permissions.getAll()).origins ?? []).sort())
+      const previousAccess = await grantedSites()
+      await allow.click()
+      await expect(panel.locator('body')).toHaveAttribute('data-request-gesture', 'true')
+      const requested = await panel.locator('body').getAttribute('data-requested-access')
+      assert(requested, 'The user action never reached Chrome')
+      expect(JSON.parse(requested)).toEqual([{ origins: ['https://approved-site.example:443/*'] }])
+      expect(await grantedSites(), 'A site received persistent access without approval').toEqual(
+        previousAccess
+      )
+      await settleMessages()
+      assert(
+        (await panel.locator('body').getAttribute('data-unrequested-read')) === null,
+        'Managing site access attempted to read page content'
+      )
+      assert((await snapshots()).length === before, 'Managing site access attached a page')
+      await expect(app.locator('body')).toHaveAttribute('data-reference-request', denied.requestId)
     }
   )
   await mkdir(dirname(output), { recursive: true })

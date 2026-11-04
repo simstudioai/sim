@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 export const PAGE_SNAPSHOT_MAX_TEXT_LENGTH = 50_000
 export const PAGE_SNAPSHOT_MAX_BYTES = 150_000
+export const PAGE_REFERENCE_TIMEOUT_MS = 10_000
 
 const pageUrlSchema = z
   .string()
@@ -48,7 +49,20 @@ export type ExtensionAction = z.infer<typeof extensionActionSchema>
 export const appToExtensionMessageSchema = z.discriminatedUnion('type', [
   z.strictObject({ ...envelope, type: z.literal('theme'), theme: z.enum(['light', 'dark']) }),
   z.strictObject({ ...envelope, type: z.literal('ready'), sessionId: z.uuid() }),
+  z.strictObject({ ...envelope, type: z.literal('composer-focused'), sessionId: z.uuid() }),
   z.strictObject({ ...envelope, type: z.literal('unavailable'), sessionId: z.uuid() }),
+  z.strictObject({
+    ...envelope,
+    type: z.literal('set-reference-preference'),
+    sessionId: z.uuid(),
+    enabled: z.boolean(),
+  }),
+  z.strictObject({
+    ...envelope,
+    type: z.literal('capture-for-send'),
+    sessionId: z.uuid(),
+    requestId: z.uuid(),
+  }),
   z.strictObject({
     ...envelope,
     type: z.literal('action'),
@@ -65,7 +79,29 @@ export const appToExtensionMessageSchema = z.discriminatedUnion('type', [
 export type AppToExtensionMessage = z.infer<typeof appToExtensionMessageSchema>
 
 export const extensionToAppMessageSchema = z.discriminatedUnion('type', [
+  z.strictObject({ ...envelope, type: z.literal('focus-composer'), sessionId: z.uuid() }),
   z.strictObject({ ...envelope, type: z.literal('connected'), sessionId: z.uuid() }),
+  z.strictObject({
+    ...envelope,
+    type: z.literal('reference-preference'),
+    sessionId: z.uuid(),
+    enabled: z.boolean(),
+  }),
+  z.strictObject({
+    ...envelope,
+    type: z.literal('send-context'),
+    sessionId: z.uuid(),
+    requestId: z.uuid(),
+    snapshot: pageSnapshotSchema,
+  }),
+  z.strictObject({
+    ...envelope,
+    type: z.literal('send-context-error'),
+    sessionId: z.uuid(),
+    requestId: z.uuid(),
+    message: z.string().min(1).max(240),
+    reason: z.enum(['site-access', 'selection']).optional(),
+  }),
   z.strictObject({
     ...envelope,
     type: z.literal('context'),
@@ -90,3 +126,19 @@ export const simLinkSuggestionsSchema = z.object({
     z.object({ name: z.string(), description: z.string().nullable(), url: z.string() })
   ),
 })
+
+export const SIM_LINK_DRAFT_PATH = '/extension/create-link'
+
+/** A proposed link is editable before saving. Never pass URL secrets into the draft handoff. */
+export function simLinkDraftDestination(value: string): string | null {
+  if (!value || value.length > 4096) return null
+  try {
+    const url = new URL(value)
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return null
+    url.search = ''
+    url.hash = ''
+    return url.href
+  } catch {
+    return null
+  }
+}

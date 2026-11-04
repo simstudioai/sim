@@ -14,6 +14,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'agents/custom-tools.mdx',
   'agents/mcp.mdx',
   'agents/skills.mdx',
+  'browser-extension.mdx',
   'chat.mdx',
   'chat/files.mdx',
   'chat/knowledge.mdx',

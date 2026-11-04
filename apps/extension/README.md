@@ -2,6 +2,10 @@
 
 The Chrome extension attaches an explicitly captured page or selection to the existing Sim chat. The native side panel hosts the authenticated `/extension` app surface. Chat opens in the user's organization when available; choosing a workspace is optional. Members without access to Home use the organization's Assistant. Chat rendering, execution, permissions, billing, and history belong to Sim and Mothership.
 
+[User and administrator guide](https://docs.sim.ai/browser-extension)
+
+The keyboard shortcut prefers highlighted text and preserves the draft when a selection cannot be read. Chrome’s **Extensions → Keyboard shortcuts** page controls the binding per profile. A link’s context menu opens the existing Sim Links creation form with a reviewed destination; only selecting **Create** writes a link.
+
 ## Build and load
 
 From the repository root:
@@ -26,7 +30,7 @@ SIM_EXTENSION_DEV=1 SIM_EXTENSION_ORIGIN=http://localhost:3000 bun run --cwd app
 ## Data and permissions
 
 - Required capabilities: `activeTab`, `scripting`, `sidePanel`, `storage`, `contextMenus`, `declarativeNetRequestWithHostAccess`, and access to the configured Sim origin and to `http(s)://sim/*`.
-- Typing `sim/<name>` in the address bar opens the organization's [Sim link](https://docs.sim.ai/search/sim-links). A single static redirect rule rewrites top-level navigations to `http(s)://sim/*` to `<Sim origin>/sim/*` with the path and query unchanged. The `sim` host permission exists only for that rule: every navigation to that host is redirected before it loads, and no other request is matched or observed. An organization that already serves an intranet host named `sim` should not install this build, since its links would be redirected to Sim.
+- Type `sim`, press Space, enter the name, and press Enter to open an organization's [Sim link](https://docs.sim.ai/search/sim-links). Chrome can treat bare `sim/<name>` as a search before the redirect rule runs. Typing `http://sim/<name>` once lets Chrome learn the short host in that profile. A trailing slash (`sim/<name>/`) also selects navigation without relying on that history. A single static redirect rule rewrites top-level navigations to `http(s)://sim/*` to `<Sim origin>/sim/*` with the path and query unchanged. The `sim` host permission exists only for that rule: every navigation to that host is redirected before it loads, and no other request is matched or observed. An organization that already serves an intranet host named `sim` should not install this build, since its links would be redirected to Sim.
 - The `sim` address-bar keyword (`sim`, then Space) lists matching Sim links while you type and opens what you enter through the same resolver. It is the extension's only network request: the background worker sends the text typed before the first `/` or `?`, and nothing else, unless that text contains a space (a search) or is longer than a link name can be, to `<Sim origin>/api/sim-links/suggestions` with the signed-in session, and the extension's content security policy allows connections to that origin alone. Unlisted links are never suggested.
 - Optional HTTP/HTTPS site access is requested only by a menu action naming that site. Chrome's `activeTab` access is temporary and does not follow arbitrary new sites.
 - Page capture runs on demand in Chrome's isolated world. It excludes editable fields, inputs, hidden elements, scripts, and embedded documents. It reads only the top frame. PDF viewers and canvas documents may have no accessible text.
@@ -37,6 +41,8 @@ SIM_EXTENSION_DEV=1 SIM_EXTENSION_ORIGIN=http://localhost:3000 bun run --cwd app
 - The iframe bridge checks both the exact configured origin and the exact frame, then validates versioned messages. The hosted composer may request only page capture, selection capture, or the native site-access dialog. Requests require the current conversation nonce and Chrome transient user activation; arbitrary URLs, tabs, script execution, and network operations are never accepted. Permission grants still require a click in the extension-owned dialog.
 - Captures and queued toolbar intents are scoped to the receiving conversation. Changing conversation, workspace, or account discards an unfinished handoff. Captured attachments remain explicit snapshots when the source tab changes.
 - The complete hosted document, including portaled source dialogs and menus, is blocked from session replay. Clipboard writing is delegated only to the configured Sim origin. Clipboard reading and microphone capture are not delegated; voice input remains available in the main app.
+
+With **Reference current page** enabled, a composer Send requests a single fresh snapshot for that conversation. The extension stores only the preference in local storage. A tab change does not read any content. Explicit snapshots take precedence; access denial, navigation and timeouts keep the draft unsent. When Chrome hides the active address, **Site access** lets the user enter a site and confirm its origin in Chrome’s permission dialog. The browser grants the selected scheme, host and port. Uploaded screenshot files stay in the hosted app’s normal attachment flow.
 
 ## Verification
 

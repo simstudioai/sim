@@ -6,6 +6,7 @@ import {
   Checkbox,
   ChipModal,
   ChipModalBody,
+  ChipModalDescription,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
@@ -40,6 +41,8 @@ interface SimLinkModalProps {
   initialName?: string
   /** Prefills the destination of a new link, such as a search result's address. */
   initialUrl?: string
+  organizationName?: string
+  onSaved?: () => void
 }
 
 function draftOf(link: SimLink | undefined, initialName = '', initialUrl = ''): SimLinkBody {
@@ -60,6 +63,8 @@ export function SimLinkModal({
   link,
   initialName,
   initialUrl,
+  organizationName,
+  onSaved,
 }: SimLinkModalProps) {
   const create = useCreateSimLink(organizationId)
   const update = useUpdateSimLink(organizationId)
@@ -92,7 +97,7 @@ export function SimLinkModal({
       return
     }
     if (link) update.mutate({ linkId: link.id, body: parsed.data }, { onSuccess: onClose })
-    else create.mutate(parsed.data, { onSuccess: onClose })
+    else create.mutate(parsed.data, { onSuccess: onSaved ?? onClose })
   }
 
   const title = link ? `Edit sim/${link.name}` : 'New Sim link'
@@ -107,6 +112,9 @@ export function SimLinkModal({
     >
       <ChipModalHeader onClose={onClose}>{title}</ChipModalHeader>
       <ChipModalBody>
+        {organizationName && (
+          <ChipModalDescription>Create this link in {organizationName}.</ChipModalDescription>
+        )}
         <ChipModalField
           type='input'
           disabled={mutation.isPending}

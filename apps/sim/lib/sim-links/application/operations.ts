@@ -50,6 +50,13 @@ export const simLinkOperations = {
     ...policy,
     capability: 'none',
   }),
+  // permission-group-exempt: Managed bookmarks are a Chrome admin export of organization-wide shortcuts.
+  exportBookmarks: defineOrganizationOperation({
+    id: 'organization.sim_links.export_bookmarks',
+    minimumRole: 'admin',
+    principalKinds: ['session'],
+    capability: 'none',
+  }),
   /** Not organization-scoped: it serves whichever organization `sim/` opens in for the session. */
   // permission-group-exempt: Sim links are organization-wide shortcuts, not a governed capability.
   suggest: defineOperation({

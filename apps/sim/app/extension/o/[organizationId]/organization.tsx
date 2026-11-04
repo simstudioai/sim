@@ -167,10 +167,9 @@ function ExtensionOrganizationConversation({
       requestMode={requestMode}
       panelOptions={{
         ...composer,
-        prepareSubmission: (message, contexts) => {
-          const submission = composer.prepareSubmission(message, contexts)
-          if (submission !== false) onCommitMode()
-          return submission
+        onSubmitted: () => {
+          onCommitMode()
+          composer.onSubmitted()
         },
         draftNamespace: 'extension',
         onChatIdResolved,

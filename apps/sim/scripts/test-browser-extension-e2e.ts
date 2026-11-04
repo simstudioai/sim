@@ -12,6 +12,7 @@ import {
   expect as browserExpect,
   chromium,
   type Frame,
+  type Locator,
   type Page,
   type Request,
 } from '@playwright/test'
@@ -22,10 +23,12 @@ import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
+import { PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import { generateRandomHex } from '@sim/utils/random'
 import postgres from 'postgres'
 import { chatContextsSchema } from '@/lib/api/contracts/mothership-chat-context'
 import { MOTHERSHIP_CHAT_ID_HEADER } from '@/lib/mothership/constants'
+import { dropOnChat } from '@/scripts/browser-extension-e2e/chat-file-drop'
 
 /** Authenticated packaged-browser acceptance against a real local Sim app and disposable Postgres. */
 const logger = createLogger('BrowserExtensionAppE2E')
@@ -122,6 +125,19 @@ await once(fixture, 'listening')
 const fixtureAddress = fixture.address()
 assert(fixtureAddress && typeof fixtureAddress !== 'string')
 
+function reportError(error: unknown) {
+  // Playwright includes request headers and session cookies in its call log.
+  return getErrorMessage(error).split('\nCall log:', 1)[0].trimEnd()
+}
+
+function submittedPages(body: Record<string, unknown>) {
+  const contexts = Array.isArray(body.contexts) ? body.contexts : []
+  return contexts
+    .map(toRecord)
+    .filter((context) => context.kind === 'browser_page')
+    .map((context) => pageSnapshotSchema.parse(context.snapshot))
+}
+
 async function check(
   owner: 'navigation' | 'composer' | 'access',
   name: string,
@@ -138,7 +154,7 @@ async function check(
       name,
       status: 'failed',
       durationMs: Math.round(performance.now() - started),
-      error: getErrorMessage(error),
+      error: reportError(error),
     })
     throw error
   }
@@ -362,7 +378,7 @@ try {
               }
             })
             .catch((error) => {
-              entry.error = getErrorMessage(error)
+              entry.error = reportError(error)
             })
         )
       }
@@ -490,27 +506,45 @@ try {
     await expect(shell.locator('body')).toHaveAttribute('data-capture-receipts', String(before + 1))
   }
   const attachments = () => frame().getByRole('group', { name: 'Page attached to next message' })
-  const attachFile = async (name = 'extension-notes.txt') => {
-    const completion = shell.waitForResponse(
-      (response) =>
-        response.request().method() === 'POST' &&
-        new URL(response.url()).pathname.startsWith('/api/files/uploads/') &&
-        new URL(response.url()).pathname.endsWith('/complete')
-    )
-    await frame()
-      .locator('input[type="file"]')
-      .setInputFiles({
-        name,
-        mimeType: 'text/plain',
-        buffer: Buffer.from('This synthetic file belongs only to extension QA.'),
-      })
-    const response = await completion
+  const isUploadCompletion = (url: URL) =>
+    url.pathname.startsWith('/api/files/uploads/') && url.pathname.endsWith('/complete')
+  const uploadFile = async (name: string, add: () => Promise<void>): Promise<string> => {
+    const [response] = await Promise.all([
+      shell.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' && isUploadCompletion(new URL(response.url()))
+      ),
+      add(),
+    ])
     assert.equal(response.status(), 200, await response.text())
     const body: unknown = await response.json()
-    const asset = toRecord(toRecord(toRecord(body).data).result)
-    assert.equal(typeof asset.key, 'string')
-    trackUploadedFile(String(asset.key))
+    const { key } = toRecord(toRecord(toRecord(body).data).result)
+    assert(typeof key === 'string')
+    trackUploadedFile(key)
     await expect(frame().getByRole('button', { name: `Remove ${name}`, exact: true })).toBeEnabled()
+    return key
+  }
+  const attachFile = (name = 'extension-notes.txt') =>
+    uploadFile(name, () =>
+      frame()
+        .locator('input[type="file"]')
+        .setInputFiles({
+          name,
+          mimeType: 'text/plain',
+          buffer: Buffer.from('This synthetic file belongs only to extension QA.'),
+        })
+    )
+  const attachScreenshot = async (target: Locator) => {
+    const name = 'drop-fixture.png'
+    const png = resolve(temporary, name)
+    await writeFile(
+      png,
+      Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNwWXX3PwAFzALLC/VkdQAAAABJRU5ErkJggg==',
+        'base64'
+      )
+    )
+    return uploadFile(name, () => dropOnChat(shell, target, { files: [png] }))
   }
   await checkNavigation(
     'Capture, preview, removal, and the three-page cap use the real composer',
@@ -586,8 +620,10 @@ try {
               `Season font is not applied in ${surface === shell ? 'shell' : 'app'}: ${dimensions.font}`
             )
           }
+          await expect(attachments()).toHaveCount(0)
           await screenshot(`${theme}-${width}`)
           await capture()
+          await expect(attachments()).toHaveCount(1)
           await expect
             .poll(() =>
               frame()
@@ -598,6 +634,19 @@ try {
                 })
             )
             .toBe(true)
+          if (width === 320) {
+            const chip = attachments().first()
+            const visible = await chip.screenshot({ animations: 'disabled' })
+            const withoutEdgeMask = await chip.screenshot({
+              animations: 'disabled',
+              style:
+                'div:has(> div > [aria-label="Page attached to next message"]) { mask-image: none !important; }',
+            })
+            assert(
+              visible.equals(withoutEdgeMask),
+              'The attachment strip faded a fully visible chip'
+            )
+          }
           await screenshot(`${theme}-${width}-attached`)
           if (theme === 'light' && width === 320) {
             await frame()
@@ -609,7 +658,7 @@ try {
               .evaluate((button) => (button as HTMLElement).click())
             const access = shell.getByRole('dialog', { name: 'Site access', exact: true })
             await expect(
-              access.getByRole('button', { name: 'Remove access to localhost', exact: true })
+              access.getByRole('button', { name: `Remove access to ${fixtureOrigin}`, exact: true })
             ).toBeVisible()
             await expect(
               frame().getByRole('menuitem', { name: 'Site access', exact: true })
@@ -617,7 +666,9 @@ try {
             await screenshot('site-options')
             await access.getByRole('button', { name: 'Close', exact: true }).click()
           }
-          await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
+          await shell.bringToFront()
+          await attachments().getByRole('button', { name: 'Remove page context' }).click()
+          await expect(attachments()).toHaveCount(0)
         }
       }
     }
@@ -742,6 +793,67 @@ try {
       }
     }
   )
+  await checkComposer(
+    'The ordinary web composer accepts text selections and rejects links and remote images',
+    async () => {
+      const app = await browserContext.newPage()
+      const remote = new URL('/ordinary-drop-image.png', fixtureOrigin)
+      const navigationAttempts: string[] = []
+      await browserContext.route(remote.href, (route) => {
+        navigationAttempts.push(route.request().url())
+        return route.abort()
+      })
+      try {
+        await app.goto(`${base.origin}/workspace/${alphaId}/chat/${historyId}`)
+        const input = app.getByRole('textbox', { name: 'Message', exact: true })
+        await input.fill('Keep the ordinary draft')
+        const drop = await app.evaluateHandle(() => {
+          let received: DragEvent | undefined
+          document.addEventListener(
+            'drop',
+            (event) => {
+              received = event
+            },
+            { capture: true, once: true }
+          )
+          return () => received?.defaultPrevented
+        })
+        const pageCount = browserContext.pages().length
+        const image = { text: remote.href, html: `<img src="${remote.href}">`, uri: remote.href }
+        await dropOnChat(
+          app,
+          app.getByRole('button', { name: 'Add resources', exact: true }),
+          image
+        )
+        assert.equal(await drop.evaluate((prevented) => prevented()), true)
+        for (const payload of [
+          image,
+          { text: 'Image caption', html: `<img src="${remote.href}" alt="Image caption">` },
+          { text: 'Link caption', html: `<a href="${remote.href}">Link caption</a>` },
+          {
+            text: 'Selected text',
+            html: `<strong>${' '.repeat(PASTE_RENDER_THRESHOLDS.ENHANCED_TEXT_CHARACTERS)}Selected text</strong>`,
+          },
+        ]) {
+          await dropOnChat(app, input, payload)
+          await expect(input).toHaveValue('Keep the ordinary draft')
+        }
+        assert.equal(browserContext.pages().length, pageCount)
+        assert.deepEqual(navigationAttempts, [])
+        for (const payload of [
+          { text: 'Plain text from another app' },
+          { text: 'Selected text', html: '<p>Selected <strong>text</strong></p>' },
+        ]) {
+          await input.fill('')
+          await dropOnChat(app, input, payload)
+          await expect(input).toHaveValue(payload.text)
+        }
+      } finally {
+        await browserContext.unroute(remote.href)
+        await app.close()
+      }
+    }
+  )
   await checkNavigation(
     'Sources and resource actions preserve their real destinations',
     async () => {
@@ -837,9 +949,20 @@ try {
           .evaluate((chip) => {
             const strip = chip.parentElement?.parentElement
             if (!strip) throw new Error('Missing attachment strip')
-            return { height: strip.clientHeight, contentHeight: strip.scrollHeight }
+            const style = getComputedStyle(strip)
+            const padding =
+              Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom)
+            return {
+              height: strip.clientHeight,
+              contentHeight: strip.scrollHeight,
+              usableHeight: strip.clientHeight - padding,
+            }
           })
-        assert(touchGeometry.height <= 102, 'Touch attachments lost their height limit')
+        assert.equal(
+          touchGeometry.usableHeight,
+          102,
+          'Two 48px attachment rows and their gap must fit on touch'
+        )
         assert(
           touchGeometry.contentHeight > touchGeometry.height,
           'Touch overflow fixture did not wrap'
@@ -1265,6 +1388,310 @@ try {
     }
   )
   await checkComposer(
+    'A delayed extension handshake lets ordinary and manually attached messages through',
+    async () => {
+      const endpoint = `${base.origin}/api/mothership/chat`
+      const received: Record<string, unknown>[] = []
+      const holdHandshake = await shell.addInitScript(() => {
+        if (window.parent === window) return
+        window.addEventListener(
+          'message',
+          (event) => {
+            const type = event.data?.type
+            if (
+              event.source !== window.parent ||
+              (type !== 'connected' && type !== 'reference-preference')
+            )
+              return
+            const state = document.documentElement.dataset
+            if (type === 'connected') state.heldSession = event.data.sessionId
+            if (state.release === type) state.delivered = type
+            else event.stopImmediatePropagation()
+          },
+          true
+        )
+      })
+      await browserContext.route(endpoint, (route) => {
+        if (route.request().method() !== 'POST') return route.continue()
+        received.push(toRecord(route.request().postDataJSON()))
+        injectedRequests.add(route.request())
+        return route.fulfill({ status: 403, json: { error: 'QA admission rejected' } })
+      })
+      const input = () => frame().getByRole('textbox', { name: 'Message', exact: true })
+      const release = async (type: 'connected' | 'reference-preference') => {
+        await frame().evaluate(
+          ({ origin, type }) => {
+            const state = document.documentElement.dataset
+            state.release = type
+            parent.postMessage(
+              { channel: 'sim-extension', version: 1, type: 'ready', sessionId: state.heldSession },
+              origin
+            )
+          },
+          { type, origin: `chrome-extension://${extensionId}` }
+        )
+        await expect(frame().locator('html')).toHaveAttribute('data-delivered', type)
+      }
+      try {
+        for (const enabled of [false, true]) {
+          await worker.evaluate(
+            (value) => chrome.storage.local.set({ referenceCurrentPage: value }),
+            enabled
+          )
+          await navigate(`${base.origin}/extension/${betaId}`)
+          await expect(frame().locator('html')).toHaveAttribute('data-held-session', /.+/)
+          const draft = enabled ? 'This draft needs its page' : 'An ordinary question'
+          await input().fill(draft)
+          if (!enabled) {
+            await release('reference-preference')
+            await input().press('Enter')
+            await expect.poll(() => received.length).toBe(1)
+            assert.equal(received[0].message, draft)
+            assert.equal(submittedPages(received[0]).length, 0)
+            continue
+          }
+          const expectDraftHeld = async () => {
+            await input().press('Enter')
+            await expect(
+              frame().getByText('Connecting to the Sim extension. Try again in a moment.').first()
+            ).toBeVisible()
+            await expect(input()).toHaveValue(draft)
+            assert.equal(received.length, 1)
+          }
+          await expectDraftHeld()
+          await release('reference-preference')
+          await expectDraftHeld()
+
+          await source.bringToFront()
+          await frame().evaluate((origin) => {
+            parent.postMessage(
+              {
+                channel: 'sim-extension',
+                version: 1,
+                type: 'action',
+                action: 'capture-page',
+                sessionId: document.documentElement.dataset.heldSession,
+              },
+              origin
+            )
+          }, `chrome-extension://${extensionId}`)
+          await expect(attachments()).toHaveCount(1)
+          await input().press('Enter')
+          await expect.poll(() => received.length).toBe(2)
+          const pages = submittedPages(received[1])
+          assert.equal(pages.length, 1)
+          assert(pages[0].text.includes('ORCHID-482'))
+        }
+        await navigate(`${base.origin}/extension/${betaId}`)
+        await expect(frame().locator('html')).toHaveAttribute('data-held-session', /.+/)
+        await release('connected')
+        await input().fill('A question from an older extension')
+        await input().press('Enter')
+        await expect.poll(() => received.length).toBe(3)
+        assert.equal(received[2].message, 'A question from an older extension')
+        assert.equal(submittedPages(received[2]).length, 0)
+      } finally {
+        await holdHandshake.dispose()
+        await worker.evaluate(() => chrome.storage.local.remove('referenceCurrentPage'))
+        await browserContext.unroute(endpoint)
+      }
+    }
+  )
+  await checkComposer(
+    'Reference current page captures the active tab only on Send and preserves denied drafts in both composers',
+    async () => {
+      const endpoint = `${base.origin}/api/mothership/chat`
+      const received: Record<string, unknown>[] = []
+      const second = await browserContext.newPage()
+      await second.goto(`${fixtureOrigin}/reference-second?private=DO_NOT_SEND#private`)
+      await second.locator('article p').evaluate((el) => {
+        el.textContent = 'Second active tab: JADE-231.'
+      })
+      const restricted = await browserContext.newPage()
+      await restricted.goto(`http://ungranted.localhost:${fixtureAddress.port}/denied`)
+      await browserContext.route(endpoint, (route) => {
+        if (route.request().method() !== 'POST') return route.continue()
+        received.push(toRecord(route.request().postDataJSON()))
+        injectedRequests.add(route.request())
+        return route.fulfill({ status: 403, json: { error: 'QA admission rejected' } })
+      })
+      const preference = () =>
+        frame().getByRole('menuitemcheckbox', { name: 'Reference current page' })
+      const setReference = async (enabled: boolean) => {
+        await frame().getByRole('button', { name: 'Add resources', exact: true }).press('Enter')
+        await expect(preference()).toBeVisible()
+        if ((await preference().getAttribute('aria-checked')) !== String(enabled)) {
+          await preference().press('Enter')
+        } else await preference().press('Escape')
+        const globe = frame().getByRole('button', { name: 'Attach current page', exact: true })
+        if (enabled) await expect(globe).toHaveText('Current page')
+        else await expect(globe).not.toHaveText('Current page')
+      }
+      try {
+        await setPanelViewport(320, 844)
+        for (const org of [false, true]) {
+          const target = org ? `/extension/o/${organizationId}` : `/extension/${alphaId}`
+          const input = () =>
+            frame().getByRole('textbox', { name: org ? 'Ask Sim' : 'Message', exact: true })
+          await navigate(base.origin + target)
+          await expect(input()).toBeVisible()
+          await setReference(true)
+          await input().fill('Summarize the current page')
+          const submit = frame().getByRole('button', {
+            name: org ? 'Send' : 'Send message',
+            exact: true,
+          })
+          await submit.click({ trial: true })
+          await screenshot(`reference-${org ? 'organization' : 'workspace'}-enabled-320`)
+          await second.bringToFront()
+          let count = received.length
+          await input().press('Enter')
+          await expect.poll(() => received.length).toBe(count + 1)
+          const pages = submittedPages(received[count])
+          assert.equal(pages.length, 1)
+          assert.equal(pages[0].url, `${fixtureOrigin}/reference-second`)
+          assert(pages[0].text.includes('JADE-231') && !pages[0].text.includes('ORCHID-482'))
+          assert.equal(
+            received[count][org ? 'organizationId' : 'workspaceId'],
+            org ? organizationId : alphaId
+          )
+
+          await navigate(base.origin + target)
+          await expect(input()).toBeVisible()
+          await capture()
+          await second.bringToFront()
+          await input().fill('Compare the attached snapshot')
+          count = received.length
+          await input().press('Enter')
+          await expect.poll(() => received.length).toBe(count + 1)
+          const manual = submittedPages(received[count])
+          assert.equal(manual.length, 1)
+          assert(manual[0].text.includes('ORCHID-482') && !manual[0].text.includes('JADE-231'))
+
+          await navigate(base.origin + target)
+          await expect(input()).toBeVisible()
+          await restricted.bringToFront()
+          const draft = 'Keep this draft if access is unavailable'
+          await input().fill(draft)
+          count = received.length
+          await input().press('Enter')
+          await expect(
+            shell.getByRole('button', { name: 'Request site access', exact: true })
+          ).toBeEnabled()
+          await expect(input()).toHaveValue(draft)
+          assert.equal(received.length, count)
+          await screenshot(`reference-${org ? 'organization' : 'workspace'}-denied`)
+          const accessNotice = await shell
+            .getByRole('status')
+            .first()
+            .evaluate((status) => status.firstChild?.textContent?.trim())
+          assert(accessNotice)
+          assert.equal(
+            await frame().getByText(accessNotice, { exact: true }).count(),
+            0,
+            'Access guidance covered the composer twice'
+          )
+          await setReference(false)
+          await input().press('Enter')
+          await expect.poll(() => received.length).toBe(count + 1)
+          assert.equal(submittedPages(received[count]).length, 0)
+        }
+      } finally {
+        await browserContext.unroute(endpoint)
+        await restricted.close()
+        await second.close()
+        await setPanelViewport(390, 844)
+        await source.bringToFront()
+      }
+    }
+  )
+  await checkComposer(
+    'A screenshot dropped on the workspace or organization chat body uploads once and can be sent by itself',
+    async () => {
+      // A previous rejected send can be restored from tab session storage on navigation.
+      await shell.close()
+      panel = await openPanel()
+      shell = panel
+      await shell.goto(`chrome-extension://${extensionId}/sidepanel.html`)
+      const remote = new URL('/external-drop.png', fixtureOrigin)
+      const remoteRequests: Request[] = []
+      await browserContext.route(remote.href, (route) => {
+        remoteRequests.push(route.request())
+        return route.abort()
+      })
+      const endpoint = `${base.origin}/api/mothership/chat`
+      const submitted: unknown[] = []
+      await browserContext.route(endpoint, (route) => {
+        if (route.request().method() !== 'POST') return route.continue()
+        submitted.push(route.request().postDataJSON())
+        injectedRequests.add(route.request())
+        return route.fulfill({ status: 403, json: { error: 'QA screenshot admission check' } })
+      })
+      try {
+        for (const surface of ['workspace', 'organization'] as const) {
+          const org = surface === 'organization'
+          await navigate(`${base.origin}/extension/${org ? `o/${organizationId}` : alphaId}`)
+          const greeting = frame().getByRole('heading', { name: 'How can I help?', exact: true })
+          await expect(greeting).toBeVisible()
+          let release = () => {}
+          const gate = new Promise<void>((resolve) => {
+            release = resolve
+          })
+          await browserContext.route(isUploadCompletion, async (route) => {
+            await gate
+            await route.continue()
+          })
+          const input = frame().getByRole('textbox', {
+            name: org ? 'Ask Sim' : 'Message',
+            exact: true,
+          })
+          await input.fill('')
+          const count = submitted.length
+          const verifyPending = async () => {
+            try {
+              await shell.waitForRequest(
+                (request) =>
+                  request.method() === 'POST' && isUploadCompletion(new URL(request.url()))
+              )
+              await input.press('Enter')
+              await expect(
+                frame().getByRole('button', { name: org ? 'Send' : 'Send message', exact: true })
+              ).toBeDisabled()
+              assert.equal(submitted.length, count, 'A pending upload triggered a chat send')
+            } finally {
+              release()
+            }
+          }
+          const [key] = await Promise.all([attachScreenshot(greeting), verifyPending()]).finally(
+            () => {
+              release()
+              return browserContext.unroute(isUploadCompletion)
+            }
+          )
+          await screenshot(org ? 'organization-dropped-screenshot' : 'workspace-dropped-screenshot')
+          await dropOnChat(shell, input, {
+            text: remote.href,
+            html: `<img src="${remote.href}">`,
+            uri: remote.href,
+          })
+          await expect(input).toHaveValue('')
+          await input.press('Enter')
+          await expect.poll(() => submitted.length).toBe(count + 1)
+          const body = toRecord(submitted[count])
+          assert.equal(body.message, '')
+          assert.equal(body[org ? 'organizationId' : 'workspaceId'], org ? organizationId : alphaId)
+          assert(Array.isArray(body.fileAttachments) && body.fileAttachments.length === 1)
+          assert.equal(toRecord(body.fileAttachments[0]).key, key)
+          assert.equal(toRecord(body.fileAttachments[0]).media_type, 'image/png')
+        }
+        assert.equal(remoteRequests.length, 0, 'Dropping a web image URL fetched its source')
+      } finally {
+        await browserContext.unroute(remote.href)
+        await browserContext.unroute(endpoint)
+      }
+    }
+  )
+  await checkComposer(
     'A first-open toolbar capture survives authenticated organization landing',
     async () => {
       await source.bringToFront()
@@ -1445,6 +1872,60 @@ try {
         })
     )
   }
+  await checkComposer(
+    'Page controls stay reachable above a long organization workspace list',
+    async () => {
+      assert(userId)
+      const projectId = generateId()
+      await sql`insert into project (id, name, owner_id, organization_id)
+      values (${projectId}, 'Menu QA project', ${userId}, ${organizationId})`
+      try {
+        const workspaces =
+          await sql`update workspace set organization_id = ${organizationId}, project_id = ${projectId}
+        where project_id = ${alphaId} and name like 'Extension QA workspace %' returning id`
+        assert.equal(workspaces.length, 24)
+        await setPanelViewport(320, 640)
+        await navigate(`${base.origin}/extension/o/${organizationId}`)
+        await frame().getByRole('button', { name: 'Add resources', exact: true }).click()
+        const rows = frame().getByRole('menuitem', { name: /^Extension QA workspace / })
+        await expect(rows).toHaveCount(workspaces.length)
+        const toggle = frame().getByRole('menuitemcheckbox', { name: 'Reference current page' })
+        await expect(toggle).toBeInViewport({ ratio: 1 })
+        await rows.last().scrollIntoViewIfNeeded()
+        await expect(rows.first()).not.toBeInViewport()
+        await expect(toggle).toBeInViewport({ ratio: 1 })
+        await screenshot('page-controls-many-workspaces')
+        const checked = (await toggle.getAttribute('aria-checked')) === 'true'
+        await toggle.click()
+        await frame().getByRole('button', { name: 'Add resources', exact: true }).click()
+        await expect(toggle).toHaveAttribute('aria-checked', String(!checked))
+        const search = frame().getByPlaceholder('Search resources')
+        await search.press('ArrowDown')
+        await expect(
+          frame().getByRole('menuitem', { name: 'Current page', exact: true })
+        ).toBeFocused()
+        await shell.keyboard.press('ArrowDown')
+        await expect(
+          frame().getByRole('menuitem', { name: 'Selected text', exact: true })
+        ).toBeFocused()
+        await shell.keyboard.press('ArrowDown')
+        await expect(toggle).toBeFocused()
+        await shell.keyboard.press('Tab')
+        await expect(toggle).not.toBeVisible()
+        await setPanelViewport(320, 240)
+        await frame().getByRole('button', { name: 'Add resources', exact: true }).click()
+        await expect(toggle).toHaveAttribute('aria-checked', String(checked))
+        await rows.last().scrollIntoViewIfNeeded()
+        await expect(rows.last()).toBeInViewport({ ratio: 1 })
+        await screenshot('page-controls-short-panel')
+        await rows.last().press('Escape')
+      } finally {
+        await sql`update workspace set organization_id = null, project_id = ${alphaId} where project_id = ${projectId}`
+        await sql`delete from project where id = ${projectId}`
+        await setPanelViewport(390, 844)
+      }
+    }
+  )
   if (group === 'access') {
     await seedViewerOrganization()
     await seedOtherOrganization()
@@ -1591,6 +2072,11 @@ try {
       await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
       await capture('shortcut')
       await expect(attachments()).toHaveCount(1)
+      const droppedImage = !liveChat
+        ? await attachScreenshot(
+            frame().getByRole('heading', { name: 'How can I help?', exact: true })
+          )
+        : undefined
       await screenshot('organization-assistant-page')
       if (!liveChat)
         await shell.route('**/api/mothership/chat', (route) =>
@@ -1605,6 +2091,10 @@ try {
       )
       await input.press('Enter')
       const body = toRecord((await submitted).postDataJSON())
+      if (droppedImage) {
+        assert(Array.isArray(body.fileAttachments) && body.fileAttachments.length === 1)
+        assert.equal(toRecord(body.fileAttachments[0]).key, droppedImage)
+      }
       assert.equal(body.mode, 'assistant')
       assert.equal(body.organizationId, organizationId)
       assert.equal(body.workspaceId, undefined)
@@ -1937,9 +2427,9 @@ try {
       name: 'Suite setup',
       status: 'failed',
       durationMs: 0,
-      error: getErrorMessage(error),
+      error: reportError(error),
     })
-  logger.error('Browser acceptance failed', { error: getErrorMessage(error) })
+  logger.error('Browser acceptance failed', { error: reportError(error) })
   pendingAtFailure = [...pendingRequests].map((request) => ({
     path: new URL(request.url()).pathname,
     method: request.method(),
@@ -1994,9 +2484,9 @@ try {
         name: 'Fixture cleanup',
         status: 'failed',
         durationMs: 0,
-        error: getErrorMessage(error),
+        error: reportError(error),
       })
-    logger.error('Fixture cleanup failed', { error: getErrorMessage(error) })
+    logger.error('Fixture cleanup failed', { error: reportError(error) })
     process.exitCode = 1
   })
   await sql.end()

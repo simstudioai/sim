@@ -38,6 +38,10 @@ import { getSkillsQueryOptions } from '@/hooks/queries/skills'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
 import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
+import {
+  type PendingComposerSubmission,
+  useComposerSubmission,
+} from '@/hooks/use-composer-submission'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import type { ChatContext } from '@/stores/panel'
 
@@ -51,7 +55,10 @@ interface ComposerProps {
   isSending: boolean
   onChange: (value: string, contexts?: ChatContext[]) => void
   restoredContexts?: ChatContext[]
-  onSubmit: (text: string, contexts?: ChatContext[]) => undefined | false
+  onSubmit: (
+    text: string,
+    contexts?: ChatContext[]
+  ) => undefined | false | PendingComposerSubmission
   onSendQueuedHead?: () => void
   onEditQueuedTail?: () => boolean
   messages?: readonly ChatMessage[]
@@ -167,6 +174,9 @@ export function Composer({
   )
   const placeholder = isInitialView && !compact ? animatedPlaceholder : 'Send message to Sim'
 
+  const { pending: preparingSubmission, accept: acceptSubmission } = useComposerSubmission({
+    mode: requestMode,
+  })
   const submit = () => {
     if (attachedFilesRef.current.some((file) => file.uploading)) return
     const hasPayload =
@@ -183,11 +193,18 @@ export function Composer({
           editor.getPlainValue()
         )
       : editor.getActiveContexts()
-    if (onSubmit(editor.getPlainValue(), contexts.length ? contexts : undefined) === false) return
-    attachedFilesRef.current = []
-    voice.resetTranscript()
-    history.reset()
-    editor.clear()
+    const raw = editor.getValue()
+    const filesAtSend = attachedFilesRef.current
+    acceptSubmission(
+      () => onSubmit(editor.getPlainValue(), contexts.length ? contexts : undefined),
+      () => {
+        attachedFilesRef.current = []
+        voice.resetTranscript()
+        history.reset()
+        editor.clear()
+      },
+      () => editorRef.current.getValue() === raw && attachedFilesRef.current === filesAtSend
+    )
   }
 
   const contextPicker = (kind: 'resources' | 'skills', icon: typeof Plus, label: string) => (
@@ -307,6 +324,8 @@ export function Composer({
 
   return (
     <div
+      aria-busy={preparingSubmission || undefined}
+      inert={preparingSubmission}
       onDragEnter={files.handleDragEnter}
       onDragLeave={files.handleDragLeave}
       onDragOver={files.handleDragOver}

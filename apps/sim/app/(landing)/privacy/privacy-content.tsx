@@ -44,7 +44,7 @@ function richText(content: string): ReactNode {
 export const PRIVACY_CONFIG: LegalPageConfig = {
   title: 'Privacy Policy',
   description: 'Sim Studio, Inc. · Operating the Sim platform (sim.ai)',
-  lastUpdated: 'November 2, 2026',
+  lastUpdated: 'November 3, 2026',
   intro: [
     {
       kind: 'paragraph',
@@ -812,13 +812,13 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'Capture starts only in response to Your action. The extension does not collect page content continuously or silently in the background. Optional continuing site access is requested for an individual site and can be removed through Site access or Chrome settings. Incognito capture is disabled.'
+            'Reference current page is an optional setting stored in Your Chrome profile. When it is on, sending a message from the sidebar includes a snapshot of the active tab unless You have attached a page or selection Yourself. Opening the panel or switching tabs does not trigger this capture. If Chrome has not granted access, Your draft stays in the composer. You can grant access to an individual site and send again, or turn the setting off. You can revoke site access in the extension or Chrome settings. Incognito capture is disabled.'
           ),
         },
         {
           kind: 'paragraph',
           content: richText(
-            'Attaching a page transfers the snapshot to the hosted composer before You send a message. Captured text is held in memory and is not persisted in Chrome extension storage. Short-lived extension session records contain capture intent metadata and a one-way digest of the source address, not captured text or the raw address. You can review or remove an attachment before sending it.'
+            'Manually attaching a page transfers the snapshot to the hosted composer before You send a message. Captured text is held in memory and is not persisted in Chrome extension storage. Short-lived extension session records contain capture intent metadata and a one-way digest of the source address, not captured text or the raw address. You can review or remove a manually attached snapshot before sending it. Dropping an image file onto the sidebar uploads it using the same attachment flow as Sim Chat.'
           ),
         },
         {
@@ -836,7 +836,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'When You use the sim address-bar keyword, the extension sends the typed link name, before any path values or query, to Sim with Your authenticated session to suggest Your organization’s links. Suggestions are cached in memory and are not written to extension storage. Opening a sim/ shortcut sends its path and query to Sim to resolve the destination, then opens that destination. Sim records each link’s visit count and last-visited time. These requests also use the operational diagnostics described in this Privacy Policy. The extension does not read Your browser history or unrelated address-bar input.'
+            'When You use the sim address-bar keyword, the extension sends the typed link name, before any path values or query, to Sim with Your authenticated session to suggest Your organization’s links. Suggestions are cached in memory and are not written to extension storage. Opening a sim/ shortcut sends its path and query to Sim to resolve the destination, then opens that destination. Sim records each link’s visit count and last-visited time. These requests also use the operational diagnostics described in this Privacy Policy. Choosing Create Sim Link from the browser menu opens a draft with the selected link’s address, omitting query parameters and fragments. The destination becomes an organization Sim Link only when You confirm creation. The extension does not read Your browser history or unrelated address-bar input.'
           ),
         },
         {
