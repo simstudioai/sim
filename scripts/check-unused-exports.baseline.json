@@ -5908,7 +5908,6 @@
   "packages/sim-cli/src/config/index.ts#normalizeEndpoint",
   "packages/sim-cli/src/config/index.ts#telemetryStatePath",
   "packages/sim-cli/src/config/paths.ts#configDir",
-  "packages/sim-cli/src/contract/types.ts#BodyVariantSpec",
   "packages/sim-cli/src/contract/types.ts#PathFlagSpec",
   "packages/sim-cli/src/http/client.ts#OAuthRefresher",
   "packages/sim-cli/src/output/terminal-text.ts#artPad",

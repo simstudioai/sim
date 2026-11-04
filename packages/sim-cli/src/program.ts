@@ -9,6 +9,7 @@ import { attachSecretCommands } from './commands/secrets'
 import { telemetryCommand } from './commands/telemetry'
 import { OUTPUT_FORMATS } from './config/index'
 import {
+  addParseErrorGuidanceToTree,
   assertNoReservedProgramFlags,
   buildGeneratedCommands,
   refuseHelpAfterUnknownCommand,
@@ -211,6 +212,7 @@ export function buildProgram(
   )
 
   refuseHelpAfterUnknownCommand(program)
+  addParseErrorGuidanceToTree(program)
   assertNoReservedProgramFlags(program)
 
   return program
