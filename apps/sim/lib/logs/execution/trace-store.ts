@@ -374,16 +374,25 @@ export async function materializeExecutionData(
   }
 }
 
-const LOG_DISPLAY_CONTENT_KEYS = [
+/**
+ * Display envelope values project one per span, so an oversized or ref-backed value withholds
+ * only itself. They share the trace spans' content budget, so the bulky block dumps go after the
+ * spans: when the budget runs out, those lose their content before the run's error or its trace.
+ */
+const LEADING_LOG_DISPLAY_CONTENT_KEYS = [
+  'error',
+  'message',
+  'completionFailure',
+  'errorDetails',
   'finalOutput',
   'workflowInput',
-  'blockInput',
-  'blockExecutions',
-  'error',
-  'errorDetails',
-  'completionFailure',
-  'message',
 ] as const
+const TRAILING_LOG_DISPLAY_CONTENT_KEYS = ['blockInput', 'blockExecutions'] as const
+const LOG_DISPLAY_CONTENT_KEYS = [
+  ...LEADING_LOG_DISPLAY_CONTENT_KEYS,
+  ...TRAILING_LOG_DISPLAY_CONTENT_KEYS,
+] as const
+type LogDisplayContentKey = (typeof LOG_DISPLAY_CONTENT_KEYS)[number]
 
 const LOG_DISPLAY_PROJECTION_SPAN_ID = 'secret-safe-log-display-projection'
 const EXACT_LOG_VALUE_PROVENANCE_KEYS = {
@@ -733,37 +742,44 @@ export async function projectExecutionDataForDisplay(
   }
   reportStoredDisplayProvenanceFaults('traceStore.displayProjection', context, provenanceFaults)
 
-  const envelope: Record<string, unknown> = {}
-  for (const key of LOG_DISPLAY_CONTENT_KEYS) {
-    const exactProvenanceKey =
-      EXACT_LOG_VALUE_PROVENANCE_KEYS[key as keyof typeof EXACT_LOG_VALUE_PROVENANCE_KEYS]
-    if (
-      Object.hasOwn(executionData, key) &&
-      (!exactProvenanceKey || !executionState || !Object.hasOwn(executionState, exactProvenanceKey))
-    ) {
-      envelope[key] = executionData[key]
-    }
-  }
-
   const now = new Date().toISOString()
-  const syntheticSpan: TraceSpan = {
-    id: LOG_DISPLAY_PROJECTION_SPAN_ID,
-    name: 'Log Display Projection',
-    type: 'display',
-    duration: 0,
-    startTime: now,
-    endTime: now,
-    output: envelope,
-  }
+  const envelopeKeysBySpanId = new Map<string, LogDisplayContentKey>()
+  const envelopeSpans = (keys: readonly LogDisplayContentKey[]): TraceSpan[] =>
+    keys.flatMap((key) => {
+      const exactProvenanceKey =
+        EXACT_LOG_VALUE_PROVENANCE_KEYS[key as keyof typeof EXACT_LOG_VALUE_PROVENANCE_KEYS]
+      if (
+        !Object.hasOwn(executionData, key) ||
+        (exactProvenanceKey && executionState && Object.hasOwn(executionState, exactProvenanceKey))
+      ) {
+        return []
+      }
+      const id = `${LOG_DISPLAY_PROJECTION_SPAN_ID}-${key}`
+      envelopeKeysBySpanId.set(id, key)
+      return [
+        {
+          id,
+          name: 'Log Display Projection',
+          type: 'display',
+          duration: 0,
+          startTime: now,
+          endTime: now,
+          output: { value: executionData[key] },
+        },
+      ]
+    })
   const sourceTraceSpans = Array.isArray(executionData.traceSpans)
     ? (executionData.traceSpans as TraceSpan[])
     : []
   const spansToProject = retainStoredTraceSpans ? [] : sourceTraceSpans
-  const projectedSpans = await projectTraceSpansForSecrets([syntheticSpan, ...spansToProject], {
-    registry,
-    allowLargeValueWrites: false,
-    store: projectionStore,
-  })
+  const projectedSpans = await projectTraceSpansForSecrets(
+    [
+      ...envelopeSpans(LEADING_LOG_DISPLAY_CONTENT_KEYS),
+      ...spansToProject,
+      ...envelopeSpans(TRAILING_LOG_DISPLAY_CONTENT_KEYS),
+    ],
+    { registry, allowLargeValueWrites: false, store: projectionStore }
+  )
 
   const displayData = omit(executionData, [
     ...LOG_DISPLAY_CONTENT_KEYS,
@@ -771,12 +787,10 @@ export async function projectExecutionDataForDisplay(
     'traceSpans',
   ]) as Record<string, unknown>
 
-  const projectedEnvelope = projectedSpans.find(
-    (span) => span.id === LOG_DISPLAY_PROJECTION_SPAN_ID
-  )?.output
-  if (projectedEnvelope) {
-    for (const key of LOG_DISPLAY_CONTENT_KEYS) {
-      if (Object.hasOwn(projectedEnvelope, key)) displayData[key] = projectedEnvelope[key]
+  for (const span of projectedSpans) {
+    const key = envelopeKeysBySpanId.get(span.id)
+    if (key && span.output && Object.hasOwn(span.output, 'value')) {
+      displayData[key] = span.output.value
     }
   }
   for (const [key, value] of exactValueProjections) {
@@ -786,7 +800,7 @@ export async function projectExecutionDataForDisplay(
   if (Array.isArray(executionData.traceSpans)) {
     displayData.traceSpans = retainStoredTraceSpans
       ? sourceTraceSpans
-      : projectedSpans.filter((span) => span.id !== LOG_DISPLAY_PROJECTION_SPAN_ID)
+      : projectedSpans.filter((span) => !envelopeKeysBySpanId.has(span.id))
   }
 
   return displayData
