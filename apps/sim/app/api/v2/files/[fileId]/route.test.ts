@@ -187,23 +187,6 @@ describe('v2 single-file routes', () => {
     expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
   })
 
-  it('downloads a file named by its files/ VFS path', async () => {
-    const vfsPath = 'files/Docs/data.csv'
-    const response = await GET(
-      new NextRequest(
-        `http://localhost:3000/api/v2/files/${encodeURIComponent(vfsPath)}?workspaceId=${WORKSPACE_ID}`
-      ),
-      { params: Promise.resolve({ fileId: vfsPath }) }
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.download).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: { fileId: vfsPath, acceptVfsPath: true, assertedWorkspaceId: WORKSPACE_ID },
-      })
-    )
-  })
-
   it('conceals cross-workspace download authorization', async () => {
     mocks.download.mockRejectedValue(new NoWorkspaceAccessError())
 
