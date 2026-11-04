@@ -90,7 +90,7 @@ export function ManagedBookmarks({ organizationId }: ManagedBookmarksProps) {
             hasMore={links.hasNextPage}
             onLoadMore={() => void links.fetchNextPage()}
             isLoadingMore={links.isFetchingNextPage}
-            error={links.isError ? 'Could not load Sim Links.' : undefined}
+            error={links.isError ? 'Could not load links.' : undefined}
             emptyMessage='No listed links found'
           />
           <Chip onClick={download} disabled={!selected.length || exporting.isPending}>

@@ -16,8 +16,8 @@ export default async function CreateLinkPage() {
   if (!context)
     return (
       <StatusPageContent
-        title='Sim Links unavailable'
-        description='Your organization needs Sim Links enabled to create a link.'
+        title='Links unavailable'
+        description='Your organization needs Links enabled to create a link.'
       >
         <ChipLink href='/home'>Open Sim</ChipLink>
       </StatusPageContent>

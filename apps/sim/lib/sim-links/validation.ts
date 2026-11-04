@@ -19,13 +19,13 @@ export function normalizeSimLinkName(name: string): string {
   return name.toLowerCase().replace(NAME_PUNCTUATION, '')
 }
 
-/** Text as typed after `sim/`, whether or not the prefix itself was typed too. */
-function stripSimLinkPrefix(input: string): string {
-  return input.replace(/^sim\//i, '')
+/** Text as typed after `sim/` or `go/`, whether or not the prefix itself was typed too. */
+export function stripSimLinkPrefix(input: string): string {
+  return input.replace(/^(?:sim|go)\//i, '')
 }
 
 /**
- * Shapes typed or pasted text into a name as it is entered: a leading `sim/` is dropped, spaces
+ * Shapes typed or pasted text into a name as it is entered: a leading `sim/` or `go/` is dropped, spaces
  * and slashes become hyphens, and any other character a name can't hold is removed.
  */
 export function toSimLinkName(input: string): string {

@@ -360,18 +360,23 @@ try {
   }
 
   await check(
-    'HTTP and HTTPS navigations to the sim host reach the configured resolver',
+    'HTTP and HTTPS navigations to the sim and go hosts reach the configured resolver',
     async () => {
       const tab = await page.context().newPage()
-      for (const scheme of ['http', 'https']) {
+      for (const [scheme, host] of [
+        ['http', 'sim'],
+        ['https', 'sim'],
+        ['http', 'go'],
+        ['https', 'go'],
+      ]) {
         for (const path of [
           'handbook',
           'handbook/',
           'jira/123?view=board',
           'jira/a%2Fb?view=board%20view',
         ]) {
-          await tab.goto(`${scheme}://sim/${path}`)
-          assert(tab.url() === `${origin}/sim/${path}`, `sim/${path} reached ${tab.url()}`)
+          await tab.goto(`${scheme}://${host}/${path}`)
+          assert(tab.url() === `${origin}/sim/${path}`, `${host}/${path} reached ${tab.url()}`)
         }
       }
       await tab.close()
@@ -1434,7 +1439,12 @@ try {
           await unchanged(url)
           await toggle(provider.id, true)
           for (const host of provider.hosts) {
-            for (const shortcut of ['sim%2Faskit', 'sim/jira/ABC-123']) {
+            for (const shortcut of [
+              'sim%2Faskit',
+              'sim/jira/ABC-123',
+              'go%2Faskit',
+              'go/jira/ABC-123',
+            ]) {
               const candidate = `https://${host}${provider.path}?client=chrome&${provider.parameter}=${shortcut}&source=qa`
               const prior = searchRequests.filter((request) => request.url === candidate).length
               await tab.goto(candidate)

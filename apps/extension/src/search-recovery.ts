@@ -50,7 +50,7 @@ function recoveryRules(
 ): chrome.declarativeNetRequest.Rule[] {
   const hosts = provider.origins.map((origin) => escapeRegExp(new URL(origin).host)).join('|')
   const character = '(?:[a-z0-9._~:@/-]|%(?:2[6def]|3[0-9a]|4[0-9a-f]|5[0-9af]|6[1-9a-f]|7[0-9ae]))'
-  const shortcut = `sim(?:/|%2f)${character}+`
+  const shortcut = `(?:sim|go)(?:/|%2f)${character}+`
   const condition = {
     isUrlFilterCaseSensitive: false,
     requestDomains: provider.origins.map((origin) => new URL(origin).hostname),

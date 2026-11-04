@@ -29,9 +29,10 @@ function recoverSimLinkPath(search: string): string | null {
   } catch {
     return null
   }
-  if (shortcut.length > MAX_DECODED_LENGTH || !/^sim\//i.test(shortcut)) return null
+  const prefix = /^(?:sim|go)\//i.exec(shortcut)
+  if (shortcut.length > MAX_DECODED_LENGTH || !prefix) return null
 
-  const segments = shortcut.slice(4).replace(/\/$/, '').split('/')
+  const segments = shortcut.slice(prefix[0].length).replace(/\/$/, '').split('/')
   const [name] = segments
   if (
     !name ||

@@ -41,11 +41,11 @@ export default async function OrganizationLinkPage({ params }: OrganizationLinkP
       title={`sim/${name}`}
       description={
         result.kind === 'missing_values'
-          ? 'This link needs a value. Open it from Sim Links.'
+          ? 'This link needs a value. Open it from Links.'
           : 'This link is unavailable.'
       }
     >
-      <ChipLink href={routes.simLinks}>Open Sim Links</ChipLink>
+      <ChipLink href={routes.simLinks}>Open Links</ChipLink>
     </StatusPageContent>
   )
 }

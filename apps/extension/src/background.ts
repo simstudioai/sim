@@ -29,7 +29,7 @@ async function configure() {
   })
   chrome.contextMenus.create({
     id: LINK_MENU,
-    title: 'Create Sim Link',
+    title: 'Create link in Sim',
     contexts: ['link'],
     documentUrlPatterns: ['http://*/*', 'https://*/*'],
     targetUrlPatterns: ['http://*/*', 'https://*/*'],

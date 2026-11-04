@@ -112,8 +112,8 @@ export function SearchRecoveryDialog({ onClose }: SearchRecoveryDialogProps) {
         </ChipModalHeader>
         <ChipModalBody>
           <ChipModalDescription id='search-recovery-description'>
-            Send explicit sim/ searches to your Sim Links. Ordinary searches stay with your search
-            engine.
+            Send explicit go/ and sim/ searches to your links in Sim. Ordinary searches stay with
+            your search engine.
           </ChipModalDescription>
           {SEARCH_RECOVERY_PROVIDERS.map((provider) => (
             <ChipModalField
@@ -122,7 +122,7 @@ export function SearchRecoveryDialog({ onClose }: SearchRecoveryDialogProps) {
               title={provider.label}
               titleActions={
                 <Switch
-                  aria-label={`${provider.label} sim/ shortcuts`}
+                  aria-label={`${provider.label} sim/ and go/ shortcuts`}
                   aria-busy={busyProvider === provider.id}
                   checked={settings?.[provider.id] ?? false}
                   disabled={!settings || loadError || busyProvider !== null}

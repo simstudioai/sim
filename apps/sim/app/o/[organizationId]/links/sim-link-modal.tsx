@@ -100,7 +100,7 @@ export function SimLinkModal({
     else create.mutate(parsed.data, { onSuccess: onSaved ?? onClose })
   }
 
-  const title = link ? `Edit sim/${link.name}` : 'New Sim link'
+  const title = link ? `Edit sim/${link.name}` : 'New link'
   const [actionLabel, pendingLabel] = link ? ['Save', 'Saving'] : ['Create', 'Creating']
 
   return (
@@ -178,7 +178,7 @@ export function SimLinkModal({
                   onCheckedChange={(checked) => change('unlisted', checked === true)}
                 />
                 <span className='text-[var(--text-primary)] text-small'>
-                  Hide from the Sim Links page
+                  Hide from the Links page
                 </span>
               </label>
               <label htmlFor={restrictEditId} className='flex cursor-pointer items-center gap-2'>

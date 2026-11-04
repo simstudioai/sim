@@ -184,6 +184,8 @@ async function run() {
         ['SIM/Book-Face/', '/sim/Book-Face'],
         ['sim/a.:@&~_-', '/sim/a.%3A%40%26~_-'],
         ['sim/jira/PROD-123', '/sim/jira/PROD-123'],
+        ['go/bookface', '/sim/bookface'],
+        ['GO/jira/PROD-123/', '/sim/jira/PROD-123'],
         [`${maximum}/`, `/${maximum}`],
       ]
       for (const [shortcut, destination] of cases) {

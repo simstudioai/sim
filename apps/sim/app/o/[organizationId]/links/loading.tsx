@@ -16,7 +16,7 @@ export default function SimLinksLoading() {
     <div inert aria-busy className='contents'>
       <ResourceChromeFallback
         icon={Link}
-        title='Sim Links'
+        title='Links'
         columns={SIM_LINK_COLUMNS}
         actions={hosted ? [BROWSER_SHORTCUTS_ACTION, NEW_SIM_LINK_ACTION] : [NEW_SIM_LINK_ACTION]}
         searchPlaceholder={SIM_LINKS_SEARCH_PLACEHOLDER}

@@ -90,15 +90,16 @@ for (const [size, file] of [
   await cp(resolve(root, '../sim/public/favicon', file), resolve(dist, `icon-${size}.png`))
 }
 /**
- * Only requests to the short host reach this rule. Chrome can classify bare `sim/<name>` as a
- * search before navigation. Preserve the path and query for actual short-host navigations.
+ * Only requests to the short hosts reach this rule: `go/` is the habit people bring from other
+ * companies, `sim/` our own. Chrome can classify a bare `go/<name>` as a search before navigation.
+ * Preserve the path and query for actual short-host navigations.
  */
 const simLinkRules = [
   {
     id: 1,
     priority: 1,
     action: { type: 'redirect', redirect: { regexSubstitution: `${origin.origin}/sim/\\1` } },
-    condition: { regexFilter: '^https?://sim/(.*)$', resourceTypes: ['main_frame'] },
+    condition: { regexFilter: '^https?://(?:sim|go)/(.*)$', resourceTypes: ['main_frame'] },
   },
 ]
 await writeFile(resolve(dist, 'sim-links.json'), JSON.stringify(simLinkRules, null, 2))
@@ -110,7 +111,7 @@ await writeFile(
       name: development ? 'Sim (Development)' : 'Sim',
       version: packageJson.version,
       description:
-        "Ask Sim about the page you are reading, and open your organization's sim/ links from the address bar.",
+        "Ask Sim about the page you are reading, and open your organization's go/ links from the address bar.",
       minimum_chrome_version: '120',
       permissions: [
         'activeTab',
@@ -120,7 +121,13 @@ await writeFile(
         'contextMenus',
         'declarativeNetRequestWithHostAccess',
       ],
-      host_permissions: [`${origin.origin}/*`, 'http://sim/*', 'https://sim/*'],
+      host_permissions: [
+        `${origin.origin}/*`,
+        'http://sim/*',
+        'https://sim/*',
+        'http://go/*',
+        'https://go/*',
+      ],
       declarative_net_request: {
         rule_resources: [{ id: 'sim_links', enabled: true, path: 'sim-links.json' }],
       },

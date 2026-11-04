@@ -163,7 +163,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
     <Resource>
       <Resource.Header
         icon={Link}
-        title='Sim Links'
+        title='Links'
         actions={[
           ...(hosted
             ? [
@@ -197,7 +197,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
             <ResourceNoResults
               search={query}
               filterCount={0}
-              searchScope='Searched every Sim link you can see.'
+              searchScope='Searched every link you can see.'
               onClear={() => setSearch('')}
             />
           ) : (
@@ -247,7 +247,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
         onOpenChange={(open) => {
           if (!open && !remove.isPending) setDeleting(null)
         }}
-        title='Delete Sim link'
+        title='Delete link'
         text={`sim/${deleting?.name ?? ''} will stop working for everyone in your organization.`}
         confirm={{
           label: 'Delete',

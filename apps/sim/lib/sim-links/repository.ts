@@ -8,6 +8,7 @@ import {
   normalizeSimLinkName,
   type SimLinkFields,
   type SimLinkSort,
+  stripSimLinkPrefix,
 } from '@/lib/sim-links/validation'
 import type { SortDirection } from '@/lib/url-state'
 
@@ -107,7 +108,7 @@ export async function listSimLinks(
     conditions.push(or(eq(simLink.unlisted, false), eq(simLink.createdBy, viewer.userId)))
   }
   if (url) conditions.push(eq(simLink.url, url))
-  const query = search?.trim().replace(/^sim\//i, '')
+  const query = search && stripSimLinkPrefix(search.trim())
   if (query) {
     const pattern = `%${escapeLikePattern(query)}%`
     const normalized = normalizeSimLinkName(query)

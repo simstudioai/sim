@@ -12,7 +12,7 @@ const logger = createLogger('BrowserExtensionOmnibox')
 
 /** Longer than the gap between a typist's keystrokes, so a name is looked up once it settles. */
 const SUGGEST_DELAY_MS = 220
-const SEARCH_HINT = 'Find a Sim link'
+const SEARCH_HINT = 'Find a link in Sim'
 // Chrome persists this template and substitutes the input when rendering the default row.
 const OPEN_LINK_HINT = 'Open <match>%s</match> in Sim'
 
@@ -24,14 +24,14 @@ interface SuggestedLink {
 
 /**
  * What was typed after the `sim` keyword, split where the name ends: `sim/jira/ABC-1?tab=all`
- * (the `sim/` is optional) has the name `jira` and the rest `/ABC-1?tab=all`. Surrounding spaces,
+ * (a `sim/` or `go/` prefix is optional) has the name `jira` and the rest `/ABC-1?tab=all`. Surrounding spaces,
  * the prefix, leading slashes, and any `#fragment` are dropped, as the address bar would; values
  * and the query otherwise stay exactly as typed.
  */
 function readTyped(text: string): { name: string; rest: string } {
   const typed = text
     .trim()
-    .replace(/^sim\//i, '')
+    .replace(/^(?:sim|go)\//i, '')
     .replace(/^\/+/, '')
     .replace(/#.*$/, '')
   const nameEnd = typed.search(/[/?]/)
