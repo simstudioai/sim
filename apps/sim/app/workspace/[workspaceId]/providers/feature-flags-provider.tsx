@@ -11,7 +11,6 @@ export interface WorkspaceFeatureFlags {
   'mothership-computer-use'?: boolean
   'mothership-memory-spaces'?: boolean
   projects?: boolean
-  'sim-links'?: boolean
 }
 
 const FeatureFlagsContext = createContext<WorkspaceFeatureFlags | null>(null)
@@ -31,9 +30,4 @@ export function useFeatureFlag(name: keyof WorkspaceFeatureFlags): boolean {
   const flags = useContext(FeatureFlagsContext)
   if (!flags) throw new Error('useFeatureFlag must be used within FeatureFlagsProvider')
   return flags[name] ?? false
-}
-
-/** The same flag for shared components that also render outside one, where every flag is off. */
-export function useOptionalFeatureFlag(name: keyof WorkspaceFeatureFlags): boolean {
-  return useContext(FeatureFlagsContext)?.[name] ?? false
 }

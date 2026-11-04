@@ -6,22 +6,8 @@ import { Check, Link, Plus } from '@sim/emcn/icons'
 import { simLinkUrl } from '@/lib/navigation/paths'
 import { suggestSimLinkName } from '@/lib/sim-links/validation'
 import { SimLinkModal } from '@/app/o/[organizationId]/links/sim-link-modal'
-import { useOptionalOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import { useOptionalFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
-import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { useSimLinkOrganizationId } from '@/app/o/[organizationId]/links/sim-link-organization-provider'
 import { useSimLinksForUrl } from '@/hooks/queries/sim-links'
-
-/**
- * The organization a Sim link made on this surface belongs to: the organization being viewed, or
- * the one that owns the current workspace. Null where Sim links are off, so the action is hidden.
- */
-function useSimLinkOrganizationId(): string | null {
-  const enabled = useOptionalFeatureFlag('sim-links')
-  const organization = useOptionalOrganizationContext()
-  const host = useOptionalWorkspaceHostContext()
-  if (!enabled) return null
-  return organization?.organization.id ?? host?.hostOrganizationId ?? null
-}
 
 interface SimLinkCreator {
   /** Null where Sim links are off; render no shortcut then. */
@@ -52,7 +38,7 @@ export function useSimLinkCreator(url: string, title: string): SimLinkCreator {
 
 /** The first link that already opens `url`, and a copy of its address. */
 function useExistingSimLink(organizationId: string, url: string) {
-  const { data, isPending } = useSimLinksForUrl(organizationId, url)
+  const { data, isPending, isError } = useSimLinksForUrl(organizationId, url)
   const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
   const existing = data?.at(0)
   const copyExisting = async () => {
@@ -61,7 +47,7 @@ function useExistingSimLink(organizationId: string, url: string) {
     if (!done) toast.error('Unable to copy Sim link')
     return done
   }
-  return { existing, isPending, copied, copyExisting }
+  return { existing, isPending, isError, copied, copyExisting }
 }
 
 interface SimLinkShortcutProps {
@@ -72,10 +58,12 @@ interface SimLinkShortcutProps {
 
 /**
  * The Sim link entry of an actions menu: copies the link that already opens this address, so a
- * menu never offers a duplicate, or offers to create one. It looks up when the menu opens.
+ * menu never offers a duplicate, or offers to create one. It looks up when the menu opens, and
+ * offers nothing when the lookup fails rather than risk a duplicate.
  */
 export function SimLinkMenuItem({ organizationId, url, onCreate }: SimLinkShortcutProps) {
-  const { existing, isPending, copyExisting } = useExistingSimLink(organizationId, url)
+  const { existing, isPending, isError, copyExisting } = useExistingSimLink(organizationId, url)
+  if (isError) return null
   if (existing) {
     return (
       <DropdownMenuItem
@@ -97,7 +85,11 @@ export function SimLinkMenuItem({ organizationId, url, onCreate }: SimLinkShortc
 }
 
 function ShortcutChip({ organizationId, url, onCreate }: SimLinkShortcutProps) {
-  const { existing, isPending, copied, copyExisting } = useExistingSimLink(organizationId, url)
+  const { existing, isPending, isError, copied, copyExisting } = useExistingSimLink(
+    organizationId,
+    url
+  )
+  if (isError) return null
   if (existing) {
     return (
       <Chip leftIcon={copied ? Check : Link} onClick={() => void copyExisting()}>

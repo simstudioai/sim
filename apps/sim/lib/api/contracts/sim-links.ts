@@ -39,7 +39,7 @@ export const listSimLinksQuerySchema = z
   .object({
     search: z.string().max(200).optional(),
     /** Only links whose destination is exactly this URL, such as one shown in a search result. */
-    url: z.string().max(2048).optional(),
+    url: z.string().min(1).max(2048).optional(),
     cursor: z.string().min(1).max(128).optional(),
     sort: z.enum(SIM_LINK_SORTS).optional(),
     dir: z.enum(SORT_DIRECTIONS).optional(),

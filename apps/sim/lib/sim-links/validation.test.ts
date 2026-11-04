@@ -16,7 +16,8 @@ describe('suggestSimLinkName', () => {
     expect(simLinkNameSchema.safeParse(name).success).toBe(true)
   })
 
-  it('suggests nothing when the title has no character a name can hold', () => {
+  it('suggests nothing when no letter or digit survives', () => {
     expect(suggestSimLinkName('「年度計画」')).toBe('')
+    expect(suggestSimLinkName('... _-_ ...')).toBe('')
   })
 })
