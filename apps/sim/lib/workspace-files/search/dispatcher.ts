@@ -187,6 +187,20 @@ const transactionNow = sql`now()`
 const wokenSinceDispatch = sql`(${fileSearchDispatchQueue.lastDispatchedAt} IS NULL OR ${fileSearchDispatchQueue.updatedAt} > ${fileSearchDispatchQueue.lastDispatchedAt})`
 
 /**
+ * Whether the queued owner already holds every claim it may have outstanding. Such an owner can
+ * claim nothing this pass, so being woken must not put it ahead of owners that can: it keeps
+ * rotating by dispatch age, or a busy owner written to between passes would take every turn while
+ * the free global capacity goes unused.
+ */
+const ownerSlotsFull = sql`(SELECT count(*) FROM (
+  SELECT 1 FROM workspace_file_search_revision active
+  WHERE coalesce(active.entity_type, 'workspace') = ${fileSearchDispatchQueue.entityType}
+    AND coalesce(active.entity_id, active.workspace_id) = ${fileSearchDispatchQueue.entityId}
+    AND active.status = 'pending' AND active.dispatched_at IS NOT NULL
+  LIMIT ${FILE_SEARCH_INDEX_WORKSPACE_OUTSTANDING}
+) active_claims) >= ${FILE_SEARCH_INDEX_WORKSPACE_OUTSTANDING}`
+
+/**
  * Queues owners for the claim pass. A `reconciliation` wake-up, from the backfill walk, enters as
  * if just dispatched and never touches an owner already queued, so a page of owners with nothing
  * new rotates in behind the owners woken for work.
@@ -687,7 +701,7 @@ export async function prepareWorkspaceFileSearchDispatch(
           })
           .from(fileSearchDispatchQueue)
           .orderBy(
-            sql`${wokenSinceDispatch} DESC`,
+            sql`(${wokenSinceDispatch} AND NOT ${ownerSlotsFull}) DESC`,
             sql`${fileSearchDispatchQueue.lastDispatchedAt} ASC NULLS FIRST`,
             asc(fileSearchDispatchQueue.enqueuedAt),
             asc(fileSearchDispatchQueue.entityType),
