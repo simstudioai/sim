@@ -10,7 +10,12 @@ export default defineConfig(({ mode }) => {
   return mergeConfig(
     integration ? mergeConfig(sharedConfig, integrationTestConfig) : sharedConfig,
     defineConfig({
-      resolve: { tsconfigPaths: true },
+      resolve: {
+        tsconfigPaths: true,
+        // Mirrors tsconfig's `@sim/db/*` path: tsconfig.json excludes scripts/, and Vite only
+        // applies `paths` to files the tsconfig includes, so modules under scripts/ need it here.
+        alias: [{ find: /^@sim\/db\//, replacement: `${import.meta.dirname}/` }],
+      },
       test: {
         include: integration
           ? ['**/*.integration.ts']
