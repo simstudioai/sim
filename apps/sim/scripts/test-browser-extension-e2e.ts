@@ -86,6 +86,7 @@ const chatResponses: {
   error?: string
 }[] = []
 const uploadRequests: { event: string; stage: string; method: string; status?: number }[] = []
+const draftRemovalReceipts: { scope: string; phase: string; matches: number }[] = []
 const responseDiagnostics: Promise<void>[] = []
 const chatTurns = new Map<string, number>()
 const chatAttempts: {
@@ -830,9 +831,35 @@ try {
       ).toHaveCount(0)
       assert.equal(uploadAttempts, 0)
       await browserContext.unroute(uploadEndpoint, interceptUpload)
-      await attachScreenshot(app.getByRole('main'), scope)
+      const recoveryKey = await attachScreenshot(app.getByRole('main'), scope)
       await screenshot(`pending-capture-drop-${scope}-recovered`)
       await app.getByRole('button', { name: `Remove ${name}`, exact: true }).click()
+      await expect(app.getByRole('button', { name: `Remove ${name}`, exact: true })).toHaveCount(0)
+      const persistedMatches = async () => {
+        const stored: unknown = await app.evaluate(() =>
+          JSON.parse(localStorage.getItem('mothership-drafts:v1') ?? '{}')
+        )
+        const drafts = toRecord(toRecord(toRecord(stored).state).drafts)
+        return Object.values(drafts).filter((draft) => {
+          const files = toRecord(draft).fileAttachments
+          return Array.isArray(files) && files.some((file) => toRecord(file).key === recoveryKey)
+        }).length
+      }
+      draftRemovalReceipts.push({
+        scope,
+        phase: 'after-ui-removal',
+        matches: await persistedMatches(),
+      })
+      await expect
+        .poll(persistedMatches, {
+          message: `${scope}: removed recovery file leaves persisted drafts`,
+        })
+        .toBe(0)
+      draftRemovalReceipts.push({
+        scope,
+        phase: 'before-tab-close',
+        matches: await persistedMatches(),
+      })
       assert.equal(submitted.length, 1, `${scope}: recovering drops duplicated the turn`)
     } finally {
       await app
@@ -2084,6 +2111,10 @@ try {
           await navigate(`${base.origin}/extension/${org ? `o/${organizationId}` : alphaId}`)
           const greeting = frame().getByRole('heading', { name: 'How can I help?', exact: true })
           await expect(greeting).toBeVisible()
+          await expect(
+            frame().getByRole('button', { name: /^Remove (?!page context$)/ }),
+            `${surface}: screenshot scenario starts without a previous file draft`
+          ).toHaveCount(0)
           let release = () => {}
           const gate = new Promise<void>((resolve) => {
             release = resolve
@@ -2984,6 +3015,7 @@ try {
         chatAttempts,
         dropReceipts,
         uploadRequests,
+        draftRemovalReceipts,
       },
       null,
       2
