@@ -20,6 +20,7 @@ on:
       - '.github/actions/setup/**'
       - '.github/scripts/stop-session.sh'
       - '.github/scripts/playwright-server.sh'
+      - '.github/scripts/install-playwright.sh'
   push:
     branches: [staging]
     paths:
@@ -40,6 +41,7 @@ on:
       - '.github/actions/setup/**'
       - '.github/scripts/stop-session.sh'
       - '.github/scripts/playwright-server.sh'
+      - '.github/scripts/install-playwright.sh'
   workflow_dispatch:
     inputs:
       benchmark:
@@ -119,7 +121,7 @@ jobs:
             REVISION=$(git rev-parse HEAD)
           fi
           echo "DOCS_BENCHMARK_REVISION=$REVISION" >> "$GITHUB_ENV"
-          bash .github/scripts/install-playwright.sh chromium
+          bunx --no-install playwright install --with-deps chromium
       - name: Build measured production docs
         id: build
         if: matrix.target == 'build'
