@@ -78,8 +78,8 @@ function getFunctionExecutionEnvVars() {
 const syncLogger = createLogger('TriggerEnvSync')
 
 /**
- * The environments `TRIGGER_ENV_SYNC_TARGETS` lists. Exits on a name with no mapped secret:
- * `syncEnvVars` swallows a thrown error, and a typo must not silently keep the old path.
+ * The environments `TRIGGER_ENV_SYNC_TARGETS` lists. Exits on a list the deploy workflows would
+ * not match: `syncEnvVars` swallows a thrown error, and a typo must not silently keep the old path.
  */
 function syncTargets(): Set<string> {
   try {

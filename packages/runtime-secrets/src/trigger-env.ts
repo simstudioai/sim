@@ -75,19 +75,19 @@ export function diffTriggerEnv(vars: TriggerEnvVar[], current: Record<string, st
 }
 
 /**
- * Parses the `TRIGGER_ENV_SYNC_TARGETS` repository variable: a comma list of Trigger.dev
- * environment slugs. Refuses any slug without a mapped secret rather than ignoring it, so a typo
- * fails the deploy instead of silently keeping the environment on its old configuration.
+ * Parses the `TRIGGER_ENV_SYNC_TARGETS` repository variable: an exact comma list of Trigger.dev
+ * environment slugs, such as `preview,staging,prod`. The deploy workflows decide whether to grant
+ * the secret-read credentials by matching that same exact list, so an entry they would not match
+ * (padded, empty, or a slug with no mapped secret) fails the deploy here rather than syncing
+ * without credentials or silently keeping the environment on its old configuration.
  */
 export function parseTriggerEnvSyncTargets(value: string | undefined): Set<string> {
-  const targets = (value ?? '')
-    .split(',')
-    .map((target) => target.trim())
-    .filter(Boolean)
-  const unknown = targets.filter((target) => !Object.hasOwn(APP_ENV_SECRET_IDS, target))
-  if (unknown.length > 0) {
+  if (!value) return new Set()
+  const targets = value.split(',')
+  const invalid = targets.filter((target) => !Object.hasOwn(APP_ENV_SECRET_IDS, target))
+  if (invalid.length > 0) {
     throw new Error(
-      `TRIGGER_ENV_SYNC_TARGETS names environments with no app env-vars secret: ${unknown.join(', ')}`
+      `TRIGGER_ENV_SYNC_TARGETS must be a comma list of ${Object.keys(APP_ENV_SECRET_IDS).join(', ')} with no spaces; refused: ${invalid.map((target) => JSON.stringify(target)).join(', ')}`
     )
   }
   return new Set(targets)
