@@ -1,6 +1,7 @@
 import { createContext, type RefObject, useContext, useEffect, useImperativeHandle } from 'react'
 import { isMobileViewport } from '@/hooks/use-is-mobile'
 
+/** Requests textarea focus without interrupting dialogs and reports whether that textarea is active. */
 export interface ChatInputFocusHandle {
   focus: () => void
   isFocused: () => boolean
