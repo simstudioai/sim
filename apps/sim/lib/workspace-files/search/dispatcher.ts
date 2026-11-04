@@ -229,7 +229,15 @@ async function enqueueOwners(
   )
   await (reconciliation
     ? insert.onConflictDoNothing({ target })
-    : insert.onConflictDoUpdate({ target, set: { updatedAt: transactionNow } }))
+    : insert.onConflictDoUpdate({
+        target,
+        set: {
+          updatedAt: transactionNow,
+          // A row this pass's backfill just queued as a reconciliation is woken as if the wake had
+          // queued it first; a stamp from an earlier transaction is always older than `now()`.
+          lastDispatchedAt: sql`CASE WHEN ${fileSearchDispatchQueue.lastDispatchedAt} = ${transactionNow} THEN NULL ELSE ${fileSearchDispatchQueue.lastDispatchedAt} END`,
+        },
+      }))
 }
 
 /**
@@ -660,13 +668,13 @@ export async function prepareWorkspaceFileSearchDispatch(
         }
 
         const now = new Date()
-        // Reaped owners are queued woken before the backfill page, whose wake-ups leave queued
-        // owners untouched; the other order would file a reaped claim behind them.
+        // The backfill locks files before the reap locks queue rows: a file save holds its file
+        // while its trigger waits on the owner's queue row, so the other order can deadlock.
+        const backfilledFiles = await runDispatchPhase('backfill', () => seedBackfillPage(tx, now))
         const { reaped: reapedClaims, abandoned: abandonedClaims } = await runDispatchPhase(
           'reap',
           () => reapStaleClaims(tx, now)
         )
-        const backfilledFiles = await runDispatchPhase('backfill', () => seedBackfillPage(tx, now))
         const [{ active, cleanupBacklogged }] = await tx.execute<{
           active: number
           cleanupBacklogged: boolean
