@@ -376,11 +376,43 @@ jobs:
       - *extract-e2e-build
 
       - name: Run end-to-end suites
+        id: acceptance
         working-directory: apps/sim
         env:
           MOBILE_E2E_BROWSER: ${{ matrix.browser }}
           MOBILE_E2E_SHARD: ${{ matrix.shard }}
-        run: bash ../../.github/scripts/http-e2e.sh "${{ matrix.group }}"
+        run: |
+          unset PLAYWRIGHT_WEBKIT_WS_ENDPOINT
+          if [ "${{ matrix.browser == 'webkit' && (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') }}" = true ]; then
+            webkit_state="$RUNNER_TEMP/playwright-webkit-server"
+            trap '
+              status=$?
+              trap - EXIT INT TERM
+              if ! bash ../../.github/scripts/playwright-server.sh stop "$webkit_state"; then
+                echo "::error::Owned WebKit server cleanup failed." >&2
+                if [ "$status" -eq 0 ]; then status=1; fi
+              fi
+              exit "$status"
+            ' EXIT
+            trap 'exit 130' INT
+            trap 'exit 143' TERM
+            PLAYWRIGHT_WEBKIT_WS_ENDPOINT=$(bash ../../.github/scripts/playwright-server.sh start "$webkit_state")
+            export PLAYWRIGHT_WEBKIT_WS_ENDPOINT
+          fi
+          bash ../../.github/scripts/http-e2e.sh "${{ matrix.group }}"
+
+      - name: Stop the owned WebKit server
+        if: always() && matrix.browser == 'webkit' && (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && steps.acceptance.outcome != 'skipped'
+        run: bash .github/scripts/playwright-server.sh stop "$RUNNER_TEMP/playwright-webkit-server"
+
+      - name: Upload WebKit server failure logs
+        if: failure() && matrix.browser == 'webkit' && (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith')
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: webkit-server-${{ matrix.artifact }}
+          path: ${{ runner.temp }}/playwright-webkit-server/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload end-to-end reports and server logs
         if: failure()
