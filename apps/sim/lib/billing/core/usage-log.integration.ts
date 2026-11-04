@@ -32,6 +32,7 @@ import {
   CumulativeUsagePeriodClosedError,
   getBillingPeriodUsageCost,
   getBillingPeriodUsageCostByUser,
+  getBillingPeriodWorkflowRunCountWithinBudget,
   getStampedPeriodRangeUsageCostByUser,
   type RecordCumulativeUsageParams,
   recordCumulativeUsage,
@@ -374,6 +375,38 @@ describe('Cumulative billing with PostgreSQL', () => {
       9
     )
   })
+
+  it('reports a workflow run count as unknown once it outlasts the preview budget', async () => {
+    const entity = { type: 'organization' as const, id: 'org-runs' }
+    const period = {
+      start: new Date('2026-08-01T00:00:00.000Z'),
+      end: new Date('2026-09-01T00:00:00.000Z'),
+      source: 'reporting' as const,
+    }
+    await connection`
+      insert into usage_log (id, user_id, category, source, description, cost,
+        billing_entity_type, billing_entity_id, execution_id, created_at)
+      values ('r1', 'u1', 'model', 'workflow', 'run', 1, 'organization', 'org-runs', 'e1', '2026-08-02'),
+             ('r2', 'u1', 'tool', 'workflow', 'run', 1, 'organization', 'org-runs', 'e1', '2026-08-02'),
+             ('r3', 'u1', 'model', 'workflow', 'run', 1, 'organization', 'org-runs', 'e2', '2026-08-03')
+    `
+    expect(await getBillingPeriodWorkflowRunCountWithinBudget(entity, period)).toBe(2)
+
+    const release = deferred()
+    const locked = deferred()
+    const holder = connection.begin(async (tx) => {
+      await tx.unsafe('LOCK TABLE usage_log IN ACCESS EXCLUSIVE MODE')
+      locked.resolve()
+      await release.promise
+    })
+    try {
+      await locked.promise
+      expect(await getBillingPeriodWorkflowRunCountWithinBudget(entity, period)).toBeNull()
+    } finally {
+      release.resolve()
+      await holder
+    }
+  }, 20_000)
 
   describe('a request that outlives its billing period', () => {
     // Past periods: the old period's row is written under the subscription lock only once
