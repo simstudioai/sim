@@ -6,6 +6,7 @@ import { isRecordLike, omit, toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -235,13 +236,15 @@ export const ashbyHandler: WebhookProviderHandler = {
       }
 
       if (!apiKey) {
-        throw new Error(
+        throw new WebhookDeploymentConfigurationError(
           'Ashby API Key is required. Please provide your API Key with apiKeysWrite permission in the trigger configuration.'
         )
       }
 
       if (!triggerId) {
-        throw new Error('Trigger ID is required to create Ashby webhook.')
+        throw new WebhookDeploymentConfigurationError(
+          'Trigger ID is required to create Ashby webhook.'
+        )
       }
 
       const { ASHBY_TRIGGER_ACTION_MAP } = await import('@/triggers/ashby/utils')
@@ -322,6 +325,7 @@ export const ashbyHandler: WebhookProviderHandler = {
       )
       return { providerConfigUpdates: { externalId, secretToken } }
     } catch (error: unknown) {
+      if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
       logger.error(
         `[${ctx.requestId}] Exception during Ashby webhook creation for webhook ${ctx.webhook.id}.`,

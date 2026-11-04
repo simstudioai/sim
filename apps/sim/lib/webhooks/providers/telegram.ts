@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { resolveBackgroundWebhookEnv } from '@/lib/webhooks/env-resolver'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -147,7 +148,7 @@ export const telegramHandler: WebhookProviderHandler = {
 
     if (!botToken) {
       logger.warn(`[${ctx.requestId}] Missing botToken for Telegram webhook ${ctx.webhook.id}`)
-      throw new Error(
+      throw new WebhookDeploymentConfigurationError(
         'Bot token is required to create a Telegram webhook. Please provide a valid Telegram bot token.'
       )
     }

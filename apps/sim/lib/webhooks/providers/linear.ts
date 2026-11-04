@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -183,7 +184,7 @@ export const linearHandler: WebhookProviderHandler = {
     const apiKey = config.apiKey as string | undefined
     if (!apiKey) {
       logger.warn(`[${ctx.requestId}] Missing API key for Linear webhook ${ctx.webhook.id}`)
-      throw new Error(
+      throw new WebhookDeploymentConfigurationError(
         'Linear API key is required. Please provide a valid API key in the trigger configuration.'
       )
     }

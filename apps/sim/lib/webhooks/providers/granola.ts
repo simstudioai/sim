@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toRecordOrNull } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -215,7 +216,7 @@ export const granolaHandler: WebhookProviderHandler = {
       logger.warn(`[${requestId}] Missing apiKey for Granola webhook creation.`, {
         webhookId: webhook.id,
       })
-      throw new Error(
+      throw new WebhookDeploymentConfigurationError(
         'Granola API Key is required. Please provide your Granola API key in the trigger configuration.'
       )
     }

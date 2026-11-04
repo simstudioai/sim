@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   DeleteSubscriptionContext,
   SubscriptionContext,
@@ -23,7 +24,7 @@ export const lemlistHandler: WebhookProviderHandler = {
         logger.warn(`[${requestId}] Missing apiKey for Lemlist webhook creation.`, {
           webhookId: webhook.id,
         })
-        throw new Error(
+        throw new WebhookDeploymentConfigurationError(
           'Lemlist API Key is required. Please provide your Lemlist API Key in the trigger configuration.'
         )
       }
@@ -108,6 +109,7 @@ export const lemlistHandler: WebhookProviderHandler = {
 
       return { providerConfigUpdates: { externalId: responseBody._id } }
     } catch (error: unknown) {
+      if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
       logger.error(
         `[${requestId}] Exception during Lemlist webhook creation for webhook ${webhook.id}.`,

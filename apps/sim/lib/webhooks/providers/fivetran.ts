@@ -8,6 +8,7 @@ import { generateRandomHex } from '@sim/utils/random'
 import { NextResponse } from 'next/server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -228,7 +229,9 @@ export const fivetranHandler: WebhookProviderHandler = {
     const providerConfig = getProviderConfig(ctx.webhook)
     const credentials = readCredentials(providerConfig)
     if (!credentials) {
-      throw new Error('A Fivetran API key and secret are required to register the webhook.')
+      throw new WebhookDeploymentConfigurationError(
+        'A Fivetran API key and secret are required to register the webhook.'
+      )
     }
 
     const triggerId = readString(providerConfig, 'triggerId')

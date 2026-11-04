@@ -3,6 +3,7 @@ import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -81,13 +82,15 @@ export const revenueCatHandler: WebhookProviderHandler = {
     }
 
     if (!apiKey) {
-      throw new Error(
+      throw new WebhookDeploymentConfigurationError(
         'RevenueCat Secret API key is required to create the webhook. Provide a v2 Secret API key with the project_configuration:integrations:read_write permission.'
       )
     }
 
     if (!projectId) {
-      throw new Error('RevenueCat Project ID is required to create the webhook.')
+      throw new WebhookDeploymentConfigurationError(
+        'RevenueCat Project ID is required to create the webhook.'
+      )
     }
 
     const { REVENUECAT_TRIGGER_TO_API_EVENT_TYPE } = await import('@/triggers/revenuecat/utils')

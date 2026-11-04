@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { toRecord } from '@sim/utils/object'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   DeleteSubscriptionContext,
   EventMatchContext,
@@ -145,8 +146,11 @@ export const pagerdutyHandler: WebhookProviderHandler = {
     const apiKey = config.apiKey as string | undefined
     const triggerId = config.triggerId as string | undefined
 
-    if (!apiKey)
-      throw new Error('PagerDuty API Key is required to create the webhook subscription.')
+    if (!apiKey) {
+      throw new WebhookDeploymentConfigurationError(
+        'PagerDuty API Key is required to create the webhook subscription.'
+      )
+    }
 
     const { getPagerDutyEvents } = await import('@/triggers/pagerduty/utils')
     const res = await fetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions`, {

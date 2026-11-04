@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -102,7 +103,7 @@ export const linqHandler: WebhookProviderHandler = {
       logger.warn(`[${requestId}] Missing apiKey for Linq webhook creation.`, {
         webhookId: webhook.id,
       })
-      throw new Error(
+      throw new WebhookDeploymentConfigurationError(
         'Linq API Key is required. Please provide your Linq API Key in the trigger configuration.'
       )
     }

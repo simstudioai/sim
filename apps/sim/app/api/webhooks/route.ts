@@ -33,6 +33,7 @@ import {
   shouldRecreateExternalWebhookSubscription,
 } from '@/lib/webhooks/provider-subscriptions'
 import { getProviderHandler } from '@/lib/webhooks/providers'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import { mergeNonUserFields } from '@/lib/webhooks/utils'
 import { findConflictingWebhookPathOwner } from '@/lib/webhooks/utils.server'
 import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
@@ -573,13 +574,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           }
         }
       } catch (err) {
-        logger.error(`[${requestId}] Error creating external webhook subscription`, err)
+        const isConfigurationError = err instanceof WebhookDeploymentConfigurationError
+        if (isConfigurationError) {
+          logger.warn(`[${requestId}] Rejected webhook trigger configuration`, {
+            error: err.message,
+          })
+        } else {
+          logger.error(`[${requestId}] Error creating external webhook subscription`, err)
+        }
         return NextResponse.json(
           {
             error: 'Failed to create external webhook subscription',
             details: getErrorMessage(err, 'Unknown error'),
           },
-          { status: 500 }
+          { status: isConfigurationError ? 400 : 500 }
         )
       }
     } else {
