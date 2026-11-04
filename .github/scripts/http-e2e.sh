@@ -75,7 +75,7 @@ start_browser_install() {
   local name=$1
   shift
   browsers_log="$report_dir/$name-playwright-install.log"
-  setsid --wait bunx --no-install playwright install --with-deps "$@" > "$browsers_log" 2>&1 &
+  setsid --wait bash "$GITHUB_WORKSPACE/.github/scripts/install-playwright.sh" "$@" > "$browsers_log" 2>&1 &
   browsers_pid=$!
 }
 
