@@ -38,7 +38,7 @@ export function PanelTabs({
         if (typeof value === 'string') onSelect(value)
       }}
     >
-      <header className={styles.header}>
+      <header className={styles.header} data-expanded={expanded || undefined}>
         <div className={styles.strip}>
           <Tabs.List className={styles.tabs} aria-label='Chat panel tabs' activateOnFocus>
             {tabs.map((tab) => (

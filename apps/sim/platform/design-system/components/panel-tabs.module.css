@@ -14,7 +14,7 @@
   align-items: center;
   flex: none;
   gap: var(--spacing-4);
-  padding-inline: var(--spacing-12);
+  padding-inline: max(var(--ui-navigation-inset), var(--spacing-12)) var(--spacing-12);
   min-inline-size: 0;
   height: var(--height-nav);
   border-block-end: var(--spacing-stroke-default) solid var(--ui-divider);
@@ -25,6 +25,11 @@
 }
 .header button {
   -webkit-app-region: no-drag;
+}
+@container panel-frame (width > 48rem) {
+  .header:not([data-expanded]) {
+    padding-inline-start: var(--spacing-12);
+  }
 }
 .strip {
   min-width: 0;
