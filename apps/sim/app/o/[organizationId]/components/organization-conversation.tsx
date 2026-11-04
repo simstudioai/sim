@@ -67,7 +67,7 @@ import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
-import type { PrepareChatSubmission } from '@/hooks/use-composer-submission'
+import { type PrepareChatSubmission, useComposerSubmission } from '@/hooks/use-composer-submission'
 import { useHydrated } from '@/hooks/use-hydrated'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
@@ -289,8 +289,10 @@ function OrganizationConversationContent({
     }
   }
   const fileDropTarget = useRef<HTMLElement>(null)
+  const submission = useComposerSubmission({ mode: requestMode })
   const files = useFileAttachments({
     fileDropTarget: compact ? fileDropTarget : undefined,
+    disabled: submission.pending,
     userId: session?.user?.id,
     organizationId: organization.id,
     requestMode,
@@ -458,6 +460,7 @@ function OrganizationConversationContent({
   const composer = (
     <Composer
       requestMode={requestMode}
+      submission={submission}
       compact={Boolean(panelOptions)}
       attachments={panelOptions?.attachments}
       resourceActions={panelOptions?.resourceActions}

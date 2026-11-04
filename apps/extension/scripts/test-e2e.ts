@@ -1282,9 +1282,21 @@ try {
           reply.type === 'send-context' && reply.snapshot.text.includes('visible-reference-482'),
           `${stale} intent cancelled the current reference: ${reply.type}`
         )
+        const replayKey = `${key}:idle-replay`
+        const keys = [key, replayKey]
+        // A fresh storage event drains deferred intents without depending on the periodic sweep's phase.
+        await worker.evaluate(({ key, intent }) => chrome.storage.session.set({ [key]: intent }), {
+          key: replayKey,
+          intent,
+        })
         await expect
-          .poll(() =>
-            worker.evaluate(async (key) => !(key in (await chrome.storage.session.get(key))), key)
+          .poll(
+            () =>
+              worker.evaluate(async (keys) => {
+                const stored = await chrome.storage.session.get(keys)
+                return keys.every((key) => !(key in stored))
+              }, keys),
+            { message: `${stale}: idle storage delivery drains deferred stale intents` }
           )
           .toBe(true)
         await settleMessages()

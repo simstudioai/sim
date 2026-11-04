@@ -7,7 +7,7 @@ import { useSession } from '@/lib/auth/client'
 import ExtensionLoading from '@/app/extension/loading'
 import { ExtensionSignIn } from '@/app/extension/sign-in'
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
-import { ChatInputFocusContext } from '@/hooks/use-chat-input-focus'
+import { ChatInputFocusContext, type ChatInputFocusHandle } from '@/hooks/use-chat-input-focus'
 
 interface ExtensionIdentity {
   origins: string[]
@@ -29,7 +29,7 @@ export function ExtensionProviders({
   modelSelectorEnabled,
   planModeEnabled,
 }: ExtensionProvidersProps) {
-  const focusComposer = useRef<(() => void) | null>(null)
+  const focusComposer = useRef<ChatInputFocusHandle | null>(null)
   const { data: session, isPending, error } = useSession()
   if (isPending) return <ExtensionLoading />
   const accessDenied = isApiClientError(error) && (error.status === 401 || error.status === 403)

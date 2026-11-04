@@ -38,8 +38,8 @@ import { getSkillsQueryOptions } from '@/hooks/queries/skills'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
 import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
-import {
-  type PendingComposerSubmission,
+import type {
+  PendingComposerSubmission,
   useComposerSubmission,
 } from '@/hooks/use-composer-submission'
 import { useVoiceInput } from '@/hooks/use-voice-input'
@@ -50,6 +50,7 @@ interface ComposerProps {
   onPlanChange?: () => void
   value: string
   files: ReturnType<typeof useFileAttachments>
+  submission: ReturnType<typeof useComposerSubmission>
   /** On the empty home the placeholder types itself and the field is taller; in a chat it is the plain footer input. */
   isInitialView: boolean
   isSending: boolean
@@ -76,6 +77,7 @@ export function Composer({
   onPlanChange,
   value,
   files,
+  submission,
   isInitialView,
   isSending,
   onChange,
@@ -174,9 +176,7 @@ export function Composer({
   )
   const placeholder = isInitialView && !compact ? animatedPlaceholder : 'Send message to Sim'
 
-  const { pending: preparingSubmission, accept: acceptSubmission } = useComposerSubmission({
-    mode: requestMode,
-  })
+  const { pending: preparingSubmission, accept: acceptSubmission } = submission
   const submit = () => {
     if (attachedFilesRef.current.some((file) => file.uploading)) return
     const hasPayload =

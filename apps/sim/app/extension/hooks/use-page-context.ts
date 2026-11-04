@@ -76,7 +76,14 @@ export function usePageContext(origins: string[], scopeKey: string) {
     let focusRequested = false
     const confirmFocus = () => {
       const bridge = bridgeRef.current
-      if (!focusRequested || bridge?.sessionId !== sessionId || !document.hasFocus()) return
+      if (
+        !focusRequested ||
+        bridge?.sessionId !== sessionId ||
+        !document.hasFocus() ||
+        !composerFocus?.current?.isFocused()
+      ) {
+        return
+      }
       focusRequested = false
       const message: AppToExtensionMessage = {
         channel: 'sim-extension',
@@ -98,7 +105,7 @@ export function usePageContext(origins: string[], scopeKey: string) {
       if (parsed.data.type === 'focus-composer') {
         if (bridgeRef.current?.sessionId === sessionId) {
           focusRequested = true
-          composerFocus?.current?.()
+          composerFocus?.current?.focus()
           confirmFocus()
         }
         return
