@@ -57,6 +57,7 @@ import {
 } from '@sim/testing'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { videoToolBodySchema } from '@/lib/api/contracts/tools/media/video'
 import { withAssistantActionExecution } from '@/lib/assistant-actions/execution-scope'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { EnvironmentResolutionSnapshot } from '@/lib/environment/utils'
@@ -64,8 +65,10 @@ import { executeBitbucketTool } from '@/lib/internal/bitbucket/execute-tool'
 import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 import { executeVantaTool } from '@/lib/internal/vanta/execute-tool'
+import { buildDirectVideoRequest } from '@/lib/internal/video/direct-request'
+import { buildFalVideoRequest } from '@/lib/internal/video/fal-request'
 import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
-import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
+import { VideoGeneratorV2Block, VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
   ResolvedSecretTraceRegistry,
@@ -88,6 +91,8 @@ import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 import { vantaListFrameworksTool } from '@/tools/vanta/list_frameworks'
 import { vantaSubmitDocumentTool } from '@/tools/vanta/submit_document'
 import { vantaUploadDocumentFileTool } from '@/tools/vanta/upload_document_file'
+import { falaiVideoTool } from '@/tools/video/falai'
+import { minimaxVideoTool } from '@/tools/video/minimax'
 import { runwayVideoTool } from '@/tools/video/runway'
 import { customBlockExecutorTool } from '@/tools/workflow/custom-block-executor'
 import { workflowExecutorTool } from '@/tools/workflow/executor'
@@ -5068,7 +5073,6 @@ describe('File Parameter Normalization', () => {
         expect(providerTool?.parameters?.properties?.visualReference).toMatchObject({
           type: 'string',
         })
-        expect(providerTool?.parameters?.required).toContain('visualReference')
         const prepared = prepareToolExecution(
           providerTool!,
           {
@@ -5098,6 +5102,7 @@ describe('File Parameter Normalization', () => {
         } else {
           expect(mockExecuteInternalToolOperation.mock.calls[0]?.[0].input).toMatchObject({
             provider: 'runway',
+            model: 'gen4_turbo',
             apiKey: 'test-runway-key',
             prompt: 'Animate the boat',
             visualReference: file,
@@ -5112,6 +5117,181 @@ describe('File Parameter Normalization', () => {
       } finally {
         tools.video_runway = originalTool
       }
+    }
+  )
+
+  it.each([
+    { configured: undefined, requested: false, expected: false },
+    { configured: undefined, requested: true, expected: true },
+    { configured: false, requested: true, expected: false },
+  ])('preserves Agent audio choices and configured overrides ($expected)', async (testCase) => {
+    const providerTool = await transformBlockTool(
+      {
+        type: 'video_generator_v3',
+        params: {
+          provider: 'runway',
+          apiKey: 'test-runway-key',
+          directGenerateAudio: testCase.configured,
+        },
+      },
+      { getAllBlocks: () => [VideoGeneratorV3Block], getTool: () => runwayVideoTool }
+    )
+    if (!providerTool) throw new Error('Video tool was not exposed to the Agent')
+    const prepared = prepareToolExecution(
+      providerTool,
+      { model: 'veo3.1', prompt: 'Animate the boat', generateAudio: testCase.requested },
+      {},
+      'call-video-audio'
+    )
+    const input = videoToolBodySchema.parse(prepared.toolParams)
+    const request = buildDirectVideoRequest({ ...input, provider: 'runway' })
+    expect(request.body.audio).toBe(testCase.expected)
+  })
+
+  it.each(['standard', 'pro'])(
+    'rejects an explicit MiniMax H3 legacy endpoint (%s) before building a paid request',
+    async (endpoint) => {
+      const providerTool = await transformBlockTool(
+        { type: 'video_generator_v3', params: { provider: 'minimax', apiKey: 'test-minimax-key' } },
+        { getAllBlocks: () => [VideoGeneratorV3Block], getTool: () => minimaxVideoTool }
+      )
+      if (!providerTool) throw new Error('Video tool was not exposed to the Agent')
+      const prepared = prepareToolExecution(
+        providerTool,
+        { model: 'MiniMax-H3', prompt: 'Animate the boat', endpoint },
+        {},
+        'call-minimax-endpoint'
+      )
+      const params = videoToolBodySchema.parse(prepared.toolParams)
+      const input = videoToolBodySchema.parse(
+        minimaxVideoTool.operation.input({
+          ...params,
+          provider: 'minimax',
+          cameraControl: undefined,
+        })
+      )
+      expect(() => buildDirectVideoRequest({ ...input, provider: 'minimax' })).toThrow(
+        'MiniMax H3 does not support quality endpoints; select a resolution instead'
+      )
+    }
+  )
+
+  it('uses H3 resolution defaults when the MiniMax tool has no legacy endpoint', () => {
+    const input = videoToolBodySchema.parse(
+      minimaxVideoTool.operation.input({
+        provider: 'minimax',
+        apiKey: 'test-minimax-key',
+        model: 'MiniMax-H3',
+        prompt: 'Animate the boat',
+      })
+    )
+    const request = buildDirectVideoRequest({ ...input, provider: 'minimax' })
+    expect(request.body.resolution).toBe('768P')
+  })
+
+  describe.each([VideoGeneratorV2Block, VideoGeneratorV3Block])(
+    '$type fal Agent settings',
+    (block) => {
+      it.each([
+        {
+          name: 'Agent tuning',
+          model: 'alibaba/wan-3.0-prime/text-to-video',
+          configured: {},
+          requested: {
+            duration: 10,
+            aspectRatio: '9:16',
+            resolution: '1080p',
+            generateAudio: false,
+          },
+          expected: { duration: 10, aspect_ratio: '9:16', resolution: '1080p', audio: false },
+        },
+        {
+          name: 'disabled prompt optimization',
+          model: 'fal-ai/minimax/hailuo-02/pro/text-to-video',
+          configured: {},
+          requested: { promptOptimizer: false },
+          expected: { prompt_optimizer: false },
+        },
+        {
+          name: 'configured tuning overrides',
+          model: 'alibaba/wan-3.0-prime/text-to-video',
+          configured: {
+            falDuration: '5',
+            falAspectRatio: '16:9',
+            falResolution: '720p',
+            falGenerateAudio: false,
+          },
+          requested: {
+            duration: 10,
+            aspectRatio: '9:16',
+            resolution: '1080p',
+            generateAudio: true,
+          },
+          expected: { duration: 5, aspect_ratio: '16:9', resolution: '720p', audio: false },
+        },
+        {
+          name: 'explicit provider defaults',
+          model: 'alibaba/wan-3.0-prime/text-to-video',
+          configured: {
+            falDuration: 'default',
+            falAspectRatio: 'default',
+            falResolution: 'default',
+            falGenerateAudio: 'default',
+          },
+          requested: {
+            duration: 10,
+            aspectRatio: '9:16',
+            resolution: '1080p',
+            generateAudio: false,
+          },
+          expected: {},
+        },
+        {
+          name: 'legacy aliases with stale catalog fields',
+          model: 'veo-3.1',
+          configured: { falDuration: 'default', falGenerateAudio: true },
+          requested: {
+            duration: 8,
+            aspectRatio: '9:16',
+            resolution: '1080p',
+            generateAudio: false,
+          },
+          expected: {
+            duration: '8s',
+            aspect_ratio: '9:16',
+            resolution: '1080p',
+            generate_audio: false,
+          },
+        },
+      ])(
+        'preserves $name in the provider request',
+        async ({ model, configured, requested, expected }) => {
+          const providerTool = await transformBlockTool(
+            {
+              type: block.type,
+              params: { provider: 'falai', apiKey: 'test-fal-key', ...configured },
+            },
+            { getAllBlocks: () => [block], getTool: () => falaiVideoTool }
+          )
+          if (!providerTool) throw new Error('Video tool was not exposed to the Agent')
+          const prepared = prepareToolExecution(
+            providerTool,
+            { model, prompt: 'Animate the boat', ...requested },
+            {},
+            'call-fal-video-settings'
+          )
+          const params = videoToolBodySchema.parse(prepared.toolParams)
+          const input = videoToolBodySchema.parse(
+            falaiVideoTool.operation.input({
+              ...params,
+              provider: 'falai',
+              cameraControl: undefined,
+            })
+          )
+          const request = buildFalVideoRequest({ ...input, provider: 'falai' })
+          expect(request.body).toEqual({ prompt: 'Animate the boat', ...expected })
+        }
+      )
     }
   )
 

@@ -3,7 +3,7 @@
 # CI groups, which reuse the production build from `e2e-build`.
 # The job extracts it into apps/sim/.next before running these suites.
 #
-# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-access|project-files|mobile|seo>   (run from apps/sim)
+# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo>   (run from apps/sim)
 #
 # The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
@@ -20,7 +20,7 @@
 # telemetry flush runs detached and still writes .next/dev).
 set -euo pipefail
 
-group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-access|project-files|mobile|seo>}
+group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo>}
 report_dir="$RUNNER_TEMP/e2e"
 ready_timeout_seconds=600
 mkdir -p "$report_dir"
@@ -164,7 +164,11 @@ case "$group" in
     export NEXT_PUBLIC_CHAT_DISABLED=true
     export SIM_LINKS=true
     export PEOPLE=true
+    export CRON_SECRET=people-directory-sync-local-e2e-secret
+    start_browser_install people chromium
     start_app scim 3017 SCIM record-http-status
+    wait_for_browsers
+    export PEOPLE_E2E_SCREENSHOT_DIR="$report_dir/people-ui-report.json.artifacts"
     SCIM_E2E_BASE_URL="$local_app_url" \
     SCIM_E2E_DATABASE_URL="$DATABASE_URL" \
     SCIM_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
@@ -233,7 +237,7 @@ case "$group" in
     export COPILOT_TOOL_PERMISSIONS_ENABLED=true
     export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
     export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
-    if [ "$group" != desktop-inbox ]; then start_browser_install "$group" chromium; fi
+    if [ "$group" != desktop-inbox ]; then start_browser_install "$group" --only-shell chromium; fi
     export INTERNAL_API_SECRET=desktop-inbox-http-ci-local-secret-at-least-32-characters
     export DB_TX_TRIPWIRE=throw
     start_app "$group" 3019 "$group" record-http-status
@@ -264,10 +268,12 @@ case "$group" in
     esac
     ;;
 
-  browser-extension|browser-extension-native|browser-extension-access)
+  browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access)
     extension_group=all
     case "$group" in
       browser-extension-native) extension_group=native ;;
+      browser-extension-navigation) extension_group=navigation ;;
+      browser-extension-composer) extension_group=composer ;;
       browser-extension-access) extension_group=access ;;
     esac
     export REDIS_URL=redis://127.0.0.1:6379
@@ -275,7 +281,7 @@ case "$group" in
     export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
     export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true
     export API_ENCRYPTION_KEY="$ENCRYPTION_KEY"
-    start_browser_install "$group" chromium
+    start_browser_install "$group" --no-shell chromium
     extension_identity=$(bun - <<'JS'
       import { generateKeyPairSync, createHash } from 'node:crypto'
       const { publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
@@ -312,10 +318,19 @@ JS
     export INTERNAL_API_SECRET=mobile-http-ci-local-secret-at-least-32-characters
     export NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:3025 SOCKET_SERVER_URL=http://127.0.0.1:3025
     read -ra browsers <<< "${MOBILE_E2E_BROWSER:-chromium webkit}"
-    start_browser_install mobile "${browsers[@]}"
+    if [ "${PLAYWRIGHT_WEBKIT_WS_ENDPOINT+x}" = x ]; then
+      if [ "${MOBILE_E2E_BROWSER:-}" != webkit ]; then
+        echo "::error::A remote endpoint requires explicit WebKit selection." >&2
+        exit 1
+      fi
+    else
+      start_browser_install mobile --only-shell "${browsers[@]}"
+    fi
     start_app mobile 3024 'mobile browser' record-http-status
     start_realtime mobile 3025
-    wait_for_browsers
+    if [ "${PLAYWRIGHT_WEBKIT_WS_ENDPOINT+x}" != x ]; then
+      wait_for_browsers
+    fi
     MOBILE_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
     MOBILE_E2E_DATABASE_URL="$DATABASE_URL" \
     MOBILE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \

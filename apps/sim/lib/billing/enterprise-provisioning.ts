@@ -37,7 +37,7 @@ import { getBillingConcurrencyLimit } from '@/lib/billing/concurrency-limits'
 import { resolveEnterpriseReportingPeriod } from '@/lib/billing/core/reporting-period'
 import {
   getBillingPeriodUsageCost,
-  getBillingPeriodWorkflowRunCount,
+  getBillingPeriodWorkflowRunCountWithinBudget,
 } from '@/lib/billing/core/usage-log'
 import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
@@ -462,7 +462,8 @@ export interface EnterpriseIssuancePreflight {
       limitDollars: number
       usedCredits: number
       limitCredits: number
-      workflowRuns: number
+      /** `null` when the count did not finish within its budget. */
+      workflowRuns: number | null
     }
     invoiceAmountUsd: number
     configuredUsageLimitDollars: number
@@ -865,7 +866,7 @@ export async function getEnterpriseIssuancePreflight({
             { type: 'organization', id: membership.organizationId },
             reportingPeriod
           ),
-          getBillingPeriodWorkflowRunCount(
+          getBillingPeriodWorkflowRunCountWithinBudget(
             { type: 'organization', id: membership.organizationId },
             reportingPeriod
           ),

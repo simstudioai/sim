@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { V2_OPERATIONS } from '../generated/v2-api'
 import { SimApiError } from '../http/client'
 import { buildProgram } from '../program'
-import { assertNoReservedProgramFlags, buildGeneratedCommands } from './build'
+import {
+  addParseErrorGuidanceToTree,
+  assertNoReservedProgramFlags,
+  buildGeneratedCommands,
+} from './build'
 import { kebab } from './derive'
 import { resetRenameWarnings } from './renamed'
 import type { OperationSpec } from './types'
@@ -1026,5 +1030,59 @@ describe('a list that is not the whole answer', () => {
     }
 
     expect(errors.join('')).toContain('tool names truncated')
+  })
+})
+
+describe('parse-error guidance for a value typed where a flag belongs', () => {
+  function stderrOf(leaf: Command, argv: string[]): string {
+    const written: string[] = []
+    const root = new Command('sim').addCommand(leaf.action(() => {}))
+    addParseErrorGuidanceToTree(root)
+    for (const command of [root, leaf]) {
+      command.exitOverride().configureOutput({ writeErr: (text) => written.push(text) })
+    }
+    expect(() => root.parse([leaf.name(), ...argv], { from: 'user' })).toThrow()
+    return written.join('')
+  }
+
+  const move = () => new Command('move').argument('<id>').requiredOption('-w, --workspace <id>')
+
+  it('names the long flag of an option that also has a short form', () => {
+    expect(stderrOf(move(), ['f_1', 'ws_1'])).toContain(
+      '"ws_1" was passed as a positional; pass it as --workspace "ws_1".'
+    )
+  })
+
+  it('names no flag when an unknown option could have left the value behind', () => {
+    const stderr = stderrOf(move(), ['f_1', '--workspce', 'ws_1'])
+    expect(stderr).not.toContain('was passed as a positional')
+    expect(stderr).toContain('Example: sim move <id> --workspace <id>')
+  })
+
+  it('points an id that opens with a dash past the option parser', () => {
+    expect(stderrOf(move(), ['-Ab3xYz', '--workspace', 'ws_1'])).toContain(
+      'Example: sim move -- -Ab3xYz'
+    )
+  })
+
+  it('treats a lowercase dash token as a misspelt flag, not an id', () => {
+    const stderr = stderrOf(move(), ['-abc', '--workspace', 'ws_1'])
+    expect(stderr).not.toContain('Example: sim move --')
+    expect(stderr).toContain('Options for sim move: -w, --workspace <id>')
+  })
+
+  it('answers a long dash token that is neither flag nor id in linear time', () => {
+    const started = performance.now()
+    stderrOf(move(), [`-${'0'.repeat(100_000)}!`, '--workspace', 'ws_1'])
+    expect(performance.now() - started).toBeLessThan(1000)
+  })
+
+  it('names no flag when two required flags are missing', () => {
+    const create = new Command('create')
+      .requiredOption('--name <value>')
+      .requiredOption('--url <value>')
+    const stderr = stderrOf(create, ['my-server'])
+    expect(stderr).not.toContain('was passed as a positional')
+    expect(stderr).toContain('Example: sim create --name <value> --url <value>')
   })
 })

@@ -153,10 +153,15 @@ export class DAGExecutor {
     const dag = this.dagBuilder.build(this.workflow, { includeAllBlocks: true })
 
     const executedBlocks = new Set(sourceSnapshot.executedBlocks)
-    const validation = validateRunFromBlock(startBlockId, dag, executedBlocks)
+    const blockNames = new Map<string, string>()
+    for (const block of this.workflow.blocks) {
+      if (block.metadata?.name) blockNames.set(block.id, block.metadata.name)
+    }
+    const validation = validateRunFromBlock(startBlockId, dag, executedBlocks, blockNames)
     if (!validation.valid) {
       throw new RunFromBlockValidationError(
-        validation.error ?? `Cannot run from block: ${startBlockId}`
+        validation.error ?? `Cannot run from block: ${startBlockId}`,
+        validation.refusal
       )
     }
 

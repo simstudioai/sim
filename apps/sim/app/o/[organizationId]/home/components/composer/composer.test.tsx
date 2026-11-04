@@ -14,6 +14,7 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { useComposerSubmission } from '@/hooks/use-composer-submission'
 import type { useSpeechToText } from '@/hooks/use-speech-to-text'
 import {
   useMothershipEffortStore,
@@ -202,14 +203,17 @@ async function render(
 ) {
   function Harness() {
     const [value, setValue] = useState(initialValue)
+    const submission = useComposerSubmission({ mode: requestMode })
     const files = useFileAttachments({
       userId: 'user-a',
       organizationId: 'organization-a',
       requestMode,
+      disabled: submission.pending,
     })
     return (
       <Composer
         requestMode={requestMode}
+        submission={submission}
         restoredContexts={controls.restoredContexts}
         value={value}
         files={files}
@@ -292,14 +296,17 @@ it.each([false, true])(
             : []),
         ])
       }
+      const submission = useComposerSubmission({ mode: 'agent' })
       const files = useFileAttachments({
         userId: 'user-a',
         organizationId: 'organization-a',
         requestMode: 'agent',
+        disabled: submission.pending,
       })
       return (
         <Composer
           requestMode='agent'
+          submission={submission}
           value={value}
           onChange={setValue}
           restoredContexts={contexts}

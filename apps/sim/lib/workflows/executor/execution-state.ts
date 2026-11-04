@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
-import { isRecordLike } from '@sim/utils/object'
+import { filterUndefined, isRecordLike } from '@sim/utils/object'
 import { and, desc, eq, or, sql } from 'drizzle-orm'
 import { materializeExecutionData, TRACE_STORE_REF_KEY } from '@/lib/logs/execution/trace-store'
 import type { SerializableExecutionState } from '@/executor/execution/types'
@@ -188,6 +188,19 @@ export async function getWorkflowExecutionCopilotToolCallId(
   return typeof toolCallId === 'string' ? toolCallId : undefined
 }
 
+/**
+ * The message an error finalization (`force_failed`) stored as the run's `finalOutput.error`.
+ * Any other run's `finalOutput.error` is the workflow's own data, not a failure message.
+ */
+function readFailureMessage(executionData: Record<string, unknown>): string | undefined {
+  if (typeof executionData.error === 'string') return executionData.error
+  if (executionData.finalizationPath !== 'force_failed') return undefined
+  const { finalOutput } = executionData
+  return isRecordLike(finalOutput) && typeof finalOutput.error === 'string'
+    ? finalOutput.error
+    : undefined
+}
+
 /** Loads a terminal workflow result only when its server-persisted Copilot binding matches. */
 export async function getTrustedWorkflowToolExecution(
   executionId: string,
@@ -232,7 +245,7 @@ export async function getTrustedWorkflowToolExecution(
     ...(Object.hasOwn(executionData, 'finalOutput')
       ? { finalOutput: executionData.finalOutput }
       : {}),
-    ...(typeof executionData.error === 'string' ? { error: executionData.error } : {}),
+    ...filterUndefined({ error: readFailureMessage(executionData) }),
     blockLogs: state.blockLogs,
     provenance,
   }

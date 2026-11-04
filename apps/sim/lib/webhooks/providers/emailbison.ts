@@ -7,6 +7,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   DeleteSubscriptionContext,
   EventMatchContext,
@@ -127,15 +128,15 @@ export const emailBisonHandler: WebhookProviderHandler = {
     const triggerId = providerConfig.triggerId as string | undefined
 
     if (!apiKey?.trim()) {
-      throw new Error('Email Bison API Key is required.')
+      throw new WebhookDeploymentConfigurationError('Email Bison API Key is required.')
     }
 
     if (!apiBaseUrl?.trim()) {
-      throw new Error('Email Bison Instance URL is required.')
+      throw new WebhookDeploymentConfigurationError('Email Bison Instance URL is required.')
     }
 
     if (!triggerId) {
-      throw new Error('Email Bison trigger ID is required.')
+      throw new WebhookDeploymentConfigurationError('Email Bison trigger ID is required.')
     }
 
     const { getEmailBisonEventTypeForTrigger } = await import('@/triggers/emailbison/utils')

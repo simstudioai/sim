@@ -11,7 +11,9 @@ import {
   getMcpStructuredContentOutputs,
   getResponseFormatOutputs,
 } from '@/lib/workflows/blocks/outputs'
+import { quotedBlockLabel } from '@/lib/workflows/labels'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
+import type { ManualRunEntryIssue } from '@/lib/workflows/triggers/manual-run'
 import { getBlock } from '@/blocks'
 import {
   isTriggerBlockType,
@@ -116,6 +118,12 @@ export interface WorkflowLintReport extends WorkflowLintResult {
   fieldIssues: WorkflowLintFieldIssue[]
   unresolvedReferences: WorkflowLintUnresolvedReference[]
   tableFieldIssues: WorkflowLintTableFieldIssue[]
+  /**
+   * Why the editor's Run button would refuse this graph before it starts, or
+   * `null` when a manual run can begin. Not raised for a graph a manual run
+   * cannot start but a chat can (a chat-trigger-only workflow).
+   */
+  manualRunIssue: ManualRunEntryIssue | null
   notes: string[]
 }
 
@@ -420,135 +428,164 @@ type WorkflowLintIssueView = WorkflowLintResult & {
   fieldIssues?: WorkflowLintFieldIssue[]
   unresolvedReferences?: WorkflowLintUnresolvedReference[]
   tableFieldIssues?: WorkflowLintTableFieldIssue[]
+  manualRunIssue?: ManualRunEntryIssue | null
 }
 
 export function hasWorkflowLintIssues(lint: WorkflowLintIssueView) {
-  return (
-    lint.orphanBlocks.length > 0 ||
-    lint.emptyOutgoingPorts.length > 0 ||
-    lint.invalidBranchPorts.length > 0 ||
-    lint.invalidConnectionTargets.length > 0 ||
-    (lint.fieldIssues?.length ?? 0) > 0 ||
-    (lint.unresolvedReferences?.length ?? 0) > 0 ||
-    (lint.tableFieldIssues?.length ?? 0) > 0
-  )
+  return collectBlockingSections(lint).length > 0 || lint.manualRunIssue != null
 }
 
-export function formatWorkflowLintMessage(lint: WorkflowLintIssueView) {
-  const parts: string[] = []
+/** One category of findings an agent must fix: its label, how many, and the findings as text. */
+interface WorkflowLintSection {
+  label: string
+  count: number
+  text: string
+}
 
-  if (lint.orphanBlocks.length > 0) {
-    parts.push(
-      `Blocks with no incoming edge: ${lint.orphanBlocks
-        .map((block) => `"${block.blockName || block.blockId}" (${block.blockType || 'unknown'})`)
-        .join(', ')}`
-    )
-  }
+function lintSection(label: string, findings: string[], separator = ', '): WorkflowLintSection {
+  return { label, count: findings.length, text: findings.join(separator) }
+}
 
-  if (lint.emptyOutgoingPorts.length > 0) {
-    parts.push(
-      `Unconnected required subflow start ports: ${lint.emptyOutgoingPorts
-        .map((port) => `"${port.blockName || port.blockId}".${port.label}`)
-        .join(', ')}`
-    )
-  }
+function blockLabel(ref: WorkflowLintBlockRef): string {
+  return quotedBlockLabel(ref.blockId, ref.blockName)
+}
 
-  if (lint.invalidBranchPorts.length > 0) {
-    parts.push(
-      `Invalid condition/router branch handles: ${lint.invalidBranchPorts
-        .map((port) => `"${port.blockName || port.blockId}" uses "${port.sourceHandle}"`)
-        .join(', ')}`
-    )
-  }
-
-  if (lint.invalidConnectionTargets.length > 0) {
-    parts.push(
-      `Connections pointing at missing blocks: ${lint.invalidConnectionTargets
-        .map((edge) => `${edge.sourceBlockId} -> ${edge.targetBlockId}`)
-        .join(', ')}`
-    )
-  }
-
+function collectBlockingSections(lint: WorkflowLintIssueView): WorkflowLintSection[] {
   const fieldIssues = lint.fieldIssues ?? []
-  const missing = fieldIssues.filter((issue) => issue.missingRequiredFields.length > 0)
-  if (missing.length > 0) {
-    parts.push(
-      `Blocks missing required fields: ${missing
-        .map(
-          (issue) =>
-            `"${issue.blockName || issue.blockId}" (${issue.missingRequiredFields.join(', ')})`
-        )
-        .join(', ')}`
-    )
-  }
+  const unresolved = lint.unresolvedReferences ?? []
+  const renderRef = (ref: WorkflowLintUnresolvedReference) =>
+    `${blockLabel(ref)}.${ref.field} (${ref.reason})`
 
-  const inactive = fieldIssues.filter((issue) => issue.inactiveModeValues.length > 0)
-  if (inactive.length > 0) {
-    parts.push(
-      `Values set on the inactive field mode (they will not resolve): ${inactive
+  return [
+    lintSection(
+      'Blocks with no incoming edge',
+      lint.orphanBlocks.map((block) => `${blockLabel(block)} (${block.blockType || 'unknown'})`)
+    ),
+    lintSection(
+      'Unconnected required subflow start ports',
+      lint.emptyOutgoingPorts.map((port) => `${blockLabel(port)}.${port.label}`)
+    ),
+    lintSection(
+      'Invalid condition/router branch handles',
+      lint.invalidBranchPorts.map((port) => `${blockLabel(port)} uses "${port.sourceHandle}"`)
+    ),
+    lintSection(
+      'Connections pointing at missing blocks',
+      lint.invalidConnectionTargets.map((edge) => `${edge.sourceBlockId} -> ${edge.targetBlockId}`)
+    ),
+    lintSection(
+      'Blocks missing required fields',
+      fieldIssues
+        .filter((issue) => issue.missingRequiredFields.length > 0)
+        .map((issue) => `${blockLabel(issue)} (${issue.missingRequiredFields.join(', ')})`)
+    ),
+    lintSection(
+      'Values set on the inactive field mode (they will not resolve)',
+      fieldIssues
+        .filter((issue) => issue.inactiveModeValues.length > 0)
         .map(
           (issue) =>
-            `"${issue.blockName || issue.blockId}" (${issue.inactiveModeValues
+            `${blockLabel(issue)} (${issue.inactiveModeValues
               .map(
                 (v) =>
                   `${v.inactiveMemberId}: move the value to "${v.activeMemberId ?? v.canonicalId}"`
               )
               .join('; ')})`
         )
-        .join(', ')}`
-    )
-  }
-
-  const unresolved = lint.unresolvedReferences ?? []
-  const credResourceRefs = unresolved.filter(
-    (ref) => ref.kind === 'credential' || ref.kind === 'resource'
-  )
-  if (credResourceRefs.length > 0) {
-    parts.push(
-      `Credential/resource references that do not resolve: ${credResourceRefs
-        .map((ref) => `"${ref.blockName || ref.blockId}".${ref.field} (${ref.reason})`)
-        .join(', ')}`
-    )
-  }
-
-  const toolSkillRefs = unresolved.filter(
-    (ref) => ref.kind === 'custom-tool' || ref.kind === 'mcp-tool' || ref.kind === 'skill'
-  )
-  if (toolSkillRefs.length > 0) {
-    parts.push(
-      `Agent tool/skill references that do not resolve (they will not attach at runtime): ${toolSkillRefs
-        .map((ref) => `"${ref.blockName || ref.blockId}".${ref.field} (${ref.reason})`)
-        .join(', ')}`
-    )
-  }
-
-  const blockOutputRefs = unresolved.filter((ref) => ref.kind === 'block-output')
-  if (blockOutputRefs.length > 0) {
-    parts.push(
-      `Block output references that will not work as written: ${blockOutputRefs
+    ),
+    lintSection(
+      'Credential/resource references that do not resolve',
+      unresolved
+        .filter((ref) => ref.kind === 'credential' || ref.kind === 'resource')
+        .map(renderRef)
+    ),
+    lintSection(
+      'Agent tool/skill references that do not resolve (they will not attach at runtime)',
+      unresolved
+        .filter(
+          (ref) => ref.kind === 'custom-tool' || ref.kind === 'mcp-tool' || ref.kind === 'skill'
+        )
+        .map(renderRef)
+    ),
+    lintSection(
+      'Block output references that will not work as written',
+      unresolved
+        .filter((ref) => ref.kind === 'block-output')
         .map(
           (ref) =>
-            `"${ref.blockName || ref.blockId}".${ref.field} ${
+            `${blockLabel(ref)}.${ref.field} ${
               Array.isArray(ref.value) ? ref.value.join(', ') : ref.value
             } (${ref.reason})`
-        )
+        ),
+      '; '
+    ),
+    lintSection(
+      "Table filter/sort fields that are not columns of the referenced table (the run will fail in the block's error edge)",
+      (lint.tableFieldIssues ?? []).map(
+        (issue) => `${blockLabel(issue)}.${issue.field} (table "${issue.tableName}")`
+      )
+    ),
+  ].filter((found) => found.count > 0)
+}
+
+const RUN_BUTTON_REFUSAL = "The editor's Run button would fail"
+
+/**
+ * What the editor's Run button would refuse, phrased from the issue's fields
+ * rather than the canvas message. Runs the agent or API start name their
+ * trigger and skip these checks, so this is advice for the person who presses
+ * Run, never a finding that blocks the caller.
+ */
+function describeManualRunIssue(issue: ManualRunEntryIssue): string {
+  switch (issue.reason) {
+    case 'no-trigger':
+      return `${RUN_BUTTON_REFUSAL}: the workflow has no trigger block to start from.`
+    case 'multiple-api-triggers':
+      return `${RUN_BUTTON_REFUSAL}: the workflow has more than one API Trigger block. Keep only one.`
+    case 'trigger-not-connected': {
+      const trigger = issue.blockId
+        ? `${quotedBlockLabel(issue.blockId, issue.blockName)} (${issue.blockType || 'unknown'})`
+        : 'its trigger'
+      return `${RUN_BUTTON_REFUSAL}: Run starts from ${trigger} ahead of any other trigger, and it is not connected to other blocks. Connect it, or delete it if the workflow starts from another trigger. Runs that name their trigger are not affected.`
+    }
+  }
+}
+
+/**
+ * The full findings as one message: what must be fixed first, then the
+ * Run-button advice. Empty when there are no findings.
+ */
+export function formatWorkflowLintMessage(lint: WorkflowLintIssueView) {
+  const sections = collectBlockingSections(lint)
+  const sentences: string[] = []
+  if (sections.length > 0) {
+    sentences.push(
+      `Workflow lint found issues. Fix these before continuing: ${sections
+        .map((section) => `${section.label}: ${section.text}`)
         .join('; ')}`
     )
   }
+  if (lint.manualRunIssue) sentences.push(describeManualRunIssue(lint.manualRunIssue))
+  return sentences.join('. ')
+}
 
-  const tableFields = lint.tableFieldIssues ?? []
-  if (tableFields.length > 0) {
-    parts.push(
-      `Table filter/sort fields that are not columns of the referenced table (the run will fail in the block's error edge): ${tableFields
-        .map(
-          (issue) =>
-            `"${issue.blockName || issue.blockId}".${issue.field} (table "${issue.tableName}")`
-        )
-        .join(', ')}`
+/**
+ * A one-line pointer to the findings, counted by category, for a response that
+ * already carries the full report under `lint`.
+ */
+export function summarizeWorkflowLintIssues(lint: WorkflowLintIssueView) {
+  const sentences: string[] = []
+  const sections = collectBlockingSections(lint)
+  if (sections.length > 0) {
+    sentences.push(
+      `Workflow lint found issues (${sections
+        .map((section) => `${section.label}: ${section.count}`)
+        .join('; ')}).`
     )
   }
-
-  return `Workflow lint found issues. Fix these before continuing: ${parts.join('; ')}`
+  if (lint.manualRunIssue) sentences.push(`${RUN_BUTTON_REFUSAL}.`)
+  sentences.push('The findings are in `lint`.')
+  return sentences.join(' ')
 }
 
 /**

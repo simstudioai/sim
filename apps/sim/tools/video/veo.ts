@@ -3,8 +3,8 @@ import type { VideoParams, VideoResponse } from '@/tools/video/types'
 
 export const veoVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
   id: 'video_veo',
-  name: 'Google Veo 3 Video',
-  description: 'Generate videos using Google Veo 3/3.1 with native audio generation',
+  name: 'Google Gemini Video',
+  description: 'Generate videos using Google Gemini Omni with native audio generation',
   version: '1.0.0',
 
   params: {
@@ -24,8 +24,7 @@ export const veoVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Veo model: veo-3 (default, highest quality), veo-3-fast (faster), or veo-3.1 (latest)',
+      description: 'Google model: gemini-omni-1.1-flash; older Veo endpoints have retired',
     },
     prompt: {
       type: 'string',
@@ -37,7 +36,8 @@ export const veoVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Video duration in seconds (4, 6, or 8, default: 8)',
+      description:
+        'Legacy duration setting; omit for Gemini Omni and describe timing in the prompt',
     },
     aspectRatio: {
       type: 'string',
@@ -49,7 +49,7 @@ export const veoVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Video resolution: 720p or 1080p (default: 1080p)',
+      description: 'Video resolution: 360p, 720p, 1080p, or 4k (default: 720p)',
     },
   },
 
@@ -61,11 +61,11 @@ export const veoVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
     input: (params) => ({
       provider: 'veo',
       apiKey: params.apiKey,
-      model: params.model || 'veo-3',
+      model: params.model || 'gemini-omni-1.1-flash',
       prompt: params.prompt,
-      duration: params.duration || 8,
-      aspectRatio: params.aspectRatio || '16:9',
-      resolution: params.resolution || '1080p',
+      duration: params.duration,
+      aspectRatio: params.aspectRatio,
+      resolution: params.resolution,
     }),
   },
 
@@ -115,6 +115,6 @@ export const veoVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
     height: { type: 'number', description: 'Video height in pixels' },
     provider: { type: 'string', description: 'Provider used (veo)' },
     model: { type: 'string', description: 'Model used' },
-    jobId: { type: 'string', description: 'Veo job ID' },
+    jobId: { type: 'string', description: 'Google interaction ID' },
   },
 }

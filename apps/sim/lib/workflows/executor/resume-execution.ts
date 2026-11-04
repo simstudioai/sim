@@ -8,6 +8,7 @@ import {
 } from '@/lib/billing/core/attribution'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
+import { logFailureOnce, markFailureKind } from '@/lib/core/errors/failure-log'
 import { toTriggerMaxDurationSeconds } from '@/lib/core/execution-limits'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -242,6 +243,7 @@ export async function executeResumeWorkflow({
     actorUserId: preprocessResult.actorUserId,
   })
 
+  let admittedResumeExecutionId: string | undefined
   try {
     const enqueueResult = await PauseResumeManager.enqueueOrStartResume({
       executionId,
@@ -251,6 +253,7 @@ export async function executeResumeWorkflow({
       userId,
       allowedPauseKinds: ['human'],
     })
+    admittedResumeExecutionId = enqueueResult.resumeExecutionId
 
     if (enqueueResult.status === 'queued') {
       return {
@@ -434,16 +437,18 @@ export async function executeResumeWorkflow({
     return { kind: 'started', executionId: enqueueResult.resumeExecutionId }
   } catch (error) {
     if (error instanceof ResumeWorkflowExecutionError) throw error
-    logger.error(
-      'Resume request failed',
-      projectResolvedSecretDiagnosticError(error, undefined, {
-        workflowId,
-        executionId,
-        contextId,
-      })
-    )
     const statusCode =
       isRecordLike(error) && typeof error.statusCode === 'number' ? error.statusCode : undefined
+    if (statusCode !== undefined && statusCode < 500) markFailureKind(error, 'user')
+    logFailureOnce(logger, 'Resume request failed', error, {
+      executionId,
+      metadata: () =>
+        projectResolvedSecretDiagnosticError(error, undefined, {
+          workflowId,
+          contextId,
+          resumeExecutionId: admittedResumeExecutionId,
+        }),
+    })
     if (statusCode !== undefined) {
       throw new ResumeWorkflowExecutionError(statusCode, toError(error).message, statusCode < 500)
     }

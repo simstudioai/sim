@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -117,7 +118,7 @@ export const resendHandler: WebhookProviderHandler = {
         logger.warn(`[${requestId}] Missing apiKey for Resend webhook creation.`, {
           webhookId: webhook.id,
         })
-        throw new Error(
+        throw new WebhookDeploymentConfigurationError(
           'Resend API Key is required. Please provide your Resend API Key in the trigger configuration.'
         )
       }
@@ -203,6 +204,7 @@ export const resendHandler: WebhookProviderHandler = {
         },
       }
     } catch (error: unknown) {
+      if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
       logger.error(
         `[${requestId}] Exception during Resend webhook creation for webhook ${webhook.id}.`,

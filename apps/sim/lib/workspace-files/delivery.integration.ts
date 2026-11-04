@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { db } from '@sim/db'
 import {
   changelogRelease,
+  folder,
   permissions,
   user,
   userStats,
@@ -30,6 +31,7 @@ import {
   observeContentDelivery,
   runWorkflowOutsideContentDelivery,
 } from '@/lib/core/application'
+import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
 import {
   createOwnedWorkspaceFile,
   uploadWorkspaceFile,
@@ -38,6 +40,7 @@ import { markWorkspaceFileSecretProvenanceUnknown } from '@/lib/uploads/contexts
 import * as storage from '@/lib/uploads/core/storage-service'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
+import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
 import { readWorkspaceInlineFile } from '@/lib/workspace-files/application/read-workspace-inline-file'
 import { createFileReadReceipt, recheckFileReadReceipt } from '@/lib/workspace-files/read-receipt'
@@ -300,6 +303,114 @@ check('same-revision provenance downgrade reaches the content admission gate', a
   const [current] = await db.select().from(workspaceFiles).where(eq(workspaceFiles.id, file.id))
   expect(current.contentUpdatedAt).toEqual(file.contentUpdatedAt)
   expect(observed.at(-1)).toEqual({ status: 'unknown' })
+})
+
+describe('Downloads addressed by a files/ VFS path', () => {
+  async function pathFixture() {
+    const f = await fixture()
+    const docsFolderId = generateId()
+    await db.insert(folder).values({
+      id: docsFolderId,
+      name: 'Docs',
+      userId: f.editorId,
+      workspaceId: f.workspaceId,
+      resourceType: 'file',
+    })
+    const upload = (content: string, folderId: string | null) =>
+      uploadWorkspaceFile(
+        f.workspaceId,
+        f.editorId,
+        Buffer.from(content),
+        'report.csv',
+        'text/csv',
+        { folderId, notifyWorkspaceChange: false }
+      )
+    const docs = await upload('docs,report\n', docsFolderId)
+    const root = await upload('root,report\n', null)
+    return { ...f, docs, root }
+  }
+
+  const refusal = (promise: Promise<unknown>) =>
+    promise.then(
+      () => null,
+      (error: { code?: string; message?: string }) => ({ code: error.code, message: error.message })
+    )
+
+  check('Chat downloads the one file a path names, exactly as it downloads by id', async () => {
+    const f = await pathFixture()
+    const transport = createFileReadTransport({
+      endpoint: 'https://sim.test',
+      transport: async () => {
+        throw new Error('A single-file download never leaves the process')
+      },
+      invocation: { userId: f.editorId, workspaceId: f.workspaceId },
+    })
+    const download = async (reference: string) => {
+      const response = await transport(
+        `https://sim.test/api/v2/files/${encodeURIComponent(reference)}?workspaceId=${f.workspaceId}`
+      )
+      return {
+        status: response.status,
+        contentType: response.headers.get('content-type'),
+        contentLength: response.headers.get('content-length'),
+        body: await response.text(),
+      }
+    }
+
+    const byPath = await download('files/Docs/report.csv')
+    expect(byPath).toMatchObject({ status: 200, body: 'docs,report\n' })
+    expect(await download(f.docs.id)).toEqual(byPath)
+    expect((await download('files/report.csv')).body).toBe('root,report\n')
+    expect((await download('files/Missing/report.csv')).status).toBe(404)
+  })
+
+  check('a path answers a non-member exactly as a missing path and a missing id', async () => {
+    const f = await pathFixture()
+    const outsider = await fixture()
+    const download = (fileId: string) =>
+      downloadWorkspaceFileStream.execute({
+        principal: createSessionPrincipal({ userId: outsider.editorId }),
+        input: { fileId, acceptVfsPath: true, assertedWorkspaceId: f.workspaceId },
+      })
+    const existing = await refusal(download('files/Docs/report.csv'))
+    expect(existing).toMatchObject({ code: 'forbidden' })
+    expect(await refusal(download('files/Docs/missing.csv'))).toEqual(existing)
+
+    const rendered = async (fileId: string) => {
+      const response = await download(fileId).then(
+        () => null,
+        (error: unknown) => v2FileErrorPolicies.concealResourceAuthorization.render(error)
+      )
+      return response && { status: response.status, body: await response.text() }
+    }
+    const answer = await rendered('files/Docs/report.csv')
+    expect(answer?.status).toBe(404)
+    expect(await rendered('files/Docs/missing.csv')).toEqual(answer)
+    expect(await rendered(`wf_${generateId()}`)).toEqual(answer)
+  })
+
+  check('the delivery recheck keys to the resolved file, not to its path', async () => {
+    const f = await pathFixture()
+    const open = storage.downloadFileStream
+    vi.spyOn(storage, 'downloadFileStream').mockImplementationOnce(async (options) => {
+      const source = await open(options)
+      await db
+        .update(workspaceFiles)
+        .set({ originalName: 'renamed.csv' })
+        .where(eq(workspaceFiles.id, f.docs.id))
+      return source
+    })
+    const result = await downloadWorkspaceFileStream.execute({
+      principal: f.principal,
+      input: {
+        fileId: 'files/Docs/report.csv',
+        acceptVfsPath: true,
+        assertedWorkspaceId: f.workspaceId,
+      },
+    })
+    expect(result.file.id).toBe(f.docs.id)
+    expect(await new Response(result.stream).text()).toBe('docs,report\n')
+  })
 })
 
 describe('A workflow run Chat started reads workspace files as any run does', () => {

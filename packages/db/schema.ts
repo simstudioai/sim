@@ -2009,6 +2009,119 @@ export const memberProfile = pgTable(
   ]
 )
 
+/** The single authoritative People source and its fenced synchronization lease for one organization. */
+export const peopleDirectorySync = pgTable(
+  'people_directory_sync',
+  {
+    organizationId: text('organization_id')
+      .primaryKey()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    source: text('source').$type<'okta' | 'entra' | 'scim'>().notNull(),
+    sourceTarget: text('source_target').notNull(),
+    clientId: text('client_id'),
+    encryptedCredential: text('encrypted_credential'),
+    configuredBy: text('configured_by').references(() => user.id, { onDelete: 'set null' }),
+    leaseToken: text('lease_token'),
+    leaseExpiresAt: timestamp('lease_expires_at'),
+    runId: text('run_id'),
+    runStartedAt: timestamp('run_started_at'),
+    phase: text('phase').$type<'users' | 'relationships' | 'publish'>(),
+    cursor: text('cursor'),
+    usersRead: integer('users_read').notNull().default(0),
+    retryCount: integer('retry_count').notNull().default(0),
+    nextSyncAt: timestamp('next_sync_at').notNull().defaultNow(),
+    lastAttemptAt: timestamp('last_attempt_at'),
+    lastSuccessAt: timestamp('last_success_at'),
+    lastFailedAt: timestamp('last_failed_at'),
+    lastError: text('last_error'),
+  },
+  (table) => [index('people_directory_sync_due_idx').on(table.nextSyncAt)]
+)
+
+/** Coalesces provisioning changes independently of the worker's long-held publication lock. */
+export const peopleDirectoryScimChange = pgTable(
+  'people_directory_scim_change',
+  {
+    organizationId: text('organization_id')
+      .primaryKey()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    changedAt: timestamp('changed_at').notNull().defaultNow(),
+  },
+  (table) => [
+    index('people_directory_scim_change_due_idx').on(table.changedAt, table.organizationId),
+  ]
+)
+
+/** Source identities live independently of accounts, memberships, seats, and access grants. */
+export const peopleDirectoryEntry = pgTable(
+  'people_directory_entry',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => peopleDirectorySync.organizationId, { onDelete: 'cascade' }),
+    source: text('source').$type<'okta' | 'entra' | 'scim'>().notNull(),
+    externalId: text('external_id').notNull(),
+    email: text('email').notNull(),
+    name: text('name').notNull(),
+    title: text('title'),
+    department: text('department'),
+    location: text('location'),
+    managerExternalId: text('manager_external_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('people_directory_entry_source_id_idx').on(table.organizationId, table.externalId),
+    index('people_directory_entry_email_idx').on(table.organizationId, table.email),
+    index('people_directory_entry_manager_idx').on(table.organizationId, table.managerExternalId),
+  ]
+)
+
+/** A private working generation. Only a complete generation may replace the public People entries. */
+export const peopleDirectoryStage = pgTable(
+  'people_directory_stage',
+  {
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => peopleDirectorySync.organizationId, { onDelete: 'cascade' }),
+    runId: text('run_id').notNull(),
+    externalId: text('external_id').notNull(),
+    proposedId: text('proposed_id').notNull(),
+    email: text('email').notNull(),
+    name: text('name').notNull(),
+    title: text('title'),
+    department: text('department'),
+    location: text('location'),
+    managerExternalId: text('manager_external_id'),
+    reportsCursor: text('reports_cursor'),
+    reportsComplete: boolean('reports_complete').notNull().default(false),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.runId, table.externalId] }),
+    uniqueIndex('people_directory_stage_email_idx').on(
+      table.organizationId,
+      table.runId,
+      table.email
+    ),
+    index('people_directory_stage_pending_idx')
+      .on(table.organizationId, table.runId, table.externalId)
+      .where(sql`NOT ${table.reportsComplete}`),
+  ]
+)
+
+/** Stores hashes of processed user-list and direct-report cursors to detect replays. */
+export const peopleDirectoryPage = pgTable(
+  'people_directory_page',
+  {
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => peopleDirectorySync.organizationId, { onDelete: 'cascade' }),
+    runId: text('run_id').notNull(),
+    pageHash: text('page_hash').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.organizationId, table.runId, table.pageHash] })]
+)
+
 /**
  * Per-member usage limit (in dollars) scoped to a single organization.
  *

@@ -1,12 +1,13 @@
 'use client'
 
-import { createContext, type ReactNode, useContext } from 'react'
+import { createContext, type ReactNode, useContext, useRef } from 'react'
 import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/client'
 import ExtensionLoading from '@/app/extension/loading'
 import { ExtensionSignIn } from '@/app/extension/sign-in'
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
+import { ChatInputFocusContext, type ChatInputFocusHandle } from '@/hooks/use-chat-input-focus'
 
 interface ExtensionIdentity {
   origins: string[]
@@ -28,6 +29,7 @@ export function ExtensionProviders({
   modelSelectorEnabled,
   planModeEnabled,
 }: ExtensionProvidersProps) {
+  const focusComposer = useRef<ChatInputFocusHandle | null>(null)
   const { data: session, isPending, error } = useSession()
   if (isPending) return <ExtensionLoading />
   const accessDenied = isApiClientError(error) && (error.status === 401 || error.status === 403)
@@ -45,7 +47,9 @@ export function ExtensionProviders({
         }}
       >
         <SettingsNavigationProvider navigationTarget='_blank'>
-          <div className='ph-no-capture'>{children}</div>
+          <ChatInputFocusContext.Provider value={focusComposer}>
+            <div className='ph-no-capture'>{children}</div>
+          </ChatInputFocusContext.Provider>
         </SettingsNavigationProvider>
       </FeatureFlagsProvider>
     </ExtensionIdentityContext.Provider>

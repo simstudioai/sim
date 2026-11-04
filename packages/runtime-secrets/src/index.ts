@@ -33,12 +33,7 @@ export async function loadRuntimeSecrets(): Promise<void> {
     return
   }
 
-  const client = new SecretsManagerClient(
-    process.env.AWS_REGION ? { region: process.env.AWS_REGION } : {}
-  )
-
-  const secretString = await fetchSecretString(client, secretId)
-  const entries = parseSecretJson(secretString)
+  const entries = await fetchRuntimeSecrets(secretId)
 
   let loaded = 0
   let skipped = 0
@@ -47,11 +42,30 @@ export async function loadRuntimeSecrets(): Promise<void> {
       skipped++
       continue
     }
-    process.env[key] = typeof value === 'string' ? value : JSON.stringify(value)
+    process.env[key] = value
     loaded++
   }
 
   logger.info('Runtime secrets ingested', { secretId, loaded, skipped })
+}
+
+/**
+ * Reads one env-vars JSON secret as the string map a process would see: the
+ * same values {@link loadRuntimeSecrets} writes into `process.env`, with
+ * non-string JSON values serialized. Retries a failed request up to three
+ * times, then throws, so a caller never proceeds on a partial or missing secret.
+ */
+export async function fetchRuntimeSecrets(secretId: string): Promise<Record<string, string>> {
+  const client = new SecretsManagerClient(
+    process.env.AWS_REGION ? { region: process.env.AWS_REGION } : {}
+  )
+  const entries = parseSecretJson(await fetchSecretString(client, secretId))
+  return Object.fromEntries(
+    Object.entries(entries).map(([key, value]) => [
+      key,
+      typeof value === 'string' ? value : JSON.stringify(value),
+    ])
+  )
 }
 
 async function fetchSecretString(client: SecretsManagerClient, secretId: string): Promise<string> {
@@ -92,8 +106,9 @@ function parseSecretJson(secretString: string): Record<string, unknown> {
   let parsed: unknown
   try {
     parsed = JSON.parse(secretString)
-  } catch (error) {
-    throw new Error(`Runtime secret is not valid JSON: ${getErrorMessage(error)}`)
+  } catch {
+    // The parser's message quotes the text around the fault, which can be part of a value.
+    throw new Error('Runtime secret is not valid JSON')
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new Error('Runtime secret must be a JSON object of key/value pairs')

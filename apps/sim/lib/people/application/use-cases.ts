@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
-import type { PeopleImportResult } from '@/lib/api/contracts/people'
+import type { PeopleImportBody, PeopleImportResult } from '@/lib/api/contracts/people'
 import type { CursorKey } from '@/lib/api/list-query'
 import {
   defineAuthorizedOrganizationUseCase,
@@ -10,9 +10,12 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { requireOrganizationMemberDirectory } from '@/lib/organizations/application/reads'
 import { peopleOperations } from '@/lib/people/application/operations'
 import { requirePeopleEnabled } from '@/lib/people/feature-flag'
-import { matchPeopleColumns, type PeopleImportMember, planPeopleImport } from '@/lib/people/import'
+import { matchPeopleColumns, peopleImportEmails, planPeopleImport } from '@/lib/people/import'
+import { readProviderProfiles, verifyDirectoryPreview } from '@/lib/people/provider-import'
 import * as repository from '@/lib/people/repository'
 import type { MemberProfileFields } from '@/lib/people/validation'
+import { isScimEntitledForOrganization } from '@/ee/scim/lib/entitlement'
+import { readProvisionedProfiles } from '@/ee/scim/lib/repository/people-profiles'
 
 interface OrganizationInput {
   organizationId: string
@@ -44,16 +47,53 @@ export const listPeople = defineAuthorizedOrganizationUseCase({
   execute: ({
     input,
   }: OrganizationUseCaseContext<
-    OrganizationInput & { search?: string; department?: string; cursorKeys?: CursorKey[] }
+    OrganizationInput & {
+      search?: string
+      department?: string
+      departmentKey?: string
+      scope?: 'roots' | 'members'
+      cursorKeys?: CursorKey[]
+    }
   >) => repository.listPeople(input.organizationId, input),
+})
+
+export const getPeopleChart = defineAuthorizedOrganizationUseCase({
+  operation: peopleOperations.chart,
+  authorizeResource: authorizeDirectory,
+  async execute({
+    input,
+    context,
+  }: OrganizationUseCaseContext<
+    OrganizationInput & {
+      memberId?: string
+      page: number
+      size: number
+    }
+  >) {
+    const branch = await db.transaction(
+      (tx) =>
+        repository.getChartBranch(
+          tx,
+          input.organizationId,
+          input.memberId ? { memberId: input.memberId } : { userId: context.userId },
+          input.page,
+          input.size
+        ),
+      { isolationLevel: 'repeatable read', accessMode: 'read only' }
+    )
+    if (!branch) throw new OrchestrationError('not_found', 'Person not found')
+    return branch
+  },
 })
 
 /** The departments people belong to, with head counts, for filtering the People page. */
 export const listDepartments = defineAuthorizedOrganizationUseCase({
   operation: peopleOperations.listDepartments,
   authorizeResource: authorizeDirectory,
-  execute: ({ input }: OrganizationUseCaseContext<OrganizationInput>) =>
-    repository.listDepartments(input.organizationId),
+  execute: ({
+    input,
+  }: OrganizationUseCaseContext<OrganizationInput & { search?: string; offset?: number }>) =>
+    repository.listDepartments(input.organizationId, input),
 })
 
 /**
@@ -64,17 +104,18 @@ export const getPerson = defineAuthorizedOrganizationUseCase({
   operation: peopleOperations.get,
   authorizeResource: authorizeDirectory,
   async execute({ input }: OrganizationUseCaseContext<PersonInput>) {
-    const { organizationId, memberId } = input
-    const { person, chain, reports } = await db.transaction(
-      async (tx) => ({
-        person: await repository.getPerson(tx, organizationId, memberId),
-        chain: await repository.getReportingChain(tx, organizationId, memberId),
-        reports: await repository.listDirectReports(tx, organizationId, memberId),
-      }),
+    const branch = await db.transaction(
+      (tx) =>
+        repository.getChartBranch(tx, input.organizationId, { memberId: input.memberId }, 1, 50),
       { isolationLevel: 'repeatable read', accessMode: 'read only' }
     )
-    if (!person) throw new OrchestrationError('not_found', 'Person not found')
-    return { person, chain, reports }
+    if (!branch) throw new OrchestrationError('not_found', 'Person not found')
+    return {
+      person: branch.person,
+      chain: branch.chain,
+      reports: branch.reports,
+      totalReports: branch.totalReports,
+    }
   },
 })
 
@@ -96,6 +137,12 @@ export const updatePerson = defineAuthorizedOrganizationUseCase({
       await repository.lockProfiles(tx, organizationId)
       const current = await repository.getPerson(tx, organizationId, memberId)
       if (!current) throw new OrchestrationError('not_found', 'Person not found')
+      if (current.directorySource) {
+        throw new OrchestrationError(
+          'conflict',
+          'This profile is managed by your directory. Update it at the source.'
+        )
+      }
       if (managerMemberId && managerMemberId !== current.managerMemberId) {
         const active = await repository.findActiveMembers(tx, organizationId, [managerMemberId])
         if (!active.has(managerMemberId)) {
@@ -132,9 +179,9 @@ export const updatePerson = defineAuthorizedOrganizationUseCase({
 })
 
 /**
- * Imports people data from a spreadsheet's rows, matched to active members by email. A preview
+ * Imports people data from a spreadsheet, a provider, or the active provisioning connection. A preview
  * (`apply: false`) reports what would change and writes nothing; applying re-plans under the
- * profile lock against current data, so fields the file leaves out keep any change made since the
+ * profile lock against current data, so fields the source leaves out keep any change made since the
  * preview, and reporting loops are checked against current managers.
  */
 export const importPeople = defineAuthorizedOrganizationUseCase({
@@ -144,29 +191,62 @@ export const importPeople = defineAuthorizedOrganizationUseCase({
     input,
     context,
   }: OrganizationUseCaseContext<
-    OrganizationInput & { headers: string[]; rows: string[][]; apply: boolean }
+    OrganizationInput & PeopleImportBody
   >): Promise<PeopleImportResult> {
-    const matched = matchPeopleColumns(input.headers)
-    if (!matched.ok) throw new OrchestrationError('validation', matched.message)
-    const rows = input.rows.map((cells) =>
-      Object.fromEntries(input.headers.map((header, index) => [header, cells[index] ?? '']))
-    )
-    const plan = (members: PeopleImportMember[]) =>
-      planPeopleImport({ columns: matched.columns, rows, members })
-    const result = input.apply
-      ? await db.transaction(async (tx) => {
-          await repository.lockProfiles(tx, input.organizationId)
-          const applied = plan(await repository.listMemberProfiles(tx, input.organizationId))
-          if (applied.changes.length) {
-            await repository.upsertProfiles(
-              tx,
-              applied.changes.map(({ memberId, profile }) => ({ memberId, ...profile })),
-              context.userId
-            )
-          }
-          return applied
+    const directory = 'source' in input
+    const sourceRows = !directory
+      ? {
+          sourceId: null,
+          headers: input.headers,
+          rows: input.rows.map((cells) =>
+            Object.fromEntries(input.headers.map((header, index) => [header, cells[index] ?? '']))
+          ),
+        }
+      : input.source === 'directory'
+        ? null
+        : await readProviderProfiles(input)
+    const result = await db.transaction(
+      async (tx) => {
+        if (!sourceRows && !(await isScimEntitledForOrganization(input.organizationId, tx))) {
+          throw new OrchestrationError(
+            'forbidden',
+            'Directory provisioning is unavailable for this organization'
+          )
+        }
+        if (input.apply) await repository.lockProfiles(tx, input.organizationId)
+        const imported =
+          sourceRows ?? (await readProvisionedProfiles(tx, input.organizationId, input.apply))
+        const previewDigest =
+          directory && imported.sourceId !== null
+            ? verifyDirectoryPreview(input, imported.sourceId, imported.rows)
+            : undefined
+        const matched = matchPeopleColumns(imported.headers)
+        if (!matched.ok) throw new OrchestrationError('validation', matched.message)
+        const { emails, managerEmails } = peopleImportEmails(matched.columns, imported.rows)
+        const { members, managerLinks } = await repository.listMemberProfiles(
+          tx,
+          input.organizationId,
+          emails,
+          managerEmails
+        )
+        const plan = planPeopleImport({
+          columns: matched.columns,
+          rows: imported.rows,
+          members,
+          managerLinks,
+          directory,
         })
-      : plan(await repository.listMemberProfiles(db, input.organizationId))
+        if (input.apply && plan.changes.length) {
+          await repository.upsertProfiles(
+            tx,
+            plan.changes.map(({ memberId, profile }) => ({ memberId, ...profile })),
+            context.userId
+          )
+        }
+        return { ...plan, previewDigest }
+      },
+      input.apply ? undefined : { isolationLevel: 'repeatable read', accessMode: 'read only' }
+    )
     const skipped = result.issues.filter((issue) => issue.severity === 'skipped').length
     return {
       updated: result.changes.length,
@@ -175,6 +255,7 @@ export const importPeople = defineAuthorizedOrganizationUseCase({
       warnings: result.issues.length - skipped,
       issues: result.issues.slice(0, MAX_REPORTED_ISSUES),
       applied: input.apply,
+      ...(!input.apply && result.previewDigest ? { previewDigest: result.previewDigest } : {}),
     }
   },
   projectAudit: ({ result, input }) =>
@@ -186,7 +267,11 @@ export const importPeople = defineAuthorizedOrganizationUseCase({
             resourceId: input.organizationId,
             description: `Imported people data: ${result.updated} profiles updated`,
             metadata: {
-              rows: input.rows.length,
+              source: 'source' in input ? input.source : 'spreadsheet',
+              rows:
+                'rows' in input
+                  ? input.rows.length
+                  : result.updated + result.skipped + result.unchanged,
               updated: result.updated,
               unchanged: result.unchanged,
               skipped: result.skipped,

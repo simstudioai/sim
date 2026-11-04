@@ -8,6 +8,7 @@ import {
   getNotificationUrl,
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   DeleteSubscriptionContext,
   FormatInputContext,
@@ -73,19 +74,21 @@ export const mondayHandler: WebhookProviderHandler = {
 
     if (!triggerId) {
       logger.warn(`[${ctx.requestId}] Missing triggerId for Monday webhook ${ctx.webhook.id}`)
-      throw new Error('Trigger type is required for Monday.com webhook creation.')
+      throw new WebhookDeploymentConfigurationError(
+        'Trigger type is required for Monday.com webhook creation.'
+      )
     }
 
     if (!boardId) {
       logger.warn(`[${ctx.requestId}] Missing boardId for Monday webhook ${ctx.webhook.id}`)
-      throw new Error(
+      throw new WebhookDeploymentConfigurationError(
         'Board ID is required. Please provide a valid Monday.com board ID in the trigger configuration.'
       )
     }
 
     const boardIdValidation = validateMondayNumericId(boardId, 'boardId')
     if (!boardIdValidation.isValid) {
-      throw new Error(boardIdValidation.error!)
+      throw new WebhookDeploymentConfigurationError(boardIdValidation.error!)
     }
 
     const { MONDAY_EVENT_TYPE_MAP } = await import('@/triggers/monday/utils')

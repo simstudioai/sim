@@ -45,6 +45,8 @@ export function organizationRoutes(organizationId: string) {
     benchmark: `${root}/benchmark`,
     memberSecrets: `${root}/integrations/secrets`,
     simLinks: `${root}/links`,
+    openSimLink: (name: string) =>
+      `/sim-links/${encodeURIComponent(organizationId)}/${encodeURIComponent(name)}`,
     people: `${root}/people`,
     person: (memberId: string) => `${root}/people/${encodeURIComponent(memberId)}`,
     organizationSecrets: `${root}/settings/integrations/secrets`,
@@ -62,6 +64,11 @@ export function organizationRoutes(organizationId: string) {
 /** Where `sim/<name>/<values…>` resolves in this app: the address a member types, kept verbatim. */
 export function simLinkPath(...segments: string[]): string {
   return ['/sim', ...segments.map(encodeURIComponent)].join('/')
+}
+
+/** The full address of `sim/<name>` on `origin`, which opens it with or without the extension. */
+export function simLinkUrl(origin: string, name: string): string {
+  return new URL(simLinkPath(name), origin).href
 }
 
 /** Whether `pathname` is `root` itself or a route beneath it. */

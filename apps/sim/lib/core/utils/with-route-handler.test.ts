@@ -1,4 +1,5 @@
 import { loggerMock } from '@sim/testing'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { NextRequest, NextResponse } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
 import { HttpError } from '@/lib/core/utils/http-error'
@@ -142,4 +143,89 @@ describe('withRouteHandler', () => {
       await expect(response.json()).resolves.toEqual({ family: 'generic' })
     }
   )
+
+  describe('a database that is temporarily unavailable', () => {
+    const SQL = 'select "secret_column" from "workflow_execution_logs" where "id" = $1'
+
+    function failedQuery(code: string, message: string): DrizzleQueryError {
+      return new DrizzleQueryError(SQL, ['id-1'], Object.assign(new Error(message), { code }))
+    }
+
+    function familyRoute(error: unknown) {
+      return withRouteHandler(
+        async () => {
+          throw error
+        },
+        {
+          typedErrorResponse: ({ error: typed, status }) =>
+            NextResponse.json({ family: 'typed', error: typed.message }, { status }),
+          unhandledErrorResponse: () => NextResponse.json({ family: 'generic' }, { status: 500 }),
+        }
+      )
+    }
+
+    it.each([
+      [
+        'a replica recovery conflict',
+        failedQuery('40001', 'canceling statement due to conflict with recovery'),
+      ],
+      ['a statement timeout', failedQuery('57014', 'canceling statement due to statement timeout')],
+      [
+        'a connection lost under the query',
+        failedQuery('CONNECTION_CLOSED', 'write CONNECTION_CLOSED'),
+      ],
+      [
+        'a server restarting',
+        failedQuery('57P01', 'terminating connection due to administrator command'),
+      ],
+    ])('answers a read failing on %s with a retryable 503', async (_, error) => {
+      const response = await familyRoute(error)(
+        new NextRequest('http://localhost/api/test'),
+        undefined
+      )
+
+      expect(response.status).toBe(503)
+      expect(Number(response.headers.get('Retry-After'))).toBeGreaterThan(0)
+      const body = await response.json()
+      expect(body.family).toBe('typed')
+      expect(JSON.stringify(body)).not.toContain('secret_column')
+    })
+
+    it('answers a HEAD the same way as its GET', async () => {
+      const response = await familyRoute(
+        failedQuery('40001', 'canceling statement due to conflict with recovery')
+      )(new NextRequest('http://localhost/api/test', { method: 'HEAD' }), undefined)
+
+      expect(response.status).toBe(503)
+    })
+
+    it.each(['POST', 'PUT', 'PATCH', 'DELETE'])(
+      'leaves a %s unhandled, since an earlier statement may already have committed',
+      async (method) => {
+        const response = await familyRoute(
+          failedQuery('40001', 'canceling statement due to conflict with recovery')
+        )(new NextRequest('http://localhost/api/test', { method }), undefined)
+
+        expect(response.status).toBe(500)
+        expect(response.headers.get('Retry-After')).toBeNull()
+      }
+    )
+
+    it.each([
+      ['a user-requested cancel', failedQuery('57014', 'canceling statement due to user request')],
+      ['a permanent query error', failedQuery('42601', 'syntax error at or near ")"')],
+      [
+        'a socket reset outside any query',
+        Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }),
+      ],
+    ])('leaves %s on a read unhandled', async (_, error) => {
+      const response = await familyRoute(error)(
+        new NextRequest('http://localhost/api/test'),
+        undefined
+      )
+
+      expect(response.status).toBe(500)
+      await expect(response.json()).resolves.toEqual({ family: 'generic' })
+    })
+  })
 })

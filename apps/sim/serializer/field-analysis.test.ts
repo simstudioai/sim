@@ -14,6 +14,9 @@ vi.mock('@/blocks', () => ({
   getBlock: (type: string) => (type === 'svc' ? svcConfig.value : blocksMock.getBlock(type)),
 }))
 
+import { videoToolBodySchema } from '@/lib/api/contracts/tools/media/video'
+import { buildDirectVideoRequest } from '@/lib/internal/video/direct-request'
+import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import { collectBlockFieldIssues, extractBlockParams } from '@/serializer/index'
 import { getToolMetadata, getToolParams } from '@/tools/metadata'
 
@@ -135,6 +138,76 @@ describe('collectBlockFieldIssues', () => {
 })
 
 describe('extractBlockParams', () => {
+  it.each([
+    {
+      name: 'saved Luma duration, portrait ratio and resolution',
+      settings: {
+        provider: 'luma' as const,
+        model: 'ray-2',
+        duration: '9',
+        aspectRatio: '9:16',
+        resolution: '4k',
+      },
+      payload: { duration: '9s', aspect_ratio: '9:16', resolution: '4k' },
+    },
+    {
+      name: 'saved MiniMax duration and disabled prompt optimization',
+      settings: {
+        provider: 'minimax' as const,
+        duration: '10',
+        promptOptimizer: false,
+      },
+      payload: { duration: 10, prompt_optimizer: false },
+    },
+    {
+      name: 'MiniMax Pro preference on a 720P-only model',
+      settings: { provider: 'minimax' as const, model: 'T2V-01', endpoint: 'pro' },
+      payload: { model: 'T2V-01', resolution: '720P' },
+    },
+    {
+      name: 'Runway default duration with a reference image',
+      settings: {
+        provider: 'runway' as const,
+        visualReferenceUpload: [
+          {
+            id: 'reference',
+            name: 'image.png',
+            url: '/api/files/image.png',
+            key: 'workspace/reference.png',
+            size: 5,
+            type: 'image/png',
+          },
+        ],
+      },
+      payload: { model: 'gen4_turbo', duration: 5 },
+    },
+    {
+      name: 'current Google default without a retired duration',
+      settings: { provider: 'veo' as const },
+      payload: {
+        model: 'gemini-omni-1.1-flash',
+        response_format: { type: 'video', delivery: 'uri' },
+      },
+    },
+  ])('preserves $name through serialization into the provider request', ({ settings, payload }) => {
+    svcConfig.value = VideoGeneratorV3Block
+    const values = { apiKey: 'test-key', prompt: 'A cinematic sunrise', ...settings }
+    const params = extractBlockParams(
+      block({
+        type: 'svc',
+        subBlocks: Object.fromEntries(
+          Object.entries(values).map(([id, value]) => [id, { id, type: 'short-input', value }])
+        ),
+      })
+    )
+    const mapped = VideoGeneratorV3Block.tools.config?.params?.(params)
+    const request = buildDirectVideoRequest({
+      ...videoToolBodySchema.parse(mapped),
+      provider: settings.provider,
+    })
+    expect(request.body).toMatchObject(payload)
+  })
+
   it('resolves a canonical pair to its canonical id (advanced value wins when basic empty)', () => {
     svcConfig.value = config([
       {

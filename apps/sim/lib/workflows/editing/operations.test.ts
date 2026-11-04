@@ -1195,6 +1195,40 @@ describe('permission-group tool access', () => {
       })
     )
   })
+
+  it('charges an operation with several skips once, beside other declined operations', () => {
+    const agentId = '66666666-6666-4666-8666-666666666666'
+    const cleanId = '77777777-7777-4777-8777-777777777777'
+    const { skippedItems, declinedOperationCount } = applyOperationsToWorkflowState(
+      emptyWorkflow(),
+      [
+        {
+          operation_type: 'add',
+          block_id: agentId,
+          params: {
+            type: 'agent',
+            name: 'Agent 1',
+            inputs: {
+              tools: [
+                { type: 'slack', operation: 'canvas', title: 'Canvas A' },
+                { type: 'slack', operation: 'canvas', title: 'Canvas B' },
+              ],
+            },
+          },
+        },
+        {
+          operation_type: 'add',
+          block_id: cleanId,
+          params: { type: 'agent', name: 'Agent 2', inputs: {} },
+        },
+        { operation_type: 'edit', block_id: '', params: {} },
+      ],
+      denyCanvas
+    )
+
+    expect(skippedItems.filter((item) => item.type === 'tool_not_allowed')).toHaveLength(2)
+    expect(declinedOperationCount).toBe(2)
+  })
 })
 
 describe('tool canonical-mode reindexing', () => {
@@ -1420,6 +1454,76 @@ describe('connection shape validation', () => {
         details: expect.objectContaining({ sourceHandle: 'incoming' }),
       }),
     ])
+  })
+
+  it('charges a connection refused after the handler pass to the operation that queued it', () => {
+    const blockB = '88888888-8888-4888-8888-888888888888'
+    const { skippedItems, declinedOperationCount } = applyOperationsToWorkflowState(
+      workflowWithStart(),
+      [
+        {
+          operation_type: 'add',
+          block_id: BLOCK_A,
+          params: {
+            type: 'function',
+            name: 'Block A',
+            inputs: { code: 'return 1' },
+            connections: { incoming: 'start-1', outgoing: 'start-1' },
+          },
+        },
+        {
+          operation_type: 'add',
+          block_id: blockB,
+          params: {
+            type: 'function',
+            name: 'Block B',
+            inputs: { code: 'return 2' },
+            connections: { success: 'start-1' },
+          },
+        },
+      ]
+    )
+
+    expect(skippedItems.filter((item) => item.type === 'invalid_source_handle')).toHaveLength(2)
+    expect(declinedOperationCount).toBe(1)
+  })
+
+  it('charges an edge dropped by the final scope check to the operation that created it', () => {
+    const { state, skippedItems, declinedOperationCount } = applyOperationsToWorkflowState(
+      makeLoopWorkflow(),
+      [
+        {
+          operation_type: 'add',
+          block_id: BLOCK_A,
+          params: {
+            type: 'function',
+            name: 'Block A',
+            inputs: { code: 'return 1' },
+            connections: { source: 'agent-1' },
+          },
+        },
+      ]
+    )
+
+    expect(state.edges.some((edge: { source: string }) => edge.source === BLOCK_A)).toBe(false)
+    expect(skippedItems.filter((item) => item.type === 'invalid_edge_scope')).toHaveLength(1)
+    expect(declinedOperationCount).toBe(1)
+  })
+
+  it('does not charge a move for the existing edges it leaves crossing scopes', () => {
+    const { skippedItems, declinedOperationCount } = applyOperationsToWorkflowState(
+      makeLoopWorkflow(),
+      [
+        {
+          operation_type: 'extract_from_subflow',
+          block_id: 'agent-1',
+          params: { subflowId: 'loop-1' },
+        },
+      ]
+    )
+
+    expect(skippedItems.filter((item) => item.type === 'invalid_edge_scope')).toHaveLength(1)
+    expect(declinedOperationCount).toBe(0)
   })
 })
 

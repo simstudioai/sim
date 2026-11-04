@@ -79,16 +79,16 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/changelog/layout.tsx": {
-      "modules": 1642,
+      "modules": 1676,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/changelog/components/index.ts": 1641,
-        "apps/sim/app/workspace/[workspaceId]/changelog/components/release-entry/release-entry.tsx": 1515,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/index.ts": 1475,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/file-viewer.tsx": 1439,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx": 1362,
+        "apps/sim/app/workspace/[workspaceId]/changelog/components/index.ts": 1675,
+        "apps/sim/app/workspace/[workspaceId]/changelog/components/release-entry/release-entry.tsx": 1549,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/index.ts": 1509,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/file-viewer.tsx": 1473,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx": 1394,
         "apps/sim/triggers/registry.ts": 597,
-        "apps/sim/blocks/registry.ts": 385,
-        "apps/sim/blocks/registry-maps.ts": 383
+        "apps/sim/blocks/registry.ts": 391,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find/index.ts": 80
       }
     },
     "app/workspace/[workspaceId]/changelog/loading.tsx": {
@@ -474,16 +474,16 @@
       }
     },
     "app/workspace/[workspaceId]/skills/[skillId]/page.tsx": {
-      "modules": 1578,
+      "modules": 1611,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/skills/[skillId]/skill-detail.tsx": 1577,
+        "apps/sim/app/workspace/[workspaceId]/skills/[skillId]/skill-detail.tsx": 1610,
         "apps/sim/triggers/registry.ts": 597,
-        "apps/sim/blocks/registry.ts": 385,
-        "apps/sim/blocks/registry-maps.ts": 383,
-        "apps/sim/app/workspace/[workspaceId]/skills/components/skill-fields/index.ts": 293,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field.tsx": 290,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions.ts": 128,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find/index.ts": 73
+        "apps/sim/blocks/registry.ts": 391,
+        "apps/sim/app/workspace/[workspaceId]/skills/components/skill-fields/index.ts": 318,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field.tsx": 315,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions.ts": 129,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find/index.ts": 74,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find/use-markdown-find.ts": 71
       }
     },
     "app/workspace/[workspaceId]/skills/error.tsx": {
@@ -491,29 +491,29 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/skills/new/page.tsx": {
-      "modules": 1576,
+      "modules": 1609,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/skills/new/skill-create.tsx": 1575,
+        "apps/sim/app/workspace/[workspaceId]/skills/new/skill-create.tsx": 1608,
         "apps/sim/triggers/registry.ts": 597,
-        "apps/sim/blocks/registry.ts": 385,
-        "apps/sim/blocks/registry-maps.ts": 383,
-        "apps/sim/app/workspace/[workspaceId]/skills/components/skill-fields/index.ts": 293,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field.tsx": 290,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions.ts": 128,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find/index.ts": 73
+        "apps/sim/blocks/registry.ts": 391,
+        "apps/sim/app/workspace/[workspaceId]/skills/components/skill-fields/index.ts": 318,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field.tsx": 315,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions.ts": 129,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find/index.ts": 74,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find/use-markdown-find.ts": 71
       }
     },
     "app/workspace/[workspaceId]/skills/page.tsx": {
-      "modules": 1174,
+      "modules": 1201,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/skills/skills.tsx": 1170,
-        "apps/sim/app/workspace/[workspaceId]/integrations/components/showcase-with-explore/index.ts": 1032,
-        "apps/sim/blocks/registry.ts": 1021,
-        "apps/sim/blocks/registry-maps.ts": 1019,
+        "apps/sim/app/workspace/[workspaceId]/skills/skills.tsx": 1197,
+        "apps/sim/app/workspace/[workspaceId]/integrations/components/showcase-with-explore/index.ts": 1059,
+        "apps/sim/blocks/registry.ts": 1025,
         "apps/sim/triggers/index.ts": 599,
         "apps/sim/triggers/registry.ts": 597,
-        "apps/sim/hooks/queries/skills.ts": 77,
-        "apps/sim/lib/api/contracts/index.ts": 68
+        "apps/sim/hooks/queries/skills.ts": 60,
+        "apps/sim/triggers/plane/index.ts": 46,
+        "apps/sim/triggers/clickup/index.ts": 32
       }
     },
     "app/workspace/[workspaceId]/tables/[tableId]/error.tsx": {

@@ -9,6 +9,7 @@ import {
   getNotificationUrl,
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   DeleteSubscriptionContext,
   EventMatchContext,
@@ -46,7 +47,7 @@ async function resolveClickUpAccessToken(
   requestId: string
 ): Promise<string> {
   if (!credentialId) {
-    throw new Error(
+    throw new WebhookDeploymentConfigurationError(
       'ClickUp account connection required. Please connect your ClickUp account in the trigger configuration and try again.'
     )
   }
@@ -72,7 +73,9 @@ function parseOptionalNumericId(value: unknown, label: string): number | undefin
   if (!raw) return undefined
   const parsed = Number(raw)
   if (!Number.isInteger(parsed)) {
-    throw new Error(`ClickUp ${label} must be a whole number. Received: ${raw}`)
+    throw new WebhookDeploymentConfigurationError(
+      `ClickUp ${label} must be a whole number. Received: ${raw}`
+    )
   }
   return parsed
 }
@@ -154,7 +157,7 @@ export const clickupHandler: WebhookProviderHandler = {
 
       const workspaceId = parseOptionalStringId(config.triggerWorkspaceId)
       if (!workspaceId) {
-        throw new Error(
+        throw new WebhookDeploymentConfigurationError(
           'ClickUp workspace is required. Please select a workspace in the trigger configuration and try again.'
         )
       }
@@ -271,6 +274,7 @@ export const clickupHandler: WebhookProviderHandler = {
 
       return { providerConfigUpdates: { externalId, webhookSecret: secret } }
     } catch (error: unknown) {
+      if (error instanceof WebhookDeploymentConfigurationError) throw error
       const message = toError(error).message
       logger.error(
         `[${requestId}] Exception during ClickUp webhook creation for webhook ${webhookRecord.id}.`,

@@ -6,6 +6,7 @@ import {
   authorizeWorkflowByWorkspacePermission,
   getActiveWorkflowRecord,
 } from '@sim/platform-authz/workflow'
+import { isValidUuid } from '@sim/utils/id'
 import { and, asc, desc, eq, isNull, type SQL, sql } from 'drizzle-orm'
 import { preciseTimestampText } from '@/lib/api/list-query'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
@@ -291,7 +292,9 @@ export async function loadChatMcpServerIds(chatId: string): Promise<string[]> {
 
 /**
  * Ownership + liveness predicate shared by the accessible-chat loaders:
- * the chat must belong to the user and not be soft-deleted.
+ * the chat must belong to the user and not be soft-deleted. Loaders check the id
+ * is a UUID first: a malformed one (a URL pasted with trailing punctuation) can
+ * match no chat, and Postgres would reject it with 22P02 instead of no row.
  */
 function ownedLiveChatWhere(chatId: string, userId: string) {
   return and(
@@ -451,6 +454,7 @@ async function loadAccessibleCopilotChatAuth(
     | typeof authorizeOrganizationChat
     | typeof authorizeOrganizationChatCancellation
 ): Promise<CopilotChatAuthRow | null> {
+  if (!isValidUuid(chatId)) return null
   const [chat] = await db
     .select(copilotChatAuthColumns)
     .from(copilotChats)
@@ -471,6 +475,7 @@ async function getAccessibleCopilotChatDetail(
   userId: string,
   principal?: Principal
 ): Promise<CopilotChatDetail | null> {
+  if (!isValidUuid(chatId)) return null
   const [chat] = await db
     .select(copilotChatDetailColumns)
     .from(copilotChats)

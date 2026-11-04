@@ -12,6 +12,7 @@ provisioning service.
 - A running local app configured for hosted Enterprise SCIM with billing enabled, using a dedicated local
   PostgreSQL database with all migrations applied (including `0325`). Leave
   Redis unconfigured so the app uses PostgreSQL for rate-limit storage.
+  Enable People on the app with `PEOPLE=true` to exercise SCIM profile imports.
   For `next dev`, set `NEXT_PUBLIC_FORCE_HOSTED=true` and `BILLING_ENABLED=true`.
 - The app's local `BETTER_AUTH_SECRET`, at least 32 characters long.
 - An app URL using HTTP on `localhost`, `127.0.0.1`, or `::1`. The database must
@@ -42,6 +43,8 @@ export SCIM_E2E_AUTH_SECRET='<the-local-app-BETTER_AUTH_SECRET>'
 export SCIM_E2E_REPORT_PATH=/tmp/sim-scim-e2e-report.json
 bun run test:scim:e2e
 ```
+
+Set `PEOPLE_E2E_SCREENSHOT_DIR` to run the signed-in People import flow in Chromium and save its screenshots. Install Chromium with `bunx --no-install playwright install chromium` when using that option.
 
 The first three variables are required; the report path is optional. The app and
 the harness must use the same database and authentication secret. The report
@@ -198,3 +201,5 @@ branches that do not belong in a local HTTP scenario:
 ```sh
 bun run --cwd apps/sim test ee/scim lib/api/server/routes/scim-route.test.ts
 ```
+
+The SCIM suite exercises directory sync through its authenticated cron and admin routes. Set the same `CRON_SECRET` on the test runner and app.

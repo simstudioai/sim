@@ -4,7 +4,7 @@ import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
 import { compactRetrievalCitations } from '@/lib/mothership/chat/retrieval-citations'
 import { collectCitedMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
-import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
+import type { ContentBlock, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
 const output = {
   success: true,
@@ -125,5 +125,50 @@ describe('evidence-linked citations', () => {
     expect(
       resolveMessageCitations(blocks(), `<source>{"id":"${id}=="}</source>`, true).fallbackContent
     ).toBe('')
+  })
+  it('resolves public web citations only from a successful cited web result, through persistence', () => {
+    const webOutput = {
+      query: 'sim cli install',
+      results: [
+        {
+          title: 'Install the Sim CLI',
+          url: 'https://docs.example.test/cli',
+          citationId: 'web:page-handle',
+          text: 'x'.repeat(4000),
+        },
+      ],
+    }
+    const webBlocks = (
+      status: ToolCallStatus,
+      success: boolean,
+      result: unknown
+    ): ContentBlock[] => [
+      {
+        type: 'tool_call',
+        toolCall: { id: 'web', name: 'web_search', status, result: { success, output: result } },
+      },
+      { type: 'text', content: 'Install it <source>{"id":"web:page-handle"}</source>' },
+    ]
+    const live = resolveMessageCitations(webBlocks('success', true, webOutput), '', true)
+    expect(live.sources).toEqual([
+      { url: 'https://docs.example.test/cli', title: 'Install the Sim CLI' },
+    ])
+    expect(live.blocks[1].content).toContain('https://docs.example.test/cli')
+    const persisted = resolveMessageCitations(
+      webBlocks('success', true, compactRetrievalCitations('web_search', webOutput)),
+      '',
+      true
+    )
+    expect(persisted.sources).toEqual(live.sources)
+    const disguised = {
+      ...webOutput,
+      results: [{ ...webOutput.results[0], url: 'https://docs.example.test@attacker.test/cli' }],
+    }
+    expect(
+      resolveMessageCitations(webBlocks('success', true, disguised), '', true).sources
+    ).toEqual([])
+    expect(
+      resolveMessageCitations(webBlocks('error', false, webOutput), '', true).blocks[1].content
+    ).toBe('Install it ')
   })
 })

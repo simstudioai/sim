@@ -4,6 +4,7 @@ import { safeCompare } from '@sim/security/compare'
 import { isRecordLike } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -86,7 +87,7 @@ export const vercelHandler: WebhookProviderHandler = {
       const filterProjectIds = providerConfig.filterProjectIds as string | undefined
 
       if (!apiKey) {
-        throw new Error(
+        throw new WebhookDeploymentConfigurationError(
           'Vercel Access Token is required. Please provide your access token in the trigger configuration.'
         )
       }
@@ -199,6 +200,7 @@ export const vercelHandler: WebhookProviderHandler = {
         },
       }
     } catch (error: unknown) {
+      if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
       logger.error(
         `[${requestId}] Exception during Vercel webhook creation for webhook ${webhook.id}.`,

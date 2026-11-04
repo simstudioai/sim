@@ -2,12 +2,15 @@ import {
   keepPreviousData,
   useInfiniteQuery,
   useMutation,
+  useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
+  type BookmarkLink,
   createSimLinkContract,
   deleteSimLinkContract,
+  exportSimBookmarksContract,
   listSimLinksContract,
   type SimLinkBody,
   updateSimLinkContract,
@@ -22,6 +25,8 @@ const simLinkKeys = {
   lists: (organizationId: string) => [...simLinkKeys.all, 'list', organizationId] as const,
   list: (organizationId: string, search: string, sort: SimLinkSort, dir: SortDirection) =>
     [...simLinkKeys.lists(organizationId), search, sort, dir] as const,
+  forUrl: (organizationId: string, url: string) =>
+    [...simLinkKeys.lists(organizationId), 'url', url] as const,
 }
 
 export function useSimLinks(
@@ -42,6 +47,24 @@ export function useSimLinks(
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     staleTime: SIM_LINKS_STALE_TIME,
     placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * Links whose destination is exactly `url`. Shares the list key prefix, so creating a link
+ * refreshes it.
+ */
+export function useSimLinksForUrl(organizationId: string, url: string) {
+  return useQuery({
+    queryKey: simLinkKeys.forUrl(organizationId, url),
+    queryFn: ({ signal }) =>
+      requestJson(listSimLinksContract, {
+        params: { id: organizationId },
+        query: { url },
+        signal,
+      }),
+    select: (page) => page.links,
+    staleTime: SIM_LINKS_STALE_TIME,
   })
 }
 
@@ -74,5 +97,12 @@ export function useDeleteSimLink(organizationId: string) {
     mutationFn: (linkId: string) =>
       requestJson(deleteSimLinkContract, { params: { id: organizationId, linkId } }),
     onSuccess: invalidate,
+  })
+}
+
+export function useExportSimBookmarks(organizationId: string) {
+  return useMutation({
+    mutationFn: (links: BookmarkLink[]) =>
+      requestJson(exportSimBookmarksContract, { params: { id: organizationId }, body: { links } }),
   })
 }

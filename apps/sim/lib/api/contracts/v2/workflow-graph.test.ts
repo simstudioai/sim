@@ -1,3 +1,4 @@
+import { createEmptyWorkflowLintReport } from '@sim/testing/factories/workflow-lint.factory'
 import { describe, expect, it } from 'vitest'
 import {
   v2ApplyWorkflowOperationsDataSchema,
@@ -92,19 +93,7 @@ describe('v2WorkflowGraphSchema', () => {
   })
 })
 
-/** An empty report carrying every field the lint schema requires. */
-const EMPTY_LINT = {
-  sources: [],
-  sinks: [],
-  orphanBlocks: [],
-  emptyOutgoingPorts: [],
-  invalidBranchPorts: [],
-  invalidConnectionTargets: [],
-  fieldIssues: [],
-  unresolvedReferences: [],
-  tableFieldIssues: [],
-  notes: [],
-}
+const EMPTY_LINT = createEmptyWorkflowLintReport()
 
 /** A report exercising every finding kind the lint schema publishes. */
 const FULL_LINT = {
@@ -174,6 +163,13 @@ const FULL_LINT = {
       tableName: 'Leads',
     },
   ],
+  manualRunIssue: {
+    reason: 'trigger-not-connected',
+    message: 'Start must be connected to other blocks to execute',
+    blockId: 'block-1',
+    blockName: 'Start',
+    blockType: 'start_trigger',
+  },
   notes: ['lint note'],
 }
 

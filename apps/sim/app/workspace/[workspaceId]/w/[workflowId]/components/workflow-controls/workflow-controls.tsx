@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useRef, useState } from 'react'
+import { memo, useRef, useState } from 'react'
 import {
   Button,
   ChevronDown,
@@ -14,14 +14,13 @@ import {
   PopoverContent,
   PopoverItem,
   PopoverTrigger,
-  Redo,
   Tooltip,
-  Undo,
 } from '@sim/emcn'
-import { SelectAll } from '@sim/emcn/icons'
+import { Redo, Undo } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useReactFlow } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
+import { CanvasToolbar, CanvasToolbarButton } from '@/components/canvas-toolbar'
 import { useSession } from '@/lib/auth/client'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands'
@@ -57,9 +56,9 @@ export const WorkflowControls = memo(function WorkflowControls() {
   const canUndo = stack.undo.length > 0
   const canRedo = stack.redo.length > 0
 
-  const handleFitToView = useCallback(() => {
+  const handleFitToView = () => {
     fitViewToBounds({ padding: 0.1, duration: 300 })
-  }, [fitViewToBounds])
+  }
 
   useRegisterGlobalCommands([
     createCommand({
@@ -93,12 +92,10 @@ export const WorkflowControls = memo(function WorkflowControls() {
 
   return (
     <>
-      <div
-        /*
-         * 12px off both edges, the same clearance the toast stack keeps from the
-         * terminal and the panel, so the two floating surfaces read as one row.
-         */
-        className='absolute bottom-3 left-3 z-10 flex h-[36px] pointer-coarse:h-auto items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-1'
+      <CanvasToolbar
+        fitLabel='Fit to View'
+        fitShortcut='⌘⇧F'
+        onFit={handleFitToView}
         onContextMenu={handleContextMenu}
       >
         {/* Canvas Mode Selector */}
@@ -161,67 +158,21 @@ export const WorkflowControls = memo(function WorkflowControls() {
 
         <div className='mx-1 hidden h-[20px] w-px bg-[var(--border)] md:block' />
 
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Button
-              aria-label='Undo'
-              variant='ghost'
-              className={cn(
-                'pointer-coarse:size-11 size-[28px] rounded-sm p-0',
-                chipHoverSurfaceClass
-              )}
-              onClick={undo}
-              disabled={!canUndo}
-            >
-              <Undo className='size-[14px]' />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='top'>
-            <Tooltip.Shortcut keys='⌘Z'>Undo</Tooltip.Shortcut>
-          </Tooltip.Content>
-        </Tooltip.Root>
-
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Button
-              aria-label='Redo'
-              variant='ghost'
-              className={cn(
-                'pointer-coarse:size-11 size-[28px] rounded-sm p-0',
-                chipHoverSurfaceClass
-              )}
-              onClick={redo}
-              disabled={!canRedo}
-            >
-              <Redo className='size-[14px]' />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='top'>
-            <Tooltip.Shortcut keys='⌘⇧Z'>Redo</Tooltip.Shortcut>
-          </Tooltip.Content>
-        </Tooltip.Root>
-
-        <div className='mx-1 h-[20px] w-px bg-[var(--border)]' />
-
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Button
-              aria-label='Fit to View'
-              variant='ghost'
-              className={cn(
-                'pointer-coarse:size-11 size-[28px] rounded-sm p-0',
-                chipHoverSurfaceClass
-              )}
-              onClick={handleFitToView}
-            >
-              <SelectAll className='size-[14px]' />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='top'>
-            <Tooltip.Shortcut keys='⌘⇧F'>Fit to View</Tooltip.Shortcut>
-          </Tooltip.Content>
-        </Tooltip.Root>
-      </div>
+        <CanvasToolbarButton
+          label='Undo'
+          icon={Undo}
+          shortcut='⌘Z'
+          onClick={undo}
+          disabled={!canUndo}
+        />
+        <CanvasToolbarButton
+          label='Redo'
+          icon={Redo}
+          shortcut='⌘⇧Z'
+          onClick={redo}
+          disabled={!canRedo}
+        />
+      </CanvasToolbar>
 
       <Popover
         open={contextMenu !== null}

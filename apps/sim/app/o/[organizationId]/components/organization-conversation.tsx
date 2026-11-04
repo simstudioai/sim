@@ -67,6 +67,7 @@ import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
+import { type PrepareChatSubmission, useComposerSubmission } from '@/hooks/use-composer-submission'
 import { useHydrated } from '@/hooks/use-hydrated'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
@@ -99,10 +100,7 @@ interface OrganizationConversationProps {
     modelSelectorOptions?: ModelSelectorOptions
     onChatIdResolved: (chatId: string) => void
     onNavigateToChat: (chatId: string) => void
-    prepareSubmission: (
-      message: string,
-      contexts?: ChatContext[]
-    ) => { message: string; contexts?: ChatContext[] } | false
+    prepareSubmission: PrepareChatSubmission
     onSubmitted: () => void
     draftNamespace: string
   }
@@ -290,7 +288,11 @@ function OrganizationConversationContent({
       toast.error(`Couldn't open "${ref.title}". Check your access and try again.`)
     }
   }
+  const fileDropTarget = useRef<HTMLElement>(null)
+  const submission = useComposerSubmission({ mode: requestMode })
   const files = useFileAttachments({
+    fileDropTarget: compact ? fileDropTarget : undefined,
+    disabled: submission.pending,
     userId: session?.user?.id,
     organizationId: organization.id,
     requestMode,
@@ -398,11 +400,6 @@ function OrganizationConversationContent({
         return false
       }
     }
-    const submission = panelOptions
-      ? panelOptions.prepareSubmission(text.trim(), contexts)
-      : { message: text.trim(), contexts }
-    if (submission === false) return false
-    const { message } = submission
     const attachments: FileAttachmentForApi[] = files.attachedFiles.flatMap((file) =>
       file.key
         ? [
@@ -417,12 +414,23 @@ function OrganizationConversationContent({
           ]
         : []
     )
-    if (!message && !attachments.length) return false
-    useMothershipDraftsStore.getState().clearDraft(draftKey)
-    send(message, attachments.length ? attachments : undefined, submission.contexts)
-    panelOptions?.onSubmitted()
-    setRestoredContexts([])
-    files.clearAttachedFiles()
+    const commit = ({
+      message,
+      contexts: preparedContexts,
+    }: {
+      message: string
+      contexts?: ChatContext[]
+    }) => {
+      if (!message && !attachments.length) return false
+      useMothershipDraftsStore.getState().clearDraft(draftKey)
+      send(message, attachments.length ? attachments : undefined, preparedContexts)
+      panelOptions?.onSubmitted()
+      setRestoredContexts([])
+      files.clearAttachedFiles()
+    }
+    return panelOptions
+      ? panelOptions.prepareSubmission(text.trim(), contexts, commit)
+      : commit({ message: text.trim(), contexts })
   }
 
   const editQueuedMessage = (id: string) => {
@@ -452,6 +460,7 @@ function OrganizationConversationContent({
   const composer = (
     <Composer
       requestMode={requestMode}
+      submission={submission}
       compact={Boolean(panelOptions)}
       attachments={panelOptions?.attachments}
       resourceActions={panelOptions?.resourceActions}
@@ -570,7 +579,10 @@ function OrganizationConversationContent({
       (resource) => resource.type === 'sources' && resource.id === controller.activeResourceParam
     )
     return (
-      <main className='ph-no-capture flex h-dvh min-w-0 flex-col overflow-hidden bg-[var(--bg)] text-[var(--text-body)]'>
+      <main
+        ref={fileDropTarget}
+        className='ph-no-capture flex h-dvh min-w-0 flex-col overflow-hidden bg-[var(--bg)] text-[var(--text-body)]'
+      >
         {panelOptions.header}
         {content}
         <ChipModal

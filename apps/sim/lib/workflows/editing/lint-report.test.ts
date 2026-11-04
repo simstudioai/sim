@@ -143,6 +143,93 @@ describe('buildWorkflowLintReport notes', () => {
   })
 })
 
+/** Graphs the editor's Run button refuses before they start surface as `manualRunIssue`. */
+describe('buildWorkflowLintReport manual run', () => {
+  async function manualRunIssue(blocks: Record<string, unknown>, edges: unknown[]) {
+    return (await buildWorkflowLintReport({ blocks, edges } as never, scope)).manualRunIssue
+  }
+
+  it('reports a trigger with no outgoing connection, naming it', async () => {
+    expect(
+      await manualRunIssue(
+        { start: block('start', 'start_trigger'), agent: block('agent', 'agent') },
+        []
+      )
+    ).toEqual({
+      reason: 'trigger-not-connected',
+      message: 'start must be connected to other blocks to execute',
+      blockId: 'start',
+      blockName: 'start',
+      blockType: 'start_trigger',
+    })
+  })
+
+  it('reports a graph with no trigger a manual run can start from', async () => {
+    expect(
+      await manualRunIssue({ a: block('a', 'function'), b: block('b', 'function') }, [
+        edge('a', 'b'),
+      ])
+    ).toMatchObject({
+      reason: 'no-trigger',
+      message: 'Workflow requires at least one trigger block to execute',
+    })
+  })
+
+  it('reports a disabled trigger as no trigger', async () => {
+    expect(
+      await manualRunIssue(
+        {
+          start: { ...block('start', 'start_trigger'), enabled: false },
+          fn: block('fn', 'function'),
+        },
+        [edge('start', 'fn')]
+      )
+    ).toMatchObject({ reason: 'no-trigger' })
+  })
+
+  it('reports more than one API trigger', async () => {
+    expect(
+      await manualRunIssue(
+        {
+          api1: block('api1', 'api_trigger'),
+          api2: block('api2', 'api_trigger'),
+          fn: block('fn', 'function'),
+        },
+        [edge('api1', 'fn'), edge('api2', 'fn')]
+      )
+    ).toMatchObject({
+      reason: 'multiple-api-triggers',
+      message: 'Multiple API Trigger blocks found. Keep only one.',
+    })
+  })
+
+  it.each([
+    ['a connected Start block', 'start_trigger'],
+    ['a connected webhook trigger', 'webhook'],
+    ['a connected schedule trigger', 'schedule'],
+  ])('passes %s', async (_label, type) => {
+    expect(
+      await manualRunIssue({ t: block('t', type), fn: block('fn', 'function') }, [edge('t', 'fn')])
+    ).toBeNull()
+  })
+
+  it('passes a legacy starter without connections, which a manual run accepts', async () => {
+    expect(await manualRunIssue({ start: block('start', 'starter') }, [])).toBeNull()
+  })
+
+  it('passes a chat-only workflow, which runs from chat rather than the Run button', async () => {
+    expect(
+      await manualRunIssue({ chat: block('chat', 'chat_trigger'), fn: block('fn', 'function') }, [
+        edge('chat', 'fn'),
+      ])
+    ).toBeNull()
+  })
+
+  it('leaves an empty graph to its own note', async () => {
+    expect(await manualRunIssue({}, [])).toBeNull()
+  })
+})
+
 /**
  * The report builder is the one place with database access, so it resolves
  * each Table block's filter and sort fields against the bound table's live

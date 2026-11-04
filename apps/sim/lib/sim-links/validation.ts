@@ -1,11 +1,11 @@
-import { SIM_LINK_NAME_MAX_LENGTH } from '@sim/browser-extension-protocol'
+import { SIM_LINK_NAME_MAX_LENGTH, SIM_LINK_URL_MAX_LENGTH } from '@sim/browser-extension-protocol'
 import { z } from 'zod'
 
 const NAME_PATTERN = /^[A-Za-z0-9.:@&~_-]+$/
 const NAME_PUNCTUATION = /[.:@&~_-]/g
 const NAME_DISALLOWED = /[^A-Za-z0-9.:@&~_-]/g
+export const MAX_MANAGED_BOOKMARKS = 100
 export const SIM_LINK_DESCRIPTION_MAX_LENGTH = 500
-const URL_MAX_LENGTH = 2048
 
 /** List orders: alphabetical by name, or most visited first. */
 export const SIM_LINK_SORTS = ['name', 'popular'] as const
@@ -32,6 +32,19 @@ export function toSimLinkName(input: string): string {
   return stripSimLinkPrefix(input)
     .replace(/[\s/]+/g, '-')
     .replace(NAME_DISALLOWED, '')
+}
+
+/**
+ * A starting name for a link made from a page's title: its letters and digits in lower case, every
+ * other run of characters (spaces, colons, dots, dashes) turned into one hyphen, cut to the name
+ * length limit. Empty when no letter or digit survives, so the person types one instead.
+ */
+export function suggestSimLinkName(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .slice(0, SIM_LINK_NAME_MAX_LENGTH)
+    .replace(/^-+|-+$/g, '')
 }
 
 /** Sentence punctuation and closing quotes or brackets that follow a link pasted from prose. */
@@ -106,7 +119,7 @@ const destinationSchema = z
   .string()
   .trim()
   .min(1, 'Enter a destination URL')
-  .max(URL_MAX_LENGTH, `Use at most ${URL_MAX_LENGTH} characters`)
+  .max(SIM_LINK_URL_MAX_LENGTH, `Use at most ${SIM_LINK_URL_MAX_LENGTH} characters`)
 
 const simLinkUrlSchema = destinationSchema.refine(
   (url) => simLinkOrigin(url) !== null,

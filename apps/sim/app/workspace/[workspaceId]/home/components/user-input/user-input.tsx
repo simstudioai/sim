@@ -46,6 +46,7 @@ import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
+import { useComposerSubmission } from '@/hooks/use-composer-submission'
 import { useHydrated } from '@/hooks/use-hydrated'
 import { isMobileViewport } from '@/hooks/use-is-mobile'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -59,6 +60,7 @@ export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/ty
 const logger = createLogger('UserInput')
 
 interface UserInputProps {
+  fileDropTarget?: React.RefObject<HTMLElement | null>
   attachments?: React.ReactNode
   resourceActions?: React.ReactNode
   toolbarActions?: React.ReactNode
@@ -98,6 +100,7 @@ export interface UserInputHandle {
  */
 const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserInput(
   {
+    fileDropTarget,
     attachments,
     resourceActions,
     toolbarActions,
@@ -130,9 +133,15 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
   const prevDefaultValueRef = useRef(defaultValue)
 
+  const { pending: preparingSubmission, accept: acceptSubmission } = useComposerSubmission({
+    scope: draftScopeKey,
+    mode: requestMode,
+  })
   const files = useFileAttachments({
+    fileDropTarget,
     userId,
     workspaceId,
+    disabled: preparingSubmission,
   })
   const hasFiles = files.attachedFiles.some((f) => !f.uploading && f.key)
   const hasUploadingFiles = files.attachedFiles.some((f) => f.uploading)
@@ -554,14 +563,21 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     // so the message reads as clean `/skill-name` (skills travel via contexts
     // regardless). Only the submitted copy is converted; the live input is not.
     const activeContexts = currentEditor.getActiveContexts()
-    const accepted = onSubmit(
-      currentEditor.getPlainValue(),
-      fileAttachmentsForApi.length > 0 ? fileAttachmentsForApi : undefined,
-      activeContexts.length > 0 ? activeContexts : undefined
+    const raw = currentEditor.getValue()
+    acceptSubmission(
+      () =>
+        onSubmit(
+          currentEditor.getPlainValue(),
+          fileAttachmentsForApi.length > 0 ? fileAttachmentsForApi : undefined,
+          activeContexts.length > 0 ? activeContexts : undefined
+        ),
+      clearComposer,
+      () =>
+        editorRef.current.getValue() === raw &&
+        filesRef.current.attachedFiles === currentFiles.attachedFiles,
+      currentEditor.textareaRef.current
     )
-    if (accepted === false) return
-    clearComposer()
-  }, [chatPlanRequired, workspaceId, onSubmit, clearComposer])
+  }, [chatPlanRequired, workspaceId, onSubmit, clearComposer, acceptSubmission])
 
   /**
    * Enter policy for the editor: mirror canSubmit's uploading guard (Enter
@@ -619,6 +635,8 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         inter.className,
         isInitialView && 'shadow-ambient'
       )}
+      aria-busy={preparingSubmission || undefined}
+      inert={preparingSubmission}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleContainerDragOver}

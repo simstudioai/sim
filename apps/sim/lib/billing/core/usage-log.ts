@@ -18,7 +18,11 @@ import {
   timestampKey,
 } from '@/lib/api/list-query'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
-import { readLedgerBounded } from '@/lib/billing/core/ledger-read'
+import {
+  isLedgerReadOverBudget,
+  readLedgerBounded,
+  WORKFLOW_RUN_COUNT_BUDGET_MS,
+} from '@/lib/billing/core/ledger-read'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
   resolveSubscriptionUsagePeriod,
@@ -269,42 +273,72 @@ export async function getBillingPeriodUsageCost(
 export async function getBillingPeriodWorkflowRunCount(
   billingEntity: BillingEntity,
   billingPeriod: UsageQueryPeriod,
-  executor: DbClient = db
+  executor: DbClient = db,
+  budgetMs?: number
 ): Promise<number> {
-  const [row] = await readLedgerBounded(executor, (tx) =>
-    tx
-      .select({
-        /**
-         * The exclusion goes through `notInArray`, not `<> ALL(${array})`. Interpolating
-         * a JavaScript array into a `sql` template emits parenthesized scalar binds —
-         * `ALL(($1))` — which Postgres rejects outright with "op ANY/ALL (array)
-         * requires array on right side". Unit tests cannot catch it, because `@sim/db`
-         * is mocked and no statement is ever rendered.
-         */
-        workflowRuns:
-          sql<number>`COUNT(DISTINCT ${usageLog.executionId}) FILTER (WHERE ${usageLog.source} = 'workflow' AND ${notInArray(usageLog.category, [...UNBILLED_USAGE_CATEGORIES])})`.mapWith(
-            Number
-          ),
-      })
-      .from(usageLog)
-      .where(
-        and(
-          eq(usageLog.billingEntityType, billingEntity.type),
-          eq(usageLog.billingEntityId, billingEntity.id),
-          ...(billingPeriod.source === 'reporting'
-            ? [
-                gte(usageLog.createdAt, billingPeriod.start),
-                lt(usageLog.createdAt, billingPeriod.end),
-              ]
-            : [
-                eq(usageLog.billingPeriodStart, billingPeriod.start),
-                eq(usageLog.billingPeriodEnd, billingPeriod.end),
-              ])
-        )
-      )
+  const [row] = await readLedgerBounded(
+    executor,
+    (tx) =>
+      tx
+        .select({
+          /**
+           * The exclusion goes through `notInArray`, not `<> ALL(${array})`. Interpolating
+           * a JavaScript array into a `sql` template emits parenthesized scalar binds —
+           * `ALL(($1))` — which Postgres rejects outright with "op ANY/ALL (array)
+           * requires array on right side". Unit tests cannot catch it, because `@sim/db`
+           * is mocked and no statement is ever rendered.
+           */
+          workflowRuns:
+            sql<number>`COUNT(DISTINCT ${usageLog.executionId}) FILTER (WHERE ${usageLog.source} = 'workflow' AND ${notInArray(usageLog.category, [...UNBILLED_USAGE_CATEGORIES])})`.mapWith(
+              Number
+            ),
+        })
+        .from(usageLog)
+        .where(
+          and(
+            eq(usageLog.billingEntityType, billingEntity.type),
+            eq(usageLog.billingEntityId, billingEntity.id),
+            ...(billingPeriod.source === 'reporting'
+              ? [
+                  gte(usageLog.createdAt, billingPeriod.start),
+                  lt(usageLog.createdAt, billingPeriod.end),
+                ]
+              : [
+                  eq(usageLog.billingPeriodStart, billingPeriod.start),
+                  eq(usageLog.billingPeriodEnd, billingPeriod.end),
+                ])
+          )
+        ),
+    budgetMs
   )
 
   return row?.workflowRuns ?? 0
+}
+
+/**
+ * {@link getBillingPeriodWorkflowRunCount} for a staff-only preview that can do without it:
+ * `null` when the count does not finish within {@link WORKFLOW_RUN_COUNT_BUDGET_MS}, so a payer
+ * too large to count still gets its preview inside the admin proxy's request timeout.
+ */
+export async function getBillingPeriodWorkflowRunCountWithinBudget(
+  billingEntity: BillingEntity,
+  billingPeriod: UsageQueryPeriod
+): Promise<number | null> {
+  try {
+    return await getBillingPeriodWorkflowRunCount(
+      billingEntity,
+      billingPeriod,
+      db,
+      WORKFLOW_RUN_COUNT_BUDGET_MS
+    )
+  } catch (error) {
+    if (!isLedgerReadOverBudget(error)) throw error
+    logger.warn('Billing period workflow run count exceeded its budget', {
+      billingEntityType: billingEntity.type,
+      budgetMs: WORKFLOW_RUN_COUNT_BUDGET_MS,
+    })
+    return null
+  }
 }
 
 /**

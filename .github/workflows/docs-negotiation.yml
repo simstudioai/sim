@@ -19,6 +19,7 @@ on:
       - '.github/actions/cache/**'
       - '.github/actions/setup/**'
       - '.github/scripts/stop-session.sh'
+      - '.github/scripts/playwright-server.sh'
   push:
     branches: [staging]
     paths:
@@ -38,6 +39,7 @@ on:
       - '.github/actions/cache/**'
       - '.github/actions/setup/**'
       - '.github/scripts/stop-session.sh'
+      - '.github/scripts/playwright-server.sh'
   workflow_dispatch:
     inputs:
       benchmark:
@@ -342,9 +344,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
-        with:
-          fetch-depth: 0
-          filter: blob:none
       - name: Setup workspace
         uses: ./.github/actions/setup
         with:
@@ -357,30 +356,33 @@ jobs:
         run: tar -I zstd -xf docs-build.tar.zst -C apps/docs
       - name: Set up Java for copied request examples
         if: matrix.group == 'http'
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: '17'
       - name: Set up .NET for copied request examples
         if: matrix.group == 'http'
-        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '8.0.x'
       - name: Set up Go for copied request examples
         if: matrix.group == 'http'
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.25.x'
           cache: false
       - name: Install the selected navigation browser
-        if: matrix.group == 'chromium' || matrix.group == 'webkit'
+        if: matrix.group == 'chromium' || (matrix.group == 'webkit' && vars.CI_PROVIDER != '' && vars.CI_PROVIDER != 'blacksmith')
         env:
           BROWSER: ${{ matrix.group }}
-        run: bunx --no-install playwright install --with-deps "$BROWSER"
+        run: bunx --no-install playwright install --with-deps --only-shell "$BROWSER"
       - name: Verify production documentation
+        id: acceptance
         env:
           DOCS_ACCEPTANCE_GROUP: ${{ matrix.group }}
         run: |
+          unset PLAYWRIGHT_WEBKIT_WS_ENDPOINT
+          webkit_state=''
           mkdir -p apps/docs/test-results
           FEEDBACK_TLS_DIR=$(mktemp -d)
           export DOCS_FEEDBACK_TEST_CERT="$FEEDBACK_TLS_DIR/cert.pem"
@@ -395,16 +397,27 @@ jobs:
           DOCS_SERVER_PID=$!
           finish() {
             local status=$1
-            trap - EXIT
+            trap - EXIT INT TERM
             if bash .github/scripts/stop-session.sh "$DOCS_SERVER_PID" "$APP_TAG"; then
               wait "$DOCS_SERVER_PID" 2>/dev/null || true
             else
-              status=1
+              if [ "$status" -eq 0 ]; then status=1; fi
+            fi
+            if [ -n "$webkit_state" ] && ! bash .github/scripts/playwright-server.sh stop "$webkit_state"; then
+              echo '::error::Owned WebKit server cleanup failed.' >&2
+              if [ "$status" -eq 0 ]; then status=1; fi
             fi
             rm -rf "$FEEDBACK_TLS_DIR"
             exit "$status"
           }
           trap 'finish "$?"' EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+          if [ "${{ matrix.group == 'webkit' && (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') }}" = true ]; then
+            webkit_state="$RUNNER_TEMP/playwright-webkit-server"
+            PLAYWRIGHT_WEBKIT_WS_ENDPOINT=$(bash .github/scripts/playwright-server.sh start "$webkit_state")
+            export PLAYWRIGHT_WEBKIT_WS_ENDPOINT
+          fi
           for attempt in $(seq 1 60); do
             if ! kill -0 "$DOCS_SERVER_PID" 2>/dev/null; then
               echo '::error::Documentation server exited before becoming ready.'
@@ -434,6 +447,17 @@ jobs:
             *) echo "::error::Unknown documentation acceptance group: $DOCS_ACCEPTANCE_GROUP"; STATUS=1 ;;
           esac
           finish "$STATUS"
+      - name: Stop the owned WebKit server
+        if: always() && matrix.group == 'webkit' && (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && steps.acceptance.outcome != 'skipped'
+        run: bash .github/scripts/playwright-server.sh stop "$RUNNER_TEMP/playwright-webkit-server"
+      - name: Upload WebKit server failure logs
+        if: failure() && matrix.group == 'webkit' && (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith')
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: webkit-server-docs
+          path: ${{ runner.temp }}/playwright-webkit-server/
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Upload acceptance regression reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -175,6 +175,71 @@ async function auditActions(orgId: string): Promise<string[]> {
 }
 
 async function run() {
+  await check(
+    'search recovery hands safe shortcuts to the canonical resolver without a page',
+    async () => {
+      const maximum = `sim/${'a'.repeat(64)}/${Array(8).fill('v'.repeat(256)).join('/')}`
+      const cases = [
+        ['sim/bookface', '/sim/bookface'],
+        ['SIM/Book-Face/', '/sim/Book-Face'],
+        ['sim/a.:@&~_-', '/sim/a.%3A%40%26~_-'],
+        ['sim/jira/PROD-123', '/sim/jira/PROD-123'],
+        [`${maximum}/`, `/${maximum}`],
+      ]
+      for (const [shortcut, destination] of cases) {
+        const response = await send(`/sim-links/recover?q=${encodeURIComponent(shortcut)}`, null)
+        assert.equal(response.status, 307, shortcut)
+        assert.equal(response.headers.get('location'), destination)
+        assert.equal(response.headers.get('cache-control'), 'no-store')
+        assert.equal(response.headers.get('referrer-policy'), 'no-referrer')
+        assert.equal(await response.text(), '')
+      }
+    }
+  )
+
+  await check(
+    'search recovery rejects ambiguous, escaping and oversized input without reflecting it',
+    async () => {
+      const invalidShortcuts = [
+        'sim/',
+        'sim/...',
+        'web/handbook',
+        'https://evil.example.com',
+        'sim/a/../private',
+        'sim/a/./private',
+        'sim/a//private',
+        'sim/a/%2e%2e',
+        'sim/a\\private',
+        'sim/a?private=secret',
+        'sim/a#private',
+        'sim/a private',
+        `sim/${'a'.repeat(65)}`,
+        `sim/a/${'v'.repeat(257)}`,
+        `sim/a/${Array(9).fill('v').join('/')}`,
+        `sim/a/${'v'.repeat(6400)}`,
+      ]
+      const queries = [
+        '',
+        '?q=',
+        '?q=sim%2Fa&q=sim%2Fb',
+        '?q=sim%2Fa&%71=sim%2Fb',
+        '?q=sim%2Fa&extra=private',
+        '?x=sim%2Fa',
+        '?q=sim%2Fa%ZZ',
+        '?q=sim%2Fa+private',
+        ...invalidShortcuts.map((shortcut) => `?q=${encodeURIComponent(shortcut)}`),
+      ]
+      for (const query of queries) {
+        const response = await send(`/sim-links/recover${query}`, null)
+        assert.equal(response.status, 400, query)
+        assert.equal(response.headers.get('location'), null)
+        assert.equal(response.headers.get('cache-control'), 'no-store')
+        assert.equal(response.headers.get('referrer-policy'), 'no-referrer')
+        assert.equal(await response.text(), 'Invalid Sim shortcut.')
+      }
+    }
+  )
+
   const orgId = await seedOrganization()
   const owner = await seedMember(orgId, 'owner')
   const member = await seedMember(orgId, 'member')
@@ -288,6 +353,17 @@ async function run() {
     assert.deepEqual(await listedNames(member, { search: 'everything lives' }), ['Team-Handbook'])
   })
 
+  await check('a destination lookup finds only links that open exactly that address', async () => {
+    await create(member, { name: 'plan', url: 'https://plan.example.com' })
+    await create(member, { name: 'plan-faq', url: 'https://plan.example.com/faq' })
+    assert.deepEqual(await listedNames(member, { url: 'https://plan.example.com' }), ['plan'])
+    assert.deepEqual(await listedNames(owner, { url: 'https://plan.example.com' }), [
+      'plan',
+      'secret-plan',
+    ])
+    assert.deepEqual(await listedNames(member, { url: 'https://plan.example.com/missing' }), [])
+  })
+
   await check('restricted links refuse edits from other members', async () => {
     const restricted = await create(owner, {
       name: 'payroll',
@@ -326,6 +402,58 @@ async function run() {
     assert.match(text, /links\?create=team-handbook/)
     await api({ ...outsider, orgId }, '', { expected: 404 })
   })
+
+  await check('team bookmarks preserve encoded names and organization across sign-in', async () => {
+    const destination = 'https://team.example.com/help'
+    for (const name of ['managed-help', 'managed:help@team&docs']) {
+      const path = `/sim-links/${encodeURIComponent(orgId)}/${encodeURIComponent(name)}`
+      await create(owner, { name, url: destination })
+      await create(outsider, { name, url: 'https://another-team.example.com/help' })
+      const signedOut = await send(path, null)
+      assert.equal(signedOut.status, 307, `${name}: expected sign-in redirect`)
+      const login = new URL(signedOut.headers.get('location') ?? '/', baseUrl)
+      assert.equal(login.pathname, '/login', name)
+      assert.equal(login.searchParams.get('callbackUrl'), path, name)
+      const opened = await send(path, member)
+      assert.equal(opened.status, 307, `${name}: expected destination redirect`)
+      assert.equal(opened.headers.get('location'), destination, name)
+      const denied = await send(path, outsider)
+      assert.equal(denied.status, 404, name)
+      assert(!denied.headers.get('location'), name)
+    }
+    for (const encodedName of ['%256Danaged-help', 'managed%2Fhelp']) {
+      const denied = await send(`/sim-links/${encodeURIComponent(orgId)}/${encodedName}`, member)
+      assert.equal(denied.status, 404, encodedName)
+      assert(!denied.headers.get('location'), encodedName)
+    }
+  })
+
+  await check(
+    'bookmark export requires admin access and drops stale or foreign selections',
+    async () => {
+      const name = 'managed-directory'
+      const id = await create(owner, { name, url: 'https://directory.example.com' })
+      const otherId = await create(outsider, { name, url: 'https://other.example.com' })
+      const request = {
+        links: [
+          { id, name },
+          { id: otherId, name },
+        ],
+      }
+      const exportPolicy = (caller: Member, expected = 200) =>
+        api(caller, '/bookmarks', { method: 'POST', body: request, expected })
+      assert.deepEqual((await exportPolicy(owner)).links, [{ id, name }])
+      await exportPolicy(member, 403)
+      await api(owner, `/${id}`, {
+        method: 'PUT',
+        body: fields({ name, url: 'https://directory.example.com', unlisted: true }),
+      })
+      assert.deepEqual((await exportPolicy(owner)).links, [])
+      await api(owner, `/${id}`, { method: 'DELETE' })
+      await create(owner, { name, url: 'https://replacement.example.com' })
+      assert.deepEqual((await exportPolicy(owner)).links, [])
+    }
+  )
 
   await check('redirects are counted and order the most-used view', async () => {
     const { links } = await api(member, '?sort=popular', {})

@@ -170,8 +170,8 @@ export const AttachedFilesList = React.memo(function AttachedFilesList({
     <div
       ref={scrollRef}
       className={cn(
-        'mb-1.5 max-md:pointer-coarse:max-h-[102px] max-md:pointer-coarse:overflow-y-auto max-md:pointer-coarse:overscroll-contain',
-        scrollFadeClass
+        '-mt-1.5 py-1.5 max-md:pointer-coarse:box-content max-md:pointer-coarse:max-h-[102px] max-md:pointer-coarse:overflow-y-auto max-md:pointer-coarse:overscroll-contain',
+        (edges.top || edges.bottom) && scrollFadeClass
       )}
       {...scrollFadeAttributes(edges)}
     >

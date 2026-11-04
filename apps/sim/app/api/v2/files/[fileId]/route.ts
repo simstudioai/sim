@@ -26,6 +26,7 @@ export const revalidate = 0
  * The response carries no JSON envelope, so rate-limit state is surfaced via
  * `X-RateLimit-*` headers. Errors still render the canonical v2 JSON error body.
  * Lookups are workspace-scoped (IDOR-safe): a file in another workspace 404s.
+ * `[fileId]` also takes the `files/<folder>/<name>` VFS path listings print.
  *
  * A generated doc whose artifact is still compiling renders `CONFLICT`; retry.
  *
@@ -41,6 +42,7 @@ export const GET = defineV2BinaryRoute({
   errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
   mapInput: ({ params, query }) => ({
     fileId: params.fileId,
+    acceptVfsPath: true,
     assertedWorkspaceId: query.workspaceId,
   }),
   useCase: downloadWorkspaceFileStream,

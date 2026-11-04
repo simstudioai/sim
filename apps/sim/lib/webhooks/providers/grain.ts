@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   DeleteSubscriptionContext,
   EventFilterContext,
@@ -141,7 +142,7 @@ async function createLegacyV1Subscription(params: {
       webhookId,
       triggerId,
     })
-    throw new Error(
+    throw new WebhookDeploymentConfigurationError(
       'Grain view ID is required. Please provide the Grain view ID from GET /_/public-api/views in the trigger configuration.'
     )
   }
@@ -303,7 +304,7 @@ export const grainHandler: WebhookProviderHandler = {
         logger.warn(`[${requestId}] Missing apiKey for Grain webhook creation.`, {
           webhookId: webhook.id,
         })
-        throw new Error(
+        throw new WebhookDeploymentConfigurationError(
           'Grain API Key is required. Please provide your Grain access token in the trigger configuration.'
         )
       }
@@ -352,6 +353,7 @@ export const grainHandler: WebhookProviderHandler = {
         webhookId: webhook.id as string,
       })
     } catch (error: unknown) {
+      if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
       logger.error(
         `[${requestId}] Exception during Grain webhook creation for webhook ${webhook.id}.`,

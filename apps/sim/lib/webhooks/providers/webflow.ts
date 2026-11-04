@@ -7,6 +7,7 @@ import {
   getNotificationUrl,
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   DeleteSubscriptionContext,
   EventFilterContext,
@@ -38,19 +39,23 @@ export const webflowHandler: WebhookProviderHandler = {
         logger.warn(`[${requestId}] Missing siteId for Webflow webhook creation.`, {
           webhookId: webhookRecord.id,
         })
-        throw new Error('Site ID is required to create Webflow webhook')
+        throw new WebhookDeploymentConfigurationError(
+          'Site ID is required to create Webflow webhook'
+        )
       }
 
       const siteIdValidation = validateAlphanumericId(siteId, 'siteId', 100)
       if (!siteIdValidation.isValid) {
-        throw new Error(siteIdValidation.error)
+        throw new WebhookDeploymentConfigurationError(siteIdValidation.error)
       }
 
       if (!triggerId) {
         logger.warn(`[${requestId}] Missing triggerId for Webflow webhook creation.`, {
           webhookId: webhookRecord.id,
         })
-        throw new Error('Trigger type is required to create Webflow webhook')
+        throw new WebhookDeploymentConfigurationError(
+          'Trigger type is required to create Webflow webhook'
+        )
       }
 
       const accessToken = credentialId
@@ -126,6 +131,7 @@ export const webflowHandler: WebhookProviderHandler = {
 
       return { providerConfigUpdates: { externalId: responseBody.id || responseBody._id } }
     } catch (error: unknown) {
+      if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
       logger.error(
         `[${requestId}] Exception during Webflow webhook creation for webhook ${webhookRecord.id}.`,

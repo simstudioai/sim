@@ -51,6 +51,10 @@ function getNumber(value: unknown): number | undefined {
 function getFalAIFallbackProviderCostDollars(endpointId: string): number {
   const normalizedEndpointId = endpointId.toLowerCase()
 
+  if (normalizedEndpointId.split('/').includes('text-to-video')) {
+    return FALAI_VIDEO_FALLBACK_PROVIDER_COST_DOLLARS
+  }
+
   const isImageEndpoint =
     normalizedEndpointId.includes('image') ||
     normalizedEndpointId.includes('nano-banana') ||

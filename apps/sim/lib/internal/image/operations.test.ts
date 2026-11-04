@@ -49,6 +49,8 @@ const falInput = {
 
 describe('image operations', () => {
   beforeEach(() => {
+    mocks.fetch.mockReset()
+    mockSecureFetchWithPinnedIP.mockReset()
     vi.stubGlobal('fetch', mocks.fetch)
     mockInterruptibleSleep.mockResolvedValue(undefined)
     mockUploadCopilotFile.mockResolvedValue({ url: 'https://sim.test/generated.png' })
@@ -115,5 +117,99 @@ describe('image operations', () => {
     expect(mocks.fetch).toHaveBeenCalledTimes(1)
     expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
     expect(mockUploadCopilotFile).not.toHaveBeenCalled()
+  })
+
+  it('rejects foreign fal queue hosts before sending credentials', async () => {
+    mocks.fetch.mockResolvedValueOnce(
+      Response.json({
+        request_id: 'foreign-job',
+        status_url: 'https://untrusted.example/status',
+      })
+    )
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(Response.json({ status: 'FAILED' }))
+
+    const response = await executeImageGeneration(falInput, {
+      userId: 'user-1',
+      requestId: 'foreign-queue',
+    })
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toMatchObject({ error: 'Invalid Fal.ai queue URL' })
+    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
+  it('retrieves nested fal jobs from the documented application request path', async () => {
+    mocks.fetch.mockResolvedValueOnce(Response.json({ request_id: 'nested-job' }))
+    mockSecureFetchWithPinnedIP.mockImplementation(async (url: string) => {
+      if (url === 'https://queue.fal.run/fal-ai/bytedance/requests/nested-job/status') {
+        return Response.json({ status: 'COMPLETED' })
+      }
+      if (url === 'https://queue.fal.run/fal-ai/bytedance/requests/nested-job') {
+        return Response.json({ images: [{ url: 'data:image/png;base64,cG5n' }] })
+      }
+      return new Response('Not found', { status: 404 })
+    })
+
+    const response = await executeImageGeneration(
+      { ...falInput, model: 'seedream-v4.5' },
+      {
+        userId: 'user-1',
+        requestId: 'nested-queue',
+      }
+    )
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).imageUrl).toBe('https://sim.test/generated.png')
+  })
+
+  it.each(['openai', 'gemini'])(
+    'does not purchase a fallback for an unknown %s model',
+    async (provider) => {
+      mocks.fetch.mockResolvedValueOnce(new Response('Unexpected generation', { status: 502 }))
+      const response = await executeImageGeneration(
+        { ...falInput, provider, model: 'unknown-model' },
+        {
+          userId: 'user-1',
+          requestId: 'unknown-model',
+        }
+      )
+
+      expect(response.status).toBe(400)
+      expect(mocks.fetch).not.toHaveBeenCalled()
+    }
+  )
+
+  it('retains the completed fal receipt when delivery is interrupted', async () => {
+    const controller = new AbortController()
+    mocks.fetch.mockResolvedValueOnce(Response.json({ request_id: 'paid-job' }))
+    mocks.getFalAICostMetadata.mockImplementation(async ({ signal }: { signal?: AbortSignal }) => {
+      signal?.throwIfAborted()
+      return {
+        requestId: 'paid-job',
+        endpointId: 'fal-ai/nano-banana-2',
+        costDollars: 0.1,
+        source: 'billing_events',
+      }
+    })
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(Response.json({ status: 'COMPLETED' }))
+    mockSecureFetchWithPinnedIP.mockImplementationOnce(async () => {
+      controller.abort()
+      return Response.json({ status: 'COMPLETED' })
+    })
+
+    await expect(
+      executeImageGeneration(
+        { ...falInput, useHostedCostTracking: true },
+        {
+          userId: 'user-1',
+          requestId: 'completed-job',
+          signal: controller.signal,
+        }
+      )
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(mocks.getFalAICostMetadata).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: 'paid-job' })
+    )
+    expect(mocks.getFalAICostMetadata.mock.calls[0][0].signal).toBeUndefined()
   })
 })

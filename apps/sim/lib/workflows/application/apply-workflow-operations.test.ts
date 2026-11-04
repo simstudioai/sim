@@ -77,7 +77,8 @@ vi.mock('@/lib/workflows/editing/validation', () => ({
   preValidateCredentialInputs: hoisted.preValidate,
   UNRESOLVABLE_AT_LINT_NOTE: 'lint note',
 }))
-vi.mock('@/lib/workflows/editing/lint', () => ({
+vi.mock('@/lib/workflows/editing/lint', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/workflows/editing/lint')>()),
   collectWorkflowFieldIssues: () => [],
   collectDanglingBlockOutputReferences: () => [],
   collectUnquotedJsonStringReferences: () => [],
@@ -214,6 +215,7 @@ describe('applyWorkflowOperations', () => {
       state: graph(),
       validationErrors: [],
       skippedItems: [],
+      declinedOperationCount: 0,
       mintedBlockIds: {},
     })
     mocks.collectReferences.mockResolvedValue([])
@@ -239,6 +241,7 @@ describe('applyWorkflowOperations', () => {
       state: graph({ 'block-1': BLOCK }),
       validationErrors: [],
       skippedItems: [],
+      declinedOperationCount: 0,
       mintedBlockIds: {},
     })
     mocks.lintGraph.mockReturnValue({ ...EMPTY_GRAPH_LINT, orphanBlocks: [orphan] })
@@ -257,8 +260,39 @@ describe('applyWorkflowOperations', () => {
       fieldIssues: [],
       unresolvedReferences: [],
       tableFieldIssues: [],
+      manualRunIssue: null,
       notes: ['No entry block: nothing can start this workflow.'],
     })
+  })
+
+  /**
+   * A caller projecting the response down to `warnings` still learns lint
+   * findings exist; the findings stay in `lint`.
+   */
+  it('points at lint findings from warnings, on commit and on dry run', async () => {
+    const orphan = { blockId: 'block-1', blockName: 'Start', blockType: 'starter' }
+    mocks.lintGraph.mockReturnValue({
+      ...EMPTY_GRAPH_LINT,
+      orphanBlocks: [orphan, { ...orphan, blockId: 'block-2', blockName: 'Fn' }],
+    })
+
+    for (const dryRun of [false, true]) {
+      const result = await applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations, dryRun },
+      })
+      expect(result.warnings).toHaveLength(1)
+      expect(result.warnings[0]).toContain('Blocks with no incoming edge: 2')
+      expect(result.warnings[0]).toContain('in `lint`')
+    }
+  })
+
+  it('adds no lint warning when lint finds nothing', async () => {
+    const result = await applyWorkflowOperations.execute({
+      principal: sessionPrincipal,
+      input: { workflowId: 'workflow-1', operations },
+    })
+    expect(result.warnings).toEqual([])
   })
 
   describe('dry run', () => {
@@ -272,6 +306,7 @@ describe('applyWorkflowOperations', () => {
         state: graph(),
         validationErrors: [],
         skippedItems: [],
+        declinedOperationCount: 0,
         mintedBlockIds: { triage: 'preview-uuid' },
       })
 
@@ -361,6 +396,7 @@ describe('applyWorkflowOperations', () => {
           reason: 'Name taken',
         },
       ],
+      declinedOperationCount: 1,
     })
 
     const result = await applyWorkflowOperations.execute({
@@ -385,6 +421,7 @@ describe('applyWorkflowOperations', () => {
           reason: 'Target not created yet',
         },
       ],
+      declinedOperationCount: 0,
     })
 
     const result = await applyWorkflowOperations.execute({
@@ -408,6 +445,7 @@ describe('applyWorkflowOperations', () => {
           reason: 'Block is locked',
         },
       ],
+      declinedOperationCount: 1,
     })
 
     const failure = await applyWorkflowOperations
@@ -479,6 +517,7 @@ describe('applyWorkflowOperations', () => {
       state: graph(),
       validationErrors: [],
       skippedItems: [],
+      declinedOperationCount: 0,
     })
     mocks.collectReferences.mockResolvedValue([])
     mocks.collectToolReferences.mockResolvedValue([])
@@ -499,6 +538,7 @@ describe('applyWorkflowOperations', () => {
       state: graph({ 'block-1': { ...BLOCK, locked: true } }),
       validationErrors: [],
       skippedItems: [],
+      declinedOperationCount: 0,
     })
 
     const result = await applyWorkflowOperations.execute({
@@ -596,6 +636,7 @@ describe('applyWorkflowOperations', () => {
       }),
       validationErrors: [],
       skippedItems: [],
+      declinedOperationCount: 0,
     })
 
     const result = await applyWorkflowOperations.execute({
@@ -627,6 +668,7 @@ describe('applyWorkflowOperations', () => {
       }),
       validationErrors: [],
       skippedItems: [],
+      declinedOperationCount: 0,
     })
 
     const result = await applyWorkflowOperations.execute({

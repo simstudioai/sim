@@ -41,7 +41,7 @@ jobs:
     steps:
       - name: Checkout code (mirror)
         if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
-        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
+        uses: useblacksmith/checkout@2b9fe87d796feea153b455ec2f3125b471a7b0e7 # v1.8.2
         with: &chart-checkout-options
           # Chart version checks need full history to compare against the PR base.
           fetch-depth: 0
@@ -403,7 +403,7 @@ jobs:
           push-to-registry: true
 
       - name: Set up ORAS
-        uses: oras-project/setup-oras@005458ad77f1c8facd38a094e4af2e69e5607ff4 # v2.0.2
+        uses: oras-project/setup-oras@5e2f2482b30b0cb3e14e67f89a80c88c659a7c63 # v2.0.3
 
       # Artifact Hub reads repository metadata from the reserved `artifacthub.io`
       # tag on the chart's own OCI repository. Pushed on every run, including
@@ -511,7 +511,7 @@ jobs:
       # packages stay reachable no matter which domain serves the index.
       - name: Run chart-releaser
         if: steps.pages.outputs.exists == 'true'
-        uses: helm/chart-releaser-action@cae68fefc6b5f367a0275617c9f83181ba54714f # v1.7.0
+        uses: helm/chart-releaser-action@92c6b97fa9f664492a2592e0d1d80bc6bf378957 # v1.9.0
         with:
           charts_dir: helm
           # Re-running on an already-released version must be a no-op, the same

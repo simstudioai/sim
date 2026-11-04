@@ -11,6 +11,7 @@ import {
   getNotificationUrl,
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   DeleteSubscriptionContext,
   EventMatchContext,
@@ -89,7 +90,7 @@ async function resolveBitbucketAccessToken(
   requestId: string
 ): Promise<string> {
   if (!credentialId) {
-    throw new Error(
+    throw new WebhookDeploymentConfigurationError(
       'Bitbucket account connection required. Connect or reconnect Bitbucket in the trigger configuration and try again.'
     )
   }
@@ -112,7 +113,9 @@ function readRequiredConfigString(
 ): string {
   const value = config[key]
   if (typeof value !== 'string' || !value.trim()) {
-    throw new Error(`Bitbucket ${label} is required to manage the repository webhook.`)
+    throw new WebhookDeploymentConfigurationError(
+      `Bitbucket ${label} is required to manage the repository webhook.`
+    )
   }
   return value.trim()
 }

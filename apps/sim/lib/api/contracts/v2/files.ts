@@ -849,7 +849,7 @@ export const v2CompleteFileUploadContract = defineRouteContract({
 export const v2DownloadFileContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/files/[fileId]',
-  params: v2FileParamsSchema,
+  params: v2FileIdOrPathParamsSchema,
   query: v2FileWorkspaceQuerySchema,
   response: {
     mode: 'binary',

@@ -2,6 +2,7 @@ import { scimConnection, scimUser, scimUserTombstone, user } from '@sim/db/schem
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
+import { markScimPeopleChanged } from '@/lib/people/sync/scim-changes'
 
 /**
  * What ending an organization membership means to the directory.
@@ -13,8 +14,7 @@ import type { DbOrTx } from '@/lib/db/types'
  * relink the same account, and a suspension the directory applied ends with the
  * membership it was scoped to.
  *
- * Imports only schema so the membership primitive can depend on it without a
- * module cycle.
+ * The membership primitive can update People in this transaction without loading the sync worker.
  */
 export async function endDirectoryMembershipTx(
   tx: DbOrTx,
@@ -64,6 +64,8 @@ export async function endDirectoryMembershipTx(
     .update(user)
     .set({ suspendedAt: null, suspensionSource: null, updatedAt: new Date() })
     .where(and(eq(user.id, params.userId), eq(user.suspensionSource, 'scim')))
+
+  await markScimPeopleChanged(tx, params.organizationId)
 
   return { removed: rows.length }
 }

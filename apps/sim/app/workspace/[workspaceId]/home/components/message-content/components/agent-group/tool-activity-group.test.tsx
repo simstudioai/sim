@@ -129,6 +129,36 @@ describe('ToolActivityGroup search disclosure', () => {
     expect(container.querySelector('a[href="https://example.test/guide"]')).not.toBeNull()
     expect(container.textContent).not.toContain('No results')
   })
+
+  it('lists cited web results like connected-source results, and leaves uncited web research plain', () => {
+    const webSearch = (citationId?: string): ToolCallData => ({
+      id: 'web-1',
+      toolName: 'web_search',
+      displayTitle: 'Searching online',
+      status: 'success',
+      result: {
+        success: true,
+        output: {
+          query: 'guide',
+          results: [
+            {
+              title: 'Public guide',
+              url: 'https://public.example.test/guide',
+              ...(citationId ? { citationId } : {}),
+            },
+          ],
+        },
+      },
+    })
+
+    render([webSearch('web:guide')], true)
+    expect(disclosure().getAttribute('aria-expanded')).toBe('true')
+    expect(container.querySelector('a[href="https://public.example.test/guide"]')).not.toBeNull()
+
+    render([webSearch()], true)
+    expect(container.querySelector('[role="button"][aria-expanded]')).toBeNull()
+    expect(container.querySelector('a[href="https://public.example.test/guide"]')).toBeNull()
+  })
 })
 
 describe('in-progress activity header', () => {

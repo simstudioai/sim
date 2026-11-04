@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toArray } from '@sim/utils/object'
 import {
   generateLoopBlocks,
   generateParallelBlocks,
@@ -30,7 +31,7 @@ import type {
   OperationContext,
   ValidationError,
 } from './types'
-import { logSkippedItem, type SkippedItem } from './types'
+import { isDeferredSkippedItem, logSkippedItem, type SkippedItem } from './types'
 
 const logger = createLogger('EditWorkflowServerTool')
 
@@ -198,7 +199,17 @@ export function applyOperationsToWorkflowState(
     deferredConnections: [],
   }
 
-  for (const operation of orderedOperations) {
+  /** Indices into `orderedOperations` that recorded a refusal, during their handler or later. */
+  const declinedOperations = new Set<number>()
+  /** The operation that queued each entry of `ctx.deferredConnections`, index for index. */
+  const deferredConnectionOrigins: number[] = []
+  /** The operation whose deferred connection created each edge this batch added, by edge id. */
+  const edgeOrigins = new Map<string, number>()
+  const currentEdges = () => toArray<{ id: string }>(modifiedState.edges)
+  const recordedRefusalSince = (skipsBefore: number) =>
+    skippedItems.slice(skipsBefore).some((item) => !isDeferredSkippedItem(item))
+
+  for (const [operationIndex, operation] of orderedOperations.entries()) {
     const { operation_type, block_id } = operation
 
     // CRITICAL: Validate block_id is a valid string and not "undefined"
@@ -215,6 +226,7 @@ export function applyOperationsToWorkflowState(
         block_id,
         block_id_type: typeof block_id,
       })
+      declinedOperations.add(operationIndex)
       continue
     }
 
@@ -226,7 +238,12 @@ export function applyOperationsToWorkflowState(
       currentBlockCount: Object.keys((modifiedState as any).blocks || {}).length,
     })
 
+    const skipsBefore = skippedItems.length
     handler(operation, ctx)
+    if (recordedRefusalSince(skipsBefore)) declinedOperations.add(operationIndex)
+    while (deferredConnectionOrigins.length < ctx.deferredConnections.length) {
+      deferredConnectionOrigins.push(operationIndex)
+    }
   }
 
   // Pass 2: Create all edges from deferred connections
@@ -237,7 +254,7 @@ export function applyOperationsToWorkflowState(
       totalBlocks: Object.keys((modifiedState as any).blocks || {}).length,
     })
 
-    for (const { blockId, connections } of ctx.deferredConnections) {
+    for (const [connectionIndex, { blockId, connections }] of ctx.deferredConnections.entries()) {
       // Verify the source block still exists (it might have been deleted by a later operation)
       if (!(modifiedState as any).blocks[blockId]) {
         logger.warn('Source block no longer exists for deferred connection', {
@@ -247,6 +264,8 @@ export function applyOperationsToWorkflowState(
         continue
       }
 
+      const skipsBefore = skippedItems.length
+      const edgesBefore = currentEdges().length
       addConnectionsAsEdges(
         modifiedState,
         blockId,
@@ -255,6 +274,10 @@ export function applyOperationsToWorkflowState(
         skippedItems,
         validationErrors
       )
+      const origin = deferredConnectionOrigins[connectionIndex]
+      if (origin === undefined) continue
+      if (recordedRefusalSince(skipsBefore)) declinedOperations.add(origin)
+      for (const edge of currentEdges().slice(edgesBefore)) edgeOrigins.set(edge.id, origin)
     }
 
     logger.info('Finished processing deferred connections', {
@@ -271,8 +294,13 @@ export function applyOperationsToWorkflowState(
   // Remove edges that cross scope boundaries. This runs after all operations
   // and deferred connections are applied so that every block has its final
   // parentId. Running it per-operation would incorrectly drop edges between
-  // blocks that are both being moved into the same subflow in one batch.
-  removeInvalidScopeEdges(modifiedState, skippedItems)
+  // blocks that are both being moved into the same subflow in one batch. A dropped
+  // edge this batch created declines the operation that asked for it; an existing
+  // edge a move left crossing scopes is the move's documented effect, not a refusal.
+  for (const edgeId of removeInvalidScopeEdges(modifiedState, skippedItems)) {
+    const origin = edgeOrigins.get(edgeId)
+    if (origin !== undefined) declinedOperations.add(origin)
+  }
 
   reindexToolCanonicalModesAfterEdits(
     workflowState.blocks as Record<string, BlockState> | undefined,
@@ -318,6 +346,7 @@ export function applyOperationsToWorkflowState(
     state: modifiedState,
     validationErrors,
     skippedItems,
+    declinedOperationCount: declinedOperations.size,
     mintedBlockIds: Object.fromEntries(idMapping),
   }
 }
@@ -437,8 +466,10 @@ function resolvePendingConnections(modifiedState: any, skippedItems: SkippedItem
  * - Same scope: both blocks share the same parentId
  * - Container→child: source is the parent container of the target (start handles)
  * - Child→container: target is the parent container of the source (end handles)
+ *
+ * Returns the ids of the dropped edges.
  */
-function removeInvalidScopeEdges(modifiedState: any, skippedItems: SkippedItem[]): void {
+function removeInvalidScopeEdges(modifiedState: any, skippedItems: SkippedItem[]): string[] {
   const { valid, dropped } = validateEdges(modifiedState.edges || [], modifiedState.blocks || {})
   modifiedState.edges = valid
 
@@ -463,4 +494,6 @@ function removeInvalidScopeEdges(modifiedState: any, skippedItems: SkippedItem[]
       reasons: dropped.map(({ reason }) => reason),
     })
   }
+
+  return dropped.map(({ edge }) => edge.id)
 }

@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { simLink, user } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { escapeLikePattern } from '@sim/utils/string'
-import { and, asc, desc, eq, gt, ilike, like, lt, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, ilike, inArray, like, lt, or, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
   normalizeSimLinkName,
@@ -10,6 +10,19 @@ import {
   type SimLinkSort,
 } from '@/lib/sim-links/validation'
 import type { SortDirection } from '@/lib/url-state'
+
+export function listBookmarkCandidates(organizationId: string, ids: string[]) {
+  return db
+    .select({ id: simLink.id, name: simLink.name })
+    .from(simLink)
+    .where(
+      and(
+        eq(simLink.organizationId, organizationId),
+        eq(simLink.unlisted, false),
+        inArray(simLink.id, ids)
+      )
+    )
+}
 
 const PAGE_SIZE = 50
 
@@ -82,16 +95,18 @@ export async function listSimLinks(
   viewer: SimLinkViewer,
   {
     search,
+    url,
     cursor,
     sort = 'name',
     dir = sort === 'popular' ? 'desc' : 'asc',
-  }: { search?: string; cursor?: string; sort?: SimLinkSort; dir?: SortDirection }
+  }: { search?: string; url?: string; cursor?: string; sort?: SimLinkSort; dir?: SortDirection }
 ): Promise<{ links: SimLinkRecord[]; nextCursor: string | null }> {
   const [order, after] = dir === 'asc' ? ([asc, gt] as const) : ([desc, lt] as const)
   const conditions: (SQL | undefined)[] = [eq(simLink.organizationId, organizationId)]
   if (!viewer.isAdmin) {
     conditions.push(or(eq(simLink.unlisted, false), eq(simLink.createdBy, viewer.userId)))
   }
+  if (url) conditions.push(eq(simLink.url, url))
   const query = search?.trim().replace(/^sim\//i, '')
   if (query) {
     const pattern = `%${escapeLikePattern(query)}%`

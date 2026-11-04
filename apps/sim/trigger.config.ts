@@ -3,7 +3,14 @@ import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { resourceFromAttributes } from '@opentelemetry/resources'
 import { createLogger } from '@sim/logger'
+import {
+  diffTriggerEnv,
+  parseTriggerEnvSyncTargets,
+  resolveTriggerEnvFromAppSecret,
+  TRIGGER_CONSTANT_VARS,
+} from '@sim/runtime-secrets/trigger-env'
 import { distrustCompromisedRoots } from '@sim/security/tls-trust'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { BuildExtension } from '@trigger.dev/build'
 import {
   additionalFiles,
@@ -40,7 +47,9 @@ if (grafanaConfigured && !grafanaFullyConfigured) {
  * sandbox means loading its compiled artifact from the copilot storage
  * context, so that bucket has to be visible to the run as well. The values
  * still have to exist in the Trigger.dev environment; syncing only keeps the
- * worker's view of them aligned with the app's.
+ * worker's view of them aligned with the app's. Only an environment outside
+ * `TRIGGER_ENV_SYNC_TARGETS` takes this list; a listed one gets these keys from
+ * the app's env-vars secret with everything else.
  */
 const FUNCTION_EXECUTION_ENV = [
   { name: 'REDIS_URL', secret: true },
@@ -64,6 +73,53 @@ function getFunctionExecutionEnvVars() {
     const value = env[name]
     return value ? [{ name, value, isSecret: secret }] : []
   })
+}
+
+const syncLogger = createLogger('TriggerEnvSync')
+
+/**
+ * The environments `TRIGGER_ENV_SYNC_TARGETS` lists. Exits on a list the deploy workflows would
+ * not match: `syncEnvVars` swallows a thrown error, and a typo must not silently keep the old path.
+ */
+function syncTargets(): Set<string> {
+  try {
+    return parseTriggerEnvSyncTargets(env.TRIGGER_ENV_SYNC_TARGETS)
+  } catch (error) {
+    syncLogger.error('Invalid TRIGGER_ENV_SYNC_TARGETS; aborting the deploy', {
+      error: getErrorMessage(error),
+    })
+    process.exit(1)
+  }
+}
+
+/**
+ * Mirrors the app's env-vars secret into an environment listed in
+ * `TRIGGER_ENV_SYNC_TARGETS`, logging only counts, never names or values (CI
+ * logs are public). The CLI applies the variables when it uploads the version,
+ * before promotion, and only adds or updates: a key removed from the secret
+ * stays in Trigger.dev until it is deleted there. Exits on failure, because
+ * `syncEnvVars` catches a thrown error and deploys without syncing, which would
+ * keep stale configuration.
+ */
+async function syncFromAppSecret(environment: string, deployedEnv: Record<string, string>) {
+  try {
+    const { secretId, vars } = await resolveTriggerEnvFromAppSecret(environment)
+    const { added, changed } = diffTriggerEnv(vars, deployedEnv)
+    syncLogger.info('Syncing the Trigger.dev environment from the app env-vars secret', {
+      environment,
+      secretId,
+      total: vars.length,
+      added: added.length,
+      changed: changed.length,
+    })
+    return vars
+  } catch (error) {
+    syncLogger.error('Trigger.dev env sync failed; aborting the deploy', {
+      environment,
+      error: getErrorMessage(error),
+    })
+    process.exit(1)
+  }
 }
 
 /**
@@ -198,17 +254,13 @@ export default defineConfig({
     ],
     extensions: [
       nodeBinary(),
-      syncEnvVars(() => [
-        { name: 'DB_APP_NAME', value: 'sim-trigger' },
-        /**
-         * Workers run Trigger.dev by definition, but the flag saying so was only
-         * set on the app container. Syncing it keeps the deployment flag honest
-         * inside runs; the dispatch decision itself no longer depends on it,
-         * because the `init` hook above marks the run process directly.
-         */
-        { name: 'TRIGGER_DEV_ENABLED', value: 'TRUE' },
-        ...getFunctionExecutionEnvVars(),
-      ]),
+      syncEnvVars(({ environment, env: deployedEnv }) => {
+        if (syncTargets().has(environment)) return syncFromAppSecret(environment, deployedEnv)
+        syncLogger.info('Syncing only the worker constants and function execution settings', {
+          environment,
+        })
+        return [...TRIGGER_CONSTANT_VARS, ...getFunctionExecutionEnvVars()]
+      }),
       additionalFiles({
         files: [
           './lib/execution/isolated-vm-worker.cjs',
