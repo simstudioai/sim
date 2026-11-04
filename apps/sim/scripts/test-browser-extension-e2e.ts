@@ -2023,48 +2023,52 @@ try {
           assert.equal(manual.length, 1)
           assert(manual[0].text.includes('ORCHID-482') && !manual[0].text.includes('JADE-231'))
 
-          await openScenario(target, `${org ? 'organization' : 'workspace'}-denied`)
-          await expect(input()).toBeVisible()
-          await restricted.bringToFront()
-          const draft = 'Keep this draft if access is unavailable'
-          await input().fill(draft)
-          count = received.length
-          phase = 'denied-send'
-          await frame()
-            .getByRole('button', { name: org ? 'Send' : 'Send message', exact: true })
-            .click()
-          await expect(
-            shell.getByRole('button', { name: 'Request site access', exact: true })
-          ).toBeEnabled()
-          await expect(input()).toHaveValue(draft)
-          await expect
-            .poll(() => input().evaluate((element) => Boolean(element.closest('[inert]'))))
-            .toBe(false)
-          assert.equal(received.length, count)
-          assert(
-            await frame().evaluate(() => document.hasFocus()),
-            'The denied mouse send must keep the chat document focused'
-          )
-          await expect(input()).toBeFocused()
-          await shell.keyboard.type(' Continue typing after the denied capture.')
-          await expect(input()).toHaveValue(`${draft} Continue typing after the denied capture.`)
-          assert.equal(received.length, count)
-          await screenshot(`reference-${org ? 'organization' : 'workspace'}-denied`)
-          const accessNotice = await shell
-            .getByRole('status')
-            .first()
-            .evaluate((status) => status.firstChild?.textContent?.trim())
-          assert(accessNotice)
-          assert.equal(
-            await frame().getByText(accessNotice, { exact: true }).count(),
-            0,
-            'Access guidance covered the composer twice'
-          )
-          await setReference(false)
-          phase = 'opt-out-send'
-          await input().press('Enter')
-          await expect.poll(() => received.length).toBe(count + 1)
-          assert.equal(submittedPages(received[count]).length, 0)
+          for (const gesture of ['keyboard', 'mouse'] as const) {
+            await openScenario(target, `${org ? 'organization' : 'workspace'}-denied-${gesture}`)
+            await expect(input()).toBeVisible()
+            await restricted.bringToFront()
+            const draft = 'Keep this draft if access is unavailable'
+            await input().fill(draft)
+            count = received.length
+            phase = `denied-${gesture}-send`
+            if (gesture === 'keyboard') await input().press('Enter')
+            else
+              await frame()
+                .getByRole('button', { name: org ? 'Send' : 'Send message', exact: true })
+                .click()
+            await expect(
+              shell.getByRole('button', { name: 'Request site access', exact: true })
+            ).toBeEnabled()
+            await expect(input()).toHaveValue(draft)
+            await expect
+              .poll(() => input().evaluate((element) => Boolean(element.closest('[inert]'))))
+              .toBe(false)
+            assert.equal(received.length, count)
+            assert(
+              await frame().evaluate(() => document.hasFocus()),
+              `The denied ${gesture} send must keep the chat document focused`
+            )
+            await expect(input()).toBeFocused()
+            await shell.keyboard.type(' Continue typing after the denied capture.')
+            await expect(input()).toHaveValue(`${draft} Continue typing after the denied capture.`)
+            assert.equal(received.length, count)
+            await screenshot(`reference-${org ? 'organization' : 'workspace'}-denied-${gesture}`)
+            const accessNotice = await shell
+              .getByRole('status')
+              .first()
+              .evaluate((status) => status.firstChild?.textContent?.trim())
+            assert(accessNotice)
+            assert.equal(
+              await frame().getByText(accessNotice, { exact: true }).count(),
+              0,
+              'Access guidance covered the composer twice'
+            )
+            await setReference(false)
+            phase = 'opt-out-send'
+            await input().press('Enter')
+            await expect.poll(() => received.length).toBe(count + 1)
+            assert.equal(submittedPages(received[count]).length, 0)
+          }
         }
       } finally {
         await browserContext.unroute(endpoint)
