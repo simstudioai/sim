@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toArray } from '@sim/utils/object'
 import {
   generateLoopBlocks,
   generateParallelBlocks,
@@ -202,6 +203,9 @@ export function applyOperationsToWorkflowState(
   const declinedOperations = new Set<number>()
   /** The operation that queued each entry of `ctx.deferredConnections`, index for index. */
   const deferredConnectionOrigins: number[] = []
+  /** The operation whose deferred connection created each edge this batch added, by edge id. */
+  const edgeOrigins = new Map<string, number>()
+  const currentEdges = () => toArray<{ id: string }>(modifiedState.edges)
   const recordedRefusalSince = (skipsBefore: number) =>
     skippedItems.slice(skipsBefore).some((item) => !isDeferredSkippedItem(item))
 
@@ -261,6 +265,7 @@ export function applyOperationsToWorkflowState(
       }
 
       const skipsBefore = skippedItems.length
+      const edgesBefore = currentEdges().length
       addConnectionsAsEdges(
         modifiedState,
         blockId,
@@ -270,7 +275,9 @@ export function applyOperationsToWorkflowState(
         validationErrors
       )
       const origin = deferredConnectionOrigins[connectionIndex]
-      if (origin !== undefined && recordedRefusalSince(skipsBefore)) declinedOperations.add(origin)
+      if (origin === undefined) continue
+      if (recordedRefusalSince(skipsBefore)) declinedOperations.add(origin)
+      for (const edge of currentEdges().slice(edgesBefore)) edgeOrigins.set(edge.id, origin)
     }
 
     logger.info('Finished processing deferred connections', {
@@ -287,8 +294,13 @@ export function applyOperationsToWorkflowState(
   // Remove edges that cross scope boundaries. This runs after all operations
   // and deferred connections are applied so that every block has its final
   // parentId. Running it per-operation would incorrectly drop edges between
-  // blocks that are both being moved into the same subflow in one batch.
-  removeInvalidScopeEdges(modifiedState, skippedItems)
+  // blocks that are both being moved into the same subflow in one batch. A dropped
+  // edge this batch created declines the operation that asked for it; an existing
+  // edge a move left crossing scopes is the move's documented effect, not a refusal.
+  for (const edgeId of removeInvalidScopeEdges(modifiedState, skippedItems)) {
+    const origin = edgeOrigins.get(edgeId)
+    if (origin !== undefined) declinedOperations.add(origin)
+  }
 
   reindexToolCanonicalModesAfterEdits(
     workflowState.blocks as Record<string, BlockState> | undefined,
@@ -454,8 +466,10 @@ function resolvePendingConnections(modifiedState: any, skippedItems: SkippedItem
  * - Same scope: both blocks share the same parentId
  * - Container→child: source is the parent container of the target (start handles)
  * - Child→container: target is the parent container of the source (end handles)
+ *
+ * Returns the ids of the dropped edges.
  */
-function removeInvalidScopeEdges(modifiedState: any, skippedItems: SkippedItem[]): void {
+function removeInvalidScopeEdges(modifiedState: any, skippedItems: SkippedItem[]): string[] {
   const { valid, dropped } = validateEdges(modifiedState.edges || [], modifiedState.blocks || {})
   modifiedState.edges = valid
 
@@ -480,4 +494,6 @@ function removeInvalidScopeEdges(modifiedState: any, skippedItems: SkippedItem[]
       reasons: dropped.map(({ reason }) => reason),
     })
   }
+
+  return dropped.map(({ edge }) => edge.id)
 }

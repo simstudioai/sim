@@ -1487,6 +1487,44 @@ describe('connection shape validation', () => {
     expect(skippedItems.filter((item) => item.type === 'invalid_source_handle')).toHaveLength(2)
     expect(declinedOperationCount).toBe(1)
   })
+
+  it('charges an edge dropped by the final scope check to the operation that created it', () => {
+    const { state, skippedItems, declinedOperationCount } = applyOperationsToWorkflowState(
+      makeLoopWorkflow(),
+      [
+        {
+          operation_type: 'add',
+          block_id: BLOCK_A,
+          params: {
+            type: 'function',
+            name: 'Block A',
+            inputs: { code: 'return 1' },
+            connections: { source: 'agent-1' },
+          },
+        },
+      ]
+    )
+
+    expect(state.edges.some((edge: { source: string }) => edge.source === BLOCK_A)).toBe(false)
+    expect(skippedItems.filter((item) => item.type === 'invalid_edge_scope')).toHaveLength(1)
+    expect(declinedOperationCount).toBe(1)
+  })
+
+  it('does not charge a move for the existing edges it leaves crossing scopes', () => {
+    const { skippedItems, declinedOperationCount } = applyOperationsToWorkflowState(
+      makeLoopWorkflow(),
+      [
+        {
+          operation_type: 'extract_from_subflow',
+          block_id: 'agent-1',
+          params: { subflowId: 'loop-1' },
+        },
+      ]
+    )
+
+    expect(skippedItems.filter((item) => item.type === 'invalid_edge_scope')).toHaveLength(1)
+    expect(declinedOperationCount).toBe(0)
+  })
 })
 
 describe('conditional input validation through workflow operations', () => {
