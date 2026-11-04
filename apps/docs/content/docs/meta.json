@@ -5,6 +5,7 @@
     "./introduction/index",
     "./getting-started/index",
     "./desktop/index",
+    "./browser-extension/index",
     "---Sim Search---",
     "search",
     "---Build---",
@@ -28,6 +29,7 @@
   "defaultOpen": false,
   "labels": {
     "./desktop/index": "Desktop",
+    "./browser-extension/index": "Browser extension",
     "search": "Overview",
     "logs-debugging": "Logs and debugging"
   }

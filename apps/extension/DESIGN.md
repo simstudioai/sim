@@ -56,7 +56,7 @@ other workspace resources or browser-control tools.
 - Required browser capabilities: side panel, scripting, active tab, context menus,
   and short-lived session storage for selection handoff. Required host access is
   limited to the configured Sim origin and to `http(s)://sim/*`, which exists only so
-  one static redirect rule can send a typed `sim/<name>` to the Sim link resolver.
+  one static redirect rule can send top-level navigations to that host to the Sim link resolver.
 - Other HTTP(S) origins are optional grants requested for the current site from a
   user gesture. Each grant can be revoked. Keeping the panel open is not a grant
   to read every subsequently selected tab.
@@ -68,7 +68,7 @@ other workspace resources or browser-control tools.
   configured Sim origin with the signed-in session to suggest matching Sim links,
   unless it contains a space (a search) or is longer than a link name can be. Page
   content is never sent, and unlisted links are never suggested.
-- No always-running page reader. Extraction is tied to an explicit attachment action.
+- Page extraction runs on an explicit attachment action or a user-initiated composer Send while Reference current page is enabled. The preference persists locally. Send-time captures are scoped to the request and conversation; navigation, denied access or timeout cancels the send.
 - Page bytes are not written to extension local/sync storage. Temporary context-menu
   handoff uses trusted-context session storage, expiration and navigation cleanup.
 - Sent snapshots become chat data and follow Sim's chat retention and deletion

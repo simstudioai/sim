@@ -7,8 +7,10 @@ import {
 } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
+  type BookmarkLink,
   createSimLinkContract,
   deleteSimLinkContract,
+  exportSimBookmarksContract,
   listSimLinksContract,
   type SimLinkBody,
   updateSimLinkContract,
@@ -95,5 +97,12 @@ export function useDeleteSimLink(organizationId: string) {
     mutationFn: (linkId: string) =>
       requestJson(deleteSimLinkContract, { params: { id: organizationId, linkId } }),
     onSuccess: invalidate,
+  })
+}
+
+export function useExportSimBookmarks(organizationId: string) {
+  return useMutation({
+    mutationFn: (links: BookmarkLink[]) =>
+      requestJson(exportSimBookmarksContract, { params: { id: organizationId }, body: { links } }),
   })
 }

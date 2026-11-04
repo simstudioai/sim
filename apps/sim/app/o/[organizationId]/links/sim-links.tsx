@@ -6,15 +6,17 @@ import { Link } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useQueryStates } from 'nuqs'
 import type { SimLink } from '@/lib/api/contracts/sim-links'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { simLinkPath, simLinkUrl } from '@/lib/navigation/paths'
 import { toSimLinkName } from '@/lib/sim-links/validation'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import { BrowserShortcutsModal } from '@/app/o/[organizationId]/links/browser-shortcuts-modal'
 import {
+  BROWSER_SHORTCUTS_ACTION,
   NEW_SIM_LINK_ACTION,
   SIM_LINK_COLUMNS,
   SIM_LINKS_SEARCH_PLACEHOLDER,
 } from '@/app/o/[organizationId]/links/columns'
-import SimLinksLoading from '@/app/o/[organizationId]/links/loading'
 import {
   simLinksParsers,
   simLinksSortParams,
@@ -40,6 +42,7 @@ import {
 import { useDeleteSimLink, useSimLinks } from '@/hooks/queries/sim-links'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
+import { useHydrated } from '@/hooks/use-hydrated'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
 
@@ -74,6 +77,9 @@ interface SimLinksProps {
 
 /** Every Sim link the viewer may browse, in the shared resource table. */
 export function SimLinks({ organizationId }: SimLinksProps) {
+  const { hosted } = useDeploymentShape()
+  const hydrated = useHydrated()
+  const [showBrowserShortcuts, setShowBrowserShortcuts] = useState(false)
   const [{ search, create }, setView] = useQueryStates(simLinksParsers, simLinksUrlKeys)
   const setSearch = useDebouncedSearchSetter((value, options) =>
     setView({ search: value }, options)
@@ -151,14 +157,25 @@ export function SimLinks({ organizationId }: SimLinksProps) {
   )
   const loadMore = useCallback(() => void fetchNextPage(), [fetchNextPage])
 
-  if (!links.data && !links.isLoadingError) return <SimLinksLoading />
+  const showEmptyState = Boolean(links.data || links.isLoadingError)
 
   return (
     <Resource>
       <Resource.Header
         icon={Link}
         title='Sim Links'
-        actions={[{ ...NEW_SIM_LINK_ACTION, id: 'create', onSelect: startCreate }]}
+        actions={[
+          ...(hosted
+            ? [
+                {
+                  ...BROWSER_SHORTCUTS_ACTION,
+                  disabled: !hydrated,
+                  onSelect: () => setShowBrowserShortcuts(true),
+                },
+              ]
+            : []),
+          { ...NEW_SIM_LINK_ACTION, id: 'create', onSelect: startCreate },
+        ]}
       />
       <Resource.Options search={searchConfig} sort={sortConfig} />
       <Resource.Table
@@ -173,7 +190,8 @@ export function SimLinks({ organizationId }: SimLinksProps) {
         isFetching={links.isFetching}
         loadMoreFailed={links.isFetchNextPageError}
         emptyState={
-          links.isLoadingError ? (
+          showEmptyState &&
+          (links.isLoadingError ? (
             <ResourceLoadError message={links.error.message} onRetry={() => void links.refetch()} />
           ) : query ? (
             <ResourceNoResults
@@ -184,9 +202,12 @@ export function SimLinks({ organizationId }: SimLinksProps) {
             />
           ) : (
             <SimLinksEmptyState onCreate={startCreate} />
-          )
+          ))
         }
       />
+      {hosted && showBrowserShortcuts && (
+        <BrowserShortcutsModal onClose={() => setShowBrowserShortcuts(false)} />
+      )}
       {menuLink && (
         <SimLinkContextMenu
           isOpen={contextMenu.isOpen}

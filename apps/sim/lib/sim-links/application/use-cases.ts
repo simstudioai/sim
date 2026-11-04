@@ -4,6 +4,7 @@ import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
+import type { BookmarkLink } from '@/lib/api/contracts/sim-links'
 import {
   defineAuthorizedOrganizationUseCase,
   type OrganizationUseCaseContext,
@@ -23,6 +24,7 @@ import { requireSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import type { SimLinkAccess, SimLinkRecord, SimLinkViewer } from '@/lib/sim-links/repository'
 import * as repository from '@/lib/sim-links/repository'
 import {
+  MAX_MANAGED_BOOKMARKS,
   type SimLinkFields,
   type SimLinkSort,
   typedSimLinkPrefix,
@@ -142,6 +144,27 @@ async function readView(
   if (!record) throw new OrchestrationError('not_found', 'Sim link not found')
   return toView(record, viewer)
 }
+
+export const exportSimBookmarks = defineAuthorizedOrganizationUseCase({
+  operation: simLinkOperations.exportBookmarks,
+  ...rollout,
+  async execute({
+    input,
+    context,
+  }: OrganizationUseCaseContext<OrganizationInput & { links: BookmarkLink[] }>) {
+    if (!input.links.length || input.links.length > MAX_MANAGED_BOOKMARKS)
+      throw new OrchestrationError(
+        'validation',
+        `Choose between 1 and ${MAX_MANAGED_BOOKMARKS} bookmarks.`
+      )
+    const selected = new Map(input.links.map((link) => [link.id, link]))
+    const listed = await repository.listBookmarkCandidates(context.organizationId, [
+      ...selected.keys(),
+    ])
+    const current = new Map(listed.map((link) => [link.id, link.name]))
+    return [...selected.values()].filter((link) => current.get(link.id) === link.name)
+  },
+})
 
 export const listSimLinks = defineAuthorizedOrganizationUseCase({
   operation: simLinkOperations.list,

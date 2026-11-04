@@ -15,21 +15,37 @@ Names ignore case and punctuation, so `sim/Team-Handbook` and `sim/teamhandbook`
 
 ## Open links from the address bar
 
-With the Sim Chrome extension, type `sim/handbook` in the address bar. To find a link, type `sim`, press **Space**, and start typing its name: matching links appear as you type, most opened first. Unlisted links aren't suggested.
+In Sim Cloud, open **Sim Links → Browser shortcuts** to install [Sim for Chrome](https://chromewebstore.google.com/detail/sim/oanlcahddodnjpdoopcpjlcageejjpmg) in your work profile. Type `sim` in Chrome’s address bar, press **Space**, and enter part of a link name. Chrome shows matching links, most opened first. Unlisted links can still open by name.
+
+To open links as `sim/handbook`, select **Enable sim/ shortcuts** in that dialog once, using the Chrome profile where Sim is installed. This opens your Sim Links directory in a new tab and lets Chrome remember the short host in that profile. If Chrome still sends a shortcut to search, enter `http://sim/handbook` or `sim/handbook/` with a trailing slash. Use **Copy link** in Sim to share an address that also works without the extension.
+
+In Sim for Chrome 0.1.3 or later, open the extension sidebar’s **+ → Browser shortcuts** and enable your search provider to recover `sim/handbook` when Chrome treats it as a search. Approve access to the exact sites shown. This is optional and supports Google (`google.com`), Bing, DuckDuckGo, and Yahoo. Sim remembers the choice in this Chrome profile. Ordinary searches still use your search engine; its default is unchanged.
+
+Recovery matches a whole `sim/<name>` shortcut, including simple slash-separated values such as `sim/jira/123`. For values containing spaces, query parameters, unsupported search domains, or a managed browser that blocks site access, use `sim` + **Space** or the full `https://www.sim.ai/sim/<name>` address. Turn recovery off in **Browser shortcuts**; this keeps the site permission, which you can remove through **Site access** or Chrome’s extension settings.
+
+If `sim` + **Space** sends link names to your search engine even when the address bar shows **Sim**, a Chrome site search may already use the `sim` shortcut. Enter `http://sim/handbook` to open the link directly. To restore suggestions, temporarily turn off the Sim extension, rename the old shortcut in `chrome://settings/searchEngines`, then turn Sim back on. If your organization manages the shortcut, ask your administrator to rename it.
 
 Without the extension, add Sim as a Chrome site search shortcut to type `sim handbook` instead:
 
 1. Open Chrome **Settings → Search engine → Manage search engines and site search**.
 2. Next to **Site search**, select **Add**.
-3. Enter `Sim` as the name, `sim` as the shortcut, and `https://www.sim.ai/sim/%s` as the URL.
+3. Enter `Sim` as the name, `sim` as the shortcut, and `https://www.sim.ai/sim/%s` as the URL. On a self-hosted deployment, use your own Sim origin.
 
-Type `sim`, press **Space**, then type a link name and press **Enter**. Chrome administrators can add the shortcut for everyone with the `SiteSearchSettings` policy.
+Type `sim`, press **Space**, then type a link name and press **Enter**. For managed profiles without the extension, administrators can distribute the shortcut through Chrome’s [site search policy](https://chromeenterprise.google/policies/site-search-settings/) using `https://www.sim.ai/sim/{searchTerms}` as its URL template.
+
+### Show favorites in regular Chrome suggestions
+
+In Sim, choose **Copy link** for a favorite. In Chrome’s bookmark manager (`chrome://bookmarks`), add a bookmark with that URL and name it after the shortcut, such as `sim/handbook`. Chrome can suggest that bookmark when you type `sim/handb` or `handbook` in the address bar. Administrators can distribute selected team favorites through Chrome’s [managed bookmarks policy](https://chromeenterprise.google/policies/managed-bookmarks/).
+
+Organization admins can also open **Browser shortcuts → Team bookmarks**, choose listed links, and select **Export bookmarks**. The downloaded JSON contains a folder to merge into Chrome’s managed bookmarks policy. Its links resolve in the exporting organization, so a bookmark shared outside the team cannot open another team's same-name destination.
 
 ## Create a link
 
 1. Open **Sim Links** and select **New link**.
 2. Enter the **Destination URL** and a **Name**. Names use letters, numbers, and `. : @ & ~ - _`; spaces become hyphens as you type.
 3. Optionally add a **Description**, then select **Create**.
+
+With Sim for Chrome 0.1.3 or later, right-click an HTTP or HTTPS link on a page and choose **Create Sim Link**. Check the destination and organization, enter a name, then choose **Create**. Sim strips query parameters and fragments from the initial destination. You can edit the address before saving. Closing the draft creates nothing.
 
 To share a link, right-click it and select **Copy link**.
 

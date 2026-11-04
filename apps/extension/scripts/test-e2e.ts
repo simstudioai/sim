@@ -7,7 +7,11 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createElement } from 'react'
 import { type BrowserContext, chromium, expect, type Frame, type Page } from '@playwright/test'
-import { pageSnapshotSchema } from '@sim/browser-extension-protocol'
+import {
+  type AppToExtensionMessage,
+  extensionToAppMessageSchema,
+  pageSnapshotSchema,
+} from '@sim/browser-extension-protocol'
 import { SecretReveal } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -43,6 +47,17 @@ const fixture = Bun.serve({
         window.addEventListener('message', event => {
           if (event.source !== parent || !event.origin.startsWith('chrome-extension://')) return;
           if (event.data.type === 'e2e-barrier') document.body.dataset.barrierId = event.data.id;
+          if (event.data.type === 'connected') {
+            document.body.dataset.connected = event.data.sessionId;
+            document.body.dataset.preferenceAtConnect = document.body.dataset.reference ?? 'unknown';
+          }
+          if (event.data.sessionId === document.body.dataset.sessionId) {
+            if (event.data.type === 'reference-preference') document.body.dataset.reference = String(event.data.enabled);
+            if (event.data.type === 'send-context' || event.data.type === 'send-context-error') {
+              document.body.dataset.referenceReply = JSON.stringify(event.data);
+              document.body.dataset.referenceRequest = event.data.requestId;
+            }
+          }
           if (event.data.type === 'context' && event.data.sessionId === document.body.dataset.sessionId) {
             if (document.body.dataset.ignoreCaptures) return;
             received.push(event.data.snapshot);
@@ -68,6 +83,14 @@ const fixture = Bun.serve({
     )
   },
 })
+const searchProviders = [
+  { id: 'google', hosts: ['www.google.com', 'google.com'], path: '/search', parameter: 'q' },
+  { id: 'bing', hosts: ['www.bing.com', 'bing.com'], path: '/search', parameter: 'q' },
+  { id: 'duckduckgo', hosts: ['duckduckgo.com', 'www.duckduckgo.com'], path: '/', parameter: 'q' },
+  { id: 'yahoo', hosts: ['search.yahoo.com'], path: '/search', parameter: 'p' },
+] as const
+const searchRequests: { url: string; method: string }[] = []
+let searchFixture: ReturnType<typeof Bun.serve> | undefined
 const temporary = await mkdtemp(resolve(tmpdir(), 'sim-extension-e2e-'))
 const extensionPath = resolve(temporary, 'extension')
 let context: BrowserContext | undefined
@@ -111,6 +134,50 @@ try {
     )
     assert(!existsSync(rejectedOutput), 'Invalid key material reached build output')
   })
+  const searchKey = resolve(temporary, 'search-key.pem')
+  const searchCertificate = resolve(temporary, 'search-cert.pem')
+  const certificate = spawnSync(
+    'openssl',
+    [
+      'req',
+      '-x509',
+      '-newkey',
+      'rsa:2048',
+      '-nodes',
+      '-days',
+      '1',
+      '-keyout',
+      searchKey,
+      '-out',
+      searchCertificate,
+      '-subj',
+      '/CN=extension-search.test',
+    ],
+    { encoding: 'utf8', timeout: 10_000 }
+  )
+  assert(certificate.status === 0, 'Could not create the isolated search fixture certificate')
+  searchFixture = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    tls: { key: await readFile(searchKey), cert: await readFile(searchCertificate) },
+    fetch(request) {
+      const path = new URL(request.url).pathname
+      if (path === '/' || path === '/search')
+        searchRequests.push({ url: request.url, method: request.method })
+      return new Response(
+        '<!doctype html><title>Local search fixture</title><h1>Search fixture</h1>',
+        {
+          headers: { 'content-type': 'text/html' },
+        }
+      )
+    },
+  })
+  const searchHosts = searchProviders.flatMap((provider) => [...provider.hosts])
+  const searchPort = searchFixture.port
+  const fixtureSearchHosts = [...searchHosts, 'm.google.com', 'www.google.com.evil.test']
+  const resolverRules = fixtureSearchHosts
+    .map((host) => `MAP ${host} 127.0.0.1:${searchPort}`)
+    .join(', ')
   const origin = `http://127.0.0.1:${fixture.port}`
   const pageOrigin = `http://localhost:${fixture.port}`
   const built = spawnSync(process.execPath, ['scripts/build.ts', `--outdir=${extensionPath}`], {
@@ -120,13 +187,23 @@ try {
   })
   assert(built.status === 0, `Extension build failed: ${built.stderr}`)
   const manifest = JSON.parse(await readFile(resolve(extensionPath, 'manifest.json'), 'utf8'))
-  // The test package pregrants its disposable fixture site, equivalent to an accepted site prompt.
-  manifest.host_permissions.push(`${pageOrigin}/*`)
+  // Pregrants isolate routing from consent; approved search hosts resolve to the local fixture.
+  manifest.host_permissions.push(
+    `${pageOrigin}/*`,
+    ...fixtureSearchHosts.map((host) => `https://${host}/*`)
+  )
   await writeFile(resolve(extensionPath, 'manifest.json'), JSON.stringify(manifest))
   context = await chromium.launchPersistentContext(resolve(temporary, 'profile'), {
     channel: 'chromium',
     headless: true,
-    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`],
+    ignoreHTTPSErrors: true,
+    args: [
+      `--host-resolver-rules=${resolverRules}`,
+      '--no-proxy-server',
+      '--enable-unsafe-extension-debugging',
+      `--disable-extensions-except=${extensionPath}`,
+      `--load-extension=${extensionPath}`,
+    ],
   })
   const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'))
   context.setDefaultTimeout(15_000)
@@ -188,14 +265,56 @@ try {
   const snapshots = async () =>
     pageSnapshotSchema.array().parse(JSON.parse(await app.locator('#received').innerText()))
   let receiverSessionId = generateId()
+  const post = (message: AppToExtensionMessage) =>
+    app.evaluate(({ message, origin }) => parent.postMessage(message, origin), {
+      message,
+      origin: `chrome-extension://${extensionId}`,
+    })
+  const setReference = async (enabled: boolean) => {
+    await post({
+      channel: 'sim-extension',
+      version: 1,
+      sessionId: receiverSessionId,
+      type: 'set-reference-preference',
+      enabled,
+    })
+    await expect(app.locator('body')).toHaveAttribute('data-reference', String(enabled))
+  }
+  const referenceRequest = () =>
+    ({
+      channel: 'sim-extension',
+      version: 1,
+      sessionId: receiverSessionId,
+      type: 'capture-for-send',
+      requestId: generateId(),
+    }) as const
+  const readReply = async (requestId: string) => {
+    await expect(app.locator('body')).toHaveAttribute('data-reference-request', requestId)
+    const raw = await app.locator('body').getAttribute('data-reference-reply')
+    assert(raw, 'No reply for the current reference request')
+    const reply = extensionToAppMessageSchema.parse(JSON.parse(raw))
+    assert(
+      (reply.type === 'send-context' || reply.type === 'send-context-error') &&
+        reply.requestId === requestId,
+      'Unexpected reference reply'
+    )
+    return reply
+  }
+  const reference = async () => {
+    const message = referenceRequest()
+    await post(message)
+    return readReply(message.requestId)
+  }
   await app.evaluate((sessionId) => {
     document.body.dataset.sessionId = sessionId
   }, receiverSessionId)
-  const ready = () => {
+  const ready = async () => {
     receiverReady = true
-    return app.evaluate(
+    await app.evaluate(
       ({ targetOrigin, sessionId }) => {
         document.body.dataset.sessionId = sessionId
+        delete document.body.dataset.connected
+        delete document.body.dataset.reference
         parent.postMessage(
           { channel: 'sim-extension', version: 1, type: 'ready', sessionId },
           targetOrigin
@@ -203,6 +322,7 @@ try {
       },
       { targetOrigin: `chrome-extension://${extensionId}`, sessionId: receiverSessionId }
     )
+    await expect(app.locator('body')).toHaveAttribute('data-connected', receiverSessionId)
   }
   const pendingIntent = () =>
     worker.evaluate(async () => {
@@ -240,16 +360,89 @@ try {
   }
 
   await check(
-    'A typed sim/ link opens the Sim link resolver on the configured origin',
+    'HTTP and HTTPS navigations to the sim host reach the configured resolver',
     async () => {
       const tab = await page.context().newPage()
       for (const scheme of ['http', 'https']) {
-        for (const path of ['handbook', 'jira/123?view=board', 'jira/a%2Fb?view=board%20view']) {
+        for (const path of [
+          'handbook',
+          'handbook/',
+          'jira/123?view=board',
+          'jira/a%2Fb?view=board%20view',
+        ]) {
           await tab.goto(`${scheme}://sim/${path}`)
           assert(tab.url() === `${origin}/sim/${path}`, `sim/${path} reached ${tab.url()}`)
         }
       }
       await tab.close()
+    }
+  )
+
+  await check(
+    'Link drafts enforce the saved URL limit after removing private URL parts',
+    async () => {
+      const prefix = 'https://links.controls.test/'
+      const cases = [
+        {
+          name: 'A canonical 2048-character destination remains usable',
+          input: `${prefix}${'a'.repeat(2048 - prefix.length)}`,
+          expected: `${prefix}${'a'.repeat(2048 - prefix.length)}`,
+        },
+        {
+          name: 'A canonical 2049-character destination does not open an unsavable draft',
+          input: `${prefix}${'a'.repeat(2049 - prefix.length)}`,
+          expected: null,
+        },
+        {
+          name: 'URL serialization cannot expand a short Unicode input beyond the saved limit',
+          input: `${prefix}${'é'.repeat(400)}`,
+          expected: null,
+        },
+        {
+          name: 'A removable long private query does not reject a short destination',
+          input: `${prefix}safe?token=${'s'.repeat(3000)}#private-section`,
+          expected: `${prefix}safe`,
+        },
+      ]
+      const failures: string[] = []
+      for (const entry of cases) {
+        await page.bringToFront()
+        const opened = await worker.evaluate(async (linkUrl) => {
+          const before = await chrome.tabs.query({})
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+          if (!tab) throw new Error('Missing context-menu source tab')
+          const clicked = chrome.contextMenus.onClicked as typeof chrome.contextMenus.onClicked & {
+            dispatch: (info: chrome.contextMenus.OnClickData, tab: chrome.tabs.Tab) => void
+          }
+          clicked.dispatch({ menuItemId: 'create-sim-link', linkUrl, editable: false }, tab)
+          const created = (await chrome.tabs.query({})).filter(
+            (candidate) => !before.some((existing) => existing.id === candidate.id)
+          )
+          const urls = created.map((candidate) => candidate.pendingUrl || candidate.url || '')
+          for (const candidate of created) {
+            if (candidate.id !== undefined) await chrome.tabs.remove(candidate.id)
+          }
+          return urls
+        }, entry.input)
+        if (entry.expected === null) {
+          if (opened.length !== 0) failures.push(`${entry.name}: opened ${opened.length} draft`)
+          continue
+        }
+        if (opened.length !== 1) {
+          failures.push(`${entry.name}: opened ${opened.length} drafts`)
+          continue
+        }
+        const draft = new URL(opened[0])
+        if (
+          draft.origin !== origin ||
+          draft.pathname !== '/extension/create-link' ||
+          draft.search !== '' ||
+          new URLSearchParams(draft.hash.slice(1)).get('url') !== entry.expected
+        )
+          failures.push(`${entry.name}: incorrect private-safe destination handoff`)
+      }
+      assert(failures.length === 0, failures.join('\n'))
+      await page.bringToFront()
     }
   )
 
@@ -399,6 +592,45 @@ try {
       .waitFor()
     assert((await snapshots()).length === 2, 'Editable content was transmitted')
   })
+  await check(
+    'A selection inside a closed shadow field cannot become a whole-page reference',
+    async () => {
+      await setReference(true)
+      await page.evaluate(() => {
+        const host = document.createElement('div')
+        document.body.appendChild(host)
+        const field = document.createElement('input')
+        field.type = 'password'
+        field.value = 'PRIVATE_SHADOW_SENTINEL'
+        host.attachShadow({ mode: 'closed' }).append(field)
+        field.focus()
+        field.select()
+      })
+      await capture('Selection')
+      await expect(panel.getByRole('status')).toContainText('outside an editable or embedded field')
+      const refused = await reference()
+      assert(
+        refused.type === 'send-context-error' && refused.reason === 'selection',
+        'A private selection fell back to the surrounding page'
+      )
+      assert((await snapshots()).length === 2, 'Private selection produced an attachment')
+      const next = await page.context().newPage()
+      try {
+        await next.goto(`${pageOrigin}/after-selection`)
+        await next.bringToFront()
+        const accepted = await reference()
+        assert(
+          accepted.type === 'send-context' &&
+            accepted.snapshot.url === `${pageOrigin}/after-selection`,
+          'The previous failed selection blocked a different tab'
+        )
+      } finally {
+        await next.close()
+        await page.bringToFront()
+        await setReference(false)
+      }
+    }
+  )
   await check('Large multilingual pages remain bounded and mark truncation', async () => {
     await page.evaluate(() => {
       document.body.textContent = '界'.repeat(200_000)
@@ -601,6 +833,7 @@ try {
   await check(
     'Composer capture requests require a current user gesture and conversation',
     async () => {
+      await setReference(true)
       const before = (await snapshots()).length
       await panel.evaluate(() => {
         let queries = 0
@@ -659,6 +892,15 @@ try {
         expression: `parent.postMessage(${JSON.stringify(action)}, ${JSON.stringify(`chrome-extension://${extensionId}`)})`,
         userGesture: false,
       })
+      const unactivated = referenceRequest()
+      await cdp.send('Runtime.evaluate', {
+        expression: `parent.postMessage(${JSON.stringify(unactivated)}, ${JSON.stringify(`chrome-extension://${extensionId}`)})`,
+        userGesture: false,
+      })
+      assert(
+        (await readReply(unactivated.requestId)).type === 'send-context-error',
+        'Send captured the page without a user gesture'
+      )
       await expect
         .poll(async () => {
           const { result } = await parentCdp.send('Runtime.evaluate', {
@@ -691,6 +933,7 @@ try {
       )
       await cdp.detach()
       await parentCdp.detach()
+      await setReference(false)
     }
   )
   await check('Ordinary Sim and encoded remote pages attach without sensitive fields', async () => {
@@ -823,6 +1066,429 @@ try {
       assert(policyErrors.length === 0, `Site access violated CSP: ${policyErrors.join('\n')}`)
     }
   )
+  await check(
+    'Only the latest conversation connects, after receiving the saved reference preference',
+    async () => {
+      await setReference(true)
+      await panel.evaluate(() => {
+        const original = chrome.storage.local.get.bind(chrome.storage.local)
+        chrome.storage.local.get = (async (keys: string) => {
+          chrome.storage.local.get = original
+          const result = await original(keys)
+          document.body.dataset.preferenceRead = 'held'
+          await new Promise<void>((resolve) =>
+            document.addEventListener('release-preference', () => resolve(), { once: true })
+          )
+          document.body.dataset.preferenceRead = 'finished'
+          return result
+        }) as typeof chrome.storage.local.get
+      })
+      await app.evaluate(
+        ({ origin, sessionId }) => {
+          delete document.body.dataset.reference
+          delete document.body.dataset.connected
+          document.body.dataset.sessionId = sessionId
+          parent.postMessage(
+            { channel: 'sim-extension', version: 1, type: 'ready', sessionId },
+            origin
+          )
+        },
+        { origin: `chrome-extension://${extensionId}`, sessionId: generateId() }
+      )
+      await expect(panel.locator('body')).toHaveAttribute('data-preference-read', 'held')
+      await settleMessages()
+      assert(
+        (await app.locator('body').getAttribute('data-connected')) === null,
+        'Shell connected before its preference was known'
+      )
+      receiverSessionId = generateId()
+      await ready()
+      await expect(app.locator('body')).toHaveAttribute('data-preference-at-connect', 'true')
+      await panel.evaluate(() => document.dispatchEvent(new Event('release-preference')))
+      await expect(panel.locator('body')).toHaveAttribute('data-preference-read', 'finished')
+      await settleMessages()
+      await expect(app.locator('body')).toHaveAttribute('data-connected', receiverSessionId)
+      await setReference(false)
+    }
+  )
+  await check('A failed preference read keeps manual attachment available', async () => {
+    await panel.evaluate(() => {
+      const get = chrome.storage.local.get.bind(chrome.storage.local)
+      chrome.storage.local.get = (() => {
+        chrome.storage.local.get = get
+        return Promise.reject(new Error('Storage unavailable'))
+      }) as typeof chrome.storage.local.get
+    })
+    receiverSessionId = generateId()
+    await ready()
+    await expect(app.locator('body')).toHaveAttribute('data-connected', receiverSessionId)
+    await expect(app.locator('body')).toHaveAttribute('data-preference-at-connect', 'false')
+    await expect(panel.getByRole('status')).toContainText('Attach the page manually')
+    const before = (await snapshots()).length
+    await page.goto(`${origin}/workspace/example`)
+    await page.bringToFront()
+    await capture()
+    await expect.poll(async () => (await snapshots()).length).toBe(before + 1)
+  })
+  await check(
+    'Toolbar access on a new site allows an explicit retry without pinning it in Reference mode',
+    async () => {
+      const browser = page.context().browser()
+      assert(browser, 'Missing Chromium browser')
+      const cdp = await browser.newBrowserCDPSession()
+      try {
+        await setReference(true)
+        await page
+          .context()
+          .route('https://reference-source.example/**', (route) =>
+            route.fulfill({ contentType: 'text/html', body: '<p>NEW_REFERENCE_SOURCE</p>' })
+          )
+        await page.goto('https://reference-source.example/new-source?token=PRIVATE#fragment')
+        await page.bringToFront()
+        assert((await reference()).type === 'send-context-error', 'An ungranted site was captured')
+        await panel.evaluate(() => {
+          let intents = 0
+          document.body.dataset.toolbarIntents = '0'
+          chrome.storage.onChanged.addListener((changes, area) => {
+            if (
+              area === 'session' &&
+              Object.entries(changes).some(
+                ([key, change]) => key.startsWith('captureIntent:') && change.newValue
+              )
+            )
+              document.body.dataset.toolbarIntents = String(++intents)
+          })
+        })
+        const targets = await cdp.send('Target.getTargets', { filter: [{ type: 'tab' }] })
+        const target = targets.targetInfos.find((item) => item.url === page.url())
+        assert(target, 'Missing toolbar action target')
+        const action = { id: extensionId, targetId: target.targetId }
+        await cdp.send('Extensions.triggerAction', action)
+        const retried = await reference()
+        assert(
+          retried.type === 'send-context' && retried.snapshot.text.includes('NEW_REFERENCE_SOURCE'),
+          'Toolbar access did not allow the explicit retry'
+        )
+        assert(
+          retried.snapshot.url === 'https://reference-source.example/new-source',
+          'Reference retained a private URL parameter'
+        )
+        await expect(panel.locator('body')).toHaveAttribute('data-toolbar-intents', '0')
+        await setReference(false)
+        await cdp.send('Extensions.triggerAction', action)
+        await expect(panel.locator('body')).toHaveAttribute('data-toolbar-intents', '1')
+      } finally {
+        await cdp.detach()
+        await page.context().unroute('https://reference-source.example/**')
+      }
+    }
+  )
+  await check(
+    'Switching away and back during extraction discards the send-time reference',
+    async () => {
+      await setReference(true)
+      await page.goto(`${pageOrigin}/switch-source`)
+      await page.bringToFront()
+      await panel.evaluate(() => {
+        const original = chrome.scripting.executeScript.bind(chrome.scripting)
+        // Hold the real Chrome result while the source changes, even on a fast runner.
+        chrome.scripting.executeScript = (async (
+          injection: chrome.scripting.ScriptInjection<unknown[], unknown>
+        ) => {
+          chrome.scripting.executeScript = original
+          const result = await original(injection)
+          document.body.dataset.extraction = 'complete'
+          await new Promise<void>((resolve) =>
+            document.addEventListener('release-extraction', () => resolve(), { once: true })
+          )
+          return result
+        }) as typeof chrome.scripting.executeScript
+      })
+      const pending = reference()
+      await expect(panel.locator('body')).toHaveAttribute('data-extraction', 'complete')
+      const alternate = await page.context().newPage()
+      try {
+        await alternate.goto(`${pageOrigin}/alternate`)
+        await alternate.bringToFront()
+        await page.bringToFront()
+      } finally {
+        await alternate.close()
+        await panel.evaluate(() => document.dispatchEvent(new Event('release-extraction')))
+      }
+      const reply = await pending
+      assert(
+        reply.type === 'send-context-error' && reply.message.includes('changed'),
+        'Returning to the same tab released stale page content'
+      )
+      await setReference(false)
+    }
+  )
+  await check(
+    'Stale capture intents cannot interrupt an explicit send-time reference',
+    async () => {
+      await page.goto(`${pageOrigin}/stale-intent-source`)
+      await page.bringToFront()
+      for (const stale of ['expired', 'previous-session', 'other-window', 'future'] as const) {
+        const intent = await pendingIntent()
+        const sourceWindowId = intent.windowId
+        if (stale === 'expired') intent.createdAt -= 31_000
+        else if (stale === 'future') intent.createdAt += 60_000
+        else if (stale === 'other-window') intent.windowId++
+        else {
+          receiverSessionId = generateId()
+          await ready()
+        }
+        await setReference(true)
+        const before = (await snapshots()).length
+        const key = `captureIntent:${sourceWindowId}:${stale}`
+        await panel.evaluate((key) => {
+          const original = chrome.scripting.executeScript.bind(chrome.scripting)
+          document.body.dataset.extraction = 'pending'
+          delete document.body.dataset.staleIntent
+          const changed = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+            if (area !== 'session' || !changes[key]?.newValue) return
+            chrome.storage.onChanged.removeListener(changed)
+            document.body.dataset.staleIntent = key
+          }
+          chrome.storage.onChanged.addListener(changed)
+          chrome.scripting.executeScript = (async (
+            injection: chrome.scripting.ScriptInjection<unknown[], unknown>
+          ) => {
+            chrome.scripting.executeScript = original
+            const result = await original(injection)
+            document.body.dataset.extraction = 'complete'
+            await new Promise<void>((resolve) =>
+              document.addEventListener('release-extraction', () => resolve(), { once: true })
+            )
+            return result
+          }) as typeof chrome.scripting.executeScript
+        }, key)
+        const pending = reference()
+        try {
+          await expect(panel.locator('body')).toHaveAttribute('data-extraction', 'complete')
+          await worker.evaluate(
+            ({ key, intent }) => chrome.storage.session.set({ [key]: intent }),
+            {
+              key,
+              intent,
+            }
+          )
+          await expect(panel.locator('body')).toHaveAttribute('data-stale-intent', key)
+        } finally {
+          await panel.evaluate(() => document.dispatchEvent(new Event('release-extraction')))
+        }
+        const reply = await pending
+        assert(
+          reply.type === 'send-context' && reply.snapshot.text.includes('visible-reference-482'),
+          `${stale} intent cancelled the current reference: ${reply.type}`
+        )
+        await expect
+          .poll(() =>
+            worker.evaluate(async (key) => !(key in (await chrome.storage.session.get(key))), key)
+          )
+          .toBe(true)
+        await settleMessages()
+        assert((await snapshots()).length === before, `${stale} intent attached a manual page`)
+        await setReference(false)
+      }
+    }
+  )
+  await check(
+    'Site access requests only the address the user confirms, without reading the page',
+    async () => {
+      const source = 'https://private-source.example'
+      const privateUrl = `${source}/sensitive-path?token=PRIVATE_URL_SENTINEL#fragment`
+      await page
+        .context()
+        .route(`${source}/**`, (route) =>
+          route.fulfill({ contentType: 'text/html', body: '<p>PRIVATE_CONTENT_SENTINEL</p>' })
+        )
+      await page.goto(privateUrl)
+      await page.bringToFront()
+      await setReference(true)
+      const before = (await snapshots()).length
+      const denied = await reference()
+      assert(denied.type === 'send-context-error', 'Reference read the private site without access')
+      assert(
+        !denied.message.includes('private-source') && !denied.message.includes('PRIVATE'),
+        'Access failure exposed the private URL'
+      )
+      await panel.evaluate(() => {
+        const requests: chrome.permissions.Permissions[] = []
+        const request = chrome.permissions.request.bind(chrome.permissions)
+        chrome.permissions.request = ((permissions: chrome.permissions.Permissions) => {
+          requests.push(permissions)
+          document.body.dataset.requestedAccess = JSON.stringify(requests)
+          document.body.dataset.requestGesture = String(navigator.userActivation.isActive)
+          return request(permissions)
+        }) as typeof chrome.permissions.request
+        const execute = chrome.scripting.executeScript.bind(chrome.scripting)
+        chrome.scripting.executeScript = ((...args: Parameters<typeof execute>) => {
+          document.body.dataset.unrequestedRead = 'true'
+          return execute(...args)
+        }) as typeof chrome.scripting.executeScript
+      })
+      await panel.getByRole('button', { name: 'Request site access' }).click()
+      const dialog = panel.getByRole('dialog', { name: 'Site access' })
+      await expect(dialog).toBeVisible()
+      const address = dialog.getByRole('textbox', { name: 'Site address' })
+      await expect(address).toHaveValue('')
+      const allow = dialog.getByRole('button', { name: /^Allow access/ })
+      for (const unsafe of [
+        'https://user:password@example.com/',
+        'https://*.example.com/',
+        'https://%2A.example.com/',
+        'https://＊.example.com/',
+        '<all_urls>',
+        'chrome://settings/',
+      ]) {
+        await address.fill(unsafe)
+        await expect(allow, `Do not offer to grant access for ${unsafe}`).toHaveAccessibleName(
+          'Allow access'
+        )
+        await expect(allow).toBeDisabled()
+      }
+      await address.fill('http://intranet.example:8080/private-path')
+      await expect(allow).toHaveAccessibleName('Allow access to http://intranet.example:8080')
+      const allowedHost = 'https://approved-site.example'
+      await address.fill(`${allowedHost}/private-path?token=INPUT_SECRET#fragment`)
+      await expect(allow).toHaveAccessibleName(`Allow access to ${allowedHost}`)
+      assert(
+        (await panel.locator('body').getAttribute('data-requested-access')) === null,
+        'Typing initiated a permission request'
+      )
+      const grantedSites = () =>
+        worker.evaluate(async () => ((await chrome.permissions.getAll()).origins ?? []).sort())
+      const previousAccess = await grantedSites()
+      await allow.click()
+      await expect(panel.locator('body')).toHaveAttribute('data-request-gesture', 'true')
+      const requested = await panel.locator('body').getAttribute('data-requested-access')
+      assert(requested, 'The user action never reached Chrome')
+      expect(JSON.parse(requested)).toEqual([{ origins: ['https://approved-site.example:443/*'] }])
+      expect(await grantedSites(), 'A site received persistent access without approval').toEqual(
+        previousAccess
+      )
+      await settleMessages()
+      assert(
+        (await panel.locator('body').getAttribute('data-unrequested-read')) === null,
+        'Managing site access attempted to read page content'
+      )
+      assert((await snapshots()).length === before, 'Managing site access attached a page')
+      await expect(app.locator('body')).toHaveAttribute('data-reference-request', denied.requestId)
+    }
+  )
+  await check(
+    'Opted-in shortcut recovery redirects only explicit searches on the chosen providers',
+    async () => {
+      const tab = await page.context().newPage()
+      const toggle = async (provider: string, enabled: boolean) => {
+        const result = await panel.evaluate(
+          ({ provider, enabled }) =>
+            chrome.runtime.sendMessage({ type: 'set-search-recovery', provider, enabled }),
+          { provider, enabled }
+        )
+        assert(
+          result?.ok === true,
+          `Could not ${enabled ? 'enable' : 'disable'} ${provider} recovery`
+        )
+      }
+      const unchanged = async (url: string) => {
+        await tab.goto(url)
+        assert(tab.url() === url, `An ordinary or ambiguous search was redirected: ${url}`)
+        assert(
+          (await tab.title()) === 'Local search fixture',
+          'A provider request escaped the local fixture'
+        )
+      }
+      try {
+        for (const provider of searchProviders) {
+          const endpoint = `https://${provider.hosts[0]}${provider.path}`
+          const url = `${endpoint}?${provider.parameter}=sim%2Faskit`
+          await unchanged(url)
+          await toggle(provider.id, true)
+          for (const host of provider.hosts) {
+            for (const shortcut of ['sim%2Faskit', 'sim/jira/ABC-123']) {
+              const candidate = `https://${host}${provider.path}?client=chrome&${provider.parameter}=${shortcut}&source=qa`
+              const prior = searchRequests.filter((request) => request.url === candidate).length
+              await tab.goto(candidate)
+              assert(
+                tab.url() === `${origin}/sim-links/recover?q=${shortcut}`,
+                `${provider.id} lost the explicit shortcut`
+              )
+              assert(
+                searchRequests.filter((request) => request.url === candidate).length === prior,
+                'The matched shortcut reached the search provider'
+              )
+            }
+          }
+          for (const query of [
+            `${provider.parameter}=quarterly+planning`,
+            `${provider.parameter}=sim%2Faskit%20help`,
+            `${provider.parameter}=sim%2Faskit+help`,
+            `${provider.parameter}=sim%252Faskit`,
+            `${provider.parameter}=sim%2Faskit%ZZ`,
+            `${provider.parameter}=sim%2Faskit&${provider.parameter}=other`,
+            `${provider.parameter}=other&${provider.parameter}=sim%2Faskit`,
+            `${provider.parameter}=sim%2Faskit&%${provider.parameter.charCodeAt(0).toString(16)}=other`,
+          ])
+            await unchanged(`${endpoint}?${query}`)
+          await toggle(provider.id, false)
+          await unchanged(url)
+          assert(
+            await worker.evaluate(
+              (origins) => chrome.permissions.contains({ origins }),
+              provider.hosts.map((host) => `https://${host}/*`)
+            ),
+            'Disabling recovery removed a capture permission'
+          )
+        }
+        await toggle('google', true)
+        for (const url of [
+          'https://www.google.com/other?q=sim%2Faskit',
+          'https://m.google.com/search?q=sim%2Faskit',
+          'https://www.google.com.evil.test/search?q=sim%2Faskit',
+          'https://www.google.com/search?%71=sim%2Faskit',
+        ])
+          await unchanged(url)
+        const search = 'https://www.google.com/search?q=sim%2Faskit'
+        await tab.goto(`${origin}/post-fixture`)
+        await Promise.all([
+          tab.waitForNavigation(),
+          tab.evaluate((url) => {
+            const form = document.createElement('form')
+            form.method = 'POST'
+            form.action = url
+            document.body.append(form)
+            form.submit()
+          }, search),
+        ])
+        assert(
+          tab.url() === search &&
+            searchRequests.some((request) => request.url === search && request.method === 'POST'),
+          'A POST search was recovered'
+        )
+        await tab.goto(`${origin}/frame-fixture`)
+        await Promise.all([
+          tab.waitForEvent(
+            'framenavigated',
+            (child) => child.parentFrame() !== null && child.url() === search
+          ),
+          tab.evaluate((url) => {
+            const child = document.createElement('iframe')
+            child.src = url
+            document.body.append(child)
+          }, search),
+        ])
+        assert(
+          tab.url() === `${origin}/frame-fixture`,
+          'A subframe search changed the top-level page'
+        )
+        await toggle('google', false)
+      } finally {
+        await tab.close()
+      }
+    }
+  )
   await mkdir(dirname(output), { recursive: true })
   await panel.screenshot({ path: output.replace(/\.json$/, '.png'), fullPage: true })
 } catch (error) {
@@ -837,6 +1503,7 @@ try {
 } finally {
   await context?.close()
   fixture.stop(true)
+  searchFixture?.stop(true)
   await mkdir(dirname(output), { recursive: true })
   await writeFile(output, JSON.stringify({ suite: 'browser-extension', checks }, null, 2))
   await rm(temporary, { recursive: true, force: true })

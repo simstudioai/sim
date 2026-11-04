@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { ChipModal, ChipModalHeader, cn, toast } from '@sim/emcn'
 import { generateId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
@@ -42,6 +42,7 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
     setCaptureChatId(selectedChatId)
     setComposerKey(generateId())
   }
+  const fileDropTarget = useRef<HTMLElement>(null)
   const composer = useExtensionComposer(composerKey)
   const chat = useChat(workspaceId, selectedChatId ?? undefined, {
     apiPath: '/api/mothership/chat',
@@ -104,17 +105,24 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
     void stopGeneration()
   }, [stopGeneration])
   const submit = useCallback(
-    (message: string, files?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
-      const submission = composer.prepareSubmission(message, contexts)
-      if (submission === false) return false
-      void sendMessage(submission.message, files, submission.contexts)
-      composer.onSubmitted()
-    },
+    (message: string, files?: FileAttachmentForApi[], contexts?: ChatContext[], reference = true) =>
+      composer.prepareSubmission(
+        message,
+        contexts,
+        (submission) => {
+          void sendMessage(submission.message, files, submission.contexts)
+          composer.onSubmitted()
+        },
+        reference
+      ),
     [composer.prepareSubmission, sendMessage, composer.onSubmitted]
   )
 
   return (
-    <main className='ph-no-capture flex h-dvh min-w-0 flex-col overflow-hidden bg-[var(--bg)] text-[var(--text-body)]'>
+    <main
+      ref={fileDropTarget}
+      className='ph-no-capture flex h-dvh min-w-0 flex-col overflow-hidden bg-[var(--bg)] text-[var(--text-body)]'
+    >
       <ExtensionHeader
         workspaceId={workspaceId}
         scopeName={workspaceName}
@@ -149,7 +157,8 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
         isLoading={
           Boolean(selectedChatId) && chat.messages.length === 0 && chat.isChatHistoryPending
         }
-        onSubmit={submit}
+        onSubmit={(message, files, contexts) => submit(message, files, contexts, false)}
+        onComposerSubmit={submit}
         onStopGeneration={stop}
         messageQueue={chat.messageQueue}
         editingQueuedId={chat.editingQueuedId}
@@ -166,6 +175,7 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
         }
         onWorkspaceResourceSelect={(resource) => void openResource(resource)}
         composerKey={composerKey}
+        fileDropTarget={fileDropTarget}
         draftScopeKey={`extension:${userId}:${workspaceId}:${selectedChatId ?? 'new'}`}
         composerAttachments={composer.attachments}
         composerResourceActions={composer.resourceActions}

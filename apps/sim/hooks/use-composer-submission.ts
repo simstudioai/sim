@@ -1,0 +1,84 @@
+'use client'
+
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { toast } from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
+import type { ChatContext } from '@/stores/panel'
+
+type CommitSubmission = () => undefined | false
+
+export type PrepareChatSubmission = (
+  text: string,
+  contexts: ChatContext[] | undefined,
+  send: (submission: { message: string; contexts: ChatContext[] }) => undefined | false,
+  reference?: boolean
+) => undefined | false | PendingComposerSubmission
+
+/** Defers clearing the editor until a surface has the context needed to send this turn. */
+export class PendingComposerSubmission {
+  constructor(readonly ready: Promise<CommitSubmission | false>) {}
+}
+
+interface UseComposerSubmissionProps {
+  scope?: string
+  mode?: string
+}
+
+export function useComposerSubmission({ scope, mode }: UseComposerSubmissionProps) {
+  const active = useRef<PendingComposerSubmission | null>(null)
+  const focusBeforeSend = useRef<HTMLElement | null>(null)
+  const [pending, setPending] = useState(false)
+
+  useLayoutEffect(() => {
+    setPending(false)
+    return () => {
+      active.current = null
+      focusBeforeSend.current = null
+    }
+  }, [scope, mode])
+
+  useLayoutEffect(() => {
+    if (pending) return
+    const previous = focusBeforeSend.current
+    focusBeforeSend.current = null
+    if (previous?.isConnected && document.hasFocus() && document.activeElement === document.body) {
+      previous.focus({ preventScroll: true })
+    }
+  }, [pending])
+
+  const accept = useCallback(
+    (submit: () => unknown, clear: () => void, unchanged: () => boolean) => {
+      if (active.current) return
+      const result = submit()
+      if (!(result instanceof PendingComposerSubmission)) {
+        if (result !== false) clear()
+        return
+      }
+      active.current = result
+      focusBeforeSend.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null
+      setPending(true)
+      void result.ready
+        .then((commit) => {
+          if (active.current !== result || !commit) return
+          if (!unchanged()) {
+            toast.info('Your draft changed while the page was being read. Send again to continue.')
+            return
+          }
+          if (commit() !== false) clear()
+        })
+        .catch((error: unknown) => {
+          if (active.current === result)
+            toast.error(getErrorMessage(error, 'Could not attach the current page.'))
+        })
+        .finally(() => {
+          if (active.current === result) {
+            active.current = null
+            setPending(false)
+          }
+        })
+    },
+    []
+  )
+  return { pending, accept }
+}

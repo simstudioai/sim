@@ -660,11 +660,6 @@ const nextConfig: NextConfig = {
         permanent: true,
       },
       {
-        source: '/Sim',
-        destination: '/',
-        permanent: true,
-      },
-      {
         source: '/homepage',
         destination: '/',
         permanent: true,

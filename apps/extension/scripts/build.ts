@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import postcss from 'postcss'
 import loadPostcssConfig from 'postcss-load-config'
+import packageJson from '../package.json'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const origin = new URL(process.env.SIM_EXTENSION_ORIGIN ?? 'https://www.sim.ai')
@@ -89,8 +90,8 @@ for (const [size, file] of [
   await cp(resolve(root, '../sim/public/favicon', file), resolve(dist, `icon-${size}.png`))
 }
 /**
- * Chrome navigates a typed `sim/<name>` to `http://sim/<name>`; this rewrites it to the Sim link
- * resolver on the configured origin, keeping the rest of the path and query verbatim.
+ * Only requests to the short host reach this rule. Chrome can classify bare `sim/<name>` as a
+ * search before navigation. Preserve the path and query for actual short-host navigations.
  */
 const simLinkRules = [
   {
@@ -107,7 +108,7 @@ await writeFile(
     {
       manifest_version: 3,
       name: development ? 'Sim (Development)' : 'Sim',
-      version: '0.1.2',
+      version: packageJson.version,
       description:
         "Ask Sim about the page you are reading, and open your organization's sim/ links from the address bar.",
       minimum_chrome_version: '120',
@@ -132,7 +133,7 @@ await writeFile(
       commands: {
         'open-sim': {
           suggested_key: { default: 'Alt+Shift+S', mac: 'Command+Shift+S' },
-          description: 'Open Sim and attach the current page',
+          description: 'Ask Sim about selected text or the current page',
         },
       },
       content_security_policy: {
