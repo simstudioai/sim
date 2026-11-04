@@ -172,10 +172,24 @@ function queuedOwnerFilter(owners: readonly EditableFileOwner[]): SQL | undefine
 }
 
 /**
+ * The transaction's start time. Queue rows compare `updated_at` with `last_dispatched_at`, and
+ * the `workspace_file_search_mark_pending` trigger writes `updated_at` the same way, so both sides
+ * share one clock.
+ */
+const transactionNow = sql`now()`
+
+/**
+ * Whether an owner was woken after its last dispatch: never dispatched, or touched since. A file
+ * write, a released claim, and a reaped claim advance `updated_at`; a claim stamps both columns
+ * with one time, and a reconciliation wake-up enters with them equal. A write whose transaction
+ * began before the claim that stamped its owner reads as earlier and waits one rotation.
+ */
+const wokenSinceDispatch = sql`(${fileSearchDispatchQueue.lastDispatchedAt} IS NULL OR ${fileSearchDispatchQueue.updatedAt} > ${fileSearchDispatchQueue.lastDispatchedAt})`
+
+/**
  * Queues owners for the claim pass. A `reconciliation` wake-up, from the backfill walk, enters as
- * if just dispatched: claims take owners never dispatched first, so marking it served keeps a page
- * of owners with nothing new behind the owners the file trigger woke for a write, and its row still
- * rotates in by dispatch age. An owner already queued keeps its place either way.
+ * if just dispatched and never touches an owner already queued, so a page of owners with nothing
+ * new rotates in behind the owners woken for work.
  */
 async function enqueueOwners(
   tx: DbTransaction,
@@ -185,20 +199,18 @@ async function enqueueOwners(
 ): Promise<void> {
   const unique = [...new Map(owners.map((owner) => [JSON.stringify(owner), owner])).values()]
   if (unique.length === 0) return
-  await tx
-    .insert(fileSearchDispatchQueue)
-    .values(
-      unique.map((owner) => ({
-        ...owner,
-        enqueuedAt: now,
-        updatedAt: now,
-        lastDispatchedAt: reconciliation ? now : null,
-      }))
-    )
-    .onConflictDoUpdate({
-      target: [fileSearchDispatchQueue.entityType, fileSearchDispatchQueue.entityId],
-      set: { updatedAt: now },
-    })
+  const target = [fileSearchDispatchQueue.entityType, fileSearchDispatchQueue.entityId]
+  const insert = tx.insert(fileSearchDispatchQueue).values(
+    unique.map((owner) => ({
+      ...owner,
+      enqueuedAt: now,
+      updatedAt: transactionNow,
+      lastDispatchedAt: reconciliation ? transactionNow : null,
+    }))
+  )
+  await (reconciliation
+    ? insert.onConflictDoNothing({ target })
+    : insert.onConflictDoUpdate({ target, set: { updatedAt: transactionNow } }))
 }
 
 /**
@@ -675,6 +687,7 @@ export async function prepareWorkspaceFileSearchDispatch(
           })
           .from(fileSearchDispatchQueue)
           .orderBy(
+            sql`${wokenSinceDispatch} DESC`,
             sql`${fileSearchDispatchQueue.lastDispatchedAt} ASC NULLS FIRST`,
             asc(fileSearchDispatchQueue.enqueuedAt),
             asc(fileSearchDispatchQueue.entityType),
@@ -687,7 +700,7 @@ export async function prepareWorkspaceFileSearchDispatch(
           // Rotate busy owners too; otherwise a full locked page starves every later owner.
           await tx
             .update(fileSearchDispatchQueue)
-            .set({ lastDispatchedAt: now, updatedAt: now })
+            .set({ lastDispatchedAt: transactionNow, updatedAt: transactionNow })
             .where(queuedOwnerFilter(candidates))
         }
         const owners = await lockFileSearchOwners(tx, candidates, { skipBusy: true })
