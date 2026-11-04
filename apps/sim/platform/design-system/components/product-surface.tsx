@@ -25,7 +25,7 @@ export function ProductSurface({ preference, children }: ProductSurfaceProps) {
   const theme = preference === 'system' ? (dark ? 'dark' : 'light') : preference
   return (
     <ThemeContext.Provider value={theme}>
-      <PlatformSurface theme={theme}>{children}</PlatformSurface>
+      <PlatformSurface theme={preference}>{children}</PlatformSurface>
     </ThemeContext.Provider>
   )
 }

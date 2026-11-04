@@ -2,9 +2,10 @@
 
 import type { ReactNode } from 'react'
 import { useInterfacePreferences } from '@/platform/design-system/components/interface-preferences'
+import type { Appearance } from '@/platform/design-system/navigation'
 
 interface PlatformSurfaceProps {
-  theme: 'light' | 'dark'
+  theme: Appearance
   children: ReactNode
 }
 
