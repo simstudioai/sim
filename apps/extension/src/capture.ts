@@ -34,7 +34,7 @@ export class SiteAccessRequiredError extends PageCaptureError {
     readonly tabId: number,
     readonly windowId: number
   ) {
-    super('Allow site access to attach this page.')
+    super('Enable page access once to use pages across websites. ')
   }
 }
 

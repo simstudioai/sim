@@ -812,7 +812,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'Reference current page is an optional setting stored in Your Chrome profile. When it is on, sending a message from the sidebar includes a snapshot of the active tab unless You have attached a page or selection Yourself. Opening the panel or switching tabs does not trigger this capture. If Chrome has not granted access, Your draft stays in the composer. You can grant access to an individual site and send again, or turn the setting off. You can revoke site access in the extension or Chrome settings. Incognito capture is disabled.'
+            'Reference current page is an optional setting stored in Your Chrome profile. When it is on, sending a message from the sidebar includes a snapshot of the active tab unless You have attached a page or selection Yourself. Opening the panel or switching tabs does not trigger this capture. If Chrome has not granted access, Your draft stays in the composer. You can grant browser access and send again, or turn the setting off. Versions 0.1.4 and later offer one approval for HTTP and HTTPS websites; earlier versions offer individual site grants. You can revoke or restrict access in Chrome settings. Incognito capture is disabled.'
           ),
         },
         {

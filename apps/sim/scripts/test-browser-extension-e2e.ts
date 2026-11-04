@@ -1084,14 +1084,14 @@ try {
               .evaluate((button) => (button as HTMLButtonElement).click())
             await screenshot('capture-menu')
             await frame()
-              .getByRole('menuitem', { name: 'Site access', exact: true })
+              .getByRole('menuitem', { name: 'Page access', exact: true })
               .evaluate((button) => (button as HTMLElement).click())
-            const access = shell.getByRole('dialog', { name: 'Site access', exact: true })
+            const access = shell.getByRole('dialog', { name: 'Page access', exact: true })
             await expect(
-              access.getByRole('button', { name: `Remove access to ${fixtureOrigin}`, exact: true })
+              access.getByRole('button', { name: 'Allow across websites', exact: true })
             ).toBeVisible()
             await expect(
-              frame().getByRole('menuitem', { name: 'Site access', exact: true })
+              frame().getByRole('menuitem', { name: 'Page access', exact: true })
             ).toHaveCount(0)
             await screenshot('site-options')
             await access.getByRole('button', { name: 'Close', exact: true }).click()
@@ -2037,7 +2037,7 @@ try {
                 .getByRole('button', { name: org ? 'Send' : 'Send message', exact: true })
                 .click()
             await expect(
-              shell.getByRole('button', { name: 'Request site access', exact: true })
+              shell.getByRole('button', { name: 'Allow across websites', exact: true })
             ).toBeEnabled()
             await expect(input()).toHaveValue(draft)
             await expect

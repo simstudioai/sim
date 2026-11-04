@@ -68,7 +68,7 @@ export function useExtensionComposer(scopeKey: string) {
           )}
           <DropdownMenuItem onSelect={() => requestAction('site-access')}>
             <Settings className='size-[14px]' />
-            Site access
+            Page access
           </DropdownMenuItem>
           {shortcutsAvailable && (
             <DropdownMenuItem onSelect={() => requestAction('browser-shortcuts')}>

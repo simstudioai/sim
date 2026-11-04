@@ -4,7 +4,6 @@ import {
   type ExtensionToAppMessage,
   type PageSnapshot,
 } from '@sim/browser-extension-protocol'
-import { Chip } from '@sim/emcn'
 import { createRoot } from 'react-dom/client'
 import {
   captureActivePage,
@@ -17,8 +16,7 @@ import { CAPTURE_INTENT_KEY, CAPTURE_INTENT_TTL_MS, REFERENCE_PAGE_KEY, SIM_ORIG
 import { type CaptureIntent, captureIntentSchema } from '@/intent'
 import { createReferenceCapture } from '@/reference'
 import { SearchRecoveryDialog } from '@/search-recovery-dialog'
-import { ShortcutHint } from '@/shortcut-hint'
-import { SiteAccessDialog } from '@/site-access'
+import { PageAccessButton, SiteAccessDialog } from '@/site-access'
 import '@/shell.css'
 
 const BLOCKED_SELECTION =
@@ -404,12 +402,11 @@ function SidePanel({ origin }: SidePanelProps) {
       >
         {typeof status === 'string' ? status : status.message}
         {status instanceof SiteAccessRequiredError && (
-          <>
-            <Chip className='ml-2' onClick={() => setAccessOpen(true)}>
-              Request site access
-            </Chip>
-            <ShortcutHint />
-          </>
+          <PageAccessButton
+            onAccessGranted={() =>
+              setStatus((current) => (current instanceof SiteAccessRequiredError ? '' : current))
+            }
+          />
         )}
       </div>
       <iframe
@@ -424,9 +421,10 @@ function SidePanel({ origin }: SidePanelProps) {
       {accessOpen && (
         <SiteAccessDialog
           onClose={() => setAccessOpen(false)}
-          onAccessGranted={() =>
+          onAccessGranted={() => {
+            setAccessOpen(false)
             setStatus((current) => (current instanceof SiteAccessRequiredError ? '' : current))
-          }
+          }}
         />
       )}
       {shortcutsOpen && <SearchRecoveryDialog onClose={() => setShortcutsOpen(false)} />}

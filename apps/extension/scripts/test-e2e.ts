@@ -1061,7 +1061,7 @@ try {
         )
       await panel.bringToFront()
       await openAccess()
-      const dialog = panel.getByRole('dialog', { name: 'Site access' })
+      const dialog = panel.getByRole('dialog', { name: 'Page access' })
       await expect(dialog).toBeVisible()
       await settleMessages()
       assert(policyErrors.length === 0, `Site access violated CSP: ${policyErrors.join('\n')}`)
@@ -1324,7 +1324,7 @@ try {
     }
   )
   await check(
-    'Site access requests only the address the user confirms, without reading the page',
+    'Page access asks the browser for website access without reading before approval',
     async () => {
       const source = 'https://private-source.example'
       const privateUrl = `${source}/sensitive-path?token=PRIVATE_URL_SENTINEL#fragment`
@@ -1358,34 +1358,11 @@ try {
           return execute(...args)
         }) as typeof chrome.scripting.executeScript
       })
-      await panel.getByRole('button', { name: 'Request site access' }).click()
-      const dialog = panel.getByRole('dialog', { name: 'Site access' })
-      await expect(dialog).toBeVisible()
-      const address = dialog.getByRole('textbox', { name: 'Site address' })
-      await expect(address).toHaveValue('')
-      const allow = dialog.getByRole('button', { name: /^Allow access/ })
-      for (const unsafe of [
-        'https://user:password@example.com/',
-        'https://*.example.com/',
-        'https://%2A.example.com/',
-        'https://＊.example.com/',
-        '<all_urls>',
-        'chrome://settings/',
-      ]) {
-        await address.fill(unsafe)
-        await expect(allow, `Do not offer to grant access for ${unsafe}`).toHaveAccessibleName(
-          'Allow access'
-        )
-        await expect(allow).toBeDisabled()
-      }
-      await address.fill('http://intranet.example:8080/private-path')
-      await expect(allow).toHaveAccessibleName('Allow access to http://intranet.example:8080')
-      const allowedHost = 'https://approved-site.example'
-      await address.fill(`${allowedHost}/private-path?token=INPUT_SECRET#fragment`)
-      await expect(allow).toHaveAccessibleName(`Allow access to ${allowedHost}`)
+      const allow = panel.getByRole('button', { name: 'Allow across websites', exact: true })
+      await expect(allow).toBeEnabled()
       assert(
         (await panel.locator('body').getAttribute('data-requested-access')) === null,
-        'Typing initiated a permission request'
+        'A failed capture initiated a permission request without an explicit action'
       )
       const grantedSites = () =>
         worker.evaluate(async () => ((await chrome.permissions.getAll()).origins ?? []).sort())
@@ -1394,7 +1371,7 @@ try {
       await expect(panel.locator('body')).toHaveAttribute('data-request-gesture', 'true')
       const requested = await panel.locator('body').getAttribute('data-requested-access')
       assert(requested, 'The user action never reached Chrome')
-      expect(JSON.parse(requested)).toEqual([{ origins: ['https://approved-site.example:443/*'] }])
+      expect(JSON.parse(requested)).toEqual([{ origins: ['https://*/*', 'http://*/*'] }])
       expect(await grantedSites(), 'A site received persistent access without approval').toEqual(
         previousAccess
       )

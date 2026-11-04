@@ -15,13 +15,13 @@ To ask about a passage, select the text on the page, right-click, and choose **A
 
 Open **+ → Reference current page on send** to include the active tab each time you send a message. This is off by default. The setting appears above the workspace list, and Sim remembers your choice in this Chrome profile. The globe shows **Current page** while this is on. If you attached a page or selection yourself, Sim uses those snapshots instead. Turn the setting off in the same menu.
 
-If Chrome needs access after you switch tabs, your message stays in the composer. Select **Request site access**. If Chrome hasn’t shared the site address with Sim, paste it into **Site address**. Check the site shown on **Allow access**, approve it in Chrome’s permission dialog, then send again. For one-time access, click the Sim toolbar icon on the active tab and retry. Open **+ → Site access** to remove a saved permission.
+In version 0.1.4 or later, choose **+ → Page access → Allow across websites** and approve the browser prompt once. Page attachments and send-time references then work across HTTP and HTTPS sites without per-site setup. If a message was waiting for access, its draft stays in the composer so you can send it after approval. Manage or revoke access in Chrome’s extension settings. In earlier versions, **+ → Site access** grants access to an individual site; clicking the Sim toolbar icon gives temporary access to the current page.
 
 To share a screenshot, drag the image file onto the open chat. It uploads to Sim and appears as an attachment you can remove before sending. If a website supplies only an image URL, paste the image itself or use the file picker.
 
 For faster access, press **Command + Shift + S** on macOS or **Alt + Shift + S** on Windows and Linux. The shortcut attaches highlighted text when you have a selection. It won't substitute the whole page for an unreadable selection. With no selection, it attaches the page or uses your send-time reference setting. On an already-open sidebar, Chrome may keep keyboard focus on the website. Click the message field, or use Chrome’s pane navigation (on Mac, **Command + Option + Up**).
 
-If Chrome needs access to a new tab, the sidebar shows the shortcut assigned in this Chrome profile, or **Set shortcut** if none is assigned. You can change it under **Extensions → Keyboard shortcuts**.
+Change or assign the shortcut under **Extensions → Keyboard shortcuts**.
 
 ## Roll out to a team
 
@@ -33,6 +33,6 @@ If your organization has [Links](/search/sim-links), type `sim`, press **Space**
 
 ## Page access and privacy
 
-Sim reads a page or selection when you attach it, or when you send a message with **Reference current page** enabled. For repeat use on one site, choose **+ → Site access** to grant or revoke that site’s permission. Granting access doesn't start background capture. The page text goes to the hosted composer when attached and becomes part of the conversation when you send it.
+Sim reads a page or selection when you attach it, or when you send a message with **Reference current page** enabled. With version 0.1.4 or later, **Allow across websites** provides access across tabs without repeated site approvals. Granting access doesn't start background capture. The page text goes to the hosted composer when attached and becomes part of the conversation when you send it.
 
 See [Sim’s browser extension privacy disclosure](https://www.sim.ai/privacy#browser-extension).

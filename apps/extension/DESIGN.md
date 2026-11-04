@@ -16,8 +16,8 @@ or create a conversation and explicitly attach the current page or highlighted t
 The composer’s + menu offers Current page and Selected text. Pending snapshots sit
 inside the composer as compact removable chips alongside file attachments. Opening one
 shows the captured text, source, capture time, and conversation-retention disclosure.
-Partial captures remain labeled in the attachment row. Site access lives in the
-composer’s Site access action, which opens an extension-owned dialog; successful delivery adds no persistent status banner.
+Partial captures remain labeled in the attachment row. Page access lives in the
+composer’s Page access action, which opens an extension-owned dialog; successful delivery adds no persistent status banner.
 Snapshots are immutable: navigating to another page cannot silently change an attached
 source. Removing an attachment, changing organization or workspace, or starting a new conversation
 clears pending page context. Several explicitly attached pages can support comparison.
@@ -34,7 +34,7 @@ Existing Sim server tools remain subject to their existing authorization and app
 ## Ownership and data flow
 
 1. `apps/extension`: packaged MV3 service worker, side-panel host, bounded content
-   extraction, per-site permission controls, build artifacts, browser verification.
+   extraction, browser-wide page permission setup, build artifacts, browser verification.
 2. `packages/browser-extension-protocol`: versioned, strictly validated messages and
    immutable page snapshots shared by the extension, app, and server.
 3. `apps/sim/app/extension`: session gate, organization landing, optional workspace picker, app providers,
@@ -57,9 +57,9 @@ other workspace resources or browser-control tools.
   and short-lived session storage for selection handoff. Required host access is
   limited to the configured Sim origin and to `http(s)://sim/*` and `http(s)://go/*`, which exist
   only so one static redirect rule can send top-level navigations to those hosts to the link resolver.
-- Other HTTP(S) origins are optional grants requested for the current site from a
-  user gesture. Each grant can be revoked. Keeping the panel open is not a grant
-  to read every subsequently selected tab.
+- HTTP(S) page access is one optional browser-wide grant, requested from a direct
+  user gesture. The browser owns revocation and restrictions. Approval enables
+  capture across sites; switching tabs alone does not extract content.
 - No history, bookmarks, cookie API, debugger, native messaging, external messaging,
   or arbitrary remote code execution. The only network interception is the static
   `sim/` and `go/` redirect rule above, plus opt-in search recovery.
@@ -126,7 +126,7 @@ An absent backend or account is an unverified gate, not a pass.
 - [Chrome activeTab](https://developer.chrome.com/docs/extensions/develop/concepts/activeTab)
   and [optional permissions](https://developer.chrome.com/docs/extensions/reference/api/permissions):
   temporary access follows user invocation; cross-origin navigation requires fresh
-  authority. Request persistent access per site only when selected by the user.
+  authority. Request optional access across HTTP(S) websites once, matching Glean’s all-websites page-context option.
 - [Chrome extension security](https://developer.chrome.com/docs/extensions/develop/security-privacy/stay-secure)
   and [OWASP extension guidance](https://cheatsheetseries.owasp.org/cheatsheets/Browser_Extension_Vulnerabilities_Cheat_Sheet.html):
   minimize privileges and treat all incoming page messages as attacker-controlled.
