@@ -184,6 +184,8 @@ async function run() {
         ['SIM/Book-Face/', '/sim/Book-Face'],
         ['sim/a.:@&~_-', '/sim/a.%3A%40%26~_-'],
         ['sim/jira/PROD-123', '/sim/jira/PROD-123'],
+        ['go/bookface', '/sim/bookface'],
+        ['GO/jira/PROD-123/', '/sim/jira/PROD-123'],
         [`${maximum}/`, `/${maximum}`],
       ]
       for (const [shortcut, destination] of cases) {
@@ -338,7 +340,7 @@ async function run() {
       body: fields({ name: 'team.handbook', url: 'https://other.example.com' }),
       expected: 409,
     })
-    assert.match(String(error), /sim\/Team-Handbook already exists/)
+    assert.match(String(error), /A link named Team-Handbook already exists/)
   })
 
   await check('unlisted links are hidden from other members but still resolve', async () => {

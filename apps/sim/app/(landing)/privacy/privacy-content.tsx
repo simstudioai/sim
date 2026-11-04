@@ -44,7 +44,7 @@ function richText(content: string): ReactNode {
 export const PRIVACY_CONFIG: LegalPageConfig = {
   title: 'Privacy Policy',
   description: 'Sim Studio, Inc. · Operating the Sim platform (sim.ai)',
-  lastUpdated: 'November 3, 2026',
+  lastUpdated: 'November 4, 2026',
   intro: [
     {
       kind: 'paragraph',
@@ -836,13 +836,13 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'When You use the sim address-bar keyword, the extension sends the typed link name, before any path values or query, to Sim with Your authenticated session to suggest Your organization’s links. Suggestions are cached in memory and are not written to extension storage. Opening a sim/ shortcut sends its path and query to Sim to resolve the destination, then opens that destination. Sim records each link’s visit count and last-visited time. These requests also use the operational diagnostics described in this Privacy Policy. Choosing Create Sim Link from the browser menu opens a draft with the selected link’s address, omitting query parameters and fragments. The destination becomes an organization Sim Link only when You confirm creation. The extension does not read Your browser history or unrelated address-bar input.'
+            'When You use the sim address-bar keyword, the extension sends the typed link name, before any path values or query, to Sim with Your authenticated session to suggest Your organization’s links. Suggestions are cached in memory and are not written to extension storage. Opening a sim/ or go/ shortcut sends its path and query to Sim to resolve the destination, then opens that destination. Sim records each link’s visit count and last-visited time. These requests also use the operational diagnostics described in this Privacy Policy. Choosing Create link in Sim from the browser menu opens a draft with the selected link’s address, omitting query parameters and fragments. The destination becomes an organization link only when You confirm creation. The extension does not read Your browser history or unrelated address-bar input.'
           ),
         },
         {
           kind: 'paragraph',
           content: richText(
-            'Browser shortcuts can optionally recover an explicit sim/ shortcut that Chrome sends to a supported search engine. After You enable a provider and approve access to its listed sites, Chrome applies request rules that send only the matching shortcut name and path values to Sim’s normal link resolver. Other search parameters and ordinary search terms are not sent to Sim by this feature. The extension stores Your provider choices locally and does not change Your default search engine. These site permissions can also allow page attachment when You explicitly request it; enabling shortcut recovery does not enable Reference current page or background capture. Turning recovery off stops these redirects. Site access remains until You revoke it in the extension or Chrome settings.'
+            'Browser shortcuts can optionally recover an explicit sim/ or go/ shortcut that Chrome sends to a supported search engine. After You enable a provider and approve access to its listed sites, Chrome applies request rules that send only the matching shortcut name and path values to Sim’s normal link resolver. Other search parameters and ordinary search terms are not sent to Sim by this feature. The extension stores Your provider choices locally and does not change Your default search engine. These site permissions can also allow page attachment when You explicitly request it; enabling shortcut recovery does not enable Reference current page or background capture. Turning recovery off stops these redirects. Site access remains until You revoke it in the extension or Chrome settings.'
           ),
         },
         {

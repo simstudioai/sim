@@ -12,7 +12,7 @@ const logger = createLogger('BrowserExtensionOmnibox')
 
 /** Longer than the gap between a typist's keystrokes, so a name is looked up once it settles. */
 const SUGGEST_DELAY_MS = 220
-const SEARCH_HINT = 'Find a Sim link'
+const SEARCH_HINT = 'Find a link in Sim'
 // Chrome persists this template and substitutes the input when rendering the default row.
 const OPEN_LINK_HINT = 'Open <match>%s</match> in Sim'
 
@@ -31,6 +31,7 @@ interface SuggestedLink {
 function readTyped(text: string): { name: string; rest: string } {
   const typed = text
     .trim()
+    // Only the keyword's own `sim/`: after it, `go/x` can be a link named `go` with a value.
     .replace(/^sim\//i, '')
     .replace(/^\/+/, '')
     .replace(/#.*$/, '')

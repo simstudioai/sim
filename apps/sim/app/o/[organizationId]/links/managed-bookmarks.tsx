@@ -27,7 +27,7 @@ export function ManagedBookmarks({ organizationId }: ManagedBookmarksProps) {
   const visible = new Set(listed.map((link) => link.id))
   const options = [...candidates.values()].map((link) => ({
     value: link.id,
-    label: `sim/${link.name}`,
+    label: link.name,
     hidden: !visible.has(link.id),
     disabled: selected.length >= MAX_MANAGED_BOOKMARKS && !selectedIds.has(link.id),
   }))
@@ -57,7 +57,7 @@ export function ManagedBookmarks({ organizationId }: ManagedBookmarksProps) {
           url: new URL(routes.openSimLink(name), window.location.origin).href,
         }))
         saveBlob(
-          new Blob([JSON.stringify([{ name: 'Sim Links', children }], null, 2)], {
+          new Blob([JSON.stringify([{ name: 'Links', children }], null, 2)], {
             type: 'application/json',
           }),
           'sim-managed-bookmarks.json'
@@ -90,7 +90,7 @@ export function ManagedBookmarks({ organizationId }: ManagedBookmarksProps) {
             hasMore={links.hasNextPage}
             onLoadMore={() => void links.fetchNextPage()}
             isLoadingMore={links.isFetchingNextPage}
-            error={links.isError ? 'Could not load Sim Links.' : undefined}
+            error={links.isError ? 'Could not load links.' : undefined}
             emptyMessage='No listed links found'
           />
           <Chip onClick={download} disabled={!selected.length || exporting.isPending}>

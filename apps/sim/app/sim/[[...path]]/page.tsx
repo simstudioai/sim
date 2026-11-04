@@ -11,7 +11,7 @@ import { LogoShell } from '@/app/(landing)/components/logo-shell'
 import { serializeSimLinkView } from '@/app/o/[organizationId]/links/search-params'
 
 export const metadata: Metadata = {
-  title: 'Sim link',
+  title: 'Link',
   robots: { index: false, follow: false },
 }
 
@@ -53,8 +53,8 @@ function describeUnresolved(result: SimLinkResolution, validName: boolean, name:
     const needed = result.required === 1 ? 'a value' : `${result.required} values`
     return `This link needs ${needed}, like sim/${name}/${example}.`
   }
-  if (result.kind === 'invalid_values') return "Sim links can't open . or .. as a value."
-  return validName ? "This Sim link doesn't exist yet." : "That isn't a valid Sim link name."
+  if (result.kind === 'invalid_values') return "Links can't open . or .. as a value."
+  return validName ? "This link doesn't exist yet." : "That isn't a valid link name."
 }
 
 /**
@@ -94,15 +94,15 @@ export default async function SimLinkPage({ params, searchParams }: SimLinkPageP
   return (
     <LogoShell center theme='inherit'>
       <StatusPageContent
-        title={validName ? `sim/${name}` : 'Sim link'}
+        title={validName ? name : 'Link'}
         description={describeUnresolved(result, validName, name)}
       >
         {creatable && (
           <ChipLink variant='primary' href={serializeSimLinkView(library, { create: name })}>
-            Create sim/{name}
+            Create link
           </ChipLink>
         )}
-        <ChipLink href={library}>All Sim links</ChipLink>
+        <ChipLink href={library}>All links</ChipLink>
       </StatusPageContent>
     </LogoShell>
   )

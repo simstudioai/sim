@@ -11,6 +11,7 @@ import {
   type AppToExtensionMessage,
   extensionToAppMessageSchema,
   pageSnapshotSchema,
+  SIM_LINK_HOSTS,
 } from '@sim/browser-extension-protocol'
 import { SecretReveal } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
@@ -360,18 +361,20 @@ try {
   }
 
   await check(
-    'HTTP and HTTPS navigations to the sim host reach the configured resolver',
+    'HTTP and HTTPS navigations to the sim and go hosts reach the configured resolver',
     async () => {
       const tab = await page.context().newPage()
       for (const scheme of ['http', 'https']) {
-        for (const path of [
-          'handbook',
-          'handbook/',
-          'jira/123?view=board',
-          'jira/a%2Fb?view=board%20view',
-        ]) {
-          await tab.goto(`${scheme}://sim/${path}`)
-          assert(tab.url() === `${origin}/sim/${path}`, `sim/${path} reached ${tab.url()}`)
+        for (const host of SIM_LINK_HOSTS) {
+          for (const path of [
+            'handbook',
+            'handbook/',
+            'jira/123?view=board',
+            'jira/a%2Fb?view=board%20view',
+          ]) {
+            await tab.goto(`${scheme}://${host}/${path}`)
+            assert(tab.url() === `${origin}/sim/${path}`, `${host}/${path} reached ${tab.url()}`)
+          }
         }
       }
       await tab.close()
@@ -1434,7 +1437,10 @@ try {
           await unchanged(url)
           await toggle(provider.id, true)
           for (const host of provider.hosts) {
-            for (const shortcut of ['sim%2Faskit', 'sim/jira/ABC-123']) {
+            for (const shortcut of SIM_LINK_HOSTS.flatMap((short) => [
+              `${short}%2Faskit`,
+              `${short}/jira/ABC-123`,
+            ])) {
               const candidate = `https://${host}${provider.path}?client=chrome&${provider.parameter}=${shortcut}&source=qa`
               const prior = searchRequests.filter((request) => request.url === candidate).length
               await tab.goto(candidate)

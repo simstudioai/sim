@@ -13,7 +13,7 @@ function LinkDraftSignIn() {
   const href = `/login?callbackUrl=${encodeURIComponent(SIM_LINK_DRAFT_PATH)}`
   return (
     <main className='flex h-dvh flex-col items-center justify-center gap-4 bg-[var(--bg)] p-6 text-center text-[var(--text-body)] text-small'>
-      <h1 className='text-lg'>Sign in to create a Sim Link</h1>
+      <h1 className='text-lg'>Sign in to create a link</h1>
       {needsSeparateTab ? (
         <>
           <p>Sign in in another tab, then reload this draft.</p>

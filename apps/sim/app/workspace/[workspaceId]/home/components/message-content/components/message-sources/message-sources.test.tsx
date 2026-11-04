@@ -66,7 +66,7 @@ describe('creating a Sim link from the sources popover', () => {
     await settle()
 
     const form = [...document.querySelectorAll('[role="dialog"]')].find((dialog) =>
-      dialog.textContent?.includes('New Sim link')
+      dialog.textContent?.includes('New link')
     )
     expect(form).toBeDefined()
     expect(document.querySelector<HTMLInputElement>('input[type="url"]')?.value).toBe(source.url)

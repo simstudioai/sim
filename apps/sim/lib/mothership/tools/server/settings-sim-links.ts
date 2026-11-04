@@ -42,7 +42,7 @@ export const simLinkSettingsActions = {
           .trim()
           .min(1)
           .max(255)
-          .describe('The name as typed, with or without the sim/ prefix'),
+          .describe('The name as typed, with or without a sim/ or go/ prefix'),
       }),
     ]),
     async (context, input) =>

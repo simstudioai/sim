@@ -55,14 +55,14 @@ other workspace resources or browser-control tools.
 
 - Required browser capabilities: side panel, scripting, active tab, context menus,
   and short-lived session storage for selection handoff. Required host access is
-  limited to the configured Sim origin and to `http(s)://sim/*`, which exists only so
-  one static redirect rule can send top-level navigations to that host to the Sim link resolver.
+  limited to the configured Sim origin and to `http(s)://sim/*` and `http(s)://go/*`, which exist
+  only so one static redirect rule can send top-level navigations to those hosts to the link resolver.
 - Other HTTP(S) origins are optional grants requested for the current site from a
   user gesture. Each grant can be revoked. Keeping the panel open is not a grant
   to read every subsequently selected tab.
 - No history, bookmarks, cookie API, debugger, native messaging, external messaging,
   or arbitrary remote code execution. The only network interception is the static
-  `sim/` redirect rule above.
+  `sim/` and `go/` redirect rule above, plus opt-in search recovery.
 - The only background network request is the `sim` address-bar keyword: after
   `sim` and Space, the text typed before the first `/` or `?` is sent to the
   configured Sim origin with the signed-in session to suggest matching Sim links,

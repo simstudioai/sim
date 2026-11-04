@@ -33,15 +33,14 @@ export function BrowserShortcutsModal({ onClose }: BrowserShortcutsModalProps) {
           </a>
           .
         </ChipModalDescription>
-        <ChipLink
-          href='http://sim/'
-          target='_blank'
-          rel='noopener noreferrer'
-          variant='primary'
-          className='self-start'
-        >
-          Enable sim/ shortcuts
-        </ChipLink>
+        <div className='flex flex-wrap gap-2'>
+          <ChipLink href='http://go/' target='_blank' rel='noopener noreferrer' variant='primary'>
+            Enable go/ shortcuts
+          </ChipLink>
+          <ChipLink href='http://sim/' target='_blank' rel='noopener noreferrer'>
+            Enable sim/ shortcuts
+          </ChipLink>
+        </div>
         <ChipModalDescription>
           Still opening search results? In the Sim extension, open{' '}
           <strong>+ → Browser shortcuts</strong> and enable your search provider.

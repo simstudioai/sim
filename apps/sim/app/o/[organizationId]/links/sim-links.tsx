@@ -106,7 +106,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
       loaded.map((link) => ({
         id: link.id,
         cells: {
-          name: { icon: <SimLinkIcon url={link.url} />, label: `sim/${link.name}` },
+          name: { icon: <SimLinkIcon url={link.url} />, label: link.name },
           destination: { label: link.url },
           description: { label: link.description },
           owner: link.createdBy
@@ -163,7 +163,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
     <Resource>
       <Resource.Header
         icon={Link}
-        title='Sim Links'
+        title='Links'
         actions={[
           ...(hosted
             ? [
@@ -197,7 +197,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
             <ResourceNoResults
               search={query}
               filterCount={0}
-              searchScope='Searched every Sim link you can see.'
+              searchScope='Searched every link you can see.'
               onClear={() => setSearch('')}
             />
           ) : (
@@ -247,8 +247,8 @@ export function SimLinks({ organizationId }: SimLinksProps) {
         onOpenChange={(open) => {
           if (!open && !remove.isPending) setDeleting(null)
         }}
-        title='Delete Sim link'
-        text={`sim/${deleting?.name ?? ''} will stop working for everyone in your organization.`}
+        title='Delete link'
+        text={`${deleting?.name ?? 'This link'} will stop working for everyone in your organization.`}
         confirm={{
           label: 'Delete',
           pendingLabel: 'Deleting',

@@ -11,7 +11,7 @@ export const SIM_LINK_COLUMNS = [
   { id: 'updated', header: 'Updated' },
 ] as const satisfies readonly ResourceColumn[]
 
-export const SIM_LINKS_SEARCH_PLACEHOLDER = 'Search Sim links...'
+export const SIM_LINKS_SEARCH_PLACEHOLDER = 'Search links...'
 
 export const BROWSER_SHORTCUTS_ACTION = { text: 'Browser shortcuts', icon: Globe } as const
 export const NEW_SIM_LINK_ACTION = { text: 'New link', icon: Plus, variant: 'primary' } as const
