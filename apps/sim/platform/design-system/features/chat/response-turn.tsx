@@ -98,7 +98,7 @@ export function ResponseTurn({ response, onRetry }: ResponseTurnProps) {
         </div>
       )}
       {paragraphs.map((text, index) => (
-        <p key={text} data-type='T048'>
+        <p key={index} data-type='T048'>
           {state === 'complete' &&
           index > 0 &&
           index < paragraphs.length - 1 &&

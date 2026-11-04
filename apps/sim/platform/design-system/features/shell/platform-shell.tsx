@@ -4,12 +4,20 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ComponentRecipe } from '@/platform/design-system/catalog/component-recipe'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
-import { Chip, Icon, IconButton, ScrollArea, Tooltip } from '@/platform/design-system/components'
+import {
+  AvatarImage,
+  Chip,
+  Icon,
+  IconButton,
+  ScrollArea,
+  Tooltip,
+} from '@/platform/design-system/components'
 import { avatarInitials } from '@/platform/design-system/components/avatar-initials'
 import { useChatChanges } from '@/platform/design-system/components/chat-changes'
 import { CommandSearch } from '@/platform/design-system/components/command-search'
 import { useDesktopHost } from '@/platform/design-system/components/desktop-host'
 import { HelpMenu } from '@/platform/design-system/components/help-menu'
+import { useInterfacePreferences } from '@/platform/design-system/components/interface-preferences'
 import { NotificationTray } from '@/platform/design-system/components/notification-tray'
 import { OverlayDialog } from '@/platform/design-system/components/overlay-dialog'
 import { usePlatformTheme } from '@/platform/design-system/components/product-surface'
@@ -34,7 +42,7 @@ export function PlatformShell({ data, children, navigation, desktopTitle }: Plat
   const pathname = usePathname()
   const search = useSearchParams()
   const router = useRouter()
-  const [collapsed, setCollapsed] = useSidebarLayout()
+  const { collapsed, setCollapsed } = useSidebarLayout()
   const [drawer, setDrawer] = useState(false)
   const [command, setCommand] = useState(false)
   const compact = useCompactViewport('navigation')
@@ -44,6 +52,8 @@ export function PlatformShell({ data, children, navigation, desktopTitle }: Plat
   const sidebarHeader = useRef<HTMLDivElement>(null)
   const toolbar = useRef<HTMLDivElement>(null)
   const chat = useChatChanges()
+  const preferences = useInterfacePreferences()
+  const accountName = preferences?.profileName ?? data?.user.name ?? ''
   const settings = pathname.startsWith('/settings')
   const conversation = pathname.startsWith('/chat')
   const activeChat = conversation ? pathname.split('/')[2] : undefined
@@ -159,14 +169,20 @@ export function PlatformShell({ data, children, navigation, desktopTitle }: Plat
           <ComponentRecipe
             recipe={light ? 'C1033' : 'C1029'}
             slots={{
-              label: avatarInitials(data.user.name),
+              label: preferences?.picture ? (
+                <span className={styles.accountPhoto}>
+                  <AvatarImage src={preferences.picture} name={accountName} />
+                </span>
+              ) : (
+                avatarInitials(accountName)
+              ),
               label2: (
                 <button
                   className={styles.identity}
                   type='button'
                   onClick={() => navigate('/settings')}
                 >
-                  {data.user.name}
+                  {accountName}
                 </button>
               ),
               iconButton: <HelpMenu iconOnly />,
@@ -206,7 +222,7 @@ export function PlatformShell({ data, children, navigation, desktopTitle }: Plat
   ] satisfies { id: string; label: string; icon: IconName; href: string }[]
 
   return (
-    <NotificationTray history={data?.notifications ?? []} navigate={navigate}>
+    <>
       <div
         className={styles.shell}
         data-desktop={desktop || undefined}
@@ -270,6 +286,7 @@ export function PlatformShell({ data, children, navigation, desktopTitle }: Plat
           <CommandSearch items={destinations} onSelect={navigate} />
         </OverlayDialog>
       </div>
-    </NotificationTray>
+      <NotificationTray history={data?.notifications ?? []} navigate={navigate} />
+    </>
   )
 }

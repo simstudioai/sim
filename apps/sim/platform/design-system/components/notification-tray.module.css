@@ -7,10 +7,18 @@
 .stack {
   position: fixed;
   z-index: 2;
-  inset-block-end: var(--spacing-20);
-  inset-inline-end: var(--spacing-20);
-  inline-size: min(var(--shell-notice-width), calc(100vw - var(--spacing-40)));
-  max-block-size: calc(100dvh - var(--spacing-40));
+  inset-block-end: calc(var(--spacing-20) + env(safe-area-inset-bottom));
+  inset-inline-end: calc(var(--spacing-20) + env(safe-area-inset-right));
+  inline-size: min(
+    var(--shell-notice-width),
+    calc(100vw - var(--spacing-40) - env(safe-area-inset-left) - env(safe-area-inset-right))
+  );
+  max-block-size: calc(
+    100dvh -
+    var(--spacing-40) -
+    env(safe-area-inset-top) -
+    env(safe-area-inset-bottom)
+  );
   overflow-y: auto;
   gap: var(--spacing-8);
   pointer-events: none;

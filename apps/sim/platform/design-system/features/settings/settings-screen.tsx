@@ -14,6 +14,7 @@ import { SETTINGS_DESTINATIONS } from '@/platform/design-system/features/setting
 import { ProfileSettings } from '@/platform/design-system/features/settings/profile-settings'
 import styles from '@/platform/design-system/features/settings/settings.module.css'
 import type { SettingsData } from '@/platform/design-system/models/settings'
+import { readAppearance } from '@/platform/design-system/navigation'
 
 const THEMES = [
   { value: 'light', label: 'Light' },
@@ -33,7 +34,7 @@ function AppearanceSettings() {
           label='Theme'
           variant='quiet'
           options={THEMES}
-          value={search.get('theme') ?? 'system'}
+          value={readAppearance(search.get('theme'))}
           onValueChange={(theme) => {
             const query = new URLSearchParams(search.toString())
             query.set('theme', theme)
@@ -103,6 +104,7 @@ export function SettingsScreen({
   profileName,
 }: SettingsScreenProps) {
   const title = SETTINGS_DESTINATIONS.find((entry) => entry.key === section)?.title ?? 'Preferences'
+  const preferences = useInterfacePreferences()
   const start = useRef<HTMLDivElement>(null)
   const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
@@ -172,7 +174,15 @@ export function SettingsScreen({
           (data?.members.length ? (
             <SettingsSection title='Organization members'>
               {data.members.map((member) => (
-                <SettingsRow key={member.id} label={member.name} description={member.email} />
+                <SettingsRow
+                  key={member.id}
+                  label={
+                    member.email === data.email
+                      ? (preferences?.profileName ?? member.name)
+                      : member.name
+                  }
+                  description={member.email}
+                />
               ))}
             </SettingsSection>
           ) : (

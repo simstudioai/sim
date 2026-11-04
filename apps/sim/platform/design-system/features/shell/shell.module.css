@@ -94,6 +94,13 @@
   min-block-size: var(--spacing-app-chip);
   margin-block-start: auto;
 }
+.accountPhoto {
+  display: block;
+  inline-size: var(--spacing-20);
+  block-size: var(--spacing-20);
+  overflow: hidden;
+  border-radius: var(--radius-full);
+}
 .identity {
   min-inline-size: 0;
   min-block-size: var(--spacing-28);
@@ -289,8 +296,16 @@
   }
 }
 @media (hover: none) {
-  .chatRow[data-current] .rowActions {
+  .rowActions {
     opacity: 1;
+  }
+}
+@media (pointer: coarse) {
+  .navRow {
+    min-block-size: var(--spacing-app-touch-target);
+  }
+  .chatRow .navRow {
+    padding-inline-end: var(--spacing-48);
   }
 }
 

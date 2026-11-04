@@ -163,7 +163,7 @@
   color: var(--ui-secondary);
   height: var(--spacing-64);
 }
-.hour:nth-last-child(3) {
+.hour:nth-last-child(1 of .hour) {
   height: var(--spacing-16);
 }
 .hour::after {

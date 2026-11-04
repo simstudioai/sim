@@ -3,6 +3,7 @@
 import { type RefObject, useState } from 'react'
 import { Icon, SegmentedControl } from '@/platform/design-system/components'
 import { AnchoredPopover } from '@/platform/design-system/components/anchored-popover'
+import { useSidebarLayout } from '@/platform/design-system/components/sidebar-layout'
 import styles from '@/platform/design-system/features/shell/shell.module.css'
 import type { InboxItem } from '@/platform/design-system/models/shell'
 
@@ -19,8 +20,7 @@ const FILTERS = [
 
 export function NotificationCenter({ anchor, items, navigate }: NotificationCenterProps) {
   const [open, setOpen] = useState(false)
-  const [filter, setFilter] = useState('all')
-  const [read, setRead] = useState<ReadonlySet<string>>(new Set())
+  const { filter, setFilter, read, setRead } = useSidebarLayout()
   const visible = items.filter((item) => filter === 'all' || (item.unread && !read.has(item.id)))
   return (
     <AnchoredPopover

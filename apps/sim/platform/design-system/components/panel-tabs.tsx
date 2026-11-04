@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { type ReactNode, useRef } from 'react'
 import { Tabs } from '@base-ui/react/tabs'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import { ActionMenu } from '@/platform/design-system/components/action-menu'
@@ -30,6 +30,11 @@ export function PanelTabs({
   onHide,
 }: PanelTabsProps) {
   const active = tabs.find((tab) => tab.id === current)
+  const selected = useRef<HTMLButtonElement>(null)
+  function closeTab(id: string) {
+    onRemove(id)
+    if (tabs.length > 1) requestAnimationFrame(() => selected.current?.focus())
+  }
   return (
     <Tabs.Root
       className={styles.root}
@@ -42,22 +47,36 @@ export function PanelTabs({
         <div className={styles.strip}>
           <Tabs.List className={styles.tabs} aria-label='Chat panel tabs' activateOnFocus>
             {tabs.map((tab) => (
-              <div className={styles.slot} key={tab.id}>
-                <Tabs.Tab value={tab.id} className={styles.tab} data-type='T067'>
-                  <Icon name={tab.icon} />
-                  <span>{tab.label}</span>
-                </Tabs.Tab>
-                <div className={styles.close}>
-                  <IconButton
-                    icon='I105'
-                    size='compact'
-                    label={`Close ${tab.label} tab`}
-                    onClick={() => onRemove(tab.id)}
-                  />
-                </div>
-              </div>
+              <Tabs.Tab
+                key={tab.id}
+                value={tab.id}
+                ref={tab.id === current ? selected : undefined}
+                className={styles.tab}
+                data-type='T067'
+                onKeyDown={(event) => {
+                  if (event.key === 'Delete') {
+                    event.preventDefault()
+                    closeTab(tab.id)
+                  }
+                }}
+              >
+                <Icon name={tab.icon} />
+                <span>{tab.label}</span>
+              </Tabs.Tab>
             ))}
           </Tabs.List>
+          <div className={styles.closes}>
+            {tabs.map((tab) => (
+              <div className={styles.slot} key={tab.id}>
+                <IconButton
+                  icon='I105'
+                  size='compact'
+                  label={`Close ${tab.label} tab`}
+                  onClick={() => closeTab(tab.id)}
+                />
+              </div>
+            ))}
+          </div>
         </div>
         <span className={styles.title} data-type='T046'>
           {active?.label}

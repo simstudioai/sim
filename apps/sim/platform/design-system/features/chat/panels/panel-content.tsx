@@ -126,11 +126,11 @@ export function PanelContent({
       </div>
     </div>
   )
-  if (desktop)
+  if (desktop || view === 'website')
     return (
       <BrowserContent
         key={resource?.id ?? 'launcher'}
-        launcherOnly={view === 'workspaces'}
+        showTools={desktop && view !== 'workspaces'}
         website={data?.website}
         initialAddress={resource?.address}
       >

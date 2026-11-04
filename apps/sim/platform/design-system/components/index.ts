@@ -11,6 +11,7 @@ export { ComposerInput } from './composer-input'
 export {
   Avatar,
   AvatarGroup,
+  AvatarImage,
   AvatarOverflow,
   Button,
   Chip,

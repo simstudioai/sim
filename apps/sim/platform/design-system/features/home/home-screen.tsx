@@ -36,15 +36,17 @@ export function HomeScreen({ data }: HomeScreenProps) {
   const { createChat } = useChatChanges()
   const preferences = useInterfacePreferences()
   const { notify, dismiss } = usePlatformNotices()
-  const [mode, setMode] = useState('Build')
   const [disconnect, setDisconnect] = useState<'Email' | 'Calendar' | null>(null)
   if (!preferences) throw new Error('Home needs interface preferences')
   const {
+    homeMode,
+    setHomeMode,
     hiddenWidgets: hidden,
     setHiddenWidgets: setHidden,
     connections,
     setConnections: setConnected,
   } = preferences
+  const firstName = data && (preferences.profileName?.split(/\s/u)[0] ?? data.firstName)
   const connected = {
     Email: data?.connected ?? false,
     Calendar: data?.connected ?? false,
@@ -85,9 +87,7 @@ export function HomeScreen({ data }: HomeScreenProps) {
       <div className={styles.dashboard}>
         <header className={styles.greeting}>
           <div>
-            <h1 data-type='T076'>
-              {data?.firstName ? `Good morning, ${data.firstName}` : 'Good morning'}
-            </h1>
+            <h1 data-type='T076'>{firstName ? `Good morning, ${firstName}` : 'Good morning'}</h1>
             <p data-type='T048'>Your company’s knowledge and work, connected by Sim.</p>
           </div>
           <ActionMenu
@@ -114,14 +114,15 @@ export function HomeScreen({ data }: HomeScreenProps) {
                 { value: 'Build', label: 'Build' },
                 { value: 'Search', label: 'Search' },
               ]}
-              defaultValue='Build'
-              onSelect={setMode}
+              defaultValue={homeMode}
+              onSelect={setHomeMode}
             />
           </header>
           <MessageComposer
+            draftKey='home'
             references={data?.references}
             placeholder={
-              mode === 'Build'
+              homeMode === 'Build'
                 ? 'Ask about your business, or give Sim something to do…'
                 : 'Search your company’s knowledge…'
             }

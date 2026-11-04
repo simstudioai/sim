@@ -59,6 +59,10 @@
   white-space: nowrap;
   color: var(--ui-ink);
 }
+.recentItem > button {
+  align-self: stretch;
+  cursor: pointer;
+}
 .attachmentItems {
   display: grid;
   gap: var(--spacing-8);
@@ -104,6 +108,9 @@
   .recentItem {
     min-height: var(--spacing-app-touch-target);
   }
+  .recentItem > button {
+    min-inline-size: var(--spacing-app-touch-target);
+  }
 }
 .steps {
   display: grid;
@@ -138,6 +145,9 @@
 }
 
 .workspaceHit {
+  align-self: stretch;
+  display: grid;
+  align-items: center;
   width: 100%;
   cursor: pointer;
   text-align: start;
@@ -158,4 +168,12 @@
 }
 .recentItem:hover .removeRecent > svg:last-child {
   display: block;
+}
+@media (hover: none) {
+  .removeRecent > svg:first-child {
+    display: none;
+  }
+  .removeRecent > svg:last-child {
+    display: block;
+  }
 }

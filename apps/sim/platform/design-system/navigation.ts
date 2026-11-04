@@ -1,5 +1,10 @@
 export type Appearance = 'system' | 'light' | 'dark'
 
+export function readAppearance(value: string | string[] | null | undefined): Appearance {
+  const theme = Array.isArray(value) ? value[0] : value
+  return theme === 'light' || theme === 'dark' ? theme : 'system'
+}
+
 interface SearchValues {
   get(key: string): string | null
 }

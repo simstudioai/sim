@@ -5,8 +5,10 @@ const base = 'http://127.0.0.1:3181'
 test('preferences apply to the interface and survive settings navigation in this session', async ({
   page,
 }) => {
-  await page.goto(`${base}/settings?theme=light&state=full`)
-  await page.getByRole('combobox', { name: 'Theme', exact: true }).click()
+  await page.goto(`${base}/settings?theme=unrecognized&state=full`)
+  const theme = page.getByRole('combobox', { name: 'Theme', exact: true })
+  await expect(theme).toHaveText('System')
+  await theme.click()
   await page.getByRole('option', { name: 'Dark', exact: true }).click()
   await expect(page.locator('[data-platform-ui]')).toHaveAttribute('data-theme', 'dark')
   await page.getByRole('combobox', { name: 'Interface font' }).click()
@@ -52,7 +54,7 @@ test('the small Settings drawer filters destinations, restores navigation and cl
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(356)
 })
 
-test('editing a display name resets cancelled drafts and updates the displayed profile on submit', async ({
+test('cancelled profile edits reset and saved name and picture survive Settings navigation', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 356, height: 740 })
@@ -70,4 +72,30 @@ test('editing a display name resets cancelled drafts and updates the displayed p
   const button = page.getByRole('button', { name: replacement })
   await expect(button).toBeInViewport({ ratio: 1 })
   await expect(page.getByRole('img', { name: replacement })).toBeVisible()
+  await page.getByLabel('Set your profile picture').setInputFiles({
+    name: 'photo.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="17" height="13"/>'),
+  })
+  const picture = page.getByRole('region', { name: 'Profile' }).locator('img')
+  await expect(picture).toHaveJSProperty('naturalWidth', 17)
+  const open = page.getByRole('button', { name: 'Expand sidebar' })
+  const drawer = page.getByRole('dialog', { name: 'Navigation drawer' })
+  await open.click()
+  await drawer.getByRole('link', { name: 'Notifications' }).click()
+  await expect(page.getByRole('heading', { name: 'Notifications', level: 1 })).toBeVisible()
+  await open.click()
+  await drawer.getByRole('link', { name: 'Preferences' }).click()
+  await expect(button).toBeInViewport({ ratio: 1 })
+  await expect(picture).toHaveJSProperty('naturalWidth', 17)
+  await open.click()
+  await drawer.getByRole('button', { name: 'Back to app' }).click()
+  await expect(page.getByRole('heading', { name: 'Good morning, International' })).toBeVisible()
+  await open.click()
+  await expect(drawer.getByRole('img', { name: replacement })).toHaveJSProperty('naturalWidth', 17)
+  await drawer.getByRole('button', { name: replacement }).click()
+  await expect(button).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Emir Karabeg', exact: true })).toBeVisible()
+  await expect(picture).toHaveCount(0)
 })

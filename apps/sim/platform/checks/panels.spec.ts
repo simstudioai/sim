@@ -23,6 +23,12 @@ test('a chat panel preserves its file, tabs and focus across resize, collapse an
   await expect(
     page.getByRole('heading', { level: 1, name: 'Review the renewal brief' })
   ).toBeVisible()
+  await panel.getByRole('button', { name: 'New panel tab' }).click()
+  const lastClose = panel.getByRole('button', { name: 'Close Workspaces tab' }).last()
+  await lastClose.focus()
+  await page.keyboard.press('Enter')
+  await expect(panel.getByRole('tab', { selected: true })).toBeFocused()
+  await panel.getByRole('tab', { name: 'Renewal brief' }).click()
   await page.setViewportSize({ width: 673, height: 823 })
   const opener = await page.getByRole('button', { name: 'Expand sidebar' }).boundingBox()
   const add = await panel.getByRole('button', { name: 'New panel tab' }).boundingBox()

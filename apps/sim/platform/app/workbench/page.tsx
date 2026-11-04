@@ -1,5 +1,11 @@
+import type { Metadata } from 'next'
 import { loadPreviewData } from '@/platform/fixtures'
 import { Workbench } from '@/platform/preview/workbench'
+
+export const metadata: Metadata = {
+  title: 'Platform component workbench',
+  description: 'Browse Sim’s shared components, themes and Paper recipes.',
+}
 
 interface WorkbenchPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>

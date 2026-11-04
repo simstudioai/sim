@@ -130,12 +130,6 @@
   overflow: hidden;
 }
 
-.picture {
-  inline-size: 100%;
-  block-size: 100%;
-  object-fit: cover;
-}
-
 @container settings-rows (max-width: 30rem) {
   .photo {
     inline-size: var(--spacing-44);

@@ -142,7 +142,8 @@
   border-radius: var(--radius-control);
 }
 
-.avatar img {
+.avatarImage {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -579,7 +580,7 @@ a.chip {
   justify-content: start;
   min-inline-size: 0;
 }
-a.chip:hover {
+a.chip:not([aria-current="page"]):hover {
   background: var(--ui-hover);
 }
 .controlLabel {

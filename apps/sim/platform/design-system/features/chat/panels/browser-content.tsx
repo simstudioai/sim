@@ -14,19 +14,19 @@ interface BrowserContentProps {
   children: ReactNode
   website?: PanelData['website']
   initialAddress?: string
-  launcherOnly?: boolean
+  showTools: boolean
 }
 
 export function BrowserContent({
   children,
   website,
   initialAddress,
-  launcherOnly,
+  showTools,
 }: BrowserContentProps) {
   const [history, setHistory] = useState(initialAddress ? ['', initialAddress] : [''])
   const [index, setIndex] = useState(initialAddress ? 1 : 0)
   const [zoom, setZoom] = useState(100)
-  const [tool, setTool] = useState<'find' | 'downloads' | null>(null)
+  const [tool, setTool] = useState<'find' | 'downloads' | 'open' | null>(null)
   const [query, setQuery] = useState('')
   const address = history[index]
   const sample =
@@ -39,7 +39,7 @@ export function BrowserContent({
   }
   return (
     <>
-      <div className={styles.browserTools} hidden={launcherOnly}>
+      <div className={styles.browserTools} hidden={!showTools}>
         <IconButton
           label='Previous browser page'
           icon='I093'
@@ -78,21 +78,14 @@ export function BrowserContent({
           zoomPercent={zoom}
           onZoom={setZoom}
           onAction={(action) => {
-            if (action === 'find' || action === 'downloads')
+            if (action === 'find' || action === 'downloads' || action === 'open')
               setTool(tool === action ? null : action)
             if (action === 'copy' && address)
               void navigator.clipboard?.writeText(address).catch(() => {})
-            if (action === 'open' && address) {
-              try {
-                const url = new URL(address.includes('://') ? address : `https://${address}`)
-                if (url.protocol === 'https:' || url.protocol === 'http:')
-                  window.open(url.href, '_blank', 'noopener,noreferrer')
-              } catch {}
-            }
           }}
         />
       </div>
-      {!launcherOnly && tool && (
+      {showTools && tool && (
         <div className={styles.tool} data-type='T067'>
           {tool === 'find' ? (
             <>
@@ -106,12 +99,16 @@ export function BrowserContent({
               )}
             </>
           ) : (
-            <span>No downloads</span>
+            <span>
+              {tool === 'open'
+                ? 'Opening an external browser is unavailable in this preview.'
+                : 'No downloads'}
+            </span>
           )}
           <IconButton label='Close browser tool' icon='I105' onClick={() => setTool(null)} />
         </div>
       )}
-      {!launcherOnly && address ? (
+      {address ? (
         <div className={styles.website} data-zoom={zoom}>
           {sample ? (
             <img src={website.image} alt={`${website.name} homepage`} />

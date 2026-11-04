@@ -5,6 +5,7 @@ import { generateId } from '@sim/utils/id'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import { ActionMenu, type MenuAction } from '@/platform/design-system/components/action-menu'
 import styles from '@/platform/design-system/components/composer.module.css'
+import { useComposerDraft } from '@/platform/design-system/components/composer-drafts'
 import { ComposerInput } from '@/platform/design-system/components/composer-input'
 import { IconButton } from '@/platform/design-system/components/controls'
 import { MessageAttachments } from '@/platform/design-system/components/message-attachments'
@@ -25,6 +26,7 @@ const GROUPS: readonly [string, IconName][] = [
   ['Logs', 'I075'],
 ]
 interface MessageComposerProps {
+  draftKey: string
   placeholder: string
   references?: ConversationData['references']
   initialAttachments?: ChatAttachment[]
@@ -45,6 +47,7 @@ function attachment(file: File): ChatAttachment {
 }
 
 export function MessageComposer({
+  draftKey,
   placeholder,
   references = [],
   initialAttachments = [],
@@ -52,23 +55,25 @@ export function MessageComposer({
   onStop,
 }: MessageComposerProps) {
   const compact = useCompactViewport()
-  const [text, setText] = useState('')
-  const [files, setFiles] = useState(initialAttachments)
-  const [slash, setSlash] = useState(false)
+  const [{ text, attachments: files }, updateDraft] = useComposerDraft(draftKey, {
+    text: '',
+    attachments: initialAttachments,
+  })
+  const [slash, setSlash] = useState<'typed' | 'button' | null>(null)
   const [notice, setNotice] = useState('')
   const editor = useRef<HTMLTextAreaElement>(null)
   const picker = useRef<HTMLInputElement>(null)
   const folder = useRef<HTMLInputElement>(null)
-  const addFiles = (items: File[]) => {
+  function addFiles(items: File[]) {
     const added = items.map(attachment)
-    setFiles((current) => [...current, ...added])
+    updateDraft((draft) => ({ ...draft, attachments: [...draft.attachments, ...added] }))
   }
   function addReference(group: string, name: string) {
-    setFiles((current) => [
-      ...current,
-      { id: generateId(), kind: 'reference', name, metadata: group },
-    ])
-    if (text === '/') setText('')
+    const reference: ChatAttachment = { id: generateId(), kind: 'reference', name, metadata: group }
+    updateDraft((draft) => ({
+      text: draft.text === '/' ? '' : draft.text,
+      attachments: [...draft.attachments, reference],
+    }))
     requestAnimationFrame(() => editor.current?.focus())
   }
   const resources: MenuAction[] = GROUPS.map(([group, icon]) => {
@@ -109,15 +114,35 @@ export function MessageComposer({
   function submit() {
     if (!text.trim() && !files.length) return
     onSubmit({ text: text.trim(), attachments: files })
-    setText('')
-    setFiles([])
+    updateDraft(() => ({ text: '', attachments: [] }))
     setNotice('')
   }
   return (
-    <div className={styles.composer} data-material='reading'>
+    <div
+      className={styles.composer}
+      data-material='reading'
+      onKeyDownCapture={(event) => {
+        if (
+          slash !== 'typed' ||
+          !(event.target instanceof HTMLElement) ||
+          event.target.role !== 'menu'
+        )
+          return
+        if (event.key.length === 1 || event.key === 'Backspace' || event.key === 'Delete') {
+          event.stopPropagation()
+          editor.current?.focus()
+          setSlash(null)
+        }
+      }}
+    >
       <MessageAttachments
         items={files}
-        onRemove={(id) => setFiles((current) => current.filter((file) => file.id !== id))}
+        onRemove={(id) =>
+          updateDraft((draft) => ({
+            ...draft,
+            attachments: draft.attachments.filter((file) => file.id !== id),
+          }))
+        }
       />
       <ComposerInput
         density={compact ? 'compact' : 'standard'}
@@ -126,23 +151,21 @@ export function MessageComposer({
         inputRef={editor}
         value={text}
         onValueChange={(value) => {
-          setText(value)
-          if (value === '/') setSlash(true)
+          updateDraft((draft) => ({ ...draft, text: value }))
+          setSlash(value === '/' ? 'typed' : null)
         }}
         onSubmit={submit}
         onPasteFiles={addFiles}
-        onPasteText={(value) =>
-          setFiles((current) => [
-            ...current,
-            {
-              id: generateId(),
-              kind: 'text',
-              name: 'Pasted text',
-              metadata: `${value.length.toLocaleString()} characters`,
-              content: value,
-            },
-          ])
-        }
+        onPasteText={(value) => {
+          const pasted: ChatAttachment = {
+            id: generateId(),
+            kind: 'text',
+            name: 'Pasted text',
+            metadata: `${value.length.toLocaleString()} characters`,
+            content: value,
+          }
+          updateDraft((draft) => ({ ...draft, attachments: [...draft.attachments, pasted] }))
+        }}
       />
       <div className={styles.toolbar}>
         <div className={styles.actions}>
@@ -154,8 +177,8 @@ export function MessageComposer({
           <ActionMenu
             label='Commands'
             icon='I044'
-            open={slash}
-            onOpenChange={setSlash}
+            open={Boolean(slash)}
+            onOpenChange={(open) => setSlash(open ? 'button' : null)}
             actions={[...resources, ...tools]}
           />
         </div>

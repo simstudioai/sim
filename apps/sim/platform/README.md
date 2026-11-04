@@ -23,7 +23,6 @@ Start the Platform above, then launch the existing desktop shell using a disposa
 SIM_DESKTOP_ORIGIN=http://127.0.0.1:3100 SIM_DESKTOP_USER_DATA="$(mktemp -d)" bun run --cwd apps/desktop dev
 ```
 
-
 ## Using EMCN
 
 Select a theme once with `PlatformSurface`. Editors, menus, selections, links and dialogs own their keyboard behavior. `MetricGroup` and `DataTable` accept records of any length. Import controls and compositions from `@/platform/design-system/components`. Provide content and named states, never styles. For a structural master such as an Issue group, supply its Paper key and named slots. The key determines the allowed slot names and the compiler enforces missing slots. A nested button slot accepts the semantic button, not an image of it. The Paper catalog in the workbench resolves the actual example.

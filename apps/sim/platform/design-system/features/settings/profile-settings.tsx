@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import {
+  AvatarImage,
   Icon,
   Modal,
   SettingsRow,
@@ -9,6 +9,7 @@ import {
   TextField,
 } from '@/platform/design-system/components'
 import { avatarInitials } from '@/platform/design-system/components/avatar-initials'
+import { useInterfacePreferences } from '@/platform/design-system/components/interface-preferences'
 import styles from '@/platform/design-system/features/settings/settings.module.css'
 
 interface ProfileSettingsProps {
@@ -17,20 +18,16 @@ interface ProfileSettingsProps {
 }
 
 export function ProfileSettings({ name, email }: ProfileSettingsProps) {
-  const [displayName, setDisplayName] = useState(name ?? '')
-  const [picture, setPicture] = useState<string>()
-  useEffect(
-    () => () => {
-      if (picture) URL.revokeObjectURL(picture)
-    },
-    [picture]
-  )
+  const preferences = useInterfacePreferences()
+  if (!preferences) throw new Error('Profile needs interface preferences')
+  const { profileName, picture, updatePicture, setProfileName } = preferences
+  const displayName = profileName ?? name ?? ''
   return (
     <SettingsSection title='Profile'>
       <SettingsRow label='Picture' description='Set your profile picture'>
         <label className={styles.photo}>
           {picture ? (
-            <img className={styles.picture} alt='' src={picture} />
+            <AvatarImage src={picture} />
           ) : displayName ? (
             <span role='img' aria-label={displayName} data-type='T050'>
               {avatarInitials(displayName)}
@@ -42,10 +39,7 @@ export function ProfileSettings({ name, email }: ProfileSettingsProps) {
             type='file'
             aria-label='Set your profile picture'
             accept='image/*'
-            onChange={(event) => {
-              const file = event.currentTarget.files?.[0]
-              if (file?.type.startsWith('image/')) setPicture(URL.createObjectURL(file))
-            }}
+            onChange={(event) => updatePicture(event.currentTarget.files?.[0])}
           />
         </label>
       </SettingsRow>
@@ -58,7 +52,7 @@ export function ProfileSettings({ name, email }: ProfileSettingsProps) {
           confirmLabel='Save'
           onConfirm={(values) => {
             const value = values.get('name')
-            if (typeof value === 'string') setDisplayName(value.trim())
+            if (typeof value === 'string') setProfileName(value.trim())
           }}
         >
           <TextField

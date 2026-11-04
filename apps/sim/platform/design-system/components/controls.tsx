@@ -123,6 +123,15 @@ export function Chip({ children, icon, selected = false, onClick, href }: ChipPr
   )
 }
 
+interface AvatarImageProps {
+  src: string
+  name?: string
+}
+
+export function AvatarImage({ src, name = '' }: AvatarImageProps) {
+  return <img className={styles.avatarImage} alt={name} src={src} />
+}
+
 interface AvatarProps {
   name: string
   src?: string
@@ -139,7 +148,7 @@ export function Avatar({ name, src, organization }: AvatarProps) {
       aria-label={name}
       data-type={organization === 'large' ? 'T043' : organization === 'small' ? 'T034' : 'T050'}
     >
-      {src ? <img alt='' src={src} /> : initials}
+      {src ? <AvatarImage src={src} /> : initials}
     </span>
   )
 }

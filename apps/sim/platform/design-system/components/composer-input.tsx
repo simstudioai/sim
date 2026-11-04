@@ -34,7 +34,12 @@ export function ComposerInput({
       onKeyDown={
         onSubmit &&
         ((e) => {
-          if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+          if (
+            e.key === 'Enter' &&
+            !e.shiftKey &&
+            !e.nativeEvent.isComposing &&
+            !window.matchMedia('(width < 48rem) and (pointer: coarse)').matches
+          ) {
             e.preventDefault()
             onSubmit()
           }

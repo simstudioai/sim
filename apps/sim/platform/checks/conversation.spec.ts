@@ -49,11 +49,24 @@ test('a new chat carries its local draft and attachments through navigation with
   })
   const text = page.getByRole('textbox', { name: /Ask about your business/ })
   await text.fill('/')
-  await page.getByRole('menuitem', { name: 'Chats', exact: true }).hover()
+  const chatsMenu = page.getByRole('menuitem', { name: 'Chats', exact: true })
+  await expect(chatsMenu).toBeVisible()
+  await page.keyboard.type('notes')
+  await expect(text).toHaveValue('/notes')
+  await expect(chatsMenu).toHaveCount(0)
+  await text.fill('/')
+  await chatsMenu.hover()
   await page.getByRole('menuitem', { name: 'Review the renewal brief' }).click()
   await page.getByRole('button', { name: 'Remove Review the renewal brief' }).click()
-  await text.fill('Draft the meeting recap')
-  await text.press('Enter')
+  await page.getByRole('radio', { name: 'Search', exact: true }).check()
+  const search = page.getByRole('textbox', { name: /Search your company/ })
+  await search.fill('Draft the meeting recap')
+  await page.getByRole('link', { name: 'Q4 planning', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Q4 planning' })).toBeVisible()
+  await page.getByRole('link', { name: 'Home', exact: true }).click()
+  await expect(page.getByRole('radio', { name: 'Search', exact: true })).toBeChecked()
+  await expect(search).toHaveValue('Draft the meeting recap')
+  await search.press('Enter')
   await expect(page).toHaveURL(/\/chat\/[^?]+\?/)
   expect(page.url()).not.toContain('meeting')
   await expect(page.getByRole('heading', { name: 'Draft the meeting recap' })).toBeVisible()
@@ -106,4 +119,63 @@ test('stress transcript keeps attachment review bounded and returns the reader t
   await reading.scrollIntoViewIfNeeded()
   await page.getByRole('button', { name: 'Jump to latest' }).click()
   await expect(page.getByRole('button', { name: 'Jump to latest' })).toBeHidden()
+})
+
+test('a follow-up leaves the active run stoppable', async ({ page }) => {
+  await page.goto(`${populated}/chat/customer-onboarding?state=full`)
+  const editor = page.getByRole('textbox', { name: 'Add a follow-up…' })
+  await editor.fill('Also include the handoff')
+  await editor.press('Enter')
+  await expect(page.getByText('Also include the handoff', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Stop response' }).click()
+  await expect(page.getByText('Stopped', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Stop response' })).toHaveCount(0)
+})
+
+test('unsent drafts and files stay with their chat through navigation and clear after sending', async ({
+  page,
+}) => {
+  await page.goto(`${populated}/chat/weekly-review?state=full`)
+  const editor = page.getByRole('textbox', { name: 'Ask a follow-up…' })
+  await editor.fill('Review before sending')
+  await page.getByRole('button', { name: 'Add attachment' }).click()
+  const chooser = page.waitForEvent('filechooser')
+  await page.getByRole('menuitem', { name: 'Upload files' }).click()
+  await (await chooser).setFiles({
+    name: 'handoff.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('Available offline'),
+  })
+  await page.getByRole('link', { name: 'Q4 planning' }).click()
+  await expect(editor).toBeEmpty()
+  await expect(page.getByRole('button', { name: 'Preview handoff.txt' })).toHaveCount(0)
+  await page.getByRole('link', { name: 'Review the renewal brief', exact: true }).click()
+  await expect(editor).toHaveValue('Review before sending')
+  await page.getByRole('button', { name: 'Preview handoff.txt' }).click()
+  await expect(page.getByRole('dialog').getByText('Available offline')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await editor.press('Enter')
+  await expect(page.getByText('Review before sending', { exact: true })).toBeVisible()
+  await page.getByRole('link', { name: 'Q4 planning' }).click()
+  await page.getByRole('link', { name: 'Review the renewal brief', exact: true }).click()
+  await expect(editor).toBeEmpty()
+  await expect(page.getByRole('button', { name: 'Remove handoff.txt' })).toHaveCount(0)
+})
+
+test.describe('touch composer', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+
+  test('Return inserts a newline and sending consumes the original attachment batch', async ({
+    page,
+  }) => {
+    await page.goto(`${populated}/chat?state=stress`)
+    const editor = page.getByRole('textbox', { name: /Ask about your business/ })
+    await editor.fill('Review the attached files')
+    await editor.press('Enter')
+    await expect(editor).toHaveValue('Review the attached files\n')
+    await page.getByRole('button', { name: 'Send message' }).click()
+    await expect(page.getByRole('heading', { name: 'Review the attached files' })).toBeVisible()
+    await expect(page.getByRole('button', { name: /20 attachments.*Show all/ })).toHaveCount(1)
+    await expect(page.getByRole('button', { name: 'Send message' })).toBeDisabled()
+  })
 })

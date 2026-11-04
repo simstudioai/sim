@@ -46,7 +46,7 @@ export function Input({
   )
 }
 
-interface TextAreaProps extends InputProps {
+interface TextAreaProps extends Omit<InputProps, 'pattern'> {
   density?: 'expanded'
 }
 
@@ -60,10 +60,12 @@ export function TextArea({
   describedBy,
   placeholder,
   density,
+  required,
 }: TextAreaProps) {
   return (
     <textarea
       id={id}
+      required={required}
       aria-label={label}
       className={styles.input}
       data-type='T043'

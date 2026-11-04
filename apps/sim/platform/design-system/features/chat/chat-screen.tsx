@@ -30,6 +30,7 @@ export function ChatScreen({ data, chatId }: ChatScreenProps) {
   const removed = changes.isRemoved(id)
   const turns = removed ? [] : (changes.turnsFor(id) ?? thread?.turns ?? [])
   const last = turns.at(-1)
+  const running = turns.find((turn) => turn.response?.state === 'running')
   function transition(turn: ChatTurn, state: 'running' | 'stopped') {
     if (!turn.response) return
     changes.setTurnsFor(
@@ -90,18 +91,17 @@ export function ChatScreen({ data, chatId }: ChatScreenProps) {
         <div className={styles.dockInner}>
           <MessageComposer
             key={id}
+            draftKey={`chat/${id}`}
             placeholder={
-              last?.response?.state === 'running'
+              running
                 ? 'Add a follow-up…'
                 : turns.length
                   ? 'Ask a follow-up…'
                   : 'Ask about your business, or give Sim something to do…'
             }
-            initialAttachments={data?.draftAttachments}
+            initialAttachments={!id || thread ? data?.draftAttachments : undefined}
             references={data?.references}
-            onStop={
-              last?.response?.state === 'running' ? () => transition(last, 'stopped') : undefined
-            }
+            onStop={running ? () => transition(running, 'stopped') : undefined}
             onSubmit={(draft) => {
               const next = userTurn(draft)
               if (id && !removed) {

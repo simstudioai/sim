@@ -87,8 +87,6 @@ export function ChatPanels({ children, data, workspaces }: ChatPanelsProps) {
   }
   function recent(item: PanelRecent) {
     if (item.destination === 'workspace') home()
-    else if (item.destination === 'website' && !desktop && item.address)
-      window.open(`https://${item.address}`, '_blank', 'noopener,noreferrer')
     else visit(item.destination, item)
   }
   const tabViews = items.map((tab) => {

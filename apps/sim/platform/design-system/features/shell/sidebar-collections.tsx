@@ -11,6 +11,7 @@ import {
   TextField,
 } from '@/platform/design-system/components'
 import { useChatChanges } from '@/platform/design-system/components/chat-changes'
+import { useSidebarLayout } from '@/platform/design-system/components/sidebar-layout'
 import styles from '@/platform/design-system/features/shell/shell.module.css'
 import type { ShellData, ShellItem } from '@/platform/design-system/models/shell'
 import { platformHref } from '@/platform/design-system/navigation'
@@ -24,7 +25,8 @@ interface SidebarCollectionsProps {
 export function SidebarCollections({ data, activeChat, navigate }: SidebarCollectionsProps) {
   const query = useSearchParams()
   const changes = useChatChanges()
-  const [order, setOrder] = useState('Recent activity')
+  const { workspacesOpen, setWorkspacesOpen, chatsOpen, setChatsOpen, order, setOrder } =
+    useSidebarLayout()
   const [editing, setEditing] = useState<{ action: 'Rename' | 'Archive'; chat: ShellItem } | null>(
     null
   )
@@ -42,7 +44,8 @@ export function SidebarCollections({ data, activeChat, navigate }: SidebarCollec
       <Disclosure
         variant='section'
         label='Workspaces'
-        initiallyOpen
+        open={workspacesOpen}
+        onOpenChange={setWorkspacesOpen}
         actions={
           <>
             <IconButton label='Sort workspaces' icon='I050' onClick={() => navigate('/home')} />
@@ -65,7 +68,8 @@ export function SidebarCollections({ data, activeChat, navigate }: SidebarCollec
       <Disclosure
         variant='section'
         label='Chats'
-        initiallyOpen
+        open={chatsOpen}
+        onOpenChange={setChatsOpen}
         actions={
           <ActionMenu
             label='Sort chats'

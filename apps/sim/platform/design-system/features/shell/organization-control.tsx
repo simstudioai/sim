@@ -29,7 +29,7 @@ export function OrganizationControl({
 }: OrganizationControlProps) {
   const [open, setOpen] = useState(false)
   const light = usePlatformTheme() === 'light'
-  const [invite, setInvite] = useState(false)
+  const [invite, setInvite] = useState<'editing' | 'preview' | null>(null)
   const name = organization?.name ?? 'Organization'
   return (
     <>
@@ -64,7 +64,7 @@ export function OrganizationControl({
                   disabled={!organization}
                   onClick={() => {
                     setOpen(false)
-                    setInvite(true)
+                    setInvite('editing')
                   }}
                 >
                   Invite
@@ -83,8 +83,8 @@ export function OrganizationControl({
         </div>
       </AnchoredPopover>
       <OverlayDialog
-        open={invite}
-        onClose={() => setInvite(false)}
+        open={invite !== null}
+        onClose={() => setInvite(null)}
         label='Invite people'
         title='Invite people'
       >
@@ -97,12 +97,17 @@ export function OrganizationControl({
               email?.focus()
               return
             }
-            setInvite(false)
+            setInvite('preview')
           }}
         >
           <RecipientField label='Email addresses' recipients={[]} placeholder='name@company.com' />
+          {invite === 'preview' && (
+            <p role='status' data-type='T060'>
+              Email delivery is disabled in this preview.
+            </p>
+          )}
           <ModalFooter>
-            <Button onClick={() => setInvite(false)}>Cancel</Button>
+            <Button onClick={() => setInvite(null)}>Cancel</Button>
             <Button variant='primary' submit>
               Invite
             </Button>
