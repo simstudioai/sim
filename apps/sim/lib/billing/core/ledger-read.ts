@@ -1,3 +1,4 @@
+import { getPostgresCancellationReason } from '@sim/utils/errors'
 import { sql } from 'drizzle-orm'
 import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/constants'
 import { DatabaseReadDeadlineError, withDatabaseReadRetry } from '@/lib/db/read-retry'
@@ -34,5 +35,19 @@ export function readLedgerBounded<T>(
       )
     },
     { label: 'usage ledger', maxAttempts: 2, maxElapsedMs: budgetMs }
+  )
+}
+
+/**
+ * How long a staff-only workflow run count may take before it is reported as unknown. Well inside
+ * the admin proxy's request timeout, so a payer too large to count still gets its page.
+ */
+export const WORKFLOW_RUN_COUNT_BUDGET_MS = 5_000
+
+/** Whether a {@link readLedgerBounded} read failed because it ran out of its budget. */
+export function isLedgerReadOverBudget(error: unknown): boolean {
+  return (
+    error instanceof DatabaseReadDeadlineError ||
+    getPostgresCancellationReason(error) === 'statement_timeout'
   )
 }

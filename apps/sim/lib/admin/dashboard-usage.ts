@@ -1,14 +1,16 @@
 import { db } from '@sim/db'
 import { member, permissions, usageLog, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getPostgresCancellationReason } from '@sim/utils/errors'
 import { and, countDistinct, eq, inArray, notInArray, type SQL, sql } from 'drizzle-orm'
 import { unionAll } from 'drizzle-orm/pg-core'
-import { readLedgerBounded } from '@/lib/billing/core/ledger-read'
+import {
+  isLedgerReadOverBudget,
+  readLedgerBounded,
+  WORKFLOW_RUN_COUNT_BUDGET_MS,
+} from '@/lib/billing/core/ledger-read'
 import type { ResolvedUsagePeriod } from '@/lib/billing/core/reporting-period'
 import { buildUsageAnalyticsScope } from '@/lib/billing/core/usage-analytics'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
-import { DatabaseReadDeadlineError } from '@/lib/db/read-retry'
 
 /**
  * Ledger reads behind the admin dashboard: each billing entity's spend and workflow runs
@@ -26,7 +28,7 @@ import { DatabaseReadDeadlineError } from '@/lib/db/read-retry'
  * Widening both entity indexes with it would grow the hot billing sums' working set to
  * speed up a staff-only page. So only one organization's detail counts runs, in a single
  * scan that yields the total and every actor's share, under
- * {@link WORKFLOW_RUNS_BUDGET_MS}; past it the count is unknown (`null`) and the page
+ * {@link WORKFLOW_RUN_COUNT_BUDGET_MS}; past it the count is unknown (`null`) and the page
  * still loads.
  *
  * They stay on the primary, where the hot billing sums keep those index pages cached. On
@@ -53,12 +55,6 @@ interface DashboardWorkflowRuns {
   /** Distinct runs across the organization's former actors together. */
   formerActors: number
 }
-
-/**
- * How long one detail page may spend counting workflow runs. Well inside the admin
- * proxy's request timeout, so a payer too large to count still gets its page.
- */
-const WORKFLOW_RUNS_BUDGET_MS = 5_000
 
 const WORKFLOW_SOURCE = sql`${usageLog.source} = 'workflow'`
 
@@ -164,7 +160,7 @@ function isFormerActor(organizationId: string): SQL {
 /**
  * An organization's workflow runs over its period, in total, per acting user and across its
  * former actors, from one scan. `null` when the count does not finish within
- * {@link WORKFLOW_RUNS_BUDGET_MS}.
+ * {@link WORKFLOW_RUN_COUNT_BUDGET_MS}.
  */
 export async function readDashboardOrganizationWorkflowRuns(
   organizationId: string,
@@ -193,16 +189,13 @@ export async function readDashboardOrganizationWorkflowRuns(
           .from(workflowRows)
           .groupBy(sql`grouping sets ((${workflowRows.userId}), (${workflowRows.formerActor}), ())`)
       },
-      WORKFLOW_RUNS_BUDGET_MS
+      WORKFLOW_RUN_COUNT_BUDGET_MS
     )
   } catch (error) {
-    const overBudget =
-      error instanceof DatabaseReadDeadlineError ||
-      getPostgresCancellationReason(error) === 'statement_timeout'
-    if (!overBudget) throw error
+    if (!isLedgerReadOverBudget(error)) throw error
     logger.warn('Workflow run count exceeded its budget', {
       organizationId,
-      budgetMs: WORKFLOW_RUNS_BUDGET_MS,
+      budgetMs: WORKFLOW_RUN_COUNT_BUDGET_MS,
     })
     return null
   }
