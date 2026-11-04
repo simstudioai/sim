@@ -74,9 +74,30 @@ export function diffTriggerEnv(vars: TriggerEnvVar[], current: Record<string, st
   }
 }
 
+/**
+ * Parses the `TRIGGER_ENV_SYNC_TARGETS` repository variable: a comma list of Trigger.dev
+ * environment slugs. Refuses any slug without a mapped secret rather than ignoring it, so a typo
+ * fails the deploy instead of silently keeping the environment on its old configuration.
+ */
+export function parseTriggerEnvSyncTargets(value: string | undefined): Set<string> {
+  const targets = (value ?? '')
+    .split(',')
+    .map((target) => target.trim())
+    .filter(Boolean)
+  const unknown = targets.filter((target) => !Object.hasOwn(APP_ENV_SECRET_IDS, target))
+  if (unknown.length > 0) {
+    throw new Error(
+      `TRIGGER_ENV_SYNC_TARGETS names environments with no app env-vars secret: ${unknown.join(', ')}`
+    )
+  }
+  return new Set(targets)
+}
+
 /** Reads the app env-vars secret mapped to `environment` and builds its Trigger.dev variables. */
 export async function resolveTriggerEnvFromAppSecret(environment: string) {
-  const secretId = APP_ENV_SECRET_IDS[environment]
+  const secretId = Object.hasOwn(APP_ENV_SECRET_IDS, environment)
+    ? APP_ENV_SECRET_IDS[environment]
+    : undefined
   if (!secretId) {
     throw new Error(`No app env-vars secret is mapped to Trigger.dev environment '${environment}'`)
   }

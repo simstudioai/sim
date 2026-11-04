@@ -5,6 +5,7 @@ import { resourceFromAttributes } from '@opentelemetry/resources'
 import { createLogger } from '@sim/logger'
 import {
   diffTriggerEnv,
+  parseTriggerEnvSyncTargets,
   resolveTriggerEnvFromAppSecret,
   TRIGGER_CONSTANT_VARS,
 } from '@sim/runtime-secrets/trigger-env'
@@ -46,7 +47,9 @@ if (grafanaConfigured && !grafanaFullyConfigured) {
  * sandbox means loading its compiled artifact from the copilot storage
  * context, so that bucket has to be visible to the run as well. The values
  * still have to exist in the Trigger.dev environment; syncing only keeps the
- * worker's view of them aligned with the app's.
+ * worker's view of them aligned with the app's. Only an environment outside
+ * `TRIGGER_ENV_SYNC_TARGETS` takes this list; a listed one gets these keys from
+ * the app's env-vars secret with everything else.
  */
 const FUNCTION_EXECUTION_ENV = [
   { name: 'REDIS_URL', secret: true },
@@ -72,19 +75,37 @@ function getFunctionExecutionEnvVars() {
   })
 }
 
+const syncLogger = createLogger('TriggerEnvSync')
+
+/**
+ * The environments `TRIGGER_ENV_SYNC_TARGETS` lists. Exits on a name with no mapped secret:
+ * `syncEnvVars` swallows a thrown error, and a typo must not silently keep the old path.
+ */
+function syncTargets(): Set<string> {
+  try {
+    return parseTriggerEnvSyncTargets(env.TRIGGER_ENV_SYNC_TARGETS)
+  } catch (error) {
+    syncLogger.error('Invalid TRIGGER_ENV_SYNC_TARGETS; aborting the deploy', {
+      error: getErrorMessage(error),
+    })
+    process.exit(1)
+  }
+}
+
 /**
  * Mirrors the app's env-vars secret into an environment listed in
  * `TRIGGER_ENV_SYNC_TARGETS`, logging only counts, never names or values (CI
- * logs are public). Exits on failure: `syncEnvVars` catches a thrown error and
- * deploys without syncing, and a failed deploy leaves the running version and
- * its environment untouched where a silent skip would keep stale configuration.
+ * logs are public). The CLI applies the variables when it uploads the version,
+ * before promotion, and only adds or updates: a key removed from the secret
+ * stays in Trigger.dev until it is deleted there. Exits on failure, because
+ * `syncEnvVars` catches a thrown error and deploys without syncing, which would
+ * keep stale configuration.
  */
 async function syncFromAppSecret(environment: string, deployedEnv: Record<string, string>) {
-  const logger = createLogger('TriggerEnvSync')
   try {
     const { secretId, vars } = await resolveTriggerEnvFromAppSecret(environment)
     const { added, changed } = diffTriggerEnv(vars, deployedEnv)
-    logger.info('Syncing the Trigger.dev environment from the app env-vars secret', {
+    syncLogger.info('Syncing the Trigger.dev environment from the app env-vars secret', {
       environment,
       secretId,
       total: vars.length,
@@ -93,7 +114,7 @@ async function syncFromAppSecret(environment: string, deployedEnv: Record<string
     })
     return vars
   } catch (error) {
-    logger.error('Trigger.dev env sync failed; aborting the deploy', {
+    syncLogger.error('Trigger.dev env sync failed; aborting the deploy', {
       environment,
       error: getErrorMessage(error),
     })
@@ -233,11 +254,13 @@ export default defineConfig({
     ],
     extensions: [
       nodeBinary(),
-      syncEnvVars(({ environment, env: deployedEnv }) =>
-        env.TRIGGER_ENV_SYNC_TARGETS?.split(',').includes(environment)
-          ? syncFromAppSecret(environment, deployedEnv)
-          : [...TRIGGER_CONSTANT_VARS, ...getFunctionExecutionEnvVars()]
-      ),
+      syncEnvVars(({ environment, env: deployedEnv }) => {
+        if (syncTargets().has(environment)) return syncFromAppSecret(environment, deployedEnv)
+        syncLogger.info('Syncing only the worker constants and function execution settings', {
+          environment,
+        })
+        return [...TRIGGER_CONSTANT_VARS, ...getFunctionExecutionEnvVars()]
+      }),
       additionalFiles({
         files: [
           './lib/execution/isolated-vm-worker.cjs',

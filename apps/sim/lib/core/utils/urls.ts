@@ -75,9 +75,9 @@ export function getBaseUrl(): string {
  * Whether this process is a Trigger.dev worker rather than the app container.
  *
  * `TRIGGER_SECRET_KEY` and `TRIGGER_DEV_ENABLED` are both present on the app too
- * — it needs them to dispatch — so neither discriminates. `trigger.config.ts`
- * syncs exactly one worker-only marker, `DB_APP_NAME='sim-trigger'`, which is
- * what this reads.
+ * — it needs them to dispatch — so neither discriminates. Every Trigger.dev
+ * deploy sets `DB_APP_NAME='sim-trigger'` (`TRIGGER_CONSTANT_VARS` in
+ * `@sim/runtime-secrets/trigger-env`), which the app never has, so this reads it.
  */
 function isTriggerWorkerRuntime(): boolean {
   return getEnv('DB_APP_NAME') === 'sim-trigger'

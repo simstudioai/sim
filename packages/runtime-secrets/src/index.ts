@@ -52,8 +52,8 @@ export async function loadRuntimeSecrets(): Promise<void> {
 /**
  * Reads one env-vars JSON secret as the string map a process would see: the
  * same values {@link loadRuntimeSecrets} writes into `process.env`, with
- * non-string JSON values serialized. Retries transient failures and throws on
- * anything else, so a caller never proceeds on a partial or missing secret.
+ * non-string JSON values serialized. Retries a failed request up to three
+ * times, then throws, so a caller never proceeds on a partial or missing secret.
  */
 export async function fetchRuntimeSecrets(secretId: string): Promise<Record<string, string>> {
   const client = new SecretsManagerClient(
@@ -106,8 +106,9 @@ function parseSecretJson(secretString: string): Record<string, unknown> {
   let parsed: unknown
   try {
     parsed = JSON.parse(secretString)
-  } catch (error) {
-    throw new Error(`Runtime secret is not valid JSON: ${getErrorMessage(error)}`)
+  } catch {
+    // The parser's message quotes the text around the fault, which can be part of a value.
+    throw new Error('Runtime secret is not valid JSON')
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new Error('Runtime secret must be a JSON object of key/value pairs')
