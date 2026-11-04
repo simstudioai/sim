@@ -163,6 +163,10 @@ function rowOwner(row: { entityType: string; entityId: string }): EditableFileOw
   return resolveFileSearchOwner({ owner: row })
 }
 
+function ownerKey(owner: EditableFileOwner): string {
+  return JSON.stringify([owner.entityType, owner.entityId])
+}
+
 function queuedOwner(owner: EditableFileOwner): SQL {
   return sql`(${fileSearchDispatchQueue.entityType} = ${owner.entityType} AND ${fileSearchDispatchQueue.entityId} = ${owner.entityId})`
 }
@@ -180,9 +184,10 @@ const transactionNow = sql`now()`
 
 /**
  * Whether an owner was woken after its last dispatch: never dispatched, or touched since. A file
- * write, a released claim, and a reaped claim advance `updated_at`; a claim stamps both columns
- * with one time, and a reconciliation wake-up enters with them equal. A write whose transaction
- * began before the claim that stamped its owner reads as earlier and waits one rotation.
+ * write, a released or reaped claim, and an artifact-ready requeue advance `updated_at`; a claim
+ * stamps both columns with one time, and a reconciliation wake-up enters with them equal. A write
+ * whose transaction began before the claim that stamped its owner reads as earlier, so the owner
+ * keeps the dispatch-age rotation instead.
  */
 const wokenSinceDispatch = sql`(${fileSearchDispatchQueue.lastDispatchedAt} IS NULL OR ${fileSearchDispatchQueue.updatedAt} > ${fileSearchDispatchQueue.lastDispatchedAt})`
 
@@ -211,7 +216,7 @@ async function enqueueOwners(
   now: Date,
   { reconciliation = false }: { reconciliation?: boolean } = {}
 ): Promise<void> {
-  const unique = [...new Map(owners.map((owner) => [JSON.stringify(owner), owner])).values()]
+  const unique = [...new Map(owners.map((owner) => [ownerKey(owner), owner])).values()]
   if (unique.length === 0) return
   const target = [fileSearchDispatchQueue.entityType, fileSearchDispatchQueue.entityId]
   const insert = tx.insert(fileSearchDispatchQueue).values(
@@ -224,7 +229,15 @@ async function enqueueOwners(
   )
   await (reconciliation
     ? insert.onConflictDoNothing({ target })
-    : insert.onConflictDoUpdate({ target, set: { updatedAt: transactionNow } }))
+    : insert.onConflictDoUpdate({
+        target,
+        set: {
+          updatedAt: transactionNow,
+          // A row this pass's backfill just queued as a reconciliation is woken as if the wake had
+          // queued it first; a stamp from an earlier transaction is always older than `now()`.
+          lastDispatchedAt: sql`CASE WHEN ${fileSearchDispatchQueue.lastDispatchedAt} = ${transactionNow} THEN NULL ELSE ${fileSearchDispatchQueue.lastDispatchedAt} END`,
+        },
+      }))
 }
 
 /**
@@ -355,7 +368,7 @@ async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
       )
       .onConflictDoNothing()
   }
-  /** Every owner the page passed is woken, indexed or not, so the pass reconciles its builds. */
+  // Every owner the page passed is queued, indexed or not, so a pass reconciles its builds.
   await enqueueOwners(tx, rows.map(rowOwner), now, { reconciliation: true })
 
   const last = rows.at(-1)
@@ -495,6 +508,11 @@ async function reconcileOwnerDependencies(
   }
 }
 
+/**
+ * Claims up to each owner's free slots, filling `remainingGlobalCapacity` owner by owner in the
+ * order of `owners` (the pass's selection order), so a woken owner is never outbid by an older
+ * backlog selected after it.
+ */
 async function claimQueuedOwnerJobs(
   tx: DbTransaction,
   owners: readonly EditableFileOwner[],
@@ -503,7 +521,7 @@ async function claimQueuedOwnerJobs(
 ): Promise<WorkspaceFileSearchIndexPayload[]> {
   if (owners.length === 0 || remainingGlobalCapacity <= 0) return []
   const ownerValues = sql.join(
-    owners.map((owner) => sql`(${owner.entityType}, ${owner.entityId})`),
+    owners.map((owner, rank) => sql`(${owner.entityType}, ${owner.entityId}, ${rank}::int)`),
     sql`, `
   )
   const rows = await tx.execute<{
@@ -512,8 +530,8 @@ async function claimQueuedOwnerJobs(
     fileId: string
     sourceContentUpdatedAt: string
   }>(sql`
-    WITH selected_owner(entity_type, entity_id) AS (VALUES ${ownerValues}), candidates AS MATERIALIZED (
-      SELECT queued.* FROM selected_owner selected
+    WITH selected_owner(entity_type, entity_id, claim_rank) AS (VALUES ${ownerValues}), candidates AS MATERIALIZED (
+      SELECT queued.*, selected.claim_rank FROM selected_owner selected
       CROSS JOIN LATERAL (
         SELECT count(*)::int AS active_count FROM (
           SELECT 1 FROM workspace_file_search_revision active
@@ -542,7 +560,7 @@ async function claimQueuedOwnerJobs(
         LIMIT greatest(0, ${FILE_SEARCH_INDEX_WORKSPACE_OUTSTANDING} - owner_active.active_count)
         FOR UPDATE OF search_index SKIP LOCKED
       ) queued
-      ORDER BY queued.updated_at, queued.entity_type, queued.entity_id, queued.file_id, queued.source_content_updated_at
+      ORDER BY selected.claim_rank, queued.updated_at, queued.file_id, queued.source_content_updated_at
       LIMIT ${remainingGlobalCapacity}
     ) UPDATE workspace_file_search_revision search_index
       SET dispatched_at = ${now.toISOString()}::timestamp,
@@ -650,6 +668,8 @@ export async function prepareWorkspaceFileSearchDispatch(
         }
 
         const now = new Date()
+        // The backfill locks files before the reap locks queue rows: a file save holds its file
+        // while its trigger waits on the owner's queue row, so the other order can deadlock.
         const backfilledFiles = await runDispatchPhase('backfill', () => seedBackfillPage(tx, now))
         const { reaped: reapedClaims, abandoned: abandonedClaims } = await runDispatchPhase(
           'reap',
@@ -717,7 +737,11 @@ export async function prepareWorkspaceFileSearchDispatch(
             .set({ lastDispatchedAt: transactionNow, updatedAt: transactionNow })
             .where(queuedOwnerFilter(candidates))
         }
-        const owners = await lockFileSearchOwners(tx, candidates, { skipBusy: true })
+        const locked = new Set(
+          (await lockFileSearchOwners(tx, candidates, { skipBusy: true })).map(ownerKey)
+        )
+        // Locking sorts owners by key; claims keep the selection order.
+        const owners = candidates.filter((owner) => locked.has(ownerKey(owner)))
         await reconcileOwnerDependencies(tx, owners, now)
         const payloads = await runDispatchPhase('claim', () =>
           claimQueuedOwnerJobs(tx, owners, remainingGlobalCapacity, now)
