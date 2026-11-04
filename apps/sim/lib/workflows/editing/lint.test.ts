@@ -540,8 +540,7 @@ describe('collectWorkflowTableIds', () => {
 
 /**
  * The agent's own runs name their trigger and skip the Run button's checks, so
- * a Run-button refusal told under "Fix these before continuing" pushed agents
- * to wire a stray Start into the graph instead of removing it.
+ * a Run-button refusal is advice, never listed under "Fix these before continuing".
  */
 describe('formatWorkflowLintMessage', () => {
   const clean = {
@@ -564,7 +563,7 @@ describe('formatWorkflowLintMessage', () => {
     const message = formatWorkflowLintMessage({ ...clean, manualRunIssue: strayStart })
     expect(message).not.toContain('Fix these before continuing')
     expect(message).toBe(
-      'The editor\'s Run button would fail: Start must be connected to other blocks to execute. Run starts from "Start" (start_trigger) ahead of any other trigger: connect it, or delete it if the workflow starts from another trigger. Runs that name their trigger are not affected.'
+      'The editor\'s Run button would fail: Run starts from "Start" (start_trigger) ahead of any other trigger, and it is not connected to other blocks. Connect it, or delete it if the workflow starts from another trigger. Runs that name their trigger are not affected.'
     )
   })
 
@@ -584,7 +583,7 @@ describe('formatWorkflowLintMessage', () => {
       },
     })
     expect(message).toBe(
-      'Workflow lint found issues. Fix these before continuing: Blocks with no incoming edge: "Fn" (function). The editor\'s Run button would fail: Multiple API Trigger blocks found. Keep only one.'
+      'Workflow lint found issues. Fix these before continuing: Blocks with no incoming edge: "Fn" (function). The editor\'s Run button would fail: the workflow has more than one API Trigger block. Keep only one.'
     )
   })
 })

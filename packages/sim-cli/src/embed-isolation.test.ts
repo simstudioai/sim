@@ -176,7 +176,7 @@ describe('embedded CLI output ownership', () => {
       }),
     ])
     expect(wrapped.exitCode).toBe(1)
-    expect(wrapped.stderr).toContain(`e.g. --rows '[{"column":"value"}]'; got a JSON object`)
+    expect(wrapped.stderr).toContain(`e.g. --rows '[{"key":"value"}]'; got a JSON object`)
     expect(wrapped.stderr).toContain('Pass the array under its "rows" key itself')
     expect(oneRow.stderr).toContain('For that shape use --data.')
     expect(rowList.stderr).toContain('--data must be a JSON object')

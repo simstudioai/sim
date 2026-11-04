@@ -230,7 +230,7 @@ export function validateRunFromBlock(
   }
 
   if (node) {
-    if (node.metadata.isLoopNode) return insideSubflow(node.metadata.subflowId, 'loop')
+    // A branch-clone id (`block₍0₎`) is in no subflow config, so findOutermostContainer misses it.
     if (node.metadata.isParallelBranch) return insideSubflow(node.metadata.subflowId, 'parallel')
 
     if (node.metadata.isSentinel) {
