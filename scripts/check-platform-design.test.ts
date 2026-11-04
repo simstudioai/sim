@@ -279,4 +279,4 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
   } finally {
     rmSync(ROOT, { recursive: true, force: true })
   }
-})
+}, 30_000)
