@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -25,6 +25,11 @@ function audit() {
 
 it('rejects design drift across real JSX, CSS and Paper ownership boundaries', () => {
   try {
+    symlinkSync(
+      path.resolve(path.dirname(CHECK), '../node_modules'),
+      path.join(ROOT, 'node_modules'),
+      'dir'
+    )
     const base = [SHARED, 'p-5-0', '1A-0']
     const use = [PRODUCT, 'p-C-0', '2B-0']
     const evidence = {
@@ -107,6 +112,78 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       )
     )
     expect(audit()).toEqual({ status: 0, output: expect.stringContaining('passed') })
+
+    const inactive = [
+      'false && <Nested choice="ghost"/>',
+      'true || <Nested choice="ghost"/>',
+      'DISABLED ? <Nested choice="ghost"/> : null',
+      '<Nested choice={DISABLED ? "ghost" : "primary"}/>',
+    ]
+      .map((expression) => `{${expression}}`)
+      .join('')
+    const deadPage = productPage
+      .replace('function Page(){', 'function Page(){if (DISABLED) return <Nested choice="ghost"/>;')
+      .replace('<Nested choice="primary"/>', `<><Nested choice="primary"/>${inactive}</>`)
+    write('platform/app/page.tsx', `const DISABLED = false; ${deadPage}`)
+    expect(audit()).toEqual({
+      status: 1,
+      output: expect.stringContaining('[code-use] Button.variant=ghost'),
+    })
+
+    write(
+      'platform/app/page.tsx',
+      productPage.replace(
+        '<Nested choice="primary"/>',
+        '<><Nested choice={Date.now() % 2 ? "primary" : "ghost"}/><link rel="icon" href="/favicon.ico"/></>'
+      )
+    )
+    const source = `type Palette = { variant: 'primary'|'ghost' }
+      export type ButtonProps = Palette & { theme?: 'light'|'dark' }
+      export const Button = ({variant}: ButtonProps) => <button data-variant={variant}/>`
+    write(`${component}/button.tsx`, source)
+    expect(audit()).toEqual({ status: 0, output: expect.stringContaining('passed') })
+    write(
+      `${component}/native.tsx`,
+      `import type {ComponentProps} from 'react'
+      export const Native = (props: ComponentProps<'button'>) => <button disabled={props.disabled}/>`
+    )
+    const domProps = audit()
+    expect(domProps.status).toBe(1)
+    expect(domProps.output).toContain('[style-api] className')
+    write(
+      `${component}/native.tsx`,
+      `import type {ComponentProps} from 'react'
+      export const Native = (props: Pick<ComponentProps<'button'>, 'disabled'>) => <button disabled={props.disabled}/>`
+    )
+    expect(audit()).toEqual({ status: 0, output: expect.stringContaining('passed') })
+
+    write(
+      `${component}/button.tsx`,
+      source
+        .replace("'primary'|'ghost'", "'primary'|'ghost'|'invented'")
+        .replace('theme?:', 'className?:string; theme?:')
+    )
+    const aliased = audit()
+    expect(aliased.status).toBe(1)
+    expect(aliased.output).toContain('[variant-declaration] Button.variant')
+    expect(aliased.output).toContain('[style-api] className')
+    write(`${component}/button.tsx`, source)
+
+    for (const [file, tag] of [
+      ['inline', '<style>{".button{color:red}"}</style>'],
+      ['stylesheet', '<link rel={"stylesheet"} href="/bypass.css"/>'],
+      ['dynamic', '<link rel={kind} href="/bypass.css"/>'],
+    ]) {
+      write(
+        `platform/app/${file}.tsx`,
+        `const kind: string = "stylesheet"; export const Escape = () => ${tag}`
+      )
+    }
+    const injected = audit()
+    expect(injected.status).toBe(1)
+    for (const file of ['inline', 'stylesheet', 'dynamic']) {
+      expect(injected.output).toContain(`platform/app/${file}.tsx:1 [consumer-style]`)
+    }
 
     write('platform/design-system/features/settings/index.ts', `export { Panel } from './panel'`)
     write(

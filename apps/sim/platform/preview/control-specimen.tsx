@@ -3,16 +3,21 @@ import type evidence from '@/platform/design-system/catalog/evidence.json'
 import { glyphs, type IconName } from '@/platform/design-system/catalog/icon-geometry'
 import {
   ActionMenu,
+  AttachmentGrid,
   Avatar,
   AvatarGroup,
   AvatarOverflow,
+  BarChart,
+  BrowserActionsMenu,
   Button,
   Chip,
   ComposerInput,
   DataTable,
   DestinationTabs,
   Disclosure,
+  DonutChart,
   EmptyState,
+  ExecutionSteps,
   FieldFrame,
   IconButton,
   Input,
@@ -27,7 +32,9 @@ import {
   OverflowText,
   PeoplePopover,
   PersonRow,
+  PropertyList,
   RangePicker,
+  RecentItems,
   RecipientField,
   RecipientTag,
   ScrollArea,
@@ -37,13 +44,18 @@ import {
   Select,
   SelectField,
   SelectionItem,
+  SidebarWorkspaceItems,
   TextArea,
   TextAreaField,
   TextField,
   Tooltip,
   TouchTarget,
+  TrendChart,
+  VisibilityMenu,
+  WorkspaceList,
 } from '@/platform/design-system/components'
 import type { PreviewData } from '@/platform/fixtures'
+import { HomeChartSpecimen } from '@/platform/preview/home-chart-specimen'
 import styles from '@/platform/preview/specimen.module.css'
 
 interface ControlSpecimenProps {
@@ -86,6 +98,15 @@ const views = [
   { label: 'Unread', value: 'unread' },
 ]
 
+function AgentFilter({ data }: { data: PreviewData | null }) {
+  const agents = (data?.dashboard.rows ?? []).map((row) => String(row.values.agent))
+  return <RangePicker label='Agents' options={['All agents', ...agents]} size='compact' />
+}
+
+const requestFilter = (
+  <RangePicker label='Requests' options={['All requests', 'Succeeded', 'Retried']} size='compact' />
+)
+
 function FeedbackFields({ notes }: { notes?: string }) {
   const id = useId()
   return (
@@ -121,6 +142,44 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
       : 'I108'
   const refs = 'parts' in master && Array.isArray(master.parts) ? master.parts : []
   switch (master.owner) {
+    case 'ExecutionSteps':
+      return <ExecutionSteps title='Plan' steps={data?.collections.steps ?? []} />
+    case 'TasksRunChart':
+    case 'ChartTooltip':
+      return <HomeChartSpecimen recipe={key} data={data} />
+    case 'WorkspaceList':
+      return (
+        <WorkspaceList
+          label='Workspaces'
+          theme={location.theme}
+          target={family.endsWith('/touch') ? 'touch' : 'standard'}
+          items={data?.organization.workspaces ?? []}
+        />
+      )
+    case 'SidebarWorkspaceItems':
+      return (
+        <SidebarWorkspaceItems
+          label='Sidebar workspaces'
+          theme={location.theme}
+          items={data?.organization.workspaces ?? []}
+        />
+      )
+    case 'RecentItems':
+      return (
+        <RecentItems title='Recents' label='Recent items' items={data?.collections.recent ?? []} />
+      )
+    case 'AttachmentGrid':
+      return (
+        <AttachmentGrid
+          label='Attachments'
+          theme={location.theme}
+          layout={key === 'C0212' ? 'list' : 'grid'}
+          attachments={data?.collections.attachments ?? []}
+        />
+      )
+    case 'PropertyList':
+      return <PropertyList title='Properties' properties={data?.samples.properties ?? []} />
+
     case 'Button': {
       const provider = family.includes('/Connect-')
       const retry = family.startsWith('Chat/Retry')
@@ -187,21 +246,50 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
         />
       )
     }
+    case 'TrendChart':
+      return (
+        <TrendChart
+          title='Workflow runs'
+          maximum={data?.charts.maximum}
+          points={data?.charts.trend ?? []}
+          control={requestFilter}
+        />
+      )
+    case 'BarChart':
+      return (
+        <BarChart
+          title='Runs by day'
+          maximum={data?.charts.maximum}
+          series={['Succeeded', 'Retried']}
+          bars={data?.charts.bars ?? []}
+          control={requestFilter}
+        />
+      )
+    case 'DonutChart':
+      return (
+        <DonutChart
+          title='Runs by workflow'
+          totalLabel='Total runs'
+          segments={data?.charts.distribution ?? []}
+          control={<AgentFilter data={data} />}
+        />
+      )
     case 'MetricGroup':
       return <MetricGroup metrics={data?.dashboard.metrics ?? []} />
     case 'DataTable':
       return (
         <DataTable
-          title='Runs by agent'
+          title='Agent performance'
           columns={[
             { key: 'agent', label: 'Agent', kind: 'text' },
+            { key: 'status', label: 'Live status', kind: 'status', showFrom: 'compact' },
             { key: 'requests', label: 'Requests', kind: 'number' },
-            { key: 'resolved', label: 'Resolved', kind: 'number' },
-            { key: 'duration', label: 'Duration', kind: 'duration' },
-            { key: 'cost', label: 'Cost', kind: 'currency' },
+            { key: 'resolved', label: 'Resolved', kind: 'percent', showFrom: 'wide' },
+            { key: 'duration', label: 'Avg time', kind: 'duration', unit: 'minute' },
+            { key: 'cost', label: 'Cost', kind: 'currency', currency: 'USD', showFrom: 'wide' },
           ]}
           rows={data?.dashboard.rows ?? []}
-          control={<RangePicker label='Range' options={sample?.ranges ?? []} size='compact' />}
+          control={<AgentFilter data={data} />}
         />
       )
     case 'Chip':
@@ -373,6 +461,19 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
           label={sample?.actions[0] ?? 'Action'}
           icon={candidate ? icon : undefined}
           selected={family.includes('selected') || undefined}
+        />
+      )
+    case 'BrowserActionsMenu':
+      return <BrowserActionsMenu />
+    case 'VisibilityMenu':
+      return (
+        <VisibilityMenu
+          label='Customize Home'
+          options={[
+            { id: 'tasks', label: 'Tasks run', visible: true },
+            { id: 'email', label: 'Email', visible: true },
+            { id: 'calendar', label: 'Calendar', visible: true },
+          ]}
         />
       )
     case 'ActionMenu': {

@@ -1,0 +1,10 @@
+[data-platform-ui] {
+  --collection-heading-ink: var(--color-light-text-secondary);
+  --collection-workspace-viewport: 16rem;
+  --collection-touch-viewport: 19.25rem;
+  --collection-attachment-track: 10rem;
+}
+
+[data-platform-ui][data-theme="dark"] {
+  --collection-heading-ink: var(--color-dark-muted);
+}

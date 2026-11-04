@@ -191,3 +191,24 @@
 .disclosure[data-variant="more"] > .summary .expanded svg {
   rotate: 180deg;
 }
+
+.menu[data-menu="browser"] {
+  inline-size: min(100%, var(--menu-browser-width));
+  gap: var(--spacing-2);
+}
+.separator {
+  margin: var(--spacing-4) var(--spacing-8);
+  height: var(--spacing-stroke-default);
+  border: 0;
+  background: var(--choice-edge);
+}
+.menuTitle {
+  display: flex;
+  align-items: center;
+  padding-inline: var(--spacing-8);
+  min-block-size: var(--spacing-28);
+  color: var(--ui-secondary);
+}
+.menuItem[role="menuitemcheckbox"] {
+  min-block-size: var(--spacing-app-control-md);
+}

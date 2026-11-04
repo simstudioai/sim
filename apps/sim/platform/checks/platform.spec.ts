@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test'
+import { load } from 'cheerio'
+import evidence from '@/platform/design-system/catalog/evidence.json'
 
 const enabled = 'http://127.0.0.1:3181'
 const disabled = 'http://127.0.0.1:3180'
@@ -166,7 +168,263 @@ test('workspace destinations stay reachable and read-only table records scale wi
   await expect(settings).toHaveAttribute('aria-current', 'page')
   await expect(page).toHaveURL(/destination=8/)
   await page.goto(`${enabled}/?recipe=C1330&state=stress`)
-  const table = page.getByRole('table', { name: 'Runs by agent' })
+  const table = page.getByRole('table', { name: 'Agent performance' })
   await expect(table.getByRole('row')).toHaveCount(26)
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+})
+
+test('property lists follow the record count and keep contributor and issue values usable', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  const properties = page.getByRole('region', { name: 'Properties' })
+  for (const [scenario, count] of [
+    ['empty', 0],
+    ['full', 3],
+    ['stress', 5],
+  ] as const) {
+    await page.goto(`${enabled}/?recipe=C1362&state=${scenario}`)
+    await expect(properties).toBeVisible()
+    await expect(properties.getByRole('term')).toHaveCount(count)
+    await expect(properties.getByRole('definition')).toHaveCount(count)
+  }
+  await expect(properties.getByRole('img', { name: 'Jo Bell' })).toBeVisible()
+  const issue = properties.getByRole('link', { name: 'OPS-1042' })
+  await issue.focus()
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(/recipe=C1336/)
+})
+
+test('catalog collections render fixture records independently of Paper specimen counts', async ({
+  page,
+}) => {
+  for (const [state, count] of [
+    ['empty', 0],
+    ['full', 2],
+    ['stress', 27],
+  ] as const) {
+    for (const [key, label] of [
+      ['C1284', 'Workspaces'],
+      ['C0212', 'Attachments'],
+    ] as const) {
+      await page.goto(`${enabled}/?recipe=${key}&state=${state}`)
+      const list = page.getByRole('list', { name: label, exact: true })
+      await expect(list).toHaveCount(1)
+      await expect(list.getByRole('listitem')).toHaveCount(count)
+      if (label === 'Workspaces' && state === 'full') {
+        await expect(list.getByRole('listitem')).toHaveText(['Operations', 'Product'])
+      }
+    }
+  }
+})
+
+test('browser actions keep their accessible names and visibility choices toggle independently', async ({
+  page,
+}) => {
+  await page.goto(`${enabled}/?recipe=C0633&state=full`)
+  const browser = page.getByRole('menu', { name: 'Browser actions' })
+  const copy = browser.getByRole('menuitem', { name: 'Copy link' })
+  await copy.focus()
+  await page.keyboard.press('End')
+  await expect(browser.getByRole('menuitem', { name: 'Downloads' })).toBeFocused()
+  await page.goto(`${enabled}/?recipe=C0647&state=empty`)
+  const email = page.getByRole('menuitemcheckbox', { name: 'Email' })
+  const calendar = page.getByRole('menuitemcheckbox', { name: 'Calendar' })
+  await expect(calendar).toBeChecked()
+  await email.focus()
+  await page.keyboard.press('Space')
+  await expect(email).not.toBeChecked()
+  await expect(calendar).toBeChecked()
+})
+
+test('chart labels and totals follow the supplied series', async ({ page }) => {
+  await page.goto(`${enabled}/?recipe=C1324&state=empty`)
+  await expect(
+    page.getByRole('list', { name: 'Distribution legend' }).getByRole('listitem')
+  ).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'Runs by workflow' }).getByText('—')).toBeVisible()
+  await page.goto(`${enabled}/?recipe=C1324&state=full`)
+  const chart = page.getByRole('region', { name: 'Runs by workflow' })
+  await expect(chart.getByText('84,739')).toBeVisible()
+  await expect(chart.getByRole('button', { name: 'Agents: All agents' })).toBeVisible()
+  await page.setViewportSize({ width: 410, height: 800 })
+  const ring = await chart.getByRole('img').boundingBox()
+  const list = await chart.getByRole('list', { name: 'Distribution legend' }).boundingBox()
+  if (!ring || !list) throw new Error('The donut and its legend must be visible')
+  expect(list.y).toBeGreaterThanOrEqual(ring.y + ring.height)
+  await page.goto(`${enabled}/?recipe=C1324&state=stress`)
+  const legend = page.getByRole('list', { name: 'Distribution legend' })
+  await expect(legend.getByRole('listitem')).toHaveCount(6)
+  await legend.getByRole('button').last().focus()
+  await expect(page.getByRole('tooltip')).toContainText('Escalate')
+  await page.goto(`${enabled}/?recipe=C1322&state=stress`)
+  await expect(page.getByRole('list', { name: 'Chart periods' }).getByRole('listitem')).toHaveCount(
+    12
+  )
+})
+
+test('a picker can extend beyond the modal and keeps the pointer and Escape on the right layer', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 500 })
+  await page.goto(enabled)
+  const open = page.getByRole('button', { name: 'Create workspace', exact: true })
+  await open.click()
+  const modal = page.getByRole('dialog', { name: 'Create workspace' })
+  await modal.getByRole('button', { name: 'Continue' }).click()
+  const group = modal.getByRole('button', { name: 'Default role, Member' })
+  await group.click()
+  const option = modal.getByRole('button', { name: 'Viewer', exact: true })
+  await expect(option).toBeInViewport({ ratio: 1 })
+  const bounds = await option.boundingBox()
+  if (!bounds) throw new Error('The menu option disappeared before pointer selection')
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
+  const selected = modal.getByRole('button', { name: 'Default role, Viewer' })
+  await selected.click()
+  await page.keyboard.press('Escape')
+  await expect(selected).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(open).toBeFocused()
+})
+
+test('Home tasks run draws the selected dataset and exposes its last point to keyboard users', async ({
+  page,
+}) => {
+  const chart = page.getByRole('region', { name: 'Tasks run' })
+  const plot = chart.getByRole('img', { name: 'Tasks run' })
+  await page.goto(`${enabled}/?recipe=C0162&state=empty`)
+  await expect(plot).toBeVisible()
+  await expect(plot.locator('path')).toHaveCount(0)
+  await page.goto(`${enabled}/?recipe=C0162&state=full`)
+  const fullPath = await plot.locator('path').last().getAttribute('d')
+  expect(fullPath).toBeTruthy()
+  await page.goto(`${enabled}/?recipe=C0162&state=stress`)
+  const range = chart.getByRole('button', { name: /Range:/ })
+  await range.click()
+  await page.getByRole('menuitemradio', { name: 'Last 30 days' }).click()
+  await expect(plot.locator('path').last()).not.toHaveAttribute('d', fullPath ?? '')
+  const explorer = chart.getByRole('group', { name: 'Tasks run data' })
+  await expect(range).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(explorer).toBeFocused()
+  await page.keyboard.press('End')
+  await expect(chart.getByRole('tooltip')).toContainText('Jan 9')
+  await expect(chart.getByRole('tooltip')).toContainText('17')
+})
+
+test('dashboard tables format numeric data, distinguish missing cells and retain the readable columns as space narrows', async ({
+  page,
+}) => {
+  await page.goto(`${enabled}/?recipe=C1330&state=full`)
+  const table = page.getByRole('table', { name: 'Agent performance' })
+  const intake = table.getByRole('row').filter({ hasText: 'Intake assistant' })
+  await expect(intake.getByRole('cell')).toHaveText([
+    'Intake assistant',
+    '8 running',
+    '1,090',
+    '98.4%',
+    '4.2 min',
+    '$21.18',
+  ])
+  await expect(intake.getByRole('cell', { name: '8 running' })).toHaveCSS('text-align', 'start')
+  await expect(intake.getByRole('cell', { name: '1,090' })).toHaveCSS('text-align', 'end')
+
+  await page.goto(`${enabled}/?recipe=C1331&theme=dark&state=stress`)
+  const incomplete = table.getByRole('row').nth(1)
+  await expect(incomplete.getByRole('cell').nth(2)).toHaveText('0')
+  await expect(incomplete.getByRole('cell').last()).toHaveText('—')
+  for (const [width, labels] of [
+    [647, ['Agent', 'Live status', 'Requests', 'Avg time']],
+    [390, ['Agent', 'Requests', 'Avg time']],
+  ] as const) {
+    await page.setViewportSize({ width, height: 844 })
+    await expect(table.getByRole('columnheader')).toHaveText([...labels])
+    await expect(incomplete.getByRole('cell', { name: '0', exact: true })).toHaveCSS(
+      'text-align',
+      'end'
+    )
+    expect(await table.evaluate((el) => el.scrollWidth)).toBeLessThanOrEqual(width)
+  }
+})
+
+test('series tooltips stay beside the inspected mark at both edges of the plot', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1050, height: 840 })
+  for (const [key, title, bands] of [
+    ['C1320', 'Workflow runs', false],
+    ['C1322', 'Runs by day', true],
+  ] as const) {
+    await page.goto(`${enabled}/?recipe=${key}&state=full`)
+    const chart = page.getByRole('region', { name: title })
+    const plot = chart.getByRole('group', { name: `${title} data` })
+    await plot.scrollIntoViewIfNeeded()
+    const bounds = await plot.boundingBox()
+    if (!bounds) throw new Error('Plot is missing')
+    for (const [end, pointer] of [
+      [false, false],
+      [true, false],
+      [false, true],
+      [true, true],
+    ] as const) {
+      if (pointer) {
+        await plot.hover({ position: { x: end ? bounds.width - 1 : 1, y: bounds.height / 2 } })
+      } else {
+        await plot.focus()
+        await page.keyboard.press(end ? 'End' : 'Home')
+      }
+      const tooltip = chart.getByRole('tooltip')
+      await expect(tooltip).toBeVisible()
+      const mark = bands
+        ? await plot
+            .locator('svg')
+            .nth(end ? -1 : 0)
+            .boundingBox()
+        : await plot.locator('circle').evaluate((el) => el.getBoundingClientRect().toJSON())
+      if (!mark) throw new Error('Active mark is missing')
+      const center = mark.x + mark.width / 2
+      await expect
+        .poll(async () => {
+          const tip = await tooltip.boundingBox()
+          if (!tip || tip.x < bounds.x - 1 || tip.x + tip.width > bounds.x + bounds.width + 1)
+            return -1
+          return Math.round(end ? center - (tip.x + tip.width) : tip.x - center)
+        })
+        .toBe(12)
+      if (!bands) {
+        const rim = Number.parseFloat(
+          await plot.locator('circle').evaluate((el) => getComputedStyle(el).strokeWidth)
+        )
+        expect(rim).toBe(2)
+        expect(mark.width + rim).toBeCloseTo(8, 1)
+        expect(mark.height + rim).toBeCloseTo(8, 1)
+      }
+    }
+  }
+})
+
+test('every registered master resolves through its production workbench URL', async ({
+  request,
+}) => {
+  test.setTimeout(180_000)
+  const concurrency = 6
+  for (let offset = 0; offset < evidence.length; offset += concurrency) {
+    await Promise.all(
+      evidence.slice(offset, offset + concurrency).map(async ({ key, theme }) => {
+        const query = new URLSearchParams({
+          recipe: key,
+          theme: theme === 'L' ? 'light' : 'dark',
+          state: 'full',
+        })
+        const response = await request.get(`${enabled}/?${query}`)
+        try {
+          expect(response.status(), key).toBe(200)
+          const page = load(await response.text())
+          expect(page('select[name="recipe"] option[selected]').val(), key).toBe(key)
+        } finally {
+          await response.dispose()
+        }
+      })
+    )
+  }
 })

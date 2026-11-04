@@ -311,16 +311,71 @@ function checkCss(file: string, sheet: postcss.Root) {
   })
 }
 
+const sourceFiles = [...files()]
+const program = ts.createProgram(
+  sourceFiles
+    .filter(
+      (file) => file.startsWith(platform) && /\.tsx?$/.test(file) && !file.includes('/checks/')
+    )
+    .map((file) => path.join(app, file)),
+  {
+    strictNullChecks: true,
+    types: [],
+    target: ts.ScriptTarget.ESNext,
+    jsx: ts.JsxEmit.Preserve,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    paths: { '@/platform/*': [path.join(app, 'platform/*')] },
+  }
+)
+const checker = program.getTypeChecker()
+
+function checkProps(name: string, node: ts.Node, file: string, owner: boolean) {
+  const choices = new Map<string, Set<string | null>>()
+  const type = checker.getTypeAtLocation(node)
+  for (const shape of type.isUnion() ? type.types : [type]) {
+    for (const member of shape.getProperties()) {
+      const prop = member.getName()
+      if (['style', 'className', 'css', 'sx'].includes(prop)) report('style-api', file, prop)
+      if (
+        !variants[name]?.[prop] &&
+        !(owner && ['variant', 'size', 'tone', 'appearance', 'density'].includes(prop))
+      )
+        continue
+      const values = choices.get(prop) ?? new Set<string | null>()
+      const value = checker.getTypeOfSymbolAtLocation(member, node)
+      for (const option of value.isUnion() ? value.types : [value]) {
+        if (!(option.flags & ts.TypeFlags.Undefined))
+          values.add(option.isStringLiteral() ? option.value : null)
+      }
+      choices.set(prop, values)
+    }
+  }
+  for (const [prop, values] of choices) {
+    declarations.add(`${name}.${prop}`)
+    const expected = Object.keys(variants[name]?.[prop] ?? {})
+    if (
+      !expected.length ||
+      expected.length !== values.size ||
+      !expected.every((value) => values.has(value))
+    ) {
+      report('variant-declaration', file, `${name}.${prop}: declare only cataloged variant values`)
+    }
+  }
+}
+
 function checkJs(file: string, content: string) {
   const inPlatform = file.startsWith(platform)
   if (!inPlatform && !content.includes('platform')) return
-  const sf = ts.createSourceFile(
-    file,
-    content,
-    ts.ScriptTarget.Latest,
-    true,
-    /\.[jt]sx$/.test(file) ? ts.ScriptKind.TSX : ts.ScriptKind.TS
-  )
+  const programSource = program.getSourceFile(path.join(app, file))
+  const sf =
+    programSource ??
+    ts.createSourceFile(
+      file,
+      content,
+      ts.ScriptTarget.Latest,
+      true,
+      /\.[jt]sx$/.test(file) ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+    )
   const owner = file.startsWith(system)
   const preview = file.startsWith('platform/preview/')
   const modules = new Map<string, string>()
@@ -367,28 +422,29 @@ function checkJs(file: string, content: string) {
       if (specifier && ts.isStringLiteralLike(specifier))
         checkImport(file, specifier.text, node.expression.kind === ts.SyntaxKind.ImportKeyword)
     }
-    if (
-      owner &&
-      ts.isFunctionDeclaration(node) &&
-      node.name &&
-      node.modifiers?.some((mod) => mod.kind === ts.SyntaxKind.ExportKeyword)
-    ) {
-      exportedOwners.add(node.name.text)
-    }
-    if (
-      inPlatform &&
-      ts.isPropertySignature(node) &&
-      ts.isInterfaceDeclaration(node.parent) &&
-      node.parent.name.text.endsWith('Props') &&
-      /^(style|className|css|sx)$/.test(node.name.getText(sf).replace(/['"]/g, ''))
-    ) {
-      report('style-api', location(node), node.name.getText(sf))
-    }
     if (inPlatform && ts.isJsxSpreadAttribute(node))
       report('prop-spread', location(node), 'Pass named props explicitly')
     if (inPlatform && (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))) {
       const tag = node.tagName.getText(sf)
       const native = /^[a-z][\w-]*$/.test(tag) || (owner && primitives.has(tag.split('.')[0]))
+      if (
+        tag === 'style' ||
+        (tag === 'link' &&
+          node.attributes.properties.some((prop) => {
+            if (!ts.isJsxAttribute(prop) || prop.name.getText(sf) !== 'rel') return false
+            const value =
+              prop.initializer && ts.isJsxExpression(prop.initializer)
+                ? prop.initializer.expression
+                : prop.initializer
+            return (
+              !value ||
+              !ts.isStringLiteralLike(value) ||
+              value.text.toLowerCase().split(/\s+/).includes('stylesheet')
+            )
+          }))
+      )
+        report('consumer-style', location(node), 'Load styles through the isolated CSS owners')
+
       for (const prop of node.attributes.properties) {
         if (!ts.isJsxAttribute(prop)) continue
         const attr = prop.name.getText(sf)
@@ -423,33 +479,25 @@ function checkJs(file: string, content: string) {
         }
       }
     }
-    if (inPlatform && ts.isInterfaceDeclaration(node) && node.name.text.endsWith('Props')) {
-      const name = node.name.text.slice(0, -5)
-      for (const member of node.members) {
-        if (!ts.isPropertySignature(member) || !member.type) continue
-        const prop = member.name.getText(sf)
-        const expected = variants[name]?.[prop]
-        if (
-          !expected &&
-          !(owner && ['variant', 'size', 'tone', 'appearance', 'density'].includes(prop))
-        )
-          continue
-        const types = ts.isUnionTypeNode(member.type) ? member.type.types : [member.type]
-        const values = types.flatMap((t) =>
-          ts.isLiteralTypeNode(t) && ts.isStringLiteral(t.literal) ? [t.literal.text] : []
-        )
-        declarations.add(`${name}.${prop}`)
-        if (
-          !expected ||
-          values.length !== types.length ||
-          Object.keys(expected).some((v) => !values.includes(v)) ||
-          values.some((v) => !(v in expected))
-        ) {
-          report(
-            'variant-declaration',
-            location(member),
-            `${name}.${prop}: declare only cataloged variant values`
-          )
+    if (programSource) {
+      if (
+        (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) &&
+        node.name.text.endsWith('Props')
+      ) {
+        checkProps(node.name.text.slice(0, -5), node, file, owner)
+      } else if (ts.isFunctionDeclaration(node) || ts.isVariableDeclaration(node)) {
+        const fn = ts.isFunctionDeclaration(node)
+          ? node
+          : node.initializer &&
+              (ts.isFunctionExpression(node.initializer) || ts.isArrowFunction(node.initializer))
+            ? node.initializer
+            : undefined
+        if (fn && node.name && ts.isIdentifier(node.name)) {
+          const name = node.name.text
+          if (owner && ts.getCombinedModifierFlags(node) & ts.ModifierFlags.Export)
+            exportedOwners.add(name)
+          if (/^[A-Z]/.test(name) && fn.parameters[0])
+            checkProps(name, fn.parameters[0], file, owner)
         }
       }
     }
@@ -457,10 +505,7 @@ function checkJs(file: string, content: string) {
   }
   visit(sf)
 }
-const productFilesToScan: string[] = []
-for (const file of files()) {
-  if (file.startsWith(platform) && /\.tsx?$/.test(file) && !file.includes('/checks/'))
-    productFilesToScan.push(path.join(app, file))
+for (const file of sourceFiles) {
   const source = read(file)
   if (!file.endsWith('.css')) checkJs(file, source)
   else if (file.startsWith(platform)) {
@@ -494,7 +539,7 @@ for (const [name, props] of Object.entries(variants)) {
       report('variant-declaration', variantsPath, `${name}.${prop} has no component declaration`)
   }
 }
-const usage = productUsage(app, productFilesToScan)
+const usage = productUsage(app, program)
 if (usage) {
   for (const key of usage.recipes) {
     for (const child of Object.values(recipes[key]?.slots ?? {})) {

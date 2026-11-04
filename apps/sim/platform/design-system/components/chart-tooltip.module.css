@@ -1,0 +1,23 @@
+.tooltip {
+  display: grid;
+  gap: var(--spacing-6);
+  inline-size: var(--chart-tooltip-width);
+  max-inline-size: 100%;
+  padding: var(--spacing-12);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-menu-shared);
+  color: var(--ui-ink);
+  background: var(--chart-tooltip-fill);
+  backdrop-filter: var(--chart-tooltip-blur);
+  box-shadow: var(--chart-tooltip-shadow);
+}
+
+.tooltip > span {
+  color: var(--ui-secondary);
+}
+
+.detail {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+}

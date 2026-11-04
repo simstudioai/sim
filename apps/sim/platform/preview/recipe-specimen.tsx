@@ -5,8 +5,7 @@ import {
   recipeSlots,
 } from '@/platform/design-system/catalog/component-recipe'
 import evidence from '@/platform/design-system/catalog/evidence.json'
-import { DonutPlot, StackPlot, TrendPlot } from '@/platform/design-system/catalog/plots'
-import { Button, SelectField } from '@/platform/design-system/components'
+import { Button, MenuItem, SelectField } from '@/platform/design-system/components'
 import type { PreviewData, Scenario } from '@/platform/fixtures'
 import { ControlSpecimen } from '@/platform/preview/control-specimen'
 import styles from '@/platform/preview/specimen.module.css'
@@ -21,13 +20,25 @@ interface RecipeSpecimenProps {
   data: PreviewData | null
 }
 
-function slotValue(name: string, data: PreviewData | null) {
-  const placeholder = name.replace(/([a-z])([A-Z0-9])/g, '$1 $2')
-  if (!data) return placeholder
-  if (name in data.specimen) return data.specimen[name]
-  const workspace = data.organization.workspaces[0]
-  if (name === 'contributor') return data.organization.members[0] ?? ''
-  return workspace?.chats[0] ?? workspace?.name ?? ''
+function slotValue(family: string, name: string, data: PreviewData | null) {
+  if (family === 'IssueGroup') return name === 'title' ? 'Needs review' : 'Created'
+  if (family === 'TracePayload' && name === 'format') return 'JSON'
+  if (family === 'TracePayload' && name === 'payloadTitle') return 'Input'
+  if (!data) return name.replace(/([a-z])([A-Z0-9])/g, '$1 $2')
+  const { organization, specimen } = data
+  if (name === 'organizationName') return organization.name
+  if (name === 'memberCount')
+    return (
+      organization.members.length + (organization.members.length === 1 ? ' member' : ' members')
+    )
+  if (name === 'contributor') return organization.members[0] ?? ''
+  if (Object.hasOwn(specimen, name)) return specimen[name]
+  const part = /^(label|caption)(\d*)$/.exec(name)
+  if (part) {
+    const records = part[1] === 'caption' ? data.samples.captions : data.samples.labels
+    return records.length ? records[(Number(part[2] || 1) - 1) % records.length] : ''
+  }
+  return ''
 }
 
 interface SpecimenLocation {
@@ -41,19 +52,15 @@ function specimen(key: string, data: PreviewData | null, location: SpecimenLocat
   if (isRecipeKey(key)) {
     const slots: Record<string, ReactNode> = {}
     for (const slot of recipeSlots(key)) {
-      if (slot.reference) slots[slot.name] = specimen(slot.reference, data, location)
-      else if (slot.kind === 'trend')
+      if (master.family === 'Organization/Summary' && slot.name === 'button') {
         slots[slot.name] = (
-          <TrendPlot label='Trend' maximum={18} values={data?.charts.trend ?? []} />
+          <Button variant='secondary' icon='I074'>
+            Invite
+          </Button>
         )
-      else if (slot.kind === 'bars')
-        slots[slot.name] = (
-          <StackPlot label='Runs by day' maximum={18} values={data?.charts.bars ?? []} />
-        )
-      else if (slot.kind === 'donut')
-        slots[slot.name] = (
-          <DonutPlot label='Distribution' values={data?.charts.distribution ?? []} />
-        )
+      } else if (master.family === 'Menu/Organization/default' && slot.name === 'menuItem') {
+        slots[slot.name] = <MenuItem label='Settings' icon='I116' />
+      } else if (slot.reference) slots[slot.name] = specimen(slot.reference, data, location)
       else if (slot.kind === 'media')
         slots[slot.name] = data?.samples.media ? (
           <img
@@ -62,7 +69,7 @@ function specimen(key: string, data: PreviewData | null, location: SpecimenLocat
             src={data.samples.media.src}
           />
         ) : null
-      else slots[slot.name] = slotValue(slot.name, data)
+      else slots[slot.name] = slotValue(master.family, slot.name, data)
     }
     return <ComponentRecipe recipe={key} slots={slots} />
   }

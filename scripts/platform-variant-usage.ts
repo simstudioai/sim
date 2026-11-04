@@ -13,15 +13,7 @@ interface Usage {
  * barrels, default props, conditionals and wrapper props. Preview modules cannot
  * establish usage. Unresolved dynamic values require an explicit mapping at the owner.
  */
-export function productUsage(app: string, files: string[]): Usage | null {
-  const program = ts.createProgram(files, {
-    noLib: true,
-    noResolve: true,
-    types: [],
-    jsx: ts.JsxEmit.Preserve,
-    moduleResolution: ts.ModuleResolutionKind.Bundler,
-    paths: { '@/platform/*': [path.join(app, 'platform/*')] },
-  })
+export function productUsage(app: string, program: ts.Program): Usage | null {
   const checker = program.getTypeChecker()
   const usage: Usage = { variants: new Set(), recipes: new Set() }
   const seen = new WeakMap<ts.Node, Set<string>>()
@@ -42,6 +34,12 @@ export function productUsage(app: string, files: string[]): Usage | null {
     )
       return decl.initializer
   }
+  function literalCondition(node: ts.Expression) {
+    const type = checker.getTypeAtLocation(node)
+    return type.flags & ts.TypeFlags.BooleanLiteral
+      ? checker.typeToString(type) === 'true'
+      : undefined
+  }
   function values(
     node: ts.Expression | undefined,
     props: Props,
@@ -57,8 +55,13 @@ export function productUsage(app: string, files: string[]): Usage | null {
       ts.isSatisfiesExpression(node)
     )
       return values(node.expression, props, visited)
-    if (ts.isConditionalExpression(node))
-      return [...values(node.whenTrue, props, visited), ...values(node.whenFalse, props, visited)]
+    if (ts.isConditionalExpression(node)) {
+      const test = literalCondition(node.condition)
+      return [
+        ...(test === false ? [] : values(node.whenTrue, props, visited)),
+        ...(test === true ? [] : values(node.whenFalse, props, visited)),
+      ]
+    }
     if (ts.isPropertyAccessExpression(node)) return props[node.name.text] ?? []
     if (ts.isIdentifier(node)) {
       if (props[node.text]) return props[node.text]
@@ -84,6 +87,31 @@ export function productUsage(app: string, files: string[]): Usage | null {
     }
     function visit(node: ts.Node) {
       if (ts.isFunctionDeclaration(node) || ts.isVariableDeclaration(node)) return
+      if (ts.isConditionalExpression(node) || ts.isIfStatement(node)) {
+        const [condition, yes, no] = ts.isConditionalExpression(node)
+          ? ([node.condition, node.whenTrue, node.whenFalse] as const)
+          : ([node.expression, node.thenStatement, node.elseStatement] as const)
+        const test = literalCondition(condition)
+        visit(condition)
+        if (test !== false) visit(yes)
+        if (test !== true && no) visit(no)
+        return
+      }
+      if (
+        ts.isBinaryExpression(node) &&
+        [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken].includes(
+          node.operatorToken.kind
+        )
+      ) {
+        visit(node.left)
+        const left = literalCondition(node.left)
+        const evaluatesRight =
+          node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
+            ? left !== false
+            : left !== true
+        if (evaluatesRight) visit(node.right)
+        return
+      }
       if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
         const decl = declaration(node.tagName)
         const owner = decl && component(decl)
@@ -159,7 +187,7 @@ export function productUsage(app: string, files: string[]): Usage | null {
     )
   }
   let pages = 0
-  for (const file of files.filter(
+  for (const file of program.getRootFileNames().filter(
     (file) =>
       path.basename(file) === 'page.tsx' &&
       file.startsWith(path.join(app, 'platform/app/')) &&

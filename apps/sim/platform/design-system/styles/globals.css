@@ -1,9 +1,11 @@
 @import "tailwindcss/preflight.css" layer(base);
 @import "./tailwind.css";
 @import "./tokens.css";
+@import "./collection-roles.css";
 @import "./theme.css";
 @import "./typography.css";
 @import "./materials.css";
+@import "./chart-roles.css";
 @import "./control-roles.css";
 @import "./choice-roles.css";
 @import "./recipe-values.css";
