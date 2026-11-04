@@ -1,5 +1,8 @@
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
+/** Audience of the Copilot delegation a direct tool call is admitted under. */
+export const TOOL_EXECUTION_DELEGATION_AUDIENCE = 'sim:tool-execution'
+
 /**
  * Semantic operation for running one code-defined tool directly.
  *

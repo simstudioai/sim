@@ -348,6 +348,17 @@ describe('universal grep', () => {
     }
   )
 
+  it.each(['knowledge', 'blocks,KB'])(
+    'redirects --scope %s to semantic knowledge search before materializing any world',
+    async (scope) => {
+      /** An empty runtime throws on any request, so a clean refusal proves nothing was fetched. */
+      const result = await runEngine('grep', ['invoice'], runtimeWith({}), { scope })
+      expect(result.exitCode).toBe(1)
+      expect(result.stderr).toContain('Unknown scope')
+      expect(result.stderr).toContain('use knowledge search --kb <id>')
+    }
+  )
+
   it('refuses an --in selector no resource in the searched worlds answers to', async () => {
     const bare = await runEngine('grep', ['id'], runtimeWith(CATALOG), {
       scope: 'blocks',

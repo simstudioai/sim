@@ -24,7 +24,10 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { durableSecretProvenanceFromRegistry } from '@/lib/execution/durable-secret-provenance'
 import { principalUserId } from '@/lib/integrations/principal-scope.server'
-import { toolExecutionOperations } from '@/lib/tool-execution/application/operations'
+import {
+  TOOL_EXECUTION_DELEGATION_AUDIENCE,
+  toolExecutionOperations,
+} from '@/lib/tool-execution/application/operations'
 import { isEnvVarReference } from '@/executor/constants'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -292,7 +295,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
   resolveContext: ({ input }: { input: ExecuteToolInput }) =>
     loadCatalogWorkspaceContext(input.workspaceId),
   authorizationOptions: {
-    delegation: { audience: 'sim:tool-execution', isWithinScope: () => true },
+    delegation: { audience: TOOL_EXECUTION_DELEGATION_AUDIENCE, isWithinScope: () => true },
   },
   execute: async ({ principal, input, context }): Promise<ExecuteToolResult> => {
     const gate = await resolveCatalogGate(principal, context)
