@@ -141,7 +141,10 @@ describe('replaceWorkflowState', () => {
       ...BLOCK,
       type: 'image_generator_v2',
       subBlocks: Object.fromEntries(
-        Object.entries(settings).map(([id, value]) => [id, { id, type: 'dropdown', value }])
+        Object.entries(settings).map(([id, value]) => [
+          id,
+          { id, type: 'dropdown' as const, value },
+        ])
       ),
     }
     await expect(
