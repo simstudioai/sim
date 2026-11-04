@@ -504,16 +504,16 @@
       }
     },
     "app/workspace/[workspaceId]/skills/page.tsx": {
-      "modules": 1174,
+      "modules": 1201,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/skills/skills.tsx": 1170,
-        "apps/sim/app/workspace/[workspaceId]/integrations/components/showcase-with-explore/index.ts": 1032,
-        "apps/sim/blocks/registry.ts": 1021,
-        "apps/sim/blocks/registry-maps.ts": 1019,
+        "apps/sim/app/workspace/[workspaceId]/skills/skills.tsx": 1197,
+        "apps/sim/app/workspace/[workspaceId]/integrations/components/showcase-with-explore/index.ts": 1059,
+        "apps/sim/blocks/registry.ts": 1025,
         "apps/sim/triggers/index.ts": 599,
         "apps/sim/triggers/registry.ts": 597,
-        "apps/sim/hooks/queries/skills.ts": 77,
-        "apps/sim/lib/api/contracts/index.ts": 68
+        "apps/sim/hooks/queries/skills.ts": 60,
+        "apps/sim/triggers/plane/index.ts": 46,
+        "apps/sim/triggers/clickup/index.ts": 32
       }
     },
     "app/workspace/[workspaceId]/tables/[tableId]/error.tsx": {

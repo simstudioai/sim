@@ -54,6 +54,7 @@ import { replaceWorkflowState } from '@/lib/workflows/application/replace-workfl
 import { validateInputsForBlock } from '@/lib/workflows/editing/validation'
 import { AgentBlock } from '@/blocks/blocks/agent'
 import { ExaBlock } from '@/blocks/blocks/exa'
+import { ImageGeneratorV2Block } from '@/blocks/blocks/image_generator'
 import { getBlock } from '@/blocks/registry'
 
 const mockNeedsRedeployment = workflowDeploymentStatusMockFns.mockCheckNeedsRedeployment
@@ -93,7 +94,13 @@ const input = { workflowId: 'workflow-1', blocks: { 'block-1': BLOCK }, edges: [
 describe('replaceWorkflowState', () => {
   beforeEach(() => {
     vi.mocked(getBlock).mockImplementation((type) =>
-      type === 'exa' ? ExaBlock : type === 'agent' ? AgentBlock : defaultGetBlock?.(type)
+      type === 'image_generator_v2'
+        ? ImageGeneratorV2Block
+        : type === 'exa'
+          ? ExaBlock
+          : type === 'agent'
+            ? AgentBlock
+            : defaultGetBlock?.(type)
     )
     mockResolveContext.mockResolvedValue(context)
     mockResolvePermission.mockResolvedValue('write')
@@ -111,6 +118,41 @@ describe('replaceWorkflowState', () => {
     mocks.collectGraphIds.mockReturnValue({ blockIds: ['block-1'], edgeIds: [], subflowIds: [] })
     mocks.assertIdsUnclaimed.mockResolvedValue(undefined)
     mockLoadNormalized.mockResolvedValue({ blocks: {}, edges: [], loops: {}, parallels: {} })
+  })
+
+  it.each([
+    { provider: 'openai', model: 'gpt-image-2', size: '1024x1024', quality: 'high' },
+    {
+      provider: 'gemini',
+      model: 'gemini-3-pro-image-preview',
+      resolution: '2K',
+      aspectRatio: '16:9',
+    },
+    {
+      provider: 'falai',
+      model: 'nano-banana-2',
+      resolution: '1K',
+      aspectRatio: '1:1',
+      enableSafetyChecker: true,
+      enableWebSearch: false,
+    },
+  ])('saves configured $provider image workflows through the state API', async (settings) => {
+    const block = {
+      ...BLOCK,
+      type: 'image_generator_v2',
+      subBlocks: Object.fromEntries(
+        Object.entries(settings).map(([id, value]) => [
+          id,
+          { id, type: 'dropdown' as const, value },
+        ])
+      ),
+    }
+    await expect(
+      replaceWorkflowState.execute({
+        principal: sessionPrincipal,
+        input: { ...input, blocks: { 'block-1': block } },
+      })
+    ).resolves.toMatchObject({ workflowId: 'workflow-1' })
   })
 
   /**

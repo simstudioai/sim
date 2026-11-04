@@ -26,7 +26,7 @@ import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read
 
 const logger = createLogger('GenerateImageTool')
 
-const NANO_BANANA_MODEL = 'gemini-3.1-flash-image-preview'
+const NANO_BANANA_MODEL = 'gemini-3.1-flash-image'
 const NANO_BANANA_IMAGE_COST_USD = 0.101
 
 const ASPECT_RATIO_TO_SIZE: Record<string, string> = {
