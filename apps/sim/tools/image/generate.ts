@@ -35,7 +35,8 @@ export const imageGenerateTool: ImageGenerationToolConfig = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Text prompt describing the image to generate',
+      description:
+        'Text prompt describing the image to generate, up to 4,000 characters. Some models have a lower limit.',
     },
     size: {
       type: 'string',
