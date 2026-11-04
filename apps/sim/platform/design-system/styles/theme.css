@@ -1,0 +1,21 @@
+@theme {
+  --spacing: 0.25rem;
+  --breakpoint-compact: 48rem;
+  --breakpoint-expanded: 80rem;
+}
+@theme inline {
+  --color-canvas: var(--ui-canvas);
+  --color-ink: var(--ui-ink);
+  --color-secondary: var(--ui-secondary);
+  --color-boundary: var(--ui-border);
+  --color-reading: var(--ui-reading);
+  --color-floating: var(--ui-floating);
+  --color-selected: var(--ui-selected);
+  --color-focus: var(--ui-focus);
+  --spacing-control-gap: var(--spacing-control-icon-gap);
+  --spacing-field: var(--spacing-field-stack);
+  --spacing-modal: var(--spacing-modal-inset);
+  --radius-field: var(--radius-control);
+  --radius-modal: var(--radius-dialog);
+  --container-dialog: var(--container-app-modal-md);
+}

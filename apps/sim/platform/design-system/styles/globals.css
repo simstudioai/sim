@@ -1,0 +1,43 @@
+@import "tailwindcss/preflight.css" layer(base);
+@import "./tailwind.css";
+@import "./tokens.css";
+@import "./theme.css";
+@import "./typography.css";
+@import "./materials.css";
+@import "./control-roles.css";
+@import "./choice-roles.css";
+@import "./recipe-values.css";
+
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../fonts/geist.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../fonts/geist-mono.woff2") format("woff2");
+}
+
+@source "../components";
+[data-platform-ui] {
+  color-scheme: light;
+  color: var(--ui-ink);
+  background: var(--ui-canvas);
+  font-family: var(--font-sans);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+[data-platform-ui][data-theme="dark"] {
+  color-scheme: dark;
+}
+
+[data-platform-ui] :focus-visible {
+  outline: var(--spacing-stroke-focus) solid var(--ui-focus);
+  outline-offset: var(--spacing-stroke-focus);
+}
