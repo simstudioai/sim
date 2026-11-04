@@ -36,6 +36,7 @@ const STATES = {
   syncing: { label: 'Syncing', variant: 'amber' },
   queued: { label: 'Queued', variant: 'amber' },
   failed: { label: 'Sync failed', variant: 'red' },
+  paused: { label: 'Paused', variant: 'orange' },
 } as const
 const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 const PHASE_LABELS = {
@@ -53,8 +54,9 @@ interface SyncStatusProps {
   sync: PeopleSyncStatus
 }
 function SyncStatus({ sync }: SyncStatusProps) {
+  const paused = sync.state === 'paused'
   const { label, variant } =
-    sync.retryBlocked && sync.state !== 'syncing'
+    !paused && sync.retryBlocked && sync.state !== 'syncing'
       ? { label: 'Waiting to retry', variant: 'amber' as const }
       : sync.progress && sync.state === 'queued'
         ? { label: 'Refresh in progress', variant: 'blue' as const }
@@ -64,7 +66,9 @@ function SyncStatus({ sync }: SyncStatusProps) {
     ['Last attempted', sync.lastAttemptAt],
     ['Last successful sync', sync.lastSuccessAt],
     ...(sync.lastFailedAt ? [['Last failed sync', sync.lastFailedAt]] : []),
-    sync.retryAt ? ['Next retry', sync.retryAt] : ['Next scheduled sync', sync.nextSyncAt],
+    ...(!paused
+      ? [sync.retryAt ? ['Next retry', sync.retryAt] : ['Next scheduled sync', sync.nextSyncAt]]
+      : []),
   ] as const
   return (
     <>
@@ -83,7 +87,7 @@ function SyncStatus({ sync }: SyncStatusProps) {
           </div>
         )}
       </ChipModalField>
-      {progress && (
+      {progress && !paused && (
         <ChipModalField type='custom' title='Current refresh'>
           {() => (
             <div aria-live='polite' className='flex flex-col gap-1 text-small'>
@@ -111,7 +115,12 @@ function SyncStatus({ sync }: SyncStatusProps) {
           </dl>
         )}
       </ChipModalField>
-      {sync.lastError && <ChipModalError>{sync.lastError}</ChipModalError>}
+      {sync.lastError &&
+        (paused ? (
+          <ChipModalDescription>Last sync error: {sync.lastError}</ChipModalDescription>
+        ) : (
+          <ChipModalError>{sync.lastError}</ChipModalError>
+        ))}
     </>
   )
 }
@@ -162,6 +171,7 @@ export function DirectorySyncModal({ organizationId, onClose }: DirectorySyncMod
     )
   const title = 'Directory sync'
   const syncing = sync?.state === 'syncing' || actions.pending
+  const paused = sync?.state === 'paused'
   const waitingToRetry = Boolean(sync?.retryBlocked)
   return (
     <ChipModal open onOpenChange={(open) => !open && onClose()} srTitle={title}>
@@ -181,7 +191,9 @@ export function DirectorySyncModal({ organizationId, onClose }: DirectorySyncMod
         ) : sync ? (
           <>
             <ChipModalDescription>
-              People updates from this directory automatically. You can also start a sync now.
+              {paused
+                ? 'SCIM provisioning is disabled. Re-enable it in organization settings to resume updates. Your last published chart remains available.'
+                : 'People updates from this directory automatically. You can also start a sync now.'}
             </ChipModalDescription>
             <SyncStatus sync={sync} />
             <div className='flex flex-wrap gap-1 px-2'>
@@ -206,7 +218,7 @@ export function DirectorySyncModal({ organizationId, onClose }: DirectorySyncMod
                 Disconnect
               </Chip>
             </div>
-            {actions.action === 'run' && (
+            {actions.action === 'run' && !paused && (
               <ChipModalDescription>
                 Sync is running. You can close this window and return for the result.
               </ChipModalDescription>
@@ -255,16 +267,18 @@ export function DirectorySyncModal({ organizationId, onClose }: DirectorySyncMod
         primaryAction={
           sync
             ? {
-                label: syncing
-                  ? 'Syncing…'
-                  : waitingToRetry
-                    ? 'Waiting to retry'
-                    : sync.state === 'failed'
-                      ? 'Retry sync'
-                      : sync.progress
-                        ? 'Continue sync'
-                        : 'Sync now',
-                disabled: syncing || waitingToRetry,
+                label: paused
+                  ? 'Sync paused'
+                  : syncing
+                    ? 'Syncing…'
+                    : waitingToRetry
+                      ? 'Waiting to retry'
+                      : sync.state === 'failed'
+                        ? 'Retry sync'
+                        : sync.progress
+                          ? 'Continue sync'
+                          : 'Sync now',
+                disabled: paused || syncing || waitingToRetry,
                 onClick: actions.run,
               }
             : undefined

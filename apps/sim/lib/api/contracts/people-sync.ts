@@ -33,7 +33,7 @@ export type PeopleSyncConfig = z.infer<typeof peopleSyncConfigSchema>
 
 const status = z.object({
   source: z.enum(['okta', 'entra', 'scim']),
-  state: z.enum(['scheduled', 'syncing', 'failed', 'queued']),
+  state: z.enum(['scheduled', 'syncing', 'failed', 'queued', 'paused']),
   domain: z.string().optional(),
   tenantId: z.string().optional(),
   clientId: z.string().optional(),

@@ -8,6 +8,8 @@ import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import {
   DIRECTORY_TEXT_MAX_LENGTH,
   memberProfileFieldsSchema,
+  PEOPLE_DEPARTMENT_KEY_PATTERN,
+  PEOPLE_ID_MAX_LENGTH,
   PEOPLE_SEARCH_MAX_LENGTH,
 } from '@/lib/people/validation'
 
@@ -16,8 +18,8 @@ export const PEOPLE_IMPORT_MAX_ROWS = 10_000
 export const PEOPLE_IMPORT_MAX_COLUMNS = 100
 
 const params = z.object({ id: organizationIdSchema })
-const departmentKey = z.string().regex(/^[0-9a-f]{64}$/)
-const personParams = params.extend({ memberId: z.string().min(1).max(255) })
+const departmentKey = z.string().regex(PEOPLE_DEPARTMENT_KEY_PATTERN)
+const personParams = params.extend({ memberId: z.string().min(1).max(PEOPLE_ID_MAX_LENGTH) })
 
 const personSummarySchema = z.object({
   memberId: z.string(),

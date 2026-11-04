@@ -1,12 +1,11 @@
 import { truncateAtCodePoint } from '@sim/utils/string'
+import { createParser, createSerializer, parseAsInteger, parseAsStringLiteral } from 'nuqs/server'
 import {
-  createParser,
-  createSerializer,
-  parseAsInteger,
-  parseAsString,
-  parseAsStringLiteral,
-} from 'nuqs/server'
-import { PEOPLE_SEARCH_MAX_LENGTH } from '@/lib/people/validation'
+  DIRECTORY_TEXT_MAX_LENGTH,
+  PEOPLE_DEPARTMENT_KEY_PATTERN,
+  PEOPLE_ID_MAX_LENGTH,
+  PEOPLE_SEARCH_MAX_LENGTH,
+} from '@/lib/people/validation'
 
 const boundedSearch = (value: string) => truncateAtCodePoint(value, PEOPLE_SEARCH_MAX_LENGTH, '')
 
@@ -14,11 +13,20 @@ const boundedSearch = (value: string) => truncateAtCodePoint(value, PEOPLE_SEARC
 export const peopleParsers = {
   view: parseAsStringLiteral(['chart', 'directory'] as const),
   panel: parseAsStringLiteral(['sync'] as const),
-  focus: parseAsString.withDefault(''),
+  focus: createParser({
+    parse: (value) => (value.length > 0 && value.length <= PEOPLE_ID_MAX_LENGTH ? value : null),
+    serialize: (value) => value,
+  }).withDefault(''),
   page: parseAsInteger.withDefault(1),
   search: createParser({ parse: boundedSearch, serialize: boundedSearch }).withDefault(''),
-  department: parseAsString.withDefault(''),
-  departmentKey: parseAsString.withDefault(''),
+  department: createParser({
+    parse: (value) => (value.length <= DIRECTORY_TEXT_MAX_LENGTH ? value : null),
+    serialize: (value) => value,
+  }).withDefault(''),
+  departmentKey: createParser({
+    parse: (value) => (PEOPLE_DEPARTMENT_KEY_PATTERN.test(value) ? value : null),
+    serialize: (value) => value,
+  }).withDefault(''),
 } as const
 
 export const peopleUrlKeys = { history: 'replace', clearOnDefault: true } as const
