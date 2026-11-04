@@ -9,3 +9,5 @@ export const captureIntentSchema = z.strictObject({
   documentId: z.string().min(1).max(128),
   urlDigest: z.string().regex(/^[a-f0-9]{64}$/),
 })
+
+export type CaptureIntent = z.infer<typeof captureIntentSchema>

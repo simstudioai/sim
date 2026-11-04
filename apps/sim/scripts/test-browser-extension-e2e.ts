@@ -1392,25 +1392,37 @@ try {
     async () => {
       const endpoint = `${base.origin}/api/mothership/chat`
       const received: Record<string, unknown>[] = []
-      const holdHandshake = await shell.addInitScript(() => {
-        if (window.parent === window) return
-        window.addEventListener(
-          'message',
-          (event) => {
-            const type = event.data?.type
-            if (
-              event.source !== window.parent ||
-              (type !== 'connected' && type !== 'reference-preference')
-            )
-              return
-            const state = document.documentElement.dataset
-            if (type === 'connected') state.heldSession = event.data.sessionId
-            if (state.release === type) state.delivered = type
-            else event.stopImmediatePropagation()
-          },
-          true
-        )
-      })
+      let holdHandshake: Awaited<ReturnType<Page['addInitScript']>> | undefined
+      const openScenario = async () => {
+        await holdHandshake?.dispose()
+        // Rejected sends can recover from this tab's session when the next scenario navigates.
+        await shell.close()
+        panel = await openPanel()
+        shell = panel
+        holdHandshake = await shell.addInitScript(() => {
+          if (window.parent === window) return
+          window.addEventListener(
+            'message',
+            (event) => {
+              const type = event.data?.type
+              if (
+                event.source !== window.parent ||
+                (type !== 'connected' && type !== 'reference-preference')
+              )
+                return
+              const state = document.documentElement.dataset
+              if (type === 'connected') state.heldSession = event.data.sessionId
+              if (state.release === type) state.delivered = type
+              else event.stopImmediatePropagation()
+            },
+            true
+          )
+        })
+        await shell.goto(`chrome-extension://${extensionId}/sidepanel.html`)
+        await observeCaptureReceipts()
+        await navigate(`${base.origin}/extension/${betaId}`)
+        await expect(frame().locator('html')).toHaveAttribute('data-held-session', /.+/)
+      }
       await browserContext.route(endpoint, (route) => {
         if (route.request().method() !== 'POST') return route.continue()
         received.push(toRecord(route.request().postDataJSON()))
@@ -1438,8 +1450,7 @@ try {
             (value) => chrome.storage.local.set({ referenceCurrentPage: value }),
             enabled
           )
-          await navigate(`${base.origin}/extension/${betaId}`)
-          await expect(frame().locator('html')).toHaveAttribute('data-held-session', /.+/)
+          await openScenario()
           const draft = enabled ? 'This draft needs its page' : 'An ordinary question'
           await input().fill(draft)
           if (!enabled) {
@@ -1482,8 +1493,7 @@ try {
           assert.equal(pages.length, 1)
           assert(pages[0].text.includes('ORCHID-482'))
         }
-        await navigate(`${base.origin}/extension/${betaId}`)
-        await expect(frame().locator('html')).toHaveAttribute('data-held-session', /.+/)
+        await openScenario()
         await release('connected')
         await input().fill('A question from an older extension')
         await input().press('Enter')
@@ -1491,7 +1501,7 @@ try {
         assert.equal(received[2].message, 'A question from an older extension')
         assert.equal(submittedPages(received[2]).length, 0)
       } finally {
-        await holdHandshake.dispose()
+        await holdHandshake?.dispose()
         await worker.evaluate(() => chrome.storage.local.remove('referenceCurrentPage'))
         await browserContext.unroute(endpoint)
       }

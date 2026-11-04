@@ -14,8 +14,9 @@ import {
   UnreadableSelectionError,
 } from '@/capture'
 import { CAPTURE_INTENT_KEY, CAPTURE_INTENT_TTL_MS, REFERENCE_PAGE_KEY, SIM_ORIGIN } from '@/config'
-import { captureIntentSchema } from '@/intent'
+import { type CaptureIntent, captureIntentSchema } from '@/intent'
 import { createReferenceCapture } from '@/reference'
+import { SearchRecoveryDialog } from '@/search-recovery-dialog'
 import { ShortcutHint } from '@/shortcut-hint'
 import { SiteAccessDialog } from '@/site-access'
 import '@/shell.css'
@@ -42,6 +43,7 @@ function SidePanel({ origin }: SidePanelProps) {
   const intentCutoffRef = useRef(0)
   const busyRef = useRef(false)
   const [accessOpen, setAccessOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [status, setStatus] = useState<string | { message: string }>('')
   const referenceRef = useRef<ReturnType<typeof createReferenceCapture> | null>(null)
 
@@ -109,6 +111,7 @@ function SidePanel({ origin }: SidePanelProps) {
     setStatus((status) => (typeof status === 'string' ? status : ''))
     intentCutoffRef.current = Date.now()
     setAccessOpen(false)
+    setShortcutsOpen(false)
     if (pendingRef.current || busyRef.current)
       setStatus('The conversation changed before delivery. Attach the page again.')
     captureGenerationRef.current++
@@ -210,6 +213,15 @@ function SidePanel({ origin }: SidePanelProps) {
         clearBlockedSelection()
     }
     let consumingIntent = false
+    const currentIntent = (intent: CaptureIntent, windowId: number | undefined) => {
+      const age = Date.now() - intent.createdAt
+      return (
+        intent.windowId === windowId &&
+        intent.createdAt > intentCutoffRef.current &&
+        age >= 0 &&
+        age <= CAPTURE_INTENT_TTL_MS
+      )
+    }
     const consumeIntent = async () => {
       if (disposed || consumingIntent || reference.busy() || busyRef.current || pendingRef.current)
         return
@@ -228,7 +240,9 @@ function SidePanel({ origin }: SidePanelProps) {
             return intent.success && intent.data.windowId === window.id ? [intent.data] : []
           })
           .sort((left, right) => right.createdAt - left.createdAt)
-        processingManual = intents.some((intent) => intent.kind !== 'focus')
+        processingManual = intents.some(
+          (intent) => intent.kind !== 'focus' && currentIntent(intent, window.id)
+        )
         if (keys.length) await chrome.storage.session.remove(keys)
         for (const key of keys) manualIntents.delete(key)
         const intent = intents[0]
@@ -240,7 +254,7 @@ function SidePanel({ origin }: SidePanelProps) {
           return
         }
         if (disposed || !intent) return
-        if (Date.now() - intent.createdAt > CAPTURE_INTENT_TTL_MS) {
+        if (!currentIntent(intent, window.id)) {
           setStatus('The capture expired. Attach the page again.')
           return
         }
@@ -274,7 +288,11 @@ function SidePanel({ origin }: SidePanelProps) {
           for (const [key, change] of Object.entries(changes)) {
             if (!key.startsWith(`${CAPTURE_INTENT_KEY}:${window.id}:`)) continue
             const intent = captureIntentSchema.safeParse(change.newValue)
-            if (intent.success && intent.data.kind !== 'focus') {
+            if (
+              intent.success &&
+              intent.data.kind !== 'focus' &&
+              currentIntent(intent.data, window.id)
+            ) {
               manualIntents.add(key)
               reference.manualRequested()
             } else manualIntents.delete(key)
@@ -298,6 +316,13 @@ function SidePanel({ origin }: SidePanelProps) {
         sessionId,
       }
       frameRef.current?.contentWindow?.postMessage(connected, SIM_ORIGIN)
+      const shortcuts: ExtensionToAppMessage = {
+        channel: 'sim-extension',
+        version: 1,
+        type: 'shortcuts-available',
+        sessionId,
+      }
+      frameRef.current?.contentWindow?.postMessage(shortcuts, SIM_ORIGIN)
       deliver()
       if (!pendingRef.current) deliverFocus()
     }
@@ -325,6 +350,7 @@ function SidePanel({ origin }: SidePanelProps) {
       } else if (parsed.data.type === 'action') {
         if (!navigator.userActivation.isActive) return
         if (parsed.data.action === 'site-access') setAccessOpen(true)
+        else if (parsed.data.action === 'browser-shortcuts') setShortcutsOpen(true)
         else void capture(parsed.data.action === 'capture-page' ? 'page' : 'selection')
       } else if (pendingRef.current?.id === parsed.data.snapshotId) {
         pendingRef.current = null
@@ -403,6 +429,7 @@ function SidePanel({ origin }: SidePanelProps) {
           }
         />
       )}
+      {shortcutsOpen && <SearchRecoveryDialog onClose={() => setShortcutsOpen(false)} />}
     </main>
   )
 }

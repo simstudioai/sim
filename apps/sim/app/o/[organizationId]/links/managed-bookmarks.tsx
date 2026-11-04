@@ -79,6 +79,7 @@ export function ManagedBookmarks({ organizationId }: ManagedBookmarksProps) {
             className='w-full'
             multiSelect
             searchable
+            searchMode='server'
             multiSelectValues={[...selectedIds]}
             disabled={exporting.isPending}
             onMultiSelectChange={choose}

@@ -26,6 +26,7 @@ export function useExtensionComposer(scopeKey: string) {
     clearSnapshots,
     removeSnapshot,
     connected,
+    shortcutsAvailable,
     requestAction,
     referenceEnabled,
     setReferenceEnabled,
@@ -69,9 +70,15 @@ export function useExtensionComposer(scopeKey: string) {
             <Settings className='size-[14px]' />
             Site access
           </DropdownMenuItem>
+          {shortcutsAvailable && (
+            <DropdownMenuItem onSelect={() => requestAction('browser-shortcuts')}>
+              <Globe className='size-[14px]' />
+              Browser shortcuts
+            </DropdownMenuItem>
+          )}
         </>
       ) : undefined,
-    [connected, requestAction, referenceEnabled, setReferenceEnabled]
+    [connected, requestAction, referenceEnabled, setReferenceEnabled, shortcutsAvailable]
   )
   const prepareSubmission = useCallback<PrepareChatSubmission>(
     (text, contexts, send, reference = true) => {

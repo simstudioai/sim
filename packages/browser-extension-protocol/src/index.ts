@@ -43,7 +43,12 @@ export type PageSnapshot = z.infer<typeof pageSnapshotSchema>
 
 const envelope = { channel: z.literal('sim-extension'), version: z.literal(1) }
 
-const extensionActionSchema = z.enum(['capture-page', 'capture-selection', 'site-access'])
+const extensionActionSchema = z.enum([
+  'capture-page',
+  'capture-selection',
+  'site-access',
+  'browser-shortcuts',
+])
 export type ExtensionAction = z.infer<typeof extensionActionSchema>
 
 export const appToExtensionMessageSchema = z.discriminatedUnion('type', [
@@ -81,6 +86,7 @@ export type AppToExtensionMessage = z.infer<typeof appToExtensionMessageSchema>
 export const extensionToAppMessageSchema = z.discriminatedUnion('type', [
   z.strictObject({ ...envelope, type: z.literal('focus-composer'), sessionId: z.uuid() }),
   z.strictObject({ ...envelope, type: z.literal('connected'), sessionId: z.uuid() }),
+  z.strictObject({ ...envelope, type: z.literal('shortcuts-available'), sessionId: z.uuid() }),
   z.strictObject({
     ...envelope,
     type: z.literal('reference-preference'),

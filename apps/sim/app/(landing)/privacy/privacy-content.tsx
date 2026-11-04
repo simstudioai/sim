@@ -840,6 +840,12 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
           ),
         },
         {
+          kind: 'paragraph',
+          content: richText(
+            'Browser shortcuts can optionally recover an explicit sim/ shortcut that Chrome sends to a supported search engine. After You enable a provider and approve access to its listed sites, Chrome applies request rules that send only the matching shortcut name and path values to Sim’s normal link resolver. Other search parameters and ordinary search terms are not sent to Sim by this feature. The extension stores Your provider choices locally and does not change Your default search engine. These site permissions can also allow page attachment when You explicitly request it; enabling shortcut recovery does not enable Reference current page or background capture. Turning recovery off stops these redirects. Site access remains until You revoke it in the extension or Chrome settings.'
+          ),
+        },
+        {
           kind: 'subheading',
           text: 'Chrome Web Store Limited Use',
         },

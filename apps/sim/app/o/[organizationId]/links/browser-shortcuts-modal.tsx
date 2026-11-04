@@ -3,7 +3,6 @@ import {
   ChipModal,
   ChipModalBody,
   ChipModalDescription,
-  ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
 } from '@sim/emcn'
@@ -34,13 +33,19 @@ export function BrowserShortcutsModal({ onClose }: BrowserShortcutsModalProps) {
           </a>
           .
         </ChipModalDescription>
-        <ChipModalField
-          type='copy'
-          title='Setup address'
-          value='http://sim/'
-          copyLabel='Copy setup address'
-          hint='Paste this into your work profile’s Chrome address bar once to use shortcuts like sim/handbook.'
-        />
+        <ChipLink
+          href='http://sim/'
+          target='_blank'
+          rel='noopener noreferrer'
+          variant='primary'
+          className='self-start'
+        >
+          Enable sim/ shortcuts
+        </ChipLink>
+        <ChipModalDescription>
+          Still opening search results? In the Sim extension, open{' '}
+          <strong>+ → Browser shortcuts</strong> and enable your search provider.
+        </ChipModalDescription>
         {viewer.isAdmin && (
           <ManagedBookmarks key={organization.id} organizationId={organization.id} />
         )}
