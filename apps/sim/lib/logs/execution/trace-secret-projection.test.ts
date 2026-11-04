@@ -1019,6 +1019,13 @@ describe('projectTraceSpansForSecrets', () => {
     }
 
     expect(warnMock).toHaveBeenCalledWith('Omitting trace content that could not be sanitized', {
+      executionId: 'execution-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      phase: 'write',
+      spanId: 'span-1',
+      spanType: 'function',
+      field: 'output',
       failure: { name: 'SyntaxError' },
     })
   })
@@ -1046,5 +1053,147 @@ describe('projectTraceSpansForSecrets', () => {
     expect(projectedDepth).toBe(100)
     expect(cursor).not.toHaveProperty('output')
     expect(cursor?.children).toEqual([])
+  })
+})
+
+describe('projectTraceSpansForSecrets whole-trace content budget', () => {
+  const SECRET_REGISTRY = createRegistry([
+    { plaintext: 'top-secret', replacement: '{{API_SECRET}}' },
+  ])
+
+  /** A span whose output alone fits the content budget but two-and-a-half of which do not. */
+  function heavySpan(id: string, marker: string, overrides: Partial<TraceSpan> = {}): TraceSpan {
+    return createSpan({
+      id,
+      output: { marker, items: Array.from({ length: 40_000 }, (_, index) => `row-${index}`) },
+      ...overrides,
+    })
+  }
+
+  it('keeps the spans checked before the budget ran out and withholds the rest', async () => {
+    const projected = await projectTraceSpansForSecrets(
+      [
+        heavySpan('span-a', 'first top-secret'),
+        heavySpan('span-b', 'second'),
+        heavySpan('span-c', 'third top-secret'),
+        createSpan({ id: 'span-d', output: { marker: 'fourth top-secret' } }),
+      ],
+      { registry: SECRET_REGISTRY, store: STORE, allowLargeValueWrites: false }
+    )
+
+    expect(projected.map((span) => span.id)).toEqual(['span-a', 'span-b', 'span-c', 'span-d'])
+    expect(projected[0].output?.marker).toBe('first {{API_SECRET}}')
+    expect(projected[0]).not.toHaveProperty('contentWithheld')
+    expect(projected[1].output?.marker).toBe('second')
+    for (const withheld of projected.slice(2)) {
+      expect(withheld).not.toHaveProperty('output')
+      expect(withheld.contentWithheld).toBe(true)
+    }
+    expect(JSON.stringify(projected)).not.toContain('top-secret')
+    expect(warnMock).toHaveBeenCalledWith(
+      'Trace content exceeded the projection budget; withholding the remaining spans',
+      expect.objectContaining({
+        executionId: 'execution-1',
+        phase: 'read',
+        retainedSpanCount: 2,
+        withheldSpanCount: 2,
+      })
+    )
+  })
+
+  it('still withholds every span when a later span fails for any reason but the budget', async () => {
+    const projected = await projectTraceSpansForSecrets(
+      [
+        createSpan({ id: 'span-a', output: { marker: 'first' } }),
+        createSpan({
+          id: 'span-b',
+          toolCalls: Array.from({ length: 100_001 }, (_, index) => ({
+            name: `tool-${index}`,
+            duration: 0,
+            startTime: '2026-07-01T00:00:00.000Z',
+            endTime: '2026-07-01T00:00:00.000Z',
+            status: 'success',
+          })),
+        }),
+      ],
+      { registry: SECRET_REGISTRY, store: STORE, allowLargeValueWrites: false }
+    )
+
+    expect(projected[0]).not.toHaveProperty('output')
+    expect(projected[0].contentWithheld).toBe(true)
+    expect(warnMock).toHaveBeenCalledWith(
+      'Trace secret projection failed; retaining structural spans only',
+      expect.objectContaining({ executionId: 'execution-1', phase: 'read' })
+    )
+  })
+
+  it('keeps the retained spans and the withheld fallback within one structure budget', async () => {
+    const emptyChildren = (prefix: string) =>
+      Array.from({ length: 60_000 }, (_, index) => createSpan({ id: `${prefix}-${index}` }))
+    const projected = await projectTraceSpansForSecrets(
+      [
+        heavySpan('span-a', 'first', { children: emptyChildren('a') }),
+        createSpan({
+          id: 'span-b',
+          output: { items: Array.from({ length: 70_000 }, (_, index) => `row-${index}`) },
+          children: emptyChildren('b'),
+        }),
+      ],
+      { registry: SECRET_REGISTRY, store: STORE, allowLargeValueWrites: false }
+    )
+    const countSpans = (spans: TraceSpan[]): number =>
+      spans.reduce((total, span) => total + 1 + countSpans(span.children ?? []), 0)
+
+    expect(projected[0].output?.marker).toBe('first')
+    expect(projected[1]).not.toHaveProperty('output')
+    expect(countSpans(projected)).toBeLessThanOrEqual(100_000)
+  })
+
+  it('keeps the structure a whole-trace fallback would for the span that crossed the budget', async () => {
+    const toolCall = (index: number) => ({
+      name: `tool-${index}`,
+      duration: 0,
+      startTime: '2026-07-01T00:00:00.000Z',
+      endTime: '2026-07-01T00:00:00.000Z',
+      status: 'success' as const,
+    })
+    const projected = await projectTraceSpansForSecrets(
+      [
+        heavySpan('span-a', 'first', {
+          children: Array.from({ length: 30_000 }, (_, index) => createSpan({ id: `a-${index}` })),
+        }),
+        createSpan({
+          id: 'span-b',
+          output: { items: Array.from({ length: 70_000 }, (_, index) => `row-${index}`) },
+          toolCalls: Array.from({ length: 50_000 }, (_, index) => toolCall(index)),
+        }),
+      ],
+      { registry: SECRET_REGISTRY, store: STORE, allowLargeValueWrites: false }
+    )
+
+    expect(projected[0].output?.marker).toBe('first')
+    expect(projected[1]).not.toHaveProperty('output')
+    expect(projected[1].toolCalls).toHaveLength(50_000)
+  })
+
+  it('withholds the whole top-level span whose descendant crossed the budget', async () => {
+    const projected = await projectTraceSpansForSecrets(
+      [
+        heavySpan('span-a', 'first'),
+        createSpan({
+          id: 'span-b',
+          output: { marker: 'parent top-secret' },
+          children: [heavySpan('child-1', 'child one'), heavySpan('child-2', 'child two')],
+        }),
+      ],
+      { registry: SECRET_REGISTRY, store: STORE, allowLargeValueWrites: false }
+    )
+
+    expect(projected[0].output?.marker).toBe('first')
+    expect(projected[1]).not.toHaveProperty('output')
+    expect(projected[1].contentWithheld).toBe(true)
+    expect(projected[1].children?.map((child) => child.id)).toEqual(['child-1', 'child-2'])
+    expect(projected[1].children?.every((child) => !Object.hasOwn(child, 'output'))).toBe(true)
+    expect(JSON.stringify(projected)).not.toContain('top-secret')
   })
 })
