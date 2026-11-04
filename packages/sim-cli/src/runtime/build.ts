@@ -85,9 +85,7 @@ function commandPath(command: Command): string {
  */
 function looksLikeAnId(token: string): boolean {
   return (
-    token.length > 2 &&
-    !token.startsWith('--') &&
-    /^-[A-Za-z0-9_-]*[A-Z0-9][A-Za-z0-9_-]*$/.test(token)
+    token.length > 2 && !token.startsWith('--') && /^-[\w-]+$/.test(token) && /[A-Z0-9]/.test(token)
   )
 }
 

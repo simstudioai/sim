@@ -1059,6 +1059,24 @@ describe('parse-error guidance for a value typed where a flag belongs', () => {
     expect(stderr).toContain('Example: sim move <id> --workspace <id>')
   })
 
+  it('points an id that opens with a dash past the option parser', () => {
+    expect(stderrOf(move(), ['-Ab3xYz', '--workspace', 'ws_1'])).toContain(
+      'Example: sim move -- -Ab3xYz'
+    )
+  })
+
+  it('treats a lowercase dash token as a misspelt flag, not an id', () => {
+    const stderr = stderrOf(move(), ['-abc', '--workspace', 'ws_1'])
+    expect(stderr).not.toContain('Example: sim move --')
+    expect(stderr).toContain('Options for sim move: -w, --workspace <id>')
+  })
+
+  it('answers a long dash token that is neither flag nor id in linear time', () => {
+    const started = performance.now()
+    stderrOf(move(), [`-${'0'.repeat(100_000)}!`, '--workspace', 'ws_1'])
+    expect(performance.now() - started).toBeLessThan(1000)
+  })
+
   it('names no flag when two required flags are missing', () => {
     const create = new Command('create')
       .requiredOption('--name <value>')

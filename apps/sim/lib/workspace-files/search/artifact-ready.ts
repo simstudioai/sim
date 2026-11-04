@@ -162,12 +162,13 @@ export async function markFileSearchArtifactReadyInTx(
       },
       setWhere: predicate,
     })
+  // The dispatcher stamps queue rows with the transaction clock and claims rows touched since.
   await tx
     .insert(fileSearchDispatchQueue)
-    .values({ ...owner, enqueuedAt: now, updatedAt: now })
+    .values({ ...owner, enqueuedAt: now, updatedAt: sql`now()` })
     .onConflictDoUpdate({
       target: [fileSearchDispatchQueue.entityType, fileSearchDispatchQueue.entityId],
-      set: { updatedAt: now },
+      set: { updatedAt: sql`now()` },
     })
   return true
 }
