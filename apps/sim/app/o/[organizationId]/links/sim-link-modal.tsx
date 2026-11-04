@@ -38,12 +38,14 @@ interface SimLinkModalProps {
   link?: SimLink
   /** Prefills the name of a new link, such as one opened from an unknown sim/ link. */
   initialName?: string
+  /** Prefills the destination of a new link, such as a search result's address. */
+  initialUrl?: string
 }
 
-function draftOf(link: SimLink | undefined, initialName = ''): SimLinkBody {
+function draftOf(link: SimLink | undefined, initialName = '', initialUrl = ''): SimLinkBody {
   return {
     name: link?.name ?? initialName,
-    url: link?.url ?? '',
+    url: link?.url ?? initialUrl,
     defaultUrl: link?.defaultUrl ?? null,
     description: link?.description ?? '',
     unlisted: link?.unlisted ?? false,
@@ -52,12 +54,18 @@ function draftOf(link: SimLink | undefined, initialName = ''): SimLinkBody {
 }
 
 /** Mount per link (keyed) so each open starts from that link's saved fields. */
-export function SimLinkModal({ organizationId, onClose, link, initialName }: SimLinkModalProps) {
+export function SimLinkModal({
+  organizationId,
+  onClose,
+  link,
+  initialName,
+  initialUrl,
+}: SimLinkModalProps) {
   const create = useCreateSimLink(organizationId)
   const update = useUpdateSimLink(organizationId)
   const mutation = link ? update : create
   const nameTaken = isApiClientError(mutation.error) && mutation.error.status === 409
-  const [draft, setDraft] = useState(() => draftOf(link, initialName))
+  const [draft, setDraft] = useState(() => draftOf(link, initialName, initialUrl))
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({})
   const variable = isVariableSimLinkUrl(draft.url)
   const canManage = link?.canManage ?? true

@@ -103,8 +103,9 @@ export function PeopleChart({ organizationId, viewSwitch, onImport, onSync }: Pe
   const size = useIsMobile() ? 1 : 4
   const chart = usePeopleChart(organizationId, focus, Math.max(1, Math.min(page, 1_000_000)), size)
   const notFound = isApiClientError(chart.error) && chart.error.status === 404
-  // A failed background refresh keeps the chart on screen; only a missing person replaces it.
-  const branch = notFound ? undefined : chart.data
+  const refused = isApiClientError(chart.error) && chart.error.status < 500
+  // A transient refresh failure keeps the chart on screen; a refusal replaces it.
+  const branch = refused ? undefined : chart.data
   const profileQuery = serializePeopleView({
     ...origin,
     view: 'chart',

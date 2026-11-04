@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import {
   type Browser,
@@ -30,6 +31,16 @@ const canonicalOrigin = new URL(process.env.NEXT_PUBLIC_DOCS_URL ?? 'https://doc
 const engine = process.env.DOCS_NAVIGATION_BROWSER ?? 'chromium'
 if (engine !== 'chromium' && engine !== 'webkit')
   throw new Error('DOCS_NAVIGATION_BROWSER must be chromium or webkit')
+const webkitEndpoint = process.env.PLAYWRIGHT_WEBKIT_WS_ENDPOINT
+if (webkitEndpoint !== undefined) {
+  if (engine !== 'webkit' || !/^ws:\/\/127\.0\.0\.1:[1-9]\d*\/$/.test(webkitEndpoint))
+    throw new Error('A remote endpoint requires explicit WebKit selection and a loopback URL')
+  new URL(webkitEndpoint)
+  if (
+    toRecord(createRequire(import.meta.url)('@playwright/test/package.json')).version !== '1.64.1'
+  )
+    throw new Error('The remote WebKit image requires Playwright 1.64.1')
+}
 const results: Array<{
   name: string
   status: 'passed' | 'failed' | 'unavailable'
@@ -162,7 +173,10 @@ async function verifyClipboard(
 
 let browser: Browser | undefined
 try {
-  browser = await (engine === 'webkit' ? webkit : chromium).launch()
+  browser =
+    webkitEndpoint === undefined
+      ? await (engine === 'webkit' ? webkit : chromium).launch()
+      : await webkit.connect(webkitEndpoint, { timeout: 180_000 })
   const feedbackBrowser = browser
   await check('Feedback forwards votes and preserves unchanged retry identity', async () => {
     const cert = process.env.DOCS_FEEDBACK_TEST_CERT

@@ -44,6 +44,15 @@ const reportsResponse = z.object({
   '@odata.nextLink': z.string().min(1).max(MAX_NEXT_LINK_LENGTH).optional(),
 })
 
+const deletedUserResponse = z.object({
+  error: z.object({ code: z.literal('Request_ResourceNotFound') }),
+})
+
+/** A user deleted after the users phase has no reports left to read; any other 404 still fails. */
+function isDeletedUser(status: number, body: unknown) {
+  return status === 404 && deletedUserResponse.safeParse(body).success
+}
+
 /** App-only Graph tokens cannot read /manager; each user's /directReports supports User.Read.All. */
 async function readReportPages(
   items: readonly DirectoryReportRequest[],
@@ -101,8 +110,8 @@ async function readReportPages(
     const timing = { get: (name: string) => headers.get(name) ?? null }
     const retryAfterMs = directoryRetryDelay(response.status, timing)
     if (retryAfterMs !== null) return { managerId: page.managerId, retryAfterMs }
-    // A user deleted after the users phase has no reports left to read.
-    if (response.status === 404) return { managerId: page.managerId, reportIds: [], next: null }
+    if (isDeletedUser(response.status, response.body))
+      return { managerId: page.managerId, reportIds: [], next: null }
     requireDirectorySuccess(response.status, timing)
     const parsedReports = reportsResponse.safeParse(response.body)
     if (!parsedReports.success)

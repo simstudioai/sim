@@ -265,6 +265,10 @@ describe('applyWorkflowOperations', () => {
     })
   })
 
+  /**
+   * A caller projecting the response down to `warnings` still learns lint
+   * findings exist; the findings stay in `lint`.
+   */
   it('points at lint findings from warnings, on commit and on dry run', async () => {
     const orphan = { blockId: 'block-1', blockName: 'Start', blockType: 'starter' }
     mocks.lintGraph.mockReturnValue({
@@ -277,9 +281,9 @@ describe('applyWorkflowOperations', () => {
         principal: sessionPrincipal,
         input: { workflowId: 'workflow-1', operations, dryRun },
       })
-      expect(result.warnings).toEqual([
-        'Workflow lint found issues (Blocks with no incoming edge: 2). The findings are in `lint`.',
-      ])
+      expect(result.warnings).toHaveLength(1)
+      expect(result.warnings[0]).toContain('Blocks with no incoming edge: 2')
+      expect(result.warnings[0]).toContain('in `lint`')
     }
   })
 

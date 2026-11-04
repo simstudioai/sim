@@ -5,6 +5,7 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import { createEmptyWorkflowLintReport } from '@sim/testing/factories/workflow-lint.factory'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -63,19 +64,7 @@ function putRequest(body: unknown) {
   })
 }
 
-const EMPTY_LINT = {
-  sources: [],
-  sinks: [],
-  orphanBlocks: [],
-  emptyOutgoingPorts: [],
-  invalidBranchPorts: [],
-  invalidConnectionTargets: [],
-  fieldIssues: [],
-  unresolvedReferences: [],
-  tableFieldIssues: [],
-  manualRunIssue: null,
-  notes: [],
-}
+const EMPTY_LINT = createEmptyWorkflowLintReport()
 
 describe('/api/v2/workflows/[workflowId]/state', () => {
   beforeEach(() => {

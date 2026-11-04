@@ -187,7 +187,11 @@ function OrganizationSearchContent({ userId, chatId }: OrganizationSearchProps) 
     []
   )
   useEffect(() => {
-    if (!mothershipAvailable || routeMode) return
+    if (!mothershipAvailable) return
+    if (routeMode) {
+      BrowserStorage.setItem(preferenceKey, routeMode)
+      return
+    }
     const savedMode = BrowserStorage.getItem<unknown>(preferenceKey, null)
     // Pin the mode to this history entry so Back survives a later preference change.
     void setParams({ mode: savedMode === 'assistant' ? 'assistant' : 'search' })
@@ -196,7 +200,6 @@ function OrganizationSearchContent({ userId, chatId }: OrganizationSearchProps) 
   if (activeMode === 'assistant' && !assistantOpened) setAssistantOpened(true)
 
   const changeMode = (next: 'search' | 'assistant') => {
-    BrowserStorage.setItem(preferenceKey, next)
     void setParams({ mode: next }, { history: 'push' })
   }
   const startNew = () => {

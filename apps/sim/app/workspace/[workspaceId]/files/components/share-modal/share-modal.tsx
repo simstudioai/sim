@@ -20,6 +20,7 @@ import { GeneratedPasswordInput } from '@/components/ui'
 import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { validateAllowlistEntry } from '@/lib/messaging/email/validation'
+import { SimLinkChip } from '@/app/o/[organizationId]/links/sim-link-shortcut'
 import { useFileShare, useUpsertFileShare } from '@/hooks/queries/public-shares'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
@@ -262,6 +263,11 @@ export function ShareModal({
                       <Chip leftIcon={copied ? Check : Link} onClick={() => copy(saved.url)}>
                         {copied ? 'Copied!' : 'Copy link'}
                       </Chip>
+                    ),
+                  },
+                  {
+                    custom: (
+                      <SimLinkChip url={saved.url} title={fileName.replace(/\.[^.]+$/, '')} />
                     ),
                   },
                 ]

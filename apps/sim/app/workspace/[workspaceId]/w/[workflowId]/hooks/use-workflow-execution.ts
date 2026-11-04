@@ -1304,7 +1304,7 @@ export function useWorkflowExecution() {
               }
 
               // Add trigger block to executed blocks so downstream blocks can use run-from-block
-              if (data.success && startBlockId) {
+              if (data.success) {
                 executedBlockIds.add(startBlockId)
               }
 

@@ -82,16 +82,18 @@ export async function listSimLinks(
   viewer: SimLinkViewer,
   {
     search,
+    url,
     cursor,
     sort = 'name',
     dir = sort === 'popular' ? 'desc' : 'asc',
-  }: { search?: string; cursor?: string; sort?: SimLinkSort; dir?: SortDirection }
+  }: { search?: string; url?: string; cursor?: string; sort?: SimLinkSort; dir?: SortDirection }
 ): Promise<{ links: SimLinkRecord[]; nextCursor: string | null }> {
   const [order, after] = dir === 'asc' ? ([asc, gt] as const) : ([desc, lt] as const)
   const conditions: (SQL | undefined)[] = [eq(simLink.organizationId, organizationId)]
   if (!viewer.isAdmin) {
     conditions.push(or(eq(simLink.unlisted, false), eq(simLink.createdBy, viewer.userId)))
   }
+  if (url) conditions.push(eq(simLink.url, url))
   const query = search?.trim().replace(/^sim\//i, '')
   if (query) {
     const pattern = `%${escapeLikePattern(query)}%`

@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { db } from '@sim/db'
 import {
   changelogRelease,
+  folder,
   permissions,
   user,
   userStats,
@@ -20,7 +21,7 @@ import {
 import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
@@ -308,9 +309,13 @@ describe('Downloads addressed by a files/ VFS path', () => {
   async function pathFixture() {
     const f = await fixture()
     const docsFolderId = generateId()
-    await db.execute(sql`
-      INSERT INTO folder (id, name, user_id, workspace_id, resource_type, parent_id)
-      VALUES (${docsFolderId}, 'Docs', ${f.editorId}, ${f.workspaceId}, 'file', NULL)`)
+    await db.insert(folder).values({
+      id: docsFolderId,
+      name: 'Docs',
+      userId: f.editorId,
+      workspaceId: f.workspaceId,
+      resourceType: 'file',
+    })
     const upload = (content: string, folderId: string | null) =>
       uploadWorkspaceFile(
         f.workspaceId,

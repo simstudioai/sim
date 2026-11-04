@@ -362,7 +362,7 @@ describe('Copilot workflow run application commands', () => {
       expect(message).toContain('execution source-execution-1')
       expect(message).toContain('run_workflow_until_block')
       expect(message).toContain('stopAfterBlockId "agent-1"')
-      expect(message).toContain('executionId')
+      expect(message).toContain('or pass the executionId of a run that executed "Fetch" (fetch-1)')
     })
 
     it('names the container a nested block sits in and points at it', async () => {
@@ -378,7 +378,7 @@ describe('Copilot workflow run application commands', () => {
 
       expect(message).toContain('inside loop "Each row" (loop-1)')
       expect(message).toContain('block id "loop-1"')
-      expect(message).toContain('run_workflow')
+      expect(message).toContain('or run the whole workflow with run_workflow.')
     })
 
     it('lists the blocks the workflow does have when the id is unknown', async () => {

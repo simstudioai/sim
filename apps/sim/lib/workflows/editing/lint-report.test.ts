@@ -143,7 +143,7 @@ describe('buildWorkflowLintReport notes', () => {
   })
 })
 
-/** Lint reports what the editor's Run button would refuse before a run starts. */
+/** Graphs the editor's Run button refuses before they start surface as `manualRunIssue`. */
 describe('buildWorkflowLintReport manual run', () => {
   async function manualRunIssue(blocks: Record<string, unknown>, edges: unknown[]) {
     return (await buildWorkflowLintReport({ blocks, edges } as never, scope)).manualRunIssue

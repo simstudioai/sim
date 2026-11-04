@@ -9,36 +9,38 @@ import { embeddedFileContent } from '../transfer/local-file'
 import { camel, kebab } from './derive'
 import type { OperationSpec } from './types'
 
-function jsonKind(value: unknown): string {
-  if (Array.isArray(value)) return 'a JSON array'
-  if (value === null) return 'null'
-  return typeof value === 'object' ? 'a JSON object' : `a JSON ${typeof value}`
+const BODY_VARIANT_EXAMPLES: Readonly<Record<BodyVariantSpec['kind'], string>> = {
+  array: `'[{"key":"value"}]'`,
+  object: `'{"key":"value"}'`,
+}
+
+function jsonShape(value: unknown): BodyVariantSpec['kind'] | undefined {
+  if (Array.isArray(value)) return 'array'
+  if (isRecordLike(value)) return 'object'
+  return undefined
 }
 
 /**
  * The refusal for a body variant given the wrong JSON shape, stating what came
- * in and the spelling that takes it (e.g. `--rows '{"rows":[...]}'`, or `--rows`
- * with a single row). Neither value is reshaped, because guessing which part the
- * caller meant is the server's write to make.
+ * in and the spelling that takes it. Neither `--rows '{"rows":[...]}'` nor a
+ * single-row `--rows` is reshaped, because guessing which part the caller
+ * meant is the server's write to make.
  */
 function bodyVariantShapeError(
   variant: BodyVariantSpec,
   parsed: unknown,
+  shape: BodyVariantSpec['kind'] | undefined,
   variants: readonly BodyVariantSpec[]
 ): string {
   const flag = `--${variant.name}`
-  const example = variant.kind === 'array' ? `'[{"column":"value"}]'` : `'{"column":"value"}'`
-  const base = `${flag} must be a JSON ${variant.kind}, e.g. ${flag} ${example}; got ${jsonKind(parsed)}.`
+  const got = shape ? `a JSON ${shape}` : parsed === null ? 'null' : `a JSON ${typeof parsed}`
+  const base = `${flag} must be a JSON ${variant.kind}, e.g. ${flag} ${BODY_VARIANT_EXAMPLES[variant.kind]}; got ${got}.`
   if (variant.kind === 'array' && isRecordLike(parsed) && Array.isArray(parsed[variant.property])) {
     return `${base} Pass the array under its "${variant.property}" key itself, not the object wrapping it.`
   }
-  const other = variants.find(
-    (candidate) =>
-      candidate !== variant && candidate.kind === (Array.isArray(parsed) ? 'array' : 'object')
-  )
-  return other && parsed && typeof parsed === 'object'
-    ? `${base} For that shape use --${other.name}.`
-    : base
+  const other =
+    shape && variants.find((candidate) => candidate !== variant && candidate.kind === shape)
+  return other ? `${base} For that shape use --${other.name}.` : base
 }
 
 /** One request field, as the generator describes it. */
@@ -831,12 +833,12 @@ export async function buildRequest(
       const raw = flags[camel(variant.name)]
       if (typeof raw !== 'string') throw new SimApiError(`--${variant.name} is required`, 0)
       const parsed = await coerce(raw, { kind: variant.kind }, { json: true }, variant.name)
-      if (
-        (variant.kind === 'object' &&
-          (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))) ||
-        (variant.kind === 'array' && !Array.isArray(parsed))
-      ) {
-        throw new SimApiError(bodyVariantShapeError(variant, parsed, commandSpec.bodyVariants), 0)
+      const shape = jsonShape(parsed)
+      if (shape !== variant.kind) {
+        throw new SimApiError(
+          bodyVariantShapeError(variant, parsed, shape, commandSpec.bodyVariants),
+          0
+        )
       }
       return boundedRequest({
         params,

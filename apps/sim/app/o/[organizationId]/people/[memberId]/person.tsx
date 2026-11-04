@@ -101,8 +101,9 @@ export function Person({ organizationId, memberId }: PersonProps) {
   const routes = organizationRoutes(organizationId)
   const originQuery = serializePeopleView({ ...origin, view: origin.view ?? 'directory' })
   const notFound = isApiClientError(query.error) && query.error.status === 404
-  // A failed background refresh keeps the loaded profile, and any edit open on it.
-  const loadError = query.data && !notFound ? null : query.error
+  const refused = isApiClientError(query.error) && query.error.status < 500
+  // A transient refresh failure keeps the loaded profile and any edit open on it; a refusal does not.
+  const loadError = query.data && !refused ? null : query.error
   const data = loadError ? undefined : query.data
 
   const chartHref = serializePeopleView(routes.people, {
