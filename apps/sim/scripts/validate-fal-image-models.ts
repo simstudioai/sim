@@ -110,7 +110,11 @@ for (const model of imageModels.filter((item) => item.provider === 'falai')) {
       const wireKey = option?.field ?? model.booleans?.[field.id]
       if (!wireKey) continue
       const options =
-        typeof field.options === 'function' ? field.options({ values: base }) : field.options
+        field.type === 'switch'
+          ? [{ id: 'true' }, { id: 'false' }]
+          : typeof field.options === 'function'
+            ? field.options({ values: base })
+            : field.options
       assert(options?.length)
       for (const value of options) check({ [field.id]: value.id }, wireKey, value.id)
     }

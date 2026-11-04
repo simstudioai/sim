@@ -17,6 +17,7 @@ interface ImageModel {
   provider: 'openai' | 'gemini' | 'falai'
   id: string
   label: string
+  aliases?: readonly string[]
   endpoint?: string
   output?: string
   options?: Partial<Record<ImageOption, { field: string; values: readonly (string | number)[] }>>
@@ -90,6 +91,9 @@ export const imageModels: readonly ImageModel[] = [
       provider: 'gemini',
       id,
       label,
+      aliases: ['gemini-3-pro-image', 'gemini-3.1-flash-image'].includes(id)
+        ? [`${id}-preview`]
+        : [],
       options: {
         aspectRatio: {
           field: 'aspectRatio',
@@ -113,21 +117,17 @@ export const imageModels: readonly ImageModel[] = [
       provider: 'falai',
       endpoint,
       id: 'legacyId' in spec ? spec.legacyId : endpoint,
+      aliases: 'legacyId' in spec ? [endpoint] : [],
     })
   ),
 ]
 
 const byId = new Map(imageModels.map((model) => [`${model.provider}:${model.id}`, model]))
 for (const model of imageModels) {
-  if (model.endpoint) byId.set(`falai:${model.endpoint}`, model)
-}
-const geminiAliases: Record<string, string> = {
-  'gemini-3.1-flash-image-preview': 'gemini-3.1-flash-image',
-  'gemini-3-pro-image-preview': 'gemini-3-pro-image',
+  for (const alias of model.aliases ?? []) byId.set(`${model.provider}:${alias}`, model)
 }
 
 export function getImageModel(provider: unknown, id: unknown) {
   if (typeof provider !== 'string' || typeof id !== 'string') return undefined
-  const modelId = provider === 'gemini' ? (geminiAliases[id] ?? id) : id
-  return byId.get(`${provider}:${modelId}`)
+  return byId.get(`${provider}:${id}`)
 }

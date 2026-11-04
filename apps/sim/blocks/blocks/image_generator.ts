@@ -314,12 +314,13 @@ export const ImageGeneratorV2Block: BlockConfig = {
         id: 'model',
         title: 'Model',
         type: 'dropdown',
-        options: imageModels
-          .filter((model) => model.provider === provider)
-          .map((model) => ({
-            label: model.label,
-            id: model.id,
-          })),
+        options: (params) =>
+          imageModels
+            .filter((model) => !params || model.provider === provider)
+            .flatMap((model) => [
+              { label: model.label, id: model.id },
+              ...(model.aliases ?? []).map((id) => ({ id, label: model.label, hidden: true })),
+            ]),
         value: () => imageModelDefaults[provider],
         condition: { field: 'provider', value: provider },
         dependsOn: ['provider'],
@@ -358,9 +359,10 @@ export const ImageGeneratorV2Block: BlockConfig = {
         }),
         options: (params) => [
           { id: 'default', label: 'Model default' },
-          ...(
-            getImageModel(params?.values.provider, params?.values.model)?.options?.[key]?.values ??
-            []
+          ...(params
+            ? (getImageModel(params.values.provider, params.values.model)?.options?.[key]?.values ??
+              [])
+            : [...new Set(imageModels.flatMap((model) => model.options?.[key]?.values ?? []))]
           ).map((value) => ({
             id: String(value),
             label: String(value),
@@ -372,8 +374,8 @@ export const ImageGeneratorV2Block: BlockConfig = {
       (key): SubBlockConfig => ({
         id: key,
         title: key === 'enableSafetyChecker' ? 'Safety Checker' : 'Web Search',
-        type: 'dropdown',
-        value: () => 'default',
+        type: 'switch',
+        defaultValue: key === 'enableSafetyChecker',
         mode: 'advanced',
         dependsOn: ['provider', 'model'],
         condition: (values) => ({
@@ -382,11 +384,6 @@ export const ImageGeneratorV2Block: BlockConfig = {
             ? [String(values?.model)]
             : [],
         }),
-        options: [
-          { id: 'default', label: 'Model default' },
-          { id: 'true', label: 'On' },
-          { id: 'false', label: 'Off' },
-        ],
       })
     ),
     {
