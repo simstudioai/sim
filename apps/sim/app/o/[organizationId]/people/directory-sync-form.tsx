@@ -16,6 +16,7 @@ import {
   type PeopleSyncStatus,
   peopleSyncConfigSchema,
 } from '@/lib/api/contracts/people-sync'
+import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { useScimConnection } from '@/ee/scim/hooks/scim'
@@ -45,7 +46,9 @@ export function DirectorySyncForm({
   const [tenantId, setTenantId] = useState(current?.tenantId ?? '')
   const [clientId, setClientId] = useState(current?.clientId ?? '')
   const [secret, setSecret] = useState('')
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [fieldErrors, setFieldErrors] = useState<
+    Partial<Record<'domain' | 'token' | 'tenantId' | 'clientId' | 'clientSecret', string>>
+  >({})
   const { settingsFeatures } = useOrganizationContext()
   const provisioning = useScimConnection(organizationId, source === 'scim')
   const scimReady = provisioning.isSuccess && provisioning.data.connection?.status === 'active'
@@ -66,11 +69,7 @@ export function DirectorySyncForm({
           : { source }
     )
     if (!config.success) {
-      setFieldErrors(
-        Object.fromEntries(
-          config.error.issues.map((issue) => [String(issue.path[0]), issue.message])
-        )
-      )
+      setFieldErrors(flattenFieldErrors(config.error))
       return
     }
     setFieldErrors({})

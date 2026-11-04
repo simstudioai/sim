@@ -1,4 +1,5 @@
 import { closeSync, existsSync, fstatSync, openSync, readSync } from 'node:fs'
+import { isRecordLike } from '@sim/utils/object'
 import { CLI_CONTRACT } from '../contract/commands'
 import type { BodyVariantSpec, CommandSpec, FlagSpec } from '../contract/types'
 import { embedStore } from '../embed-context'
@@ -28,10 +29,8 @@ function bodyVariantShapeError(
   const flag = `--${variant.name}`
   const example = variant.kind === 'array' ? `'[{"column":"value"}]'` : `'{"column":"value"}'`
   const base = `${flag} must be a JSON ${variant.kind}, e.g. ${flag} ${example}; got ${jsonKind(parsed)}.`
-  if (variant.kind === 'array' && parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-    if (Array.isArray((parsed as Record<string, unknown>)[variant.property])) {
-      return `${base} Pass the array under its "${variant.property}" key itself, not the object wrapping it.`
-    }
+  if (variant.kind === 'array' && isRecordLike(parsed) && Array.isArray(parsed[variant.property])) {
+    return `${base} Pass the array under its "${variant.property}" key itself, not the object wrapping it.`
   }
   const other = variants.find(
     (candidate) =>

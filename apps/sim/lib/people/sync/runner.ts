@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { peopleDirectoryScimChange as change, peopleDirectorySync as sync } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
+import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { and, eq, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
@@ -40,7 +41,7 @@ export const CLEARED_RUN = {
   cursor: null,
   usersRead: 0,
 } as const
-const RELEASED = { leaseToken: null, leaseExpiresAt: null } as const
+export const RELEASED = { leaseToken: null, leaseExpiresAt: null } as const
 const available = (at: Date) => or(isNull(sync.leaseToken), lte(sync.leaseExpiresAt, at))
 const due = (at: Date) => or(lte(sync.nextSyncAt, at), isNotNull(pendingScimChange))
 type Connection = typeof sync.$inferSelect
@@ -78,11 +79,11 @@ const ownsLease = (worker: Worker) =>
 /** Every page and its next cursor commit together, after checking that the same run still owns the source. */
 async function checkpoint(
   worker: Worker,
-  step: 'page' | 'publish',
-  write: (tx: DbTransaction, row: Checkpoint) => Promise<void>
+  write: (tx: DbTransaction, row: Checkpoint) => Promise<void>,
+  options: { lockProfiles?: boolean } = {}
 ) {
   return db.transaction(async (tx) => {
-    if (step === 'publish') await lockProfiles(tx, worker.organizationId)
+    if (options.lockProfiles) await lockProfiles(tx, worker.organizationId)
     const [row] = await tx
       .select(checkpointColumns)
       .from(sync)
@@ -127,7 +128,7 @@ function retryUpdate(row: Checkpoint, providerDelay: number, reason: string) {
 
 async function checkpointUsers(worker: Worker, reader: DirectoryReader, cursor: string | null) {
   const page = await reader.users(cursor)
-  return checkpoint(worker, 'page', async (tx) => {
+  return checkpoint(worker, async (tx) => {
     await stageUsers(tx, worker, cursor, page.people)
     await tx
       .update(sync)
@@ -147,7 +148,7 @@ async function checkpointReports(worker: Worker, reader: DirectoryReader) {
     throw new OrchestrationError('validation', 'The directory cannot read reporting lines.')
   const items = await pendingManagers(db, worker)
   if (!items.length) {
-    return checkpoint(worker, 'page', async (tx) => {
+    return checkpoint(worker, async (tx) => {
       await tx.update(sync).set({ phase: 'publish' }).where(ownsLease(worker))
     })
   }
@@ -168,7 +169,7 @@ async function checkpointReports(worker: Worker, reader: DirectoryReader) {
   const delays = results.flatMap((result) =>
     'retryAfterMs' in result ? [result.retryAfterMs] : []
   )
-  const applied = await checkpoint(worker, 'page', async (tx, row) => {
+  const applied = await checkpoint(worker, async (tx, row) => {
     await stageRelationships(tx, worker, pages)
     const update = delays.length
       ? retryUpdate(
@@ -184,12 +185,16 @@ async function checkpointReports(worker: Worker, reader: DirectoryReader) {
 
 /** A local SCIM generation captures, validates, and publishes atomically. New provisioning changes have their own marker. */
 async function runScim(worker: Worker) {
-  await checkpoint(worker, 'publish', async (tx, row) => {
-    await discardStage(tx, row.organizationId)
-    const count = await stageScimDirectory(tx, row.organizationId, worker.runId, row.sourceTarget)
-    await tx.update(sync).set({ phase: 'publish', usersRead: count }).where(ownsLease(worker))
-    await publish(tx, worker, 'scim')
-  })
+  await checkpoint(
+    worker,
+    async (tx, row) => {
+      await discardStage(tx, row.organizationId)
+      const count = await stageScimDirectory(tx, row.organizationId, worker.runId, row.sourceTarget)
+      await tx.update(sync).set({ phase: 'publish', usersRead: count }).where(ownsLease(worker))
+      await publish(tx, worker, 'scim')
+    },
+    { lockProfiles: true }
+  )
 }
 
 async function handleFailure(worker: Worker, error: unknown) {
@@ -203,7 +208,7 @@ async function handleFailure(worker: Worker, error: unknown) {
     retry || (error instanceof OrchestrationError && error.code !== 'internal')
       ? error.message
       : 'Directory sync was interrupted. Sim will retry automatically.'
-  const applied = await checkpoint(worker, 'page', async (tx, row) => {
+  const applied = await checkpoint(worker, async (tx, row) => {
     if (temporary) {
       await tx
         .update(sync)
@@ -297,7 +302,7 @@ export async function runDirectorySync(organizationId: string, trigger: keyof ty
       if (!current) return true
       await requirePeopleEnabled(organizationId)
       if (current.phase === 'publish') {
-        await checkpoint(worker, 'publish', (tx) => publish(tx, worker, row.source))
+        await checkpoint(worker, (tx) => publish(tx, worker, row.source), { lockProfiles: true })
         return true
       }
       reader ??= await connectReader(row)
@@ -340,8 +345,8 @@ export async function syncDueDirectories() {
     SELECT organization_id AS "organizationId" FROM candidates
     GROUP BY organization_id ORDER BY min(due_at), organization_id LIMIT 50
   `)
-  for (let i = 0; i < connections.length && Date.now() < deadline; i += 2) {
-    const slice = connections.slice(i, i + 2)
+  for (const slice of chunkArray(connections, 2)) {
+    if (Date.now() >= deadline) break
     const results = await Promise.allSettled(
       slice.map(({ organizationId }) => runDirectorySync(organizationId, 'cron'))
     )
