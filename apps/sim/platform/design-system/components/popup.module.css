@@ -78,7 +78,6 @@
   overflow-y: auto;
 }
 
-.dialogPanel {
-  composes: panel;
+.panel[data-presentation="panel"] {
   border-radius: var(--radius-panel);
 }

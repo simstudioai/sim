@@ -53,7 +53,8 @@ export function AnchoredPopover({
             positionMethod='fixed'
           >
             <Popover.Popup
-              className={presentation === 'panel' ? popup.dialogPanel : popup.panel}
+              className={popup.panel}
+              data-presentation={presentation}
               aria-label={label}
               data-material='floating'
               data-elevation='menu'
