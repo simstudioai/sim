@@ -52,6 +52,11 @@
   color: var(--ui-secondary);
 }
 .metric dd,
+.header,
+.table td[data-kind="text"] {
+  color: var(--ui-strong);
+}
+.metric dd,
 .table {
   font-variant-numeric: tabular-nums;
 }
@@ -91,9 +96,6 @@
 }
 .table :is([data-kind="status"], [data-kind="percent"]) {
   inline-size: calc(var(--ui-table-wide) + var(--spacing-16));
-}
-.table td[data-kind="text"] {
-  color: var(--ui-ink);
 }
 .table th {
   height: var(--spacing-app-control-md);

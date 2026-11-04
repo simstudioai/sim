@@ -1,4 +1,5 @@
 .chart {
+  color: var(--ui-strong);
   container-type: inline-size;
   display: grid;
   align-content: start;
@@ -140,7 +141,7 @@
   margin-inline-start: auto;
   min-width: var(--spacing-44);
   text-align: end;
-  color: var(--ui-ink);
+  color: var(--ui-strong);
   font-variant-numeric: tabular-nums;
 }
 .tooltip {
