@@ -1681,6 +1681,7 @@ export async function projectTraceSpansForSecrets(
     assertTraceStructureArrayFits(traceSpans, state)
     const assertContentIsSafe = createSpanContentAssertion(traceSpans, context)
     for (let index = 0; index < traceSpans.length; index += 1) {
+      const retainedStructureNodes = state.nodes
       try {
         projected.push(
           await sanitizeTraceSpan(traceSpans[index], context, 0, state, assertContentIsSafe)
@@ -1690,7 +1691,8 @@ export async function projectTraceSpansForSecrets(
         /**
          * Every span already returned was sanitized and then passed the whole-trace check,
          * descendants included, so only the span that crossed the budget and those after it
-         * lose their content. The walk stops here, so the budget still bounds it.
+         * lose their content. The fallback resumes the structure budget where the retained
+         * spans left it, so the trace keeps exactly the structure a whole-trace fallback would.
          */
         logger.warn(
           'Trace content exceeded the projection budget; withholding the remaining spans',
@@ -1701,7 +1703,13 @@ export async function projectTraceSpansForSecrets(
             failure: describeProjectionFailure(error),
           }
         )
-        return [...projected, ...structuralOnlyTraceSpans(traceSpans.slice(index), state)]
+        return [
+          ...projected,
+          ...structuralOnlyTraceSpans(traceSpans.slice(index), {
+            nodes: retainedStructureNodes,
+            truncated: false,
+          }),
+        ]
       }
     }
     return projected
