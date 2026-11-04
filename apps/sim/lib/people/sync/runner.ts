@@ -5,7 +5,7 @@ import { getPostgresErrorCode } from '@sim/utils/errors'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
-import { and, eq, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, lte, not, or, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import type { DbTransaction } from '@/lib/db/types'
@@ -13,7 +13,7 @@ import { requirePeopleEnabled } from '@/lib/people/feature-flag'
 import { lockProfiles } from '@/lib/people/repository'
 import { publishStagedSnapshot } from '@/lib/people/sync/projection'
 import { DirectoryRetryError } from '@/lib/people/sync/provider-request'
-import { pendingScimChange } from '@/lib/people/sync/scim-changes'
+import { pendingScimChange, scimSyncPaused } from '@/lib/people/sync/scim-changes'
 import { openDirectoryReader } from '@/lib/people/sync/snapshot'
 import {
   discardStage,
@@ -190,6 +190,13 @@ async function runScim(worker: Worker) {
     async (tx, row) => {
       await discardStage(tx, row.organizationId)
       const count = await stageScimDirectory(tx, row.organizationId, worker.runId, row.sourceTarget)
+      if (count === null) {
+        await tx
+          .update(sync)
+          .set({ ...CLEARED_RUN, ...RELEASED })
+          .where(ownsLease(worker))
+        return
+      }
       await tx.update(sync).set({ phase: 'publish', usersRead: count }).where(ownsLease(worker))
       await publish(tx, worker, 'scim')
     },
@@ -253,6 +260,7 @@ function claim(organizationId: string, trigger: keyof typeof SLICES, token: stri
         and(
           eq(sync.organizationId, organizationId),
           available(now),
+          not(scimSyncPaused),
           trigger === 'manual' ? or(eq(sync.retryCount, 0), due(now)) : due(now)
         )
       )
@@ -335,12 +343,13 @@ export async function syncDueDirectories() {
   const connections = await db.execute<{ organizationId: string }>(sql`
     WITH candidates AS (
       (SELECT ${sync.organizationId} AS organization_id, ${sync.nextSyncAt} AS due_at FROM ${sync}
-       WHERE ${and(available(now), lte(sync.nextSyncAt, now))}
+       WHERE ${and(available(now), not(scimSyncPaused), lte(sync.nextSyncAt, now))}
        ORDER BY ${sync.nextSyncAt}, ${sync.organizationId} LIMIT 50)
       UNION ALL
       (SELECT ${change.organizationId}, ${change.changedAt} FROM ${change}
        JOIN ${sync} ON ${sync.organizationId}=${change.organizationId} AND ${sync.source}='scim'
-       WHERE ${available(now)} ORDER BY ${change.changedAt}, ${change.organizationId} LIMIT 50)
+       WHERE ${and(available(now), not(scimSyncPaused))}
+       ORDER BY ${change.changedAt}, ${change.organizationId} LIMIT 50)
     )
     SELECT organization_id AS "organizationId" FROM candidates
     GROUP BY organization_id ORDER BY min(due_at), organization_id LIMIT 50

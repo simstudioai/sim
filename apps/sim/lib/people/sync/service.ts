@@ -11,13 +11,14 @@ import { encryptSecret } from '@/lib/core/security/encryption'
 import { oktaDirectoryHost } from '@/lib/people/provider-import'
 import { lockProfiles } from '@/lib/people/repository'
 import { CLEARED_RUN, RELEASED, runDirectorySync } from '@/lib/people/sync/runner'
-import { pendingScimChange } from '@/lib/people/sync/scim-changes'
+import { pendingScimChange, scimSyncPaused } from '@/lib/people/sync/scim-changes'
 import { discardStage } from '@/lib/people/sync/stage'
 import { isScimEntitledForOrganization } from '@/ee/scim/lib/entitlement'
 
 const statusColumns = {
   source: sync.source,
   changedAt: pendingScimChange,
+  paused: scimSyncPaused,
   sourceTarget: sync.sourceTarget,
   clientId: sync.clientId,
   lastAttemptAt: sync.lastAttemptAt,
@@ -47,21 +48,23 @@ export async function getDirectorySync(organizationId: string): Promise<PeopleSy
     ...(row.source === 'entra'
       ? { tenantId: row.sourceTarget, clientId: row.clientId ?? undefined }
       : {}),
-    state: running
-      ? 'syncing'
-      : row.lastError
-        ? 'failed'
-        : row.phase || row.changedAt || row.nextSyncAt.getTime() <= now
-          ? 'queued'
-          : 'scheduled',
-    progress: row.phase ? { phase: row.phase, usersRead: row.usersRead } : null,
-    retryAt: row.lastError && !running ? nextSyncAt.toISOString() : null,
-    retryBlocked: !row.changedAt && row.retryCount > 0 && nextSyncAt.getTime() > now,
+    state: row.paused
+      ? 'paused'
+      : running
+        ? 'syncing'
+        : row.lastError
+          ? 'failed'
+          : row.phase || row.changedAt || row.nextSyncAt.getTime() <= now
+            ? 'queued'
+            : 'scheduled',
+    progress: !row.paused && row.phase ? { phase: row.phase, usersRead: row.usersRead } : null,
+    retryAt: !row.paused && row.lastError && !running ? nextSyncAt.toISOString() : null,
+    retryBlocked: !row.paused && !row.changedAt && row.retryCount > 0 && nextSyncAt.getTime() > now,
     lastAttemptAt: row.lastAttemptAt?.toISOString() ?? null,
     lastSuccessAt: row.lastSuccessAt?.toISOString() ?? null,
     lastFailedAt: row.lastFailedAt?.toISOString() ?? null,
     lastError: row.lastError,
-    nextSyncAt: nextSyncAt.toISOString(),
+    nextSyncAt: row.paused ? null : nextSyncAt.toISOString(),
   }
 }
 

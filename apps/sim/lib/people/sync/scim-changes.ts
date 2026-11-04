@@ -1,4 +1,8 @@
-import { peopleDirectoryScimChange as change, peopleDirectorySync as sync } from '@sim/db/schema'
+import {
+  peopleDirectoryScimChange as change,
+  scimConnection,
+  peopleDirectorySync as sync,
+} from '@sim/db/schema'
 import { sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 
@@ -11,7 +15,11 @@ export async function markScimPeopleChanged(tx: DbOrTx, organizationId: string):
   `)
 }
 
-export const pendingScimChange = sql<Date | null>`(SELECT ${change.changedAt} FROM ${change}
-  WHERE ${change.organizationId}=${sync.organizationId} AND ${sync.source}='scim')`.mapWith(
+export const pendingScimChange = sql<Date | null>`(SELECT ${change}.changed_at FROM ${change}
+  WHERE ${change}.organization_id=${sync}.organization_id AND ${sync}.source='scim')`.mapWith(
   change.changedAt
 )
+
+export const scimSyncPaused = sql<boolean>`EXISTS (SELECT 1 FROM ${scimConnection}
+  WHERE ${sync}.source='scim' AND ${scimConnection}.id=${sync}.source_target
+    AND ${scimConnection}.organization_id=${sync}.organization_id AND ${scimConnection}.status='disabled')`
