@@ -81,11 +81,15 @@ async function create(
   owner: 'workspace' | 'project',
   name: string,
   contentType: string,
-  content: string
+  content: string,
+  folderId?: string
 ) {
   const response = await request(
     `/api/${owner === 'workspace' ? `workspaces/${workspaceId}` : `projects/${projectId}`}/files`,
-    { method: 'POST', body: JSON.stringify({ name, contentType, content, encoding: 'utf-8' }) }
+    {
+      method: 'POST',
+      body: JSON.stringify({ name, contentType, content, encoding: 'utf-8', folderId }),
+    }
   )
   assert.ok(response.ok, `Create returned ${response.status}: ${await response.clone().text()}`)
   return toRecord(toRecord(await response.json()).file)
@@ -204,6 +208,31 @@ await check(
     }
   }
 )
+await check('v2 workspace download routes a %2F-encoded files/ VFS path to its file', async () => {
+  const folderResponse = await request(`/api/workspaces/${workspaceId}/files/folders`, {
+    method: 'POST',
+    body: JSON.stringify({ name: 'VfsDocs' }),
+  })
+  assert.ok(folderResponse.ok, `Folder create returned ${folderResponse.status}`)
+  const folderId = required(toRecord(toRecord(await folderResponse.json()).folder).id)
+  await create('workspace', 'vfs-report.csv', 'text/csv', 'root copy')
+  await create('workspace', 'vfs-report.csv', 'text/csv', 'folder copy', folderId)
+  const download = (path: string) =>
+    request(
+      `/api/v2/files/${encodeURIComponent(path)}?workspaceId=${workspaceId}`,
+      { headers: { 'X-API-Key': personalKey } },
+      true
+    )
+  for (const [path, content] of [
+    ['files/VfsDocs/vfs-report.csv', 'folder copy'],
+    ['files/vfs-report.csv', 'root copy'],
+  ]) {
+    const response = await download(path)
+    assert.equal(response.status, 200, `${path} returned ${response.status}`)
+    assert.equal(await response.text(), content)
+  }
+  assert.equal((await download('files/VfsDocs/missing.csv')).status, 404)
+})
 await check('Workspace immutable URLs, authorized 304 and browser cache reuse', async () => {
   const file = await create('workspace', 'cache.txt', 'text/plain', 'workspace cache bytes')
   const path = `/api/files/serve/${required(file.key)}`
