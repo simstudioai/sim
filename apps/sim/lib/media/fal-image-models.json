@@ -1,0 +1,4970 @@
+{
+  "fal-ai/flux/schnell": {
+    "label": "FLUX.1 [schnell] (fal-ai/flux/schnell)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/nano-banana-pro": {
+    "label": "Nano Banana Pro",
+    "output": "images",
+    "legacyId": "nano-banana-pro",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": [
+          "auto",
+          "21:9",
+          "16:9",
+          "3:2",
+          "4:3",
+          "5:4",
+          "1:1",
+          "4:5",
+          "3:4",
+          "2:3",
+          "9:16",
+          "4:1",
+          "1:4",
+          "8:1",
+          "1:8"
+        ]
+      },
+      "resolution": {
+        "field": "resolution",
+        "values": ["1K", "2K", "4K"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      },
+      "safetyTolerance": {
+        "field": "safety_tolerance",
+        "values": ["1", "2", "3", "4", "5", "6"]
+      },
+      "thinkingLevel": {
+        "field": "thinking_level",
+        "values": ["high"]
+      }
+    },
+    "booleans": {
+      "enableWebSearch": "enable_web_search"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 3,
+    "maxPromptLength": 50000
+  },
+  "fal-ai/nano-banana-2": {
+    "label": "Nano Banana 2",
+    "output": "images",
+    "legacyId": "nano-banana-2",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": [
+          "auto",
+          "21:9",
+          "16:9",
+          "3:2",
+          "4:3",
+          "5:4",
+          "1:1",
+          "4:5",
+          "3:4",
+          "2:3",
+          "9:16",
+          "4:1",
+          "1:4",
+          "8:1",
+          "1:8"
+        ]
+      },
+      "resolution": {
+        "field": "resolution",
+        "values": ["0.5K", "1K", "2K", "4K"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      },
+      "safetyTolerance": {
+        "field": "safety_tolerance",
+        "values": ["1", "2", "3", "4", "5", "6"]
+      },
+      "thinkingLevel": {
+        "field": "thinking_level",
+        "values": ["minimal", "high"]
+      }
+    },
+    "booleans": {
+      "enableWebSearch": "enable_web_search"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 3,
+    "maxPromptLength": 50000
+  },
+  "google/nano-banana-2.1": {
+    "label": "Nano Banana 2.1",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": [
+          "auto",
+          "21:9",
+          "16:9",
+          "3:2",
+          "4:3",
+          "5:4",
+          "1:1",
+          "4:5",
+          "3:4",
+          "2:3",
+          "9:16",
+          "4:1",
+          "1:4",
+          "8:1",
+          "1:8"
+        ]
+      },
+      "resolution": {
+        "field": "resolution",
+        "values": ["1K", "2K", "4K"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      },
+      "safetyTolerance": {
+        "field": "safety_tolerance",
+        "values": ["1", "2", "3", "4", "5", "6"]
+      },
+      "thinkingLevel": {
+        "field": "thinking_level",
+        "values": ["minimal", "medium", "high"]
+      }
+    },
+    "booleans": {
+      "enableWebSearch": "enable_web_search"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 3,
+    "maxPromptLength": 50000
+  },
+  "openai/gpt-image-2": {
+    "label": "GPT Image 2 API",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9",
+          "auto"
+        ]
+      },
+      "quality": {
+        "field": "quality",
+        "values": ["auto", "low", "medium", "high"]
+      },
+      "background": {
+        "field": "background",
+        "values": ["auto", "transparent", "opaque"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 32000
+  },
+  "fal-ai/flux/dev": {
+    "label": "FLUX.1 [dev] (fal-ai/flux/dev)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "openai/gpt-image-2.5/flare/text-to-image": {
+    "label": "GPT Image 2.5 Flare",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9",
+          "auto"
+        ]
+      },
+      "quality": {
+        "field": "quality",
+        "values": ["auto", "low", "medium", "high", "xhigh", "max"]
+      },
+      "background": {
+        "field": "background",
+        "values": ["auto", "transparent", "opaque"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 32000
+  },
+  "openai/gpt-image-2.5/sunburst/text-to-image": {
+    "label": "GPT Image 2.5 Sunburst",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9",
+          "auto"
+        ]
+      },
+      "quality": {
+        "field": "quality",
+        "values": ["auto", "low", "medium", "high", "xhigh", "max"]
+      },
+      "background": {
+        "field": "background",
+        "values": ["auto", "transparent", "opaque"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 32000
+  },
+  "fal-ai/flux-2-pro": {
+    "label": "Flux 2 Pro",
+    "output": "images",
+    "legacyId": "flux-2-pro",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      },
+      "safetyTolerance": {
+        "field": "safety_tolerance",
+        "values": ["1", "2", "3", "4", "5"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "sync_mode": false
+    }
+  },
+  "fal-ai/nano-banana": {
+    "label": "Nano Banana",
+    "output": "images",
+    "legacyId": "nano-banana",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["21:9", "16:9", "3:2", "4:3", "5:4", "1:1", "4:5", "3:4", "2:3", "9:16"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      },
+      "safetyTolerance": {
+        "field": "safety_tolerance",
+        "values": ["1", "2", "3", "4", "5", "6"]
+      }
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 3,
+    "maxPromptLength": 50000
+  },
+  "fal-ai/flux-pro/v1.1": {
+    "label": "FLUX1.1 [pro]",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      },
+      "safetyTolerance": {
+        "field": "safety_tolerance",
+        "values": ["1", "2", "3", "4", "5", "6"]
+      }
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/flux-pro/v1.1-ultra": {
+    "label": "FLUX1.1 [pro] ultra",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["21:9", "16:9", "4:3", "3:2", "1:1", "2:3", "3:4", "9:16", "9:21"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      },
+      "safetyTolerance": {
+        "field": "safety_tolerance",
+        "values": ["1", "2", "3", "4", "5", "6"]
+      }
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "bytedance/seedream/v5/pro/text-to-image": {
+    "label": "Seedream 5.0 Pro",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9",
+          "auto_1K",
+          "auto_1.5K",
+          "auto_2K"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/z-image/turbo": {
+    "label": "Z Image Turbo",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/bytedance/seedream/v4.5/text-to-image": {
+    "label": "Bytedance Seedream V4.5",
+    "output": "images",
+    "legacyId": "seedream-v4.5",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9",
+          "auto_2K",
+          "auto_4K"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false,
+      "max_images": 1
+    }
+  },
+  "fal-ai/flux-2/klein/9b": {
+    "label": "FLUX.2 [klein] 9B",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/bytedance/seedream/v4/text-to-image": {
+    "label": "Bytedance Seedream V4",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9",
+          "auto",
+          "auto_2K",
+          "auto_4K"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false,
+      "max_images": 1
+    }
+  },
+  "fal-ai/flux-lora": {
+    "label": "FLUX.1 [dev] with LoRAs",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/flux-2": {
+    "label": "FLUX 2",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "blackforestlabs/flux-3/text-to-image": {
+    "label": "Flux 3 Image",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": [
+          "auto",
+          "21:9",
+          "2:1",
+          "16:9",
+          "3:2",
+          "7:5",
+          "4:3",
+          "5:4",
+          "1:1",
+          "4:5",
+          "3:4",
+          "5:7",
+          "2:3",
+          "9:16",
+          "1:2"
+        ]
+      },
+      "resolution": {
+        "field": "resolution",
+        "values": ["768sq", "1k", "1.5k", "2k", "4k"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "requestDefaults": {
+      "sync_mode": false
+    }
+  },
+  "meta/muse-image/text-to-image": {
+    "label": "Meta Muse Image",
+    "output": "images",
+    "options": {
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 1
+  },
+  "xai/grok-imagine-image": {
+    "label": "Grok Imagine Image (xai/grok-imagine-image)",
+    "output": "images",
+    "legacyId": "grok-imagine-image",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": [
+          "auto",
+          "2:1",
+          "20:9",
+          "19.5:9",
+          "16:9",
+          "4:3",
+          "3:2",
+          "1:1",
+          "2:3",
+          "3:4",
+          "9:16",
+          "9:19.5",
+          "9:20",
+          "1:2"
+        ]
+      },
+      "resolution": {
+        "field": "resolution",
+        "values": ["1k", "2k"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false,
+      "aspect_ratio": "1:1",
+      "resolution": "1k",
+      "output_format": "jpeg"
+    },
+    "maxPromptLength": 8000
+  },
+  "fal-ai/flux-2/flash": {
+    "label": "FLUX 2 Flash",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/ideogram/v3": {
+    "label": "Ideogram",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "google/nano-banana-2-lite": {
+    "label": "Nano Banana 2 Lite",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": [
+          "auto",
+          "21:9",
+          "16:9",
+          "3:2",
+          "4:3",
+          "5:4",
+          "1:1",
+          "4:5",
+          "3:4",
+          "2:3",
+          "9:16",
+          "4:1",
+          "1:4",
+          "8:1",
+          "1:8"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      },
+      "safetyTolerance": {
+        "field": "safety_tolerance",
+        "values": ["1", "2", "3", "4", "5", "6"]
+      },
+      "thinkingLevel": {
+        "field": "thinking_level",
+        "values": ["minimal", "high"]
+      }
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 3,
+    "maxPromptLength": 50000
+  },
+  "fal-ai/recraft/v3/text-to-image": {
+    "label": "Recraft V3",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 1000
+  },
+  "fal-ai/flux-2/turbo": {
+    "label": "FLUX 2 Turbo",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "krea/v2/large/text-to-image": {
+    "label": "Krea 2 Large",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["1:1", "4:3", "3:2", "16:9", "2.35:1", "4:5", "2:3", "9:16"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "minPromptLength": 1,
+    "maxPromptLength": 5000
+  },
+  "xai/grok-imagine-image/v2.0/text-to-image": {
+    "label": "Grok Imagine Image 2.0",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": [
+          "2:1",
+          "20:9",
+          "19.5:9",
+          "16:9",
+          "4:3",
+          "3:2",
+          "1:1",
+          "2:3",
+          "3:4",
+          "9:16",
+          "9:19.5",
+          "9:20",
+          "1:2",
+          "auto",
+          "21:9",
+          "5:2"
+        ]
+      },
+      "resolution": {
+        "field": "resolution",
+        "values": ["1k", "1.5k", "2k"]
+      },
+      "quality": {
+        "field": "quality",
+        "values": ["low", "medium", "auto"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "maxPromptLength": 8000
+  },
+  "blackforestlabs/flux-3/klein/text-to-image": {
+    "label": "FLUX.3 Klein",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/gpt-image-1.5": {
+    "label": "GPT-Image 1.5",
+    "output": "images",
+    "legacyId": "gpt-image-1.5",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": ["1024x1024", "1536x1024", "1024x1536"]
+      },
+      "quality": {
+        "field": "quality",
+        "values": ["low", "medium", "high"]
+      },
+      "background": {
+        "field": "background",
+        "values": ["auto", "transparent", "opaque"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 2,
+    "maxPromptLength": 32000
+  },
+  "fal-ai/fast-sdxl": {
+    "label": "Stable Diffusion XL",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/flux-2/klein/4b": {
+    "label": "FLUX.2 [klein] 4B",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "ideogram/v4.5": {
+    "label": "Ideogram V4.5",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "quality": {
+        "field": "quality",
+        "values": ["low", "medium", "high"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 10000
+  },
+  "krea/v3/text-to-image": {
+    "label": "Krea 3",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9",
+          "auto"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["png", "jpeg"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "sync_mode": false
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 5000
+  },
+  "fal-ai/flux-1/schnell": {
+    "label": "FLUX.1 [schnell] (fal-ai/flux-1/schnell)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/krea-2/turbo": {
+    "label": "Krea 2 Turbo",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 5000
+  },
+  "bytedance/seedream/v5/flash/text-to-image": {
+    "label": "Seedream (bytedance/seedream/v5/flash/text-to-image)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9",
+          "auto_1K",
+          "auto_1.5K",
+          "auto_2K"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/qwen-image": {
+    "label": "Qwen Image",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "alibaba/qwen-image-3/text-to-image": {
+    "label": "Qwen Image 3",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 5000
+  },
+  "fal-ai/flux-2-max": {
+    "label": "Flux 2 Max",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      },
+      "safetyTolerance": {
+        "field": "safety_tolerance",
+        "values": ["1", "2", "3", "4", "5"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "sync_mode": false
+    }
+  },
+  "fal-ai/recraft/v4.1/text-to-image": {
+    "label": "Recraft V4.1",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 10000
+  },
+  "fal-ai/gemini-3-pro-image-preview": {
+    "label": "Gemini 3 Pro Image Preview",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": [
+          "auto",
+          "21:9",
+          "16:9",
+          "3:2",
+          "4:3",
+          "5:4",
+          "1:1",
+          "4:5",
+          "3:4",
+          "2:3",
+          "9:16",
+          "4:1",
+          "1:4",
+          "8:1",
+          "1:8"
+        ]
+      },
+      "resolution": {
+        "field": "resolution",
+        "values": ["1K", "2K", "4K"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      },
+      "safetyTolerance": {
+        "field": "safety_tolerance",
+        "values": ["1", "2", "3", "4", "5", "6"]
+      },
+      "thinkingLevel": {
+        "field": "thinking_level",
+        "values": ["high"]
+      }
+    },
+    "booleans": {
+      "enableWebSearch": "enable_web_search"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 3,
+    "maxPromptLength": 50000
+  },
+  "ideogram/v4": {
+    "label": "Ideogram V4.0",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "bytedance/seedream/v5/lite/text-to-image": {
+    "label": "Seedream (bytedance/seedream/v5/lite/text-to-image)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9",
+          "auto_2K",
+          "auto_3K",
+          "auto_4K"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false,
+      "max_images": 1
+    }
+  },
+  "fal-ai/gemini-25-flash-image": {
+    "label": "Gemini 2.5 Flash Image",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["21:9", "16:9", "3:2", "4:3", "5:4", "1:1", "4:5", "3:4", "2:3", "9:16"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      },
+      "safetyTolerance": {
+        "field": "safety_tolerance",
+        "values": ["1", "2", "3", "4", "5", "6"]
+      }
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 3,
+    "maxPromptLength": 50000
+  },
+  "fal-ai/flux-pro/kontext/text-to-image": {
+    "label": "FLUX.1 Kontext [pro]",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["21:9", "16:9", "4:3", "3:2", "1:1", "2:3", "3:4", "9:16", "9:21"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      },
+      "safetyTolerance": {
+        "field": "safety_tolerance",
+        "values": ["1", "2", "3", "4", "5", "6"]
+      }
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/recraft/v4/text-to-image": {
+    "label": "Recraft V4",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 10000
+  },
+  "fal-ai/krea-2/turbo/lora": {
+    "label": "Krea 2 Turbo LoRA",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 5000
+  },
+  "fal-ai/recraft/v4.1/text-to-vector": {
+    "label": "Recraft V4.1 Text to Vector",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 10000
+  },
+  "fal-ai/z-image/turbo/lora": {
+    "label": "Z Image Turbo Lora",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "ideogram/vector/text-to-vector": {
+    "label": "Ideogram Vector",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": [
+          "auto",
+          "1:1",
+          "1:4",
+          "1:3",
+          "1:2",
+          "9:16",
+          "10:16",
+          "2:3",
+          "3:4",
+          "4:5",
+          "5:4",
+          "4:3",
+          "3:2",
+          "16:10",
+          "16:9",
+          "2:1",
+          "3:1",
+          "4:1"
+        ]
+      },
+      "quality": {
+        "field": "quality",
+        "values": ["low", "medium", "high"]
+      }
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 9500
+  },
+  "google/nano-banana-lite": {
+    "label": "Nano Banana Lite",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": [
+          "auto",
+          "21:9",
+          "16:9",
+          "3:2",
+          "4:3",
+          "5:4",
+          "1:1",
+          "4:5",
+          "3:4",
+          "2:3",
+          "9:16",
+          "4:1",
+          "1:4",
+          "8:1",
+          "1:8"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      },
+      "safetyTolerance": {
+        "field": "safety_tolerance",
+        "values": ["1", "2", "3", "4", "5", "6"]
+      },
+      "thinkingLevel": {
+        "field": "thinking_level",
+        "values": ["minimal", "high"]
+      }
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 3,
+    "maxPromptLength": 50000
+  },
+  "fal-ai/qwen-image-2512": {
+    "label": "Qwen Image 2512 (fal-ai/qwen-image-2512)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/flux-2/lora": {
+    "label": "FLUX 2 Lora",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "xai/grok-imagine-image/quality/text-to-image": {
+    "label": "Grok Imagine Image (xai/grok-imagine-image/quality/text-to-image)",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": [
+          "2:1",
+          "20:9",
+          "19.5:9",
+          "16:9",
+          "4:3",
+          "3:2",
+          "1:1",
+          "2:3",
+          "3:4",
+          "9:16",
+          "9:19.5",
+          "9:20",
+          "1:2"
+        ]
+      },
+      "resolution": {
+        "field": "resolution",
+        "values": ["1k", "2k"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "maxPromptLength": 8000
+  },
+  "fal-ai/patina/material": {
+    "label": "PATINA",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1
+    }
+  },
+  "fal-ai/flux-2-flex": {
+    "label": "Flux 2 Flex",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      },
+      "safetyTolerance": {
+        "field": "safety_tolerance",
+        "values": ["1", "2", "3", "4", "5"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "sync_mode": false
+    }
+  },
+  "fal-ai/gemini-3.1-flash-image-preview": {
+    "label": "Gemini 3.1 Flash Image Preview",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": [
+          "auto",
+          "21:9",
+          "16:9",
+          "3:2",
+          "4:3",
+          "5:4",
+          "1:1",
+          "4:5",
+          "3:4",
+          "2:3",
+          "9:16",
+          "4:1",
+          "1:4",
+          "8:1",
+          "1:8"
+        ]
+      },
+      "resolution": {
+        "field": "resolution",
+        "values": ["0.5K", "1K", "2K", "4K"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      },
+      "safetyTolerance": {
+        "field": "safety_tolerance",
+        "values": ["1", "2", "3", "4", "5", "6"]
+      },
+      "thinkingLevel": {
+        "field": "thinking_level",
+        "values": ["minimal", "high"]
+      }
+    },
+    "booleans": {
+      "enableWebSearch": "enable_web_search"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 3,
+    "maxPromptLength": 50000
+  },
+  "blackforestlabs/flux-3/klein/text-to-image/lora": {
+    "label": "FLUX 3 Klein LoRA",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "bria/fibo-2/generate": {
+    "label": "Fibo 2.0 Generate",
+    "output": "image",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": [
+          "1:1",
+          "1:2",
+          "1:3",
+          "1:4",
+          "1:5",
+          "2:1",
+          "2:3",
+          "3:1",
+          "3:2",
+          "3:4",
+          "4:1",
+          "4:3",
+          "4:5",
+          "5:1",
+          "5:4",
+          "9:16",
+          "9:21",
+          "10:16",
+          "16:9",
+          "16:10",
+          "21:9"
+        ]
+      }
+    },
+    "seed": true,
+    "requestDefaults": {
+      "sync_mode": false
+    }
+  },
+  "fal-ai/moss-image": {
+    "label": "MOSS Image",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 16384
+  },
+  "recraft/v4.1/flash/text-to-image": {
+    "label": "Recraft V4.1 Flash",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 10000
+  },
+  "fal-ai/flux-general": {
+    "label": "FLUX.1 [dev] with Controlnets and Loras",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/recraft/v4.1/pro/text-to-image": {
+    "label": "Recraft V4.1 Pro",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 10000
+  },
+  "fal-ai/kling-image/o3/text-to-image": {
+    "label": "Kling Image (fal-ai/kling-image/o3/text-to-image)",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"]
+      },
+      "resolution": {
+        "field": "resolution",
+        "values": ["1K", "2K", "4K"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "maxPromptLength": 2500
+  },
+  "krea/v2/medium/text-to-image": {
+    "label": "Krea 2 Medium",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["1:1", "4:3", "3:2", "16:9", "2.35:1", "4:5", "2:3", "9:16"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "minPromptLength": 1,
+    "maxPromptLength": 5000
+  },
+  "fal-ai/recraft/v4/pro/text-to-image": {
+    "label": "Recraft V4 Pro",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 10000
+  },
+  "fal-ai/fast-lightning-sdxl": {
+    "label": "Stable Diffusion XL Lightning",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/kling-image/v3/text-to-image": {
+    "label": "Kling Image (fal-ai/kling-image/v3/text-to-image)",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"]
+      },
+      "resolution": {
+        "field": "resolution",
+        "values": ["1K", "2K"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "maxPromptLength": 2500
+  },
+  "fal-ai/recraft/v4/text-to-vector": {
+    "label": "Recraft V4 (Vector)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 10000
+  },
+  "fal-ai/qwen-image-2512/lora": {
+    "label": "Qwen Image 2512 (fal-ai/qwen-image-2512/lora)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/gpt-image-1-mini": {
+    "label": "GPT Image 1 Mini",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": ["auto", "1024x1024", "1536x1024", "1024x1536"]
+      },
+      "quality": {
+        "field": "quality",
+        "values": ["auto", "low", "medium", "high"]
+      },
+      "background": {
+        "field": "background",
+        "values": ["auto", "transparent", "opaque"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 2
+  },
+  "blackforestlabs/flux-3/klein/base/text-to-image/lora": {
+    "label": "FLUX 3 Klein Base LoRA",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/minimax/image-01": {
+    "label": "MiniMax (Hailuo AI)",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["1:1", "16:9", "4:3", "3:2", "2:3", "3:4", "9:16", "21:9"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "requestDefaults": {
+      "num_images": 1
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 1500
+  },
+  "fal-ai/flux/krea": {
+    "label": "FLUX.1 Krea [dev] (fal-ai/flux/krea)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/sana": {
+    "label": "Sana",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/hunyuan-image/v3/text-to-image": {
+    "label": "Hunyuan Image (fal-ai/hunyuan-image/v3/text-to-image)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "microsoft/mai-image-2.5": {
+    "label": "Mai Image 2.5",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["auto", "1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 3,
+    "maxPromptLength": 5000
+  },
+  "fal-ai/recraft/v4.1/pro/text-to-vector": {
+    "label": "Recraft V4.1 Text to Vector Pro",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 10000
+  },
+  "fal-ai/flux-pro/kontext/max/text-to-image": {
+    "label": "FLUX.1 Kontext [max]",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["21:9", "16:9", "4:3", "3:2", "1:1", "2:3", "3:4", "9:16", "9:21"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      },
+      "safetyTolerance": {
+        "field": "safety_tolerance",
+        "values": ["1", "2", "3", "4", "5", "6"]
+      }
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/z-image/turbo/tiling": {
+    "label": "Z-Image Turbo Seamless Tiling",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9",
+          "auto"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/wan/v2.7/text-to-image": {
+    "label": "Wan (fal-ai/wan/v2.7/text-to-image)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 2000
+  },
+  "fal-ai/ideogram/v2": {
+    "label": "Ideogram V2",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": [
+          "10:16",
+          "16:10",
+          "9:16",
+          "16:9",
+          "4:3",
+          "3:4",
+          "1:1",
+          "1:3",
+          "3:1",
+          "3:2",
+          "2:3"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "sync_mode": false
+    }
+  },
+  "fal-ai/ideogram/v3/generate-transparent": {
+    "label": "Ideogram Transparent",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": [
+          "1:3",
+          "3:1",
+          "1:2",
+          "2:1",
+          "9:16",
+          "16:9",
+          "10:16",
+          "16:10",
+          "2:3",
+          "3:2",
+          "3:4",
+          "4:3",
+          "4:5",
+          "5:4",
+          "1:1"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "ideogram/v4/fast": {
+    "label": "V4.0q [fast]",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/stable-diffusion-v35-large": {
+    "label": "Stable Diffusion 3.5 Large",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "ideogram/v4/instant": {
+    "label": "V4.0q [instant]",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/wan/v2.7/pro/text-to-image": {
+    "label": "Wan (fal-ai/wan/v2.7/pro/text-to-image)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 2000
+  },
+  "fal-ai/z-image/base": {
+    "label": "Z Image Base",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "luma/agent/uni-1/v1/text-to-image": {
+    "label": "Luma Uni-1",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["3:1", "2:1", "16:9", "3:2", "1:1", "2:3", "9:16", "1:2", "1:3"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["png", "jpeg"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker",
+      "enableWebSearch": "enable_web_search"
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 6000
+  },
+  "fal-ai/hidream-i1-fast": {
+    "label": "Hidream I1 Fast",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "luma/agent/uni-1/v1/max": {
+    "label": "Luma Uni-1 Max",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["3:1", "2:1", "16:9", "3:2", "1:1", "2:3", "9:16", "1:2", "1:3"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["png", "jpeg"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker",
+      "enableWebSearch": "enable_web_search"
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 6000
+  },
+  "krea/v2/medium/turbo/text-to-image": {
+    "label": "Krea 2 Medium Turbo",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["1:1", "4:3", "3:2", "16:9", "2.35:1", "4:5", "2:3", "9:16"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "minPromptLength": 1,
+    "maxPromptLength": 5000
+  },
+  "microsoft/mai-image-2.5-pro": {
+    "label": "MAI Image 2.5 Pro",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["auto", "1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 3,
+    "maxPromptLength": 5000
+  },
+  "fal-ai/ernie-image/turbo": {
+    "label": "Ernie Image Turbo",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9",
+          "square_uhd",
+          "portrait_3_2",
+          "landscape_3_2",
+          "portrait_hd",
+          "landscape_hd"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/flux-1/dev": {
+    "label": "FLUX.1 [dev] (fal-ai/flux-1/dev)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/hidream-o1-image": {
+    "label": "Hidream O1 Image (fal-ai/hidream-o1-image)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 1
+  },
+  "fal-ai/hidream-i1-full": {
+    "label": "Hidream I1 Full",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/flux-2/klein/9b/base": {
+    "label": "FLUX.2 [klein] 9B Base",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/flux-1/krea": {
+    "label": "FLUX.1 Krea [dev] (fal-ai/flux-1/krea)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/recraft/v4/pro/text-to-vector": {
+    "label": "Recraft V4 Pro (Vector)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 10000
+  },
+  "recraft/v4/style/text-to-image": {
+    "label": "Recraft V4 Styles",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 10000
+  },
+  "wan/v2.6/text-to-image": {
+    "label": "Wan v2.6",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "minPromptLength": 1,
+    "requestDefaults": {
+      "max_images": 1
+    }
+  },
+  "fal-ai/flux-2-lora-gallery/realism": {
+    "label": "FLUX 2 Lora Gallery Realism",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["png", "jpeg", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/stable-diffusion-v3-medium": {
+    "label": "Stable Diffusion V3",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/hunyuan-image/v3/instruct/text-to-image": {
+    "label": "Hunyuan Image 3.0 Instruct",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "auto",
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/recraft-20b": {
+    "label": "Recraft 20b",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 1000
+  },
+  "fal-ai/wan/v2.2-a14b/text-to-image": {
+    "label": "Wan (fal-ai/wan/v2.2-a14b/text-to-image)",
+    "output": "image",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true
+  },
+  "recraft/v4/style/pro/text-to-image": {
+    "label": "Recraft V4 Styles Pro",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 10000
+  },
+  "fal-ai/flux-krea-lora": {
+    "label": "FLUX.1 Krea [dev] with LoRAs",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/phota": {
+    "label": "Phota",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["auto", "1:1", "16:9", "4:3", "3:4", "9:16"]
+      },
+      "resolution": {
+        "field": "resolution",
+        "values": ["1K", "4K"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/flux-2/klein/4b/base": {
+    "label": "FLUX.2 [klein] 4B Base",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/wan-25-preview/text-to-image": {
+    "label": "Wan 2.5",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1
+    },
+    "minPromptLength": 1
+  },
+  "fal-ai/luma-photon": {
+    "label": "Luma Photon",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9", "9:21"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "minPromptLength": 3,
+    "maxPromptLength": 5000
+  },
+  "recraft/v4/style/text-to-vector": {
+    "label": "Recraft V4 Styles Text to Vector",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 10000
+  },
+  "fal-ai/ernie-image": {
+    "label": "Ernie Image",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9",
+          "square_uhd",
+          "portrait_3_2",
+          "landscape_3_2",
+          "portrait_hd",
+          "landscape_hd"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "rundiffusion-fal/juggernaut-flux/lightning": {
+    "label": "Juggernaut Flux Lightning",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "nvidia/cosmos-3-super/text-to-image": {
+    "label": "Cosmos 3 Super",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 4096
+  },
+  "fal-ai/flux-2/klein/9b/base/lora": {
+    "label": "FLUX.2 [klein] 9B Base LoRA",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/boogu-image": {
+    "label": "Boogu Image",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/sana/sprint": {
+    "label": "Sana Sprint",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/kolors": {
+    "label": "Kolors",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/nucleus-image": {
+    "label": "Nucleus Image",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "bria/fibo/generate": {
+    "label": "Fibo",
+    "output": "image",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9"]
+      },
+      "resolution": {
+        "field": "resolution",
+        "values": ["1MP", "4MP"]
+      }
+    },
+    "seed": true,
+    "requestDefaults": {
+      "sync_mode": false
+    }
+  },
+  "fal-ai/ideogram/v2a/turbo": {
+    "label": "Ideogram V2A Turbo",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": [
+          "10:16",
+          "16:10",
+          "9:16",
+          "16:9",
+          "4:3",
+          "3:4",
+          "1:1",
+          "1:3",
+          "3:1",
+          "3:2",
+          "2:3"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "sync_mode": false
+    }
+  },
+  "fal-ai/hidream-o1-image/dev": {
+    "label": "Hidream O1 Image (fal-ai/hidream-o1-image/dev)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 1
+  },
+  "rundiffusion-fal/juggernaut-flux/pro": {
+    "label": "Juggernaut Flux Pro",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/stable-diffusion-v35-medium": {
+    "label": "Stable Diffusion 3.5 Medium",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/lumina-image/v2": {
+    "label": "Lumina Image 2",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/ideogram/v2/turbo": {
+    "label": "Ideogram V2 Turbo",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": [
+          "10:16",
+          "16:10",
+          "9:16",
+          "16:9",
+          "4:3",
+          "3:4",
+          "1:1",
+          "1:3",
+          "3:1",
+          "3:2",
+          "2:3"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "sync_mode": false
+    }
+  },
+  "fal-ai/stable-diffusion-v15": {
+    "label": "Stable Diffusion v1.5",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/recraft/v4.1/utility/text-to-image": {
+    "label": "Recraft V4.1 Utility (fal-ai/recraft/v4.1/utility/text-to-image)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 10000
+  },
+  "bria/fibo-gen-1.5/text-to-image": {
+    "label": "Fibo Gen 1.5",
+    "output": "image",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9"]
+      },
+      "resolution": {
+        "field": "resolution",
+        "values": ["1MP", "4MP"]
+      }
+    },
+    "seed": true,
+    "requestDefaults": {
+      "sync_mode": false
+    }
+  },
+  "fal-ai/sdxl-controlnet-union": {
+    "label": "SDXL ControlNet Union",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/glm-image": {
+    "label": "GLM Image",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9",
+          "portrait_3_2",
+          "landscape_3_2",
+          "portrait_hd",
+          "landscape_hd"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/luma-photon/flash": {
+    "label": "Luma Photon Flash",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9", "9:21"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "minPromptLength": 3,
+    "maxPromptLength": 5000
+  },
+  "fal-ai/flux/srpo": {
+    "label": "FLUX.1 SRPO [dev] (fal-ai/flux/srpo)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/recraft/v4.1/utility/pro/text-to-image": {
+    "label": "Recraft V4.1 Utility (fal-ai/recraft/v4.1/utility/pro/text-to-image)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 10000
+  },
+  "fal-ai/fooocus": {
+    "label": "Fooocus",
+    "output": "images",
+    "options": {
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["png", "jpeg", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/flux-2/klein/9b/lora": {
+    "label": "FLUX.2 [klein] 9B LoRA",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/wan/v2.2-a14b/text-to-image/lora": {
+    "label": "Wan v2.2 A14B A14B with LoRAs",
+    "output": "image",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true
+  },
+  "bria/fibo-lite/generate": {
+    "label": "Fibo Lite",
+    "output": "image",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9"]
+      }
+    },
+    "seed": true,
+    "requestDefaults": {
+      "sync_mode": false
+    }
+  },
+  "fal-ai/hunyuan-image/v2.1/text-to-image": {
+    "label": "Hunyuan Image (fal-ai/hunyuan-image/v2.1/text-to-image)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/flux-2/klein/4b/base/lora": {
+    "label": "FLUX.2 [klein] 4B Base LoRA",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/longcat-image": {
+    "label": "Longcat Image",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/omnigen-v2": {
+    "label": "Omnigen V2",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/fast-lcm-diffusion": {
+    "label": "Latent Consistency Models (v1.5/XL)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/ideogram/v2a": {
+    "label": "Ideogram V2A",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": [
+          "10:16",
+          "16:10",
+          "9:16",
+          "16:9",
+          "4:3",
+          "3:4",
+          "1:1",
+          "1:3",
+          "3:1",
+          "3:2",
+          "2:3"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "sync_mode": false
+    }
+  },
+  "fal-ai/bagel": {
+    "label": "Bagel",
+    "output": "images",
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true
+  },
+  "recraft/v4/style/pro/text-to-vector": {
+    "label": "Recraft V4 Styles Pro Text to Vector",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "minPromptLength": 1,
+    "maxPromptLength": 10000
+  },
+  "fal-ai/bria/text-to-image/base": {
+    "label": "Bria Base",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9"]
+      }
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 1
+  },
+  "ideogram/v4/lora": {
+    "label": "Ideogram V4.0q (LoRA)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/sana/v1.5/1.6b": {
+    "label": "Sana v1.5 1.6B",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/emu-3.5-image/text-to-image": {
+    "label": "Emu 3.5 Image",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["21:9", "16:9", "4:3", "3:2", "1:1", "2:3", "3:4", "9:16", "9:21"]
+      },
+      "resolution": {
+        "field": "resolution",
+        "values": ["480p", "720p"]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "sync_mode": false
+    }
+  },
+  "fal-ai/flux-2-lora-gallery/digital-comic-art": {
+    "label": "Flux 2 Lora Gallery (fal-ai/flux-2-lora-gallery/digital-comic-art)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["png", "jpeg", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/sana/v1.5/4.8b": {
+    "label": "Sana v1.5 4.8B",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "rundiffusion-fal/juggernaut-flux/base": {
+    "label": "Juggernaut Flux Base",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/flux-1/srpo": {
+    "label": "FLUX.1 SRPO [dev] (fal-ai/flux-1/srpo)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/flux-2-lora-gallery/ballpoint-pen-sketch": {
+    "label": "Flux 2 Lora Gallery (fal-ai/flux-2-lora-gallery/ballpoint-pen-sketch)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["png", "jpeg", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/flux-2/klein/4b/lora": {
+    "label": "FLUX.2 [klein] 4B LoRA",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/flux-lora/stream": {
+    "label": "Flux Lora",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/flux-2-lora-gallery/hdr-style": {
+    "label": "FLUX 2 Lora Gallery Hdr Style",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["png", "jpeg", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/z-image/base/lora": {
+    "label": "Z Image Base Lora",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/vidu/q2/text-to-image": {
+    "label": "Vidu",
+    "output": "image",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["16:9", "9:16", "1:1"]
+      }
+    },
+    "seed": true,
+    "maxPromptLength": 1500
+  },
+  "fal-ai/wan/v2.2-5b/text-to-image": {
+    "label": "Wan (fal-ai/wan/v2.2-5b/text-to-image)",
+    "output": "image",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true
+  },
+  "fal-ai/flux-2-lora-gallery/sepia-vintage": {
+    "label": "Flux 2 Lora Gallery (fal-ai/flux-2-lora-gallery/sepia-vintage)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["png", "jpeg", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/flux-2-lora-gallery/satellite-view-style": {
+    "label": "Flux 2 Lora Gallery (fal-ai/flux-2-lora-gallery/satellite-view-style)",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["png", "jpeg", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/ernie-image/lora/turbo": {
+    "label": "Ernie Image Lora Turbo",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9",
+          "square_uhd",
+          "portrait_3_2",
+          "landscape_3_2",
+          "portrait_hd",
+          "landscape_hd"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "rundiffusion-fal/rundiffusion-photo-flux": {
+    "label": "Rundiffusion Photo Flux",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/vecglypher": {
+    "label": "Vecglypher",
+    "output": "image",
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true
+  },
+  "fal-ai/ernie-image/lora": {
+    "label": "Ernie Image Lora",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9",
+          "square_uhd",
+          "portrait_3_2",
+          "landscape_3_2",
+          "portrait_hd",
+          "landscape_hd"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/flux-kontext-lora/text-to-image": {
+    "label": "Flux Kontext Lora",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/flux-krea-lora/stream": {
+    "label": "Flux Krea Lora",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "bria/fibo-bbq-preview/generate": {
+    "label": "Fibo Bbq Preview",
+    "output": "image",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9"]
+      }
+    },
+    "seed": true,
+    "requestDefaults": {
+      "sync_mode": false
+    }
+  },
+  "fal-ai/bria/text-to-image/fast": {
+    "label": "Bria Fast",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9"]
+      }
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 1
+  },
+  "fal-ai/z-image/turbo/tiling/lora": {
+    "label": "Z-Image Turbo Seamless Tiling Lora",
+    "output": "images",
+    "options": {
+      "size": {
+        "field": "image_size",
+        "values": [
+          "square_hd",
+          "square",
+          "portrait_4_3",
+          "portrait_16_9",
+          "landscape_4_3",
+          "landscape_16_9",
+          "auto"
+        ]
+      },
+      "outputFormat": {
+        "field": "output_format",
+        "values": ["jpeg", "png", "webp"]
+      }
+    },
+    "booleans": {
+      "enableSafetyChecker": "enable_safety_checker"
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    }
+  },
+  "fal-ai/bria/text-to-image/hd": {
+    "label": "Bria HD",
+    "output": "images",
+    "options": {
+      "aspectRatio": {
+        "field": "aspect_ratio",
+        "values": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9"]
+      }
+    },
+    "seed": true,
+    "requestDefaults": {
+      "num_images": 1,
+      "sync_mode": false
+    },
+    "minPromptLength": 1
+  }
+}
