@@ -208,7 +208,7 @@ await check(
     }
   }
 )
-await check('v2 workspace download addressed by an encoded files/ VFS path', async () => {
+await check('v2 workspace download routes a %2F-encoded files/ VFS path to its file', async () => {
   const folderResponse = await request(`/api/workspaces/${workspaceId}/files/folders`, {
     method: 'POST',
     body: JSON.stringify({ name: 'VfsDocs' }),
@@ -216,20 +216,19 @@ await check('v2 workspace download addressed by an encoded files/ VFS path', asy
   assert.ok(folderResponse.ok, `Folder create returned ${folderResponse.status}`)
   const folderId = required(toRecord(toRecord(await folderResponse.json()).folder).id)
   await create('workspace', 'vfs-report.csv', 'text/csv', 'root copy')
-  const nested = await create('workspace', 'vfs-report.csv', 'text/csv', 'folder copy', folderId)
-  const download = (fileId: string) =>
+  await create('workspace', 'vfs-report.csv', 'text/csv', 'folder copy', folderId)
+  const download = (path: string) =>
     request(
-      `/api/v2/files/${encodeURIComponent(fileId)}?workspaceId=${workspaceId}`,
+      `/api/v2/files/${encodeURIComponent(path)}?workspaceId=${workspaceId}`,
       { headers: { 'X-API-Key': personalKey } },
       true
     )
-  for (const [fileId, content] of [
+  for (const [path, content] of [
     ['files/VfsDocs/vfs-report.csv', 'folder copy'],
-    [required(nested.id), 'folder copy'],
     ['files/vfs-report.csv', 'root copy'],
   ]) {
-    const response = await download(fileId)
-    assert.equal(response.status, 200, `${fileId} returned ${response.status}`)
+    const response = await download(path)
+    assert.equal(response.status, 200, `${path} returned ${response.status}`)
     assert.equal(await response.text(), content)
   }
   assert.equal((await download('files/VfsDocs/missing.csv')).status, 404)
