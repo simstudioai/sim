@@ -102,6 +102,8 @@ The `'use client'` server boundary, the app/worker runtime env split, and featur
 
 ## Styling and EMCN
 
+The isolated Platform in `apps/sim/platform/` follows [its design contract](apps/sim/platform/AGENTS.md) and the `implement-platform` skill. The EMCN and styling rules below apply to the existing application.
+
 - Tailwind only. Inline `style` only for a genuinely dynamic value or a CSS variable; type size is a named token, never `text-[Npx]` (`check:source-conventions` ratchets both). Never update global styles; keep styling local to the component. `cn()` from `@sim/emcn` for conditional classes. `size-*` for equal height and width (icons default `size-[14px]`), never `h-N w-N`.
 - Import components, `cn`, and tokens from the `@sim/emcn` barrel; icons from `@sim/emcn/icons`; CSS modules by file path. Never deep-import other component subpaths.
 - The chip family is the canonical chrome: `ChipInput`, `ChipTextarea`, `ChipModal`/`ChipModalField`, `ChipSelect`/`ChipCombobox`/`ChipDropdown`, `ChipSwitch` (a segmented choice; a boolean toggle stays `Switch`), `ChipDatePicker`, `Chip`/`ChipLink`, `ChipTag`; `DropdownMenu` for context/action menus. Components own their chrome: consumers pass props (`error`, `icon`, `endAdornment`, `inputClassName`) and `className` carries only layout/sizing. Every labeled field inside a `ChipModalBody` is a `ChipModalField`.

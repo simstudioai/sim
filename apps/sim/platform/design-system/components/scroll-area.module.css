@@ -1,0 +1,64 @@
+.viewport {
+  min-inline-size: 0;
+  min-block-size: 0;
+  max-inline-size: 100%;
+  max-block-size: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.viewport[data-axis="horizontal"] {
+  overflow-y: hidden;
+}
+.viewport[data-axis="horizontal"] > .content {
+  inline-size: max-content;
+}
+.viewport[data-axis="vertical"] {
+  overflow-x: hidden;
+}
+.viewport[data-edges="start"] {
+  mask-image: var(--fade-start);
+}
+.viewport[data-edges="end"] {
+  mask-image: var(--fade-end);
+}
+.viewport[data-edges="both"] {
+  mask-image: var(--fade-both);
+}
+
+.shell {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+}
+.shell .viewport {
+  flex: 1;
+  scrollbar-width: none;
+}
+.previous,
+.next {
+  display: none;
+  width: var(--spacing-36);
+  flex: none;
+  justify-content: center;
+}
+.shell:has([data-edges="start"], [data-edges="both"]) > .previous,
+.shell:has([data-edges="end"], [data-edges="both"]) > .next {
+  display: flex;
+}
+@media (pointer: coarse) {
+  .previous,
+  .next {
+    width: var(--spacing-app-touch-target);
+  }
+}
+
+.previous,
+.next:dir(rtl) {
+  transform: scaleX(-1);
+}
+.previous:dir(rtl) {
+  transform: none;
+}
+.viewport[data-axis="horizontal"] > .content {
+  min-inline-size: 100%;
+}

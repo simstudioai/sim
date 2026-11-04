@@ -1,0 +1,193 @@
+.disclosure,
+.menu,
+.search {
+  min-inline-size: 0;
+}
+.summary,
+.menuItem,
+.choiceLabel,
+.search {
+  display: flex;
+  align-items: center;
+}
+.summary {
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  gap: var(--spacing-8);
+  min-height: var(--spacing-18);
+  list-style: none;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.summary::-webkit-details-marker {
+  display: none;
+}
+.expanded,
+.disclosure[open] > .summary .collapsed {
+  display: none;
+}
+.disclosure[open] > .summary .expanded {
+  display: inline-flex;
+}
+.collapsed {
+  display: inline-flex;
+}
+
+.menu {
+  display: grid;
+  inline-size: min(100%, var(--menu-action-width));
+  padding: var(--spacing-menu-inset);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-menu-shared);
+}
+.menu:has(.menuItem[data-option]) {
+  inline-size: min(100%, var(--menu-choice-width));
+}
+.menuItem {
+  width: 100%;
+  min-height: var(--spacing-app-chip);
+  padding-inline: var(--spacing-8);
+  gap: var(--spacing-8);
+  border-radius: var(--radius-item);
+  color: var(--ui-ink);
+  cursor: pointer;
+  text-align: start;
+}
+.menuItem[data-option] {
+  min-height: var(--spacing-app-control-md);
+}
+.menuItem:is(:hover, :focus-visible) {
+  background: var(--ui-hover);
+}
+.menuLabel {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.hint {
+  min-width: var(--spacing-32);
+  text-align: end;
+  color: var(--ui-secondary);
+}
+
+.search {
+  min-height: var(--spacing-app-chip);
+  padding-inline: var(--spacing-7);
+  gap: var(--spacing-6);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  color: var(--ui-secondary);
+}
+.search[data-variant="menu"] {
+  min-height: var(--spacing-app-control-md);
+  padding-inline: var(--spacing-8);
+  gap: var(--spacing-8);
+  margin-block-end: var(--spacing-4);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.search:focus-within {
+  outline: var(--spacing-stroke-default) solid var(--ui-focus);
+}
+.query {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 0;
+  appearance: none;
+  color: var(--ui-ink);
+  background: transparent;
+}
+.query:focus-visible {
+  outline: none;
+}
+.query::placeholder {
+  color: var(--ui-secondary);
+}
+.query::-webkit-search-cancel-button {
+  display: none;
+}
+.shortcut {
+  display: inline-flex;
+  flex: none;
+  width: var(--spacing-app-control-sm);
+  height: var(--spacing-app-control-sm);
+  justify-content: center;
+  align-items: center;
+}
+
+.segmented {
+  display: inline-flex;
+  align-items: stretch;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: var(--spacing-app-control-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-composer);
+  gap: var(--spacing-1);
+  background: var(--choice-track);
+}
+.choice {
+  display: inline-flex;
+  position: relative;
+  min-inline-size: 0;
+  min-block-size: var(--spacing-app-control-sm);
+  cursor: pointer;
+}
+.radio {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.choiceLabel {
+  min-inline-size: 0;
+  padding-inline: var(--spacing-12);
+  gap: var(--spacing-6);
+  justify-content: center;
+  border: var(--spacing-stroke-default) solid transparent;
+  border-radius: var(--radius-full);
+  color: var(--ui-secondary);
+  overflow-wrap: anywhere;
+}
+.choiceLabel[data-icon] {
+  padding-inline: var(--spacing-8);
+}
+.radio:checked + .choiceLabel {
+  color: var(--ui-ink);
+  background: var(--choice-selected);
+  border-color: var(--choice-edge);
+  box-shadow: var(--choice-shadow);
+}
+.radio:focus-visible + .choiceLabel {
+  outline: var(--spacing-stroke-focus) solid var(--ui-focus);
+  outline-offset: var(--spacing-stroke-focus);
+}
+
+.disclosure[data-variant="activity"] > .summary {
+  width: 100%;
+  min-height: var(--spacing-app-control-md);
+  padding-block-end: var(--spacing-12);
+  color: var(--ui-secondary);
+  border-block-end: var(--spacing-stroke-default) solid var(--ui-border);
+}
+.disclosure[data-variant="more"] > .summary {
+  min-height: var(--spacing-app-control-sm);
+  gap: var(--spacing-6);
+  color: var(--ui-secondary);
+}
+.disclosure[data-variant="more"][open] > .summary {
+  color: var(--ui-ink);
+}
+.disclosure[data-variant="more"] > .summary:not(:hover, :focus-visible) .collapsed svg {
+  visibility: hidden;
+}
+.disclosure[data-variant="more"] > .summary .expanded svg {
+  rotate: 180deg;
+}
