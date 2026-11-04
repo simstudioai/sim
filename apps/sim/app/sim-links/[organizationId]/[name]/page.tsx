@@ -13,7 +13,8 @@ interface OrganizationLinkPageProps {
 
 /** Bookmarks stay in their exporting organization even after the browser's active team changes. */
 export default async function OrganizationLinkPage({ params }: OrganizationLinkPageProps) {
-  const { organizationId, name } = await params
+  const { organizationId, name: encodedName } = await params
+  const name = decodeURIComponent(encodedName)
   if (!simLinkNameSchema.safeParse(name).success) notFound()
   const routes = organizationRoutes(organizationId)
   const session = await getSession()

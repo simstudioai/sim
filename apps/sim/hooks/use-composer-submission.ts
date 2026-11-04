@@ -26,28 +26,33 @@ interface UseComposerSubmissionProps {
 
 export function useComposerSubmission({ scope, mode }: UseComposerSubmissionProps) {
   const active = useRef<PendingComposerSubmission | null>(null)
-  const focusBeforeSend = useRef<HTMLElement | null>(null)
+  const focusAfterSend = useRef<HTMLTextAreaElement | null>(null)
   const [pending, setPending] = useState(false)
 
   useLayoutEffect(() => {
     setPending(false)
     return () => {
       active.current = null
-      focusBeforeSend.current = null
+      focusAfterSend.current = null
     }
   }, [scope, mode])
 
   useLayoutEffect(() => {
     if (pending) return
-    const previous = focusBeforeSend.current
-    focusBeforeSend.current = null
-    if (previous?.isConnected && document.hasFocus() && document.activeElement === document.body) {
-      previous.focus({ preventScroll: true })
+    const input = focusAfterSend.current
+    focusAfterSend.current = null
+    if (input?.isConnected && document.hasFocus() && document.activeElement === document.body) {
+      input.focus({ preventScroll: true })
     }
   }, [pending])
 
   const accept = useCallback(
-    (submit: () => unknown, clear: () => void, unchanged: () => boolean) => {
+    (
+      submit: () => unknown,
+      clear: () => void,
+      unchanged: () => boolean,
+      input: HTMLTextAreaElement | null
+    ) => {
       if (active.current) return
       const result = submit()
       if (!(result instanceof PendingComposerSubmission)) {
@@ -55,8 +60,7 @@ export function useComposerSubmission({ scope, mode }: UseComposerSubmissionProp
         return
       }
       active.current = result
-      focusBeforeSend.current =
-        document.activeElement instanceof HTMLElement ? document.activeElement : null
+      focusAfterSend.current = input
       setPending(true)
       void result.ready
         .then((commit) => {
