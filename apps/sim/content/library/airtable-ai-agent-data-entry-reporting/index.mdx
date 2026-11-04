@@ -167,7 +167,7 @@ Store a processed timestamp, workflow run identifier, or enrichment version in A
 
 Run a separate workflow with Sim's [Schedule trigger](https://docs.sim.ai/workflows/triggers/schedule), read the relevant records, calculate reliable totals, and ask a model to explain the results.
 
-Retrieve records from a defined Airtable view for the reporting period. Calculate counts, sums, and rates with deterministic workflow logic where possible, then give the model those calculated values to produce a concise narrative.
+Use Airtable List Records with `filterFormula` to select records for the reporting period because the native action does not accept a view. Before calculating totals, add a Condition that ends the reporting branch when `metadata.offset` is present because the action returned only the first page. When no offset is present, calculate counts, sums, and rates with deterministic workflow logic where possible, then give the model those calculated values to produce a concise narrative.
 
 A useful weekly report can include:
 
