@@ -778,6 +778,18 @@ try {
       const previousUrl = app.url()
       const receipt = await dropOnChat(shell, greeting, { files: [png] })
       dropReceipts.push({ scope, phase: 'held-capture', receipt })
+      assert(
+        receipt.events.some(
+          (event) =>
+            event.type === 'dragover' &&
+            event.trusted &&
+            event.types.includes('Files') &&
+            event.intendedTarget &&
+            event.chatBody &&
+            event.defaultPrevented
+        ),
+        `${scope}: the held-capture file drag did not reach the intended chat body`
+      )
       await app.evaluate(
         () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
       )
