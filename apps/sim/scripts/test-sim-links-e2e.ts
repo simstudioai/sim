@@ -403,24 +403,30 @@ async function run() {
     await api({ ...outsider, orgId }, '', { expected: 404 })
   })
 
-  await check(
-    'a team bookmark keeps its organization across sign-in and a same-name link elsewhere',
-    async () => {
-      const name = 'managed-help'
-      const path = `/sim-links/${encodeURIComponent(orgId)}/${name}`
-      const destination = 'https://team.example.com/help'
+  await check('team bookmarks preserve encoded names and organization across sign-in', async () => {
+    const destination = 'https://team.example.com/help'
+    for (const name of ['managed-help', 'managed:help@team&docs']) {
+      const path = `/sim-links/${encodeURIComponent(orgId)}/${encodeURIComponent(name)}`
       await create(owner, { name, url: destination })
       await create(outsider, { name, url: 'https://another-team.example.com/help' })
       const signedOut = await send(path, null)
+      assert.equal(signedOut.status, 307, `${name}: expected sign-in redirect`)
       const login = new URL(signedOut.headers.get('location') ?? '/', baseUrl)
-      assert.equal(login.pathname, '/login')
-      assert.equal(login.searchParams.get('callbackUrl'), path)
-      assert.equal((await send(path, member)).headers.get('location'), destination)
+      assert.equal(login.pathname, '/login', name)
+      assert.equal(login.searchParams.get('callbackUrl'), path, name)
+      const opened = await send(path, member)
+      assert.equal(opened.status, 307, `${name}: expected destination redirect`)
+      assert.equal(opened.headers.get('location'), destination, name)
       const denied = await send(path, outsider)
-      assert.equal(denied.status, 404)
-      assert(!denied.headers.get('location'))
+      assert.equal(denied.status, 404, name)
+      assert(!denied.headers.get('location'), name)
     }
-  )
+    for (const encodedName of ['%256Danaged-help', 'managed%2Fhelp']) {
+      const denied = await send(`/sim-links/${encodeURIComponent(orgId)}/${encodedName}`, member)
+      assert.equal(denied.status, 404, encodedName)
+      assert(!denied.headers.get('location'), encodedName)
+    }
+  })
 
   await check(
     'bookmark export requires admin access and drops stale or foreign selections',

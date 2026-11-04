@@ -2030,11 +2030,24 @@ try {
           await input().fill(draft)
           count = received.length
           phase = 'denied-send'
-          await input().press('Enter')
+          await frame()
+            .getByRole('button', { name: org ? 'Send' : 'Send message', exact: true })
+            .click()
           await expect(
             shell.getByRole('button', { name: 'Request site access', exact: true })
           ).toBeEnabled()
           await expect(input()).toHaveValue(draft)
+          await expect
+            .poll(() => input().evaluate((element) => Boolean(element.closest('[inert]'))))
+            .toBe(false)
+          assert.equal(received.length, count)
+          assert(
+            await frame().evaluate(() => document.hasFocus()),
+            'The denied mouse send must keep the chat document focused'
+          )
+          await expect(input()).toBeFocused()
+          await shell.keyboard.type(' Continue typing after the denied capture.')
+          await expect(input()).toHaveValue(`${draft} Continue typing after the denied capture.`)
           assert.equal(received.length, count)
           await screenshot(`reference-${org ? 'organization' : 'workspace'}-denied`)
           const accessNotice = await shell
