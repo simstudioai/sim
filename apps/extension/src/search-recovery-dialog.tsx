@@ -122,7 +122,7 @@ export function SearchRecoveryDialog({ onClose }: SearchRecoveryDialogProps) {
               title={provider.label}
               titleActions={
                 <Switch
-                  aria-label={`${provider.label} sim/ and go/ shortcuts`}
+                  aria-label={`${provider.label} go/ and sim/ shortcuts`}
                   aria-busy={busyProvider === provider.id}
                   checked={settings?.[provider.id] ?? false}
                   disabled={!settings || loadError || busyProvider !== null}

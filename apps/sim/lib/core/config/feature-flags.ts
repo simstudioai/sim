@@ -69,7 +69,7 @@ const FEATURE_FLAGS = {
   },
   'sim-links': {
     description:
-      'Enable organization Sim links (go links): the Sim Links page and sim/<name> redirects. Supports organization rollout; disabled by default.',
+      'Enable organization links: the Links page and sim/<name> and go/<name> redirects. Supports organization rollout; disabled by default.',
     fallback: 'SIM_LINKS',
   },
   people: {

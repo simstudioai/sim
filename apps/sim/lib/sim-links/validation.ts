@@ -1,4 +1,8 @@
-import { SIM_LINK_NAME_MAX_LENGTH, SIM_LINK_URL_MAX_LENGTH } from '@sim/browser-extension-protocol'
+import {
+  SIM_LINK_HOST_PATTERN,
+  SIM_LINK_NAME_MAX_LENGTH,
+  SIM_LINK_URL_MAX_LENGTH,
+} from '@sim/browser-extension-protocol'
 import { z } from 'zod'
 
 const NAME_PATTERN = /^[A-Za-z0-9.:@&~_-]+$/
@@ -19,9 +23,11 @@ export function normalizeSimLinkName(name: string): string {
   return name.toLowerCase().replace(NAME_PUNCTUATION, '')
 }
 
-/** Text as typed after `sim/` or `go/`, whether or not the prefix itself was typed too. */
+const TYPED_HOST_PREFIX = new RegExp(`^(?:${SIM_LINK_HOST_PATTERN})/`, 'i')
+
+/** Drops a leading `sim/` or `go/` from typed text. */
 export function stripSimLinkPrefix(input: string): string {
-  return input.replace(/^(?:sim|go)\//i, '')
+  return input.replace(TYPED_HOST_PREFIX, '')
 }
 
 /**
@@ -74,7 +80,11 @@ export function parseTypedSimLink(segments: readonly string[]): {
  * when a name was typed that no link can match, such as only punctuation.
  */
 export function typedSimLinkPrefix(query: string): string | null {
-  const [path = ''] = stripSimLinkPrefix(query.trim()).split('?')
+  // Only the keyword's own `sim/`: after it, `go/x` can be a link named `go` with a value.
+  const [path = ''] = query
+    .trim()
+    .replace(/^sim\//i, '')
+    .split('?')
   const { name } = parseTypedSimLink(path.split('/'))
   const prefix = normalizeSimLinkName(name)
   return name && !prefix ? null : prefix

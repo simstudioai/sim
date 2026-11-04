@@ -2,6 +2,7 @@ import { createPublicKey } from 'node:crypto'
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { SIM_LINK_HOST_PATTERN, SIM_LINK_HOSTS } from '@sim/browser-extension-protocol'
 import { build } from 'esbuild'
 import postcss from 'postcss'
 import loadPostcssConfig from 'postcss-load-config'
@@ -90,16 +91,18 @@ for (const [size, file] of [
   await cp(resolve(root, '../sim/public/favicon', file), resolve(dist, `icon-${size}.png`))
 }
 /**
- * Only requests to the short hosts reach this rule: `go/` is the habit people bring from other
- * companies, `sim/` our own. Chrome can classify a bare `go/<name>` as a search before navigation.
- * Preserve the path and query for actual short-host navigations.
+ * Only requests to the short hosts reach this rule. Chrome can classify a bare `go/<name>` as a
+ * search before navigation. Preserve the path and query for actual short-host navigations.
  */
 const simLinkRules = [
   {
     id: 1,
     priority: 1,
     action: { type: 'redirect', redirect: { regexSubstitution: `${origin.origin}/sim/\\1` } },
-    condition: { regexFilter: '^https?://(?:sim|go)/(.*)$', resourceTypes: ['main_frame'] },
+    condition: {
+      regexFilter: `^https?://(?:${SIM_LINK_HOST_PATTERN})/(.*)$`,
+      resourceTypes: ['main_frame'],
+    },
   },
 ]
 await writeFile(resolve(dist, 'sim-links.json'), JSON.stringify(simLinkRules, null, 2))
@@ -123,10 +126,7 @@ await writeFile(
       ],
       host_permissions: [
         `${origin.origin}/*`,
-        'http://sim/*',
-        'https://sim/*',
-        'http://go/*',
-        'https://go/*',
+        ...SIM_LINK_HOSTS.flatMap((host) => [`http://${host}/*`, `https://${host}/*`]),
       ],
       declarative_net_request: {
         rule_resources: [{ id: 'sim_links', enabled: true, path: 'sim-links.json' }],

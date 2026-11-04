@@ -100,7 +100,7 @@ export function SimLinkModal({
     else create.mutate(parsed.data, { onSuccess: onSaved ?? onClose })
   }
 
-  const title = link ? `Edit sim/${link.name}` : 'New link'
+  const title = link ? `Edit ${link.name}` : 'New link'
   const [actionLabel, pendingLabel] = link ? ['Save', 'Saving'] : ['Create', 'Creating']
 
   return (

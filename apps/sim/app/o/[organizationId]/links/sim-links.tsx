@@ -106,7 +106,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
       loaded.map((link) => ({
         id: link.id,
         cells: {
-          name: { icon: <SimLinkIcon url={link.url} />, label: `sim/${link.name}` },
+          name: { icon: <SimLinkIcon url={link.url} />, label: link.name },
           destination: { label: link.url },
           description: { label: link.description },
           owner: link.createdBy
@@ -248,7 +248,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
           if (!open && !remove.isPending) setDeleting(null)
         }}
         title='Delete link'
-        text={`sim/${deleting?.name ?? ''} will stop working for everyone in your organization.`}
+        text={`${deleting?.name ?? 'This link'} will stop working for everyone in your organization.`}
         confirm={{
           label: 'Delete',
           pendingLabel: 'Deleting',

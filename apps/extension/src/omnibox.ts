@@ -24,14 +24,15 @@ interface SuggestedLink {
 
 /**
  * What was typed after the `sim` keyword, split where the name ends: `sim/jira/ABC-1?tab=all`
- * (a `sim/` or `go/` prefix is optional) has the name `jira` and the rest `/ABC-1?tab=all`. Surrounding spaces,
+ * (the `sim/` is optional) has the name `jira` and the rest `/ABC-1?tab=all`. Surrounding spaces,
  * the prefix, leading slashes, and any `#fragment` are dropped, as the address bar would; values
  * and the query otherwise stay exactly as typed.
  */
 function readTyped(text: string): { name: string; rest: string } {
   const typed = text
     .trim()
-    .replace(/^(?:sim|go)\//i, '')
+    // Only the keyword's own `sim/`: after it, `go/x` can be a link named `go` with a value.
+    .replace(/^sim\//i, '')
     .replace(/^\/+/, '')
     .replace(/#.*$/, '')
   const nameEnd = typed.search(/[/?]/)

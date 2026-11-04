@@ -54,7 +54,7 @@ function describeUnresolved(result: SimLinkResolution, validName: boolean, name:
     return `This link needs ${needed}, like sim/${name}/${example}.`
   }
   if (result.kind === 'invalid_values') return "Links can't open . or .. as a value."
-  return validName ? "This Sim link doesn't exist yet." : "That isn't a valid Sim link name."
+  return validName ? "This link doesn't exist yet." : "That isn't a valid link name."
 }
 
 /**
@@ -94,12 +94,12 @@ export default async function SimLinkPage({ params, searchParams }: SimLinkPageP
   return (
     <LogoShell center theme='inherit'>
       <StatusPageContent
-        title={validName ? `sim/${name}` : 'Link'}
+        title={validName ? name : 'Link'}
         description={describeUnresolved(result, validName, name)}
       >
         {creatable && (
           <ChipLink variant='primary' href={serializeSimLinkView(library, { create: name })}>
-            Create sim/{name}
+            Create link
           </ChipLink>
         )}
         <ChipLink href={library}>All links</ChipLink>

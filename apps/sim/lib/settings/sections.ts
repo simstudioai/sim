@@ -58,7 +58,7 @@ export const settingsSections: Record<MothershipSettingsScope, readonly Settings
       id: 'sim-links',
       label: 'Links',
       userSetup:
-        'Members browse and follow links on the organization Links page. Available only where Sim links are enabled for the organization.',
+        'Members browse and follow links on the organization Links page. Available only where Links are enabled for the organization.',
     },
     {
       id: 'sso',

@@ -340,7 +340,7 @@ async function run() {
       body: fields({ name: 'team.handbook', url: 'https://other.example.com' }),
       expected: 409,
     })
-    assert.match(String(error), /sim\/Team-Handbook already exists/)
+    assert.match(String(error), /A link named Team-Handbook already exists/)
   })
 
   await check('unlisted links are hidden from other members but still resolve', async () => {

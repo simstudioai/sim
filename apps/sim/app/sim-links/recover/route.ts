@@ -1,5 +1,6 @@
 import { SIM_LINK_NAME_MAX_LENGTH } from '@sim/browser-extension-protocol'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { stripSimLinkPrefix } from '@/lib/sim-links/validation'
 
 const MAX_VALUES = 8
 const MAX_VALUE_LENGTH = 256
@@ -29,10 +30,10 @@ function recoverSimLinkPath(search: string): string | null {
   } catch {
     return null
   }
-  const prefix = /^(?:sim|go)\//i.exec(shortcut)
-  if (shortcut.length > MAX_DECODED_LENGTH || !prefix) return null
+  const path = stripSimLinkPrefix(shortcut)
+  if (shortcut.length > MAX_DECODED_LENGTH || path === shortcut) return null
 
-  const segments = shortcut.slice(prefix[0].length).replace(/\/$/, '').split('/')
+  const segments = path.replace(/\/$/, '').split('/')
   const [name] = segments
   if (
     !name ||

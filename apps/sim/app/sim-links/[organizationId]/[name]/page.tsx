@@ -38,7 +38,7 @@ export default async function OrganizationLinkPage({ params }: OrganizationLinkP
   if (result.kind === 'redirect') redirect(result.url)
   return (
     <StatusPageContent
-      title={`sim/${name}`}
+      title={name}
       description={
         result.kind === 'missing_values'
           ? 'This link needs a value. Open it from Links.'

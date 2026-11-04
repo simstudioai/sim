@@ -47,7 +47,7 @@ function useExistingSimLink(organizationId: string, url: string) {
   const copyExisting = async () => {
     if (!existing) return false
     const done = await copy(simLinkUrl(window.location.origin, existing.name))
-    if (!done) toast.error('Unable to copy Sim link')
+    if (!done) toast.error('Unable to copy link')
     return done
   }
   return { existing, isPending, isError, copied, copyExisting }
