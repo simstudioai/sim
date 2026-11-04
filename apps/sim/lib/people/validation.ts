@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
 export const PEOPLE_SEARCH_MAX_LENGTH = 200
+export const PEOPLE_ID_MAX_LENGTH = 255
+export const PEOPLE_DEPARTMENT_KEY_PATTERN = /^[0-9a-f]{64}$/
 export const PROFILE_TEXT_MAX_LENGTH = 200
 export const DIRECTORY_TEXT_MAX_LENGTH = 2048
 
@@ -60,7 +62,7 @@ export const memberProfileFieldsSchema = z
         return date
       })
       .nullable(),
-    managerMemberId: z.string().min(1).max(255).nullable(),
+    managerMemberId: z.string().min(1).max(PEOPLE_ID_MAX_LENGTH).nullable(),
   })
   .strict()
 

@@ -48,6 +48,8 @@ People keeps the last published chart visible until the full replacement passes 
 
 SCIM user changes queue a refresh for the next scheduler pass, including changes that arrive while a refresh is running. Sim reads locally provisioned profiles together and publishes their reporting lines in one update. When SCIM deactivates or removes someone, their directory-managed profile is hidden immediately.
 
+Disabling the SCIM provisioning connection pauses People updates and keeps the last published chart. Re-enable provisioning in organization settings to resume syncing. **Sync now** is unavailable while provisioning is disabled.
+
 After a failure, check the status for the cause. Correct invalid or duplicate email addresses and reporting loops in the source. Check credentials and directory permissions for an access failure. The status shows when Sim will retry automatically. After correcting a source error you can select **Retry sync** immediately. For a provider cooldown, the button becomes available when the cooldown ends.
 
 To stop syncing, select **Disconnect**. This removes directory-only profiles and source-managed details. Existing Sim members and their manual profile data remain. Disconnect the current source before changing providers or tenants.

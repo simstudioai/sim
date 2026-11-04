@@ -4,7 +4,7 @@ import { scimConnection, scimCredential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Base64Url } from '@sim/security/hash'
 import { generateShortId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lt, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { parseBearerToken } from '@/lib/auth/oauth-access-token'
 import { isScimEntitledForOrganization } from '@/ee/scim/lib/entitlement'
@@ -67,10 +67,25 @@ function touchCredentialLastUsed(credentialId: string, lastUsedAt: Date | null):
 
 function touchConnectionLastRequest(connectionId: string, lastRequestAt: Date | null): void {
   if (lastRequestAt && Date.now() - lastRequestAt.getTime() < LAST_USED_WRITE_INTERVAL_MS) return
+  const now = new Date()
+  // Activity must not queue behind a directory publication or an administrator's connection edit.
+  const available = db
+    .select({ id: scimConnection.id })
+    .from(scimConnection)
+    .where(
+      and(
+        eq(scimConnection.id, connectionId),
+        or(
+          isNull(scimConnection.lastRequestAt),
+          lt(scimConnection.lastRequestAt, new Date(now.getTime() - LAST_USED_WRITE_INTERVAL_MS))
+        )
+      )
+    )
+    .for('no key update', { skipLocked: true })
   void db
     .update(scimConnection)
-    .set({ lastRequestAt: new Date() })
-    .where(eq(scimConnection.id, connectionId))
+    .set({ lastRequestAt: now })
+    .where(inArray(scimConnection.id, available))
     .catch((error) => logger.warn('Failed to record SCIM connection activity', { error }))
 }
 

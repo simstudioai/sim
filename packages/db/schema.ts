@@ -2039,12 +2039,18 @@ export const peopleDirectorySync = pgTable(
 )
 
 /** Coalesces provisioning changes independently of the worker's long-held publication lock. */
-export const peopleDirectoryScimChange = pgTable('people_directory_scim_change', {
-  organizationId: text('organization_id')
-    .primaryKey()
-    .references(() => organization.id, { onDelete: 'cascade' }),
-  changedAt: timestamp('changed_at').notNull().defaultNow(),
-})
+export const peopleDirectoryScimChange = pgTable(
+  'people_directory_scim_change',
+  {
+    organizationId: text('organization_id')
+      .primaryKey()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    changedAt: timestamp('changed_at').notNull().defaultNow(),
+  },
+  (table) => [
+    index('people_directory_scim_change_due_idx').on(table.changedAt, table.organizationId),
+  ]
+)
 
 /** Source identities live independently of accounts, memberships, seats, and access grants. */
 export const peopleDirectoryEntry = pgTable(
