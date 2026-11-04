@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { flushMacrotask } from '@sim/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,9 +18,7 @@ function press(element: Element | null) {
 }
 
 async function settle() {
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0))
-  })
+  await act(flushMacrotask)
 }
 
 describe('creating a Sim link from the sources popover', () => {
@@ -49,7 +48,6 @@ describe('creating a Sim link from the sources popover', () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
-    vi.unstubAllGlobals()
   })
 
   it('opens the form outside the popover and dismisses the popover, so the form is never beneath it', async () => {
