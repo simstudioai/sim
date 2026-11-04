@@ -23,11 +23,8 @@ export function PageAccessButton({ allowed, onAccessGranted }: PageAccessButtonP
     setStatus('requesting')
     try {
       const granted = await chrome.permissions.request({ origins: PAGE_ACCESS_ORIGINS })
-      if (!mounted.current) return
-      if (granted) {
-        setStatus('idle')
-        onAccessGranted()
-      } else setStatus('idle')
+      if (mounted.current) setStatus('idle')
+      if (granted) onAccessGranted()
     } catch {
       if (mounted.current) setStatus('error')
     }
