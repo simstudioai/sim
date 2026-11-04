@@ -120,6 +120,9 @@ export type ExtensionToAppMessage = z.infer<typeof extensionToAppMessageSchema>
 /** The longest Sim link name; the extension asks about nothing longer. */
 export const SIM_LINK_NAME_MAX_LENGTH = 64
 
+/** Destination limit shared by editable drafts and saved Sim links. */
+export const SIM_LINK_URL_MAX_LENGTH = 2048
+
 /** Where the extension asks for the address-bar suggestions behind its `sim` keyword. */
 export const SIM_LINK_SUGGESTIONS_PATH = '/api/sim-links/suggestions'
 
@@ -143,7 +146,7 @@ export function simLinkDraftDestination(value: string): string | null {
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return null
     url.search = ''
     url.hash = ''
-    return url.href
+    return url.href.length <= SIM_LINK_URL_MAX_LENGTH ? url.href : null
   } catch {
     return null
   }

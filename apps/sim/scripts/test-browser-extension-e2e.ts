@@ -234,6 +234,7 @@ async function seed() {
       await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id) values (${id}, ${alphaId}, ${`Extension QA workspace ${index + 1}`}, ${owner}, ${owner})`
       await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type) values (${generateId()}, ${owner}, 'workspace', ${id}, 'admin')`
     }
+    await tx`update workspace set created_at = '2020-01-01T00:00:00Z' where id = ${alphaId}`
     await tx`insert into workflow (id, user_id, workspace_id, name, last_synced, created_at, updated_at) values (${workflowId}, ${owner}, ${alphaId}, 'Extension QA workflow', now(), now(), now())`
     await tx`insert into "user" (id, name, email, email_verified, created_at, updated_at) values (${otherUserId}, 'Other extension QA user', ${`extension-other-${otherUserId}@example.test`}, false, now(), now())`
     await tx`insert into project (id, name, owner_id) values (${deniedId}, 'Inaccessible QA project', ${otherUserId})`
@@ -340,8 +341,26 @@ try {
   context.setDefaultNavigationTimeout(120_000)
   let worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'))
   const extensionId = worker.url().split('/')[2]
-  const openPanel = async () => {
+  const setPageViewport = async (page: Page, width: number, height: number) => {
+    await page.setViewportSize({ width, height })
+    const session = await browserContext.newCDPSession(page)
+    try {
+      const { windowId } = await session.send('Browser.getWindowForTarget')
+      // OOPIF hit testing uses the native content bounds, including below the browser toolbar.
+      await session.send('Browser.setContentsSize', { windowId, width, height })
+    } finally {
+      await session.detach()
+    }
+  }
+  const openPage = async () => {
     const page = await browserContext.newPage()
+    const viewport = page.viewportSize()
+    assert(viewport, 'Browser fixture must declare its viewport')
+    await setPageViewport(page, viewport.width, viewport.height)
+    return page
+  }
+  const openPanel = async () => {
+    const page = await openPage()
     await page.route('**/api/settings/voice', (route) =>
       route.fulfill({ json: { sttAvailable: true } })
     )
@@ -393,17 +412,7 @@ try {
   }
   panel = await openPanel()
   let shell = panel
-  const setPanelViewport = async (width: number, height: number) => {
-    await shell.setViewportSize({ width, height })
-    const session = await browserContext.newCDPSession(shell)
-    try {
-      const { windowId } = await session.send('Browser.getWindowForTarget')
-      // OOPIF hit testing uses the native content bounds, including below the browser toolbar.
-      await session.send('Browser.setContentsSize', { windowId, width, height })
-    } finally {
-      await session.detach()
-    }
-  }
+  const setPanelViewport = (width: number, height: number) => setPageViewport(shell, width, height)
   await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`)
   const frame = () => {
     const app = shell.frames().find((candidate) => candidate.url().startsWith(base.origin))
@@ -469,7 +478,7 @@ try {
     await navigate(`${base.origin}/extension/${alphaId}`)
     await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
   }
-  let source = await context.newPage()
+  let source = await openPage()
   await source.goto(`${fixtureOrigin}/page?private=QUERY_SECRET#FRAGMENT_SECRET`)
   const observeCaptureReceipts = () =>
     shell.evaluate((origin) => {
@@ -796,7 +805,7 @@ try {
   await checkComposer(
     'The ordinary web composer accepts text selections and rejects links and remote images',
     async () => {
-      const app = await browserContext.newPage()
+      const app = await openPage()
       const remote = new URL('/ordinary-drop-image.png', fixtureOrigin)
       const navigationAttempts: string[] = []
       await browserContext.route(remote.href, (route) => {
@@ -1512,12 +1521,12 @@ try {
     async () => {
       const endpoint = `${base.origin}/api/mothership/chat`
       const received: Record<string, unknown>[] = []
-      const second = await browserContext.newPage()
+      const second = await openPage()
       await second.goto(`${fixtureOrigin}/reference-second?private=DO_NOT_SEND#private`)
       await second.locator('article p').evaluate((el) => {
         el.textContent = 'Second active tab: JADE-231.'
       })
-      const restricted = await browserContext.newPage()
+      const restricted = await openPage()
       await restricted.goto(`http://ungranted.localhost:${fixtureAddress.port}/denied`)
       await browserContext.route(endpoint, (route) => {
         if (route.request().method() !== 'POST') return route.continue()
@@ -1973,7 +1982,7 @@ try {
         return animation
       }
     })
-    source = await browserContext.newPage()
+    source = await openPage()
     await source.goto(`${fixtureOrigin}/page?private=QUERY_SECRET#FRAGMENT_SECRET`)
     await shell.goto(`chrome-extension://${extensionId}/sidepanel.html`)
     await observeCaptureReceipts()
@@ -2254,6 +2263,10 @@ try {
             'A transient workspace-list refetch unmounted the picker'
           )
           assert.equal(await scroller.evaluate((element) => element.scrollTop), scrollTop)
+          await expect(choices.getByRole('link').last()).toHaveAttribute(
+            'href',
+            `/extension/${alphaId}`
+          )
           await screenshot('workspace-picker-refetch-outage')
           await choices.getByRole('link', { name: 'Extension QA alpha', exact: true }).click()
           await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()

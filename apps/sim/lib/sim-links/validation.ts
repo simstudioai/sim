@@ -1,4 +1,4 @@
-import { SIM_LINK_NAME_MAX_LENGTH } from '@sim/browser-extension-protocol'
+import { SIM_LINK_NAME_MAX_LENGTH, SIM_LINK_URL_MAX_LENGTH } from '@sim/browser-extension-protocol'
 import { z } from 'zod'
 
 const NAME_PATTERN = /^[A-Za-z0-9.:@&~_-]+$/
@@ -6,7 +6,6 @@ const NAME_PUNCTUATION = /[.:@&~_-]/g
 const NAME_DISALLOWED = /[^A-Za-z0-9.:@&~_-]/g
 export const MAX_MANAGED_BOOKMARKS = 100
 export const SIM_LINK_DESCRIPTION_MAX_LENGTH = 500
-const URL_MAX_LENGTH = 2048
 
 /** List orders: alphabetical by name, or most visited first. */
 export const SIM_LINK_SORTS = ['name', 'popular'] as const
@@ -120,7 +119,7 @@ const destinationSchema = z
   .string()
   .trim()
   .min(1, 'Enter a destination URL')
-  .max(URL_MAX_LENGTH, `Use at most ${URL_MAX_LENGTH} characters`)
+  .max(SIM_LINK_URL_MAX_LENGTH, `Use at most ${SIM_LINK_URL_MAX_LENGTH} characters`)
 
 const simLinkUrlSchema = destinationSchema.refine(
   (url) => simLinkOrigin(url) !== null,

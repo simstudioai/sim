@@ -378,6 +378,74 @@ try {
     }
   )
 
+  await check(
+    'Link drafts enforce the saved URL limit after removing private URL parts',
+    async () => {
+      const prefix = 'https://links.controls.test/'
+      const cases = [
+        {
+          name: 'A canonical 2048-character destination remains usable',
+          input: `${prefix}${'a'.repeat(2048 - prefix.length)}`,
+          expected: `${prefix}${'a'.repeat(2048 - prefix.length)}`,
+        },
+        {
+          name: 'A canonical 2049-character destination does not open an unsavable draft',
+          input: `${prefix}${'a'.repeat(2049 - prefix.length)}`,
+          expected: null,
+        },
+        {
+          name: 'URL serialization cannot expand a short Unicode input beyond the saved limit',
+          input: `${prefix}${'é'.repeat(400)}`,
+          expected: null,
+        },
+        {
+          name: 'A removable long private query does not reject a short destination',
+          input: `${prefix}safe?token=${'s'.repeat(3000)}#private-section`,
+          expected: `${prefix}safe`,
+        },
+      ]
+      const failures: string[] = []
+      for (const entry of cases) {
+        await page.bringToFront()
+        const opened = await worker.evaluate(async (linkUrl) => {
+          const before = await chrome.tabs.query({})
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+          if (!tab) throw new Error('Missing context-menu source tab')
+          const clicked = chrome.contextMenus.onClicked as typeof chrome.contextMenus.onClicked & {
+            dispatch: (info: chrome.contextMenus.OnClickData, tab: chrome.tabs.Tab) => void
+          }
+          clicked.dispatch({ menuItemId: 'create-sim-link', linkUrl, editable: false }, tab)
+          const created = (await chrome.tabs.query({})).filter(
+            (candidate) => !before.some((existing) => existing.id === candidate.id)
+          )
+          const urls = created.map((candidate) => candidate.pendingUrl || candidate.url || '')
+          for (const candidate of created) {
+            if (candidate.id !== undefined) await chrome.tabs.remove(candidate.id)
+          }
+          return urls
+        }, entry.input)
+        if (entry.expected === null) {
+          if (opened.length !== 0) failures.push(`${entry.name}: opened ${opened.length} draft`)
+          continue
+        }
+        if (opened.length !== 1) {
+          failures.push(`${entry.name}: opened ${opened.length} drafts`)
+          continue
+        }
+        const draft = new URL(opened[0])
+        if (
+          draft.origin !== origin ||
+          draft.pathname !== '/extension/create-link' ||
+          draft.search !== '' ||
+          new URLSearchParams(draft.hash.slice(1)).get('url') !== entry.expected
+        )
+          failures.push(`${entry.name}: incorrect private-safe destination handoff`)
+      }
+      assert(failures.length === 0, failures.join('\n'))
+      await page.bringToFront()
+    }
+  )
+
   await check('Capture stays local until the trusted hosted frame is ready', async () => {
     await capture()
     await panel.getByRole('status').filter({ hasText: 'Waiting for Sim' }).waitFor()
