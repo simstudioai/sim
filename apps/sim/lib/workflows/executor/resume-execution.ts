@@ -8,6 +8,7 @@ import {
 } from '@/lib/billing/core/attribution'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
+import { logFailureOnce, markFailureKind } from '@/lib/core/errors/failure-log'
 import { toTriggerMaxDurationSeconds } from '@/lib/core/execution-limits'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -436,16 +437,12 @@ export async function executeResumeWorkflow({
     if (error instanceof ResumeWorkflowExecutionError) throw error
     const statusCode =
       isRecordLike(error) && typeof error.statusCode === 'number' ? error.statusCode : undefined
-    const diagnostics = projectResolvedSecretDiagnosticError(error, undefined, {
-      workflowId,
+    if (statusCode !== undefined && statusCode < 500) markFailureKind(error, 'user')
+    logFailureOnce(logger, 'Resume request failed', error, {
       executionId,
-      contextId,
+      metadata: () =>
+        projectResolvedSecretDiagnosticError(error, undefined, { workflowId, contextId }),
     })
-    if (statusCode !== undefined && statusCode < 500) {
-      logger.warn('Resume request refused', diagnostics)
-    } else {
-      logger.error('Resume request failed', diagnostics)
-    }
     if (statusCode !== undefined) {
       throw new ResumeWorkflowExecutionError(statusCode, toError(error).message, statusCode < 500)
     }

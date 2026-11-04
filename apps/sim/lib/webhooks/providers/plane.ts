@@ -41,7 +41,13 @@ async function planeWebhookRequest(
 ) {
   const slug = config.triggerWorkspaceSlug
   const apiKey = config.triggerApiKey
-  if (typeof slug !== 'string' || !slug.trim() || typeof apiKey !== 'string') {
+  if (
+    typeof slug !== 'string' ||
+    !slug.trim() ||
+    typeof apiKey !== 'string' ||
+    !apiKey.trim() ||
+    /[\r\n]/.test(apiKey.trim())
+  ) {
     throw new WebhookDeploymentConfigurationError(
       'Plane workspace slug and API token are required for automatic registration'
     )

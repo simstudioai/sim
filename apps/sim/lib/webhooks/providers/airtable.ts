@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toStringOrNull } from '@sim/utils/coerce'
 import { toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { validateAirtableId } from '@/lib/core/security/input-validation'
@@ -436,12 +437,12 @@ export const airtableHandler: WebhookProviderHandler = {
   }: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     try {
       const config = getProviderConfig(webhookRecord)
-      const { baseId, tableId, includeCellValuesInFieldIds, credentialId } = config as {
-        baseId?: string
-        tableId?: string
+      const { includeCellValuesInFieldIds, credentialId } = config as {
         includeCellValuesInFieldIds?: string
         credentialId?: string
       }
+      const baseId = toStringOrNull(config.baseId)
+      const tableId = toStringOrNull(config.tableId)
 
       if (!baseId || !tableId) {
         logger.warn(`[${requestId}] Missing baseId or tableId for Airtable webhook creation.`, {
