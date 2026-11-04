@@ -288,6 +288,17 @@ async function run() {
     assert.deepEqual(await listedNames(member, { search: 'everything lives' }), ['Team-Handbook'])
   })
 
+  await check('a destination lookup finds only links that open exactly that address', async () => {
+    await create(member, { name: 'plan', url: 'https://plan.example.com' })
+    await create(member, { name: 'plan-faq', url: 'https://plan.example.com/faq' })
+    assert.deepEqual(await listedNames(member, { url: 'https://plan.example.com' }), ['plan'])
+    assert.deepEqual(await listedNames(owner, { url: 'https://plan.example.com' }), [
+      'plan',
+      'secret-plan',
+    ])
+    assert.deepEqual(await listedNames(member, { url: 'https://plan.example.com/missing' }), [])
+  })
+
   await check('restricted links refuse edits from other members', async () => {
     const restricted = await create(owner, {
       name: 'payroll',

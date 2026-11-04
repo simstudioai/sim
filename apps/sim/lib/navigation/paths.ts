@@ -64,6 +64,11 @@ export function simLinkPath(...segments: string[]): string {
   return ['/sim', ...segments.map(encodeURIComponent)].join('/')
 }
 
+/** The full address of `sim/<name>` on `origin`, which opens it with or without the extension. */
+export function simLinkUrl(origin: string, name: string): string {
+  return new URL(simLinkPath(name), origin).href
+}
+
 /** Whether `pathname` is `root` itself or a route beneath it. */
 export function isPathOrDescendant(pathname: string, root: string): boolean {
   return pathname === root || pathname.startsWith(`${root}/`)
