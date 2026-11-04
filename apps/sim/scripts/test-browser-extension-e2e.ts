@@ -632,7 +632,21 @@ try {
     const { name, png } = await screenshotFile()
     return uploadFile(name, async () => {
       const receipt = await dropOnChat(shell, target, { files: [png] })
-      if (scope) dropReceipts.push({ scope, phase: 'recovery', receipt })
+      if (scope) {
+        dropReceipts.push({ scope, phase: 'recovery', receipt })
+        assert(
+          receipt.events.some(
+            (event) =>
+              event.type === 'drop' &&
+              event.trusted &&
+              event.files === 1 &&
+              event.chatBody &&
+              event.intendedTarget &&
+              event.defaultPrevented
+          ),
+          `${scope}: the recovery file drop did not reach the chat body`
+        )
+      }
     })
   }
   const installCaptureGate = () =>
@@ -804,7 +818,7 @@ try {
       ).toHaveCount(0)
       assert.equal(uploadAttempts, 0)
       await browserContext.unroute(uploadEndpoint, interceptUpload)
-      await attachScreenshot(input, scope)
+      await attachScreenshot(app.getByRole('main'), scope)
       await screenshot(`pending-capture-drop-${scope}-recovered`)
       await app.getByRole('button', { name: `Remove ${name}`, exact: true }).click()
       assert.equal(submitted.length, 1, `${scope}: recovering drops duplicated the turn`)
