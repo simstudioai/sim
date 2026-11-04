@@ -113,8 +113,8 @@ export function SiteAccessDialog({ onClose, onAccessGranted }: SiteAccessDialogP
         <ChipModalBody>
           <p className='text-[var(--text-muted)] text-small'>
             {allowed
-              ? 'Page access is enabled across websites.'
-              : 'Allow Sim to read pages across websites when you attach a page or send with page reference enabled.'}
+              ? 'Allowed across websites.'
+              : 'Sim reads pages only when you attach them or send with page reference on.'}
           </p>
           <PageAccessButton allowed={allowed} onAccessGranted={onAccessGranted} />
         </ChipModalBody>

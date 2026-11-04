@@ -15,7 +15,7 @@ export class PageCaptureError extends Error {}
 export function captureErrorMessage(error: unknown): string {
   return error instanceof PageCaptureError
     ? error.message
-    : 'This page could not be read. Check site access and try again.'
+    : 'This page could not be read. Try again.'
 }
 
 /** Only emitted after verifying the selected document is still active. */
@@ -34,7 +34,7 @@ export class SiteAccessRequiredError extends PageCaptureError {
     readonly tabId: number,
     readonly windowId: number
   ) {
-    super('Enable page access once to use pages across websites. ')
+    super('Page access is required.')
   }
 }
 

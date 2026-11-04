@@ -400,13 +400,16 @@ function SidePanel({ origin }: SidePanelProps) {
         }
         role='status'
       >
-        {typeof status === 'string' ? status : status.message}
-        {status instanceof SiteAccessRequiredError && (
+        {status instanceof SiteAccessRequiredError ? (
           <PageAccessButton
             onAccessGranted={() =>
               setStatus((current) => (current instanceof SiteAccessRequiredError ? '' : current))
             }
           />
+        ) : typeof status === 'string' ? (
+          status
+        ) : (
+          status.message
         )}
       </div>
       <iframe
