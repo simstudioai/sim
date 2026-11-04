@@ -243,6 +243,7 @@ export async function executeResumeWorkflow({
     actorUserId: preprocessResult.actorUserId,
   })
 
+  let admittedResumeExecutionId: string | undefined
   try {
     const enqueueResult = await PauseResumeManager.enqueueOrStartResume({
       executionId,
@@ -252,6 +253,7 @@ export async function executeResumeWorkflow({
       userId,
       allowedPauseKinds: ['human'],
     })
+    admittedResumeExecutionId = enqueueResult.resumeExecutionId
 
     if (enqueueResult.status === 'queued') {
       return {
@@ -441,7 +443,11 @@ export async function executeResumeWorkflow({
     logFailureOnce(logger, 'Resume request failed', error, {
       executionId,
       metadata: () =>
-        projectResolvedSecretDiagnosticError(error, undefined, { workflowId, contextId }),
+        projectResolvedSecretDiagnosticError(error, undefined, {
+          workflowId,
+          contextId,
+          resumeExecutionId: admittedResumeExecutionId,
+        }),
     })
     if (statusCode !== undefined) {
       throw new ResumeWorkflowExecutionError(statusCode, toError(error).message, statusCode < 500)
