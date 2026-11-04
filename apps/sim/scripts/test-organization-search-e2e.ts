@@ -1025,7 +1025,18 @@ try {
     verifyLegacyDraft(undefined, 'assistant')
   )
   await check('The UI completes without unexpected browser runtime errors', async () => {
-    await expect.poll(() => browserErrorEventCount).toBe(browserErrorCount)
+    const handledRedirectCount = () =>
+      browserErrorEvents.reduce(
+        (count, event) =>
+          event.stage === 'Search URLs cannot change an agent conversation into an assistant' &&
+          event.url === `${baseUrl.origin}${root}/search/chat/${agentId}` &&
+          event.digest === `NEXT_REDIRECT;replace;${root}/chat/${agentId};307;` &&
+          event.message.startsWith('Minified React error #419;')
+            ? count + event.count
+            : count,
+        0
+      )
+    await expect.poll(() => browserErrorEventCount - handledRedirectCount()).toBe(browserErrorCount)
     const deniedRecoveries = browserErrorEvents.filter(
       (event) =>
         event.digest === 'NEXT_HTTP_ERROR_FALLBACK;404' &&
@@ -1036,7 +1047,11 @@ try {
         ].includes(event.stage)
     )
     const recoveryCount = deniedRecoveries.reduce((total, event) => total + event.count, 0)
-    assert.equal(browserErrorEventCount, recoveryCount, 'Unexpected browser error events')
+    assert.equal(
+      browserErrorEventCount,
+      recoveryCount + handledRedirectCount(),
+      'Unexpected browser error events'
+    )
     assert.equal(browserErrorCount, recoveryCount, 'Unexpected browser runtime errors')
     for (const sample of browserErrorSamples) {
       const matchedCount = deniedRecoveries
