@@ -57,6 +57,7 @@ import {
 } from '@sim/testing'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { videoToolBodySchema } from '@/lib/api/contracts/tools/media/video'
 import { withAssistantActionExecution } from '@/lib/assistant-actions/execution-scope'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { EnvironmentResolutionSnapshot } from '@/lib/environment/utils'
@@ -64,6 +65,7 @@ import { executeBitbucketTool } from '@/lib/internal/bitbucket/execute-tool'
 import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 import { executeVantaTool } from '@/lib/internal/vanta/execute-tool'
+import { buildDirectVideoRequest } from '@/lib/internal/video/direct-request'
 import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import {
@@ -5114,6 +5116,34 @@ describe('File Parameter Normalization', () => {
       }
     }
   )
+
+  it.each([
+    { configured: undefined, requested: false, expected: false },
+    { configured: undefined, requested: true, expected: true },
+    { configured: false, requested: true, expected: false },
+  ])('preserves Agent audio choices and configured overrides ($expected)', async (testCase) => {
+    const providerTool = await transformBlockTool(
+      {
+        type: 'video_generator_v3',
+        params: {
+          provider: 'runway',
+          apiKey: 'test-runway-key',
+          directGenerateAudio: testCase.configured,
+        },
+      },
+      { getAllBlocks: () => [VideoGeneratorV3Block], getTool: () => runwayVideoTool }
+    )
+    if (!providerTool) throw new Error('Video tool was not exposed to the Agent')
+    const prepared = prepareToolExecution(
+      providerTool,
+      { model: 'veo3.1', prompt: 'Animate the boat', generateAudio: testCase.requested },
+      {},
+      'call-video-audio'
+    )
+    const input = videoToolBodySchema.parse(prepared.toolParams)
+    const request = buildDirectVideoRequest({ ...input, provider: 'runway' })
+    expect(request.body.audio).toBe(testCase.expected)
+  })
 
   it('resolves canonical file IDs for single-file params during copilot execution', async () => {
     mockResolveWorkspaceFileReference.mockResolvedValue({

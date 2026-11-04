@@ -83,10 +83,11 @@ async function waitForProvider(context: VideoGenerationContext): Promise<void> {
 }
 
 export function getVideoInputValidationError(input: VideoGenerationInput): string | undefined {
-  if (input.prompt.length < 3 || input.prompt.length > 2000) {
-    return 'Prompt must be between 3 and 2000 characters'
+  if (input.provider === 'falai') {
+    if (input.prompt.length < 3 || input.prompt.length > 2000)
+      return 'Prompt must be between 3 and 2000 characters'
+    return getFalAIValidationError(input)
   }
-  if (input.provider === 'falai') return getFalAIValidationError(input)
   try {
     buildDirectVideoRequest(input)
   } catch (error) {

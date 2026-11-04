@@ -1935,9 +1935,9 @@ export const VideoGeneratorV3Block: BlockConfig = {
             ? normalizeFileInput(params.visualReference, { single: true })
             : undefined
         const model = getDirectVideoModel(params.provider, params.model, Boolean(visualReference))
-        const setting = (key: string, supported: unknown) => {
+        const setting = (key: string, supported: unknown, fallbackKey?: string) => {
           if (!supported) return undefined
-          const value = params[key]
+          const value = params[key] ?? (fallbackKey ? params[fallbackKey] : undefined)
           return value === FAL_MODEL_DEFAULT.id ? undefined : value
         }
         const duration = setting('duration', model?.settings?.durations)
@@ -1951,7 +1951,7 @@ export const VideoGeneratorV3Block: BlockConfig = {
           aspectRatio: setting('aspectRatio', model?.settings?.aspectRatios),
           resolution: setting('resolution', model?.settings?.resolutions),
           generateAudio: parseOptionalBooleanInput(
-            setting('directGenerateAudio', model?.settings?.audio)
+            setting('directGenerateAudio', model?.settings?.audio, 'generateAudio')
           ),
           promptOptimizer: parseOptionalBooleanInput(
             setting('promptOptimizer', model?.settings?.promptOptimizer)

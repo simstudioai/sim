@@ -7,8 +7,11 @@ import {
   inputValidationMock,
   inputValidationMockFns,
 } from '@sim/testing/mocks/input-validation.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/lib/uploads', () => uploadsMock)
 vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
@@ -33,6 +36,40 @@ describe('Video provider client', () => {
   afterEach(() => {
     vi.useRealTimers()
   })
+
+  it.each([
+    { model: 'gen4.5', limit: 1000 },
+    { model: 'klingO3_4k', limit: 2500 },
+    { model: 'kling_4', limit: 26000 },
+  ])(
+    'accepts the published prompt limit for $model and rejects overflow before submission',
+    async ({ model, limit }) => {
+      const mockFetch = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(jsonResponse({ id: 'job' }))
+        .mockResolvedValueOnce(
+          jsonResponse({ status: 'SUCCEEDED', output: ['data:video/mp4;base64,dmlkZW8='] })
+        )
+      vi.stubGlobal('fetch', mockFetch)
+      storageServiceMockFns.mockUploadFile.mockResolvedValue({
+        path: '/api/files/video.mp4',
+        size: 5,
+      })
+      const input = { provider: 'runway' as const, model, apiKey: 'key', prompt: 'a'.repeat(limit) }
+      const context = { requestId: 'prompt-boundary', userId: 'user', headers: new Headers() }
+      const completion = expect(executeVideoOperation(input, context)).resolves.toMatchObject({
+        model,
+      })
+      await Promise.all([completion, vi.advanceTimersByTimeAsync(5000)])
+      expect(JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body)).promptText).toBe(input.prompt)
+
+      mockFetch.mockClear()
+      await expect(
+        executeVideoOperation({ ...input, prompt: `${input.prompt}a` }, context)
+      ).rejects.toThrow(`Prompt must be between 3 and ${limit} characters`)
+      expect(mockFetch).not.toHaveBeenCalled()
+    }
+  )
 
   it.each([
     {

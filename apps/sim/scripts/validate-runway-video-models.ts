@@ -7,6 +7,7 @@ import assert from 'node:assert/strict'
 import { readFile, writeFile } from 'node:fs/promises'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import Ajv from 'ajv/dist/2020'
 import { videoToolBodySchema } from '@/lib/api/contracts/tools/media/video'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
@@ -95,6 +96,7 @@ for (const mode of ['text', 'image'] as const) {
         assert(validate(request.body), JSON.stringify(validate.errors))
         assert.equal(request.body.model, model.id)
         const wireKeys: Record<string, string> = {
+          prompt: 'promptText',
           duration: 'duration',
           aspectRatio: 'ratio',
           resolution: 'resolution',
@@ -107,6 +109,14 @@ for (const mode of ['text', 'image'] as const) {
         requests++
       }
       check({})
+      const promptSchema = schema.properties.promptText
+      assert(isRecordLike(promptSchema) && typeof promptSchema.maxLength === 'number')
+      const maxPromptLength = promptSchema.maxLength
+      check({ prompt: 'a'.repeat(maxPromptLength) })
+      assert.throws(
+        () => buildDirectVideoRequest({ ...base, prompt: 'a'.repeat(maxPromptLength + 1) }),
+        /Prompt must be between/
+      )
       for (const field of VideoGeneratorV3Block.subBlocks) {
         if (
           !['duration', 'aspectRatio', 'resolution', 'directGenerateAudio'].includes(field.id) ||

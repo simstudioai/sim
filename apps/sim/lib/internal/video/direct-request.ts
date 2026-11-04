@@ -15,7 +15,7 @@ export function buildDirectVideoRequest(input: VideoGenerationInput) {
     throw new Error(
       `${model.label} ${input.visualReference ? 'does not accept a reference image' : 'requires a reference image'}`
     )
-  const maxLength = Math.min(2000, spec.maxPromptLength ?? 2000)
+  const maxLength = spec.maxPromptLength ?? 2000
   if (input.prompt.length < 3 || input.prompt.length > maxLength)
     throw new Error(`Prompt must be between 3 and ${maxLength} characters for ${model.label}`)
   let aspectRatio = input.aspectRatio
