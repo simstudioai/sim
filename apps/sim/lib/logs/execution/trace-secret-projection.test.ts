@@ -1022,7 +1022,7 @@ describe('projectTraceSpansForSecrets', () => {
       executionId: 'execution-1',
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',
-      readOnly: false,
+      phase: 'write',
       spanId: 'span-1',
       spanType: 'function',
       field: 'output',
@@ -1094,7 +1094,7 @@ describe('projectTraceSpansForSecrets whole-trace content budget', () => {
       'Trace content exceeded the projection budget; withholding the remaining spans',
       expect.objectContaining({
         executionId: 'execution-1',
-        readOnly: true,
+        phase: 'read',
         retainedSpanCount: 2,
         withheldSpanCount: 2,
       })
@@ -1123,7 +1123,7 @@ describe('projectTraceSpansForSecrets whole-trace content budget', () => {
     expect(projected[0].contentWithheld).toBe(true)
     expect(warnMock).toHaveBeenCalledWith(
       'Trace secret projection failed; retaining structural spans only',
-      expect.objectContaining({ executionId: 'execution-1', readOnly: true })
+      expect.objectContaining({ executionId: 'execution-1', phase: 'read' })
     )
   })
 

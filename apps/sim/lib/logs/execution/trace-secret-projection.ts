@@ -139,17 +139,20 @@ class TraceSecretProjectionError extends Error {
  */
 class TraceContentBudgetError extends TraceSecretProjectionError {}
 
-/** Identifies the run behind a projection warning; every field is a stored id or a mode flag. */
+/**
+ * Identifies the run behind a projection warning. `phase` says whether the run was being written
+ * to the log or a stored log was being read for display.
+ */
 interface ProjectionLogDetails {
   executionId?: string
   workflowId?: string
   workspaceId?: string
-  readOnly: boolean
+  phase: 'read' | 'write'
 }
 
 function projectionLogDetails(
   store: LargeValueStoreContext,
-  readOnly: boolean
+  phase: ProjectionLogDetails['phase']
 ): ProjectionLogDetails {
   return {
     ...filterUndefined({
@@ -157,7 +160,7 @@ function projectionLogDetails(
       workflowId: store.workflowId,
       workspaceId: store.workspaceId,
     }),
-    readOnly,
+    phase,
   }
 }
 
@@ -203,7 +206,7 @@ function createProjectionContext(
     sourceLargeValueBytes: 0,
     storedLargeValueBytes: 0,
     storedLargeValueCount: 0,
-    logDetails: projectionLogDetails(store, !allowLargeValueWrites),
+    logDetails: projectionLogDetails(store, allowLargeValueWrites ? 'write' : 'read'),
   }
 }
 
@@ -1647,7 +1650,7 @@ export async function enforceTraceSpanSecretInvariant(
     return traceSpans
   } catch (error) {
     logger.warn('Trace secret invariant failed; retaining structural spans only', {
-      ...projectionLogDetails(options.store, false),
+      ...projectionLogDetails(options.store, 'write'),
       failure: describeProjectionFailure(error),
     })
     return structuralOnlyTraceSpans(traceSpans)
@@ -1667,7 +1670,7 @@ export async function projectTraceSpansForSecrets(
   }
 
   const allowLargeValueWrites = options.allowLargeValueWrites !== false
-  const logDetails = projectionLogDetails(options.store, !allowLargeValueWrites)
+  const logDetails = projectionLogDetails(options.store, allowLargeValueWrites ? 'write' : 'read')
   try {
     const matcher = createResolvedSecretMatcher(options.registry.getActiveMatches(), {
       preserveNamedProvenanceLabels: true,
