@@ -119,7 +119,7 @@ jobs:
             REVISION=$(git rev-parse HEAD)
           fi
           echo "DOCS_BENCHMARK_REVISION=$REVISION" >> "$GITHUB_ENV"
-          bunx --no-install playwright install --with-deps chromium
+          bash .github/scripts/install-playwright.sh chromium
       - name: Build measured production docs
         id: build
         if: matrix.target == 'build'
@@ -375,7 +375,7 @@ jobs:
         if: matrix.group == 'chromium' || (matrix.group == 'webkit' && vars.CI_PROVIDER != '' && vars.CI_PROVIDER != 'blacksmith')
         env:
           BROWSER: ${{ matrix.group }}
-        run: bunx --no-install playwright install --with-deps --only-shell "$BROWSER"
+        run: bash .github/scripts/install-playwright.sh --only-shell "$BROWSER"
       - name: Verify production documentation
         id: acceptance
         env:
