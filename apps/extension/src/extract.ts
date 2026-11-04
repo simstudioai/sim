@@ -21,7 +21,6 @@ export function extractPageText(
     active instanceof HTMLElement &&
     (active.isContentEditable ||
       active.matches('input,textarea,select') ||
-      active.localName.includes('-') ||
       chrome.dom.openOrClosedShadowRoot(active)?.activeElement)
   )
     return { error: 'Select text outside an editable or embedded field.' }

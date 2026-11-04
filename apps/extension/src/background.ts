@@ -55,7 +55,6 @@ function open(tab: chrome.tabs.Tab, trigger: 'page' | 'selection' | 'keyboard') 
         active instanceof HTMLElement &&
         (active.isContentEditable ||
           active.matches('iframe,frame,input,textarea,select') ||
-          active.localName.includes('-') ||
           Boolean(chrome.dom.openOrClosedShadowRoot(active)?.activeElement))
       return {
         href: location.href,

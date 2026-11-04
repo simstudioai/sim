@@ -574,7 +574,8 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       clearComposer,
       () =>
         editorRef.current.getValue() === raw &&
-        filesRef.current.attachedFiles === currentFiles.attachedFiles
+        filesRef.current.attachedFiles === currentFiles.attachedFiles,
+      currentEditor.textareaRef.current
     )
   }, [chatPlanRequired, workspaceId, onSubmit, clearComposer, acceptSubmission])
 
