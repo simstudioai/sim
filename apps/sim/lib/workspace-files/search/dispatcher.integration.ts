@@ -31,6 +31,7 @@ import {
   FILE_SEARCH_INDEX_DISPATCH_WORKSPACES,
   FILE_SEARCH_INDEX_MAX_OUTSTANDING,
   FILE_SEARCH_INDEX_STALE_DISPATCH_MS,
+  FILE_SEARCH_INDEX_WORKSPACE_OUTSTANDING,
   FILE_SEARCH_RECONCILE_INTERVAL_MS,
 } from '@/lib/workspace-files/search/constants'
 import {
@@ -408,25 +409,72 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     })
   }
 
-  it('serves an owner woken by a file write ahead of a backfill page of reconciliation wake-ups', async () => {
-    const wakeUps = FILE_SEARCH_INDEX_DISPATCH_WORKSPACES * 2 + 50
-    await seedIndexedOwners('reconciled-', wakeUps)
-    const first = await prepareWorkspaceFileSearchDispatch()
-    expect(first.backfilledFiles).toBe(wakeUps)
-    expect(first.payloads).toEqual([])
+  /** Fills global capacity with claims of an unqueued owner, leaving `slots` free. */
+  async function leaveSlots(slots: number) {
+    await seedQueue('workspace-active', 0, FILE_SEARCH_INDEX_MAX_OUTSTANDING - slots)
+    await connection`DELETE FROM file_search_dispatch_queue WHERE entity_id = 'workspace-active'`
+  }
 
-    await writeFile('written-workspace')
-    const next = await prepareWorkspaceFileSearchDispatch()
-    expect(next.payloads.map((payload) => payload.fileId)).toEqual(['written-workspace-written'])
+  const wakeUps = FILE_SEARCH_INDEX_DISPATCH_WORKSPACES * 2 + 50
+  it.each([
+    ['an owner the page did not reach', 'written-workspace', 0],
+    ['an owner the page left queued', `reconciled-${String(wakeUps).padStart(4, '0')}`, 1],
+  ])(
+    'serves a file write to %s ahead of a backfill page of reconciliation wake-ups',
+    async (_, owner, queuedRows) => {
+      await seedIndexedOwners('reconciled-', wakeUps)
+      const first = await prepareWorkspaceFileSearchDispatch()
+      expect(first.backfilledFiles).toBe(wakeUps)
+      expect(first.payloads).toEqual([])
+      // A queued owner's write takes the conflict path; an unqueued owner's takes the insert path.
+      const [queued] = await connection`SELECT count(*)::int AS count
+      FROM file_search_dispatch_queue WHERE entity_id = ${owner}`
+      expect(queued.count).toBe(queuedRows)
+
+      await writeFile(owner)
+      const next = await prepareWorkspaceFileSearchDispatch()
+      expect(next.payloads.map((payload) => payload.fileId)).toEqual([`${owner}-written`])
+    }
+  )
+
+  it('keeps a queued reconciliation wake-up behind woken work when the backfill passes it again', async () => {
+    await leaveSlots(1)
+    // Queued by an earlier page, with nothing to claim; its stamp is older than the woken owner's.
+    await seedIndexedOwners('reconciled-', 1)
+    await connection`INSERT INTO file_search_dispatch_queue
+      (entity_type, entity_id, enqueued_at, updated_at, last_dispatched_at)
+      VALUES ('workspace', 'reconciled-0001', now() - interval '2 hours',
+        now() - interval '2 hours', now() - interval '2 hours')`
+    await seedQueue('woken-workspace', 1)
+    await connection`UPDATE file_search_dispatch_queue
+      SET last_dispatched_at = now() - interval '1 hour' WHERE entity_id = 'woken-workspace'`
+    await connection`UPDATE workspace_file_search_backfill SET completed_at = NULL`
+
+    const result = await prepareWorkspaceFileSearchDispatch()
+    expect(result.backfilledFiles).toBeGreaterThan(0)
+    expect(result.payloads.map((payload) => payload.fileId)).toEqual(['woken-workspace-000001'])
+  })
+
+  it('rotates a woken owner whose slots are full behind an older waiting owner', async () => {
+    await leaveSlots(1 + FILE_SEARCH_INDEX_WORKSPACE_OUTSTANDING)
+    // Both of its slots are taken and it has more files; a write woke it after its last dispatch.
+    await seedQueue('busy-workspace', 3, FILE_SEARCH_INDEX_WORKSPACE_OUTSTANDING)
+    await connection`UPDATE file_search_dispatch_queue
+      SET last_dispatched_at = now() - interval '10 minutes' WHERE entity_id = 'busy-workspace'`
+    await seedQueue('waiting-workspace', 1)
+    await connection`UPDATE file_search_dispatch_queue SET last_dispatched_at = now() - interval '1 hour',
+      updated_at = now() - interval '1 hour' WHERE entity_id = 'waiting-workspace'`
+
+    const result = await prepareWorkspaceFileSearchDispatch()
+    expect(result.payloads.map((payload) => payload.fileId)).toEqual(['waiting-workspace-000001'])
   })
 
   it('serves a fresh write before work the backfill found, then the backfill work', async () => {
-    await seedQueue('workspace-active', 0, FILE_SEARCH_INDEX_MAX_OUTSTANDING)
-    await connection`DELETE FROM file_search_dispatch_queue WHERE entity_id = 'workspace-active'`
+    await leaveSlots(0)
     await connection`UPDATE workspace_file_search_backfill SET completed_at = NULL`
     await connection`INSERT INTO workspace_files (id, workspace_id, context, content_updated_at)
       VALUES ('backfill-found-file', 'backfill-found', 'workspace', '2026-09-16')`
-    /** No capacity: the page seeds and queues the unindexed file's owner but claims nothing. */
+    // No capacity: the page seeds and queues the unindexed file's owner but claims nothing.
     const seeded = await prepareWorkspaceFileSearchDispatch()
     expect(seeded.backfilledFiles).toBeGreaterThan(0)
     expect(seeded.payloads).toEqual([])
@@ -434,7 +482,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     await writeFile('fresh-write')
     const served: string[] = []
     for (let pass = 0; pass < 2; pass++) {
-      /** Free exactly one slot, so each pass claims for one owner. */
+      // Free exactly one slot, so each pass claims for one owner.
       await connection`UPDATE workspace_file_search_revision SET status = 'ready'
         WHERE file_id = (SELECT file_id FROM workspace_file_search_revision
           WHERE status = 'pending' AND dispatched_at IS NOT NULL ORDER BY file_id LIMIT 1)`
@@ -445,9 +493,8 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
   })
 
   it('leaves an owner queued by a file write at the front when a backfill page passes it', async () => {
-    await seedQueue('workspace-active', 0, FILE_SEARCH_INDEX_MAX_OUTSTANDING - 1)
-    await connection`DELETE FROM file_search_dispatch_queue WHERE entity_id = 'workspace-active'`
-    /** Queued first and served an hour ago: it wins the single slot only if the write is demoted. */
+    await leaveSlots(1)
+    // Queued first and served an hour ago: it wins the single slot only if the write is demoted.
     await seedQueue('earlier-served', 1)
     await connection`UPDATE file_search_dispatch_queue
       SET last_dispatched_at = now() - interval '1 hour' WHERE entity_id = 'earlier-served'`
@@ -995,8 +1042,10 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       },
       {
         work: 'a backfill reconcile that is due',
+        // A minute past the interval, mirroring the not-yet-due case: the check compares a database
+        // timestamp with the application clock, so exactly at the boundary it depends on clock skew.
         seed: () => connection`UPDATE workspace_file_search_backfill
-          SET completed_at = now() - make_interval(secs => ${reconcileSeconds})`,
+          SET completed_at = now() - make_interval(secs => ${reconcileSeconds + 60})`,
       },
       {
         work: 'a queued workspace',
