@@ -1011,7 +1011,7 @@ try {
       await capture()
       await capture()
       await expect(attachments()).toHaveCount(3)
-      await expect(frame().getByRole('alert').filter({ hasText: 'Remove one' })).toBeVisible()
+      await expect(frame().getByRole('alert').filter({ hasText: 'Remove a page' })).toBeVisible()
       await screenshot('page-limit')
       await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
       await expect(attachments()).toHaveCount(2)
@@ -1483,8 +1483,31 @@ try {
         await settingsPage.waitForURL('chrome://settings/content/microphone')
         await settingsPage.close()
         await shell.bringToFront()
+        const viewport = shell.viewportSize()
+        assert(viewport)
+        const { windowId } = await microphone.send('Browser.getWindowForTarget')
+        const before = await microphone.send('Browser.getWindowBounds', { windowId })
+        await setPanelViewport(viewport.width, viewport.height)
+        const after = await microphone.send('Browser.getWindowBounds', { windowId })
+        voiceDiagnostics.push({ event: 'settings-return', viewport, before, after })
         await setMicrophonePermission('granted')
+        const retryClick = await mic.evaluateHandle((button) => {
+          let clicked = false
+          button.addEventListener(
+            'click',
+            (event) => {
+              clicked = event.isTrusted
+            },
+            { once: true }
+          )
+          return () => clicked
+        })
         await mic.click()
+        voiceDiagnostics.push({
+          event: 'retry-click',
+          trusted: await retryClick.evaluate((read) => read()),
+        })
+        await retryClick.dispose()
         await expect(stop).toBeVisible()
         await expect.poll(() => sessions[0]?.chunks ?? 0).toBeGreaterThan(0)
         sessions[0].socket.send(

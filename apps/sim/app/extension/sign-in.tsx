@@ -52,7 +52,7 @@ function PanelSignIn({ expectedUserId }: ExtensionSignInProps) {
     let active = true
     let checking = false
     let checkAgain = false
-    const resume = async () => {
+    const resume = async (returning = false) => {
       if (document.visibilityState === 'hidden') return
       if (checking) {
         checkAgain = true
@@ -64,8 +64,8 @@ function PanelSignIn({ expectedUserId }: ExtensionSignInProps) {
         if (active) {
           setFailed(false)
           if (session?.user) {
-            if (expectedUserId && session.user.id !== expectedUserId) window.location.reload()
-            else router.refresh()
+            if (!expectedUserId) router.refresh()
+            else if (returning || session.user.id !== expectedUserId) window.location.reload()
           }
         }
       } catch {
@@ -74,14 +74,14 @@ function PanelSignIn({ expectedUserId }: ExtensionSignInProps) {
         checking = false
         if (active && checkAgain) {
           checkAgain = false
-          void resume()
+          void resume(true)
         }
       }
     }
-    const check = () => void resume()
+    const check = () => void resume(true)
     window.addEventListener('focus', check)
     document.addEventListener('visibilitychange', check)
-    check()
+    void resume()
     return () => {
       active = false
       window.removeEventListener('focus', check)
