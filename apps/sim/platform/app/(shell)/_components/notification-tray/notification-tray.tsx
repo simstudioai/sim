@@ -74,8 +74,8 @@ function useToastNotices() {
   useEffect(
     () =>
       connectToastSink({
-        show({ message, description, variant, action }) {
-          const id = generateId()
+        show({ message, description, variant, action, noticeId }) {
+          const id = noticeId ?? generateId()
           notify({
             id,
             title: message,

@@ -40,6 +40,7 @@ import type { MenuAction } from '@/platform/design-system/components/menu/action
 import { toast } from '@/platform/lib/data/toast'
 
 const logger = createLogger('SimLinks')
+const COPY_NOTICE_ID = 'sim-link-copy'
 
 const SIM_LINKS_DOCS_URL = `${SIM_DOCS_URL}/search/sim-links`
 
@@ -94,10 +95,10 @@ export function useLinksPage(organizationId: string) {
   const copy = useCallback(async (name: string) => {
     try {
       await navigator.clipboard.writeText(simLinkUrl(window.location.origin, name))
-      toast.success('Link copied')
+      toast.success('Link copied', { noticeId: COPY_NOTICE_ID })
     } catch (error) {
       logger.error('Failed to copy Sim link', { error })
-      toast.error('Unable to copy link')
+      toast.error('Unable to copy link', { noticeId: COPY_NOTICE_ID })
     }
   }, [])
 

@@ -1,6 +1,8 @@
 /** The parts of the legacy toast that query hooks use when a background mutation reports back. */
 interface ToastOptions {
   description?: string
+  /** A stable id: raising it again replaces this notice instead of stacking another. */
+  noticeId?: string
   action?: { label: string; onClick: () => void }
 }
 

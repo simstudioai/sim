@@ -41,8 +41,18 @@ export function RedesignNotices({ children }: { children: ReactNode }) {
   useEffect(
     () =>
       connectToastSink({
-        show: ({ variant, ...input }) =>
-          toast({ ...input, variant: variant === 'warning' ? 'error' : variant }),
+        show: ({ noticeId, ...input }) => {
+          if (!noticeId) return toast(input)
+          dismiss(noticeId)
+          const toastId = toast({
+            ...input,
+            onDismiss: () => {
+              if (toastIdByNotice.get(noticeId) === toastId) toastIdByNotice.delete(noticeId)
+            },
+          })
+          toastIdByNotice.set(noticeId, toastId)
+          return toastId
+        },
         dismiss: (id) => toast.dismiss(id),
       }),
     []

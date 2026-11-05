@@ -33,8 +33,12 @@ import type {
 } from '@/platform/lib/data/integrations-types'
 import { toast } from '@/platform/lib/data/toast'
 
+const ACTION_NOTICE_ID = 'integrations-action'
+
 function reportActionFailure(error: unknown) {
-  toast.error(getErrorMessage(error, 'That did not work. Try again.'))
+  toast.error(getErrorMessage(error, 'That did not work. Try again.'), {
+    noticeId: ACTION_NOTICE_ID,
+  })
 }
 
 /** The member inventory and its reads, each failing and retrying on its own. */
