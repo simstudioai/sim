@@ -20,9 +20,3 @@
   inline-size: var(--spacing-224);
   max-inline-size: 100%;
 }
-
-.status {
-  color: var(--ui-secondary);
-  padding-block: var(--spacing-48);
-  text-align: center;
-}

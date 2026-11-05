@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test'
-import { requireEnv, signIn } from './session'
+import { requireEnv, signIn } from '@/platform/checks/live/session'
 
 /**
  * Mutates the seeded organization. `PLATFORM_LIVE_EMAIL` is an administrator,

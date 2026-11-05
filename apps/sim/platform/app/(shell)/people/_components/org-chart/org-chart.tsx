@@ -4,6 +4,7 @@ import { Fragment, type MouseEvent, useCallback, useLayoutEffect, useRef } from 
 import { ChartCanvas } from '@/platform/app/(shell)/people/_components/org-chart/chart-canvas'
 import { ChartEmptyState } from '@/platform/app/(shell)/people/_components/org-chart/chart-empty-state'
 import styles from '@/platform/app/(shell)/people/_components/org-chart/org-chart.module.css'
+import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
 import {
   Button,
   EmptyState,
@@ -62,17 +63,14 @@ export function OrgChart({ organization, onImport, onSync }: OrgChartProps) {
     trigger: HTMLElement
     target: FocusTarget
   } | null>(null)
-  const focusPerson = useCallback(
-    (id: string, event?: MouseEvent<HTMLButtonElement>) => {
-      // `detail === 0` is a keyboard click: focus follows the navigation instead of being lost.
-      pendingFocus.current =
-        event?.detail === 0
-          ? { focus: id, page: 1, trigger: event.currentTarget, target: 'person' }
-          : null
-      void setView({ focus: id, page: 1, view: 'chart' }, { history: 'push' })
-    },
-    [setView]
-  )
+  const focusPerson = (id: string, event?: MouseEvent<HTMLButtonElement>) => {
+    // `detail === 0` is a keyboard click: focus follows the navigation instead of being lost.
+    pendingFocus.current =
+      event?.detail === 0
+        ? { focus: id, page: 1, trigger: event.currentTarget, target: 'person' }
+        : null
+    void setView({ focus: id, page: 1, view: 'chart' }, { history: 'push' })
+  }
   const changePage = (
     value: number,
     target: 'previous' | 'next',
@@ -118,6 +116,7 @@ export function OrgChart({ organization, onImport, onSync }: OrgChartProps) {
           person={branch.person}
           profileQuery={profileQuery}
           onFocus={focusPerson}
+          currentPersonRef={setCurrentPerson}
           onImport={onImport}
           onSync={onSync}
         />
@@ -218,9 +217,7 @@ export function OrgChart({ organization, onImport, onSync }: OrgChartProps) {
           />
         )
       ) : (
-        <p className={styles.status} role='status' data-type='T060'>
-          Loading org chart…
-        </p>
+        <PeopleStatus>Loading org chart…</PeopleStatus>
       )}
     </section>
   )

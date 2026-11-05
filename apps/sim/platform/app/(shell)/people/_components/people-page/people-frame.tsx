@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import styles from '@/platform/app/(shell)/people/_components/people-page/people-page.module.css'
+import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
 
 interface PeopleFrameProps {
   title?: string
@@ -16,13 +17,7 @@ export function PeopleFrame({ title = 'People', actions, loading, children }: Pe
         <h1 data-type='T076'>{title}</h1>
         {actions && <div className={styles.actions}>{actions}</div>}
       </header>
-      {loading ? (
-        <p className={styles.status} role='status' data-type='T060'>
-          {loading}
-        </p>
-      ) : (
-        children
-      )}
+      {loading ? <PeopleStatus>{loading}</PeopleStatus> : children}
     </main>
   )
 }

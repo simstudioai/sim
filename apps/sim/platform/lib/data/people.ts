@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQueryStates } from 'nuqs'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type {
@@ -353,26 +353,23 @@ export function useDirectorySync(organizationId: string) {
   const query = usePeopleSyncStatus(organizationId)
   const actions = usePeopleSyncActions(organizationId)
   const status = isDirectorySyncAccessError(query.error) ? undefined : query.data
-  const connect = useCallback(
-    (draft: SyncDraft, onConnected: () => void): SyncFieldErrors | null => {
-      const parsed = peopleSyncConfigSchema.safeParse(
-        draft.source === 'okta'
-          ? { source: 'okta', domain: draft.domain, token: draft.token }
-          : draft.source === 'entra'
-            ? {
-                source: 'entra',
-                tenantId: draft.tenantId.trim(),
-                clientId: draft.clientId.trim(),
-                clientSecret: draft.clientSecret,
-              }
-            : { source: 'scim' }
-      )
-      if (!parsed.success) return flattenFieldErrors(parsed.error)
-      actions.configure(parsed.data, onConnected)
-      return null
-    },
-    [actions]
-  )
+  const connect = (draft: SyncDraft, onConnected: () => void): SyncFieldErrors | null => {
+    const parsed = peopleSyncConfigSchema.safeParse(
+      draft.source === 'okta'
+        ? { source: 'okta', domain: draft.domain, token: draft.token }
+        : draft.source === 'entra'
+          ? {
+              source: 'entra',
+              tenantId: draft.tenantId.trim(),
+              clientId: draft.clientId.trim(),
+              clientSecret: draft.clientSecret,
+            }
+          : { source: 'scim' }
+    )
+    if (!parsed.success) return flattenFieldErrors(parsed.error)
+    actions.configure(parsed.data, onConnected)
+    return null
+  }
   return {
     loading: query.isPending,
     loaded: Boolean(status),

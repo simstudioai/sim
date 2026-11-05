@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import styles from '@/platform/app/(shell)/people/_components/directory/directory.module.css'
+import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
 import {
   Button,
   DataTable,
@@ -99,9 +100,7 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
         </div>
       )}
       {directory.loading ? (
-        <p className={styles.status} role='status' data-type='T060'>
-          Loading people…
-        </p>
+        <PeopleStatus>Loading people…</PeopleStatus>
       ) : directory.error ? (
         <InlineNotice
           intent='danger'

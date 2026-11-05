@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react'
+import type { MouseEvent, RefCallback } from 'react'
 import Link from 'next/link'
 import styles from '@/platform/app/(shell)/people/_components/org-chart/org-chart.module.css'
 import { Button, EmptyState } from '@/platform/design-system/components'
@@ -20,6 +20,7 @@ interface ChartEmptyStateProps {
   person: PersonSummary
   profileQuery: string
   onFocus: (memberId: string, event: MouseEvent<HTMLButtonElement>) => void
+  currentPersonRef: RefCallback<HTMLElement>
   onImport?: () => void
   onSync?: () => void
 }
@@ -29,6 +30,7 @@ export function ChartEmptyState({
   person,
   profileQuery,
   onFocus,
+  currentPersonRef,
   onImport,
   onSync,
 }: ChartEmptyStateProps) {
@@ -59,7 +61,11 @@ export function ChartEmptyState({
             )
           )}
           {emptyOrganization && onImport && <Button onClick={onImport}>Import people</Button>}
-          <Button render={<Link href={personHref(person.memberId, profileQuery)} />}>
+          <Button
+            render={
+              <Link ref={currentPersonRef} href={personHref(person.memberId, profileQuery)} />
+            }
+          >
             View profile
           </Button>
         </div>

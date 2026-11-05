@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { requireEnv, signIn } from './session'
+import { requireEnv, signIn } from '@/platform/checks/live/session'
 
 /**
  * `PLATFORM_LIVE_EMAIL` is an administrator in an organization with the `people` flag on.
