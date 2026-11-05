@@ -14,6 +14,7 @@ import {
   requireOrganizationSubjectMembership,
 } from '@/lib/core/application/organization-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { defineAuthorizedCredentialUserUseCase } from '@/lib/credentials/application/authorized-user-use-case'
 import type { DbTransaction } from '@/lib/db/types'
 import { simLinkOperations } from '@/lib/sim-links/application/operations'
@@ -23,6 +24,7 @@ import { requireSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import type { SimLinkAccess, SimLinkRecord, SimLinkViewer } from '@/lib/sim-links/repository'
 import * as repository from '@/lib/sim-links/repository'
 import {
+  isSimLinkLoop,
   type SimLinkFields,
   type SimLinkSort,
   stripSimLinkPrefix,
@@ -200,11 +202,21 @@ export const getSimLinkView = defineAuthorizedOrganizationUseCase({
   },
 })
 
+function requireExternalDestination({ url, defaultUrl }: SimLinkFields) {
+  const appOrigin = new URL(getBaseUrl()).origin
+  if (isSimLinkLoop(url, appOrigin) || (defaultUrl && isSimLinkLoop(defaultUrl, appOrigin)))
+    throw new OrchestrationError(
+      'validation',
+      "A link can't point at another link. Use the page that link opens."
+    )
+}
+
 export const createSimLink = defineAuthorizedOrganizationUseCase({
   operation: simLinkOperations.create,
   ...rollout,
   async execute({ input, context }: OrganizationUseCaseContext<OrganizationInput & SimLinkFields>) {
     const { organizationId, ...fields } = input
+    requireExternalDestination(fields)
     return withUniqueName(organizationId, fields.name, () =>
       db.transaction(async (tx) => {
         /** A removal deletes this row before handing off the member's links, so it waits for this insert. */
@@ -233,6 +245,7 @@ export const updateSimLink = defineAuthorizedOrganizationUseCase({
   ...rollout,
   async execute({ input, context }: OrganizationUseCaseContext<LinkInput & SimLinkFields>) {
     const { organizationId, linkId, ...fields } = input
+    requireExternalDestination(fields)
     const viewer = viewerOf(context)
     return withUniqueName(organizationId, fields.name, () =>
       db.transaction(async (tx) => {
@@ -310,8 +323,11 @@ export const suggestSimLinks = defineAuthorizedCredentialUserUseCase({
   operation: simLinkOperations.suggest,
   async execute({ principal, input }: { principal: SessionPrincipal; input: { query: string } }) {
     const organizationId = await resolveSimLinkOrganization(principal)
+    if (!organizationId) return { enabled: false, links: [] }
     const prefix = typedSimLinkPrefix(input.query)
-    if (!organizationId || prefix === null) return []
-    return repository.suggestSimLinks(organizationId, prefix)
+    return {
+      enabled: true,
+      links: prefix === null ? [] : await repository.suggestSimLinks(organizationId, prefix),
+    }
   },
 })

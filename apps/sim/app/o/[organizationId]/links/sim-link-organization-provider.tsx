@@ -21,13 +21,13 @@ const SimLinkScopeContext = createContext<SimLinkScope>({
 })
 
 interface SimLinkOrganizationProviderProps {
-  /** Where `sim/<name>` resolves for this session, or null when it resolves nowhere. */
+  /** The organization this surface creates and copies links in, or null when links are off. */
   organizationId: string | null
   children: ReactNode
 }
 
 /**
- * Scopes Sim link shortcuts to the organization whose links `sim/` opens for the viewer, and hosts
+ * Scopes Sim link shortcuts to one organization, and hosts
  * the new-link form at the layout root. A form opened from a menu row inside a popover would
  * otherwise render beneath it, since popovers stack above modals so they can open inside one; at
  * the root the form takes focus outside the popover, which dismisses it.

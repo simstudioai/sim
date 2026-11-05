@@ -51,9 +51,7 @@ export const simLinkSettingsActions = {
           principal: context.principal,
           input: {
             organizationId: settingsOrganizationId(context),
-            ...('linkId' in input
-              ? { linkId: input.linkId }
-              : { name: input.name.replace(/^sim\//i, '') }),
+            ...('linkId' in input ? { linkId: input.linkId } : { name: input.name }),
           },
         })
       )

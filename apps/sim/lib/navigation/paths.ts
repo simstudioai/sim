@@ -66,9 +66,9 @@ export function simLinkPath(...segments: string[]): string {
   return ['/sim', ...segments.map(encodeURIComponent)].join('/')
 }
 
-/** The full address of `sim/<name>` on `origin`, which opens it with or without the extension. */
-export function simLinkUrl(origin: string, name: string): string {
-  return new URL(simLinkPath(name), origin).href
+/** The full address of a link on `origin`, which opens it in this organization for any member. */
+export function simLinkUrl(origin: string, organizationId: string, name: string): string {
+  return new URL(organizationRoutes(organizationId).openSimLink(name), origin).href
 }
 
 /** Whether `pathname` is `root` itself or a route beneath it. */

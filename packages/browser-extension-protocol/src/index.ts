@@ -134,10 +134,11 @@ export const SIM_LINK_HOST_PATTERN = SIM_LINK_HOSTS.join('|')
 export const SIM_LINK_SUGGESTIONS_PATH = '/api/sim-links/suggestions'
 
 /**
- * Listed Sim links whose name starts with what was typed, most visited first. Not strict: an
- * installed extension lags the server, so a field added later must not break its parse.
+ * Listed Sim links matching what was typed, and whether links are on at all for this session. Not
+ * strict: an installed extension lags the server, so a field added later must not break its parse.
  */
 export const simLinkSuggestionsSchema = z.object({
+  enabled: z.boolean().optional(),
   links: z.array(
     z.object({ name: z.string(), description: z.string().nullable(), url: z.string() })
   ),

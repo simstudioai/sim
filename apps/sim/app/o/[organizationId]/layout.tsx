@@ -14,7 +14,6 @@ import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/pa
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { canBrowsePeople } from '@/lib/people/feature-flag'
 import { isProjectsEnabled } from '@/lib/projects/rollout.server'
-import { resolveSimLinkOrganization } from '@/lib/sim-links/application/organization'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
@@ -88,7 +87,6 @@ export default async function OrganizationLayout({
     projectsEnabled,
     simLinksEnabled,
     peopleEnabled,
-    simLinkOrganizationId,
   ] = await Promise.all([
     prefetchOrganizationSidebar(
       queryClient,
@@ -108,11 +106,6 @@ export default async function OrganizationLayout({
     isProjectsEnabled(),
     simLinksEnabledLookup,
     peopleEnabledLookup,
-    resolveSimLinkOrganization({
-      kind: 'session',
-      userId: session.user.id,
-      sessionId: session.session.id,
-    }),
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
@@ -131,7 +124,7 @@ export default async function OrganizationLayout({
         }}
       >
         <OrganizationProvider context={context}>
-          <SimLinkOrganizationProvider organizationId={simLinkOrganizationId}>
+          <SimLinkOrganizationProvider organizationId={simLinksEnabled ? organizationId : null}>
             <GlobalCommandsProvider>
               <WorkspaceViewport className='workspace-root'>
                 <ImpersonationBanner />

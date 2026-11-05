@@ -1,5 +1,6 @@
 import {
   SIM_LINK_HOST_PATTERN,
+  SIM_LINK_HOSTS,
   SIM_LINK_NAME_MAX_LENGTH,
   SIM_LINK_URL_MAX_LENGTH,
 } from '@sim/browser-extension-protocol'
@@ -129,6 +130,14 @@ const destinationSchema = z
   .trim()
   .min(1, 'Enter a destination URL')
   .max(SIM_LINK_URL_MAX_LENGTH, `Use at most ${SIM_LINK_URL_MAX_LENGTH} characters`)
+
+/** Whether a destination leads back into link resolution, which would redirect forever. */
+export function isSimLinkLoop(url: string, appOrigin: string): boolean {
+  const parsed = parseHttpUrl(url.replaceAll(SIM_LINK_VARIABLE, 'value'))
+  if (!parsed) return false
+  if ((SIM_LINK_HOSTS as readonly string[]).includes(parsed.hostname)) return true
+  return parsed.origin === appOrigin && /^\/sim(?:-links)?(?:\/|$)/.test(parsed.pathname)
+}
 
 const simLinkUrlSchema = destinationSchema.refine(
   (url) => simLinkOrigin(url) !== null,

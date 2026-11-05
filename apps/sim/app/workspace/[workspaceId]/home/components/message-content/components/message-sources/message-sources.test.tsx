@@ -58,9 +58,9 @@ describe('creating a Sim link from the sources popover', () => {
     act(() => press(document.querySelector(`[aria-label="Actions for ${source.title}"]`)))
     await settle()
     const create = [...document.querySelectorAll('[role="menuitem"]')].find(
-      (item) => item.textContent === 'Create Sim link'
+      (item) => item.textContent === 'Create link'
     )
-    if (!(create instanceof HTMLElement)) throw new Error('Expected a Create Sim link item')
+    if (!(create instanceof HTMLElement)) throw new Error('Expected a Create link item')
     expect(create.getAttribute('aria-disabled')).not.toBe('true')
     act(() => create.click())
     await settle()

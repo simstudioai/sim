@@ -12,6 +12,7 @@ import {
   extensionToAppMessageSchema,
   pageSnapshotSchema,
   SIM_LINK_HOSTS,
+  SIM_LINK_SUGGESTIONS_PATH,
 } from '@sim/browser-extension-protocol'
 import { SecretReveal } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
@@ -38,6 +39,8 @@ const fixture = Bun.serve({
       return new Response('Fixture session created', {
         headers: { 'set-cookie': 'fixture-session=present; Path=/; HttpOnly; SameSite=Lax' },
       })
+    if (url.pathname === SIM_LINK_SUGGESTIONS_PATH)
+      return Response.json({ enabled: true, links: [] })
     if (url.pathname === '/extension')
       return new Response(
         `<!doctype html><html><body>
@@ -209,18 +212,20 @@ try {
   const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'))
   context.setDefaultTimeout(15_000)
   const extensionId = worker.url().split('/')[2]
-  await check('Installing visits each short host once in tabs that close themselves', async () => {
+  await check('Installing visits each short host in tabs that close themselves', async () => {
     await expect
       .poll(
         () =>
           worker.evaluate(
-            async () => (await chrome.storage.local.get('shortHostsLearned')).shortHostsLearned
+            async () =>
+              typeof (await chrome.storage.local.get('shortHostsVisitedAt')).shortHostsVisitedAt
           ),
         { timeout: 30_000 }
       )
-      .toBe(true)
+      .toBe('number')
     const leftBehind = await worker.evaluate(
-      async () => (await chrome.tabs.query({ url: ['http://go/*', 'http://sim/*'] })).length
+      async (simLinks) => (await chrome.tabs.query({ url: simLinks })).length,
+      ['http://go/*', 'http://sim/*', `${origin}/sim*`]
     )
     assert(leftBehind === 0, 'Short host tabs were left open')
   })

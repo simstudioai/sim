@@ -140,13 +140,15 @@ export async function getSimLink(
 const SUGGESTION_LIMIT = 6
 
 /**
- * Listed links whose name starts with `namePrefix` (normalized), most visited first; the most
- * visited overall when it is empty. Unlisted links never appear: suggesting is browsing.
+ * Listed links whose name contains `typedName` (normalized), names starting with it first and then
+ * most visited; the most visited overall when it is empty. Unlisted links never appear: suggesting
+ * is browsing.
  */
 export async function suggestSimLinks(
   organizationId: string,
-  namePrefix: string
+  typedName: string
 ): Promise<{ name: string; description: string | null; url: string }[]> {
+  const pattern = escapeLikePattern(typedName)
   return db
     .select({ name: simLink.name, description: simLink.description, url: simLink.url })
     .from(simLink)
@@ -154,10 +156,14 @@ export async function suggestSimLinks(
       and(
         eq(simLink.organizationId, organizationId),
         eq(simLink.unlisted, false),
-        namePrefix ? like(simLink.normalizedName, `${escapeLikePattern(namePrefix)}%`) : undefined
+        typedName ? like(simLink.normalizedName, `%${pattern}%`) : undefined
       )
     )
-    .orderBy(desc(simLink.visitCount), asc(simLink.normalizedName))
+    .orderBy(
+      desc(sql`${simLink.normalizedName} like ${`${pattern}%`}`),
+      desc(simLink.visitCount),
+      asc(simLink.normalizedName)
+    )
     .limit(SUGGESTION_LIMIT)
 }
 

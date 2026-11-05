@@ -1,49 +1,79 @@
-import { SIM_LINK_HOSTS } from '@sim/browser-extension-protocol'
+import {
+  SIM_LINK_HOSTS,
+  SIM_LINK_SUGGESTIONS_PATH,
+  simLinkSuggestionsSchema,
+} from '@sim/browser-extension-protocol'
 import { createLogger } from '@sim/logger'
 import { SIM_ORIGIN } from '@/config'
 
 const logger = createLogger('ShortHosts')
-const LEARNED_KEY = 'shortHostsLearned'
+const VISITED_AT_KEY = 'shortHostsVisitedAt'
+const REFRESH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000
 const VISIT_TIMEOUT_MS = 15_000
 
-/** Closes once Chrome has committed the visit, which is what records the host in its history. */
-async function visitInBackground(host: string) {
-  const { id: tabId } = await chrome.tabs.create({ url: `http://${host}/`, active: false })
-  if (tabId === undefined) return
-  await new Promise<void>((resolve) => {
-    const finish = () => {
-      clearTimeout(timeout)
-      chrome.tabs.onUpdated.removeListener(updated)
-      resolve()
-    }
-    const updated = (id: number, change: chrome.tabs.OnUpdatedInfo, tab: chrome.tabs.Tab) => {
-      if (id === tabId && (change.status === 'complete' || tab.url?.startsWith(SIM_ORIGIN))) {
-        finish()
-      }
-    }
-    const timeout = setTimeout(finish, VISIT_TIMEOUT_MS)
-    chrome.tabs.onUpdated.addListener(updated)
+/** False when signed out or links are off here, where `go/x` should stay an ordinary search. */
+async function linksAreEnabled(): Promise<boolean> {
+  const response = await fetch(`${SIM_ORIGIN}${SIM_LINK_SUGGESTIONS_PATH}`, {
+    credentials: 'include',
   })
-  await chrome.tabs.remove(tabId).catch(() => undefined)
+  if (!response.ok) return false
+  return simLinkSuggestionsSchema.parse(await response.json()).enabled === true
 }
 
 /**
- * Chrome searches for `go/handbook` until it has seen `go` as a host, so visiting each short host
- * once is what makes them work from the address bar. A visit to an unfamiliar single-label host
- * counts as typed in Chrome's history, so it teaches the address bar without asking the user to.
+ * Closes once Chrome has committed the visit, which is what records the host in its history.
+ * False when it never got that far, such as the person closing the tab first.
  */
-async function learnShortHosts() {
-  const stored = await chrome.storage.local.get(LEARNED_KEY)
-  if (stored[LEARNED_KEY] === true) return
-  await Promise.all(SIM_LINK_HOSTS.map(visitInBackground))
-  await chrome.storage.local.set({ [LEARNED_KEY]: true })
+async function visitInBackground(host: string): Promise<boolean> {
+  const { id: tabId } = await chrome.tabs.create({ url: `http://${host}/`, active: false })
+  if (tabId === undefined) return false
+  const visited = await new Promise<boolean>((resolve) => {
+    const finish = (committed: boolean) => {
+      clearTimeout(timeout)
+      chrome.tabs.onUpdated.removeListener(updated)
+      resolve(committed)
+    }
+    const updated = (id: number, change: chrome.tabs.OnUpdatedInfo, tab: chrome.tabs.Tab) => {
+      if (id === tabId && (change.status === 'complete' || tab.url?.startsWith(SIM_ORIGIN))) {
+        finish(true)
+      }
+    }
+    const timeout = setTimeout(() => finish(false), VISIT_TIMEOUT_MS)
+    chrome.tabs.onUpdated.addListener(updated)
+  })
+  await chrome.tabs.remove(tabId).catch(() => undefined)
+  return visited
 }
 
-export function registerShortHostLearning() {
-  const learn = () => {
-    void learnShortHosts().catch(() => logger.warn('Could not visit the short link hosts'))
+/**
+ * Chrome searches for `go/handbook` until its history holds `go` as a typed host, and it counts a
+ * visit to an unfamiliar single-label host as typed. So a background visit teaches the address bar
+ * without asking anything of the user. History expires after 90 days and can be cleared, which is
+ * why this repeats: a later visit only adds a history entry while the host is known, and relearns
+ * it once it isn't.
+ */
+async function visitShortHosts() {
+  const stored = await chrome.storage.local.get(VISITED_AT_KEY)
+  const visitedAt = stored[VISITED_AT_KEY]
+  if (typeof visitedAt === 'number' && Date.now() - visitedAt < REFRESH_INTERVAL_MS) return
+  if (!(await linksAreEnabled())) return
+  const visits = await Promise.all(SIM_LINK_HOSTS.map(visitInBackground))
+  if (visits.every(Boolean)) await chrome.storage.local.set({ [VISITED_AT_KEY]: Date.now() })
+}
+
+export function registerShortHostVisits() {
+  let visiting = false
+  const visit = () => {
+    if (visiting) return
+    visiting = true
+    void visitShortHosts()
+      .catch(() => logger.warn('Could not visit the short link hosts'))
+      .finally(() => {
+        visiting = false
+      })
   }
-  chrome.runtime.onInstalled.addListener(learn)
-  // A managed install can run before any window exists, so it retries at the next browser start.
-  chrome.runtime.onStartup.addListener(learn)
+  chrome.runtime.onInstalled.addListener(visit)
+  chrome.runtime.onStartup.addListener(visit)
+  // Installing signed out leaves nothing to learn yet, so opening Sim is the next chance.
+  chrome.action.onClicked.addListener(visit)
 }
