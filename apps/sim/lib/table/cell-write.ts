@@ -208,9 +208,10 @@ async function readStoredOutputs(
  * A lost connection leaves the outcome unknown, so each repeat first checks what the last attempt
  * did. Re-applying a commit that landed could undo what the user did since, such as editing the
  * output or stopping a downstream group, so a cell whose state already matches only needs the event
- * the lost attempt never emitted, carrying what is stored now. A `completed` cell with no state left
- * was cleared by the user, since a run only completes after its pickup wrote one. Any other state
- * can legitimately be the first the cell ever had, so it is written.
+ * the lost attempt never emitted, carrying what is stored now. A completed run or a write carrying
+ * outputs comes after a pickup wrote the cell's state, so if that state is gone the user cleared it.
+ * Any other write can be the first the cell ever had, so it is written; the most that can come back
+ * is an error badge with no outputs, which the user can clear or re-run.
  *
  * A `cancelled` stamp is never repeated. It carries no guard, so a repeat could kill a run the user
  * started after it.
@@ -234,7 +235,9 @@ export async function writeWorkflowGroupStateDurably(
           })
           return 'wrote'
         }
-        if (!current && status === 'completed') return 'skipped'
+        const followsPickup =
+          status === 'completed' || Object.keys(payload.dataPatch ?? {}).length > 0
+        if (!current && followsPickup) return 'skipped'
       }
       attempted = true
       return writeWorkflowGroupState(ctx, payload)

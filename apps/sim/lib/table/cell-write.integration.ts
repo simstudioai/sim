@@ -212,6 +212,32 @@ describe('a durable cell state write around a lost connection', { timeout: 90_00
     expect((await readCell(rowId)).status).toBeNull()
   })
 
+  it('does not bring back outputs of a failed run the user cleared after the commit landed', async () => {
+    const { ctx, rowId } = await createCell()
+    interception = {
+      ...LANDED_COMMIT,
+      beforeReset: async () => {
+        await control`DELETE FROM table_row_executions WHERE row_id = ${rowId}`
+        await control`UPDATE user_table_rows SET data = '{}' WHERE id = ${rowId}`
+      },
+    }
+
+    await expect(
+      writeWorkflowGroupStateDurably(ctx, {
+        dataPatch: { out: 'partial' },
+        executionState: {
+          status: 'error',
+          executionId,
+          jobId: null,
+          workflowId: 'workflow-1',
+          error: 'A block failed',
+        },
+      })
+    ).resolves.toBe('skipped')
+
+    expect(await readCell(rowId)).toMatchObject({ out: null, status: null })
+  })
+
   it('writes an error for a cell that never had a state, not mistaking it for a cleared one', async () => {
     const { ctx, rowId } = await createCell({ pickedUp: false })
     interception = { match: /commit/i, forward: false }
