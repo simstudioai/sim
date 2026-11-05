@@ -5,9 +5,21 @@
 }
 
 .controls {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: var(--spacing-96) auto;
   align-items: center;
   gap: var(--ui-action-gap);
+}
+
+/* A fixed role column, so the menu holds one x down the list whatever the role's width. */
+.role {
+  display: flex;
+  justify-content: flex-end;
+  min-inline-size: 0;
+}
+
+.role > span:has(button) {
+  inline-size: 100%;
 }
 
 @container settings-rows (max-width: 30rem) {

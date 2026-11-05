@@ -168,6 +168,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
                   key={row.key}
                   row={row}
                   workspaceId={workspace.id}
+                  workspaceName={workspace.name}
                   actions={actions}
                 />
               ))}
@@ -176,6 +177,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
                   key={row.key}
                   row={row}
                   workspaceId={workspace.id}
+                  workspaceName={workspace.name}
                   canManage={members.canManage}
                   actions={actions}
                 />

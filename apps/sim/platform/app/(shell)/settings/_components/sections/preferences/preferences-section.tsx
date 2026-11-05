@@ -53,6 +53,7 @@ function Preferences() {
       </SettingsRow>
       <SettingsRow label='Time zone' description='Used for dates and schedules you read' field>
         <SearchableSelect
+          variant='quiet'
           label='Time zone'
           labelHidden
           searchLabel='Search time zones'
