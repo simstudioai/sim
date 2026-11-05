@@ -17,6 +17,7 @@ const PLATFORM_SETTINGS_SECTIONS = [
   'integrations',
   'search-mcp',
   'search-slack',
+  'admin',
 ] as const
 
 /** A section the organization view's Settings renders. */
