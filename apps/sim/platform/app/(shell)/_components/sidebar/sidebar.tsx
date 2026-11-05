@@ -3,7 +3,11 @@
 import { Activity, type ReactNode, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { PLATFORM_DESTINATIONS } from '@/platform/app/(shell)/_components/destinations'
-import type { ShellData, ShellItem } from '@/platform/app/(shell)/_components/model'
+import type {
+  ShellData,
+  ShellDestination,
+  ShellItem,
+} from '@/platform/app/(shell)/_components/model'
 import { OrganizationMenu } from '@/platform/app/(shell)/_components/organization-menu/organization-menu'
 import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
 import { SettingsNavigation } from '@/platform/app/(shell)/_components/settings-navigation/settings-navigation'
@@ -39,6 +43,7 @@ export function Sidebar({
   const sidebarHeader = useRef<HTMLDivElement>(null)
   const preferences = useInterfacePreferences()
   const accountName = preferences?.profileName ?? data?.user.name ?? ''
+  const destinations: readonly ShellDestination[] = data?.destinations ?? PLATFORM_DESTINATIONS
   return (
     <aside className={styles.sidebar} data-material='shell' aria-label='Platform sidebar'>
       <div ref={sidebarHeader} className={styles.sidebarHeader}>
@@ -69,19 +74,22 @@ export function Sidebar({
           <ScrollArea label='Platform navigation'>
             <nav className={styles.nav} aria-label='Main navigation'>
               <div className={styles.group}>
-                {PLATFORM_DESTINATIONS.filter((item) => item.id !== 'settings').map((item) => (
-                  <Chip
-                    key={item.id}
-                    href={platformHref(item.value, search)}
-                    selected={pathname === item.value || pathname.startsWith(`${item.value}/`)}
-                    icon={item.icon}
-                  >
-                    {item.label}
-                  </Chip>
-                ))}
+                {destinations
+                  .filter((item) => item.id !== 'settings')
+                  .map((item) => (
+                    <Chip
+                      key={item.id}
+                      href={platformHref(item.value, search)}
+                      selected={pathname === item.value || pathname.startsWith(`${item.value}/`)}
+                      icon={item.icon}
+                    >
+                      {item.label}
+                    </Chip>
+                  ))}
               </div>
               <SidebarCollections
                 workspaces={data?.workspaces ?? []}
+                canSortWorkspaces={!data?.unbacked?.includes('sortWorkspaces')}
                 chats={chats}
                 activeChat={activeChat}
                 navigate={navigate}
@@ -91,7 +99,11 @@ export function Sidebar({
         </Activity>
         {settings && (
           <ScrollArea label='Settings navigation'>
-            <SettingsNavigation section={settingsSection} organization={data?.organization.name} />
+            <SettingsNavigation
+              section={settingsSection}
+              organization={data?.organization.name}
+              groups={data?.settingsNavigation}
+            />
           </ScrollArea>
         )}
       </div>

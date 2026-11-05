@@ -1,6 +1,7 @@
 'use client'
 
-import { createContext, type ReactNode, useContext, useState } from 'react'
+import { createContext, type ReactNode, useContext, useEffect, useState } from 'react'
+import { generateId } from '@sim/utils/id'
 import type { ShellNotice } from '@/platform/app/(shell)/_components/model'
 import styles from '@/platform/app/(shell)/_components/notification-tray/notification-tray.module.css'
 import { ActivityBody } from '@/platform/design-system/components/activity-row/activity-body'
@@ -8,8 +9,9 @@ import { Button, IconButton } from '@/platform/design-system/components/button/b
 import { useFeedbackExpiry } from '@/platform/design-system/components/feedback/use-feedback-expiry'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
+import { connectToastSink } from '@/platform/lib/data/toast'
 
-type Notice = Omit<ShellNotice, 'href'> & { onAction: () => void }
+type Notice = Omit<ShellNotice, 'href'> & { onAction?: () => void }
 function useNoticeState() {
   const [edits, setEdits] = useState(() => new Map<string, Notice | null>())
   const [display, setDisplay] = useState<'hidden' | 'latest' | 'expanded' | 'minimized'>('hidden')
@@ -41,11 +43,37 @@ export function NotificationSession({ children }: { children: ReactNode }) {
   return <Notices.Provider value={state}>{children}</Notices.Provider>
 }
 
+/** Delivers the toasts existing query hooks raise, as action-free notices unless they carry one. */
+function useToastNotices() {
+  const { notify, dismiss } = usePlatformNotices()
+  useEffect(
+    () =>
+      connectToastSink({
+        show({ message, description, variant, action }) {
+          const id = generateId()
+          notify({
+            id,
+            title: message,
+            description,
+            icon: variant === 'error' || variant === 'warning' ? 'I047' : 'I106',
+            action: action?.label,
+            onAction: action?.onClick,
+          })
+          return id
+        },
+        dismiss,
+      }),
+    // notify and dismiss only write state, so the first render's pair stays correct.
+    []
+  )
+}
+
 interface NotificationTrayProps {
   history: readonly ShellNotice[]
   navigate: (href: string) => void
 }
 export function NotificationTray({ history, navigate }: NotificationTrayProps) {
+  useToastNotices()
   const scrollEdges = useScrollEdges<HTMLDivElement>()
   const { edits, display, setDisplay, dismiss } = usePlatformNotices()
   const items = [
@@ -119,16 +147,18 @@ export function NotificationTray({ history, navigate }: NotificationTrayProps) {
                   )}
                 </ActivityBody>
                 <div className={styles.actions}>
-                  <Button
-                    size='compact'
-                    onClick={() => {
-                      dismiss(item.id)
-                      if ('onAction' in item) item.onAction()
-                      else if (item.href) navigate(item.href)
-                    }}
-                  >
-                    {item.action}
-                  </Button>
+                  {item.action && (
+                    <Button
+                      size='compact'
+                      onClick={() => {
+                        dismiss(item.id)
+                        if ('onAction' in item) item.onAction?.()
+                        else if (item.href) navigate(item.href)
+                      }}
+                    >
+                      {item.action}
+                    </Button>
+                  )}
                   <IconButton
                     size='compact'
                     label={`Dismiss ${item.title}`}

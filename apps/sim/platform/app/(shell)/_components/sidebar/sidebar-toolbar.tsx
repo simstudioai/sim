@@ -8,18 +8,25 @@ import { IconButton, Tooltip } from '@/platform/design-system/components'
 
 interface SidebarToolbarProps {
   items: readonly InboxItem[]
+  showInbox: boolean
   navigate: (href: string) => void
   onSearch: () => void
   onCollapse: () => void
 }
-export function SidebarToolbar({ items, navigate, onSearch, onCollapse }: SidebarToolbarProps) {
+export function SidebarToolbar({
+  items,
+  showInbox,
+  navigate,
+  onSearch,
+  onCollapse,
+}: SidebarToolbarProps) {
   const toolbar = useRef<HTMLDivElement>(null)
   return (
     <div ref={toolbar} className={styles.actions}>
       <Tooltip label='Search (⌘K)'>
         <IconButton size='row' label='Search' icon='I089' onClick={onSearch} />
       </Tooltip>
-      <Inbox anchor={toolbar} items={items} navigate={navigate} />
+      {showInbox && <Inbox anchor={toolbar} items={items} navigate={navigate} />}
       <Tooltip label='Collapse sidebar'>
         <IconButton size='row' label='Collapse sidebar' icon='I066' onClick={onCollapse} />
       </Tooltip>

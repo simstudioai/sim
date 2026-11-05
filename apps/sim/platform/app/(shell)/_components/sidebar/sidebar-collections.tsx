@@ -18,6 +18,7 @@ import { platformHref } from '@/platform/design-system/navigation'
 
 interface SidebarCollectionsProps {
   workspaces: ShellData['workspaces']
+  canSortWorkspaces: boolean
   chats: readonly ShellItem[]
   activeChat?: string
   navigate: (href: string) => void
@@ -25,6 +26,7 @@ interface SidebarCollectionsProps {
 
 export function SidebarCollections({
   workspaces,
+  canSortWorkspaces,
   chats,
   activeChat,
   navigate,
@@ -45,13 +47,15 @@ export function SidebarCollections({
         onOpenChange={setWorkspacesOpen}
         actions={
           <>
-            <IconButton
-              tooltip
-              size='compact'
-              label='Sort workspaces'
-              icon='I050'
-              onClick={() => navigate('/home')}
-            />
+            {canSortWorkspaces && (
+              <IconButton
+                tooltip
+                size='compact'
+                label='Sort workspaces'
+                icon='I050'
+                onClick={() => navigate('/home')}
+              />
+            )}
             <IconButton
               tooltip
               size='compact'

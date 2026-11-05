@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import type { SettingsNavGroup } from '@/platform/app/(shell)/_components/model'
 import { SETTINGS_DESTINATIONS } from '@/platform/app/(shell)/_components/settings-navigation/destinations'
 import styles from '@/platform/app/(shell)/_components/settings-navigation/settings-navigation.module.css'
 import { Chip, SearchField } from '@/platform/design-system/components'
@@ -10,24 +11,43 @@ import { platformHref } from '@/platform/design-system/navigation'
 interface SettingsNavigationProps {
   section?: string
   organization?: string
+  /** The viewer's gated sections. Absent means the static fixture list. */
+  groups?: readonly SettingsNavGroup[]
 }
+
+const FIXTURE_GROUPS: readonly SettingsNavGroup[] = [
+  {
+    label: 'Personal',
+    items: SETTINGS_DESTINATIONS.filter((item) => item.key !== 'members'),
+  },
+  {
+    label: 'Organization',
+    items: SETTINGS_DESTINATIONS.filter((item) => item.key === 'members'),
+  },
+]
 
 export function SettingsNavigation({
   section = 'preferences',
   organization,
+  groups = FIXTURE_GROUPS,
 }: SettingsNavigationProps) {
   const params = useSearchParams()
   const [query, setQuery] = useState('')
   const filter = query.trim().toLowerCase()
-  const destinations = SETTINGS_DESTINATIONS.map((item) => ({
-    ...item,
-    label: item.key === 'members' ? (organization ?? 'Members') : item.title,
+  const labelled = groups.map((entry) => ({
+    label: entry.label,
+    items: entry.items.map((item) => ({
+      ...item,
+      label: item.key === 'members' ? (organization ?? 'Members') : item.title,
+    })),
   }))
-  const matches = destinations.filter(
-    (entry) =>
-      entry.label.toLowerCase().includes(filter) || entry.title.toLowerCase().includes(filter)
-  )
-  function group(label: string, items: typeof destinations) {
+  const matches = labelled
+    .flatMap((entry) => entry.items)
+    .filter(
+      (entry) =>
+        entry.label.toLowerCase().includes(filter) || entry.title.toLowerCase().includes(filter)
+    )
+  function group(label: string, items: typeof matches) {
     return (
       <div className={styles.group} key={label}>
         <h2 className={styles.navHeading} data-type='T052'>
@@ -37,10 +57,13 @@ export function SettingsNavigation({
           <Chip
             key={entry.key}
             selected={section === entry.key}
-            href={platformHref(
-              entry.key === 'preferences' ? '/settings' : `/settings/${entry.key}`,
-              params
-            )}
+            href={
+              entry.href ??
+              platformHref(
+                entry.key === 'preferences' ? '/settings' : `/settings/${entry.key}`,
+                params
+              )
+            }
             icon={entry.icon}
           >
             {entry.label}
@@ -68,16 +91,7 @@ export function SettingsNavigation({
           </div>
         )
       ) : (
-        <>
-          {group(
-            'Personal',
-            destinations.filter((item) => item.key !== 'members')
-          )}
-          {group(
-            'Organization',
-            destinations.filter((item) => item.key === 'members')
-          )}
-        </>
+        labelled.map((entry) => group(entry.label, entry.items))
       )}
     </nav>
   )
