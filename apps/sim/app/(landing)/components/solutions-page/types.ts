@@ -144,6 +144,10 @@ export interface SolutionsProductFeatureConfig {
   description: string
   visual: ReactNode
   visualSize?: 'default' | 'compact'
+  /** Allow pointer hover on decorative previews with non-focusable tooltip triggers. */
+  allowPreviewHover?: boolean
+  /** Disable when a contained preview needs a crisp right border. */
+  fadePreviewRight?: boolean
   cta?: SolutionsPillCta
 }
 
