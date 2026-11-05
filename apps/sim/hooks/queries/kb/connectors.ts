@@ -54,9 +54,9 @@ import { connectCredentialGroupInPopup } from '@/lib/credential-groups/oauth-pop
 import { isDesktopApp } from '@/lib/desktop'
 import { connectDesktopSource } from '@/lib/desktop/source-connect'
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE } from '@/lib/knowledge/constants'
-import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
 import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
 import { searchIntegrationKeys } from '@/hooks/queries/utils/search-integration-keys'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 

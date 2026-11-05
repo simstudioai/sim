@@ -1,12 +1,8 @@
 'use client'
 
-import { useRouter, useSearchParams } from 'next/navigation'
 import type { HomeWidget } from '@/platform/app/(shell)/_components/model'
 import { usePlatformNotices } from '@/platform/app/(shell)/_components/notification-tray/notification-tray'
-import {
-  useInterfacePreferences,
-  useRecentHistory,
-} from '@/platform/app/(shell)/_components/session/interface-preferences'
+import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
 import { HomeActivityChart } from '@/platform/app/(shell)/home/_components/activity-chart/activity-chart'
 import {
   AttentionList,
@@ -14,43 +10,33 @@ import {
 } from '@/platform/app/(shell)/home/_components/activity-list/activity-list'
 import { CalendarDay } from '@/platform/app/(shell)/home/_components/calendar/calendar-day'
 import { ConnectedWidget } from '@/platform/app/(shell)/home/_components/connected-widget/connected-widget'
+import { GetStarted } from '@/platform/app/(shell)/home/_components/get-started/get-started'
 import { HomeComposer } from '@/platform/app/(shell)/home/_components/home-composer/home-composer'
 import styles from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css'
-import type { HomeData } from '@/platform/app/(shell)/home/_components/model'
-import { ActionMenu, RecentItems } from '@/platform/design-system/components'
-import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
-import { platformHref } from '@/platform/design-system/navigation'
+import type { HomeActions, HomeView } from '@/platform/app/(shell)/home/_components/model'
+import { SkeletonLane } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
+import { ActionMenu, Button, InlineNotice, RecentItems } from '@/platform/design-system/components'
 
 const WIDGETS: readonly HomeWidget[] = ['Activity', 'Email', 'Calendar']
-const ACTIVITY_METRICS = {
-  Build: { field: 'tasks', title: 'Tasks run' },
-  Search: { field: 'searches', title: 'Searches' },
-} as const
+const ACTIVITY_METRIC_TITLES = { Build: 'Tasks run', Search: 'Searches' } as const
 
 interface HomeDashboardProps {
-  data: HomeData | null
-  recentLinks: readonly RecentItem[]
+  view: HomeView
+  actions: HomeActions
 }
 
-export function HomeDashboard({ data, recentLinks }: HomeDashboardProps) {
-  const router = useRouter()
-  const search = useSearchParams()
+export function HomeDashboard({ view, actions }: HomeDashboardProps) {
   const preferences = useInterfacePreferences()
-  const { recents, removeRecent } = useRecentHistory(recentLinks)
   const { notify, dismiss } = usePlatformNotices()
   if (!preferences) throw new Error('Home needs interface preferences')
-  const {
-    hiddenWidgets,
-    setHiddenWidgets,
-    profileName,
-    homeMode,
-    setHomeMode,
-    connections,
-    setConnections,
-  } = preferences
-  const firstName = profileName?.split(/\s/u)[0] || data?.firstName
-  const metric = ACTIVITY_METRICS[homeMode]
-  const widgetLabel = (widget: HomeWidget) => (widget === 'Activity' ? metric.title : widget)
+  const { hiddenWidgets, setHiddenWidgets, profileName, homeMode, setHomeMode } = preferences
+  const firstName = profileName?.split(/\s/u)[0] || view.firstName
+  const metricTitle = ACTIVITY_METRIC_TITLES[homeMode]
+  const activity = view.activity[homeMode]
+  const widgetLabel = (widget: HomeWidget) => (widget === 'Activity' ? metricTitle : widget)
+  const customizable = WIDGETS.filter(
+    (widget) => widget !== 'Activity' || activity.status !== 'hidden'
+  )
   function setVisible(widget: HomeWidget, visible: boolean) {
     const reveal = () => setHiddenWidgets((current) => current.filter((item) => item !== widget))
     const id = `hide-${widget}`
@@ -68,34 +54,11 @@ export function HomeDashboard({ data, recentLinks }: HomeDashboardProps) {
       })
     }
   }
-  const goHome = () => router.push(platformHref('/home', search))
-  function connectedWidget(widget: 'Email' | 'Calendar') {
-    if (hiddenWidgets.includes(widget)) return null
-    return (
-      <ConnectedWidget
-        title={widget}
-        address={data?.address}
-        connected={Boolean(data && (connections[widget] ?? data.connected))}
-        onConnectionChange={
-          data
-            ? (value) => setConnections((current) => ({ ...current, [widget]: value }))
-            : undefined
-        }
-        onHide={() => setVisible(widget, false)}
-      >
-        {widget === 'Email' ? (
-          <EmailList data={data} onOpen={goHome} />
-        ) : data ? (
-          <CalendarDay calendar={data.calendar} />
-        ) : null}
-      </ConnectedWidget>
-    )
-  }
   return (
     <div className={styles.dashboard}>
       <header className={styles.greeting}>
         <div>
-          <h1 data-type='T076'>{firstName ? `Good morning, ${firstName}` : 'Good morning'}</h1>
+          <h1 data-type='T076'>{firstName ? `${view.greeting}, ${firstName}` : view.greeting}</h1>
           <p data-type='T048'>Your company’s knowledge and work, connected by Sim.</p>
         </div>
         <ActionMenu
@@ -103,7 +66,7 @@ export function HomeDashboard({ data, recentLinks }: HomeDashboardProps) {
           heading='Customize Home'
           icon='I108'
           align='end'
-          actions={WIDGETS.map((widget) => ({
+          actions={customizable.map((widget) => ({
             id: widget,
             label: widgetLabel(widget),
             checked: !hiddenWidgets.includes(widget),
@@ -111,24 +74,65 @@ export function HomeDashboard({ data, recentLinks }: HomeDashboardProps) {
           }))}
         />
       </header>
-      <HomeComposer mode={homeMode} onModeChange={setHomeMode} references={data?.references} />
-      {recents.length > 0 && (
+      <HomeComposer mode={homeMode} onModeChange={setHomeMode} references={view.references} />
+      {view.recents.status === 'loading' && <SkeletonLane label='Loading recents' />}
+      {view.recents.status === 'error' && (
+        <InlineNotice
+          intent='warning'
+          message='Recents could not load.'
+          action={
+            <Button size='compact' disabled={view.recents.retrying} onClick={actions.retryRecents}>
+              Try again
+            </Button>
+          }
+        />
+      )}
+      {view.recents.status === 'ready' && view.recents.items.length > 0 && (
         <div className={styles.recents}>
-          <RecentItems label='Recents' items={recents} onRemove={removeRecent} />
+          <RecentItems label='Recents' items={view.recents.items} onRemove={actions.removeRecent} />
         </div>
+      )}
+      {homeMode === 'Search' && view.getStarted.length > 0 && (
+        <GetStarted steps={view.getStarted} />
       )}
       <div className={styles.columns}>
         <div className={styles.column}>
           <HomeActivityChart
-            title={metric.title}
-            points={data?.activity.map((day) => ({ date: day.date, value: day[metric.field] }))}
+            title={metricTitle}
+            state={activity}
+            onRetry={actions.retryActivity}
             hidden={hiddenWidgets.includes('Activity')}
           />
-          {connectedWidget('Email')}
+          {!hiddenWidgets.includes('Email') && (
+            <ConnectedWidget
+              title='Email'
+              state={view.email}
+              actions={actions.email}
+              onHide={() => setVisible('Email', false)}
+            >
+              {(items) => <EmailList items={items} asOf={view.asOf} onOpen={actions.openEmail} />}
+            </ConnectedWidget>
+          )}
         </div>
         <div className={styles.column}>
-          <AttentionList data={data} />
-          {connectedWidget('Calendar')}
+          <AttentionList state={view.attention} asOf={view.asOf} onRetry={actions.retryAttention} />
+          {!hiddenWidgets.includes('Calendar') && (
+            <ConnectedWidget
+              title='Calendar'
+              state={view.calendar}
+              actions={actions.calendar}
+              onHide={() => setVisible('Calendar', false)}
+            >
+              {(calendar) => (
+                <CalendarDay
+                  calendar={calendar}
+                  onDayChange={actions.changeDay}
+                  onReturnToToday={actions.returnToToday}
+                  onRetry={actions.calendar.retry}
+                />
+              )}
+            </ConnectedWidget>
+          )}
         </div>
       </div>
     </div>

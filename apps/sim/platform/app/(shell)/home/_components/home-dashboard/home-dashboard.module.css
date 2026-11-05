@@ -38,3 +38,15 @@
 .column:empty {
   display: none;
 }
+.placeholderGreeting,
+.placeholderComposer {
+  border-radius: var(--ui-control-radius);
+  background: var(--control-muted-fill);
+}
+.placeholderGreeting {
+  block-size: var(--spacing-56);
+  inline-size: 60%;
+}
+.placeholderComposer {
+  block-size: var(--spacing-132);
+}

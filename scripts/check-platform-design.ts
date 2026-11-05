@@ -130,12 +130,16 @@ const seamHelpers = new Set([
   'hooks/use-seed-deployment-shape',
   'lib/auth/browser-storage',
   'lib/auth/client',
+  'lib/auth/oauth-provider',
   'lib/auth/session-context',
   'lib/auth/session-expiry',
   'lib/core/config/env',
   'lib/core/config/public-env',
+  'lib/core/utils/timezone',
   'lib/core/utils/urls',
+  'lib/credential-groups/member-integrations',
   'lib/navigation/paths',
+  'lib/sim-search/live/provider-catalog',
 ])
 const seamPackages = /^@sim\/(?:utils|logger)(?:\/|$)/
 function resolveImport(file: string, specifier: string) {

@@ -2,7 +2,10 @@
 
 import { useState } from 'react'
 import styles from '@/platform/app/(shell)/home/_components/activity-chart/activity-chart.module.css'
+import type { HomeActivityState } from '@/platform/app/(shell)/home/_components/model'
+import { SkeletonBlock } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import { TrendPlot } from '@/platform/design-system/catalog/plots'
+import { Button, EmptyState } from '@/platform/design-system/components'
 import { chartNumber, chartTick } from '@/platform/design-system/components/chart/chart-format'
 import { ChartTooltip } from '@/platform/design-system/components/chart/chart-tooltip'
 import { usePlotInspection } from '@/platform/design-system/components/chart/use-plot-inspection'
@@ -17,7 +20,8 @@ interface ActivityPoint {
 
 interface HomeActivityChartProps {
   title: string
-  points?: readonly ActivityPoint[]
+  state: HomeActivityState
+  onRetry?: () => void
   hidden?: boolean
   initialPoint?: number
   initiallyOpen?: boolean
@@ -108,14 +112,39 @@ function calendarWindow(history: readonly ActivityPoint[] | undefined, days: num
 
 export function HomeActivityChart({
   title,
-  points: history,
+  state,
+  onRetry,
   hidden = false,
   initialPoint,
   initiallyOpen,
 }: HomeActivityChartProps) {
   const [range, setRange] = useState(RANGE_LABELS[0])
   const scrollEdges = useScrollEdges<HTMLElement>('vertical', { tabStop: true })
-  if (hidden) return null
+  if (hidden || state.status === 'hidden') return null
+  if (state.status !== 'ready') {
+    return (
+      <section className={styles.chart} aria-label={title}>
+        <header className={styles.header}>
+          <div className={styles.heading}>
+            <h2 data-type='T042'>{title}</h2>
+          </div>
+        </header>
+        {state.status === 'loading' ? (
+          <SkeletonBlock label={`Loading ${title}`} />
+        ) : (
+          <EmptyState
+            title='This chart could not load'
+            action={
+              <Button size='compact' disabled={state.retrying} onClick={onRetry}>
+                Try again
+              </Button>
+            }
+          />
+        )}
+      </section>
+    )
+  }
+  const history = state.points
   const days = WINDOW_DAYS[RANGE_LABELS.indexOf(range)]
   const points = calendarWindow(history, days)
   const total = points.reduce((sum, point) => sum + point.value, 0)

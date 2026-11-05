@@ -2,9 +2,9 @@
 
 import type { ReactNode } from 'react'
 import { toast } from '@sim/emcn'
+import type { MemberIntegration } from '@/lib/credential-groups/member-integrations'
 import { AccountConnectionActions } from '@/app/o/[organizationId]/integrations/account-connection-actions'
 import { AccountToolPermissionsContent } from '@/app/o/[organizationId]/integrations/accounts/[credentialId]/tool-permissions'
-import type { MemberIntegration } from '@/app/o/[organizationId]/integrations/utils'
 import {
   CredentialDetailHeading,
   CredentialDetailLayout,

@@ -54,6 +54,7 @@
   position: relative;
   grid-column: 2;
   min-inline-size: 0;
+  overflow: hidden;
   padding: var(--ui-row-block) var(--ui-row-inset);
   border-radius: var(--ui-control-radius);
   background: var(--control-muted-fill);
@@ -98,4 +99,32 @@
 .now::after {
   order: 2;
   background: var(--ui-border);
+}
+.allDay {
+  display: grid;
+  flex: none;
+  gap: var(--ui-list-gap);
+  min-inline-size: 0;
+}
+.allDayEvent {
+  display: flex;
+  min-inline-size: 0;
+  padding: var(--ui-row-block) var(--ui-row-inset);
+  border-radius: var(--ui-control-radius);
+  background: var(--control-muted-fill);
+}
+.event[data-lanes="2"] {
+  inline-size: 50%;
+}
+.event[data-lanes="2"][data-lane="1"] {
+  margin-inline-start: 50%;
+}
+.event[data-lanes="3"] {
+  inline-size: calc(100% / 3);
+}
+.event[data-lanes="3"][data-lane="1"] {
+  margin-inline-start: calc(100% / 3);
+}
+.event[data-lanes="3"][data-lane="2"] {
+  margin-inline-start: calc(200% / 3);
 }
