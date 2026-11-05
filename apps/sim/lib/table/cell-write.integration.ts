@@ -138,7 +138,6 @@ beforeAll(async () => {
 })
 
 beforeEach(() => {
-  vi.clearAllMocks()
   interception = null
 })
 

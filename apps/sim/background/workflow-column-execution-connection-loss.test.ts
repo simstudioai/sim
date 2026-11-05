@@ -10,48 +10,60 @@
  * start a workflow twice. What a repeated state write does is proven against real PostgreSQL in
  * `lib/table/cell-write.integration.ts`.
  */
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  executeWorkflowMock,
+  executeWorkflowMockFns,
+} from '@sim/testing/mocks/execute-workflow.mock'
+import {
+  executionPreprocessingMock,
+  executionPreprocessingMockFns,
+} from '@sim/testing/mocks/execution-preprocessing.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import {
+  tableWorkflowColumnsMock,
+  tableWorkflowColumnsMockFns,
+} from '@sim/testing/mocks/table-workflow-columns.mock'
+import { utilsHelpersMock } from '@sim/testing/mocks/utils-helpers.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getTableById: vi.fn(),
-  getRowById: vi.fn(),
-  getRowSummaryById: vi.fn(),
+const local = vi.hoisted(() => ({
   readDispatch: vi.fn(),
   writeWorkflowGroupState: vi.fn(),
   markWorkflowGroupPickedUp: vi.fn(),
-  executeWorkflow: vi.fn(),
-  loadDeployedWorkflowState: vi.fn(),
-  preprocessExecution: vi.fn(),
-  pickNextEligibleGroupForRow: vi.fn(),
-  selectWorkflow: vi.fn(),
 }))
 
-vi.mock('@sim/utils/helpers', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/utils/helpers')>()),
-  sleep: vi.fn(async () => {}),
-}))
-vi.mock('@sim/db', () => ({
-  db: {
-    select: () => ({ from: () => ({ where: () => ({ limit: mocks.selectWorkflow }) }) }),
-  },
-}))
-vi.mock('@/lib/table/service', () => ({ getTableById: mocks.getTableById }))
-vi.mock('@/lib/table/rows/service', () => ({
-  getRowById: mocks.getRowById,
-  getRowSummaryById: mocks.getRowSummaryById,
-}))
+const mocks = {
+  ...local,
+  getTableById: tableServiceMockFns.mockGetTableById,
+  getRowById: tableRowsServiceMockFns.mockGetRowById,
+  getRowSummaryById: tableRowsServiceMockFns.mockGetRowSummaryById,
+  executeWorkflow: executeWorkflowMockFns.mockExecuteWorkflow,
+  loadDeployedWorkflowState: workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState,
+  preprocessExecution: executionPreprocessingMockFns.mockPreprocessExecution,
+  pickNextEligibleGroupForRow: tableWorkflowColumnsMockFns.mockPickNextEligibleGroupForRow,
+  selectWorkflow: dbChainMockFns.limit,
+}
+
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
 vi.mock('@/lib/table/rows/executions', () => ({ readStampedCapabilitySubject: vi.fn() }))
-vi.mock('@/lib/table/dispatcher', () => ({ readDispatch: mocks.readDispatch }))
-vi.mock('@/lib/table/workflow-columns', () => ({
-  buildWorkflowGroupExecutionCorrelation: vi.fn(),
-  pickNextEligibleGroupForRow: mocks.pickNextEligibleGroupForRow,
-  stashCellContextForResume: vi.fn(),
-}))
+vi.mock('@/lib/table/dispatcher', () => ({ readDispatch: local.readDispatch }))
+vi.mock('@/lib/table/workflow-columns', () => tableWorkflowColumnsMock)
 vi.mock('@/lib/table/cell-write', () => ({
   buildCancelledExecution: vi.fn(),
   writeWorkflowGroupState: vi.fn(),
-  writeWorkflowGroupStateDurably: mocks.writeWorkflowGroupState,
-  markWorkflowGroupPickedUp: mocks.markWorkflowGroupPickedUp,
+  writeWorkflowGroupStateDurably: local.writeWorkflowGroupState,
+  markWorkflowGroupPickedUp: local.markWorkflowGroupPickedUp,
   createWorkflowCellProgressWriter: () => ({
     onBlockStart: vi.fn(),
     onBlockComplete: vi.fn(),
@@ -62,15 +74,9 @@ vi.mock('@/lib/table/cell-write', () => ({
     getBlockErrors: () => ({}),
   }),
 }))
-vi.mock('@/lib/workflows/executor/execute-workflow', () => ({
-  executeWorkflow: mocks.executeWorkflow,
-}))
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadDeployedWorkflowState: mocks.loadDeployedWorkflowState,
-}))
-vi.mock('@/lib/execution/preprocessing', () => ({
-  preprocessExecution: mocks.preprocessExecution,
-}))
+vi.mock('@/lib/workflows/executor/execute-workflow', () => executeWorkflowMock)
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
+vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
   RateLimiter: class {
     checkRateLimitWithSubscription = vi.fn(async () => ({ allowed: true }))
@@ -138,7 +144,7 @@ const writtenStatuses = () =>
 const lastWrite = () => mocks.writeWorkflowGroupState.mock.calls.at(-1)?.[1]
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  resetDbChainMock()
   mocks.getTableById.mockResolvedValue(TABLE)
   mocks.getRowById.mockResolvedValue(ROW)
   mocks.getRowSummaryById.mockResolvedValue({ id: 'row-1', data: {} })
