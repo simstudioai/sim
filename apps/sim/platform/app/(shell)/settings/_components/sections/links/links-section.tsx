@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { LinkEditor } from '@/platform/app/(shell)/settings/_components/sections/links/link-editor'
 import { LinkIcon } from '@/platform/app/(shell)/settings/_components/sections/links/link-icon'
@@ -12,7 +13,6 @@ import {
   DataTable,
   EmptyState,
   Icon,
-  InlineNotice,
   Modal,
   OverflowText,
   SearchField,
@@ -68,15 +68,7 @@ export default function LinksSection({ organization }: SettingsSectionProps) {
         </div>
       </div>
       {links.status === 'error' ? (
-        <InlineNotice
-          intent='danger'
-          message={links.error ?? 'Failed to load links'}
-          action={
-            <Button variant='quiet' size='compact' onClick={links.retry}>
-              Retry
-            </Button>
-          }
-        />
+        <LoadFailure message={links.error ?? 'Failed to load links'} onRetry={links.retry} />
       ) : links.status === 'pending' ? (
         <div role='status' aria-label='Loading links' className={styles.skeleton}>
           {Array.from({ length: SKELETON_ROWS }, (_, index) => (

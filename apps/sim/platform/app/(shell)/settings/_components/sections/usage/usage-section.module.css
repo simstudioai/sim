@@ -32,17 +32,15 @@
   align-items: baseline;
   gap: var(--spacing-8);
 }
-.chartPlaceholder {
-  display: block;
-  block-size: calc(var(--chart-plot-height) + var(--spacing-64));
-  border-radius: var(--radius-4);
-  background: var(--ui-hover);
-}
+.chartPlaceholder,
 .listPlaceholder {
   display: block;
   block-size: var(--chart-plot-height);
   border-radius: var(--radius-4);
   background: var(--ui-hover);
+}
+.chartPlaceholder {
+  block-size: calc(var(--chart-plot-height) + var(--spacing-64));
 }
 .dimmable[data-dimmed],
 .block[data-dimmed] {

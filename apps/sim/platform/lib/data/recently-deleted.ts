@@ -6,6 +6,7 @@ import {
   useRestoreMothershipChat,
 } from '@/hooks/queries/mothership-chats'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
+import { queryView } from '@/platform/lib/data/query-view'
 import { toast } from '@/platform/lib/data/toast'
 
 export function useDeletedChats(organizationId: string) {
@@ -14,9 +15,8 @@ export function useDeletedChats(organizationId: string) {
   const term = search.trim().toLowerCase()
   const all = chats.data ?? []
   return {
-    status: chats.data ? 'success' : chats.status,
+    ...queryView(chats),
     error: chats.error?.message,
-    retry: () => void chats.refetch(),
     search,
     setSearch,
     hasAny: all.length > 0,

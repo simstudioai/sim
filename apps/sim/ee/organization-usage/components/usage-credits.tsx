@@ -13,7 +13,7 @@ import {
 } from '@sim/emcn'
 import type { OrganizationUsageOverview } from '@/lib/api/contracts/organization-usage'
 import { USAGE_PALETTE_CLASS, USAGE_SOURCE_CATEGORIES } from '@/ee/organization-usage/constants'
-import { foldUsageSeries } from '@/ee/organization-usage/format'
+import { foldUsageSeries, formatUsageDelta } from '@/ee/organization-usage/format'
 import { useLegendHighlight } from '@/ee/organization-usage/hooks/use-legend-highlight'
 
 const CHART_HEIGHT = 200
@@ -111,7 +111,9 @@ export function UsageCredits({
                   ? 'No change compared with the previous period'
                   : `${Math.abs(delta)}% ${delta > 0 ? 'increase' : 'decrease'} compared with the previous period`
               }
-            >{`${delta > 0 ? '↑ ' : delta < 0 ? '↓ ' : ''}${Math.abs(delta)}%`}</Badge>
+            >
+              {formatUsageDelta(delta)}
+            </Badge>
           )}
           {limit !== null && used > limit && (
             <Badge variant='red' size='sm'>

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { useSubscription } from '@/lib/auth/client'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { dollarsToCredits, formatCreditCost } from '@/lib/billing/credits/conversion'
@@ -36,7 +37,7 @@ import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 import { useInvoices, useOpenBillingPortal } from '@/hooks/queries/subscription'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
-import { useUnsavedGuard } from '@/platform/lib/data/settings-guard'
+import { queryView } from '@/platform/lib/data/query-view'
 import { toast } from '@/platform/lib/data/toast'
 import { formatCalendarDate } from '@/platform/lib/time'
 
@@ -44,6 +45,10 @@ const logger = createLogger('PlatformBilling')
 
 /** Delay before a usage-limit edit is saved once the viewer stops typing. */
 const AUTOSAVE_DELAY_MS = 1000
+
+function reportFailure(title: string, error: unknown) {
+  toast.error(title, { description: getErrorMessage(error, 'Please try again in a moment.') })
+}
 
 const INVOICE_INTENTS = {
   green: 'success',
@@ -113,7 +118,6 @@ export function useBillingSection(organization: PlatformOrganization) {
     : null
 
   function openPortal() {
-    if (!canManage) return
     // Opened before the request so a popup blocker still treats it as the viewer's click.
     const portalWindow = window.open('', '_blank')
     portal.mutate(
@@ -126,21 +130,17 @@ export function useBillingSection(organization: PlatformOrganization) {
         onError: (error) => {
           portalWindow?.close()
           logger.error('Failed to open billing portal', { error })
-          toast.error("Couldn't open billing portal", {
-            description: getErrorMessage(error, 'Please try again in a moment.'),
-          })
+          reportFailure("Couldn't open billing portal", error)
         },
       }
     )
   }
 
   return {
-    status: billing ? 'success' : summary.status,
-    fetching: summary.isFetching,
+    ...queryView(summary),
     error: summary.error
       ? getErrorMessage(summary.error, 'Failed to load billing information')
       : '',
-    retry: () => void summary.refetch(),
     planTitle:
       state === 'lapsed' ? `Organization ${planName} plan ended` : `Organization ${planName} plan`,
     priceText:
@@ -161,7 +161,6 @@ export function useBillingSection(organization: PlatformOrganization) {
       locked: onDemandLocked,
       disabled: onDemandLocked || updateLimit.isPending || !canManage,
       toggle: async () => {
-        if (!canManage) return
         try {
           await updateLimit.mutateAsync({
             organizationId,
@@ -169,9 +168,7 @@ export function useBillingSection(organization: PlatformOrganization) {
           })
         } catch (error) {
           logger.error('Failed to toggle on-demand billing', { error })
-          toast.error("Couldn't update on-demand usage", {
-            description: getErrorMessage(error, 'Please try again in a moment.'),
-          })
+          reportFailure("Couldn't update on-demand usage", error)
         }
       },
     },
@@ -187,7 +184,7 @@ export function useBillingSection(organization: PlatformOrganization) {
     showCancellation: !enterprise,
     cancelled: billing?.cancelAtPeriodEnd === true,
     cancel: async () => {
-      if (!canManage || !subscriptionClient.cancel) return
+      if (!subscriptionClient.cancel) return
       try {
         await subscriptionClient.cancel({
           returnUrl: getBaseUrl() + window.location.pathname,
@@ -195,21 +192,17 @@ export function useBillingSection(organization: PlatformOrganization) {
         })
       } catch (error) {
         logger.error('Failed to cancel subscription', { error })
-        toast.error("Couldn't cancel subscription", {
-          description: getErrorMessage(error, 'Please try again in a moment.'),
-        })
+        reportFailure("Couldn't cancel subscription", error)
       }
     },
     restore: async () => {
-      if (!canManage || !subscriptionClient.restore) return
+      if (!subscriptionClient.restore) return
       try {
         await subscriptionClient.restore({ referenceId: organizationId })
         await summary.refetch()
       } catch (error) {
         logger.error('Failed to restore subscription', { error })
-        toast.error("Couldn't restore subscription", {
-          description: getErrorMessage(error, 'Please try again in a moment.'),
-        })
+        reportFailure("Couldn't restore subscription", error)
       }
     },
     invoices: free
@@ -249,16 +242,16 @@ export function useUsageLimitField({
   const update = useUpdateOrganizationUsageLimit()
   const save = update.mutate
   const [draft, setDraft] = useState<string | null>(null)
-  const latest = useRef({ current, pending: update.isPending })
+  const latestCurrent = useRef(current)
   useEffect(() => {
-    latest.current = { current, pending: update.isPending }
+    latestCurrent.current = current
   })
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cancelPendingSave = () => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
   }
   useEffect(() => cancelPendingSave, [])
-  useUnsavedGuard({
+  useSettingsUnsavedGuard({
     isDirty: canEdit && draft !== null && isUsageLimitDraftDirty(draft, current),
     navigationBlocked: update.isPending,
     onDiscard: () => {
@@ -271,9 +264,8 @@ export function useUsageLimitField({
     cancelPendingSave()
     if (!canEdit) return
     saveTimer.current = setTimeout(() => {
-      if (latest.current.pending) return
       const settle = () => setDraft((value) => (value === next ? null : value))
-      const decision = resolveUsageLimitDraft(next, latest.current.current, minimum)
+      const decision = resolveUsageLimitDraft(next, latestCurrent.current, minimum)
       if (decision.kind === 'settled') settle()
       if (decision.kind === 'invalid') toast.error(decision.message)
       if (decision.kind === 'save') {
@@ -281,10 +273,7 @@ export function useUsageLimitField({
           { organizationId, limit: decision.limitDollars },
           {
             onSuccess: settle,
-            onError: (error) =>
-              toast.error("Couldn't update usage limit", {
-                description: getErrorMessage(error, 'Please try again in a moment.'),
-              }),
+            onError: (error) => reportFailure("Couldn't update usage limit", error),
           }
         )
       }

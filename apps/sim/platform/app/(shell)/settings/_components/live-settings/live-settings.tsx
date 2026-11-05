@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { resolveLiveSetting } from '@/platform/app/(shell)/_components/settings-navigation/destinations'
 import { SETTINGS_SECTIONS } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { SettingsScreen } from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen'
+import { UnsavedChanges } from '@/platform/app/(shell)/settings/_components/unsaved-changes/unsaved-changes'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 
 interface LiveSettingsProps {
@@ -22,6 +23,7 @@ export async function LiveSettings({ path, query }: LiveSettingsProps) {
   const { default: Section } = await entry.load()
   return (
     <SettingsScreen section={setting.key} title={setting.title} data={null}>
+      <UnsavedChanges />
       <Section organization={organization} subpath={subpath} query={query} />
     </SettingsScreen>
   )

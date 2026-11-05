@@ -127,6 +127,8 @@ const dataSeam = 'platform/lib/data/'
 const seamRoots = ['hooks/queries', 'lib/api']
 /** Named pure helpers the seam needs. Their import closures reach no `@/app` or `@/components`. */
 const seamHelpers = new Set([
+  'components/settings/use-settings-browser-navigation',
+  'components/settings/use-settings-leave-links',
   'components/settings/use-settings-unsaved-guard',
   'ee/organization-usage/constants',
   'ee/organization-usage/format',
@@ -169,8 +171,10 @@ const seamHelpers = new Set([
   'lib/oauth/utils',
   'lib/organizations/personal-accounts',
   'lib/sim-links/search-params',
+  'lib/sim-links/urls',
   'lib/sim-links/validation',
   'lib/telemetry/browser-preference',
+  'lib/uploads/client/download',
   'lib/url-state',
   'stores/settings/dirty/store',
 ])

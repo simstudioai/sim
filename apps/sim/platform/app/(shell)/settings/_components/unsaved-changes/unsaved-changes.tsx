@@ -1,11 +1,11 @@
 'use client'
 
 import { Modal } from '@/platform/design-system/components'
-import { useLeaveInterception } from '@/platform/lib/data/settings-guard'
+import { useLeaveConfirmation } from '@/platform/lib/data/settings-guard'
 
-/** Mounted by an editor: asks before a link or a closing tab discards its draft. */
+/** One discard dialog for every section with an editor. */
 export function UnsavedChanges() {
-  const { pending, confirm, cancel } = useLeaveInterception()
+  const { pending, confirm, cancel } = useLeaveConfirmation()
   return (
     <Modal
       open={pending}
@@ -14,10 +14,10 @@ export function UnsavedChanges() {
       }}
       variant='confirm'
       destructive
-      title='Discard changes?'
-      confirmLabel='Discard'
-      onConfirm={confirm}
-      description='You have unsaved changes on this page.'
+      title='Unsaved changes'
+      confirmLabel='Discard changes'
+      description='You have unsaved changes. Are you sure you want to discard them?'
+      onConfirm={() => confirm()}
     />
   )
 }

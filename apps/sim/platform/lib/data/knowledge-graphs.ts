@@ -1,22 +1,21 @@
 'use client'
 
+import { MEMORY_SPACE_NAME_MAX_LENGTH } from '@/lib/api/contracts/memory-spaces'
 import {
   useCreateMemorySpace,
   useMemorySpaces,
   useSelectMemorySpace,
 } from '@/hooks/queries/memory-spaces'
+import { queryView } from '@/platform/lib/data/query-view'
 import { toast } from '@/platform/lib/data/toast'
-
-export const KNOWLEDGE_GRAPH_NAME_MAX_LENGTH = 100
 
 export function useKnowledgeGraphs(organizationId: string) {
   const spaces = useMemorySpaces(organizationId)
   const select = useSelectMemorySpace(organizationId)
   const create = useCreateMemorySpace(organizationId)
   return {
-    status: spaces.data ? 'success' : spaces.status,
+    ...queryView(spaces),
     error: spaces.error?.message,
-    retry: () => void spaces.refetch(),
     graphs: (spaces.data?.spaces ?? []).map((space) => ({
       id: space.id,
       key: space.id ?? 'default',
@@ -27,6 +26,7 @@ export function useKnowledgeGraphs(organizationId: string) {
           : 'Private to you in this organization.',
       active: space.id === spaces.data?.activeSpaceId,
     })),
+    nameMaxLength: MEMORY_SPACE_NAME_MAX_LENGTH,
     selecting: select.isPending,
     makeActive: (spaceId: string | null) =>
       select.mutate({ spaceId }, { onError: (error) => toast.error(error.message) }),

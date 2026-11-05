@@ -1,13 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  Button,
-  CopyField,
-  InlineNotice,
-  Modal,
-  TextField,
-} from '@/platform/design-system/components'
+import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
+import { CopyField, Modal, TextField } from '@/platform/design-system/components'
 import { useMemberCredits } from '@/platform/lib/data/usage'
 
 export interface CreditsTarget {
@@ -44,15 +39,7 @@ export function ManageCredits({
       onConfirm={() => credits.save(draft)}
     >
       {credits.failed && (
-        <InlineNotice
-          intent='danger'
-          message='Couldn’t load this member’s limit.'
-          action={
-            <Button variant='quiet' size='compact' onClick={credits.retry}>
-              Retry
-            </Button>
-          }
-        />
+        <LoadFailure message='Couldn’t load this member’s limit.' onRetry={credits.retry} />
       )}
       <CopyField
         label={

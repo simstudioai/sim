@@ -1,23 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-skeleton/section-skeleton'
-import {
-  Button,
-  InlineNotice,
-  Modal,
-  StatusTag,
-  TextField,
-} from '@/platform/design-system/components'
+import { Button, Modal, StatusTag, TextField } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  KNOWLEDGE_GRAPH_NAME_MAX_LENGTH,
-  useKnowledgeGraphs,
-} from '@/platform/lib/data/knowledge-graphs'
+import { useKnowledgeGraphs } from '@/platform/lib/data/knowledge-graphs'
 
 const TITLE = 'Graphs'
 
@@ -40,14 +32,9 @@ export default function KnowledgeGraphsSection({ organization }: SettingsSection
         </Button>
       </div>
       {graphs.status === 'error' ? (
-        <InlineNotice
-          intent='danger'
+        <LoadFailure
           message={graphs.error ?? 'Failed to load knowledge graphs'}
-          action={
-            <Button variant='quiet' size='compact' onClick={graphs.retry}>
-              Retry
-            </Button>
-          }
+          onRetry={graphs.retry}
         />
       ) : graphs.status === 'pending' ? (
         <SectionSkeleton title={TITLE} rows={2} />
@@ -82,7 +69,7 @@ export default function KnowledgeGraphsSection({ organization }: SettingsSection
           label='Name'
           placeholder='e.g. Fresh exploration'
           hint='Creates an empty graph and makes it active for new chats. Your other graphs are kept.'
-          maxLength={KNOWLEDGE_GRAPH_NAME_MAX_LENGTH}
+          maxLength={graphs.nameMaxLength}
           value={name}
           onChange={setName}
         />

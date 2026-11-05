@@ -15,6 +15,7 @@ import type { GeneralSettings } from '@/hooks/queries/current-user-data'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useUpdateUserProfile, useUserProfile } from '@/hooks/queries/user-profile'
 import { useProfilePictureUpload } from '@/hooks/use-profile-picture-upload'
+import { queryView } from '@/platform/lib/data/query-view'
 import { toast } from '@/platform/lib/data/toast'
 
 const SNAP_TO_GRID_VALUES = [0, 10, 20, 30, 40, 50] as const
@@ -61,8 +62,7 @@ export function useProfileSettings() {
     onError: (message) => toast.error(message),
   })
   return {
-    status: profile.data ? 'success' : profile.status,
-    retry: () => void profile.refetch(),
+    ...queryView(profile),
     name: profile.data?.name ?? '',
     email: profile.data?.email ?? '',
     image: upload.previewUrl,
@@ -86,8 +86,7 @@ export function useAppearanceSettings() {
     [savedTimezone, browserTimezone]
   )
   return {
-    status: settings.data ? 'success' : settings.status,
-    retry: () => void settings.refetch(),
+    ...queryView(settings),
     theme: settings.data?.theme ?? 'system',
     setTheme: (value: string) => {
       if (value === 'system' || value === 'light' || value === 'dark')

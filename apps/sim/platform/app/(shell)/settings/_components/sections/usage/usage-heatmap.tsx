@@ -1,15 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
-import { Button, InlineNotice, ScrollArea } from '@/platform/design-system/components'
+import { ScrollArea } from '@/platform/design-system/components'
 import {
-  formatDayUsage,
-  formatYearUsage,
+  layoutUsageCalendar,
   type UsageCalendarDay,
   useUsageCalendar,
 } from '@/platform/lib/data/usage'
-import { formatCalendarDate } from '@/platform/lib/time'
 
 const CELL = 12
 const SIZE = 10
@@ -25,33 +24,21 @@ const ARROWS: Record<string, number> = {
 
 /** Calendar dates stay in UTC for layout; they already describe the viewer's local days. */
 function Heatmap({ days }: { days: readonly UsageCalendarDay[] }) {
+  const layout = useMemo(() => layoutUsageCalendar(days), [days])
   const [activeDate, setActiveDate] = useState<string | null>(null)
-  const selected = days.findIndex((day) => day.date === activeDate)
-  const active = selected === -1 ? days.length - 1 : selected
-  const first = days[0]
-  if (!first) return null
-  const offset = (new Date(`${first.date}T00:00:00Z`).getUTCDay() + 6) % 7
-  const weeks = Math.ceil((offset + days.length) / 7)
-  const peak = Math.max(...days.map((day) => day.credits), 1)
-  const activeDay = days[active]
-  const months = days.flatMap((day, index) => {
-    if (!day.date.endsWith('-01')) return []
-    const column = Math.floor((index + offset) / 7)
-    return column > weeks - 3
-      ? []
-      : [{ date: day.date, column, label: formatCalendarDate(day.date).split(' ')[0] }]
-  })
+  const selected = layout.cells.findIndex((cell) => cell.date === activeDate)
+  const active = selected === -1 ? layout.cells.length - 1 : selected
   return (
     <>
       <ScrollArea label='Daily credit usage' axis='horizontal'>
         <svg
           className={styles.heatmap}
-          viewBox={`0 0 ${LEFT + weeks * CELL} ${TOP + 7 * CELL}`}
+          viewBox={`0 0 ${LEFT + layout.weeks * CELL} ${TOP + 7 * CELL}`}
           role='group'
           aria-label='Daily credit usage. Use arrow keys to move between days, Home for the first day, or End for today.'
         >
           <g>
-            {months.map((month) => (
+            {layout.months.map((month) => (
               <text
                 key={month.date}
                 className={styles.heatLabel}
@@ -74,54 +61,48 @@ function Heatmap({ days }: { days: readonly UsageCalendarDay[] }) {
               </text>
             ))}
           </g>
-          {days.map((day, index) => {
-            const position = index + offset
-            const level = day.hasCost
-              ? Math.max(1, Math.min(4, Math.ceil(Math.sqrt(day.credits / peak) * 4)))
-              : 0
-            return (
-              <rect
-                key={day.date}
-                className={styles.heatDay}
-                data-level={level}
-                data-day={index}
-                data-active={index === active || undefined}
-                x={LEFT + Math.floor(position / 7) * CELL}
-                y={TOP + (position % 7) * CELL}
-                width={SIZE}
-                height={SIZE}
-                rx={2}
-                role='button'
-                aria-pressed={index === active}
-                aria-label={formatDayUsage(day)}
-                tabIndex={index === active ? 0 : -1}
-                onPointerEnter={() => setActiveDate(day.date)}
-                onClick={() => setActiveDate(day.date)}
-                onFocus={() => setActiveDate(day.date)}
-                onKeyDown={(event) => {
-                  const delta = ARROWS[event.key]
-                  const next =
-                    event.key === 'Home'
-                      ? 0
-                      : event.key === 'End'
-                        ? days.length - 1
-                        : delta === undefined
-                          ? null
-                          : Math.max(0, Math.min(days.length - 1, index + delta))
-                  if (next === null) return
-                  event.preventDefault()
-                  event.currentTarget.ownerSVGElement
-                    ?.querySelector<SVGRectElement>(`[data-day="${next}"]`)
-                    ?.focus()
-                }}
-              />
-            )
-          })}
+          {layout.cells.map((cell, index) => (
+            <rect
+              key={cell.date}
+              className={styles.heatDay}
+              data-level={cell.level}
+              data-day={index}
+              data-active={index === active || undefined}
+              x={LEFT + cell.column * CELL}
+              y={TOP + cell.row * CELL}
+              width={SIZE}
+              height={SIZE}
+              rx={2}
+              role='button'
+              aria-pressed={index === active}
+              aria-label={cell.label}
+              tabIndex={index === active ? 0 : -1}
+              onPointerEnter={() => setActiveDate(cell.date)}
+              onClick={() => setActiveDate(cell.date)}
+              onFocus={() => setActiveDate(cell.date)}
+              onKeyDown={(event) => {
+                const delta = ARROWS[event.key]
+                const next =
+                  event.key === 'Home'
+                    ? 0
+                    : event.key === 'End'
+                      ? layout.cells.length - 1
+                      : delta === undefined
+                        ? null
+                        : Math.max(0, Math.min(layout.cells.length - 1, index + delta))
+                if (next === null) return
+                event.preventDefault()
+                event.currentTarget.ownerSVGElement
+                  ?.querySelector<SVGRectElement>(`[data-day="${next}"]`)
+                  ?.focus()
+              }}
+            />
+          ))}
         </svg>
       </ScrollArea>
       <p className={styles.quiet} data-type='T060' aria-live='polite'>
-        {activeDay ? `${formatDayUsage(activeDay)}. ` : ''}
-        {formatYearUsage(days)}
+        {layout.cells[active] ? `${layout.cells[active].label}. ` : ''}
+        {layout.total}
       </p>
     </>
   )
@@ -144,20 +125,10 @@ export function UsageCalendar({ organizationId, timezone, workspaceId }: UsageCa
           Last 365 days
         </span>
       </div>
-      {calendar.failed || !calendar.days ? (
-        calendar.pending ? (
-          <span className={styles.listPlaceholder} role='status' aria-label='Loading daily usage' />
-        ) : (
-          <InlineNotice
-            intent='danger'
-            message='Could not load daily usage'
-            action={
-              <Button variant='quiet' size='compact' onClick={calendar.retry}>
-                Retry
-              </Button>
-            }
-          />
-        )
+      {calendar.failed ? (
+        <LoadFailure message='Could not load daily usage' onRetry={calendar.retry} />
+      ) : !calendar.days ? (
+        <span className={styles.listPlaceholder} role='status' aria-label='Loading daily usage' />
       ) : (
         <Heatmap days={calendar.days} />
       )}

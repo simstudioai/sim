@@ -1,17 +1,10 @@
 'use client'
 
 import Link from 'next/link'
+import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-skeleton/section-skeleton'
-import { UnsavedChanges } from '@/platform/app/(shell)/settings/_components/unsaved-changes/unsaved-changes'
-import {
-  Button,
-  DataTable,
-  InlineNotice,
-  Input,
-  StatusTag,
-  Switch,
-} from '@/platform/design-system/components'
+import { Button, DataTable, Input, StatusTag, Switch } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
@@ -55,37 +48,22 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
   const billing = useBillingSection(organization)
   if (billing.status === 'pending') return <SectionSkeleton title='Plan' rows={1} />
   if (billing.status === 'error')
-    return (
-      <InlineNotice
-        intent='danger'
-        message={billing.error}
-        action={
-          <Button
-            variant='quiet'
-            size='compact'
-            disabled={billing.fetching}
-            onClick={billing.retry}
-          >
-            Retry
-          </Button>
-        }
-      />
-    )
+    return <LoadFailure message={billing.error} onRetry={billing.retry} />
   return (
     <>
-      <UnsavedChanges />
       <SettingsSection title='Plan'>
         <SettingsRow label={billing.planTitle} description={billing.priceText}>
-          {billing.showExplorePlans &&
-            (billing.explorePlansHref ? (
-              <Button render={<Link href={billing.explorePlansHref} />} size='compact'>
-                Explore organization plans
-              </Button>
-            ) : (
-              <Button size='compact' disabled>
-                Explore organization plans
-              </Button>
-            ))}
+          {billing.showExplorePlans && (
+            <Button
+              render={
+                billing.explorePlansHref ? <Link href={billing.explorePlansHref} /> : undefined
+              }
+              size='compact'
+              disabled={!billing.explorePlansHref}
+            >
+              Explore organization plans
+            </Button>
+          )}
         </SettingsRow>
       </SettingsSection>
       {billing.showUsageLimit && (
@@ -160,15 +138,7 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
         </SettingsSection>
       )}
       {billing.invoicesFailed && (
-        <InlineNotice
-          intent='danger'
-          message='Couldn’t load invoices.'
-          action={
-            <Button variant='quiet' size='compact' onClick={billing.retryInvoices}>
-              Retry
-            </Button>
-          }
-        />
+        <LoadFailure message='Couldn’t load invoices.' onRetry={billing.retryInvoices} />
       )}
       {billing.invoices.length > 0 && (
         <DataTable

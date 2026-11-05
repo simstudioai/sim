@@ -1,16 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { BooleanRow } from '@/platform/app/(shell)/settings/_components/boolean-row/boolean-row'
+import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
 import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-skeleton/section-skeleton'
 import {
   Avatar,
-  Button,
   Icon,
-  InlineNotice,
   Modal,
   SearchableSelect,
   Select,
-  Switch,
   TextField,
 } from '@/platform/design-system/components'
 import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
@@ -20,7 +19,6 @@ import {
 } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   useAppearanceSettings,
-  useBooleanSetting,
   useProfileSettings,
   useSnapToGridSetting,
 } from '@/platform/lib/data/preferences'
@@ -32,20 +30,6 @@ const THEMES = [
 ]
 
 const NAME_MAX_LENGTH = 100
-
-function LoadFailure({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <InlineNotice
-      intent='danger'
-      message={message}
-      action={
-        <Button variant='quiet' size='compact' onClick={onRetry}>
-          Retry
-        </Button>
-      }
-    />
-  )
-}
 
 function Profile() {
   const profile = useProfileSettings()
@@ -142,23 +126,6 @@ function Appearance() {
         />
       </SettingsRow>
     </SettingsSection>
-  )
-}
-
-function BooleanRow({
-  setting,
-  label,
-  description,
-}: {
-  setting: Parameters<typeof useBooleanSetting>[0]
-  label: string
-  description: string
-}) {
-  const { checked, disabled, set } = useBooleanSetting(setting)
-  return (
-    <SettingsRow label={label} description={description}>
-      <Switch label={label} checked={checked} disabled={disabled} onCheckedChange={set} />
-    </SettingsRow>
   )
 }
 

@@ -136,16 +136,21 @@ export function TrendChart({ title, control, points, maximum = 0 }: TrendChartPr
 
 interface BarChartProps extends Omit<ChartFrameProps, 'children'> {
   bars: readonly Bar[]
-  /**
-   * Layer names, bottom-up, up to six. A series keeps its color by position, so a caller that needs
-   * a layer's color to stay put passes every layer. Past two, a layer with no values leaves the
-   * legend and the tooltip.
-   */
+  /** Layer names, bottom-up, up to six. A series keeps its color by position. */
   series: readonly string[]
   maximum?: number
+  /** Leave a layer with no values out of the legend and the tooltip. */
+  hideEmptySeries?: boolean
 }
 
-export function BarChart({ title, control, bars, series, maximum = 0 }: BarChartProps) {
+export function BarChart({
+  title,
+  control,
+  bars,
+  series,
+  maximum = 0,
+  hideEmptySeries,
+}: BarChartProps) {
   const data = bars.filter((bar) => bar.values.every((n) => Number.isFinite(n) && n >= 0))
   const values = data.map((bar) => bar.values)
   const peak = values.reduce(
@@ -156,7 +161,6 @@ export function BarChart({ title, control, bars, series, maximum = 0 }: BarChart
       ),
     Math.max(1, maximum || 0)
   )
-  const sparse = series.length > 2
   return (
     <SeriesFrame
       title={title}
@@ -167,13 +171,13 @@ export function BarChart({ title, control, bars, series, maximum = 0 }: BarChart
       detail={(i) =>
         series
           .map((label, j) => ({ label, value: values[i][j] }))
-          .filter((entry) => !sparse || entry.value > 0)
+          .filter((entry) => !hideEmptySeries || entry.value > 0)
       }
       legend={
         <ul className={styles.series} aria-label='Bar series'>
           {series.map(
             (text, i) =>
-              (!sparse || values.some((layers) => layers[i] > 0)) && (
+              (!hideEmptySeries || values.some((layers) => layers[i] > 0)) && (
                 <li key={text} data-type='T052'>
                   <i className={styles.swatch} data-bar={i} />
                   {text}

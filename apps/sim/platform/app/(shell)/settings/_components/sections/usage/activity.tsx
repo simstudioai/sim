@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
 import {
   Avatar,
@@ -7,7 +8,6 @@ import {
   Button,
   DataTable,
   EmptyState,
-  InlineNotice,
   MetricGroup,
   OverflowText,
   Pagination,
@@ -37,15 +37,7 @@ function SummaryView({ summary }: { summary: ReturnType<typeof useActivitySummar
     <section className={styles.block} aria-label='Activity'>
       <h2 data-type='T093'>Activity</h2>
       {summary.failed ? (
-        <InlineNotice
-          intent='danger'
-          message='Couldn’t load activity.'
-          action={
-            <Button variant='quiet' size='compact' onClick={summary.retry}>
-              Retry
-            </Button>
-          }
-        />
+        <LoadFailure message='Couldn’t load activity.' onRetry={summary.retry} />
       ) : summary.pending ? (
         <span className={styles.chartPlaceholder} role='status' aria-label='Loading activity' />
       ) : (
@@ -69,11 +61,35 @@ export function ActivityOverview({ organizationId, window, workspaceId }: Activi
   return <SummaryView summary={useActivitySummary(organizationId, window, workspaceId)} />
 }
 
-const DIMENSION_LABELS = {
-  workspace: 'Workspace',
-  workflow: 'Workflow',
-  member: 'Member',
-  trigger: 'Trigger',
+const WORKFLOW_RUNS = { key: 'workflowRuns', label: 'Workflow runs', kind: 'number' } as const
+const CHAT_RUNS = { key: 'chatRuns', label: 'Chat runs', kind: 'number' } as const
+const FAILED = { key: 'failed', label: 'Failed', kind: 'number' } as const
+const FAILURE_RATE = { key: 'failureRate', label: 'Failure rate', kind: 'text' } as const
+const DURATION = { key: 'duration', label: 'Avg. duration', kind: 'text' } as const
+
+const COLUMNS_BY_DIMENSION = {
+  workspace: [
+    { key: 'label', label: 'Workspace', kind: 'text' },
+    WORKFLOW_RUNS,
+    CHAT_RUNS,
+    FAILURE_RATE,
+    DURATION,
+  ],
+  workflow: [
+    { key: 'label', label: 'Workflow', kind: 'text' },
+    WORKFLOW_RUNS,
+    FAILED,
+    FAILURE_RATE,
+    DURATION,
+  ],
+  member: [{ key: 'label', label: 'Member', kind: 'text' }, CHAT_RUNS],
+  trigger: [
+    { key: 'label', label: 'Trigger', kind: 'text' },
+    WORKFLOW_RUNS,
+    FAILED,
+    FAILURE_RATE,
+    DURATION,
+  ],
 } as const
 
 export function ActivityPanel({ organizationId }: { organizationId: string }) {
@@ -100,23 +116,6 @@ export function ActivityPanel({ organizationId }: { organizationId: string }) {
       />
     )
   const member = activityDimension === 'member'
-  const workspaceDimension = activityDimension === 'workspace'
-  const columns = [
-    { key: 'label', label: DIMENSION_LABELS[activityDimension], kind: 'text' as const },
-    ...(member ? [] : [{ key: 'workflowRuns', label: 'Workflow runs', kind: 'number' as const }]),
-    ...(member || workspaceDimension
-      ? [{ key: 'chatRuns', label: 'Chat runs', kind: 'number' as const }]
-      : []),
-    ...(member || workspaceDimension
-      ? []
-      : [{ key: 'failed', label: 'Failed', kind: 'number' as const }]),
-    ...(member
-      ? []
-      : [
-          { key: 'failureRate', label: 'Failure rate', kind: 'text' as const },
-          { key: 'duration', label: 'Avg. duration', kind: 'text' as const },
-        ]),
-  ]
   return (
     <>
       {workspace && (
@@ -156,15 +155,7 @@ export function ActivityPanel({ organizationId }: { organizationId: string }) {
           )}
         </div>
         {breakdown.failed ? (
-          <InlineNotice
-            intent='danger'
-            message='Couldn’t load the breakdown.'
-            action={
-              <Button variant='quiet' size='compact' onClick={breakdown.retry}>
-                Retry
-              </Button>
-            }
-          />
+          <LoadFailure message='Couldn’t load the breakdown.' onRetry={breakdown.retry} />
         ) : !breakdown.rows ? (
           <span className={styles.listPlaceholder} role='status' aria-label='Loading breakdown' />
         ) : breakdown.rows.length === 0 ? (
@@ -173,7 +164,7 @@ export function ActivityPanel({ organizationId }: { organizationId: string }) {
           <DataTable
             title='Activity breakdown'
             titleHidden
-            columns={columns}
+            columns={COLUMNS_BY_DIMENSION[activityDimension]}
             rows={breakdown.rows.map((row) => ({
               id: row.id,
               values: {
@@ -204,7 +195,7 @@ export function ActivityPanel({ organizationId }: { organizationId: string }) {
                 ),
               },
               onOpen:
-                workspaceDimension && row.workspaceId
+                activityDimension === 'workspace' && row.workspaceId
                   ? () =>
                       void setState(
                         {

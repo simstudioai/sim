@@ -29,6 +29,7 @@ import {
 import { useResetPassword, useUserProfile } from '@/hooks/queries/user-profile'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
+import { loadMoreOf, queryView } from '@/platform/lib/data/query-view'
 import { toast } from '@/platform/lib/data/toast'
 
 const logger = createLogger('PlatformAccount')
@@ -40,8 +41,6 @@ const MAX_NAMES_LISTED = 3
 const SIGN_OUT_TIMEOUT_MS = 3000
 
 const LOGOUT_PATH = '/login?fromLogout=true'
-
-const clearBrowserUserDataOnce = () => clearBrowserUserData()
 
 /** Signs out and leaves the document, which is what resets this app's in-memory state. */
 export async function signOutAndLeave(legacyOrigin: string) {
@@ -76,21 +75,15 @@ export function useAuthorizedAppsList() {
     search,
     term,
     setSearch,
-    status: apps.data ? 'success' : apps.status,
+    ...queryView(apps),
     error: apps.error?.message,
-    retry: () => void apps.refetch(),
     apps: (apps.data?.pages.flatMap((page) => page.apps) ?? []).map((app) => ({
       id: app.clientId,
       name: app.name,
       access: summarizeOAuthAccess(app.scopes),
       authorized: `Authorized ${formatDate(new Date(app.authorizedAt))}`,
     })),
-    loadMore: {
-      hasMore: apps.hasNextPage,
-      loading: apps.isFetchingNextPage,
-      error: apps.isFetchNextPageError ? 'Failed to load more authorized apps' : undefined,
-      onLoadMore: () => void apps.fetchNextPage(),
-    },
+    loadMore: loadMoreOf(apps, 'Failed to load more authorized apps'),
     revoke: async (id: string, name: string) => {
       await revoke.mutateAsync(id)
       toast.success(`Revoked ${name}`)
@@ -112,9 +105,8 @@ export function usePersonalAccountsList() {
   const disconnect = useDisconnectPersonalOrganizationAccount()
   const list = accounts.data?.pages.flatMap((page) => page.accounts) ?? []
   return {
-    status: accounts.data ? 'success' : accounts.status,
+    ...queryView(accounts),
     error: accounts.error?.message,
-    retry: () => void accounts.refetch(),
     groups: groupByOrganization(list).map(([id, group]) => ({
       id,
       name: group.name,
@@ -129,12 +121,7 @@ export function usePersonalAccountsList() {
         canDisconnect: account.status !== 'revoked',
       })),
     })),
-    loadMore: {
-      hasMore: accounts.hasNextPage,
-      loading: accounts.isFetchingNextPage,
-      error: accounts.isFetchNextPageError ? 'Failed to load connected accounts' : undefined,
-      onLoadMore: () => void accounts.fetchNextPage(),
-    },
+    loadMore: loadMoreOf(accounts, 'Failed to load connected accounts'),
     disconnect: async (credentialId: string, organizationId: string, name: string) => {
       await disconnect.mutateAsync({ credentialId, organizationId })
       toast.success(`Disconnected ${name}`)
@@ -182,7 +169,7 @@ export function useAccountDeletion(email: string, legacyOrigin: string) {
         throw new Error(getErrorMessage(error, 'Could not delete this account'))
       }
       await Promise.race([
-        Promise.allSettled([signOut()]).then(clearBrowserUserDataOnce),
+        Promise.allSettled([signOut()]).then(() => clearBrowserUserData()),
         sleep(SIGN_OUT_TIMEOUT_MS),
       ])
       window.location.href = `${legacyOrigin}${LOGOUT_PATH}`

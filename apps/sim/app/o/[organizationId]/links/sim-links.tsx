@@ -9,6 +9,7 @@ import type { SimLink } from '@/lib/api/contracts/sim-links'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { simLinkPath, simLinkUrl } from '@/lib/navigation/paths'
 import { simLinksParsers, simLinksSortParams, simLinksUrlKeys } from '@/lib/sim-links/search-params'
+import { SIM_FOR_CHROME_URL } from '@/lib/sim-links/urls'
 import { SIM_LINK_SEARCH_MAX_LENGTH, toSimLinkName } from '@/lib/sim-links/validation'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
@@ -41,9 +42,6 @@ import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
 
 const logger = createLogger('SimLinks')
-
-const SIM_FOR_CHROME_URL =
-  'https://chromewebstore.google.com/detail/sim/oanlcahddodnjpdoopcpjlcageejjpmg'
 
 const SORT_OPTIONS = [
   { id: 'name', label: 'Name' },

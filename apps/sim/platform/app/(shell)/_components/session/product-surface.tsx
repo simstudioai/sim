@@ -14,7 +14,7 @@ export function ProductSurface({ preference, children }: ProductSurfaceProps) {
   const prefs = useInterfacePreferences()
   return (
     <PlatformSurface
-      theme={prefs?.appearance ?? preference}
+      theme={preference}
       systemFont={prefs?.systemFont}
       systemMono={prefs?.systemMono}
     >

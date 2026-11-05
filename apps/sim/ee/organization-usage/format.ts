@@ -81,3 +81,12 @@ export function usageEventLabel(event: OrganizationUsageEvent): string {
     toBillingUsageLogSource(event.source as InternalUsageLogSource)
   ]
 }
+
+/** A day's shade: none without cost, else 1 to 4 by the square root of its share of the peak. */
+export function usageHeatLevel(credits: number, peak: number, hasCost: boolean): number {
+  return hasCost ? Math.max(1, Math.min(4, Math.ceil(Math.sqrt(credits / peak) * 4))) : 0
+}
+
+export function formatUsageDelta(delta: number): string {
+  return `${delta > 0 ? '↑ ' : delta < 0 ? '↓ ' : ''}${Math.abs(delta)}%`
+}

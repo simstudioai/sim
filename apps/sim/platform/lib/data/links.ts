@@ -1,14 +1,14 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { SIM_LINK_NAME_MAX_LENGTH } from '@sim/browser-extension-protocol'
-import { SIM_DOCS_URL } from '@sim/utils/site'
 import { useQueryStates } from 'nuqs'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { SimLink, SimLinkBody } from '@/lib/api/contracts/sim-links'
 import { faviconSrc } from '@/lib/favicon/url'
 import { simLinkPath, simLinkUrl } from '@/lib/navigation/paths'
 import { simLinksParsers, simLinksSortParams, simLinksUrlKeys } from '@/lib/sim-links/search-params'
+import { SIM_FOR_CHROME_URL, SIM_LINKS_DOCS_URL } from '@/lib/sim-links/urls'
 import {
   isVariableSimLinkUrl,
   SIM_LINK_DESCRIPTION_MAX_LENGTH,
@@ -27,12 +27,8 @@ import {
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
+import { loadMoreOf, queryView } from '@/platform/lib/data/query-view'
 import { toast } from '@/platform/lib/data/toast'
-
-const SIM_FOR_CHROME_URL =
-  'https://chromewebstore.google.com/detail/sim/oanlcahddodnjpdoopcpjlcageejjpmg'
-
-const SIM_LINKS_DOCS_URL = `${SIM_DOCS_URL}/search/sim-links`
 
 const SORT_OPTIONS = [
   { value: 'name:asc', label: 'Name (A–Z)' },
@@ -41,7 +37,7 @@ const SORT_OPTIONS = [
   { value: 'popular:asc', label: 'Least opened' },
 ]
 
-export type LinkField = 'name' | 'url' | 'defaultUrl' | 'description'
+type LinkField = 'name' | 'url' | 'defaultUrl' | 'description'
 
 export interface LinkRow {
   id: string
@@ -54,7 +50,6 @@ export interface LinkRow {
   updatedAt: string
   faviconSrc: string | null
   canEdit: boolean
-  canManage: boolean
   source: SimLink
 }
 
@@ -77,7 +72,6 @@ function toLinkRow(link: SimLink): LinkRow {
     updatedAt: link.updatedAt,
     faviconSrc: origin ? faviconSrc(new URL(origin).hostname) : null,
     canEdit: link.canEdit,
-    canManage: link.canManage,
     source: link,
   }
 }
@@ -97,13 +91,13 @@ export function useLinksSection(organizationId: string, legacyOrigin: string) {
   const term = settled.trim()
   const links = useSimLinks(organizationId, term, sort, dir)
   const remove = useDeleteSimLink(organizationId)
-  const { fetchNextPage } = links
-  const onLoadMore = useCallback(() => void fetchNextPage(), [fetchNextPage])
-  const rows = links.data?.pages.flatMap((page) => page.links).map(toLinkRow) ?? []
+  const rows = useMemo(
+    () => links.data?.pages.flatMap((page) => page.links).map(toLinkRow) ?? [],
+    [links.data]
+  )
   return {
-    status: links.isLoadingError ? 'error' : links.data ? 'success' : 'pending',
+    ...queryView(links),
     error: links.error?.message,
-    retry: () => void links.refetch(),
     rows,
     term,
     search,
@@ -114,12 +108,7 @@ export function useLinksSection(organizationId: string, legacyOrigin: string) {
       const [column, direction] = value.split(':')
       if (direction === 'asc' || direction === 'desc') onSort(column, direction)
     },
-    loadMore: {
-      hasMore: links.hasNextPage && !links.isPlaceholderData,
-      loading: links.isFetchingNextPage,
-      error: links.isFetchNextPageError ? 'Failed to load more links' : undefined,
-      onLoadMore,
-    },
+    loadMore: loadMoreOf(links, 'Failed to load more links'),
     /** The name to prefill when the URL asks for a new link; null when it does not. */
     createName: create === null ? null : toSimLinkName(create),
     startCreate: () => void setView({ create: '' }),

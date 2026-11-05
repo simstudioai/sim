@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { memo, useId } from 'react'
 import { area, curveLinear, curveMonotoneX, line } from 'd3-shape'
 import styles from '@/platform/design-system/catalog/plots.module.css'
 
@@ -78,7 +78,7 @@ interface StackPlotProps {
   maximum: number
 }
 
-export function StackPlot({ label, values, maximum }: StackPlotProps) {
+export const StackPlot = memo(function StackPlot({ label, values, maximum }: StackPlotProps) {
   return (
     <div className={styles.columns} role='img' aria-label={label}>
       {values.map((layers, index) => {
@@ -122,7 +122,7 @@ export function StackPlot({ label, values, maximum }: StackPlotProps) {
       })}
     </div>
   )
-}
+})
 
 interface DonutPlotProps {
   label: string

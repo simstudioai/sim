@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { formatDateTime, formatDuration } from '@sim/utils/formatting'
 import { isApiClientError } from '@/lib/api/client/errors'
@@ -18,7 +19,10 @@ import {
   type ActivitySort,
 } from '@/lib/billing/core/organization-activity'
 import { formatApportionedCreditCost } from '@/lib/billing/credits/conversion'
+import { saveBlob } from '@/lib/uploads/client/download'
 import {
+  ACTIVITY_DIMENSION_OPTIONS,
+  ACTIVITY_SORT_OPTIONS,
   COLLAPSED_ROW_COUNT,
   EXPANDED_ROW_COUNT,
   PERIOD_LABELS,
@@ -33,8 +37,10 @@ import {
 import {
   foldUsageSeries,
   formatFailureRate,
+  formatUsageDelta,
   truncateBreakdown,
   usageEventLabel,
+  usageHeatLevel,
 } from '@/ee/organization-usage/format'
 import { useUsageWindow } from '@/ee/organization-usage/hooks/use-usage-window'
 import { serializeOrganizationUsageParams } from '@/ee/organization-usage/search-params'
@@ -67,18 +73,8 @@ export const USAGE_TABS = USAGE_TAB_ORDER.map((tab) => ({
 
 const PERIOD_OPTIONS = USAGE_WINDOW_PRESETS.map((preset) => PERIOD_LABELS[preset])
 
-export const ACTIVITY_DIMENSIONS = [
-  { value: 'workspace', label: 'Workspaces' },
-  { value: 'workflow', label: 'Workflows' },
-  { value: 'member', label: 'Members' },
-  { value: 'trigger', label: 'Triggers' },
-] as const
-
-export const ACTIVITY_SORTS = [
-  { value: 'runs', label: 'Most runs' },
-  { value: 'failures', label: 'Most failures' },
-  { value: 'duration', label: 'Longest duration' },
-] as const
+export const ACTIVITY_DIMENSIONS = ACTIVITY_DIMENSION_OPTIONS
+export const ACTIVITY_SORTS = ACTIVITY_SORT_OPTIONS
 
 export type {
   OrganizationUsageBreakdown,
@@ -112,12 +108,12 @@ export function useUsageView() {
     periodOptions: PERIOD_OPTIONS,
     selectTab: (tab: UsageTab) =>
       void setState({ tab, workspace: null, expanded: null, activityPage: 0 }),
-    selectPeriod: (label: string): 'custom' | undefined => {
+    /** Whether the viewer chose a custom range, which has no dates until they pick some. */
+    selectPeriod: (label: string): boolean => {
       const next = USAGE_WINDOW_PRESETS.find((item) => PERIOD_LABELS[item] === label)
-      if (!next) return undefined
-      if (next === 'custom') return 'custom'
+      if (!next || next === 'custom') return next === 'custom'
       void setState({ preset: next, startDate: null, endDate: null, activityPage: 0 })
-      return undefined
+      return false
     },
     applyRange: (start: string, end: string) => {
       const days = Math.ceil((new Date(end).getTime() - new Date(start).getTime()) / DAY_MS) + 1
@@ -136,24 +132,24 @@ export function useUsageView() {
 function toCreditChart(overview: OrganizationUsageOverview | undefined, failed: boolean) {
   const current = failed ? undefined : overview
   const series = current?.series ?? []
-  const present = foldUsageSeries(series)
+  const present = new Map(foldUsageSeries(series).map((layer) => [layer.category.id, layer.values]))
   const used = current?.totals.credits ?? 0
   const previous = current?.previousTotals?.credits ?? 0
   const limit = current?.limitCredits ?? null
+  /** Rounded once, so the arrow and the figure never disagree about a sub-percent change. */
+  const delta = current && previous > 0 ? Math.round(((used - previous) / previous) * 100) : null
   return {
     loaded: Boolean(current),
     used,
-    /** Rounded once, so the arrow and the figure never disagree about a sub-percent change. */
-    delta: current && previous > 0 ? Math.round(((used - previous) / previous) * 100) : null,
+    deltaLabel: delta === null ? null : formatUsageDelta(delta),
+    deltaRose: delta !== null && delta > 0,
     limit,
     overLimit: limit !== null && used > limit,
     limitPercent: limit ? Math.round((used / limit) * 100) : 0,
     series: USAGE_SOURCE_CATEGORIES.map((category) => category.label),
     bars: series.map((point, index) => ({
       label: dayLabel(point.timestamp),
-      values: USAGE_SOURCE_CATEGORIES.map(
-        (category) => present.find((layer) => layer.category.id === category.id)?.values[index] ?? 0
-      ),
+      values: USAGE_SOURCE_CATEGORIES.map((category) => present.get(category.id)?.[index] ?? 0),
     })),
   }
 }
@@ -163,17 +159,15 @@ export function useUsageOverview(
   window: OrganizationUsageWindowKey,
   options: { enabled: boolean; workspaceId?: string }
 ) {
-  const query = useOrganizationUsageOverview(organizationId, window, {
-    enabled: options.enabled,
-    ...(options.workspaceId ? { workspaceId: options.workspaceId } : {}),
-  })
+  const query = useOrganizationUsageOverview(organizationId, window, options)
+  const chart = useMemo(() => toCreditChart(query.data, query.isError), [query.data, query.isError])
   return {
     data: query.data,
     loading: query.isLoading,
     failed: query.isError,
     dimmed: query.isPlaceholderData,
     retry: () => void query.refetch(),
-    chart: toCreditChart(query.data, query.isError),
+    chart,
   }
 }
 
@@ -182,14 +176,23 @@ export function useUsageBreakdown(
   organizationId: string,
   window: OrganizationUsageWindowKey,
   dimension: UsageBreakdownDimension,
-  options: { enabled?: boolean; expanded?: boolean; workspaceId?: string; limit?: number } = {}
+  options: { enabled: boolean; expanded?: boolean; workspaceId?: string }
 ) {
-  return useOrganizationUsageBreakdown(organizationId, window, dimension, {
-    enabled: options.enabled ?? true,
-    limit: options.limit ?? (options.expanded ? EXPANDED_ROW_COUNT : COLLAPSED_ROW_COUNT),
-    ...(options.workspaceId ? { workspaceId: options.workspaceId } : {}),
+  const query = useOrganizationUsageBreakdown(organizationId, window, dimension, {
+    enabled: options.enabled,
+    limit: options.expanded ? EXPANDED_ROW_COUNT : COLLAPSED_ROW_COUNT,
+    workspaceId: options.workspaceId,
   })
+  return {
+    data: query.data,
+    loading: query.isLoading,
+    failed: query.isError,
+    dimmed: query.isPlaceholderData,
+    retry: () => void query.refetch(),
+  }
 }
+
+export type UsageList = ReturnType<typeof useUsageBreakdown>
 
 export function topRows(breakdown: OrganizationUsageBreakdown | undefined) {
   return breakdown && truncateBreakdown(breakdown, ORGANIZATION_USAGE_OVERVIEW_ROW_LIMIT)
@@ -201,17 +204,42 @@ export function useUsageCalendar(organizationId: string, timezone: string, works
   const calendar = useOrganizationUsageCalendar(organizationId, timezone, workspaceId)
   return {
     days: calendar.data?.days,
-    pending: calendar.isPending,
     failed: calendar.isError,
     retry: () => void calendar.refetch(),
   }
 }
 
-export function formatDayUsage(day: UsageCalendarDay): string {
+function formatDayUsage(day: UsageCalendarDay): string {
   return `${formatApportionedCreditCost(day.credits, day.hasCost)} on ${formatCalendarDate(day.date, 'weekday')}`
 }
 
-export function formatYearUsage(days: readonly UsageCalendarDay[]): string {
+/** The grid for a year of days, weeks across and Monday first. */
+export function layoutUsageCalendar(days: readonly UsageCalendarDay[]) {
+  const first = days[0]
+  const offset = first ? (new Date(`${first.date}T00:00:00Z`).getUTCDay() + 6) % 7 : 0
+  const weeks = Math.ceil((offset + days.length) / 7)
+  const peak = Math.max(...days.map((day) => day.credits), 1)
+  return {
+    weeks,
+    total: formatYearUsage(days),
+    months: days.flatMap((day, index) => {
+      if (!day.date.endsWith('-01')) return []
+      const column = Math.floor((index + offset) / 7)
+      return column > weeks - 3
+        ? []
+        : [{ date: day.date, column, label: formatCalendarDate(day.date).split(' ')[0] }]
+    }),
+    cells: days.map((day, index) => ({
+      date: day.date,
+      column: Math.floor((index + offset) / 7),
+      row: (index + offset) % 7,
+      level: usageHeatLevel(day.credits, peak, day.hasCost),
+      label: formatDayUsage(day),
+    })),
+  }
+}
+
+function formatYearUsage(days: readonly UsageCalendarDay[]): string {
   const total = days.reduce((sum, day) => sum + day.credits, 0)
   return `${formatApportionedCreditCost(
     total,
@@ -226,9 +254,24 @@ export function useActivitySummary(
 ) {
   const query = useOrganizationActivitySummary(organizationId, window, { workspaceId })
   const totals = query.data?.totals
-  const series = query.data?.series ?? []
   const failed = query.isError
-  const metric = (value: string | undefined) => (failed ? '—' : (value ?? '—'))
+  const { outcomeBars, chatPoints } = useMemo(() => {
+    const series = query.data?.series ?? []
+    return {
+      outcomeBars: series.map((point) => ({
+        label: dayLabel(point.timestamp),
+        values: [
+          point.completed,
+          point.failed,
+          Math.max(0, point.workflowRuns - point.completed - point.failed),
+        ],
+      })),
+      chatPoints: series.map((point) => ({
+        label: dayLabel(point.timestamp),
+        value: point.chatRuns,
+      })),
+    }
+  }, [query.data])
   return {
     pending: query.isPending,
     failed,
@@ -236,28 +279,18 @@ export function useActivitySummary(
     unavailable: isApiClientError(query.error) && query.error.status === 404,
     workspaceName: query.data?.workspace?.name,
     metrics: [
-      { label: 'Workflow runs', value: metric(totals?.workflowRuns.toLocaleString()) },
-      { label: 'Chat runs', value: metric(totals?.chatRuns.toLocaleString()) },
-      { label: 'Chat members', value: metric(totals?.chatMembers.toLocaleString()) },
-      { label: 'Failure rate', value: metric(formatFailureRate(totals?.failureRate ?? null)) },
+      { label: 'Workflow runs', value: totals?.workflowRuns.toLocaleString() ?? '—' },
+      { label: 'Chat runs', value: totals?.chatRuns.toLocaleString() ?? '—' },
+      { label: 'Chat members', value: totals?.chatMembers.toLocaleString() ?? '—' },
+      { label: 'Failure rate', value: formatFailureRate(totals?.failureRate ?? null) },
       {
         label: 'Avg. duration',
-        value: metric(formatDurationMs(totals?.averageDurationMs ?? null)),
+        value: formatDurationMs(totals?.averageDurationMs ?? null),
       },
     ],
     outcomeSeries: ['Completed', 'Failed', 'Other'],
-    outcomeBars: series.map((point) => ({
-      label: dayLabel(point.timestamp),
-      values: [
-        point.completed,
-        point.failed,
-        Math.max(0, point.workflowRuns - point.completed - point.failed),
-      ],
-    })),
-    chatPoints: series.map((point) => ({
-      label: dayLabel(point.timestamp),
-      value: point.chatRuns,
-    })),
+    outcomeBars,
+    chatPoints,
   }
 }
 
@@ -340,14 +373,10 @@ export async function exportUsageCsv(
     if (response.headers.get('X-Export-Truncated') === '1') {
       toast.info('Export truncated: narrow the date range to see everything')
     }
-    const url = URL.createObjectURL(await response.blob())
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `organization-usage-${new Date().toISOString().slice(0, 10)}.csv`
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
+    saveBlob(
+      await response.blob(),
+      `organization-usage-${new Date().toISOString().slice(0, 10)}.csv`
+    )
   } catch (error) {
     logger.error('Failed to export usage', { error })
     toast.error('Failed to export usage')

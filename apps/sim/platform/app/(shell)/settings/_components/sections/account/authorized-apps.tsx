@@ -1,13 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
 import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-skeleton/section-skeleton'
 import {
   ActionMenu,
-  Button,
   DataTable,
   EmptyState,
-  InlineNotice,
   Modal,
   SearchField,
 } from '@/platform/design-system/components'
@@ -29,15 +28,7 @@ export function AuthorizedApps() {
   const [revoking, setRevoking] = useState<{ id: string; name: string } | null>(null)
   if (list.status === 'error')
     return (
-      <InlineNotice
-        intent='danger'
-        message={list.error ?? 'Failed to load authorized apps'}
-        action={
-          <Button variant='quiet' size='compact' onClick={list.retry}>
-            Retry
-          </Button>
-        }
-      />
+      <LoadFailure message={list.error ?? 'Failed to load authorized apps'} onRetry={list.retry} />
     )
   return (
     <>

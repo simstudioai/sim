@@ -1,15 +1,14 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
 import {
   ActionMenu,
   Avatar,
-  Button,
   DataTable,
   EmptyState,
   Icon,
-  InlineNotice,
   OverflowText,
   TableLabel,
 } from '@/platform/design-system/components'
@@ -17,6 +16,7 @@ import {
   EMPTY_COPY,
   type OrganizationUsageBreakdown,
   type UsageBreakdownDimension,
+  type UsageList,
 } from '@/platform/lib/data/usage'
 
 type BreakdownRow = OrganizationUsageBreakdown['rows'][number]
@@ -60,11 +60,7 @@ function ConsumerName({
 interface UsageConsumersProps {
   title: string
   dimension: UsageBreakdownDimension
-  breakdown?: OrganizationUsageBreakdown
-  loading: boolean
-  failed: boolean
-  onRetry: () => void
-  dimmed?: boolean
+  list: UsageList
   control?: ReactNode
   /** Set on Workspaces, where a row drills into that workspace's workflows. */
   onSelectRow?: (row: BreakdownRow) => void
@@ -81,28 +77,14 @@ interface UsageConsumersProps {
 export function UsageConsumers({
   title,
   dimension,
-  breakdown,
-  loading,
-  failed,
-  onRetry,
-  dimmed,
+  list,
   control,
   onSelectRow,
   onManageCredits,
   onExpandOther,
 }: UsageConsumersProps) {
-  if (failed)
-    return (
-      <InlineNotice
-        intent='danger'
-        message={`Couldn’t load ${title}.`}
-        action={
-          <Button variant='quiet' size='compact' onClick={onRetry}>
-            Retry
-          </Button>
-        }
-      />
-    )
+  const { data: breakdown, loading, failed, dimmed, retry: onRetry } = list
+  if (failed) return <LoadFailure message={`Couldn’t load ${title}.`} onRetry={onRetry} />
   if (loading || !breakdown)
     return <span className={styles.listPlaceholder} role='status' aria-label={`Loading ${title}`} />
   if (breakdown.rows.length === 0)

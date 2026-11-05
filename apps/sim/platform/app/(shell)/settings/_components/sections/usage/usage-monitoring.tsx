@@ -58,7 +58,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
   const workspaceName = workspaceList.data?.rows.find((row) => row.id === workspace)?.label
   /** Only once the list has loaded, so a deep link does not flash the Workspaces tab first. */
   const isWorkspaceDetail =
-    isWorkspaceSelected && (workspaceList.isLoading || workspaceName !== undefined)
+    isWorkspaceSelected && (workspaceList.loading || workspaceName !== undefined)
   const dimension: UsageBreakdownDimension = isWorkspaceDetail
     ? 'workflow'
     : isOverview || tab === 'activity'
@@ -105,11 +105,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
         <UsageConsumers
           title={SECTION_LABELS.workflow}
           dimension='workflow'
-          breakdown={breakdown.data}
-          loading={breakdown.isLoading}
-          failed={breakdown.isError}
-          onRetry={() => void breakdown.refetch()}
-          dimmed={breakdown.isPlaceholderData}
+          list={breakdown}
           onExpandOther={expandOther('workflow')}
         />
         <ActivityOverview organizationId={organizationId} window={window} workspaceId={workspace} />
@@ -148,7 +144,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
             label='Period'
             options={view.periodOptions}
             value={view.currentPeriod}
-            onValueChange={(label) => setChoosingRange(view.selectPeriod(label) === 'custom')}
+            onValueChange={(label) => setChoosingRange(view.selectPeriod(label))}
           />
           {(choosingRange || view.preset === 'custom') && (
             <DateRangePicker
@@ -170,11 +166,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
             <UsageConsumers
               title='Top models'
               dimension='model'
-              breakdown={topRows(models.data)}
-              loading={models.isLoading}
-              failed={models.isError}
-              onRetry={() => void models.refetch()}
-              dimmed={models.isPlaceholderData}
+              list={{ ...models, data: topRows(models.data) }}
               control={
                 <Button variant='quiet' size='compact' onClick={() => view.selectTab('model')}>
                   View all
@@ -184,11 +176,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
             <UsageConsumers
               title='Top members'
               dimension='member'
-              breakdown={overview.data?.members}
-              loading={overview.loading}
-              failed={overview.failed}
-              onRetry={overview.retry}
-              dimmed={overview.dimmed}
+              list={{ ...overview, data: overview.data?.members }}
               control={
                 <Button variant='quiet' size='compact' onClick={() => view.selectTab('member')}>
                   View all
@@ -204,11 +192,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
         <UsageConsumers
           title={SECTION_LABELS[dimension]}
           dimension={dimension}
-          breakdown={breakdown.data}
-          loading={breakdown.isLoading}
-          failed={breakdown.isError}
-          onRetry={() => void breakdown.refetch()}
-          dimmed={breakdown.isPlaceholderData}
+          list={breakdown}
           onExpandOther={expandOther(dimension)}
           onSelectRow={
             tab === 'workspace'
@@ -217,7 +201,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
           }
           onManageCredits={
             canManageCredits
-              ? (row) => setCreditsTarget({ userId: row.id ?? '', name: row.label })
+              ? (row) => row.id && setCreditsTarget({ userId: row.id, name: row.label })
               : undefined
           }
         />

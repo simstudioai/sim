@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useConsentManager } from '@c15t/nextjs/headless'
 import { getErrorMessage } from '@sim/utils/errors'
 import { CONSENT_CATEGORY_COPY } from '@/lib/consent/copy'
@@ -11,14 +12,16 @@ export const CookieConsentProvider = ConsentStoreProvider
 type ConsentCategoryName = Parameters<ReturnType<typeof useConsentManager>['setSelectedConsent']>[0]
 
 /**
- * The hosted cookie choices. Each toggle commits, and a failed commit puts its switch back. The
- * caller locks the switches while one is in flight: each save sends the whole selection, so two
- * racing requests could overwrite the newer choice.
+ * The hosted cookie choices. Each toggle commits, and a failed commit puts its switch back. `saving`
+ * locks the switches while one is in flight: each save sends the whole selection, so two racing
+ * requests could overwrite the newer choice.
  */
 export function useCookieCategories() {
   const { consents, selectedConsents, setSelectedConsent, getDisplayedConsents, saveConsents } =
     useConsentManager()
+  const [saving, setSaving] = useState(false)
   return {
+    saving,
     categories: getDisplayedConsents().map((type) => {
       const copy = CONSENT_CATEGORY_COPY[type.name]
       return {
@@ -31,11 +34,14 @@ export function useCookieCategories() {
     }),
     commit: async (name: ConsentCategoryName, checked: boolean) => {
       setSelectedConsent(name, checked)
+      setSaving(true)
       try {
         await saveConsents('custom', { uiSource: 'settings' })
       } catch (error) {
         setSelectedConsent(name, !checked)
         toast.error(getErrorMessage(error, 'Could not save your cookie preferences'))
+      } finally {
+        setSaving(false)
       }
     },
   }

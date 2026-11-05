@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
+import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
-import { Button, DataTable, EmptyState, InlineNotice } from '@/platform/design-system/components'
+import { Button, DataTable, EmptyState } from '@/platform/design-system/components'
 import { useUsageEvents, useUsageView } from '@/platform/lib/data/usage'
 
 const COLUMNS = [
@@ -27,17 +28,9 @@ export function UsageEvents({ organizationId }: { organizationId: string }) {
         Every credit-consuming event across your organization’s workspaces.
       </p>
       {events.failed && events.rows.length === 0 ? (
-        <InlineNotice
-          intent='danger'
-          message='Couldn’t load usage events.'
-          action={
-            <Button variant='quiet' size='compact' onClick={events.retry}>
-              Retry
-            </Button>
-          }
-        />
+        <LoadFailure message='Couldn’t load usage events.' onRetry={events.retry} />
       ) : events.pending ? (
-        <div className={styles.listPlaceholder} role='status' aria-label='Loading usage events' />
+        <span className={styles.listPlaceholder} role='status' aria-label='Loading usage events' />
       ) : events.rows.length === 0 ? (
         <EmptyState title='No usage in this period.' />
       ) : (

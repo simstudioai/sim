@@ -1,14 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
 import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-skeleton/section-skeleton'
 import {
   ActionMenu,
-  Button,
   DataTable,
   EmptyState,
   Icon,
-  InlineNotice,
   Modal,
   StatusTag,
   TableLabel,
@@ -36,14 +35,9 @@ export function OrganizationAccounts() {
   if (list.status === 'pending') return <SectionSkeleton title={TITLE} rows={2} />
   if (list.status === 'error')
     return (
-      <InlineNotice
-        intent='danger'
+      <LoadFailure
         message={list.error ?? 'Failed to load connected accounts'}
-        action={
-          <Button variant='quiet' size='compact' onClick={list.retry}>
-            Retry
-          </Button>
-        }
+        onRetry={list.retry}
       />
     )
   if (list.groups.length === 0)

@@ -1,12 +1,9 @@
 'use client'
 
+import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
-import { BarChart, Button, InlineNotice, StatusTag } from '@/platform/design-system/components'
+import { BarChart, StatusTag } from '@/platform/design-system/components'
 import type { useUsageOverview } from '@/platform/lib/data/usage'
-
-function deltaLabel(delta: number): string {
-  return `${delta > 0 ? '↑ ' : delta < 0 ? '↓ ' : ''}${Math.abs(delta)}%`
-}
 
 /** Headline, allowance and the source-stacked credit chart for one window. */
 export function UsageCredits({
@@ -25,11 +22,8 @@ export function UsageCredits({
         <span className={styles.quiet} data-type='T060'>
           {chart.used === 1 ? 'credit' : 'credits'}
         </span>
-        {chart.delta !== null && (
-          <StatusTag
-            label={deltaLabel(chart.delta)}
-            intent={chart.delta > 0 ? 'warning' : 'neutral'}
-          />
+        {chart.deltaLabel && (
+          <StatusTag label={chart.deltaLabel} intent={chart.deltaRose ? 'warning' : 'neutral'} />
         )}
         {chart.overLimit && <StatusTag label='Over limit' intent='danger' />}
       </div>
@@ -39,19 +33,11 @@ export function UsageCredits({
         </span>
       )}
       {overview.failed ? (
-        <InlineNotice
-          intent='danger'
-          message='Couldn’t load credits.'
-          action={
-            <Button variant='quiet' size='compact' onClick={overview.retry}>
-              Retry
-            </Button>
-          }
-        />
+        <LoadFailure message='Couldn’t load credits.' onRetry={overview.retry} />
       ) : !chart.loaded ? (
         <span className={styles.chartPlaceholder} role='status' aria-label='Loading credits' />
       ) : (
-        <BarChart title='Credits' bars={chart.bars} series={chart.series} />
+        <BarChart title='Credits' bars={chart.bars} series={chart.series} hideEmptySeries />
       )}
     </section>
   )

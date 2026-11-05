@@ -1,21 +1,19 @@
 'use client'
 
 import { useId } from 'react'
+import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-skeleton/section-skeleton'
 import styles from '@/platform/app/(shell)/settings/_components/sections/whitelabeling/whitelabeling-section.module.css'
-import { UnsavedChanges } from '@/platform/app/(shell)/settings/_components/unsaved-changes/unsaved-changes'
 import {
   Button,
   EmptyState,
   FieldFrame,
   FileField,
-  InlineNotice,
   Input,
   TextField,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import { useUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import {
   useWhitelabelForm,
   useWhitelabelRead,
@@ -107,15 +105,9 @@ function WhitelabelForm({
   uploadWorkspaceId: string | undefined
 }) {
   const form = useWhitelabelForm(organizationId, settings, uploadWorkspaceId)
-  useUnsavedGuard({
-    isDirty: form.dirty,
-    navigationBlocked: form.saving,
-    onDiscard: form.discard,
-  })
   const { text } = form
   return (
     <>
-      <UnsavedChanges />
       <div className={styles.actions}>
         {form.dirty && (
           <Button variant='quiet' disabled={form.saving} onClick={form.discard}>
@@ -213,17 +205,7 @@ export default function WhitelabelingSection({ organization }: SettingsSectionPr
   const read = useWhitelabelRead(organizationId)
   if (read.status === 'pending') return <SectionSkeleton title='Brand identity' />
   if (read.status === 'error' || !read.settings)
-    return (
-      <InlineNotice
-        intent='danger'
-        message={read.error}
-        action={
-          <Button variant='quiet' size='compact' onClick={read.retry}>
-            Retry
-          </Button>
-        }
-      />
-    )
+    return <LoadFailure message={read.error} onRetry={read.retry} />
   if (!read.entitled)
     return <EmptyState title='Whitelabeling requires an active Enterprise plan.' />
   return (

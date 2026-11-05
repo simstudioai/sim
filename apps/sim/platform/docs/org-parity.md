@@ -83,7 +83,7 @@ One row per capability of the legacy organization surface. Every capability is e
 | Links | Copy or create from a chat source card | `source-card` | Open | Chat owner |
 | White-labeling | Form, entitlement, upload, colors, links, save and discard, guard | White-labeling | Done | `settings-a.spec.ts` asserts the entitlement states; upload needs a workspace and storage |
 | White-labeling | Applying the brand to the Platform | `BrandingProvider` | Hidden | The Platform's tokens differ from `--brand*`. Needs a token mapping |
-| Unsaved changes | Link click and closing tab | `use-settings-browser-navigation` | Done | Same dirty store. The browser Back button is not held: the legacy history trap has not been ported |
+| Unsaved changes | Link click, closing tab, browser Back and Forward | `settings-navigation-guard` | Done | The same hooks and dirty store as legacy; one dialog in `live-settings`. Not exercised in `settings-a.spec.ts`, which seeds no draft on a paid plan |
 
 Status is one of:
 
