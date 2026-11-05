@@ -530,7 +530,6 @@ try {
     await signInAndSeed()
     await login.close()
     await shell.bringToFront()
-    await frame().getByRole('heading', { name: 'Sign in to Sim', exact: true }).click()
     await expect(
       frame().getByRole('link', { name: 'Extension QA alpha', exact: true })
     ).toBeVisible()
@@ -1357,10 +1356,17 @@ try {
           })
           socket.onClose(() => {
             session.closed = true
+            void socket.close()
           })
         }
       )
-      await browserContext.grantPermissions(['microphone'], { origin: base.origin })
+      const microphone = await browserContext.newCDPSession(shell)
+      await microphone.send('Browser.setPermission', {
+        permission: { name: 'microphone' },
+        setting: 'granted',
+        origin: `chrome-extension://${extensionId}`,
+        embeddedOrigin: base.origin,
+      })
       try {
         await expect(mic).toBeVisible()
         await input.fill('Keep my draft')
@@ -1379,13 +1385,13 @@ try {
         await mic.click()
         await expect(stop).toBeVisible()
         await expect.poll(() => sessions.length).toBe(2)
+        sessions[0].socket.send(
+          JSON.stringify({ message_type: 'partial_transcript', text: 'stale thought' })
+        )
         await expect.poll(() => sessions[0].closed).toBe(true)
         await expect(stop).toBeVisible()
         const chunks = sessions[1].chunks
         await expect.poll(() => sessions[1].chunks).toBeGreaterThan(chunks)
-        sessions[0].socket.send(
-          JSON.stringify({ message_type: 'partial_transcript', text: 'stale thought' })
-        )
         sessions[1].socket.send(
           JSON.stringify({ message_type: 'partial_transcript', text: 'second thought' })
         )
@@ -1397,7 +1403,8 @@ try {
         await input.fill('')
       } finally {
         await shell.unroute('**/api/speech/token')
-        await browserContext.clearPermissions()
+        await microphone.send('Browser.resetPermissions')
+        await microphone.detach()
       }
     }
   )
