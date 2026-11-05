@@ -86,7 +86,7 @@ export function WorkspacesSection({
           <SectionRow
             key={item.id}
             label={item.name}
-            actions={rowActions(item)}
+            actions={() => rowActions(item)}
             onMenuOpenChange={hold}
             leading={
               <Avatar

@@ -18,7 +18,8 @@ export function PinnedIndicator() {
 
 interface SectionRowProps {
   label: string
-  actions: readonly MenuAction[]
+  /** Called when a menu opens: a list renders many rows, and only an open menu needs its actions. */
+  actions: () => readonly MenuAction[]
   /** The row's link, which owns its navigation and prefetching. */
   render: ReactElement
   leading?: ReactNode
