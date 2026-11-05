@@ -50,6 +50,94 @@
   background: var(--settings-picker-surface);
 }
 
+.trigger[data-variant="text"] {
+  inline-size: auto;
+  min-block-size: var(--spacing-app-control-sm);
+  padding-inline: var(--spacing-4);
+  border-color: transparent;
+  background: transparent;
+  color: var(--ui-secondary);
+}
+
+.trigger[data-variant="text"]:hover:enabled {
+  border-color: transparent;
+  background: var(--ui-hover);
+}
+
+.detachedPopup {
+  inline-size: min(calc(var(--spacing-320) + var(--spacing-80)), var(--available-width));
+}
+
+.searchField {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  min-block-size: var(--spacing-app-chip);
+  padding-inline: var(--spacing-7);
+  gap: var(--spacing-6);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  color: var(--ui-secondary);
+}
+
+.searchField input {
+  flex: 1;
+  min-inline-size: 0;
+  background: transparent;
+  color: var(--ui-ink);
+  outline: none;
+}
+
+.searchField input::placeholder {
+  color: var(--ui-secondary);
+}
+
+.results {
+  max-block-size: var(--spacing-320);
+}
+
+.result {
+  align-items: flex-start;
+}
+
+.resultCopy {
+  display: grid;
+  flex: 1;
+  min-inline-size: 0;
+  gap: var(--ui-stack-gap);
+  overflow-wrap: anywhere;
+}
+
+.resultDetail,
+.hints {
+  color: var(--ui-secondary);
+}
+
+.resultEnter {
+  flex: none;
+  color: var(--ui-secondary);
+  visibility: hidden;
+}
+
+.result[data-highlighted] .resultEnter {
+  visibility: visible;
+}
+
+.hints {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  padding: var(--spacing-8) var(--ui-row-inset) var(--spacing-4);
+}
+
+@media (pointer: coarse) {
+  .hints,
+  .resultEnter {
+    display: none;
+  }
+}
+
 .trigger[data-empty] .value {
   color: var(--ui-secondary);
 }

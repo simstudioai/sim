@@ -1,5 +1,11 @@
 import { useRef } from 'react'
-import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  type QueryClient,
+  useIsMutating,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
@@ -19,6 +25,8 @@ const IDLE_SYNC_POLL_MS = 30_000
 const syncKeys = {
   all: ['people-directory-sync'] as const,
   organization: (organizationId: string) => [...syncKeys.all, organizationId] as const,
+  actions: (organizationId: string) =>
+    [...syncKeys.organization(organizationId), 'action'] as const,
 }
 
 type SyncResult = ContractJsonResponse<typeof getPeopleSyncContract>
@@ -29,14 +37,15 @@ export function isDirectorySyncAccessError(error: unknown) {
 
 function refreshPublishedPeople(client: QueryClient, organizationId: string, result: SyncResult) {
   const previous = client.getQueryData<SyncResult>(syncKeys.organization(organizationId))
-  if ((previous?.sync?.lastSuccessAt ?? null) !== (result.sync?.lastSuccessAt ?? null)) {
+  if (previous && (previous.sync?.lastSuccessAt ?? null) !== (result.sync?.lastSuccessAt ?? null)) {
     return client.invalidateQueries({ queryKey: peopleKeys.organization(organizationId) })
   }
 }
 
-export function usePeopleSyncStatus(organizationId: string) {
+export function usePeopleSyncStatus(organizationId: string, enabled = true) {
   const client = useQueryClient()
   return useQuery({
+    enabled,
     queryKey: syncKeys.organization(organizationId),
     queryFn: async ({ signal }) => {
       const result = await requestJson(getPeopleSyncContract, {
@@ -64,8 +73,10 @@ export function usePeopleSyncActions(organizationId: string) {
   const client = useQueryClient()
   // Only the action name may enter the mutation cache or its devtools.
   const nextConfig = useRef<PeopleSyncConfig | null>(null)
-  const busy = useRef(false)
+  const mutationKey = syncKeys.actions(organizationId)
+  const pending = useIsMutating({ mutationKey }) > 0
   const mutation = useMutation({
+    mutationKey,
     gcTime: 0,
     retry: false,
     networkMode: 'always',
@@ -89,26 +100,26 @@ export function usePeopleSyncActions(organizationId: string) {
     },
     onError: () => client.invalidateQueries({ queryKey: syncKeys.organization(organizationId) }),
     onSettled: () => {
-      busy.current = false
       nextConfig.current = null
     },
   })
   function submit(
     action: 'configure' | 'run' | 'disconnect',
     config?: PeopleSyncConfig,
-    onSuccess?: () => void
+    onSuccess?: () => void,
+    onError?: (error: Error) => void
   ) {
-    if (busy.current) return
-    busy.current = true
+    if (client.isMutating({ mutationKey }) > 0) return
     nextConfig.current = config ?? null
-    mutation.mutate(action, { onSuccess })
+    mutation.mutate(action, { onSuccess: () => onSuccess?.(), onError })
   }
   return {
     configure: (config: PeopleSyncConfig, onSuccess: () => void) =>
       submit('configure', config, onSuccess),
     run: () => submit('run'),
-    disconnect: (onSuccess: () => void) => submit('disconnect', undefined, onSuccess),
-    pending: mutation.isPending,
+    disconnect: (onSuccess: () => void, onError?: (error: Error) => void) =>
+      submit('disconnect', undefined, onSuccess, onError),
+    pending,
     action: mutation.isPending ? mutation.variables : null,
     error: mutation.error,
     reset: mutation.reset,
