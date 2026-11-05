@@ -5,7 +5,8 @@ import { ChipInput, Info, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
-import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { isUsageLimitDraftDirty, resolveUsageLimitDraft } from '@/lib/billing/usage-limit-draft'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useUpdateUsageLimit } from '@/hooks/queries/subscription'
@@ -70,12 +71,7 @@ export function UsageLimitField({
   }, [currentLimit, draft, pending])
 
   useSettingsUnsavedGuard({
-    isDirty:
-      canEdit &&
-      draft !== null &&
-      (draft.trim() === ''
-        ? currentLimit < ON_DEMAND_UNLIMITED
-        : Number.parseFloat(draft) !== dollarsToCredits(currentLimit)),
+    isDirty: canEdit && draft !== null && isUsageLimitDraftDirty(draft, currentLimit),
     navigationBlocked: pending,
     onDiscard: () => setDraft(null),
   })
@@ -90,28 +86,17 @@ export function UsageLimitField({
       return
     const currentLimit = currentLimitRef.current
     if (currentLimit == null) return
-    if (debouncedDraft.trim() === '') {
-      if (currentLimit >= ON_DEMAND_UNLIMITED)
-        setDraft((current) => (current === debouncedDraft ? null : current))
-      return
-    }
-    const parsedCredits = Number.parseFloat(debouncedDraft)
-    if (Number.isNaN(parsedCredits)) {
-      toast.error('Usage limit must be a number')
-      return
-    }
-    if (parsedCredits === dollarsToCredits(currentLimit)) {
+    const decision = resolveUsageLimitDraft(debouncedDraft, currentLimit, minimumLimit)
+    if (decision.kind === 'wait') return
+    if (decision.kind === 'settled') {
       setDraft((current) => (current === debouncedDraft ? null : current))
       return
     }
-    const minimumCredits = dollarsToCredits(minimumLimit)
-    if (parsedCredits < minimumCredits) {
-      toast.error(`Usage limit must be at least ${minimumCredits.toLocaleString()} credits`)
+    if (decision.kind === 'invalid') {
+      toast.error(decision.message)
       return
     }
-
-    // Store dollars; the input is credits. Convert once at the boundary.
-    const limitDollars = creditsToDollars(parsedCredits)
+    const { limitDollars } = decision
     const onError = (error: unknown) => {
       toast.error("Couldn't update usage limit", {
         description: getErrorMessage(error, 'Please try again in a moment.'),

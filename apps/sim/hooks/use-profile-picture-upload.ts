@@ -182,6 +182,7 @@ export function useProfilePictureUpload({
     previewUrl,
     fileName,
     fileInputRef,
+    handleFile: processFile,
     handleThumbnailClick,
     handleFileChange,
     handleFileDrop,

@@ -1,5 +1,5 @@
 import { createParser, parseAsArrayOf, parseAsString, parseAsStringLiteral } from 'nuqs/server'
-import { createSortParams } from '@/lib/url-state'
+import { createSortParams, parseAsDateString } from '@/lib/url-state'
 import type { LogSortBy } from '@/hooks/queries/logs'
 import {
   CORE_TRIGGER_TYPES,
@@ -71,21 +71,6 @@ export const parseAsLogLevel = createParser<LogLevel>({
     if (levels.length === 0) return 'all'
     if (levels.length === 1) return levels[0]
     return levels.join(',') as LogLevel
-  },
-  serialize(value) {
-    return value
-  },
-})
-
-/**
- * Parser for free-form date/datetime strings (`startDate`/`endDate`). Rejects
- * unparseable values at the URL boundary — an invalid date string reaching
- * `new Date(...).toISOString()` throws, so a malformed deep link must parse to
- * `null` (treated as a missing bound) instead of crashing the consumer.
- */
-export const parseAsDateString = createParser<string>({
-  parse(value) {
-    return Number.isNaN(Date.parse(value)) ? null : value
   },
   serialize(value) {
     return value

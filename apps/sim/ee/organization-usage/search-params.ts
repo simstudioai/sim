@@ -10,7 +10,7 @@ import {
   USAGE_WINDOW_PRESETS,
 } from '@/lib/api/contracts/organization-usage'
 import { ACTIVITY_DIMENSIONS, ACTIVITY_SORTS } from '@/lib/billing/core/organization-activity'
-import { parseAsDateString } from '@/app/workspace/[workspaceId]/logs/search-params'
+import { parseAsDateString } from '@/lib/url-state'
 import {
   DEFAULT_USAGE_PRESET,
   DEFAULT_USAGE_TAB,

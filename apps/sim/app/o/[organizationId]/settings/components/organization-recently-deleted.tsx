@@ -9,12 +9,12 @@ import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import {
   type MothershipChatMetadata,
   useOrganizationMothershipChats,
   useRestoreMothershipChat,
 } from '@/hooks/queries/mothership-chats'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 
 interface DeletedChatRowProps {
   organizationId: string

@@ -179,7 +179,7 @@ const setSearch = useDebouncedSearchSetter(write, { debounceMs: 200 })
 
 - **Never write a trimmed value to a param that controls the input** — trimming on write eats the user's trailing space mid-typing and makes multi-word queries untypable. The hook writes the raw value; trim only for the empty-check (the hook does this) and on *read* where the value feeds a query or filter.
 - **Keep fetches/filtering debounced.** Where the search value feeds a React Query key or an expensive in-memory filter, derive a debounced value off the instant nuqs value (`const debounced = useDebounce(urlSearch, SEARCH_DEBOUNCE_MS)` with `SEARCH_DEBOUNCE_MS` from `@/lib/url-state`) and feed *that* to the query — the instant value is only for the input box. Cheap in-memory filtering over a small static list may read the instant value directly.
-- Settings list search boxes use `useSettingsSearch()` from `settings/components/use-settings-search` — the shared `?search=` binding for that surface.
+- Settings list search boxes use `useSettingsSearch()` from `@/hooks/use-settings-search` — the shared `?search=` binding for that surface.
 - Preserve `clearOnDefault` (empty clears the param), the existing default, and `history: 'replace'`. See logs (`use-log-filters.ts` grouped, query stays debounced), integrations (cheap in-memory filter, instant value), and tables (filter stays debounced).
 
 ## Sort convention (`sort` + `dir`)

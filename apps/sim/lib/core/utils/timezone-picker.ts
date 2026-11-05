@@ -1,19 +1,24 @@
-import type { ComboboxOption } from '@sim/emcn'
 import { isValidTimezone, sanitizeTimezoneForDisplay } from '@/lib/core/utils/timezone'
 
 export const AUTO_TIMEZONE_OPTION_VALUE = '__auto_timezone__'
 export const INVALID_TIMEZONE_OPTION_VALUE = '__invalid_timezone__'
 
+interface TimezonePickerOption {
+  value: string
+  label: string
+  disabled?: boolean
+}
+
 interface TimezonePickerPresentation {
   value: string
-  options: ComboboxOption[]
+  options: TimezonePickerOption[]
 }
 
 /** Builds the picker state without making an unset browser fallback look persisted. */
 export function getTimezonePickerPresentation(
   savedTimezone: string | null,
   browserTimezone: string,
-  timezoneOptions: readonly ComboboxOption[]
+  timezoneOptions: readonly TimezonePickerOption[]
 ): TimezonePickerPresentation {
   const hasInvalidTimezone = savedTimezone !== null && !isValidTimezone(savedTimezone)
   const unlistedTimezone =

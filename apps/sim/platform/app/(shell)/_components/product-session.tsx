@@ -41,7 +41,7 @@ export function ProductSession({
         <NotificationSession>
           <ChatChangesProvider>
             <ComposerDrafts>
-              <ProductSurface preference={readAppearance(search.get('theme'))}>
+              <ProductSurface preference={live?.appearance ?? readAppearance(search.get('theme'))}>
                 <IntegrationChanges>
                   <PlatformShell data={live ?? fixtures?.[scenario] ?? null} banner={banner}>
                     {children}

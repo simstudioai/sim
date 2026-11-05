@@ -1,5 +1,6 @@
 import type { Workspace, WorkspaceCreationPolicy } from '@/lib/api/contracts'
 import type { UserProfile } from '@/hooks/queries/current-user-data'
+import { useGeneralSettings } from '@/hooks/queries/general-settings'
 import type { MothershipChatMetadata } from '@/hooks/queries/mothership-chats'
 import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
 import { useUserProfile } from '@/hooks/queries/user-profile'
@@ -96,12 +97,14 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
     enabled: chatsAvailable,
   })
   const profile = useUserProfile()
+  const settings = useGeneralSettings()
   const routes = legacyRoutes(organization)
   const chatActions = useChatListActions(organizationId)
   const workspaceActions = useWorkspaceActions(routes.workspace)
   const accountActions = useLiveAccountActions(organization, navigation.destinations)
   return {
     data: {
+      appearance: settings.data?.theme,
       organization: organization.organization,
       user: toShellUser(profile.data),
       workspaces: (workspaces.data ?? [])
@@ -113,7 +116,7 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
       unbacked: ['inbox', 'sortWorkspaces'],
       status: {
         workspaces: workspaces.status,
-        chats: chats.status,
+        chats: chatsAvailable ? chats.status : 'success',
         profile: profile.status,
       },
       workspaceCreation: toWorkspaceCreation(creationPolicy.data),

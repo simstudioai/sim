@@ -78,6 +78,18 @@
 .swatch[data-bar="1"] {
   background: var(--ui-plot-secondary);
 }
+.swatch[data-bar="2"] {
+  background: var(--ui-plot-violet-1);
+}
+.swatch[data-bar="3"] {
+  background: var(--ui-plot-violet-2);
+}
+.swatch[data-bar="4"] {
+  background: var(--ui-plot-violet-3);
+}
+.swatch[data-bar="5"] {
+  background: var(--ui-plot-violet-4);
+}
 .swatch[data-palette] {
   border-radius: var(--radius-2);
 }

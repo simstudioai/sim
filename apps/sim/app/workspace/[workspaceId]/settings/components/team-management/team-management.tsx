@@ -25,7 +25,6 @@ import {
   TeamSeatsOverview,
   TransferOwnershipDialog,
 } from '@/app/workspace/[workspaceId]/settings/components/team-management/components'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import {
   useCreateOrganization,
   useMemberRemovalImpact,
@@ -38,6 +37,7 @@ import {
 import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
 import { useOpenBillingPortal, useSubscriptionData } from '@/hooks/queries/subscription'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 
 const logger = createLogger('TeamManagement')
 

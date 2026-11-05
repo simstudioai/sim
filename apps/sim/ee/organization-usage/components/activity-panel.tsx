@@ -12,23 +12,15 @@ import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/compo
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { ActivitySummary } from '@/ee/organization-usage/components/activity-summary'
 import { ActivityTable } from '@/ee/organization-usage/components/activity-table'
+import {
+  ACTIVITY_DIMENSION_OPTIONS,
+  ACTIVITY_SORT_OPTIONS,
+} from '@/ee/organization-usage/constants'
 import { useUsageWindow } from '@/ee/organization-usage/hooks/use-usage-window'
 import {
   useOrganizationActivityBreakdown,
   useOrganizationActivitySummary,
 } from '@/hooks/queries/organization-activity'
-
-const DIMENSIONS = [
-  { value: 'workspace', label: 'Workspaces' },
-  { value: 'workflow', label: 'Workflows' },
-  { value: 'member', label: 'Members' },
-  { value: 'trigger', label: 'Triggers' },
-] as const
-const SORTS = [
-  { value: 'runs', label: 'Most runs' },
-  { value: 'failures', label: 'Most failures' },
-  { value: 'duration', label: 'Longest duration' },
-] as const
 
 interface ActivityPanelProps {
   organizationId: string
@@ -93,7 +85,7 @@ export function ActivityPanel({ organizationId }: ActivityPanelProps) {
             <ChipDropdown
               matchTriggerWidth={false}
               className='max-w-full'
-              options={DIMENSIONS}
+              options={ACTIVITY_DIMENSION_OPTIONS}
               value={activityDimension}
               onChange={(value) =>
                 void setState({ activityDimension: value as ActivityDimension, activityPage: 0 })
@@ -104,7 +96,7 @@ export function ActivityPanel({ organizationId }: ActivityPanelProps) {
               <ChipDropdown
                 matchTriggerWidth={false}
                 className='max-w-full'
-                options={SORTS}
+                options={ACTIVITY_SORT_OPTIONS}
                 value={sort}
                 onChange={(value) =>
                   void setState({ activitySort: value as ActivitySort, activityPage: 0 })

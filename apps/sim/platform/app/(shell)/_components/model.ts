@@ -1,4 +1,5 @@
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
+import type { Appearance } from '@/platform/design-system/navigation'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 
 export type HomeMode = 'Build' | 'Search'
@@ -68,6 +69,8 @@ export interface SettingsNavGroup {
 export type ShellQueryStatus = 'pending' | 'error' | 'success'
 
 export interface ShellData {
+  /** The viewer's saved theme. Live sessions set it; fixtures read `?theme=` instead. */
+  appearance?: Appearance
   organization: {
     name: string
     memberCount: number

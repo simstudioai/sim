@@ -7,6 +7,7 @@ import { AppearanceSettings } from '@/platform/app/(shell)/settings/_components/
 import type { SettingsData } from '@/platform/app/(shell)/settings/_components/model'
 import { NotificationSettings } from '@/platform/app/(shell)/settings/_components/notification-settings/notification-settings'
 import { ProfileSettings } from '@/platform/app/(shell)/settings/_components/profile/profile-settings'
+import KeyboardShortcutsSection from '@/platform/app/(shell)/settings/_components/sections/keyboard-shortcuts/keyboard-shortcuts-section'
 import styles from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen.module.css'
 import { EmptyState } from '@/platform/design-system/components'
 import {
@@ -90,19 +91,7 @@ function FixtureSections({
         </>
       )}
       {(section === 'preferences' || section === 'notifications') && <NotificationSettings />}
-      {section === 'keyboard-shortcuts' && (
-        <SettingsSection title='Navigation'>
-          <SettingsRow label='Search'>
-            <kbd data-type='T005'>⌘ / Ctrl + K</kbd>
-          </SettingsRow>
-          <SettingsRow label='Search settings'>
-            <kbd data-type='T005'>/</kbd>
-          </SettingsRow>
-          <SettingsRow label='Close menu or dialog'>
-            <kbd data-type='T005'>Esc</kbd>
-          </SettingsRow>
-        </SettingsSection>
-      )}
+      {section === 'keyboard-shortcuts' && <KeyboardShortcutsSection />}
       {section === 'connections' &&
         (data?.connections.length ? (
           <SettingsSection title='Connected accounts'>

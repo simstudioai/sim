@@ -25,13 +25,13 @@ import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useSearchSources } from '@/hooks/queries/kb/connectors'
 import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useDebounce } from '@/hooks/use-debounce'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 
 interface OrganizationProviderDetailProps {
   connectorType: string

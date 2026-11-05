@@ -32,7 +32,6 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/activity-log'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useOrganizationWorkspaces } from '@/ee/access-control/hooks/permission-groups'
 import { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
 import { type AuditLogFilters, useAuditLogs } from '@/ee/audit-logs/hooks/audit-logs'
@@ -42,6 +41,7 @@ import {
   DEFAULT_AUDIT_TIME_RANGE,
 } from '@/ee/audit-logs/search-params'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
 const logger = createLogger('AuditLogs')

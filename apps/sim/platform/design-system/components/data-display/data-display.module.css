@@ -156,3 +156,10 @@
     height: var(--spacing-app-touch-target);
   }
 }
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
