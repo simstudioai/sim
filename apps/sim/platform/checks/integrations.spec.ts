@@ -102,10 +102,17 @@ test('managed, unconfigured and retained connections expose only the actions the
   await expect(reads).toContainText('Read available meeting summaries')
   await expect(main.getByRole('radio')).toHaveCount(0)
   await main.getByRole('link', { name: 'Integrations', exact: true }).click()
-  await main.getByRole('link', { name: /^GitLab / }).click()
-  await expect(main.getByRole('heading', { name: 'Organization managed' })).toBeVisible()
-  await expect(main.getByRole('button', { name: 'Connect account' })).toHaveCount(0)
-  await main.getByRole('link', { name: 'Integrations', exact: true }).click()
+  const managed = main.getByRole('region', { name: 'Managed by your organization' })
+  for (const provider of ['GitLab', 'Slack', 'Granola', 'Zoom']) {
+    await managed.getByRole('link', { name: new RegExp(`^${provider} `) }).click()
+    const docs = main.getByRole('link', { name: /Docs/ })
+    await expect(docs).toHaveAttribute(
+      'href',
+      `https://docs.sim.ai/search/${provider.toLowerCase()}`
+    )
+    await expect(main.getByRole('button', { name: provider, exact: true })).toHaveCount(0)
+    await main.getByRole('link', { name: 'Integrations', exact: true }).click()
+  }
   await main.getByRole('link', { name: /^Confluence / }).click()
   await main.getByRole('button', { name: 'Manage engineering@sim.ai' }).click()
   await expect(page.getByRole('menuitem', { name: 'Disconnect account' })).toBeVisible()

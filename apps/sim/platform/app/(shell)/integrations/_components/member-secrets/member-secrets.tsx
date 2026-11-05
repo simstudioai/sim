@@ -1,4 +1,5 @@
 import { EmptyState } from '@/platform/design-system/components'
+import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
 import {
   SettingsRow,
   SettingsSection,
@@ -12,12 +13,11 @@ interface MemberSecretsProps {
 export function MemberSecrets({ source }: MemberSecretsProps) {
   if (source.mode === 'organization') {
     return (
-      <SettingsSection title='Access'>
-        <SettingsRow
-          label='Organization managed'
-          description='Your organization’s administrators manage these credentials.'
-        />
-      </SettingsSection>
+      <ConnectionPrompt
+        title='Your organization’s administrators manage these credentials.'
+        setupGuideUrl={source.setupGuideUrl}
+        options={[]}
+      />
     )
   }
   if (source.names.length === 0) return <EmptyState title='No personal secrets' />

@@ -40,6 +40,10 @@ export function IntegrationDetails({ integration, onChange }: IntegrationDetails
   const canConnect = !account && integration.availability === 'ready' && connectableMethod !== null
   const canAuthorize = Boolean(integration.fixtureAuthorization)
   const canAttach = canAuthorize && canConnect && connectionCandidate?.method === connectableMethod
+  const accessMessage =
+    integration.availability === 'managed'
+      ? `Managed by your organization. ${integration.accessDescription}`
+      : integration.accessDescription
 
   function connect() {
     if (!canAttach || !connectionCandidate) return
@@ -102,26 +106,21 @@ export function IntegrationDetails({ integration, onChange }: IntegrationDetails
           title='This credential is no longer connected'
           action={<Chip href={providerHref}>View integration</Chip>}
         />
-      ) : canConnect ? (
-        <ConnectionPrompt
-          title={`Connect your ${integration.name} account`}
-          setupGuideUrl={integration.setupGuideUrl}
-          options={[
-            {
-              label: integration.name,
-              icon: { providerId },
-              onConnect: canAttach ? connect : undefined,
-            },
-          ]}
-        />
       ) : !account ? (
-        <EmptyState
-          title={
-            integration.availability === 'managed'
-              ? 'Organization managed'
-              : 'No connected credential'
+        <ConnectionPrompt
+          title={canConnect ? `Connect your ${integration.name} account` : accessMessage}
+          setupGuideUrl={integration.setupGuideUrl}
+          options={
+            canConnect
+              ? [
+                  {
+                    label: integration.name,
+                    icon: { providerId },
+                    onConnect: canAttach ? connect : undefined,
+                  },
+                ]
+              : []
           }
-          description={integration.accessDescription}
         />
       ) : null}
       {!staleCredential && account?.permissions && (
