@@ -6,11 +6,8 @@ import { ArrowRight } from '@sim/emcn/icons'
 import { HomeSection } from '@/components/home/home-section'
 import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
 import { OAUTH_SEARCH_READ_SCOPE, oauthScopeSatisfies } from '@/lib/auth/oauth-provider'
+import { hasSearchIntegrationReady } from '@/lib/credential-groups/member-integrations'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import {
-  liveSearchProviderForCredential,
-  supportsLiveSearchMode,
-} from '@/lib/sim-search/live/provider-catalog'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { useAuthorizedApps } from '@/hooks/queries/oauth-provider'
 import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
@@ -94,47 +91,6 @@ export function GetStarted() {
     authorizedApps?.pages.some((page) =>
       page.apps.some((app) => oauthScopeSatisfies(app.scopes, OAUTH_SEARCH_READ_SCOPE))
     ) ?? false
-  const approvedProviders = new Set(
-    integrations
-      ?.filter((integration) => integration.approved && integration.available !== false)
-      .map((integration) => integration.connectorType)
-  )
-  const readyOptions = new Set(
-    accounts?.credentialGroup?.options
-      .filter((option) => {
-        const provider = liveSearchProviderForCredential(option.provider)
-        return (
-          option.status === 'active' &&
-          option.configurationStatus === 'ready' &&
-          provider &&
-          supportsLiveSearchMode(provider, 'member') &&
-          approvedProviders.has(provider)
-        )
-      })
-      .map((option) => option.id)
-  )
-  const readyMcpServers = new Set(
-    accounts?.credentialGroup?.mcpServers
-      .filter((server) => {
-        const provider = liveSearchProviderForCredential(`mcp:${server.managedConnectorId}`)
-        return (
-          server.enabled &&
-          provider &&
-          approvedProviders.has(provider) &&
-          accounts.availableMcpConnectors.some((id) => id === server.managedConnectorId)
-        )
-      })
-      .map((server) => server.id)
-  )
-  const hasSearchConnection =
-    accounts?.credentialGroup?.status === 'active' &&
-    (accounts.viewerAccounts?.some(
-      (account) => account.status === 'active' && readyOptions.has(account.optionId)
-    ) ||
-      accounts.viewerMcpAccounts?.some(
-        (account) => account.status === 'active' && readyMcpServers.has(account.mcpServerId)
-      ))
-
   const hrefs: Record<StepId, string> = {
     'connect-integration': viewer.isAdmin
       ? routes.settingsSection('integrations')
@@ -142,15 +98,7 @@ export function GetStarted() {
     'connect-sim-search': routes.settingsSection('search-mcp'),
   }
   const completed: Record<StepId, boolean> = {
-    'connect-integration': Boolean(
-      hasSearchConnection ||
-        integrations?.some(
-          (integration) =>
-            integration.approved &&
-            integration.available !== false &&
-            integration.configuredServiceSource
-        )
-    ),
+    'connect-integration': hasSearchIntegrationReady(accounts, integrations),
     'connect-sim-search': hasSearchAuthorization,
   }
   const steps = STEPS.filter((step) =>

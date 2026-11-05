@@ -3,79 +3,185 @@
 import { type ReactNode, useState } from 'react'
 import styles from '@/platform/app/(shell)/home/_components/connected-widget/connected-widget.module.css'
 import { HomeSection } from '@/platform/app/(shell)/home/_components/home-section/home-section'
-import { ActionMenu } from '@/platform/design-system/components'
+import type {
+  HomeAccountView,
+  HomeWidgetActions,
+  HomeWidgetState,
+} from '@/platform/app/(shell)/home/_components/model'
+import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
+import { WidgetSkeleton } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
+import { ActionMenu, Button, EmptyState, InlineNotice } from '@/platform/design-system/components'
 import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { Modal } from '@/platform/design-system/components/modal/modal'
 
-const integrations = {
-  Email: [
-    { name: 'Gmail', icon: 'I005' },
-    { name: 'Microsoft 365', icon: 'I085' },
-  ],
-  Calendar: [
-    { name: 'Google Calendar', icon: 'I088' },
-    { name: 'Outlook', icon: 'I120' },
-  ],
+const COPY = {
+  Email: { icon: 'I005', noun: 'email' },
+  Calendar: { icon: 'I088', noun: 'calendar' },
 } as const
 
-interface ConnectedWidgetProps {
-  title: keyof typeof integrations
-  address?: string
-  connected: boolean
-  onConnectionChange?: (connected: boolean) => void
+interface ConnectedWidgetProps<T> {
+  title: keyof typeof COPY
+  state: HomeWidgetState<T>
+  actions: HomeWidgetActions
   onHide: () => void
-  children: ReactNode
+  children: (data: T) => ReactNode
 }
 
-export function ConnectedWidget({
+interface AccountNoticesProps {
+  accounts: readonly HomeAccountView[]
+  onReconnect?: (accountId: string) => void
+  onRetry?: () => void
+}
+
+/** The accounts that did not contribute, listed above the ones that did. */
+function AccountNotices({ accounts, onReconnect, onRetry }: AccountNoticesProps) {
+  return accounts.map((account) => {
+    if (account.problem === 'needs_reauth')
+      return (
+        <InlineNotice
+          key={account.id}
+          intent='warning'
+          message={
+            account.canReconnect
+              ? `Reconnect ${account.label} to keep it up to date here.`
+              : `${account.label} is paused. Ask an organization admin to turn it back on.`
+          }
+          action={
+            account.canReconnect && onReconnect ? (
+              <Button size='compact' onClick={() => onReconnect(account.id)}>
+                Reconnect
+              </Button>
+            ) : undefined
+          }
+        />
+      )
+    if (account.problem === 'unavailable')
+      return (
+        <InlineNotice
+          key={account.id}
+          intent='warning'
+          message={`${account.label} could not be reached.`}
+          action={<RetryButton onRetry={onRetry} />}
+        />
+      )
+    if (account.problem === 'not_offered')
+      return (
+        <InlineNotice
+          key={account.id}
+          message={`Your organization does not allow ${account.label} here.`}
+        />
+      )
+    if (account.problem === 'not_read')
+      return (
+        <InlineNotice
+          key={account.id}
+          message={`${account.label} is not shown. Home reads a limited number of accounts.`}
+        />
+      )
+    return null
+  })
+}
+
+export function ConnectedWidget<T>({
   title,
-  address,
-  connected,
-  onConnectionChange,
+  state,
+  actions,
   onHide,
   children,
-}: ConnectedWidgetProps) {
-  const [disconnecting, setDisconnecting] = useState(false)
-  const actions: MenuAction[] = [{ id: 'hide', label: `Hide ${title}`, onSelect: onHide }]
-  if (connected)
-    actions.push({
-      id: 'disconnect',
+}: ConnectedWidgetProps<T>) {
+  const [disconnecting, setDisconnecting] = useState<HomeAccountView | null>(null)
+  const { icon, noun } = COPY[title]
+  const connected = 'accounts' in state ? state.accounts : []
+  const several = connected.length > 1
+  const menu: MenuAction[] = [{ id: 'hide', label: `Hide ${title}`, onSelect: onHide }]
+  for (const account of connected) {
+    menu.push({
+      id: `disconnect-${account.id}`,
       destructive: true,
-      label: `Disconnect ${title}`,
-      onSelect: () => setDisconnecting(true),
+      label: `Disconnect ${several ? account.label : title}`,
+      onSelect: () => setDisconnecting(account),
     })
+  }
+  const reconnectable =
+    state.status === 'needs_reauth' ? state.accounts.filter((a) => a.canReconnect) : []
   return (
     <HomeSection
       title={title}
-      icon={title === 'Email' ? 'I005' : 'I088'}
-      actions={<ActionMenu label={`${title} options`} icon='I108' align='end' actions={actions} />}
+      icon={icon}
+      actions={<ActionMenu label={`${title} options`} icon='I108' align='end' actions={menu} />}
     >
-      {connected ? (
-        children
-      ) : (
+      {state.status === 'loading' && <WidgetSkeleton label={`Loading your ${noun}`} />}
+      {state.status === 'not_offered' && (
+        <EmptyState
+          title={`Your organization has not turned on ${noun}`}
+          description='Ask an organization admin to set it up under Integrations.'
+        />
+      )}
+      {state.status === 'not_connected' && (
         <div className={styles.connect}>
           <ConnectionPrompt
-            title={`Connect your ${title.toLowerCase()}`}
-            options={integrations[title].map(({ name, icon }) => ({
-              label: name,
-              icon,
-              onConnect: onConnectionChange ? () => onConnectionChange(true) : undefined,
+            title={`Connect your ${noun}`}
+            options={state.options.map(({ id, label, icon: mark }) => ({
+              label,
+              icon: mark,
+              onConnect: actions.connect ? () => actions.connect?.(id) : undefined,
             }))}
           />
         </div>
       )}
+      {state.status === 'needs_reauth' && (
+        <EmptyState
+          title={`Reconnect your ${noun}`}
+          description={
+            reconnectable.length
+              ? `Sim can no longer read ${state.accounts.map((a) => a.label).join(', ')}.`
+              : 'This connection is paused. Ask an organization admin to turn it back on.'
+          }
+          action={
+            reconnectable.length && actions.reconnect
+              ? reconnectable.map((account) => (
+                  <Button
+                    key={account.id}
+                    size='compact'
+                    onClick={() => actions.reconnect?.(account.id)}
+                  >
+                    {reconnectable.length > 1 ? `Reconnect ${account.label}` : 'Reconnect'}
+                  </Button>
+                ))
+              : undefined
+          }
+        />
+      )}
+      {state.status === 'error' && (
+        <InlineNotice
+          intent='warning'
+          message={`Your ${noun} could not load.`}
+          action={<RetryButton retrying={state.retrying} onRetry={actions.retry} />}
+        />
+      )}
+      {state.status === 'ready' && (
+        <>
+          <AccountNotices
+            accounts={state.accounts}
+            onReconnect={actions.reconnect}
+            onRetry={actions.retry}
+          />
+          {children(state.data)}
+        </>
+      )}
       <Modal
-        open={disconnecting}
-        onOpenChange={setDisconnecting}
+        open={disconnecting !== null}
+        onOpenChange={(open) => {
+          if (!open) setDisconnecting(null)
+        }}
         variant='confirm'
-        title={`Disconnect ${title}?`}
+        title={`Disconnect ${several && disconnecting ? disconnecting.label : title}?`}
         confirmLabel='Disconnect'
         destructive
-        description={`Sim will stop syncing ${title === 'Email' ? 'email' : 'calendar events'}${address ? ` from ${address}` : ''}. You can reconnect anytime.`}
-        onConfirm={() => {
-          onConnectionChange?.(false)
-          setDisconnecting(false)
+        description={actions.disconnectNotice}
+        onConfirm={async () => {
+          if (disconnecting) await actions.disconnect?.(disconnecting.id)
         }}
       />
     </HomeSection>

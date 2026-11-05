@@ -31,13 +31,22 @@ export const searchHistoryOperations = {
     principalKinds: ['session'],
     capability: 'knowledge.use',
   }),
+  removeSource: defineOrganizationOperation({
+    id: 'knowledge.search.history.remove_source',
+    minimumRole: 'member',
+    principalKinds: ['session'],
+    capability: 'knowledge.use',
+  }),
 } as const
 
 interface SearchHistoryInput {
   organizationId: string
 }
 interface RecordSearchHistoryInput extends SearchHistoryInput {
-  event: SearchHistoryEvent
+  event: Exclude<SearchHistoryEvent, { kind: 'remove-source' }>
+}
+interface RemoveSearchHistorySourceInput extends SearchHistoryInput {
+  url: string
 }
 
 /**
@@ -66,6 +75,15 @@ export const clearSearchHistory = defineAuthorizedOrganizationUseCase({
   authorizeResource: ({ context }) => requireOrganizationSearchAvailable(context.organizationId),
   async execute({ context }: OrganizationUseCaseContext<SearchHistoryInput>) {
     await updateSearchHistory(context, null)
+    return { success: true as const }
+  },
+})
+/** A removal only ever touches the viewer's own row; an absent URL leaves it as it was. */
+export const removeSearchHistorySource = defineAuthorizedOrganizationUseCase({
+  operation: searchHistoryOperations.removeSource,
+  authorizeResource: ({ context }) => requireOrganizationSearchAvailable(context.organizationId),
+  async execute({ input, context }: OrganizationUseCaseContext<RemoveSearchHistorySourceInput>) {
+    await updateSearchHistory(context, { kind: 'remove-source', url: input.url })
     return { success: true as const }
   },
 })

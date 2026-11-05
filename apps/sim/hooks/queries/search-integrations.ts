@@ -6,11 +6,12 @@ import {
   type UpdateSearchIntegrationBody,
   updateSearchIntegrationContract,
 } from '@/lib/api/contracts/knowledge/search-integrations'
-import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
+import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
 import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
-import { searchIntegrationKeys } from '@/hooks/queries/utils/search-integration-keys'
-
-export const SEARCH_INTEGRATIONS_STALE_TIME = 30_000
+import {
+  SEARCH_INTEGRATIONS_STALE_TIME,
+  searchIntegrationKeys,
+} from '@/hooks/queries/utils/search-integration-keys'
 
 export function useSearchIntegrations(organizationId: string, options?: { enabled?: boolean }) {
   return useQuery({

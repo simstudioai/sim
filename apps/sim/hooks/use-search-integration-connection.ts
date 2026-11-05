@@ -19,12 +19,12 @@ import {
   writeSearchConnectionAttempt,
 } from '@/lib/knowledge/search/connection-attempt'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
-import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
 import {
   personalSearchIntegrationKeys,
   useConnectPersonalSearchIntegration,
   usePersonalSearchIntegrations,
 } from '@/hooks/queries/personal-search-integrations'
+import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 interface SearchIntegrationConnectionProps {

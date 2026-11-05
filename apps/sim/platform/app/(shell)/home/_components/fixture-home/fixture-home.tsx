@@ -1,0 +1,126 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import {
+  useInterfacePreferences,
+  useRecentHistory,
+} from '@/platform/app/(shell)/_components/session/interface-preferences'
+import { HomeDashboard } from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard'
+import type {
+  EmailItem,
+  HomeActions,
+  HomeCalendarDay,
+  HomeConnectOption,
+  HomeData,
+  HomeView,
+  HomeWidgetActions,
+  HomeWidgetState,
+} from '@/platform/app/(shell)/home/_components/model'
+import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
+import { platformHref } from '@/platform/design-system/navigation'
+
+const NO_ACTIVITY = { status: 'ready' } as const
+
+const CONNECT_OPTIONS = {
+  Email: [
+    { id: 'Gmail', label: 'Gmail', icon: 'I005' },
+    { id: 'Microsoft 365', label: 'Microsoft 365', icon: 'I085' },
+  ],
+  Calendar: [
+    { id: 'Google Calendar', label: 'Google Calendar', icon: 'I088' },
+    { id: 'Outlook', label: 'Outlook', icon: 'I120' },
+  ],
+} as const satisfies Record<string, readonly HomeConnectOption[]>
+
+function sessionWidget<T>(
+  widget: keyof typeof CONNECT_OPTIONS,
+  connected: boolean,
+  address: string | undefined,
+  data: T
+): HomeWidgetState<T> {
+  return connected
+    ? {
+        status: 'ready',
+        data,
+        accounts: [{ id: 'session', label: address ?? '', canReconnect: false }],
+      }
+    : { status: 'not_connected', options: CONNECT_OPTIONS[widget] }
+}
+
+function calendarForOffset(data: HomeData, dayOffset: number): HomeCalendarDay {
+  const date = new Date(`${data.calendar.date}T12:00:00Z`)
+  date.setUTCDate(date.getUTCDate() + dayOffset)
+  return {
+    date: date.toISOString().slice(0, 10),
+    nowMinute: dayOffset === 0 ? data.calendar.nowMinute : null,
+    status: 'ready',
+    meetings: dayOffset === 0 ? data.calendar.meetings : [],
+    allDay: [],
+  }
+}
+
+function metricPoints(data: HomeData | null, field: 'tasks' | 'searches') {
+  return data?.activity.map((day) => ({ date: day.date, value: day[field] }))
+}
+
+interface FixtureHomeProps {
+  data: HomeData | null
+  recentLinks: readonly RecentItem[]
+}
+
+/** The session implementation of Home's view: edits last as long as the product session. */
+export function FixtureHome({ data, recentLinks }: FixtureHomeProps) {
+  const router = useRouter()
+  const search = useSearchParams()
+  const preferences = useInterfacePreferences()
+  const { recents, removeRecent } = useRecentHistory(recentLinks)
+  const [dayOffset, setDayOffset] = useState(0)
+  if (!preferences) throw new Error('Home needs interface preferences')
+  const { connections, setConnections } = preferences
+  const widgetActions = (widget: keyof typeof CONNECT_OPTIONS): HomeWidgetActions => ({
+    disconnectNotice: `Sim will stop syncing ${widget === 'Email' ? 'email' : 'calendar events'}${data?.address ? ` from ${data.address}` : ''}. You can reconnect anytime.`,
+    connect: data ? () => setConnections((current) => ({ ...current, [widget]: true })) : undefined,
+    disconnect: data
+      ? () => setConnections((current) => ({ ...current, [widget]: false }))
+      : undefined,
+  })
+  const connected = (widget: keyof typeof CONNECT_OPTIONS) =>
+    Boolean(data && (connections[widget] ?? data.connected))
+  const view: HomeView = {
+    asOf: data?.asOf ?? null,
+    greeting: 'Good morning',
+    firstName: data?.firstName,
+    attention: { status: 'ready', items: data?.attention ?? [] },
+    activity: {
+      Build: data ? { status: 'ready', points: metricPoints(data, 'tasks') } : NO_ACTIVITY,
+      Search: data ? { status: 'ready', points: metricPoints(data, 'searches') } : NO_ACTIVITY,
+    },
+    email: sessionWidget<readonly EmailItem[]>(
+      'Email',
+      connected('Email'),
+      data?.address,
+      data?.email ?? []
+    ),
+    calendar: data
+      ? sessionWidget(
+          'Calendar',
+          connected('Calendar'),
+          data.address,
+          calendarForOffset(data, dayOffset)
+        )
+      : { status: 'not_connected', options: CONNECT_OPTIONS.Calendar },
+    recents: { status: 'ready', items: recents },
+    getStarted: [],
+    references: data?.references,
+  }
+  const actions: HomeActions = {
+    email: widgetActions('Email'),
+    calendar: widgetActions('Calendar'),
+    openEmail: () => router.push(platformHref('/home', search)),
+    changeDay: (delta) => setDayOffset((offset) => offset + delta),
+    returnToToday: () => setDayOffset(0),
+    removeRecent,
+  }
+  return <HomeDashboard view={view} actions={actions} />
+}

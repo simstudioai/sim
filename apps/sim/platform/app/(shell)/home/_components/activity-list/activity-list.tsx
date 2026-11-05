@@ -1,29 +1,41 @@
 import { useSearchParams } from 'next/navigation'
 import styles from '@/platform/app/(shell)/home/_components/activity-list/activity-list.module.css'
 import { HomeSection } from '@/platform/app/(shell)/home/_components/home-section/home-section'
-import type { HomeData } from '@/platform/app/(shell)/home/_components/model'
+import type {
+  AttentionItem,
+  EmailItem,
+  HomeListState,
+} from '@/platform/app/(shell)/home/_components/model'
+import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
+import { WidgetSkeleton } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import {
   ActivityRow,
   Avatar,
   EmptyState,
   Icon,
+  InlineNotice,
   ScrollArea,
 } from '@/platform/design-system/components'
 import { platformHref } from '@/platform/design-system/navigation'
 import { formatRelativeTime } from '@/platform/lib/time'
 
-interface ActivityListProps {
-  data: HomeData | null
-  onOpen: () => void
+interface EmailListProps {
+  items: readonly EmailItem[]
+  asOf: number | null
+  onOpen: (mail: EmailItem) => void
 }
 
-export function EmailList({ data, onOpen }: ActivityListProps) {
-  if (!data?.email.length) return <EmptyState title='No email yet' />
+function relativeTime(at: number | undefined, asOf: number | null) {
+  return at === undefined || asOf === null ? undefined : formatRelativeTime(at, asOf)
+}
+
+export function EmailList({ items, asOf, onOpen }: EmailListProps) {
+  if (!items.length) return <EmptyState title='No email yet' />
   return (
     <div className={styles.viewport}>
       <ScrollArea label='Email messages'>
         <ul className={styles.entries}>
-          {data.email.map((mail) => (
+          {items.map((mail) => (
             <ActivityRow
               key={mail.id}
               leading={<Avatar size='inline' name={mail.sender} src={mail.avatar} />}
@@ -31,8 +43,8 @@ export function EmailList({ data, onOpen }: ActivityListProps) {
               count={mail.count}
               detailLead={mail.subject}
               detail={mail.excerpt}
-              metadata={formatRelativeTime(mail.receivedAt, data.asOf)}
-              onOpen={onOpen}
+              metadata={relativeTime(mail.receivedAt, asOf)}
+              onOpen={() => onOpen(mail)}
             />
           ))}
         </ul>
@@ -41,33 +53,68 @@ export function EmailList({ data, onOpen }: ActivityListProps) {
   )
 }
 
-export function AttentionList({ data }: Pick<ActivityListProps, 'data'>) {
+interface AttentionListProps {
+  state: HomeListState<AttentionItem>
+  asOf: number | null
+  onRetry?: () => void
+}
+
+export function AttentionList({ state, asOf, onRetry }: AttentionListProps) {
   const search = useSearchParams()
   return (
     <HomeSection title='Needs your attention'>
-      {data?.attention.length ? (
-        <div className={styles.viewport}>
-          <ScrollArea label='Attention requests'>
-            <ul className={styles.entries}>
-              {data.attention.map((row) => (
-                <ActivityRow
-                  key={row.id}
-                  leading={<Icon name={row.icon} />}
-                  title={row.title}
-                  detail={row.detail}
-                  metadata={formatRelativeTime(row.occurredAt, data.asOf)}
-                  href={platformHref(row.href ?? '/home', search)}
-                />
-              ))}
-            </ul>
-          </ScrollArea>
-        </div>
-      ) : (
-        <EmptyState
-          title='You’re all caught up'
-          description='Reviews and requests will appear here.'
+      {state.status === 'loading' && <WidgetSkeleton label='Loading what needs your attention' />}
+      {state.status === 'error' && (
+        <InlineNotice
+          intent='warning'
+          message='This could not load.'
+          action={<RetryButton retrying={state.retrying} onRetry={onRetry} />}
         />
       )}
+      {state.status === 'ready' && state.partial && (
+        <InlineNotice
+          intent='warning'
+          message='Some items could not load.'
+          action={<RetryButton onRetry={onRetry} />}
+        />
+      )}
+      {state.status === 'ready' &&
+        (state.items.length ? (
+          <div className={styles.viewport}>
+            <ScrollArea label='Attention requests'>
+              <ul className={styles.entries}>
+                {state.items.map((row) =>
+                  row.onOpen ? (
+                    <ActivityRow
+                      key={row.id}
+                      leading={<Icon name={row.icon} />}
+                      title={row.title}
+                      detail={row.detail}
+                      metadata={relativeTime(row.occurredAt, asOf)}
+                      onOpen={row.onOpen}
+                    />
+                  ) : (
+                    <ActivityRow
+                      key={row.id}
+                      leading={<Icon name={row.icon} />}
+                      title={row.title}
+                      detail={row.detail}
+                      metadata={relativeTime(row.occurredAt, asOf)}
+                      href={platformHref(row.href ?? '/home', search)}
+                    />
+                  )
+                )}
+              </ul>
+            </ScrollArea>
+          </div>
+        ) : (
+          !state.partial && (
+            <EmptyState
+              title='You’re all caught up'
+              description='Reviews and requests will appear here.'
+            />
+          )
+        ))}
     </HomeSection>
   )
 }

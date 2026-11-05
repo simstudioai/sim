@@ -7,6 +7,7 @@ import {
   clearSearchHistory,
   listSearchHistory,
   recordSearchHistory,
+  removeSearchHistorySource,
 } from '@/lib/knowledge/application/search-history'
 import { SEARCH_HISTORY_LIMIT } from '@/lib/knowledge/search/history/limits'
 
@@ -61,6 +62,32 @@ afterAll(async () => {
 })
 
 describe('private search navigation history', () => {
+  it('removes one source for the person who asked and no one else', async () => {
+    const colleague = { kind: 'session', userId: userIds[1], sessionId: 'history-test' } as const
+    const other = { ...source, url: 'https://docs.google.com/document/d/other-fixture' }
+    for (const viewed of [source, other]) {
+      await recordSearchHistory.execute({
+        principal,
+        input: { ...input, event: { kind: 'source', source: viewed } },
+      })
+    }
+    await recordSearchHistory.execute({
+      principal: colleague,
+      input: { ...input, event: { kind: 'source', source } },
+    })
+
+    await removeSearchHistorySource.execute({ principal, input: { ...input, url: source.url } })
+
+    expect(
+      (await listSearchHistory.execute({ principal, input })).sources.map((item) => item.url)
+    ).toEqual([other.url])
+    expect(
+      (await listSearchHistory.execute({ principal: colleague, input })).sources.map(
+        (item) => item.url
+      )
+    ).toEqual([source.url])
+  })
+
   it('isolates users and organizations and revokes access with membership', async () => {
     await recordSearchHistory.execute({
       principal,
