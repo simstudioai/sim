@@ -693,6 +693,10 @@ try {
       await confirmation.getByRole('button', { name: 'Disconnect', exact: true }).click()
       assert.equal((await disconnected).status(), 200)
       await expect(confirmation).toBeHidden()
+      await expect(page).toHaveURL((url) => !url.searchParams.has('account'))
+      await expect(page.getByText('launch-team@acme.example', { exact: true })).toHaveCount(0)
+      await expect(page.getByText('taylor@acme.example', { exact: true })).toBeVisible()
+      await page.goto(selectedUrl)
       await expect(
         page.getByText('This account is no longer connected.', { exact: true })
       ).toBeVisible()
