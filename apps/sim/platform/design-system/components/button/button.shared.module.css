@@ -44,9 +44,12 @@
   height: var(--spacing-24);
 }
 .iconButton[data-size="inline"] {
-  --ui-glyph-size: var(--spacing-14);
   inline-size: var(--spacing-16);
   block-size: var(--spacing-16);
+}
+.iconButton[data-size="inline"] > svg {
+  width: var(--spacing-14);
+  height: var(--spacing-14);
 }
 
 .chip {
