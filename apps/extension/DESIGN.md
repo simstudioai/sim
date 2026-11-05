@@ -60,16 +60,20 @@ other workspace resources or browser-control tools.
 ## Permission and lifetime rules
 
 - Required browser capabilities: side panel, scripting, active tab, context menus,
-  and short-lived session storage for selection handoff. Required host access is
+  short-lived session storage for selection handoff, and local storage for preferences. Required host access is
   limited to the configured Sim origin and to `http(s)://sim/*` and `http(s)://go/*`, which exist
   only so one static redirect rule can send top-level navigations to those hosts to the link resolver.
 - HTTP(S) page access is one optional browser-wide grant, requested from a direct
   user gesture. The browser owns revocation and restrictions. Approval enables
   capture across sites; switching tabs alone does not extract content.
-- No history, bookmarks, cookie API, debugger, native messaging, external messaging,
+- No history permission, bookmarks, cookie API, debugger, native messaging, external messaging,
   or arbitrary remote code execution. The only network interception is the static
   `sim/` and `go/` redirect rule above, plus opt-in search recovery.
-- The only background network request is the `sim` address-bar keyword: after
+- Background network requests are limited to two. Once a week at browser start, and after
+  signing in to the panel, the worker asks the Sim origin whether links are on for the session;
+  if so, it opens `http://go/` and `http://sim/` in background tabs that close themselves, which
+  teaches Chrome's address bar these hosts and adds entries to browser history. The other is the
+  `sim` address-bar keyword: after
   `sim` and Space, the text typed before the first `/` or `?` is sent to the
   configured Sim origin with the signed-in session to suggest matching Sim links,
   unless it contains a space (a search) or is longer than a link name can be. Page

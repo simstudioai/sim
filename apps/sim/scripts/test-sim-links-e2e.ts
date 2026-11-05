@@ -433,41 +433,6 @@ async function run() {
     }
   )
 
-  await check(
-    'a member of two organizations opens links in the organization they name',
-    async () => {
-      const both = await seedMember(orgId, 'member')
-      await sql`insert into member (id, user_id, organization_id, role)
-      values (${generateId()}, ${both.userId}, ${outsider.orgId}, 'member')`
-      for (const [organizationId, destination] of [
-        [orgId, 'https://team.example.com/help'],
-        [outsider.orgId, 'https://another-team.example.com/help'],
-      ]) {
-        const opened = await send(
-          `/sim-links/${encodeURIComponent(organizationId)}/managed-help`,
-          both
-        )
-        assert.equal(opened.status, 307, organizationId)
-        assert.equal(opened.headers.get('location'), destination, organizationId)
-      }
-    }
-  )
-
-  await check('a link cannot point back into link resolution', async () => {
-    for (const url of [
-      'http://go/managed-help',
-      'https://sim/x',
-      new URL('/sim/managed-help', baseUrl).href,
-    ]) {
-      await api(owner, '', {
-        method: 'POST',
-        body: fields({ name: 'looping', url }),
-        expected: 400,
-      })
-    }
-    await create(owner, { name: 'simulate', url: new URL('/simulate', baseUrl).href })
-  })
-
   await check('the address bar learns whether links are on and matches inside names', async () => {
     const suggest = (caller: Member | null, q: string) =>
       send(`/api/sim-links/suggestions?q=${encodeURIComponent(q)}`, caller)
@@ -478,12 +443,25 @@ async function run() {
     }
     assert.equal(enabled, true)
     assert(links.some((link) => link.name === 'Team-Handbook'))
+    const withoutOrganization = await seedMember(orgId, 'member')
+    await sql`delete from member where user_id = ${withoutOrganization.userId}`
+    assert.deepEqual(await (await suggest(withoutOrganization, '')).json(), {
+      enabled: false,
+      links: [],
+    })
+    assert.match((await open(withoutOrganization, 'handbook')).text, /aren.*t available/)
   })
 
   await check('a typed phrase searches links and a near miss offers what exists', async () => {
     const phrase = await open(member, 'team%20handbook')
     assert(phrase.location, 'Expected a redirect to search')
     assert.equal(new URL(phrase.location).searchParams.get('search'), 'team handbook')
+    const { links } = await api(member, '?search=team%20handbook', {})
+    assert(
+      Array.isArray(links) &&
+        links.some((link) => isRecordLike(link) && link.name === 'Team-Handbook'),
+      'Expected a typed phrase to find the hyphenated name'
+    )
     assert.match((await open(member, 'handbook')).text, /Team-Handbook/)
   })
 

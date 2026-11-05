@@ -40,6 +40,7 @@ export const SEARCH_RECOVERY_PROVIDERS = [
   },
 ] as const
 
+type SearchRecoveryProvider = (typeof SEARCH_RECOVERY_PROVIDERS)[number]
 type ProviderId = (typeof SEARCH_RECOVERY_PROVIDERS)[number]['id']
 type RecoveryPreferences = Record<ProviderId, boolean>
 const logger = createLogger('BrowserShortcutRecovery')
@@ -122,20 +123,16 @@ export async function setSearchRecovery(provider: ProviderId, enabled: boolean):
 /** Reconcile persisted, permission-bound rules at startup, on revocation, and after an explicit choice. */
 export function registerSearchRecovery() {
   let pending = Promise.resolve()
-  const update = (choice?: { provider: ProviderId; enabled: boolean }) => {
+  const update = (choice?: { provider: SearchRecoveryProvider; enabled: boolean }) => {
     const operation = pending.then(async () => {
       const preferences = await readSearchRecovery()
       if (choice) {
-        const provider = SEARCH_RECOVERY_PROVIDERS.find(
-          (provider) => provider.id === choice.provider
-        )
-        if (!provider) throw new Error('Unknown shortcut provider.')
         if (
           choice.enabled &&
-          !(await chrome.permissions.contains({ origins: [...provider.origins] }))
+          !(await chrome.permissions.contains({ origins: [...choice.provider.origins] }))
         )
           throw new Error('Search site access has not been granted.')
-        preferences[choice.provider] = choice.enabled
+        preferences[choice.provider.id] = choice.enabled
       }
       const rules = SEARCH_RECOVERY_PROVIDERS.filter(
         (provider) => preferences[provider.id]
@@ -190,7 +187,7 @@ export function registerSearchRecovery() {
       return
     const provider = SEARCH_RECOVERY_PROVIDERS.find((provider) => provider.id === message.provider)
     if (!provider) return
-    void update({ provider: provider.id, enabled: message.enabled }).then(
+    void update({ provider, enabled: message.enabled }).then(
       () => respond({ ok: true }),
       () => respond({ ok: false })
     )

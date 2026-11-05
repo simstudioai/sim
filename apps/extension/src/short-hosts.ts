@@ -74,7 +74,7 @@ export function registerShortHostVisits() {
   }
   chrome.runtime.onInstalled.addListener(visit)
   chrome.runtime.onStartup.addListener(visit)
-  // Installing signed out leaves nothing to learn yet, so a signed-in panel is the next chance.
+  // Installing signed out leaves nothing to learn yet, so signing in to the panel is the next chance.
   chrome.runtime.onMessage.addListener((message: unknown, sender) => {
     if (sender.id === chrome.runtime.id && message === VISIT_SHORT_HOSTS_MESSAGE) visit()
   })

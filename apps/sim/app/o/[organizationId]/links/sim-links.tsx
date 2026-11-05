@@ -1,13 +1,13 @@
 'use client'
 
 import { type MouseEvent, useCallback, useMemo, useState } from 'react'
-import { Avatar, ChipConfirmModal, ChipModalError, writeTextToClipboard } from '@sim/emcn'
+import { Avatar, ChipConfirmModal, ChipModalError, toast, writeTextToClipboard } from '@sim/emcn'
 import { Link } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useQueryStates } from 'nuqs'
 import type { SimLink } from '@/lib/api/contracts/sim-links'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { simLinkUrl } from '@/lib/navigation/paths'
+import { simLinkPath, simLinkUrl } from '@/lib/navigation/paths'
 import { toSimLinkName } from '@/lib/sim-links/validation'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
@@ -60,19 +60,17 @@ function accessLabel(link: SimLink): string | null {
   return limits.length ? limits.join(', ') : null
 }
 
-function openLink(organizationId: string, name: string) {
-  window.open(
-    simLinkUrl(window.location.origin, organizationId, name),
-    '_blank',
-    'noopener,noreferrer'
-  )
+function openLink(name: string) {
+  window.open(simLinkPath(name), '_blank', 'noopener,noreferrer')
 }
 
-async function copyLink(organizationId: string, name: string) {
+async function copyLink(name: string) {
   try {
-    await writeTextToClipboard(simLinkUrl(window.location.origin, organizationId, name))
+    await writeTextToClipboard(simLinkUrl(window.location.origin, name))
+    toast.success('Link copied')
   } catch (error) {
     logger.error('Failed to copy Sim link', { error })
+    toast.error('Unable to copy link')
   }
 }
 
@@ -146,9 +144,9 @@ export function SimLinks({ organizationId }: SimLinksProps) {
   const openRow = useCallback(
     (id: string) => {
       const link = linksById.get(id)
-      if (link) openLink(organizationId, link.name)
+      if (link) openLink(link.name)
     },
-    [linksById, organizationId]
+    [linksById]
   )
   const openRowMenu = useCallback(
     (event: MouseEvent, id: string) => {
@@ -212,8 +210,8 @@ export function SimLinks({ organizationId }: SimLinksProps) {
           isOpen={contextMenu.isOpen}
           position={contextMenu.position}
           onClose={contextMenu.closeMenu}
-          onOpen={() => openLink(organizationId, menuLink.name)}
-          onCopyLink={() => void copyLink(organizationId, menuLink.name)}
+          onOpen={() => openLink(menuLink.name)}
+          onCopyLink={() => void copyLink(menuLink.name)}
           onEdit={menuLink.canEdit ? () => setEditing(menuLink) : undefined}
           onDelete={
             menuLink.canEdit

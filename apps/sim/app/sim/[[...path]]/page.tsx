@@ -2,14 +2,18 @@ import { ChipLink, StatusPageContent } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import { organizationRoutes, simLinkPath } from '@/lib/navigation/paths'
+import { APP_ENTRY_PATH, organizationRoutes, simLinkPath } from '@/lib/navigation/paths'
 import { resolveSimLinkOrganization } from '@/lib/sim-links/application/organization'
 import {
   resolveSimLink,
   type SimLinkResolution,
   suggestSimLinks,
 } from '@/lib/sim-links/application/use-cases'
-import { parseTypedSimLink, simLinkNameSchema } from '@/lib/sim-links/validation'
+import {
+  parseTypedSimLink,
+  SIM_LINK_SEARCH_MAX_LENGTH,
+  simLinkNameSchema,
+} from '@/lib/sim-links/validation'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { LogoShell } from '@/app/(landing)/components/logo-shell'
 import { serializeSimLinkView } from '@/app/o/[organizationId]/links/search-params'
@@ -85,11 +89,8 @@ export default async function SimLinkPage({ params, searchParams }: SimLinkPageP
   if (!organizationId) {
     return (
       <LogoShell center theme='inherit'>
-        <StatusPageContent
-          title='Links'
-          description="Links aren't turned on for your organization."
-        >
-          <ChipLink href='/'>Open Sim</ChipLink>
+        <StatusPageContent title='Links' description="Links aren't available for your account.">
+          <ChipLink href={APP_ENTRY_PATH}>Open Sim</ChipLink>
         </StatusPageContent>
       </LogoShell>
     )
@@ -107,11 +108,15 @@ export default async function SimLinkPage({ params, searchParams }: SimLinkPageP
   const validName = simLinkNameSchema.safeParse(name).success
   // A name can't hold a space, so `sim card prices` is someone looking for a link, not naming one.
   if (result.kind === 'not_found' && /\s/.test(name)) {
-    redirect(serializeSimLinkView(library, { search: name }))
+    redirect(serializeSimLinkView(library, { search: name.slice(0, SIM_LINK_SEARCH_MAX_LENGTH) }))
   }
   const creatable = result.kind === 'not_found' && validName
   const similar = creatable
-    ? (await suggestSimLinks.execute({ principal, input: { query: name } })).links.slice(0, 3)
+    ? await suggestSimLinks
+        .execute({ principal, input: { query: name } })
+        .then(({ links }) => links.slice(0, 3))
+        // Similar names are a courtesy: failing to find them must not take down this page.
+        .catch(() => [])
     : []
   return (
     <LogoShell center theme='inherit'>

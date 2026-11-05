@@ -9,6 +9,7 @@ import {
   ChipModalSurface,
   Switch,
 } from '@sim/emcn'
+import { ExtensionDialog } from '@/extension-dialog'
 import {
   readSearchRecovery,
   SEARCH_RECOVERY_KEY,
@@ -22,13 +23,6 @@ interface SearchRecoveryDialogProps {
 
 type SearchProvider = (typeof SEARCH_RECOVERY_PROVIDERS)[number]
 type SearchRecovery = Awaited<ReturnType<typeof readSearchRecovery>>
-
-/** Chrome owns modality so the dialog works without an injected scroll-lock stylesheet. */
-function mountSearchRecoveryDialog(dialog: HTMLDialogElement | null) {
-  if (!dialog) return
-  dialog.showModal()
-  return () => dialog.close()
-}
 
 export function SearchRecoveryDialog({ onClose }: SearchRecoveryDialogProps) {
   const generation = useRef(0)
@@ -93,18 +87,10 @@ export function SearchRecoveryDialog({ onClose }: SearchRecoveryDialogProps) {
   }
 
   return (
-    <dialog
-      ref={mountSearchRecoveryDialog}
-      aria-labelledby='search-recovery-title'
-      aria-describedby='search-recovery-description'
-      className='m-auto max-h-[85vh] w-[90vw] max-w-[440px] overflow-visible border-0 bg-transparent p-0 text-inherit backdrop:bg-black/10 backdrop:backdrop-blur-[2px]'
-      onCancel={(event) => {
-        event.preventDefault()
-        onClose()
-      }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose()
-      }}
+    <ExtensionDialog
+      labelledBy='search-recovery-title'
+      describedBy='search-recovery-description'
+      onClose={onClose}
     >
       <ChipModalSurface className='max-h-[85vh]'>
         <ChipModalHeader onClose={onClose}>
@@ -112,7 +98,8 @@ export function SearchRecoveryDialog({ onClose }: SearchRecoveryDialogProps) {
         </ChipModalHeader>
         <ChipModalBody>
           <ChipModalDescription id='search-recovery-description'>
-            Open go/ and sim/ links from search. Other searches stay unchanged.
+            If Chrome searches for a go/ or sim/ link instead of opening it, open the link anyway.
+            Other searches stay unchanged.
           </ChipModalDescription>
           {SEARCH_RECOVERY_PROVIDERS.map((provider) => (
             <ChipModalField
@@ -151,6 +138,6 @@ export function SearchRecoveryDialog({ onClose }: SearchRecoveryDialogProps) {
         </ChipModalBody>
         <ChipModalFooter defaultAction='dismiss' cancelLabel='Done' onCancel={onClose} />
       </ChipModalSurface>
-    </dialog>
+    </ExtensionDialog>
   )
 }

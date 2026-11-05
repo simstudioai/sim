@@ -1,15 +1,15 @@
 import {
   SIM_LINK_HOST_PATTERN,
-  SIM_LINK_HOSTS,
   SIM_LINK_NAME_MAX_LENGTH,
   SIM_LINK_URL_MAX_LENGTH,
 } from '@sim/browser-extension-protocol'
 import { z } from 'zod'
 
-const NAME_PATTERN = /^[A-Za-z0-9.:@&~_-]+$/
+export const SIM_LINK_NAME_PATTERN = /^[A-Za-z0-9.:@&~_-]+$/
 const NAME_PUNCTUATION = /[.:@&~_-]/g
 const NAME_DISALLOWED = /[^A-Za-z0-9.:@&~_-]/g
 export const SIM_LINK_DESCRIPTION_MAX_LENGTH = 500
+export const SIM_LINK_SEARCH_MAX_LENGTH = 200
 
 /** List orders: alphabetical by name, or most visited first. */
 export const SIM_LINK_SORTS = ['name', 'popular'] as const
@@ -122,7 +122,7 @@ export const simLinkNameSchema = z
   .trim()
   .min(1, 'Enter a name')
   .max(SIM_LINK_NAME_MAX_LENGTH, `Use at most ${SIM_LINK_NAME_MAX_LENGTH} characters`)
-  .regex(NAME_PATTERN, 'Use letters, numbers, and . : @ & ~ - _')
+  .regex(SIM_LINK_NAME_PATTERN, 'Use letters, numbers, and . : @ & ~ - _')
   .refine((name) => normalizeSimLinkName(name).length > 0, 'Include a letter or number')
 
 const destinationSchema = z
@@ -130,14 +130,6 @@ const destinationSchema = z
   .trim()
   .min(1, 'Enter a destination URL')
   .max(SIM_LINK_URL_MAX_LENGTH, `Use at most ${SIM_LINK_URL_MAX_LENGTH} characters`)
-
-/** Whether a destination leads back into link resolution, which would redirect forever. */
-export function isSimLinkLoop(url: string, appOrigin: string): boolean {
-  const parsed = parseHttpUrl(url.replaceAll(SIM_LINK_VARIABLE, 'value'))
-  if (!parsed) return false
-  if ((SIM_LINK_HOSTS as readonly string[]).includes(parsed.hostname)) return true
-  return parsed.origin === appOrigin && /^\/sim(?:-links)?(?:\/|$)/.test(parsed.pathname)
-}
 
 const simLinkUrlSchema = destinationSchema.refine(
   (url) => simLinkOrigin(url) !== null,

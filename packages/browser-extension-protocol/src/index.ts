@@ -54,6 +54,7 @@ export type ExtensionAction = z.infer<typeof extensionActionSchema>
 
 export const appToExtensionMessageSchema = z.discriminatedUnion('type', [
   z.strictObject({ ...envelope, type: z.literal('theme'), theme: z.enum(['light', 'dark']) }),
+  z.strictObject({ ...envelope, type: z.literal('signed-in') }),
   z.strictObject({ ...envelope, type: z.literal('ready'), sessionId: z.uuid() }),
   z.strictObject({ ...envelope, type: z.literal('composer-focused'), sessionId: z.uuid() }),
   z.strictObject({ ...envelope, type: z.literal('unavailable'), sessionId: z.uuid() }),

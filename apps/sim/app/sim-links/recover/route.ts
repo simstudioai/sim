@@ -1,11 +1,10 @@
 import { SIM_LINK_NAME_MAX_LENGTH } from '@sim/browser-extension-protocol'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { stripSimLinkPrefix } from '@/lib/sim-links/validation'
+import { SIM_LINK_NAME_PATTERN, stripSimLinkPrefix } from '@/lib/sim-links/validation'
 
 const MAX_VALUES = 8
 const MAX_VALUE_LENGTH = 256
 const MAX_DECODED_LENGTH = 5 + SIM_LINK_NAME_MAX_LENGTH + MAX_VALUES * (MAX_VALUE_LENGTH + 1)
-const SHORTCUT_SEGMENT = /^[A-Za-z0-9.:@&~_-]+$/
 const RESPONSE_HEADERS = {
   'Cache-Control': 'no-store',
   'Referrer-Policy': 'no-referrer',
@@ -42,7 +41,7 @@ function recoverSimLinkPath(search: string): string | null {
     segments.length > MAX_VALUES + 1 ||
     segments.some(
       (segment) =>
-        !SHORTCUT_SEGMENT.test(segment) ||
+        !SIM_LINK_NAME_PATTERN.test(segment) ||
         segment === '.' ||
         segment === '..' ||
         segment.length > MAX_VALUE_LENGTH

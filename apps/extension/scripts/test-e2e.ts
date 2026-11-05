@@ -17,6 +17,7 @@ import {
 import { SecretReveal } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { renderToStaticMarkup } from 'react-dom/server'
 
@@ -226,6 +227,7 @@ try {
     )
   await check('Installing signed out leaves go/ and sim/ as ordinary searches', async () => {
     await expect.poll(() => linksChecks, { timeout: 30_000 }).toBeGreaterThan(0)
+    await sleep(2_000)
     assert((await shortHostsVisitedAt()) === 'undefined', 'Visits were recorded while signed out')
     assert(shortHostVisits === 0, 'Short hosts were visited while signed out')
   })
@@ -526,6 +528,14 @@ try {
   await check(
     'A signed-in panel visits each short host in tabs that close themselves',
     async () => {
+      await app.evaluate(
+        (targetOrigin) =>
+          parent.postMessage(
+            { channel: 'sim-extension', version: 1, type: 'signed-in' },
+            targetOrigin
+          ),
+        `chrome-extension://${extensionId}`
+      )
       await expect.poll(shortHostsVisitedAt, { timeout: 30_000 }).toBe('number')
       assert(shortHostVisits === SIM_LINK_HOSTS.length, `Visited ${shortHostVisits} short hosts`)
       const leftBehind = await worker.evaluate(

@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { simLink, user } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { escapeLikePattern } from '@sim/utils/string'
-import { and, asc, desc, eq, gt, ilike, inArray, like, lt, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, ilike, like, lt, or, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
   normalizeSimLinkName,
@@ -98,7 +98,8 @@ export async function listSimLinks(
   const query = search && stripSimLinkPrefix(search.trim())
   if (query) {
     const pattern = `%${escapeLikePattern(query)}%`
-    const normalized = normalizeSimLinkName(query)
+    // Names hold no spaces, so a typed phrase like `team handbook` still finds `team-handbook`.
+    const normalized = normalizeSimLinkName(query).replace(/\s+/g, '')
     conditions.push(
       or(
         ilike(simLink.url, pattern),

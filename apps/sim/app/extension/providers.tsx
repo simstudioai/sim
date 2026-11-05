@@ -1,6 +1,7 @@
 'use client'
 
-import { createContext, type ReactNode, useContext, useRef } from 'react'
+import { createContext, type ReactNode, useContext, useEffect, useRef } from 'react'
+import type { AppToExtensionMessage } from '@sim/browser-extension-protocol'
 import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/client'
@@ -31,6 +32,16 @@ export function ExtensionProviders({
 }: ExtensionProvidersProps) {
   const focusComposer = useRef<ChatInputFocusHandle | null>(null)
   const { data: session, isPending, error } = useSession()
+  const signedIn = session?.user?.id === userId
+  useEffect(() => {
+    if (!signedIn) return
+    const message: AppToExtensionMessage = {
+      channel: 'sim-extension',
+      version: 1,
+      type: 'signed-in',
+    }
+    for (const origin of origins) window.parent.postMessage(message, origin)
+  }, [origins, signedIn])
   if (isPending) return <ExtensionLoading />
   const accessDenied = isApiClientError(error) && (error.status === 401 || error.status === 403)
   if (accessDenied || !session?.user || session.user.id !== userId)

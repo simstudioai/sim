@@ -333,9 +333,10 @@ function SidePanel({ origin }: SidePanelProps) {
       if (parsed.data.type === 'theme') {
         appTheme = parsed.data.theme
         applyTheme()
+      } else if (parsed.data.type === 'signed-in') {
+        void chrome.runtime.sendMessage(VISIT_SHORT_HOSTS_MESSAGE).catch(() => undefined)
       } else if (parsed.data.type === 'ready') {
         void connect(parsed.data.sessionId)
-        void chrome.runtime.sendMessage(VISIT_SHORT_HOSTS_MESSAGE).catch(() => undefined)
       } else if (parsed.data.sessionId !== sessionRef.current) {
         return
       } else if (parsed.data.type === 'unavailable') {
