@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 import { DetailHeader } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -11,11 +10,6 @@ import {
 } from '@/platform/app/(shell)/settings/_components/sections/account/account-section'
 import PreferencesSection from '@/platform/app/(shell)/settings/_components/sections/preferences/preferences-section'
 import PrivacySection from '@/platform/app/(shell)/settings/_components/sections/privacy/privacy-section'
-import { Button } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { useAnonymousViewer } from '@/platform/lib/data/organization'
 
 type GeneralView = 'privacy' | 'authorized-apps' | 'organization-accounts'
@@ -55,15 +49,9 @@ export default function GeneralSection(props: SettingsSectionProps) {
   return (
     <>
       <PreferencesSection />
-      <SettingsSection title='Privacy'>
-        <SettingsRow label='Privacy settings'>
-          <Button size='compact' render={<Link href={generalHref(base, query, 'privacy')} />}>
-            Manage
-          </Button>
-        </SettingsRow>
-      </SettingsSection>
       <AccountSettingsRows
         organization={organization}
+        privacyHref={generalHref(base, query, 'privacy')}
         authorizedAppsHref={generalHref(base, query, 'authorized-apps')}
         organizationAccountsHref={generalHref(base, query, 'organization-accounts')}
       />

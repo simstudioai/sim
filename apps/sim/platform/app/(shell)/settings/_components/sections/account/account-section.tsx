@@ -20,6 +20,7 @@ import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 interface AccountSettingsRowsProps {
   organization: PlatformOrganization
+  privacyHref: string
   authorizedAppsHref: string
   organizationAccountsHref: string
 }
@@ -62,7 +63,7 @@ export function AccountSettingsSubview({ view, backHref }: AccountSettingsSubvie
 function SignedInRows({
   authorizedAppsHref,
   organizationAccountsHref,
-}: Omit<AccountSettingsRowsProps, 'organization'>) {
+}: Omit<AccountSettingsRowsProps, 'organization' | 'privacyHref'>) {
   const email = useAccountEmail()
   const resetPassword = useResetPasswordAction()
   const [dialog, setDialog] = useState<'reset' | 'delete' | null>(null)
@@ -139,9 +140,13 @@ function SignedInRows({
 export function AccountSettingsRows(props: AccountSettingsRowsProps) {
   const { organization } = props
   const anonymous = useAnonymousViewer()
-  if (anonymous && !organization.deployment.hosted) return null
   return (
     <SettingsSection title='Account'>
+      <SettingsRow label='Privacy' description='Control what Sim collects about how you use it.'>
+        <Button size='compact' render={<Link href={props.privacyHref} />}>
+          Manage
+        </Button>
+      </SettingsRow>
       {organization.deployment.hosted && (
         <SettingsRow label='Home page' description='Open Sim’s public home page'>
           <Button
