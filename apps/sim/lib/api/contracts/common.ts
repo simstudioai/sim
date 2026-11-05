@@ -4,6 +4,8 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const NO_EMAIL_HEADER_CONTROL_CHARS_REGEX = /^[^\r\n\u0000-\u001F\u007F]+$/
 
+export const HELP_REQUEST_TYPES = ['bug', 'feedback', 'feature_request', 'other'] as const
+
 export const helpFormBodySchema = z.object({
   subject: z
     .string()
@@ -11,7 +13,7 @@ export const helpFormBodySchema = z.object({
     .min(1, 'Subject is required')
     .regex(NO_EMAIL_HEADER_CONTROL_CHARS_REGEX, 'Invalid characters'),
   message: z.string().min(1, 'Message is required'),
-  type: z.enum(['bug', 'feedback', 'feature_request', 'other']),
+  type: z.enum(HELP_REQUEST_TYPES),
 })
 export type HelpFormBody = z.input<typeof helpFormBodySchema>
 

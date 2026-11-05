@@ -1,6 +1,6 @@
 'use client'
 
-import { Activity, type MouseEvent, type ReactNode, useRef } from 'react'
+import { Activity, type ReactNode, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { PLATFORM_DESTINATIONS } from '@/platform/app/(shell)/_components/destinations'
 import type {
@@ -15,10 +15,7 @@ import { SettingsNavigation } from '@/platform/app/(shell)/_components/settings-
 import { AccountMenu } from '@/platform/app/(shell)/_components/sidebar/account-menu'
 import { ChatsSection } from '@/platform/app/(shell)/_components/sidebar/chats-section'
 import { HelpMenu } from '@/platform/app/(shell)/_components/sidebar/help-menu'
-import {
-  LEGACY_DESTINATION,
-  linkMenuActions,
-} from '@/platform/app/(shell)/_components/sidebar/row-links'
+import { linkMenuActions } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar.module.css'
 import { WorkspacesSection } from '@/platform/app/(shell)/_components/sidebar/workspaces-section'
 import {
@@ -43,16 +40,6 @@ interface SidebarProps {
   onBack: () => void
   navigate: (href: string) => void
   onNavigate: () => void
-}
-
-/** `next/link` would treat a same-origin legacy URL as one of this app's routes. */
-function leaveForLegacyRoute(event: MouseEvent) {
-  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return
-  const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null
-  const href = anchor?.getAttribute('href')
-  if (!href || !LEGACY_DESTINATION.test(href)) return
-  event.preventDefault()
-  window.location.assign(href)
 }
 
 export function Sidebar({
@@ -93,7 +80,6 @@ export function Sidebar({
       </div>
       <div
         className={styles.sidebarBody}
-        onClickCapture={leaveForLegacyRoute}
         onClick={(event) => {
           if (event.target instanceof Element && event.target.closest('a[href]')) onNavigate()
         }}

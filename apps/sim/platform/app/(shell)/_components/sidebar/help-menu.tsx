@@ -3,16 +3,13 @@
 import { useState } from 'react'
 import type { ShellHelp } from '@/platform/app/(shell)/_components/model'
 import { SESSION_HELP } from '@/platform/app/(shell)/_components/session/shell-actions'
+import { openLinkInNewTab } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import { SupportModal } from '@/platform/app/(shell)/_components/sidebar/support-modal'
 import { ActionMenu, type MenuAction } from '@/platform/design-system/components/menu/action-menu'
 
 interface HelpMenuProps {
   iconOnly?: boolean
   help?: ShellHelp
-}
-
-function visit(url: string) {
-  window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 export function HelpMenu({ iconOnly, help = SESSION_HELP }: HelpMenuProps) {
@@ -42,7 +39,7 @@ export function HelpMenu({ iconOnly, help = SESSION_HELP }: HelpMenuProps) {
                 label: 'Sim for macOS',
                 icon: 'I041',
                 trailingIcon: 'I030',
-                onSelect: () => visit(downloadUrl),
+                onSelect: () => openLinkInNewTab(downloadUrl),
               },
             ],
           } satisfies MenuAction,
@@ -62,10 +59,7 @@ export function HelpMenu({ iconOnly, help = SESSION_HELP }: HelpMenuProps) {
       label: 'Documentation',
       icon: 'I079',
       trailingIcon: 'I030',
-      onSelect: () => {
-        help.onOpenDocumentation?.()
-        visit(help.documentationUrl)
-      },
+      onSelect: () => openLinkInNewTab(help.documentationUrl),
     },
     ...(slackUrl
       ? [
@@ -74,10 +68,7 @@ export function HelpMenu({ iconOnly, help = SESSION_HELP }: HelpMenuProps) {
             label: 'Join Slack',
             icon: 'I123',
             trailingIcon: 'I030',
-            onSelect: () => {
-              help.onOpenSlack?.()
-              visit(slackUrl)
-            },
+            onSelect: () => openLinkInNewTab(slackUrl),
           } satisfies MenuAction,
         ]
       : []),
@@ -88,7 +79,7 @@ export function HelpMenu({ iconOnly, help = SESSION_HELP }: HelpMenuProps) {
             label: 'Changelog',
             icon: 'I046',
             separatorBefore: true,
-            onSelect: () => visit(changelogUrl),
+            onSelect: () => openLinkInNewTab(changelogUrl),
           } satisfies MenuAction,
         ]
       : []),

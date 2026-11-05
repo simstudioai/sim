@@ -11,7 +11,7 @@ interface AccountMenuProps {
   name: string
   image?: string | null
   onSettings: () => void
-  onSignOut?: () => void
+  onSignOut: () => void
 }
 
 export function AccountMenu({ anchor, name, image, onSettings, onSignOut }: AccountMenuProps) {
@@ -42,16 +42,14 @@ export function AccountMenu({ anchor, name, image, onSettings, onSignOut }: Acco
             onSettings()
           }}
         />
-        {onSignOut && (
-          <MenuItem
-            label='Sign out'
-            icon='I132'
-            onSelect={() => {
-              setOpen(false)
-              onSignOut()
-            }}
-          />
-        )}
+        <MenuItem
+          label='Sign out'
+          icon='I132'
+          onSelect={() => {
+            setOpen(false)
+            onSignOut()
+          }}
+        />
       </div>
     </AnchoredPopover>
   )

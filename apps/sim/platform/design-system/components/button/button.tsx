@@ -9,6 +9,7 @@ import { ControlRow } from '@/platform/design-system/components/button/control-r
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
+import { isAbsoluteHref } from '@/platform/design-system/navigation'
 
 interface ButtonProps {
   render?: ReactElement
@@ -119,6 +120,7 @@ type ChipProps = {
 )
 
 export function Chip({ children, icon, selected = false, onClick, href, action }: ChipProps) {
+  const LinkElement = href && isAbsoluteHref(href) ? 'a' : Link
   return (
     <ControlRow
       label={children}
@@ -126,7 +128,7 @@ export function Chip({ children, icon, selected = false, onClick, href, action }
       action={action}
       render={
         href ? (
-          <Link href={href} aria-current={selected ? 'page' : undefined} />
+          <LinkElement href={href} aria-current={selected ? 'page' : undefined} />
         ) : (
           <button type='button' aria-pressed={selected} onClick={onClick} />
         )

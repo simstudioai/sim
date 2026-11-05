@@ -7,7 +7,10 @@ import type {
   ShellData,
   ShellWorkspace,
 } from '@/platform/app/(shell)/_components/model'
-import { linkMenuActions } from '@/platform/app/(shell)/_components/sidebar/row-links'
+import {
+  openInNewTabAction,
+  readFormText,
+} from '@/platform/app/(shell)/_components/sidebar/row-links'
 import { SectionStatus } from '@/platform/app/(shell)/_components/sidebar/section-status'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar-collections.module.css'
 import { useSidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
@@ -26,11 +29,6 @@ import { platformHref } from '@/platform/design-system/navigation'
 
 const WORKSPACE_NAME_MAX_LENGTH = 100
 const CREATE_UNAVAILABLE = 'Workspace creation is unavailable.'
-
-function readName(values: FormData): string {
-  const name = values.get('name')
-  return typeof name === 'string' ? name.trim() : ''
-}
 
 interface WorkspacesSectionProps {
   data: ShellData | null
@@ -56,7 +54,7 @@ export function WorkspacesSection({ data, actions, navigate }: WorkspacesSection
     if (!item.href || !workspaceActions)
       return [{ id: 'open', label: 'Open workspace', onSelect: () => navigate('/home') }]
     return [
-      ...linkMenuActions(item.href).slice(0, 1),
+      openInNewTabAction(item.href),
       {
         id: 'rename',
         label: 'Rename',
@@ -145,13 +143,7 @@ export function WorkspacesSection({ data, actions, navigate }: WorkspacesSection
             )
           })}
           {pageSize !== undefined && workspaces.length > pageSize && (
-            <Chip
-              onClick={() =>
-                setVisibleCount((count) =>
-                  count !== undefined && workspaces.length > count ? count + pageSize : pageSize
-                )
-              }
-            >
+            <Chip onClick={() => setVisibleCount(hasMore ? visibleCount + pageSize : pageSize)}>
               {hasMore ? 'See more' : 'See less'}
             </Chip>
           )}
@@ -165,7 +157,7 @@ export function WorkspacesSection({ data, actions, navigate }: WorkspacesSection
             title='Add workspace'
             confirmLabel='Create'
             onConfirm={async (values) => {
-              const name = readName(values)
+              const name = readFormText(values, 'name')
               if (!name) throw new Error('Enter a workspace name.')
               if (!canCreate) throw new Error(policy?.reason ?? CREATE_UNAVAILABLE)
               navigate(await workspaceActions.create(name))
@@ -185,7 +177,7 @@ export function WorkspacesSection({ data, actions, navigate }: WorkspacesSection
               title='Rename workspace'
               confirmLabel='Save'
               onConfirm={async (values) => {
-                const name = readName(values)
+                const name = readFormText(values, 'name')
                 if (!name) throw new Error('Enter a workspace name.')
                 if (name !== renaming.name) await workspaceActions.rename(renaming.id, name)
               }}

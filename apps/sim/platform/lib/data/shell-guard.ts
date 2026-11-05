@@ -2,9 +2,11 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useBeforeUnloadWhile } from '@/hooks/use-before-unload-while'
+import { publicAssetPath } from '@/platform/design-system/navigation'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
-const BASE_PATH = process.env.NEXT_PUBLIC_SIM_PLATFORM_BASE_PATH ?? ''
+const BASE_PATH = publicAssetPath('')
 
 /** Links are written against this zone; the router adds the base path itself. */
 function zoneRoute(url: URL): string | null {
@@ -24,6 +26,8 @@ export function useSettingsLeaveGuard() {
   const pending = useSettingsDirtyStore((state) => state.pendingLeave !== null)
   const confirm = useSettingsDirtyStore((state) => state.confirmLeave)
   const cancel = useSettingsDirtyStore((state) => state.cancelLeave)
+
+  useBeforeUnloadWhile(useSettingsDirtyStore((state) => state.isDirty || state.navigationBlocked))
 
   useEffect(() => {
     function holdLink(event: MouseEvent) {
@@ -61,15 +65,9 @@ export function useSettingsLeaveGuard() {
         else window.location.assign(destination.href)
       })
     }
-    function warnBeforeUnload(event: BeforeUnloadEvent) {
-      const { isDirty, navigationBlocked } = useSettingsDirtyStore.getState()
-      if (isDirty || navigationBlocked) event.preventDefault()
-    }
     document.addEventListener('click', holdLink, true)
-    window.addEventListener('beforeunload', warnBeforeUnload)
     return () => {
       document.removeEventListener('click', holdLink, true)
-      window.removeEventListener('beforeunload', warnBeforeUnload)
     }
   }, [router])
 

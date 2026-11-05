@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
-import imageCompression from 'browser-image-compression'
+import type { HelpFormBody } from '@/lib/api/contracts/common'
 
 const logger = createLogger('HelpRequest')
 
-export const MAX_HELP_IMAGE_BYTES = 20 * 1024 * 1024
+const MAX_HELP_IMAGE_BYTES = 20 * 1024 * 1024
 const TARGET_SIZE_MB = 2
 export const ACCEPTED_HELP_IMAGE_TYPES = [
   'image/jpeg',
@@ -13,12 +13,7 @@ export const ACCEPTED_HELP_IMAGE_TYPES = [
   'image/gif',
 ]
 
-export const HELP_REQUEST_TYPES = ['bug', 'feedback', 'feature_request', 'other'] as const
-
-export const HELP_REQUEST_TYPE_OPTIONS: {
-  label: string
-  value: (typeof HELP_REQUEST_TYPES)[number]
-}[] = [
+export const HELP_REQUEST_TYPE_OPTIONS: { label: string; value: HelpFormBody['type'] }[] = [
   { label: 'Bug report', value: 'bug' },
   { label: 'Feedback', value: 'feedback' },
   { label: 'Feature request', value: 'feature_request' },
@@ -27,12 +22,21 @@ export const HELP_REQUEST_TYPE_OPTIONS: {
 
 export const DEFAULT_HELP_REQUEST_TYPE = 'bug'
 
+/** Why `file` cannot be attached to a help request, or null when it can. */
+export function validateHelpImage(file: Pick<File, 'size' | 'type'>): string | null {
+  if (file.size > MAX_HELP_IMAGE_BYTES) return 'Images must be 20MB or smaller.'
+  if (!ACCEPTED_HELP_IMAGE_TYPES.includes(file.type))
+    return 'Attach a JPEG, PNG, WebP or GIF image.'
+  return null
+}
+
 export async function compressHelpImage(file: File): Promise<File> {
   if (file.size < TARGET_SIZE_MB * 1024 * 1024 || file.type === 'image/gif') {
     return file
   }
 
   try {
+    const { default: imageCompression } = await import('browser-image-compression')
     const compressedFile = await imageCompression(file, {
       maxSizeMB: TARGET_SIZE_MB,
       maxWidthOrHeight: 1920,
@@ -53,7 +57,7 @@ export async function compressHelpImage(file: File): Promise<File> {
 }
 
 interface SubmitHelpRequestInput {
-  data: { subject: string; message: string; type: string }
+  data: HelpFormBody
   images: readonly File[]
   workflowId?: string
   workspaceId?: string

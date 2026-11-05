@@ -15,7 +15,6 @@ import {
 } from '@/platform/design-system/components'
 import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
 import { AnchoredPopover } from '@/platform/design-system/components/menu/anchored-popover'
-import { toast } from '@/platform/lib/data/toast'
 
 /** Lazy because its form reads real data, which a fixture session never loads. */
 const InviteModal = dynamic(
@@ -60,7 +59,6 @@ export function OrganizationMenu({
   if (savedName && savedName.replaces !== organization?.name) setSavedName(null)
   const name = savedName?.name ?? organization?.name ?? 'Organization'
   const logo = organization?.logo ?? undefined
-  const canEdit = Boolean(actions?.canEditIdentity)
 
   function stopRenaming() {
     setDraftName(null)
@@ -96,13 +94,8 @@ export function OrganizationMenu({
   async function uploadLogo(file: File | undefined) {
     if (!file || uploading || !actions) return
     setUploading(true)
-    try {
-      await actions.uploadLogo(file)
-    } catch (error) {
-      toast.error(getErrorMessage(error, 'Failed to upload logo'))
-    } finally {
-      setUploading(false)
-    }
+    await actions.uploadLogo(file)
+    setUploading(false)
   }
 
   return (
@@ -190,7 +183,7 @@ export function OrganizationMenu({
               </Button>
             )}
           </div>
-          {canEdit && actions && (
+          {actions?.canEditIdentity && (
             <>
               <input
                 ref={fileInput}

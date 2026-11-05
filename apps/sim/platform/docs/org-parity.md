@@ -49,7 +49,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Unsaved settings guard on links and sign out | `settings-navigation-guard.tsx`, `settings-guarded-link.tsx` | Done | `lib/data/shell-guard.ts`, `settings-leave-guard.tsx`, `requestLeave`. Unproved until a Settings editor registers a guard |
 | Unsaved settings guard on browser back and forward | `use-settings-browser-navigation.ts` | Open | Settings owner: it lives in a settings component the seam cannot import |
 | Branded metadata and whitelabel theme | `app/layout.tsx` | Open | Settings owner, with White-labeling |
-| Analytics and telemetry, including `docs_opened` and `slack_community_opened` | `app/layout.tsx`, `organization-sidebar.tsx` | Open | No PostHog provider is mounted here. `ShellHelp.onOpenDocumentation` and `onOpenSlack` are the seam for the events |
+| Analytics and telemetry, including `docs_opened` and `slack_community_opened` | `app/layout.tsx`, `organization-sidebar.tsx` | Open | No PostHog provider is mounted here, so the help menu sends no events |
 | Error and success toasts | `@sim/emcn` `toast` | Done | Foundation: `lib/data/toast.ts`, `useToastNotices`. Unproved |
 | Collapse toggle | `organization-sidebar.tsx` | Done | `platform-shell.tsx`. Unproved |
 | Collapse persisted, no flash | `stores/sidebar/store.ts` | Done | `sidebar_collapsed` read in `live-shell.tsx`, written in `sidebar-layout.tsx`. Unproved |
@@ -61,7 +61,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Desktop titlebar insets | `workspace-chrome.tsx` | Done | Existing `desktop-host.tsx` |
 | Desktop menu commands | `workspace-chrome.tsx` | Done | `useDesktopCommands` in `desktop-host.tsx`. Unproved |
 | `Mod+B` toggles the sidebar | `commands.ts` | Done | `platform-shell.tsx`, skips editable fields. Unproved |
-| Global command registry semantics | `global-commands-provider.tsx` | Done | Editable guard and `data-owned-shortcuts` ported for `Mod+B`. The Platform has two commands, so no registry |
+| Global command registry semantics | `global-commands-provider.tsx` | Done | Editable guard ported for `Mod+B`. The Platform has two commands and nothing claims `Mod+B` through `data-owned-shortcuts`, so no registry |
 | `Mod+K` palette | Platform only | Done | `command-menu.tsx`: gated destinations, real workspace and chat links. Unproved |
 | Home, Search, People, Integrations, Benchmark entries | `navigation.ts` | Done | `destinations.ts`; `shell.spec` navigation |
 | Sim Links entry | `navigation.ts` | Done | Settings section `links`, gated by `navFlags.simLinks` |

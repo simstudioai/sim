@@ -14,14 +14,13 @@ import { WindowHistoryButtons } from '@/platform/app/(shell)/_components/platfor
 import { useChatChanges } from '@/platform/app/(shell)/_components/session/chat-changes'
 import { useSessionShellActions } from '@/platform/app/(shell)/_components/session/shell-actions'
 import { SETTINGS_DESTINATIONS } from '@/platform/app/(shell)/_components/settings-navigation/destinations'
-import { LEGACY_DESTINATION } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import { Sidebar } from '@/platform/app/(shell)/_components/sidebar/sidebar'
 import { useSidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
 import { SidebarToolbar } from '@/platform/app/(shell)/_components/sidebar/sidebar-toolbar'
 import { IconButton, OverflowText, ScrollArea, Tooltip } from '@/platform/design-system/components'
 import { useCompactViewport } from '@/platform/design-system/components/layout/use-compact-viewport'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
-import { platformHref } from '@/platform/design-system/navigation'
+import { isAbsoluteHref, platformHref } from '@/platform/design-system/navigation'
 import { useLiveShellActions } from '@/platform/lib/data/shell-context'
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -29,17 +28,6 @@ function isEditableTarget(target: EventTarget | null): boolean {
     target instanceof HTMLInputElement ||
     target instanceof HTMLTextAreaElement ||
     (target instanceof HTMLElement && target.isContentEditable)
-  )
-}
-
-/** A focused editor can claim a shortcut through `data-owned-shortcuts`, as on the legacy surface. */
-function ownsShortcut(target: EventTarget | null, shortcut: string): boolean {
-  const owner = target instanceof Element ? target.closest('[data-owned-shortcuts]') : null
-  return Boolean(
-    owner
-      ?.getAttribute('data-owned-shortcuts')
-      ?.split(',')
-      .some((entry) => entry.trim() === shortcut)
   )
 }
 
@@ -127,12 +115,7 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
         event.preventDefault()
         setCommand((open) => !open && canOpen)
       }
-      if (
-        key === 'b' &&
-        canOpen &&
-        !isEditableTarget(event.target) &&
-        !ownsShortcut(event.target, 'Mod+B')
-      ) {
+      if (key === 'b' && canOpen && !isEditableTarget(event.target)) {
         event.preventDefault()
         toggleOnShortcut()
       }
@@ -150,7 +133,7 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
     setCommand(false)
     setDrawer(false)
     actions.requestLeave(() => {
-      if (LEGACY_DESTINATION.test(path)) window.location.assign(path)
+      if (isAbsoluteHref(path)) window.location.assign(path)
       else router.push(platformHref(path, search))
     })
   }

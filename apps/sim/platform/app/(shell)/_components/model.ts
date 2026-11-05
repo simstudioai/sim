@@ -105,12 +105,14 @@ interface ChatRemoval {
 /** The optional members are the ones only a real backend can honour. */
 export interface ShellChatActions {
   removeLabel: 'Archive' | 'Delete'
+  /** What happens to removed chats, when there is more to say than the label. */
+  removeDetail?: (count: number) => string
   rename: (id: string, title: string) => Promise<void>
   remove: (ids: readonly string[]) => Promise<ChatRemoval>
   setPinned?: (id: string, pinned: boolean) => void
   setRead?: (id: string, read: boolean) => void
   /** Reads a chat ahead of an intended open. Returns how to call it off. */
-  prefetch?: (id: string) => () => void
+  prefetch?: (chat: ShellChat) => () => void
   retry?: () => void
 }
 
@@ -155,8 +157,6 @@ export interface ShellHelp {
   changelogUrl?: string
   downloadUrl?: string
   desktopUpdate?: { label: string; disabled: boolean; run: () => void }
-  onOpenDocumentation?: () => void
-  onOpenSlack?: () => void
 }
 
 /**

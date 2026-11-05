@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { ShellSupport } from '@/platform/app/(shell)/_components/model'
+import { readFormText } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import {
   AttachmentGrid,
   FileField,
@@ -16,7 +17,6 @@ import {
 interface SupportImage {
   id: string
   file: File
-  preview: string
 }
 
 interface SupportModalProps {
@@ -24,34 +24,17 @@ interface SupportModalProps {
   onClose: () => void
 }
 
-function readText(values: FormData, name: string): string {
-  const value = values.get(name)
-  return typeof value === 'string' ? value.trim() : ''
-}
-
 export function SupportModal({ support, onClose }: SupportModalProps) {
   const [images, setImages] = useState<readonly SupportImage[]>([])
   const [imageError, setImageError] = useState<string>()
   const [processing, setProcessing] = useState(false)
-  const previews = useRef(images)
-
-  useEffect(() => {
-    previews.current = images
-  }, [images])
-
-  useEffect(
-    () => () => {
-      for (const image of previews.current) URL.revokeObjectURL(image.preview)
-    },
-    []
-  )
 
   async function attach(file: File) {
     setImageError(undefined)
     setProcessing(true)
     try {
       const prepared = await support.prepareImage(file)
-      const image = { id: generateId(), file: prepared, preview: URL.createObjectURL(prepared) }
+      const image = { id: generateId(), file: prepared }
       setImages((previous) => [...previous, image])
     } catch (error) {
       setImageError(getErrorMessage(error, 'That image could not be attached.'))
@@ -61,8 +44,6 @@ export function SupportModal({ support, onClose }: SupportModalProps) {
   }
 
   function detach(id: string) {
-    const removed = images.find((image) => image.id === id)
-    if (removed) URL.revokeObjectURL(removed.preview)
     setImages((previous) => previous.filter((image) => image.id !== id))
   }
 
@@ -74,12 +55,12 @@ export function SupportModal({ support, onClose }: SupportModalProps) {
       confirmLabel='Send'
       confirmDisabled={processing}
       onConfirm={async (values) => {
-        const subject = readText(values, 'subject')
-        const message = readText(values, 'message')
+        const subject = readFormText(values, 'subject')
+        const message = readFormText(values, 'message')
         if (!subject) throw new Error('Subject is required')
         if (!message) throw new Error('Message is required')
         await support.submit({
-          type: readText(values, 'type'),
+          type: readFormText(values, 'type'),
           subject,
           message,
           images: images.map((image) => image.file),
@@ -120,7 +101,7 @@ export function SupportModal({ support, onClose }: SupportModalProps) {
             kind: 'image',
             name: image.file.name,
             description: 'Image attachment',
-            preview: image.preview,
+            previewFile: image.file,
           }))}
           onRemove={detach}
         />

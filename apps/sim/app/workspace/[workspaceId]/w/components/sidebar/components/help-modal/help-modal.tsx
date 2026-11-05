@@ -15,14 +15,14 @@ import { useMutation } from '@tanstack/react-query'
 import Image from 'next/image'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { HELP_REQUEST_TYPES } from '@/lib/api/contracts/common'
 import {
   ACCEPTED_HELP_IMAGE_TYPES,
   compressHelpImage,
   DEFAULT_HELP_REQUEST_TYPE,
   HELP_REQUEST_TYPE_OPTIONS,
-  HELP_REQUEST_TYPES,
-  MAX_HELP_IMAGE_BYTES,
   submitHelpRequest,
+  validateHelpImage,
 } from '@/lib/help/request'
 
 const logger = createLogger('HelpModal')
@@ -151,12 +151,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
       let hasError = false
 
       for (const file of Array.from(files)) {
-        if (file.size > MAX_HELP_IMAGE_BYTES) {
-          hasError = true
-          continue
-        }
-
-        if (!ACCEPTED_HELP_IMAGE_TYPES.includes(file.type)) {
+        if (validateHelpImage(file)) {
           hasError = true
           continue
         }

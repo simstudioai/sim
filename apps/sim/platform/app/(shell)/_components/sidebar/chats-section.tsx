@@ -7,10 +7,7 @@ import type {
   ShellChat,
   ShellQueryStatus,
 } from '@/platform/app/(shell)/_components/model'
-import {
-  LEGACY_DESTINATION,
-  linkMenuActions,
-} from '@/platform/app/(shell)/_components/sidebar/row-links'
+import { linkMenuActions, readFormText } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import { SectionStatus } from '@/platform/app/(shell)/_components/sidebar/section-status'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar-collections.module.css'
 import { useSidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
@@ -222,14 +219,15 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
             const href = item.href ?? `/chat/${item.id}`
             const rows = rowActions(item)
             const isCurrent = activeChat === item.id
+            const selectOnMenuOpen = (open: boolean) => {
+              if (open && !selected.has(item.id)) selectOnly(item.id)
+            }
             return (
               <ContextActionMenu
                 key={item.id}
                 label={`Actions for ${item.title}`}
                 actions={rows}
-                onOpenChange={(open) => {
-                  if (open && !selected.has(item.id)) selectOnly(item.id)
-                }}
+                onOpenChange={selectOnMenuOpen}
               >
                 <div
                   className={styles.row}
@@ -240,8 +238,7 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
                       selectOnly(item.id)
                   }}
                   onPointerEnter={() => {
-                    if (!isCurrent && !LEGACY_DESTINATION.test(href))
-                      cancelPrefetch.current = actions.prefetch?.(item.id) ?? null
+                    if (!isCurrent) cancelPrefetch.current = actions.prefetch?.(item) ?? null
                   }}
                   onPointerLeave={() => cancelPrefetch.current?.()}
                 >
@@ -256,9 +253,7 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
                         triggerSize='compact'
                         align='end'
                         actions={rows}
-                        onOpenChange={(open) => {
-                          if (open && !selected.has(item.id)) selectOnly(item.id)
-                        }}
+                        onOpenChange={selectOnMenuOpen}
                       />
                     }
                   >
@@ -278,8 +273,7 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
           title='Rename chat'
           confirmLabel='Save'
           onConfirm={async (values) => {
-            const title = values.get('title')
-            const next = typeof title === 'string' ? title.trim() : ''
+            const next = readFormText(values, 'title')
             if (!next) throw new Error('Enter a chat name.')
             if (next !== renamingChat.title) await actions.rename(renamingChat.id, next)
           }}
@@ -307,8 +301,7 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
             {removing.length === 1
               ? `${actions.removeLabel} “${removing[0].title}”?`
               : `${actions.removeLabel} ${removing.length} chats?`}
-            {actions.removeLabel === 'Delete' &&
-              ` You can restore ${removing.length === 1 ? 'it' : 'them'} from Recently deleted in Settings.`}
+            {actions.removeDetail && ` ${actions.removeDetail(removing.length)}`}
           </p>
         </Modal>
       )}

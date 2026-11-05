@@ -31,6 +31,8 @@ export function useChatListActions(organizationId: string): ShellChatActions {
   const reportFailure = { onError: (error: Error) => void toast.error(error.message) }
   return {
     removeLabel: 'Delete',
+    removeDetail: (count) =>
+      `You can restore ${count === 1 ? 'it' : 'them'} from Recently deleted in Settings.`,
     rename: (chatId, title) => renameChat({ chatId, title }),
     async remove(ids) {
       try {
@@ -47,8 +49,9 @@ export function useChatListActions(organizationId: string): ShellChatActions {
     setPinned: (chatId, pinned) => pinChat({ chatId, pinned }, reportFailure),
     setRead: (chatId, read) =>
       read ? readChat(chatId, reportFailure) : unreadChat(chatId, reportFailure),
-    prefetch(chatId) {
-      const options = mothershipChatHistoryQueryOptions(chatId)
+    prefetch({ id, mode }) {
+      if (mode === 'assistant') return () => {}
+      const options = mothershipChatHistoryQueryOptions(id)
       const timer = setTimeout(() => {
         if (queryClient.getQueryData(options.queryKey) === undefined)
           prefetchQueryOnIntent(queryClient, options)
