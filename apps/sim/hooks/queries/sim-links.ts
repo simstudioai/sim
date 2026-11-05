@@ -1,4 +1,5 @@
 import {
+  infiniteQueryOptions,
   keepPreviousData,
   useInfiniteQuery,
   useMutation,
@@ -27,13 +28,13 @@ const simLinkKeys = {
     [...simLinkKeys.lists(organizationId), 'url', url] as const,
 }
 
-export function useSimLinks(
+export function simLinksQueryOptions(
   organizationId: string,
   search: string,
   sort: SimLinkSort,
   dir: SortDirection
 ) {
-  return useInfiniteQuery({
+  return infiniteQueryOptions({
     queryKey: simLinkKeys.list(organizationId, search, sort, dir),
     initialPageParam: undefined as string | undefined,
     queryFn: ({ signal, pageParam }) =>
@@ -44,6 +45,17 @@ export function useSimLinks(
       }),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     staleTime: SIM_LINKS_STALE_TIME,
+  })
+}
+
+export function useSimLinks(
+  organizationId: string,
+  search: string,
+  sort: SimLinkSort,
+  dir: SortDirection
+) {
+  return useInfiniteQuery({
+    ...simLinksQueryOptions(organizationId, search, sort, dir),
     placeholderData: keepPreviousData,
   })
 }

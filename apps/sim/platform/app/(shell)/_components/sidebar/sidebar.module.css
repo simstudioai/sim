@@ -1,0 +1,167 @@
+.sidebar {
+  display: flex;
+  block-size: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+}
+/* The peek card floats, so it is the frame its menus are placed against, and it must not clip them. */
+[data-peek]:has(> * > .sidebar) {
+  overflow: visible;
+}
+/* Floating layers sit above a legacy page's own stacking beside the rail. */
+.sidebar [data-side] {
+  z-index: var(--z-popover);
+}
+.sidebar [role="tooltip"] {
+  z-index: var(--z-tooltip);
+}
+.sidebar[data-settings] [data-platform-ui] {
+  background: var(--surface-1);
+}
+.sidebar[data-settings] [data-material="shell"] {
+  background: transparent;
+  backdrop-filter: none;
+}
+.column {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
+  min-block-size: 0;
+}
+.dragLane {
+  block-size: var(--desktop-title-bar-height);
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+  padding: var(--shell-edge-inset) var(--ui-row-inset) 0;
+}
+[data-sim-desktop-title-bar="inset"] .sidebar:not([data-peeking]) .header {
+  padding-block-start: var(--desktop-title-bar-height);
+}
+.sidebar[data-collapsed] .header {
+  display: grid;
+}
+.actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ui-action-gap);
+  -webkit-app-region: no-drag;
+}
+.collapseControl {
+  display: flex;
+}
+[data-sim-desktop-title-bar="inset"] .collapseControl {
+  display: none;
+}
+.railMark {
+  display: grid;
+  flex: none;
+  grid-template-areas: "mark";
+  place-items: center;
+}
+.railLogo,
+.railGlyph {
+  display: flex;
+  grid-area: mark;
+}
+.railGlyph {
+  visibility: hidden;
+}
+button:hover > .railMark > .railLogo {
+  visibility: hidden;
+}
+button:hover > .railMark > .railGlyph {
+  visibility: visible;
+}
+.body {
+  flex: 1;
+  min-block-size: 0;
+}
+.body > [data-platform-ui] {
+  block-size: 100%;
+}
+.bodyFrame {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  block-size: 100%;
+}
+.nav {
+  display: grid;
+  gap: var(--ui-list-gap);
+  padding: var(--ui-product-section-gap) var(--ui-row-inset);
+}
+.sections {
+  display: grid;
+  gap: var(--ui-product-section-gap);
+  min-inline-size: 0;
+  padding-inline: var(--ui-row-inset);
+  padding-block-end: var(--ui-row-inset);
+}
+.sidebar[data-collapsed] .sections {
+  gap: var(--ui-list-gap);
+}
+.railRow {
+  display: grid;
+  min-inline-size: 0;
+}
+.flyout {
+  inline-size: var(--shell-org-menu-width);
+}
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  min-block-size: var(--spacing-app-chip);
+  padding: var(--spacing-8) var(--ui-row-inset) var(--shell-edge-inset);
+}
+.sidebar[data-collapsed] .footer {
+  flex-direction: column-reverse;
+  align-items: stretch;
+  gap: var(--ui-list-gap);
+}
+.help {
+  display: flex;
+  flex: none;
+  margin-inline-start: auto;
+}
+.sidebar[data-collapsed] .help {
+  justify-content: center;
+  margin-inline-start: 0;
+}
+.accountSkeleton {
+  inline-size: var(--spacing-96);
+  block-size: var(--spacing-14);
+  border-radius: var(--ui-control-radius);
+  background: var(--ui-hover);
+}
+.sidebar[data-collapsed] .accountSkeleton {
+  inline-size: 100%;
+}
+.accountMenu {
+  inline-size: min(
+    calc(var(--shell-org-menu-width) - 2 * var(--ui-popup-padding)),
+    calc(100vw - var(--spacing-32))
+  );
+}
+.edge {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  inline-size: var(--spacing-4);
+  margin-inline-start: calc(-1 * var(--spacing-4));
+  cursor: ew-resize;
+}
+.edge[data-collapsed] {
+  cursor: e-resize;
+}
+@media (max-width: 48rem) {
+  .edge,
+  .collapseControl {
+    display: none;
+  }
+}

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -12,14 +12,20 @@ import { searchIntegrationKeys } from '@/hooks/queries/utils/search-integration-
 
 export const SEARCH_INTEGRATIONS_STALE_TIME = 30_000
 
-export function useSearchIntegrations(organizationId: string, options?: { enabled?: boolean }) {
-  return useQuery({
+export function searchIntegrationsQueryOptions(organizationId: string) {
+  return queryOptions({
     queryKey: searchIntegrationKeys.list(organizationId),
-    enabled: Boolean(organizationId) && (options?.enabled ?? true),
     queryFn: async ({ signal }) =>
       (await requestJson(listSearchIntegrationsContract, { query: { organizationId }, signal }))
         .data,
     staleTime: SEARCH_INTEGRATIONS_STALE_TIME,
+  })
+}
+
+export function useSearchIntegrations(organizationId: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    ...searchIntegrationsQueryOptions(organizationId),
+    enabled: Boolean(organizationId) && (options?.enabled ?? true),
   })
 }
 
