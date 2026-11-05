@@ -14,6 +14,7 @@
     "type-check:platform": "cd platform && next typegen && tsc --noEmit",
     "test:platform:desktop": "playwright test --config platform/checks/desktop/playwright.config.ts",
     "test:platform:e2e": "playwright test --config platform/checks/playwright.config.ts",
+    "test:platform:live": "playwright test --config platform/checks/live/playwright.config.ts",
     "start:platform": "cd platform && next start --port 3100",
     "dev:capped": "bun run build:cli-runtime && bun run dev:cache:cap && NODE_OPTIONS='--max-old-space-size=4096' next dev --port 3000",
     "dev:cache:cap": "bun run ../../scripts/prune-turbopack-cache.ts",

@@ -1,6 +1,6 @@
 # Platform design contract
 
-Applies to this independent Next.js application. In this tree “EMCN” means the Sim Platform design system in `design-system/`. The existing app and `packages/emcn` remain isolated. For new work or design drift, run the repository's `$implement-platform` skill. Its Paper companion is `$sim-paper-design`. Never import the legacy app, styles, chrome, business logic or providers across this boundary.
+Applies to this independent Next.js application. In this tree “EMCN” means the Sim Platform design system in `design-system/`. The existing app and `packages/emcn` remain isolated. For new work or design drift, run the repository's `$implement-platform` skill. Its Paper companion is `$sim-paper-design`. Never import the legacy app, styles, chrome, business logic or providers across this boundary. Real data crosses only through the [data seam](#phase-3-data-seam).
 
 ## Ownership
 
@@ -11,6 +11,7 @@ Applies to this independent Next.js application. In this tree “EMCN” means t
 | Product: Platform Core, Chat, Workspaces | A thin `app/(shell)/<segment>/page.tsx`; unique markup, interaction and a local CSS Module under `<segment>/_components/<component>/` | Route composition |
 | Engineering workbench, outside Product | `preview/` | The separate /workbench route |
 | Temporary example data | `fixtures/` | Server-only, default-off loader |
+| Real data | `lib/data/` | The route composition that passes it to views |
 
 Search existing EMCN and route owners first. For existing designs, follow Shared → Platform → Product and verify the stable Paper key, live Base and actual product Use (or a nested use rooted in one). Reference artwork, archive files, guides and specimen-only variants are not product uses. Do not use Marcus's files. Two systems that can share a recipe use Shared. If a second feature needs a page-owned component, promote the existing implementation, register it centrally and replace the original import in the same change. Do not copy it or import directly from another feature. Once product routes exist, remove unreached public variants from code and keep deferred states in Paper until a product or nested component needs them.
 
@@ -30,7 +31,7 @@ Use `ActivityRow` for a first-line glyph or avatar, title/detail and centered tr
 
 Measure the actual scroll viewport with `ScrollArea`, or attach `useScrollEdges` directly to a native or Base UI scroll owner. Use the shared 16px mask only on edges with more content, updating after scroll, resize, input, reset or filtering. Insets establish resting layout; they cannot substitute for an edge fade. Home widgets and notification panels use `--ui-widget-max-size` as a ceiling, not a forced height. Keep the dashboard free to scroll and let each overflowing list or schedule scroll independently. Plain tooltips preview at most three lines; retain the complete accessible text. A structured people popover owns its content and uses the dropdown’s popup padding and row insets.
 
-Form dialogs use `Modal` or `MultiStepModal`. Pass a title, content, action labels and handlers. The shared borderless surface positions its title at the logical start and supplies one quiet Cancel/Back. Command search and previews use the same shadow and dismissal layer. Form controls cannot construct or style a form header, footer or Cancel button. Opening a dialog or advancing its step focuses the first available field. Confirmation dialogs focus Cancel, and read-only previews focus Close. A nested dialog handles Escape one layer at a time. While a form is open, the global search shortcut leaves its draft and keyboard focus in place. Closing returns focus to the invoking control. Textareas scroll or grow within their owner and never show a manual resize handle. Recipient fields use the textarea’s height, draft typography and inset. Committed addresses use compact caption text and an always-visible neutral ×, like a panel tab. The remove button sits inside the tag beside its label; long addresses yield space to the button. Comma or Enter commits a draft, pasting a list commits its addresses, and Backspace from an empty draft removes the last tag.
+Form dialogs use `Modal` or `MultiStepModal`. Pass a title, content, action labels and handlers. A confirm handler that returns a promise holds the dialog open as pending, closes it on success, and keeps the draft with an inline message on failure; nothing dismisses it while pending. The shared borderless surface positions its title at the logical start and supplies one quiet Cancel/Back. Command search and previews use the same shadow and dismissal layer. Form controls cannot construct or style a form header, footer or Cancel button. Opening a dialog or advancing its step focuses the first available field. Confirmation dialogs focus Cancel, and read-only previews focus Close. A nested dialog handles Escape one layer at a time. While a form is open, the global search shortcut leaves its draft and keyboard focus in place. Closing returns focus to the invoking control. Textareas scroll or grow within their owner and never show a manual resize handle. Recipient fields use the textarea’s height, draft typography and inset. Committed addresses use compact caption text and an always-visible neutral ×, like a panel tab. The remove button sits inside the tag beside its label; long addresses yield space to the button. Comma or Enter commits a draft, pasting a list commits its addresses, and Backspace from an empty draft removes the last tag.
 
 Use `useClipboard` / `CopyButton` for successful copy feedback and `useFeedbackExpiry` for temporary status. Copied indicators and transient notices dwell for four seconds; repeated events restart the timer. Pause an actionable notice during hover or focus and keep its action available in the stack afterward. Icon color changes use `--ui-motion-color` (120ms, zero under reduced motion). Do not put literal timers or CSS durations in product components.
 
@@ -53,6 +54,20 @@ Use [the shared Platform time formatters](lib/time.ts) for displayed ages, clock
 - The isolated project root owns its globals, fonts and PostCSS entry. Keep the legacy root layout, proxy, globals and routes intact. Do not add a new provider or styling package just to define a variant.
 - Only the server loader may import example data, and only when `SIM_PLATFORM_FIXTURES=1`. No fallbacks in components. Delete the fixture module/gate and workbench consumers together once real data takes over. Never write examples to storage, send an invite or imply successful backend work.
 
+## Phase 3 data seam
+
+Only `lib/data/**` may import from outside this project: query hooks under `@/hooks/queries`, contracts and clients under `@/lib/api`, and the named helpers listed in `scripts/check-platform-design.ts`. `@/app`, `@/components` and `@sim/emcn` stay banned there too. Add a helper to that list only after reading its runtime import closure.
+
+Each `lib/data/<domain>.ts` wraps the existing hook and maps its contract shape to a Platform view model with a pure adapter. Never fork a hook, key factory, invalidation or contract; a hook that lacks a needed option gains it additively. A module's first import of a query hook that toasts resolves through `lib/data/emcn-shim.ts`, which webpack substitutes for `@sim/emcn` and which exports only `toast`, bridged to the notification tray. Any other name from that package fails the build, which is what proves no legacy UI entered.
+
+Views stay prop-driven. A route composes `data` and a named `actions` interface, filled by session state on fixtures and by mutations on live data. No fixture branch inside a view. Hide what has no backend and record it in the [parity ledger](docs/org-parity.md); never fake it. Distinguish loading, empty and failure. A list reads `status` rather than treating empty as loading.
+
+`resolvePlatformMode` decides each server entry once: `fixture` with `SIM_PLATFORM_FIXTURES=1`, `live` with `SIM_PLATFORM_API_ORIGIN`, otherwise `none`, today's empty rendering. Load the seam with a dynamic import behind the `live` check, so fixture servers never evaluate it. The viewer's organization comes from membership on the server, read once per request by `readOrganizationSurface`. Platform URLs carry no organization.
+
+The legacy organization layout redirects flagged organizations here through `lib/platform/routes.ts`. Link out to a legacy route only with `legacyRoutes`, which builds an absolute URL, and only to a route that mapper leaves unmapped. Linking to a mapped route makes the two surfaces redirect to each other.
+
+Gates live on the server and arrive as data. Hiding an entry is navigation, not authorization: the API behind every page enforces the same rule. A Settings section plugs in by filling its folder under `settings/_components/sections/`, which `section-registry.ts` loads lazily; its navigation entry and gate are in `settings-navigation/destinations.ts`.
+
 ## Product UI and desktop
 
 - Keep a draft or interface edit in memory for the lifetime its user expects. A chat draft belongs to its chat; profile edits and inbox read marks belong to the product session. Navigating away and back must preserve them. A new fixture scenario starts a fresh session. Popups and cancelled edits stay local to the control.
@@ -68,7 +83,7 @@ When removing or consolidating a component, trace its real callers. Migrate thei
 
 ## Verification
 
-Run `bun run check:platform-design`, build the isolated Next app, and run its browser checks (commands in README.md). Review actual Paper and browser rendering, wrapping, interactive states, keyboard and focus, both themes, content overflow and intermediate widths. Check disabled fixture output independently. A passing static audit is not a visual comparison. Record the affected keys, readback, rendered verdict, uncertainty and next action in the task checkpoint. Run the repository gates before shipping.
+Run `bun run check:platform-design`, build the isolated Next app, and run its browser checks (commands in README.md). Live data has its own suite in `checks/live/`, which runs against a real app and database. Record each organization capability's status and proving check in the [parity ledger](docs/org-parity.md). Review actual Paper and browser rendering, wrapping, interactive states, keyboard and focus, both themes, content overflow and intermediate widths. Check disabled fixture output independently. A passing static audit is not a visual comparison. Record the affected keys, readback, rendered verdict, uncertainty and next action in the task checkpoint. Run the repository gates before shipping.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

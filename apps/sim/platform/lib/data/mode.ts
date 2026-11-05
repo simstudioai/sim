@@ -1,6 +1,6 @@
 import 'server-only'
 
-export type PlatformMode = 'fixture' | 'live' | 'none'
+type PlatformMode = 'fixture' | 'live' | 'none'
 
 /**
  * Where this server's data comes from, read once per request by each server entry. Fixtures win so

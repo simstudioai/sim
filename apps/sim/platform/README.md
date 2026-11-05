@@ -1,6 +1,6 @@
 # Sim Platform
 
-The new Platform starts here as a standalone Next.js App Router project inside `apps/sim`. Its root opens the product Home screen. Home, Chat, Settings and organization integrations use the new EMCN library. These routes share installed dependencies with Sim and have no database, API, authentication or legacy app providers. The existing Sim app continues to start and build as before.
+The new Platform starts here as a standalone Next.js App Router project inside `apps/sim`. Its root opens the product Home screen. Home, Chat, Settings and organization integrations use the new EMCN library. These routes share installed dependencies with Sim. They have no database of their own: with live data they read the main app's `/api` through the [data seam](AGENTS.md#phase-3-data-seam). The existing Sim app continues to start and build as before.
 
 To start or resume work in a new Sim chat, say “Use `$implement-platform` to [add, change, consolidate, or remove the UI] on [route].” The [implementation skill](../../../.agents/skills/implement-platform/SKILL.md) reads the [contract](AGENTS.md) and [ownership map](docs/component-ownership.md) for the checkout containing that route. Name the Paper section when implementing an existing design. For a code-first change, describe the desired behavior, where it should apply, and what you want to see on the live page.
 
@@ -14,6 +14,28 @@ SIM_PLATFORM_FIXTURES=1 bun run --cwd apps/sim dev:platform
 Open [Home](http://localhost:3100/home), [Chat](http://localhost:3100/chat/weekly-review?state=full), [Settings](http://localhost:3100/settings), [Integrations](http://localhost:3100/integrations?state=full), or the separate [component workbench](http://localhost:3100/workbench). With the flag on, `?state=empty|full|stress` selects the fixture on any of them. `?theme=light|dark|system` selects the product appearance. Product navigation preserves these choices; nothing writes examples to storage. The URL cannot activate the server flag. Old catalog links with a recipe still open the workbench.
 
 The product routes live under `app/(shell)/`. Their shared App Router layout owns the shell, sidebar scroll viewport, interface preferences and chat edits. Home, Chat, Settings and Integrations pages render their own bodies inside that layout. Navigating between them keeps the sidebar reading position, including when returning from Settings. The shell selects its gated fixture and appearance from the current URL. Each route owns its components and CSS Modules in a private `_components/<component>/` folder: the [Home chart](app/%28shell%29/home/_components/activity-chart/activity-chart.tsx) sits beside its styles; the [dialog](design-system/components/modal/modal.tsx) belongs to EMCN. Shared shell UI lives in `app/(shell)/_components/`. [Rhythm tokens](design-system/styles/rhythm.css) and the [ownership and interaction contract](AGENTS.md) apply throughout the product. The [Paper state inventory](docs/core-chat-states.md) enumerates the source rows in scope. The [organization integrations guide](docs/organization-integrations.md) maps the app catalog, Search, account controls and workspace grants to their Phase 3 operations. Workspace destinations and workspace create/sort return to Home. Wiki is deferred.
+
+## Live data and the zone
+
+The same app serves three modes, resolved on the server:
+
+| Mode | Environment | Data |
+| --- | --- | --- |
+| `fixture` | `SIM_PLATFORM_FIXTURES=1` | Example scenarios |
+| `live` | `SIM_PLATFORM_API_ORIGIN`, `NEXT_PUBLIC_APP_URL` | The viewer's real organization, over the main app's `/api` |
+| `none` | Neither | Empty routes |
+
+Deployed, the Platform is a zone at `/platform` on the main app's origin, so it shares the session cookie, `/api` and security headers:
+
+| Variable | Set on | Purpose |
+| --- | --- | --- |
+| `SIM_PLATFORM_BASE_PATH=/platform` | Platform, at build | Prefixes routes and assets |
+| `SIM_PLATFORM_API_ORIGIN` | Platform, at runtime | Where server reads go, with the viewer's cookies |
+| `NEXT_PUBLIC_APP_URL` | Platform, at runtime | The main app's public origin, for login and legacy links |
+| `SIM_PLATFORM_ORIGIN` | Main app, at build and runtime | The `/platform` rewrite is baked at build; the organization redirect reads it at runtime |
+| `platform-org-ui` flag | AppConfig, or `PLATFORM_ORG_UI` | Which organizations the legacy layout redirects here |
+
+With none of these set, nothing changes for either app. The legacy layout redirects only flagged members, keeps its query string, and leaves unmapped routes on the legacy surface. To run live locally without the zone, start the main app, sign in at its origin, then start this app with `SIM_PLATFORM_API_ORIGIN=http://localhost:3000` and `NEXT_PUBLIC_APP_URL=http://localhost:3000`; with no base path it proxies `/api` itself.
 
 ## Desktop
 
@@ -37,7 +59,7 @@ import { Button } from '@/platform/design-system/components'
 <ComponentRecipe recipe="C1332" slots={{ title: 'Needs review', column: 'Created' }} />
 ```
 
-Shared and Platform still own different recipes; `catalog/evidence.json` preserves that ownership and a path from the Base to a Platform product use. Registered states without a Platform use, canvas organizers and the other products are outside this library. Keep feature-specific compositions in their feature owner. Real data adapters belong to Phase 3.
+Shared and Platform still own different recipes; `catalog/evidence.json` preserves that ownership and a path from the Base to a Platform product use. Registered states without a Platform use, canvas organizers and the other products are outside this library. Keep feature-specific compositions in their feature owner. Real data adapters live in `lib/data/`.
 
 Workspace lists, sidebar items, recents and attachment batches accept typed arrays with stable item IDs. Use the named components for these collection masters: a Paper specimen's item count is sample data. An empty array renders zero items, and adding items preserves their registered row/card appearance. Each scroll viewport determines fades and controls from its actual contents. Chart labels, marks, inspected values and legends come from the same series. Supply raw numeric values and their units to data tables. The column schema determines alignment and which columns remain visible as the table narrows.
 
@@ -79,6 +101,8 @@ bun run --cwd apps/sim test:platform:desktop
 ```
 
 The Platform type check generates Next.js route types and checks the isolated project. The repository type check runs it alongside the existing app’s TypeScript project.
+
+`bun run --cwd apps/sim test:platform:live` runs `checks/live/` against an app and database you have started, using `PLATFORM_LIVE_ORIGIN`, `PLATFORM_LIVE_EMAIL`, `PLATFORM_LIVE_PASSWORD` and `PLATFORM_LIVE_ORGANIZATION_NAME`. Supply `PLATFORM_LIVE_REPORT_PATH` to save its JSON report.
 
 The browser suite starts separate production servers with fixtures enabled and disabled. Supply `PLATFORM_REPORT_PATH` to save JSON, failure screenshots and traces. Next uses webpack for this nested app: the installed Turbopack also discovers the parent Sim project's proxy and instrumentation. Watch for that boundary when upgrading Next.
 

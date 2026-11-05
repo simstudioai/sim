@@ -4,7 +4,7 @@ interface ToastOptions {
   action?: { label: string; onClick: () => void }
 }
 
-export interface ToastInput extends ToastOptions {
+interface ToastInput extends ToastOptions {
   message: string
   variant?: 'default' | 'success' | 'error' | 'warning' | 'info'
 }

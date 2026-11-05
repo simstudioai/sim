@@ -2,7 +2,11 @@ import type { ComponentType } from 'react'
 import type { LiveSettingsKey } from '@/platform/app/(shell)/_components/settings-navigation/destinations'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 
-/** What a section receives. Its gate has already passed; its own API calls enforce the same rule. */
+/**
+ * What a section receives. Its gate has already passed; its own API calls enforce the same rule.
+ *
+ * @public Section folders import this as their owners fill them in.
+ */
 export interface SettingsSectionProps {
   organization: PlatformOrganization
   /** Segments after the section's key, limited to its declared `subpaths`. */

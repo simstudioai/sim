@@ -1,9 +1,10 @@
 /**
  * How the legacy organization surface maps onto the Platform zone. Dependency-free: the edge proxy,
- * `next.config.ts` (loaded before the `@/` alias resolves), and client code all read it.
+ * server components, and client code all read it.
  */
 
-export const PLATFORM_BASE_PATH = '/platform'
+/** Where the main app's `/platform` rewrite in `next.config.ts` mounts the zone. */
+const PLATFORM_BASE_PATH = '/platform'
 
 /**
  * Carries the requested `/o/...` URL from the proxy to the organization layout, which Next gives no

@@ -22,7 +22,7 @@ export function canListOrganizationChats({ access }: PlatformOrganization): bool
   return access.mothershipAvailable && (access.canBuild || access.searchAccess.memberScoped)
 }
 
-export function toShellWorkspace(
+function toShellWorkspace(
   workspace: Workspace,
   pinnedIds: ReadonlySet<string> | undefined
 ): ShellWorkspace {
@@ -36,10 +36,7 @@ export function toShellWorkspace(
 }
 
 /** Assistant chats live under Search, which stays on the legacy surface. */
-export function toShellChat(
-  chat: MothershipChatMetadata,
-  organization: PlatformOrganization
-): ShellChat {
+function toShellChat(chat: MothershipChatMetadata, organization: PlatformOrganization): ShellChat {
   return {
     id: chat.id,
     title: chat.name,
@@ -55,7 +52,7 @@ export function toShellChat(
   }
 }
 
-export function toShellUser(profile: UserProfile | undefined): ShellData['user'] {
+function toShellUser(profile: UserProfile | undefined): ShellData['user'] {
   return {
     name: profile?.name?.trim() || profile?.email || '',
     id: profile?.id,
@@ -64,7 +61,7 @@ export function toShellUser(profile: UserProfile | undefined): ShellData['user']
   }
 }
 
-export function toWorkspaceCreation(
+function toWorkspaceCreation(
   policy: WorkspaceCreationPolicy | null | undefined
 ): ShellData['workspaceCreation'] {
   if (!policy) return undefined

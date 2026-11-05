@@ -11,7 +11,6 @@ import {
 } from './lib/core/security/csp'
 import { LANDING_ROUTES } from './lib/landing/routes'
 import { LIBRARY_MERGED_SLUGS, LIBRARY_MOVED_BLOG_SLUGS } from './lib/library/retired-slugs'
-import { PLATFORM_BASE_PATH } from './lib/platform/routes'
 
 /**
  * `Accept` header patterns for Markdown negotiation. `text/markdown` must be one of the listed
@@ -729,8 +728,8 @@ const nextConfig: NextConfig = {
         ...(PLATFORM_ORIGIN
           ? [
               {
-                source: `${PLATFORM_BASE_PATH}/:path*`,
-                destination: `${PLATFORM_ORIGIN}${PLATFORM_BASE_PATH}/:path*`,
+                source: '/platform/:path*',
+                destination: `${PLATFORM_ORIGIN}/platform/:path*`,
               },
             ]
           : []),

@@ -15,7 +15,7 @@ const logger = createLogger('PlatformSurface')
 /** Long enough for the legacy layout's own reads, short enough to reach the error state with a retry. */
 const SURFACE_TIMEOUT_MS = 10_000
 
-export type OrganizationSurfaceResult =
+type OrganizationSurfaceResult =
   | { status: 'ok'; organization: PlatformOrganization }
   | { status: 'unauthenticated' | 'denied' | 'unavailable' }
 
