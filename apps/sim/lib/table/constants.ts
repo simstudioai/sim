@@ -530,4 +530,4 @@ export const CELL_DATABASE_RETRY = {
   maxAttempts: 5,
   backoff: { baseMs: 250, maxMs: 2_000 },
   maxElapsedMs: 40_000,
-}
+} as const

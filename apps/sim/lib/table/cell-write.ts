@@ -177,15 +177,40 @@ function emitCellStateEvent(
   })
 }
 
+/** The stored values of a write's outputs, which may have changed since the write landed. */
+async function readStoredOutputs(
+  { rowId, tableId, workspaceId }: WriteWorkflowGroupContext,
+  payload: WriteWorkflowGroupStatePayload
+): Promise<RowData> {
+  const [row] = await db
+    .select({ data: userTableRows.data })
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.id, rowId),
+        eq(userTableRows.tableId, tableId),
+        eq(userTableRows.workspaceId, workspaceId)
+      )
+    )
+    .limit(1)
+  const stored = (row?.data ?? {}) as RowData
+  const outputs: RowData = {}
+  for (const columnId of Object.keys(payload.eventOutputs ?? payload.dataPatch ?? {})) {
+    if (Object.hasOwn(stored, columnId)) outputs[columnId] = stored[columnId]
+  }
+  return outputs
+}
+
 /**
  * {@link writeWorkflowGroupState} that survives a lost database connection, for writes a cell cannot
  * afford to drop: its pickup and terminal states.
  *
  * A lost connection leaves the outcome unknown, so each repeat first checks what the last attempt
  * did. Re-applying a commit that landed could undo what the user did since, such as editing the
- * output or stopping a downstream group. A cell whose state already matches only needs its event,
- * which the lost attempt never emitted, and a terminal state with no row left was cleared by the
- * user, whose write it must not bring back.
+ * output or stopping a downstream group, so a cell whose state already matches only needs the event
+ * the lost attempt never emitted, carrying what is stored now. A `completed` cell with no state left
+ * was cleared by the user, since a run only completes after its pickup wrote one. Any other state
+ * can legitimately be the first the cell ever had, so it is written.
  *
  * A `cancelled` stamp is never repeated. It carries no guard, so a repeat could kill a run the user
  * started after it.
@@ -203,10 +228,13 @@ export async function writeWorkflowGroupStateDurably(
       if (attempted) {
         const current = (await loadExecutionsForRow(db, ctx.rowId))[ctx.groupId]
         if (current?.executionId === ctx.executionId && current.status === status) {
-          emitCellStateEvent(ctx, payload)
+          emitCellStateEvent(ctx, {
+            ...payload,
+            eventOutputs: await readStoredOutputs(ctx, payload),
+          })
           return 'wrote'
         }
-        if (!current && status !== 'running') return 'skipped'
+        if (!current && status === 'completed') return 'skipped'
       }
       attempted = true
       return writeWorkflowGroupState(ctx, payload)

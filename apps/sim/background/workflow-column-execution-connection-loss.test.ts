@@ -86,7 +86,10 @@ vi.mock('@/lib/table/workflow-cell-result', () => ({
   classifyWorkflowCellTerminalResult: () => ({ status: 'completed', error: null }),
 }))
 
-import { runRowCascadeLoop } from '@/background/workflow-column-execution'
+import {
+  executeWorkflowGroupCellJob,
+  runRowCascadeLoop,
+} from '@/background/workflow-column-execution'
 
 const GROUP = { id: 'group-1', workflowId: 'workflow-1', outputs: [] }
 const NEXT_GROUP = { id: 'group-2', workflowId: 'workflow-2', outputs: [] }
@@ -215,6 +218,36 @@ describe('a table cell losing a database socket', () => {
     expect(writtenStatuses()).toEqual(['completed', 'error'])
   })
 
+  it('fails the run when neither the terminal write nor the error write completes', async () => {
+    const lost = resetBegin()
+    mocks.writeWorkflowGroupState.mockRejectedValue(lost)
+
+    await expect(runRowCascadeLoop(PAYLOAD)).rejects.toBe(lost)
+
+    expect(mocks.executeWorkflow).toHaveBeenCalledOnce()
+  })
+
+  it('terminalizes the marker when the read that starts a group never recovers, and still fails', async () => {
+    const failure = resetRead()
+    mocks.getTableById.mockRejectedValue(failure)
+    dbChainMockFns.returning.mockResolvedValueOnce([{ rowId: 'row-1' }])
+
+    await expect(executeWorkflowGroupCellJob(PAYLOAD)).rejects.toBe(failure)
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'error', executionId: 'execution-1' })
+    )
+    expect(mocks.executeWorkflow).not.toHaveBeenCalled()
+  })
+
+  it('reports the original failure when the marker cannot be terminalized either', async () => {
+    const failure = resetRead()
+    mocks.getTableById.mockRejectedValue(failure)
+    dbChainMockFns.returning.mockRejectedValue(resetBegin())
+
+    await expect(executeWorkflowGroupCellJob(PAYLOAD)).rejects.toBe(failure)
+  })
+
   it('ends the carrier instead of starting the next group when a Stop owns the failed cell', async () => {
     mocks.readDispatch.mockRejectedValue(resetRead())
     mocks.writeWorkflowGroupState.mockResolvedValue('skipped')
@@ -298,6 +331,29 @@ describe('a table cell losing a database socket', () => {
 
     const stored = lastWrite()?.executionState.error
     expect(stored).not.toMatch(/Failed query|secret-value|again/)
+  })
+
+  it('does not store the text of a bare driver error that is not a connection failure', async () => {
+    mocks.executeWorkflow.mockRejectedValue(
+      Object.assign(new Error('duplicate key value violates unique constraint "secret_index"'), {
+        name: 'PostgresError',
+        code: '23505',
+      })
+    )
+
+    await runRowCascadeLoop(PAYLOAD)
+
+    expect(lastWrite()?.executionState.error).not.toMatch(/secret_index/)
+  })
+
+  it('keeps the message of a coded failure that did not come from the database', async () => {
+    mocks.executeWorkflow.mockRejectedValue(
+      Object.assign(new Error('Could not read the attached file'), { code: 'ENOENT' })
+    )
+
+    await runRowCascadeLoop(PAYLOAD)
+
+    expect(lastWrite()?.executionState.error).toBe('Could not read the attached file')
   })
 
   it('keeps the message of a failure that has nothing to do with the database', async () => {

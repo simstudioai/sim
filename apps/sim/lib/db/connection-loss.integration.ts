@@ -5,6 +5,7 @@
  */
 import net, { type Socket } from 'node:net'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
+import { sleep } from '@sim/utils/helpers'
 import { generateShortId } from '@sim/utils/id'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -28,12 +29,12 @@ const resetEverySocket = () => {
 }
 
 /** Lets the statement reach the server before the socket is reset under it. */
-const shortly = () => new Promise<void>((resolve) => setTimeout(resolve, 75))
+const shortly = () => sleep(75)
 
 beforeAll(async () => {
   const url = new URL(readTestDatabaseUrl())
   proxy = net.createServer((downstream) => {
-    const upstream = net.connect(Number(url.port || 5432), url.hostname)
+    const upstream = net.connect(Number(url.port || 5432), url.hostname.replace(/^\[|\]$/g, ''))
     live.add(downstream)
     downstream.pipe(upstream)
     upstream.pipe(downstream)

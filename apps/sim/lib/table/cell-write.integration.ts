@@ -36,7 +36,7 @@ const control = postgres(realUrl.toString(), { max: 2, onnotice: () => {} })
 let interception: Interception | null = null
 
 const proxy = net.createServer((client: Socket) => {
-  const server = net.connect(Number(realUrl.port || 5432), realUrl.hostname)
+  const server = net.connect(Number(realUrl.port || 5432), realUrl.hostname.replace(/^\[|\]$/g, ''))
   let replyLost = false
   client.on('data', (chunk) => {
     const armed = interception
@@ -79,7 +79,7 @@ const userId = generateId()
 const groupId = 'group-1'
 const executionId = 'execution-1'
 
-async function createCell() {
+async function createCell({ pickedUp = true } = {}) {
   const tableId = generateId()
   const rowId = generateId()
   await db.insert(userTableDefinitions).values({
@@ -99,7 +99,7 @@ async function createCell() {
     workflowId: 'workflow-1',
     error: null,
   }
-  await writeExecutionsPatch(db, tableId, rowId, { [groupId]: running })
+  if (pickedUp) await writeExecutionsPatch(db, tableId, rowId, { [groupId]: running })
   const table = await getTableById(tableId)
   if (!table) throw new Error('Fixture table was not created')
   return { ctx: { tableId, rowId, workspaceId, groupId, executionId, table }, tableId, rowId }
@@ -191,6 +191,9 @@ describe('a durable cell state write around a lost connection', { timeout: 90_00
     await writeWorkflowGroupStateDurably(ctx, completed({ out: 'result' }))
 
     expect((await readCell(rowId)).out).toBe('edited')
+    expect(tableEventsMockFns.mockAppendTableEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'completed', outputs: { out: 'edited' } })
+    )
   })
 
   it('does not bring back a cell the user cleared after the commit landed', async () => {
@@ -207,6 +210,25 @@ describe('a durable cell state write around a lost connection', { timeout: 90_00
     )
 
     expect((await readCell(rowId)).status).toBeNull()
+  })
+
+  it('writes an error for a cell that never had a state, not mistaking it for a cleared one', async () => {
+    const { ctx, rowId } = await createCell({ pickedUp: false })
+    interception = { match: /commit/i, forward: false }
+
+    await expect(
+      writeWorkflowGroupStateDurably(ctx, {
+        executionState: {
+          status: 'error',
+          executionId,
+          jobId: null,
+          workflowId: 'workflow-1',
+          error: 'Workflow not found',
+        },
+      })
+    ).resolves.toBe('wrote')
+
+    expect((await readCell(rowId)).status).toBe('error')
   })
 
   it('does not overwrite a Stop that lands during the retry backoff', async () => {

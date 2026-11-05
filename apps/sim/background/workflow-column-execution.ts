@@ -25,7 +25,7 @@ import {
 } from '@/lib/core/execution-limits'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
-import { withDatabaseReadRetry } from '@/lib/db/read-retry'
+import { withDatabaseReadRetry, withIdempotentWriteRetry } from '@/lib/db/read-retry'
 import {
   registerManualExecutionAborter,
   unregisterManualExecutionAborter,
@@ -75,6 +75,8 @@ function readForCell<T>(label: string, read: () => Promise<T>): Promise<T> {
   return withDatabaseReadRetry(read, { label, ...CELL_DATABASE_RETRY })
 }
 
+const CELL_STOPPED_MESSAGE = 'This cell stopped before it finished. Run it again.'
+
 /**
  * The error a cell shows. Text that would expose a query, or a bare driver error, says what happened
  * instead, because anyone viewing the table reads it. Anything else keeps its own message, including
@@ -84,10 +86,11 @@ function getCellFailureMessage(error: unknown): string {
   const failure = toError(error)
   const exposesQuery = failure.message.includes('Failed query: ')
   if (!exposesQuery && !Object.hasOwn(failure, 'code')) return failure.message
-  if (classifyDatabaseFailure(failure) === 'connection') {
-    return 'Lost the database connection. Run this cell again.'
-  }
-  return exposesQuery ? 'A database error stopped this cell.' : failure.message
+  const failureClass = classifyDatabaseFailure(failure)
+  if (failureClass === 'connection') return 'Lost the database connection. Run this cell again.'
+  const isDatabaseFailure =
+    exposesQuery || failureClass !== 'permanent' || failure.name === 'PostgresError'
+  return isDatabaseFailure ? 'A database error stopped this cell.' : failure.message
 }
 
 /**
@@ -198,6 +201,13 @@ export async function terminalizeAbortedQueuedCarrierMarker(
     timedOut: isTimeoutAbortReason(signal.reason),
     timeoutMs,
   })
+  return terminalizeQueuedMarker(payload, executionState)
+}
+
+async function terminalizeQueuedMarker(
+  payload: QueuedWorkflowGroupCellPayload,
+  executionState: RowExecutionMetadata
+): Promise<boolean> {
   const [updated] = await db
     .update(tableRowExecutions)
     .set({
@@ -322,6 +332,7 @@ export async function executeWorkflowGroupCellJob(
 ) {
   const carrierTimeoutController = createWorkflowGroupCarrierTimeoutController(payload, signal)
   const carrierSignal = carrierTimeoutController.signal
+  let currentPayload = payload
   try {
     const { tableId, rowId, workspaceId } = payload
     const { getTableById } = await import('@/lib/table/service')
@@ -329,7 +340,6 @@ export async function executeWorkflowGroupCellJob(
     const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
     const { readStampedCapabilitySubject } = await import('@/lib/table/rows/executions')
 
-    let currentPayload = payload
     while (true) {
       if (carrierSignal.aborted) {
         await terminalizeAbortedQueuedCarrierMarker(currentPayload, carrierSignal)
@@ -384,6 +394,31 @@ export async function executeWorkflowGroupCellJob(
         ),
       }
     }
+  } catch (err) {
+    /**
+     * A read that ran out of retries outside a group's own handling, such as the table lookup that
+     * starts a group, leaves this carrier's marker unclaimed with nothing to revisit it. The throw
+     * still fails the run, because the database stayed unreachable through a full retry budget.
+     */
+    const { executionId, enrichmentId, workflowId } = currentPayload
+    await withIdempotentWriteRetry(
+      () =>
+        terminalizeQueuedMarker(currentPayload, {
+          status: 'error',
+          executionId,
+          jobId: null,
+          workflowId: enrichmentId ?? workflowId,
+          error: CELL_STOPPED_MESSAGE,
+          runningBlockIds: [],
+        }),
+      { label: 'terminalizeQueuedMarker', ...CELL_DATABASE_RETRY }
+    ).catch((markerErr) => {
+      logger.error('Failed to terminalize the queued marker of a failed cell', {
+        executionId,
+        cause: describeError(markerErr),
+      })
+    })
+    throw err
   } finally {
     carrierTimeoutController.cleanup()
   }
@@ -1268,6 +1303,7 @@ async function runWorkflowAndWriteTerminal(
             cause: describeError(writeErr),
             retryable: isRetryableInfrastructureError(writeErr),
           })
+          throw writeErr
         }
         return 'error'
       }
@@ -1299,7 +1335,7 @@ async function runWorkflowAndWriteTerminal(
           executionId,
           jobId: null,
           workflowId: (group.type === 'enrichment' && group.enrichmentId) || workflowId,
-          error: 'This cell stopped before it finished. Run it again.',
+          error: CELL_STOPPED_MESSAGE,
         },
       }
     )
