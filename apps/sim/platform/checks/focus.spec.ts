@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-test('typing preserves the resting field and wrapper appearance in both themes', async ({
+test('typing keeps the field at rest, apart from the frame that shows keyboard focus', async ({
   page,
 }) => {
   for (const [theme, input, textarea, search] of [
@@ -22,7 +22,7 @@ test('typing preserves the resting field and wrapper appearance in both themes',
           [element, element.parentElement].map((node) => {
             if (!node) throw new Error('Missing field wrapper')
             const css = getComputedStyle(node)
-            return [css.outlineStyle, css.borderColor, css.backgroundColor, css.boxShadow]
+            return [css.outlineStyle, css.backgroundColor, css.boxShadow]
           })
         )
       const resting = await appearance()
