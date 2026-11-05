@@ -577,6 +577,8 @@ try {
     })
     await integrationRow('Salesforce').click()
     await expect(page.getByRole('button', { name: 'Add account', exact: true })).toHaveCount(0)
+    const policy = page.getByRole('radiogroup', { name: 'Create Task in Salesforce permission' })
+    await expect(policy).toBeVisible({ timeout: 180_000 })
     await page.getByRole('button', { name: /^Manage / }).click()
     await expect(
       page.getByRole('menuitem', { name: 'Reconnect account', exact: true })
@@ -586,8 +588,6 @@ try {
     await expect(page.getByRole('dialog', { name: 'Disconnect Salesforce' })).toBeVisible()
     await capture('integration-disconnect-confirmation')
     await page.getByRole('button', { name: 'Cancel', exact: true }).click()
-    const policy = page.getByRole('radiogroup', { name: 'Create Task in Salesforce permission' })
-    await expect(policy).toBeVisible({ timeout: 180_000 })
     await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeChecked()
     await capture('integration-detail-salesforce')
   })
