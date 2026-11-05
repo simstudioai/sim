@@ -5,7 +5,8 @@ import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-hos
 import type { ComposerChrome } from '@/app/o/[organizationId]/home/components/composer'
 import styles from '@/platform/app/(shell)/_components/conversation/composer-chrome.module.css'
 import conversationStyles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
-import { IconButton, SegmentedControl } from '@/platform/design-system/components'
+import { IconButton } from '@/platform/design-system/components/button/button'
+import { SegmentedControl } from '@/platform/design-system/components/segmented-control/segmented-control'
 
 const PLAN_OPTIONS = [
   { value: 'build', label: 'Build' },

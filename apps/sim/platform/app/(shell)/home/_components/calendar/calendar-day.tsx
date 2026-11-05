@@ -8,14 +8,11 @@ import type {
 } from '@/platform/app/(shell)/home/_components/model'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { SkeletonBlock } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
-import {
-  AvatarGroup,
-  Button,
-  IconButton,
-  InlineNotice,
-  OverflowText,
-} from '@/platform/design-system/components'
+import { AvatarGroup } from '@/platform/design-system/components/avatar/avatar'
+import { Button, IconButton } from '@/platform/design-system/components/button/button'
+import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
+import { InlineNotice } from '@/platform/design-system/components/status/status'
 import { formatCalendarDate, formatClockTime, formatTimeRange } from '@/platform/lib/time'
 
 interface CalendarDayProps {

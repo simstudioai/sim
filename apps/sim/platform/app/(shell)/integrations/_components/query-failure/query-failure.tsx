@@ -1,4 +1,4 @@
-import { FailureNotice } from '@/platform/design-system/components'
+import { FailureNotice } from '@/platform/design-system/components/status/status'
 
 interface QueryFailureProps {
   message: string

@@ -10,21 +10,20 @@ import {
   LinksFrame,
 } from '@/platform/app/(shell)/links/_components/links-page/links-frame'
 import styles from '@/platform/app/(shell)/links/_components/links-page/links-page.module.css'
+import { Avatar } from '@/platform/design-system/components/avatar/avatar'
+import { Button } from '@/platform/design-system/components/button/button'
 import {
-  ActionMenu,
-  Avatar,
-  Button,
-  ContextActionMenu,
   DataTable,
-  EmptyState,
-  FailureNotice,
-  Icon,
-  Modal,
-  OverflowText,
   TableLabel,
-} from '@/platform/design-system/components'
+} from '@/platform/design-system/components/data-display/data-display'
+import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
+import { Icon } from '@/platform/design-system/components/icon/icon'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
+import { ActionMenu, ContextActionMenu } from '@/platform/design-system/components/menu/action-menu'
+import { Modal } from '@/platform/design-system/components/modal/modal'
+import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 import type { LoadMoreState } from '@/platform/design-system/components/scroll-area/use-load-more'
+import { FailureNotice } from '@/platform/design-system/components/status/status'
 import { openLink, useLinksPage } from '@/platform/lib/data/links'
 import { formatRelativeTime } from '@/platform/lib/time'
 

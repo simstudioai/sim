@@ -23,7 +23,8 @@ import { QueryFailure } from '@/platform/app/(shell)/integrations/_components/qu
 import { SearchConnectionRequest } from '@/platform/app/(shell)/integrations/_components/search-connection-request/search-connection-request'
 import { SlackSearchActions } from '@/platform/app/(shell)/integrations/_components/slack-search-actions/slack-search-actions'
 import { ToolPermissionsPanel } from '@/platform/app/(shell)/integrations/_components/tool-permissions/tool-permissions-panel'
-import { EmptyState, InlineNotice } from '@/platform/design-system/components'
+import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
+import { InlineNotice } from '@/platform/design-system/components/status/status'
 import { useIntegrationActions, useMemberIntegrations } from '@/platform/lib/data/integrations'
 import { GENERIC_SECRETS_SEGMENT, integrationPath } from '@/platform/lib/integrations/model'
 

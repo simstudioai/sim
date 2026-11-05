@@ -17,7 +17,10 @@ import { HomeWorkspaces } from '@/platform/app/(shell)/home/_components/home-wor
 import type { HomeActions, HomeView } from '@/platform/app/(shell)/home/_components/model'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { SkeletonLane } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
-import { ActionMenu, Icon, InlineNotice, RecentItems } from '@/platform/design-system/components'
+import { Icon } from '@/platform/design-system/components/icon/icon'
+import { ActionMenu } from '@/platform/design-system/components/menu/action-menu'
+import { RecentItems } from '@/platform/design-system/components/recent-items/recent-items'
+import { InlineNotice } from '@/platform/design-system/components/status/status'
 import type { OrganizationHomeWidget } from '@/stores/organization-home/store'
 
 const WIDGETS: readonly OrganizationHomeWidget[] = ['Activity', 'Workspaces', 'Email', 'Calendar']

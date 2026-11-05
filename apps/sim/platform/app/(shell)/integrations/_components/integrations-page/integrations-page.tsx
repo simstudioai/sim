@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import styles from '@/platform/app/(shell)/integrations/_components/integrations-page/integrations-page.module.css'
-import { Chip } from '@/platform/design-system/components'
+import { Chip } from '@/platform/design-system/components/button/button'
 
 interface IntegrationsPageProps {
   /** A detail page's way back. The index has none. */

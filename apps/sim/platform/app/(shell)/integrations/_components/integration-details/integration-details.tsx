@@ -4,8 +4,9 @@ import { type ReactNode, useLayoutEffect, useRef } from 'react'
 import { ConnectedCredential } from '@/platform/app/(shell)/integrations/_components/connected-credential/connected-credential'
 import { ConnectionAccess } from '@/platform/app/(shell)/integrations/_components/connection-access/connection-access'
 import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
-import { Chip, EmptyState } from '@/platform/design-system/components'
+import { Chip } from '@/platform/design-system/components/button/button'
 import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
+import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
 import {
   accountStatus,
   isConnectable,

@@ -6,7 +6,7 @@ import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
 import { QueryFailure } from '@/platform/app/(shell)/integrations/_components/query-failure/query-failure'
 import { ToolPermissions } from '@/platform/app/(shell)/integrations/_components/tool-permissions/tool-permissions'
-import { InlineNotice } from '@/platform/design-system/components'
+import { InlineNotice } from '@/platform/design-system/components/status/status'
 import { useToolPermissions } from '@/platform/lib/data/integrations'
 
 interface ToolPermissionsPanelProps {
