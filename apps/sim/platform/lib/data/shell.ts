@@ -15,12 +15,11 @@ import type {
   ShellWorkspace,
 } from '@/platform/app/(shell)/_components/model'
 import { useOrganization } from '@/platform/lib/data/organization'
-import { legacyRoutes, type PlatformOrganization } from '@/platform/lib/data/organization-model'
-
-/** The legacy sidebar's rule for its Chats section; the list read answers 403 outside it. */
-export function canListOrganizationChats({ access }: PlatformOrganization): boolean {
-  return access.mothershipAvailable && (access.canBuild || access.searchAccess.memberScoped)
-}
+import {
+  canListOrganizationChats,
+  legacyRoutes,
+  type PlatformOrganization,
+} from '@/platform/lib/data/organization-model'
 
 function toShellWorkspace(
   workspace: Workspace,
@@ -87,8 +86,9 @@ export function useShellData(navigation: ShellNavigation): ShellData {
   const workspaces = useOrderedWorkspacesQuery()
   const pinnedIds = usePinnedWorkspaceIds()
   const creationPolicy = useWorkspaceCreationPolicy()
+  const chatsAvailable = canListOrganizationChats(organization)
   const chats = useOrganizationMothershipChats(organizationId, 'active', {
-    enabled: canListOrganizationChats(organization),
+    enabled: chatsAvailable,
   })
   const profile = useUserProfile()
   return {
@@ -101,7 +101,11 @@ export function useShellData(navigation: ShellNavigation): ShellData {
     inbox: [],
     notifications: [],
     unbacked: ['inbox', 'sortWorkspaces'],
-    status: { workspaces: workspaces.status, chats: chats.status, profile: profile.status },
+    status: {
+      workspaces: workspaces.status,
+      chats: chatsAvailable ? chats.status : 'success',
+      profile: profile.status,
+    },
     workspaceCreation: toWorkspaceCreation(creationPolicy.data),
     surface: organization,
     destinations: navigation.destinations,

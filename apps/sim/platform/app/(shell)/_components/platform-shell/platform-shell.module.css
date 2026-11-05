@@ -6,24 +6,21 @@
   block-size: 100dvh;
   isolation: isolate;
 }
-.frame {
-  display: flex;
-  flex-direction: column;
-  block-size: 100dvh;
-}
-.frame > .shell {
-  flex: 1;
-  block-size: auto;
-  min-block-size: 0;
-}
 .shell[data-sidebar-collapsed] {
   grid-template-columns: minmax(0, 1fr);
 }
 .shell[data-sidebar-collapsed] > aside {
   display: none;
 }
-.shell[data-desktop] {
+.shell[data-desktop],
+.shell[data-banner] {
   grid-template-rows: auto minmax(0, 1fr);
+}
+.shell[data-desktop][data-banner] {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+.banner {
+  grid-column: 1 / -1;
 }
 .content {
   position: relative;

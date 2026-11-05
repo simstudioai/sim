@@ -14,7 +14,7 @@ export const GET = defineInternalJsonRoute({
   operation: organizationOperations.readSurface,
   rateLimit: internalRateLimits.none({
     reason:
-      'Read once per Platform document, as the legacy organization layout reads it per render',
+      'Read per Platform server render, as the legacy organization layout reads it per render',
   }),
   errorPolicy: internalOrganizationErrorPolicy,
   mapInput: () => ({}),

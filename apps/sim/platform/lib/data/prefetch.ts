@@ -17,14 +17,16 @@ import {
 import { makeQueryClient } from '@/hooks/queries/utils/query-client'
 import { normalizeWorkspacesResponse } from '@/hooks/queries/utils/workspace-list-query'
 import { workspaceKeys } from '@/hooks/queries/workspace'
-import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
+import {
+  canListOrganizationChats,
+  type PlatformOrganization,
+} from '@/platform/lib/data/organization-model'
 import { serverRequestJson } from '@/platform/lib/data/server-request'
-import { canListOrganizationChats } from '@/platform/lib/data/shell'
 
 const logger = createLogger('PlatformShellPrefetch')
 
 /** A slow read gives up its first-paint seat rather than hold the document; the client fetches it. */
-const PREFETCH_TIMEOUT_MS = 5_000
+const PREFETCH_TIMEOUT_MS = 2_000
 
 /**
  * The legacy sidebar's reads for first paint, under the client hooks' keys and mappers. A failed

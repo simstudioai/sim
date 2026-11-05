@@ -7,33 +7,26 @@ export const PLATFORM_DESTINATIONS = [
   { id: 'integrations', label: 'Integrations', icon: 'I070', value: '/integrations' },
 ] as const
 
+const [HOME, SETTINGS, INTEGRATIONS] = PLATFORM_DESTINATIONS
+
 /** The legacy navigation's gates and order. Search and Benchmark stay on the legacy surface. */
 export function resolveLiveDestinations(organization: PlatformOrganization): ShellDestination[] {
-  const { access, navFlags } = organization
+  const { mothershipAvailable, canBuild, searchAccess, navFlags } = organization
   const routes = legacyRoutes(organization)
+  const search = { id: 'search', label: 'Search', icon: 'I089', value: routes.search } as const
+  const people = { id: 'people', label: 'People', icon: 'I104', value: '/people' } as const
+  const benchmark = {
+    id: 'benchmark',
+    label: 'Benchmark',
+    icon: 'I046',
+    value: routes.benchmark,
+  } as const
   return [
-    ...(access.mothershipAvailable && access.canBuild
-      ? [{ id: 'home', label: 'Home', icon: 'I104' as const, value: '/home' }]
-      : []),
-    ...(access.searchAccess.memberScoped
-      ? [{ id: 'search', label: 'Search', icon: 'I089' as const, value: routes.search }]
-      : []),
-    ...(navFlags.people
-      ? [{ id: 'people', label: 'People', icon: 'I104' as const, value: '/people' }]
-      : []),
-    ...(access.searchAccess.memberScoped
-      ? [
-          {
-            id: 'integrations',
-            label: 'Integrations',
-            icon: 'I070' as const,
-            value: '/integrations',
-          },
-        ]
-      : []),
-    ...(navFlags.benchmark
-      ? [{ id: 'benchmark', label: 'Benchmark', icon: 'I046' as const, value: routes.benchmark }]
-      : []),
-    { id: 'settings', label: 'Settings', icon: 'I116', value: '/settings' },
+    ...(mothershipAvailable && canBuild ? [HOME] : []),
+    ...(searchAccess.memberScoped ? [search] : []),
+    ...(navFlags.people ? [people] : []),
+    ...(searchAccess.memberScoped ? [INTEGRATIONS] : []),
+    ...(navFlags.benchmark ? [benchmark] : []),
+    SETTINGS,
   ]
 }

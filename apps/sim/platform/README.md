@@ -102,7 +102,7 @@ bun run --cwd apps/sim test:platform:desktop
 
 The Platform type check generates Next.js route types and checks the isolated project. The repository type check runs it alongside the existing app’s TypeScript project.
 
-`bun run --cwd apps/sim test:platform:live` runs `checks/live/` against an app and database you have started, using `PLATFORM_LIVE_ORIGIN`, `PLATFORM_LIVE_EMAIL`, `PLATFORM_LIVE_PASSWORD` and `PLATFORM_LIVE_ORGANIZATION_NAME`. Supply `PLATFORM_LIVE_REPORT_PATH` to save its JSON report.
+`bun run --cwd apps/sim test:platform:live` runs `checks/live/` against an app and database you have started, using `PLATFORM_LIVE_ORIGIN`, `PLATFORM_LIVE_EMAIL`, `PLATFORM_LIVE_PASSWORD` and `PLATFORM_LIVE_ORGANIZATION_NAME`. The member needs build access: anyone else lands on a legacy route. Supply `PLATFORM_LIVE_REPORT_PATH` to save its JSON report.
 
 The browser suite starts separate production servers with fixtures enabled and disabled. Supply `PLATFORM_REPORT_PATH` to save JSON, failure screenshots and traces. Next uses webpack for this nested app: the installed Turbopack also discovers the parent Sim project's proxy and instrumentation. Watch for that boundary when upgrading Next.
 

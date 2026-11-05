@@ -36,7 +36,6 @@ export const toast = Object.assign((input: ToastInput) => deliver(input), {
   dismiss: (id: string) => sink?.dismiss(id),
 })
 
-/** Connects the shell's notices. Returns the disconnect for an effect's cleanup. */
 export function connectToastSink(next: ToastSink): () => void {
   sink = next
   return () => {

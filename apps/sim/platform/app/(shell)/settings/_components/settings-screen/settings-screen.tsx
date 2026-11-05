@@ -34,7 +34,6 @@ export function SettingsScreen({
     liveTitle ??
     SETTINGS_DESTINATIONS.find((entry) => entry.key === section)?.title ??
     'Preferences'
-  const preferences = useInterfacePreferences()
   const start = useRef<HTMLDivElement>(null)
   const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
@@ -70,60 +69,68 @@ export function SettingsScreen({
           <h1 data-type='T076'>{title}</h1>
           {section === 'preferences' && <p data-type='T067'>Manage your personal preferences</p>}
         </header>
-        {children}
-        {!children && section === 'preferences' && (
-          <>
-            <ProfileSettings name={profileName} email={data?.email} />
-            <AppearanceSettings />
-          </>
-        )}
-        {!children && (section === 'preferences' || section === 'notifications') && (
-          <NotificationSettings />
-        )}
-        {!children && section === 'keyboard-shortcuts' && (
-          <SettingsSection title='Navigation'>
-            <SettingsRow label='Search'>
-              <kbd data-type='T005'>⌘ / Ctrl + K</kbd>
-            </SettingsRow>
-            <SettingsRow label='Search settings'>
-              <kbd data-type='T005'>/</kbd>
-            </SettingsRow>
-            <SettingsRow label='Close menu or dialog'>
-              <kbd data-type='T005'>Esc</kbd>
-            </SettingsRow>
-          </SettingsSection>
-        )}
-        {!children &&
-          section === 'connections' &&
-          (data?.connections.length ? (
-            <SettingsSection title='Connected accounts'>
-              {data.connections.map((name) => (
-                <SettingsRow key={name} label={name} />
-              ))}
-            </SettingsSection>
-          ) : (
-            <EmptyState title='No connected accounts' />
-          ))}
-        {!children &&
-          section === 'members' &&
-          (data?.members.length ? (
-            <SettingsSection title='Organization members'>
-              {data.members.map((member) => (
-                <SettingsRow
-                  key={member.id}
-                  label={
-                    member.email === data.email
-                      ? (preferences?.profileName ?? member.name)
-                      : member.name
-                  }
-                  description={member.email}
-                />
-              ))}
-            </SettingsSection>
-          ) : (
-            <EmptyState title='No members to display' />
-          ))}
+        {children ?? <FixtureSections section={section} data={data} profileName={profileName} />}
       </div>
+    </>
+  )
+}
+
+function FixtureSections({
+  section,
+  data,
+  profileName,
+}: Pick<SettingsScreenProps, 'section' | 'data' | 'profileName'>) {
+  const preferences = useInterfacePreferences()
+  return (
+    <>
+      {section === 'preferences' && (
+        <>
+          <ProfileSettings name={profileName} email={data?.email} />
+          <AppearanceSettings />
+        </>
+      )}
+      {(section === 'preferences' || section === 'notifications') && <NotificationSettings />}
+      {section === 'keyboard-shortcuts' && (
+        <SettingsSection title='Navigation'>
+          <SettingsRow label='Search'>
+            <kbd data-type='T005'>⌘ / Ctrl + K</kbd>
+          </SettingsRow>
+          <SettingsRow label='Search settings'>
+            <kbd data-type='T005'>/</kbd>
+          </SettingsRow>
+          <SettingsRow label='Close menu or dialog'>
+            <kbd data-type='T005'>Esc</kbd>
+          </SettingsRow>
+        </SettingsSection>
+      )}
+      {section === 'connections' &&
+        (data?.connections.length ? (
+          <SettingsSection title='Connected accounts'>
+            {data.connections.map((name) => (
+              <SettingsRow key={name} label={name} />
+            ))}
+          </SettingsSection>
+        ) : (
+          <EmptyState title='No connected accounts' />
+        ))}
+      {section === 'members' &&
+        (data?.members.length ? (
+          <SettingsSection title='Organization members'>
+            {data.members.map((member) => (
+              <SettingsRow
+                key={member.id}
+                label={
+                  member.email === data.email
+                    ? (preferences?.profileName ?? member.name)
+                    : member.name
+                }
+                description={member.email}
+              />
+            ))}
+          </SettingsSection>
+        ) : (
+          <EmptyState title='No members to display' />
+        ))}
     </>
   )
 }

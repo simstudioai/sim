@@ -211,6 +211,14 @@ export async function requestJson<C extends AnyApiRouteContract>(
     ...(input.keepalive === undefined ? {} : { keepalive: input.keepalive }),
   })
 
+  return readContractResponse(contract, response)
+}
+
+/** Validates a contract's JSON response, or throws the `ApiClientError` its failure amounts to. */
+export async function readContractResponse<C extends AnyApiRouteContract>(
+  contract: C,
+  response: Response
+): Promise<ContractJsonResponse<C>> {
   const { parsed, raw } = await readResponseBody(response)
   if (!response.ok) {
     throw new ApiClientError({

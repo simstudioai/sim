@@ -4,10 +4,7 @@ import { createLogger } from '@sim/logger'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { getOrganizationSurfaceContract } from '@/lib/api/contracts/organization'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import {
-  type PlatformOrganization,
-  toPlatformOrganization,
-} from '@/platform/lib/data/organization-model'
+import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { serverRequestJson } from '@/platform/lib/data/server-request'
 
 const logger = createLogger('PlatformSurface')
@@ -28,7 +25,7 @@ export const readOrganizationSurface = cache(async (): Promise<OrganizationSurfa
     const surface = await serverRequestJson(getOrganizationSurfaceContract, {
       signal: AbortSignal.timeout(SURFACE_TIMEOUT_MS),
     })
-    return { status: 'ok', organization: toPlatformOrganization(surface, getBaseUrl()) }
+    return { status: 'ok', organization: { ...surface, legacyOrigin: getBaseUrl() } }
   } catch (error) {
     if (isApiClientError(error) && error.status === 401) return { status: 'unauthenticated' }
     if (isApiClientError(error) && error.status === 403) return { status: 'denied' }

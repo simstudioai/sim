@@ -23,25 +23,12 @@ const LEGACY_DESTINATION = /^https?:\/\//
 
 interface PlatformShellProps {
   data: ShellData | null
+  /** A row of its own below any native titlebar, where the window controls stay reachable. */
+  banner?: ReactNode
   children: ReactNode
 }
 
-interface PlatformShellFrameProps {
-  banner: ReactNode
-  children: ReactNode
-}
-
-/** Gives a banner its own row above the shell, which otherwise fills the window. */
-export function PlatformShellFrame({ banner, children }: PlatformShellFrameProps) {
-  return (
-    <div className={styles.frame}>
-      {banner}
-      {children}
-    </div>
-  )
-}
-
-export function PlatformShell({ data, children }: PlatformShellProps) {
+export function PlatformShell({ data, banner, children }: PlatformShellProps) {
   const scrollEdges = useScrollEdges<HTMLDivElement>()
   const pathname = usePathname()
   const search = useSearchParams()
@@ -154,6 +141,7 @@ export function PlatformShell({ data, children }: PlatformShellProps) {
         data-desktop={desktop || undefined}
         data-conversation={conversation || undefined}
         data-sidebar-collapsed={collapsed || undefined}
+        data-banner={banner ? true : undefined}
       >
         {desktop && (
           <header className={styles.desktopBar} data-desktop-drag=''>
@@ -168,6 +156,7 @@ export function PlatformShell({ data, children }: PlatformShellProps) {
             )}
           </header>
         )}
+        {banner && <div className={styles.banner}>{banner}</div>}
         {!compact && sidebar}
         {!scrollingPage && webOpener}
         <div ref={scrollEdges} className={styles.content}>

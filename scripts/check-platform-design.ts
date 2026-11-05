@@ -131,6 +131,7 @@ const seamHelpers = new Set([
   'lib/auth/browser-storage',
   'lib/auth/client',
   'lib/auth/session-context',
+  'lib/auth/session-expiry',
   'lib/core/config/env',
   'lib/core/config/public-env',
   'lib/core/utils/urls',

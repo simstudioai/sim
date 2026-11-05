@@ -13,13 +13,13 @@ export interface ControlProps {
   describedBy?: string
 }
 
-interface TextControlProps extends ControlProps {
+export interface TextValueProps {
   /** Controlled text. Leave it out and `defaultValue` keeps the draft in the DOM. */
   value?: string
   onChange?: (value: string) => void
 }
 
-interface InputProps extends TextControlProps {
+interface InputProps extends ControlProps, TextValueProps {
   required?: boolean
   pattern?: string
   placeholder?: string

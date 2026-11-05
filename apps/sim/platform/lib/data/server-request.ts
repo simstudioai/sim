@@ -1,7 +1,6 @@
 import 'server-only'
 import { headers } from 'next/headers'
-import { ApiClientError } from '@/lib/api/client/errors'
-import { type ApiClientRequest, contractUrl } from '@/lib/api/client/request'
+import { type ApiClientRequest, contractUrl, readContractResponse } from '@/lib/api/client/request'
 import type { AnyApiRouteContract, ContractJsonResponse } from '@/lib/api/contracts'
 
 /** What the main app's session policies and request logging read from the viewer's own request. */
@@ -23,16 +22,10 @@ export async function serverRequestJson<C extends AnyApiRouteContract>(
   }
   const url = new URL(contractUrl(contract, input), process.env.SIM_PLATFORM_API_ORIGIN)
   const response = await fetch(url, {
+    method: contract.method,
     headers: forwarded,
     cache: 'no-store',
     signal: input.signal,
   })
-  if (!response.ok) {
-    throw new ApiClientError({
-      status: response.status,
-      message: `${contract.method} ${contract.path} answered ${response.status}`,
-      body: undefined,
-    })
-  }
-  return contract.response.schema.parse(await response.json()) as ContractJsonResponse<C>
+  return readContractResponse(contract, response)
 }

@@ -36,9 +36,9 @@ const config: NextConfig = {
       : []
   },
   webpack(webpackConfig) {
-    /** No `$`, so `@sim/emcn/icons` resolves beneath the shim file and fails the build as missing. */
+    // No `$`, so `@sim/emcn/icons` resolves beneath the shim file and fails the build as missing.
     webpackConfig.resolve.alias['@sim/emcn'] = emcnShim
-    /** A named import the shim lacks is an error in our sources, not webpack's default warning. */
+    // A named import the shim lacks is an error in our sources, not webpack's default warning.
     webpackConfig.module.rules.push({
       test: /\.tsx?$/,
       exclude: /node_modules/,

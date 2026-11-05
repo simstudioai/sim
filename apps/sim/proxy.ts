@@ -15,6 +15,7 @@ import {
   isAppSurfacePath,
   isNoindexPath,
   isPathOrDescendant,
+  ORGANIZATIONS_PATH,
 } from '@/lib/navigation/paths'
 import { LEGACY_URL_HEADER } from '@/lib/platform/routes'
 import { isOAuthAuthorizationCallback, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
@@ -369,7 +370,7 @@ function handleIntegrationSlugRedirect(request: NextRequest): NextResponse | nul
  */
 function continueAppSurface(request: NextRequest): NextResponse {
   const { pathname, search } = request.nextUrl
-  if (!getEnv('SIM_PLATFORM_ORIGIN') || !isPathOrDescendant(pathname, '/o')) {
+  if (!getEnv('SIM_PLATFORM_ORIGIN') || !isPathOrDescendant(pathname, ORGANIZATIONS_PATH)) {
     return NextResponse.next()
   }
   const headers = new Headers(request.headers)
@@ -527,6 +528,6 @@ export const config = {
     // limit, and those bodies are whole files or document snapshots.
     '/api/((?!desktop/tool/(?:import|file)$|internal/file-doc/persist$|internal/project-file-doc/[^/]+/[^/]+/persist$).*)',
     // Next's image optimizer fetches public editorial images without a User-Agent.
-    '/((?!api/|api$|_next/static|_next/image|(?:blog|changelog)/.*\\.(?:avif|gif|jpe?g|png|svg|webp)$|ingest|favicon.ico|logo/|landing/|static/|footer/|social/|enterprise/|favicon/|twitter/|robots.txt|sitemap.xml).*)',
+    '/((?!api/|api$|_next/static|_next/image|platform/_next/static|(?:blog|changelog)/.*\\.(?:avif|gif|jpe?g|png|svg|webp)$|ingest|favicon.ico|logo/|landing/|static/|footer/|social/|enterprise/|favicon/|twitter/|robots.txt|sitemap.xml).*)',
   ],
 }

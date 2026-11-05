@@ -9,3 +9,9 @@
 .gate[data-full-page] {
   min-block-size: 100dvh;
 }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-action-gap);
+}

@@ -2,7 +2,7 @@
 
 import styles from '@/platform/app/(shell)/_components/session-state/session-state.module.css'
 import { Button } from '@/platform/design-system/components'
-import { useImpersonation, useSessionExpiry } from '@/platform/lib/data/session'
+import { useImpersonation, useSessionRecovery } from '@/platform/lib/data/session'
 
 function ImpersonationBanner() {
   const { active, name, email, stopping, stop } = useImpersonation()
@@ -21,24 +21,23 @@ function ImpersonationBanner() {
 }
 
 function SessionExpired() {
-  const { expired, failed, wasImpersonation, retry } = useSessionExpiry()
+  const { expired, failed, wasImpersonation, attemptRecovery } = useSessionRecovery()
   if (!expired) return null
   const subject = wasImpersonation ? 'The impersonation session expired' : 'Your session expired'
   return (
-    <main className={styles.takeover}>
+    <div className={styles.takeover}>
       <p data-type='T067' role='status'>
         {failed ? `${subject}, but signing out failed.` : `${subject}. Signing you out…`}
       </p>
       {failed && (
-        <Button variant='primary' onClick={retry}>
+        <Button variant='primary' onClick={attemptRecovery}>
           Try again
         </Button>
       )}
-    </main>
+    </div>
   )
 }
 
-/** What the session itself has to say, above whatever route is showing. */
 export function SessionState() {
   return (
     <>

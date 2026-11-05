@@ -44,7 +44,7 @@ export function OverlayDialog({
   }, [open])
   useLayoutEffect(() => {
     const dialog = ref.current
-    if (!dialog || !open) return
+    if (!dialog || !open || busy) return
     const body = step === undefined ? dialog : dialog.querySelector('fieldset:not([hidden])')
     const field = Array.from(
       body?.querySelectorAll<HTMLElement>(
@@ -53,7 +53,7 @@ export function OverlayDialog({
     ).find((element) => element.tabIndex >= 0 && element.checkVisibility())
     const target = field ?? dialog.querySelector<HTMLElement>('footer button:enabled')
     target?.focus({ preventScroll: true })
-  }, [open, step])
+  }, [open, step, busy])
   const content = (
     <>
       {title && (

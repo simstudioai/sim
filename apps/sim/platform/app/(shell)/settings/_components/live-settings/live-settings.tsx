@@ -9,7 +9,7 @@ interface LiveSettingsProps {
   query: Record<string, string | string[] | undefined>
 }
 
-/** A live Settings section. The shell layout has already answered any surface failure. */
+/** The shell layout has already answered any surface failure. */
 export async function LiveSettings({ path, query }: LiveSettingsProps) {
   const surface = await readOrganizationSurface()
   if (surface.status !== 'ok') return null

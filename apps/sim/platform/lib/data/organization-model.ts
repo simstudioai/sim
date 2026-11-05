@@ -1,4 +1,3 @@
-import type { DeploymentShape } from '@/lib/api/contracts'
 import type { OrganizationSurfaceResponse } from '@/lib/api/contracts/organization'
 import {
   organizationRoutes,
@@ -6,47 +5,11 @@ import {
   WORKSPACES_PATH,
 } from '@/lib/navigation/paths'
 
-/** The organization surface as Platform views read it. Plain data: it crosses from the server. */
-export interface PlatformOrganization {
-  organization: OrganizationSurfaceResponse['organization']
-  viewer: OrganizationSurfaceResponse['viewer']
-  access: {
-    mothershipAvailable: boolean
-    canBuild: boolean
-    searchAccess: OrganizationSurfaceResponse['searchAccess']
-  }
-  connectedAccountsAvailable: boolean
-  settingsFeatures: OrganizationSurfaceResponse['settingsFeatures']
-  deployment: DeploymentShape
-  navFlags: OrganizationSurfaceResponse['navFlags']
-  featureFlags: OrganizationSurfaceResponse['featureFlags']
-  /** Legacy section ids the viewer may reach. Hiding one is navigation, never authorization. */
-  settingsSections: readonly string[]
-  /** Absolute origin of the main app, for the legacy routes the Platform links out to. */
-  legacyOrigin: string
-}
-
-export function toPlatformOrganization(
-  surface: OrganizationSurfaceResponse,
-  legacyOrigin: string
-): PlatformOrganization {
-  return {
-    organization: surface.organization,
-    viewer: surface.viewer,
-    access: {
-      mothershipAvailable: surface.mothershipAvailable,
-      canBuild: surface.canBuild,
-      searchAccess: surface.searchAccess,
-    },
-    connectedAccountsAvailable: surface.connectedAccountsAvailable,
-    settingsFeatures: surface.settingsFeatures,
-    deployment: surface.deployment,
-    navFlags: surface.navFlags,
-    featureFlags: surface.featureFlags,
-    settingsSections: surface.settingsSections,
-    legacyOrigin,
-  }
-}
+/**
+ * The organization surface as Platform views read it. Plain data: it crosses from the server.
+ * `legacyOrigin` is the main app's absolute origin, for the routes the Platform links out to.
+ */
+export type PlatformOrganization = OrganizationSurfaceResponse & { legacyOrigin: string }
 
 /**
  * Absolute URLs of the legacy routes the Platform links out to. A full navigation, since `next/link`
@@ -66,11 +29,12 @@ export function legacyRoutes({ legacyOrigin, organization }: PlatformOrganizatio
 
 /** The legacy surface's rule for when a member has nothing of theirs on the organization surface. */
 export function hasOrganizationSurface(organization: PlatformOrganization): boolean {
-  const { access, navFlags } = organization
-  return (
-    access.mothershipAvailable ||
-    access.searchAccess.memberScoped ||
-    navFlags.people ||
-    navFlags.simLinks
-  )
+  const { mothershipAvailable, searchAccess, navFlags } = organization
+  return mothershipAvailable || searchAccess.memberScoped || navFlags.people || navFlags.simLinks
+}
+
+/** The legacy sidebar's rule for its Chats section; the list read answers 403 outside it. */
+export function canListOrganizationChats(organization: PlatformOrganization): boolean {
+  const { mothershipAvailable, canBuild, searchAccess } = organization
+  return mothershipAvailable && (canBuild || searchAccess.memberScoped)
 }

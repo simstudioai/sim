@@ -1,6 +1,10 @@
 import { type ReactNode, useId } from 'react'
 import styles from '@/platform/design-system/components/field/field.module.css'
-import { Input, TextArea } from '@/platform/design-system/components/field/inputs'
+import {
+  Input,
+  TextArea,
+  type TextValueProps,
+} from '@/platform/design-system/components/field/inputs'
 import { Select } from '@/platform/design-system/components/picker/select'
 
 interface FieldProps {
@@ -49,11 +53,6 @@ export function FieldFrame({ id, label, optional, error, children }: FieldFrameP
       )}
     </div>
   )
-}
-
-interface TextValueProps {
-  value?: string
-  onChange?: (value: string) => void
 }
 
 interface TextFieldProps extends FieldProps, TextValueProps {

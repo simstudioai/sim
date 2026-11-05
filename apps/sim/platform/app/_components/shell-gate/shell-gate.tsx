@@ -16,7 +16,11 @@ interface ShellGateProps {
 function ShellGate({ title, description, fullPage, children }: ShellGateProps) {
   const gate = (
     <main className={styles.gate} data-full-page={fullPage || undefined}>
-      <EmptyState title={title} description={description} action={children} />
+      <EmptyState
+        title={title}
+        description={description}
+        action={<div className={styles.actions}>{children}</div>}
+      />
     </main>
   )
   return fullPage ? <PlatformSurface theme='system'>{gate}</PlatformSurface> : gate
@@ -40,7 +44,6 @@ export function AccessDenied({ workspacesHref }: AccessDeniedProps) {
   )
 }
 
-/** The organization could not be read. Never an empty organization, and retrying re-reads it. */
 export function SurfaceUnavailable() {
   const router = useRouter()
   return (

@@ -370,9 +370,8 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       import { useOrganizations } from '@/hooks/queries/organization'
       import { client } from '@/lib/auth/client'
       import { createLogger } from '@sim/logger'
-      import { generateId } from '@sim/utils/id'
       import type { ShellData } from '@/platform/app/shell/_components/model'
-      export const allowed: unknown[] = [useOrganizations, client, createLogger, generateId]
+      export const allowed: unknown[] = [useOrganizations, client, createLogger]
       export type { Principal, ShellData }`
     )
     write(

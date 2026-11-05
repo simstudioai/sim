@@ -99,7 +99,7 @@ function ModalSurface({
     }
   }
 
-  /** The work is already underway and its outcome belongs here, so nothing dismisses it mid-flight. */
+  // The work is already underway and its outcome belongs here, so nothing dismisses it mid-flight.
   function dismiss() {
     if (!pending) close()
   }
@@ -140,7 +140,11 @@ function ModalSurface({
         )}
         <ModalFooter
           confirmLabel={last ? confirmLabel : 'Continue'}
-          onPrevious={() => (index === 0 ? dismiss() : setIndex(index - 1))}
+          onPrevious={() => {
+            setError(null)
+            if (index === 0) dismiss()
+            else setIndex(index - 1)
+          }}
           previousStep={index > 0}
           disabled={pending || (last && confirmDisabled)}
           cancelDisabled={pending}

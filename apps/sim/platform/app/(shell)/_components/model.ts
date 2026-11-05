@@ -83,7 +83,7 @@ export interface ShellData {
   /** So a list can tell loading and failure from empty. Absent means the data is simply there. */
   status?: { workspaces: ShellQueryStatus; chats: ShellQueryStatus; profile: ShellQueryStatus }
   workspaceCreation?: { canCreate: boolean; organizationId: string | null; reason: string | null }
-  /** Viewer standing, access, deployment and flags. Absent outside a live session. */
+  /** Absent outside a live session. */
   surface?: PlatformOrganization
   /** The viewer's gated navigation. Absent means the static destination lists. */
   destinations?: readonly ShellDestination[]

@@ -52,7 +52,7 @@ export const readOrganizationSurface: OperationUseCase<
       resolveOrganizationSurfaceFlags(organizationId, userId),
       canBrowsePeople(organizationId, context.viewer.role),
       isSimLinksEnabled(organizationId),
-      /** Decides which links are drawn; the pages behind them authorize for themselves. */
+      // Decides which links are drawn; the pages behind them authorize for themselves.
       isPlatformAdmin(userId).catch((error: unknown) => {
         logger.warn('Could not resolve platform administration navigation', {
           error: getErrorMessage(error),
