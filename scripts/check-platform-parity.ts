@@ -98,7 +98,9 @@ export function auditLedger({ ledger, testFiles, liveTitles, run }: LedgerInputs
         continue
       }
       if (!run) continue
-      const outcomes = matches.map((match) => run.titles.get(match))
+      const outcomes = matchingTitles(title, run.titles.keys()).map((match) =>
+        run.titles.get(match)
+      )
       if (!outcomes.includes('passed')) {
         findings.push(
           `${at}: "${capability}" rests on "${title}", which ${outcomes[0] ?? 'did not run'} in this run`
