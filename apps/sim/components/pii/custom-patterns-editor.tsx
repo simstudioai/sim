@@ -2,11 +2,8 @@
 
 import { Chip, ChipInput } from '@sim/emcn'
 import { Plus, Trash } from '@sim/emcn/icons'
+import { customPatternError, MAX_CUSTOM_PII_PATTERNS } from '@/lib/guardrails/custom-patterns'
 import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
-import { validateRegexPattern } from '@/lib/guardrails/validate-regex'
-
-/** Matches the `.max(20)` bound on `customPatterns` in the boundary contract. */
-const MAX_PATTERNS = 20
 
 interface CustomPatternsEditorProps {
   patterns: CustomPiiPattern[]
@@ -33,15 +30,14 @@ export function CustomPatternsEditor({ patterns, onChange }: CustomPatternsEdito
   }
 
   function addRow() {
-    if (patterns.length >= MAX_PATTERNS) return
+    if (patterns.length >= MAX_CUSTOM_PII_PATTERNS) return
     onChange([...patterns, { name: '', regex: '', replacement: '' }])
   }
 
   return (
     <div className='flex flex-col gap-2'>
       {patterns.map((pattern, index) => {
-        const validation = pattern.regex.length > 0 ? validateRegexPattern(pattern.regex) : null
-        const error = validation && !validation.valid ? validation.error : undefined
+        const error = customPatternError(pattern.regex)
         return (
           <div key={index} className='flex flex-col gap-1'>
             <div className='flex items-start gap-2'>
@@ -78,7 +74,7 @@ export function CustomPatternsEditor({ patterns, onChange }: CustomPatternsEdito
           </div>
         )
       })}
-      <Chip leftIcon={Plus} onClick={addRow} disabled={patterns.length >= MAX_PATTERNS}>
+      <Chip leftIcon={Plus} onClick={addRow} disabled={patterns.length >= MAX_CUSTOM_PII_PATTERNS}>
         Add pattern
       </Chip>
     </div>

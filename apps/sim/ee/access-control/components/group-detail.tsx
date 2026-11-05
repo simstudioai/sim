@@ -28,14 +28,8 @@ import { formatDate } from '@sim/utils/formatting'
 import { useQueryState } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
-import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { isAccessControlAllowlistRow } from '@/lib/permission-groups/block-access'
-import {
-  isFeatureInertForGroup,
-  PLATFORM_CATEGORY_ORDER,
-  PLATFORM_FEATURES,
-} from '@/lib/permission-groups/features'
+import { isFeatureInertForGroup } from '@/lib/permission-groups/features'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { resolveAgentDefaultModel } from '@/lib/permission-groups/model-access'
 import {
@@ -54,9 +48,7 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { getAllBlocks } from '@/blocks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
-import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { AgentDefault } from '@/ee/access-control/components/agent-default'
 import {
   BlockToolRow,
@@ -76,15 +68,26 @@ import {
   useRemovePermissionGroupMember,
   useUpdatePermissionGroup,
 } from '@/ee/access-control/hooks/permission-groups'
-import { withPermissionGroupAccessState } from '@/ee/access-control/utils/access-state'
 import {
-  type AccessRequestTarget,
-  createAccessRequestCatalog,
-  describeAccessRequestTarget,
-  getAccessRequestTargetParents,
-  getPermissionGroupAccessState,
-  type PermissionGroupAccessState,
-  validateAccessRequestTarget,
+  applyPermissionAccess,
+  CHAT_DEPLOY_AUTH_TYPE_OPTIONS,
+  createEditorCatalog,
+  createPermissionResolvers,
+  FILE_SHARE_AUTH_TYPE_OPTIONS,
+  hasPermissionConfigChanges,
+  matchesStatusFilter,
+  type PermissionStatusFilter,
+  platformFeatureSections,
+  searchPlatformFeatures,
+  statusFilterOptions,
+} from '@/ee/access-control/lib/editor'
+import {
+  getAccessControlBlockUniverse,
+  KNOWLEDGE_CONNECTOR_OPTIONS,
+} from '@/ee/access-control/lib/editor-registry'
+import type {
+  AccessRequestTarget,
+  PermissionGroupAccessState,
 } from '@/ee/access-requests/lib/targets'
 import { SettingRow } from '@/ee/components/setting-row'
 import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
@@ -97,57 +100,7 @@ const logger = createLogger('AccessControlGroupDetail')
 
 type ConfigTab = 'general' | 'providers' | 'blocks' | 'platform'
 
-/** Hoisted: rebuilding this per comparison allocated once per sort step. */
-const BLOCK_CATEGORY_ORDER: Record<string, number> = { triggers: 0, blocks: 1, tools: 2 }
-
-/** Public-file-share auth modes an admin can allow/disallow. `null` config = all allowed. */
-const FILE_SHARE_AUTH_TYPE_OPTIONS: { value: ShareAuthType; label: string }[] = [
-  { value: 'public', label: 'Anyone with link' },
-  { value: 'password', label: 'Password' },
-  { value: 'email', label: 'Email' },
-  { value: 'sso', label: 'SSO' },
-]
-
-/** Chat-deployment auth modes an admin can allow/disallow. `null` config = all allowed. */
-const CHAT_DEPLOY_AUTH_TYPE_OPTIONS: { value: ShareAuthType; label: string }[] = [
-  { value: 'public', label: 'Public' },
-  { value: 'password', label: 'Password' },
-  { value: 'email', label: 'Email' },
-  { value: 'sso', label: 'SSO' },
-]
-
-/**
- * Knowledge base connectors an admin can allow or disallow. `null` config = all
- * allowed. Sorted by display name because the picker is read alphabetically,
- * while the registry is keyed by the snake_case id the server stores. Reads
- * {@link CONNECTOR_META_REGISTRY}, the client-safe metadata half of the
- * connector split.
- */
-const KNOWLEDGE_CONNECTOR_OPTIONS: { value: string; label: string }[] = Object.values(
-  CONNECTOR_META_REGISTRY
-)
-  .map((meta) => ({ value: meta.id, label: meta.name }))
-  .sort((a, b) => a.label.localeCompare(b.label))
-
-type StatusFilter = 'all' | 'enabled' | 'disabled' | 'requestable' | 'unavailable'
-
-const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
-  { value: 'all', label: 'Show all' },
-  { value: 'enabled', label: 'Allowed' },
-  { value: 'requestable', label: 'Can request' },
-  { value: 'unavailable', label: 'Unavailable' },
-]
-
-function matchesStatusFilter(filter: StatusFilter, state: PermissionGroupAccessState) {
-  return (
-    filter === 'all' ||
-    (filter === 'enabled'
-      ? state === 'allowed'
-      : filter === 'disabled'
-        ? state !== 'allowed'
-        : state === filter)
-  )
-}
+type StatusFilter = PermissionStatusFilter
 
 interface StatusFilterChipProps {
   value: StatusFilter
@@ -159,11 +112,7 @@ function StatusFilterChip({ value, onChange }: StatusFilterChipProps) {
     <ChipDropdown
       value={value}
       onChange={(next) => onChange(next as StatusFilter)}
-      options={
-        value === 'disabled'
-          ? [...STATUS_FILTER_OPTIONS, { value: 'disabled', label: 'Restricted' }]
-          : STATUS_FILTER_OPTIONS
-      }
+      options={statusFilterOptions(value)}
       matchTriggerWidth={false}
       className='w-[140px] shrink-0 max-sm:min-w-0 max-sm:flex-1'
     />
@@ -428,29 +377,8 @@ export function GroupDetail({
   // visibility hydrate into the overlay.
   const customBlockOverlayVersion = useCustomBlockOverlayVersion()
 
-  /**
-   * The allowlist UNIVERSE: every access-controllable block, INCLUDING blocks
-   * gated for this viewer (they arrive as clones with `hideFromToolbar: true`,
-   * clone-not-remove). Materialization and the collapse-to-null comparison must use this viewer-independent set —
-   * otherwise a null→partial transition by a non-revealed admin would silently
-   * drop a preview block from the stored allowlist and deny it to revealed
-   * users already running it.
-   *
-   * EXCLUDES superseded blocks. They are hidden and so are never rendered, but
-   * they used to be materialized into the allowlist all the same — so an admin
-   * narrowing a previously-unrestricted allowlist by unchecking `slack_v2` wrote
-   * `slack` into it, which the runtime resolves back to `slack_v2` and allows.
-   * A decision about a retired version is made on its successor's row.
-   */
-  const allBlocks = useMemo(() => {
-    const blocks = getAllBlocks().filter((b) => isAccessControlAllowlistRow(b.type))
-    return blocks.sort((a, b) => {
-      const catA = BLOCK_CATEGORY_ORDER[a.category] ?? 3
-      const catB = BLOCK_CATEGORY_ORDER[b.category] ?? 3
-      if (catA !== catB) return catA - catB
-      return a.name.localeCompare(b.name)
-    })
-  }, [customBlockOverlayVersion])
+  /** See {@link getAccessControlBlockUniverse}. */
+  const allBlocks = useMemo(() => getAccessControlBlockUniverse(), [customBlockOverlayVersion])
 
   /**
    * The RENDERED list: hides blocks gated for this viewer by reading the
@@ -472,97 +400,38 @@ export function GroupDetail({
       availableProviderIds: allProviderIds,
     })
 
-  const publicTools = useMemo(() => {
-    const parentByTool = new Map<string, string | null>()
-    for (const block of allBlocks) {
-      if (block.type.startsWith('custom_block_')) continue
-      for (const id of block.tools?.access ?? []) {
-        if (!parentByTool.has(id)) parentByTool.set(id, block.type)
-        else if (parentByTool.get(id) !== block.type) parentByTool.set(id, null)
-      }
-    }
-    return [...parentByTool].flatMap(([id, parent]) =>
-      parent ? [{ id, label: id, integrationId: parent }] : []
-    )
-  }, [allBlocks])
-
   const editorCatalog = useMemo(
     () =>
-      createAccessRequestCatalog({
-        integrations: allBlocks.map((block) => ({ id: block.type, label: block.name })),
+      createEditorCatalog({
+        blocks: allBlocks.map((block) => ({
+          type: block.type,
+          name: block.name,
+          toolIds: block.tools?.access ?? [],
+        })),
         providers: allProviderIds.map((id) => ({
           id,
           label: PROVIDER_DEFINITIONS[id]?.name ?? id,
-        })),
-        models: allProviderIds.flatMap((providerId) =>
-          getStaticProviderModels(providerId)
+          modelIds: getStaticProviderModels(id)
             .filter((model) => model.sunset?.status !== 'deprecated')
-            .map((model) => ({ id: model.id, label: model.id, providerId }))
-        ),
-        tools: publicTools,
-        knowledgeConnectors: KNOWLEDGE_CONNECTOR_OPTIONS.map(({ value, label }) => ({
-          id: value,
-          label,
+            .map((model) => model.id),
         })),
+        knowledgeConnectors: KNOWLEDGE_CONNECTOR_OPTIONS,
       }),
-    [allBlocks, allProviderIds, publicTools]
+    [allBlocks, allProviderIds]
   )
 
-  const canRequest = useCallback(
-    (target: AccessRequestTarget) => {
-      if (target.kind === 'integration' && target.id.startsWith('custom_block_')) return false
-      return validateAccessRequestTarget(target, editorCatalog) !== null
-    },
-    [editorCatalog]
+  const { getState, isInherited, getInheritedFrom, canRequest } = useMemo(
+    () => createPermissionResolvers(editingConfig, editorCatalog),
+    [editingConfig, editorCatalog]
   )
-
-  const getState = useCallback(
-    (target: AccessRequestTarget) => {
-      const state = getPermissionGroupAccessState(target, editingConfig, editorCatalog)
-      return state === 'requestable' && !canRequest(target) ? 'unavailable' : state
-    },
-    [editingConfig, editorCatalog, canRequest]
-  )
-
-  const getInheritedFrom = (target: AccessRequestTarget): string | null => {
-    const parent = getAccessRequestTargetParents(target, editorCatalog).find(
-      (parent) => getState(parent) !== 'allowed'
-    )
-    if (!parent) return null
-    return (
-      getInheritedFrom(parent) ??
-      describeAccessRequestTarget(parent, editorCatalog)?.label ??
-      'a restricted parent'
-    )
-  }
-
-  const isInherited = (target: AccessRequestTarget) => getInheritedFrom(target) !== null
 
   const setAccess = (targets: AccessRequestTarget[], state: PermissionGroupAccessState) => {
-    setEditingConfig((previous) => {
-      const editable = targets.filter(
-        (target) =>
-          (state !== 'requestable' || canRequest(target)) &&
-          !getAccessRequestTargetParents(target, editorCatalog).some(
-            (parent) => getPermissionGroupAccessState(parent, previous, editorCatalog) !== 'allowed'
-          )
-      )
-      return editable.reduce(
-        (config, target) => withPermissionGroupAccessState(config, target, state, editorCatalog),
-        previous
-      )
-    })
+    setEditingConfig((previous) => applyPermissionAccess(previous, targets, state, editorCatalog))
   }
 
   const controls = { getState, isInherited, getInheritedFrom, canRequest, onSet: setAccess }
 
-  const searchedPlatformFeatures = useMemo(() => {
-    const search = searchTerm.trim().toLowerCase()
-    if (!search) return PLATFORM_FEATURES
-    return PLATFORM_FEATURES.filter(
-      (f) => f.label.toLowerCase().includes(search) || f.category.toLowerCase().includes(search)
-    )
-  }, [searchTerm])
+  const searchedPlatformFeatures = useMemo(() => searchPlatformFeatures(searchTerm), [searchTerm])
 
   /** Split from the search pass for the same reason as the provider and block lists. */
   const filteredPlatformFeatures = useMemo(() => {
@@ -572,41 +441,12 @@ export function GroupDetail({
     )
   }, [searchedPlatformFeatures, statusFilter, getState])
 
-  const platformCategories = useMemo(() => {
-    const categories: Record<string, (typeof PLATFORM_FEATURES)[number][]> = {}
-    for (const feature of filteredPlatformFeatures) {
-      if (!categories[feature.category]) {
-        categories[feature.category] = []
-      }
-      categories[feature.category].push(feature)
-    }
-    return categories
-  }, [filteredPlatformFeatures])
-
-  const platformCategorySections = useMemo(() => {
-    const known = PLATFORM_CATEGORY_ORDER.filter((c) => platformCategories[c]?.length)
-    const extras = Object.keys(platformCategories).filter(
-      (c) => !PLATFORM_CATEGORY_ORDER.includes(c) && platformCategories[c]?.length
-    )
-    return [...known, ...extras].map((category) => ({
-      category,
-      features: platformCategories[category] ?? [],
-    }))
-  }, [platformCategories])
-
-  const hasConfigChanges = (Object.keys(editingConfig) as (keyof PermissionGroupConfig)[]).some(
-    (key) => {
-      const saved = viewingGroup.config[key]
-      const edited = editingConfig[key]
-      if (!Array.isArray(saved) || !Array.isArray(edited)) return saved !== edited
-      const savedMembers = new Set(saved)
-      const editedMembers = new Set(edited)
-      return (
-        savedMembers.size !== editedMembers.size ||
-        [...savedMembers].some((member) => !editedMembers.has(member))
-      )
-    }
+  const platformCategorySections = useMemo(
+    () => platformFeatureSections(filteredPlatformFeatures),
+    [filteredPlatformFeatures]
   )
+
+  const hasConfigChanges = hasPermissionConfigChanges(viewingGroup.config, editingConfig)
 
   // Both buffers are seeded trimmed and compared against a trimmed baseline. The
   // contract trims name and description on write, but a row stored before those

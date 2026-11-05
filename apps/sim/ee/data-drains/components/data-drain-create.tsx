@@ -16,6 +16,7 @@ import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { SettingRow } from '@/ee/components/setting-row'
 import { DESTINATION_FORM_REGISTRY } from '@/ee/data-drains/destinations/registry'
+import type { DestinationState } from '@/ee/data-drains/destinations/specs'
 import { useCreateDataDrain } from '@/ee/data-drains/hooks/data-drains'
 import {
   CADENCE_OPTIONS,
@@ -47,7 +48,7 @@ export function DataDrainCreate({ organizationId, onBack, onCreated }: DataDrain
   const [destinationType, setDestinationType] = useState<(typeof DESTINATION_TYPES)[number]>(
     DESTINATION_TYPES[0]
   )
-  const [destState, setDestState] = useState<unknown>(
+  const [destState, setDestState] = useState<DestinationState>(
     () => DESTINATION_FORM_REGISTRY[DESTINATION_TYPES[0]].initialState
   )
 
