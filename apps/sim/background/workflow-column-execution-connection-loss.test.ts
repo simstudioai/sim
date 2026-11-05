@@ -348,6 +348,33 @@ describe('a table cell losing a database socket', () => {
     expect(stored).not.toMatch(/ECONNRESET|Failed query|select|secret-value/)
   })
 
+  it('does not store driver text a wrapper copied into its own message', async () => {
+    const driverError = Object.assign(
+      new Error('duplicate key value violates unique constraint "secret_index"'),
+      { name: 'PostgresError', code: '23505' }
+    )
+    mocks.executeWorkflow.mockRejectedValue(
+      new Error(`Failed to save: ${driverError.message}`, { cause: driverError })
+    )
+
+    await runRowCascadeLoop(PAYLOAD)
+
+    expect(lastWrite()?.executionState.error).not.toMatch(/secret_index/)
+  })
+
+  it('keeps a wrapper message that repeats a cause from outside the database', async () => {
+    const message = 'Failed to upload: bucket not found'
+    mocks.executeWorkflow.mockRejectedValue(
+      new Error(message, {
+        cause: Object.assign(new Error('bucket not found'), { code: 'NoSuchBucket' }),
+      })
+    )
+
+    await runRowCascadeLoop(PAYLOAD)
+
+    expect(lastWrite()?.executionState.error).toBe(message)
+  })
+
   it('keeps a block error that names the block over a database cause', async () => {
     const message = 'Agent 1: An internal error occurred while executing the block.'
     mocks.executeWorkflow.mockRejectedValue(new Error(message, { cause: resetRead() }))

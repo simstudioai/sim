@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { tableRowExecutions, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger, runWithRequestContext } from '@sim/logger'
-import { classifyDatabaseFailure, describeError, toError } from '@sim/utils/errors'
+import { classifyDatabaseFailure, describeError, findCause, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
@@ -79,13 +79,24 @@ function readForCell<T>(label: string, read: () => Promise<T>): Promise<T> {
 const CELL_STOPPED_MESSAGE = 'This cell stopped before it finished. Run it again.'
 
 /**
- * The error a cell shows. Text that would expose a query, or a bare driver error, says what happened
- * instead, because anyone viewing the table reads it. Anything else keeps its own message, including
- * a block's already-safe error over a database cause, which names the block that failed.
+ * The error a cell shows. Text that would expose a query, a bare driver error, or a wrapper repeating
+ * a driver's text says what happened instead, because anyone viewing the table reads it. Anything
+ * else keeps its own message, including a block's already-safe error over a database cause, which
+ * names the block that failed.
  */
 function getCellFailureMessage(error: unknown): string {
   const failure = toError(error)
-  const exposesQuery = failure.message.includes('Failed query: ')
+  const exposesQuery =
+    failure.message.includes('Failed query: ') ||
+    findCause(
+      failure,
+      (link): link is Error =>
+        link instanceof Error &&
+        link !== failure &&
+        link.message.length > 0 &&
+        failure.message.includes(link.message) &&
+        (link.name === 'PostgresError' || classifyDatabaseFailure(link) !== 'permanent')
+    ) !== undefined
   if (!exposesQuery && !Object.hasOwn(failure, 'code')) return failure.message
   const failureClass = classifyDatabaseFailure(failure)
   if (failureClass === 'connection') return 'Lost the database connection. Run this cell again.'
