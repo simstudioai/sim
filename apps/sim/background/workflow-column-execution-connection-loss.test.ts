@@ -39,6 +39,8 @@ const local = vi.hoisted(() => ({
   readDispatch: vi.fn(),
   writeWorkflowGroupState: vi.fn(),
   markWorkflowGroupPickedUp: vi.fn(),
+  confirmWorkflowGroupStateCommitted: vi.fn(),
+  terminalizeUnclaimedRowMarkers: vi.fn(),
 }))
 
 const mocks = {
@@ -64,6 +66,8 @@ vi.mock('@/lib/table/cell-write', () => ({
   writeWorkflowGroupState: vi.fn(),
   writeWorkflowGroupStateDurably: local.writeWorkflowGroupState,
   markWorkflowGroupPickedUp: local.markWorkflowGroupPickedUp,
+  confirmWorkflowGroupStateCommitted: local.confirmWorkflowGroupStateCommitted,
+  terminalizeUnclaimedRowMarkers: local.terminalizeUnclaimedRowMarkers,
   createWorkflowCellProgressWriter: () => ({
     onBlockStart: vi.fn(),
     onBlockComplete: vi.fn(),
@@ -154,6 +158,8 @@ beforeEach(() => {
   mocks.readDispatch.mockResolvedValue({ id: 'dispatch-1', status: 'active' })
   mocks.writeWorkflowGroupState.mockResolvedValue('wrote')
   mocks.markWorkflowGroupPickedUp.mockResolvedValue('wrote')
+  mocks.confirmWorkflowGroupStateCommitted.mockResolvedValue(false)
+  mocks.terminalizeUnclaimedRowMarkers.mockResolvedValue(undefined)
   mocks.executeWorkflow.mockResolvedValue({ status: 'completed', success: true, output: {} })
   mocks.loadDeployedWorkflowState.mockResolvedValue({
     blocks: { start: { id: 'start', type: 'start_trigger', subBlocks: {}, outputs: {} } },
@@ -218,6 +224,24 @@ describe('a table cell losing a database socket', () => {
     expect(writtenStatuses()).toEqual(['completed', 'error'])
   })
 
+  it('does not mark a finished run failed when its terminal write committed despite the error', async () => {
+    mocks.writeWorkflowGroupState.mockRejectedValueOnce(resetBegin())
+    mocks.confirmWorkflowGroupStateCommitted.mockResolvedValue(true)
+
+    await runRowCascadeLoop(PAYLOAD)
+
+    expect(writtenStatuses()).toEqual(['completed'])
+  })
+
+  it('only trusts a committed terminal write after a terminal write was attempted', async () => {
+    mocks.executeWorkflow.mockRejectedValue(resetRead())
+    mocks.confirmWorkflowGroupStateCommitted.mockResolvedValue(true)
+
+    await runRowCascadeLoop(PAYLOAD)
+
+    expect(writtenStatuses()).toEqual(['error'])
+  })
+
   it('fails the run when neither the terminal write nor the error write completes', async () => {
     const lost = resetBegin()
     mocks.writeWorkflowGroupState.mockRejectedValue(lost)
@@ -227,23 +251,24 @@ describe('a table cell losing a database socket', () => {
     expect(mocks.executeWorkflow).toHaveBeenCalledOnce()
   })
 
-  it('terminalizes the marker when the read that starts a group never recovers, and still fails', async () => {
+  it('finishes the row markers when a read between groups never recovers, and still fails', async () => {
     const failure = resetRead()
-    mocks.getTableById.mockRejectedValue(failure)
-    dbChainMockFns.returning.mockResolvedValueOnce([{ rowId: 'row-1' }])
+    mocks.getRowById.mockResolvedValueOnce(ROW).mockRejectedValue(failure)
 
     await expect(executeWorkflowGroupCellJob(PAYLOAD)).rejects.toBe(failure)
 
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'error', executionId: 'execution-1' })
+    expect(mocks.executeWorkflow).toHaveBeenCalledOnce()
+    expect(mocks.terminalizeUnclaimedRowMarkers).toHaveBeenCalledWith(
+      'table-1',
+      'row-1',
+      expect.any(String)
     )
-    expect(mocks.executeWorkflow).not.toHaveBeenCalled()
   })
 
   it('reports the original failure when the marker cannot be terminalized either', async () => {
     const failure = resetRead()
     mocks.getTableById.mockRejectedValue(failure)
-    dbChainMockFns.returning.mockRejectedValue(resetBegin())
+    mocks.terminalizeUnclaimedRowMarkers.mockRejectedValue(resetBegin())
 
     await expect(executeWorkflowGroupCellJob(PAYLOAD)).rejects.toBe(failure)
   })

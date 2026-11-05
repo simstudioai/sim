@@ -10,10 +10,10 @@
  */
 
 import { db } from '@sim/db'
-import { userTableRows } from '@sim/db/schema'
+import { tableRowExecutions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getValueAtPath } from '@sim/utils/object'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { withIdempotentWriteRetry } from '@/lib/db/read-retry'
 import { CELL_DATABASE_RETRY } from '@/lib/table/constants'
 import { appendTableEvent } from '@/lib/table/events'
@@ -177,6 +177,66 @@ function emitCellStateEvent(
   })
 }
 
+function isCommittedState(
+  current: RowExecutionMetadata | undefined,
+  ctx: WriteWorkflowGroupContext,
+  payload: WriteWorkflowGroupStatePayload
+): boolean {
+  return (
+    current?.executionId === ctx.executionId && current.status === payload.executionState.status
+  )
+}
+
+/**
+ * Whether a write that reported failure actually committed. If it did, this sends the event the
+ * lost attempt never emitted, so a caller can treat the write as done.
+ */
+export async function confirmWorkflowGroupStateCommitted(
+  ctx: WriteWorkflowGroupContext,
+  payload: WriteWorkflowGroupStatePayload
+): Promise<boolean> {
+  const current = (await loadExecutionsForRow(db, ctx.rowId))[ctx.groupId]
+  if (!isCommittedState(current, ctx, payload)) return false
+  emitCellStateEvent(ctx, { ...payload, eventOutputs: await readStoredOutputs(ctx, payload) })
+  return true
+}
+
+/**
+ * Fails every marker on a row that no worker has claimed. `executionId` stays null, so a carrier
+ * still queued for one of them can claim it and run. Claimed, cancelled, and finished cells are
+ * untouched, and so is a paused one, which holds an execution id.
+ */
+export async function terminalizeUnclaimedRowMarkers(
+  tableId: string,
+  rowId: string,
+  error: string
+): Promise<void> {
+  const failed = await db
+    .update(tableRowExecutions)
+    .set({ status: 'error', jobId: null, error, runningBlockIds: [], updatedAt: new Date() })
+    .where(
+      and(
+        eq(tableRowExecutions.tableId, tableId),
+        eq(tableRowExecutions.rowId, rowId),
+        eq(tableRowExecutions.status, 'pending'),
+        isNull(tableRowExecutions.executionId)
+      )
+    )
+    .returning({ groupId: tableRowExecutions.groupId })
+  for (const { groupId } of failed) {
+    void appendTableEvent({
+      kind: 'cell',
+      tableId,
+      rowId,
+      groupId,
+      status: 'error',
+      executionId: null,
+      jobId: null,
+      error,
+    })
+  }
+}
+
 /** The stored values of a write's outputs, which may have changed since the write landed. */
 async function readStoredOutputs(
   { rowId, tableId, workspaceId }: WriteWorkflowGroupContext,
@@ -228,7 +288,7 @@ export async function writeWorkflowGroupStateDurably(
     async () => {
       if (attempted) {
         const current = (await loadExecutionsForRow(db, ctx.rowId))[ctx.groupId]
-        if (current?.executionId === ctx.executionId && current.status === status) {
+        if (isCommittedState(current, ctx, payload)) {
           emitCellStateEvent(ctx, {
             ...payload,
             eventOutputs: await readStoredOutputs(ctx, payload),

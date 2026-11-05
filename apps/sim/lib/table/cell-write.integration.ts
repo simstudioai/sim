@@ -13,7 +13,7 @@ import { tableWorkflowColumnsMock } from '@sim/testing/mocks/table-workflow-colu
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import postgres from 'postgres'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/table/billing', () => tableBillingMock)
 vi.mock('@/lib/table/events', () => tableEventsMock)
@@ -71,7 +71,11 @@ const { db } = await import('@sim/db')
 const { userTableDefinitions, userTableRows } = await import('@sim/db/schema')
 const { writeExecutionsPatch } = await import('@/lib/table/rows/executions')
 const { getTableById } = await import('@/lib/table/service')
-const { writeWorkflowGroupStateDurably } = await import('@/lib/table/cell-write')
+const {
+  confirmWorkflowGroupStateCommitted,
+  terminalizeUnclaimedRowMarkers,
+  writeWorkflowGroupStateDurably,
+} = await import('@/lib/table/cell-write')
 
 const LANDED_COMMIT = { match: /commit/i, forward: true }
 const workspaceId = generateId()
@@ -139,6 +143,11 @@ beforeAll(async () => {
 
 beforeEach(() => {
   interception = null
+})
+
+/** An interception still armed means no reset happened, and the test proved nothing. */
+afterEach(() => {
+  expect(interception).toBeNull()
 })
 
 afterAll(async () => {
@@ -272,6 +281,40 @@ describe('a durable cell state write around a lost connection', { timeout: 90_00
     )
 
     expect((await readCell(rowId)).status).toBe('cancelled')
+  })
+
+  it('confirms a write that committed and tells the client, and only that write', async () => {
+    const { ctx, rowId } = await createCell()
+    const write = completed({ out: 'result' })
+
+    await expect(confirmWorkflowGroupStateCommitted(ctx, write)).resolves.toBe(false)
+    expect(tableEventsMockFns.mockAppendTableEvent).not.toHaveBeenCalled()
+
+    await control`UPDATE table_row_executions SET status = 'completed' WHERE row_id = ${rowId}`
+    await expect(confirmWorkflowGroupStateCommitted(ctx, write)).resolves.toBe(true)
+    expect(tableEventsMockFns.mockAppendTableEvent).toHaveBeenCalledOnce()
+  })
+
+  it('fails only the markers on a row that no worker has claimed', async () => {
+    const { ctx, tableId, rowId } = await createCell()
+    const pending = { status: 'pending' as const, jobId: null, workflowId: 'w', error: null }
+    await writeExecutionsPatch(db, tableId, rowId, {
+      unclaimed: { ...pending, executionId: null },
+      paused: { ...pending, executionId: 'paused-run', jobId: 'paused-paused-run' },
+      stopped: { ...pending, status: 'cancelled', executionId: null },
+    })
+
+    await terminalizeUnclaimedRowMarkers(tableId, rowId, 'Stopped')
+
+    const rows = await control<{ group_id: string; status: string }[]>`
+      SELECT group_id, status FROM table_row_executions WHERE row_id = ${rowId}`
+    expect(Object.fromEntries(rows.map((row) => [row.group_id, row.status]))).toEqual({
+      [ctx.groupId]: 'running',
+      unclaimed: 'error',
+      paused: 'pending',
+      stopped: 'cancelled',
+    })
+    expect(tableEventsMockFns.mockAppendTableEvent).toHaveBeenCalledOnce()
   })
 
   it('does not repeat a cancel stamp, which could kill a run the user just started', async () => {

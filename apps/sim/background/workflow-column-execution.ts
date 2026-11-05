@@ -34,6 +34,7 @@ import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { retryTableAdmission } from '@/lib/table/admission-retry'
 import { withCascadeLock } from '@/lib/table/cascade-lock'
 import { fillMissingColumns, mapInputValues, namedRowMapper } from '@/lib/table/cell-format'
+import type { WriteWorkflowGroupStatePayload } from '@/lib/table/cell-write'
 import { getColumnId } from '@/lib/table/column-keys'
 import { CELL_DATABASE_RETRY } from '@/lib/table/constants'
 import { isEmptyCellValue, isExecCancelled } from '@/lib/table/deps'
@@ -201,13 +202,6 @@ export async function terminalizeAbortedQueuedCarrierMarker(
     timedOut: isTimeoutAbortReason(signal.reason),
     timeoutMs,
   })
-  return terminalizeQueuedMarker(payload, executionState)
-}
-
-async function terminalizeQueuedMarker(
-  payload: QueuedWorkflowGroupCellPayload,
-  executionState: RowExecutionMetadata
-): Promise<boolean> {
   const [updated] = await db
     .update(tableRowExecutions)
     .set({
@@ -332,7 +326,6 @@ export async function executeWorkflowGroupCellJob(
 ) {
   const carrierTimeoutController = createWorkflowGroupCarrierTimeoutController(payload, signal)
   const carrierSignal = carrierTimeoutController.signal
-  let currentPayload = payload
   try {
     const { tableId, rowId, workspaceId } = payload
     const { getTableById } = await import('@/lib/table/service')
@@ -340,6 +333,7 @@ export async function executeWorkflowGroupCellJob(
     const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
     const { readStampedCapabilitySubject } = await import('@/lib/table/rows/executions')
 
+    let currentPayload = payload
     while (true) {
       if (carrierSignal.aborted) {
         await terminalizeAbortedQueuedCarrierMarker(currentPayload, carrierSignal)
@@ -396,25 +390,20 @@ export async function executeWorkflowGroupCellJob(
     }
   } catch (err) {
     /**
-     * A read that ran out of retries outside a group's own handling, such as the table lookup that
-     * starts a group, leaves this carrier's marker unclaimed with nothing to revisit it. The throw
-     * still fails the run, because the database stayed unreachable through a full retry budget.
+     * A read that ran out of retries between groups kills this carrier, the row's only owner. Other
+     * carriers bail on its lock expecting it to drain their markers, so any left unclaimed would
+     * stay Queued with nothing to revisit them. The throw still fails the run, because the database
+     * stayed unreachable through a full retry budget.
      */
-    const { executionId, enrichmentId, workflowId } = currentPayload
+    const { tableId, rowId } = payload
+    const { terminalizeUnclaimedRowMarkers } = await import('@/lib/table/cell-write')
     await withIdempotentWriteRetry(
-      () =>
-        terminalizeQueuedMarker(currentPayload, {
-          status: 'error',
-          executionId,
-          jobId: null,
-          workflowId: enrichmentId ?? workflowId,
-          error: CELL_STOPPED_MESSAGE,
-          runningBlockIds: [],
-        }),
-      { label: 'terminalizeQueuedMarker', ...CELL_DATABASE_RETRY }
+      () => terminalizeUnclaimedRowMarkers(tableId, rowId, CELL_STOPPED_MESSAGE),
+      { label: 'terminalizeUnclaimedRowMarkers', ...CELL_DATABASE_RETRY }
     ).catch((markerErr) => {
-      logger.error('Failed to terminalize the queued marker of a failed cell', {
-        executionId,
+      logger.error('Failed to terminalize the unclaimed markers of a failed row', {
+        tableId,
+        rowId,
         cause: describeError(markerErr),
       })
     })
@@ -864,6 +853,10 @@ async function runWorkflowAndWriteTerminal(
       }
 
       let progressWriter: ReturnType<typeof createWorkflowCellProgressWriter> | null = null
+      let attemptedTerminal: {
+        write: WriteWorkflowGroupStatePayload
+        status: 'completed' | 'error' | 'cancelled'
+      } | null = null
 
       try {
         const [workflowRecord] = await readForCell('selectWorkflow', () =>
@@ -1269,12 +1262,17 @@ async function runWorkflowAndWriteTerminal(
                 runningBlockIds: [],
                 blockErrors,
               }
-        await writeState(
-          terminalState,
-          pendingDataPatch,
-          eventOutputs,
-          progressWriter.getPendingSecretProvenance()
-        )
+        const secretProvenance = progressWriter.getPendingSecretProvenance()
+        attemptedTerminal = {
+          status: terminalResult.status,
+          write: {
+            executionState: terminalState,
+            dataPatch: pendingDataPatch,
+            eventOutputs,
+            secretProvenance,
+          },
+        }
+        await writeState(terminalState, pendingDataPatch, eventOutputs, secretProvenance)
         return terminalResult.status
       } catch (err) {
         logger.error(
@@ -1287,6 +1285,18 @@ async function runWorkflowAndWriteTerminal(
           }
         )
         await progressWriter?.finish()
+        /**
+         * A terminal write that lost its connection may still have committed, and an error written
+         * over it would mark a finished, billed run as failed.
+         */
+        if (attemptedTerminal) {
+          const { write, status } = attemptedTerminal
+          const { confirmWorkflowGroupStateCommitted } = await import('@/lib/table/cell-write')
+          const committed = await readForCell('confirmWorkflowGroupStateCommitted', () =>
+            confirmWorkflowGroupStateCommitted(cellCtx, write)
+          ).catch(() => false)
+          if (committed) return status
+        }
         try {
           await writeState({
             status: 'error',
