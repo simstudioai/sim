@@ -3099,9 +3099,7 @@ function routesFor(persona: Persona): { name: string; path: string }[] {
 async function fullPageScreenshot(page: Page, path: string, viewport: Viewport) {
   const height = await page.evaluate(() => {
     let tallest = innerHeight
-    for (const element of Array.from(
-      document.querySelectorAll('main, main *, [data-platform-ui] *')
-    )) {
+    for (const element of Array.from(document.querySelectorAll('body *'))) {
       const overflow = element.scrollHeight - element.clientHeight
       if (overflow > 1) tallest = Math.max(tallest, innerHeight + overflow)
     }
