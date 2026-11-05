@@ -63,6 +63,7 @@ export function AuthorizedApps() {
             action: (
               <ActionMenu
                 label={`${app.name} actions`}
+                icon='I108'
                 align='end'
                 actions={[
                   {

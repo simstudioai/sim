@@ -135,6 +135,7 @@ export default function LinksSection({ organization }: SettingsSectionProps) {
             action: (
               <ActionMenu
                 label={`${link.name} actions`}
+                icon='I108'
                 align='end'
                 actions={[
                   {

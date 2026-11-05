@@ -49,6 +49,7 @@
     "check:permission-group-enforcement": "bun run scripts/check-permission-group-enforcement.ts",
     "check:platform-permission-catalog": "bun run scripts/sync-platform-permission-catalog.ts --check",
     "check:platform-design": "bun run scripts/check-platform-design.ts",
+    "check:platform-parity": "bun run scripts/check-platform-parity.ts",
     "check:platform-integration-metadata": "bun run scripts/sync-platform-integration-metadata.ts --check",
     "check:integration-access": "bun run scripts/check-integration-access.ts",
     "check:capability-subject": "bun run scripts/check-capability-subject.ts",

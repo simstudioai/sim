@@ -63,6 +63,7 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
   const home = pathname === '/home'
   const integrations = pathname === '/integrations' || pathname.startsWith('/integrations/')
   const scrollingPage = home || integrations
+  const people = pathname === '/people' || pathname.startsWith('/people/')
   const chats = [...chat.created, ...(data?.chats ?? [])]
     .filter((item) => !chat.isRemoved(item.id))
     .map((item) => ({ ...item, title: chat.titleFor(item.id, item.title) }))
@@ -201,7 +202,7 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
         <div
           ref={scrollEdges}
           className={styles.content}
-          data-page-opener={scrollingPage && webOpener ? true : undefined}
+          data-page-opener={(scrollingPage || people) && webOpener ? true : undefined}
         >
           {scrollingPage ? (
             <ScrollArea

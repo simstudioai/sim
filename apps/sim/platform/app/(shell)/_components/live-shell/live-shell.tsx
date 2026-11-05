@@ -1,6 +1,6 @@
 import { type ReactNode, Suspense } from 'react'
 import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { AccessDenied, SurfaceUnavailable } from '@/platform/app/_components/shell-gate/shell-gate'
 import { resolveLiveDestinations } from '@/platform/app/(shell)/_components/destinations'
 import { LiveComposerHost } from '@/platform/app/(shell)/_components/live-shell/live-composer-host'
@@ -26,6 +26,10 @@ export async function LiveShell({ children }: { children: ReactNode }) {
   }
 
   const { organization } = surface
+  // Deployed, the zone exists only for an organization the rollout has reached.
+  if (process.env.NEXT_PUBLIC_SIM_PLATFORM_BASE_PATH && !organization.platformOrgUi) {
+    notFound()
+  }
   const cookieStore = await cookies()
   if (!hasOrganizationSurface(organization)) redirect(legacyRoutes(organization).workspaceSettings)
 

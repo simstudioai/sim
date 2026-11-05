@@ -554,6 +554,8 @@ const organizationSurfaceResponseSchema = z.object({
     selfHosted: z.record(z.string(), z.boolean().optional()),
   }),
   deployment: deploymentShapeSchema,
+  /** Whether the Platform zone is open to this organization at all. */
+  platformOrgUi: z.boolean(),
   /** Which destinations the viewer's navigation lists; none of these authorizes the page behind it. */
   navFlags: z.object({
     people: z.boolean(),

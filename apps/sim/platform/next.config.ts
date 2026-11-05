@@ -22,6 +22,7 @@ const canvasShims = [
 
 const config: NextConfig = {
   devIndicators: false,
+  poweredByHeader: false,
   ...(basePath && { basePath }),
   env: { NEXT_PUBLIC_SIM_PLATFORM_BASE_PATH: basePath ?? '' },
   /** Published as ESM that only compiles through this list, as in the main app's config. */

@@ -65,6 +65,7 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
           />
           <ActionMenu
             label={`${domain.domain} actions`}
+            icon='I108'
             actions={[
               {
                 id: 'remove',

@@ -1,26 +1,14 @@
 import { expect, type Page, test } from '@playwright/test'
-
-function requireEnv(name: string): string {
-  const value = process.env[name]
-  if (!value) throw new Error(`${name} is required: the live checks use a real seeded admin`)
-  return value
-}
+import { organizationId, signInAsAdmin } from '@/platform/checks/live/session'
 
 /** A seeded admin of an Enterprise organization, or a self-hosted deployment with these features on. */
-async function signIn(page: Page, section: string) {
-  await page.goto(`/org/settings/${section}`)
-  await expect(page).toHaveURL(/\/login\?/)
-  await page.locator('#email').fill(requireEnv('PLATFORM_LIVE_ADMIN_EMAIL'))
-  await page.locator('#password').fill(requireEnv('PLATFORM_LIVE_ADMIN_PASSWORD'))
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-  await expect(page).toHaveURL(new RegExp(`/org/settings/${section}`))
+function openSection(page: Page, section: string) {
+  return signInAsAdmin(page, `/org/settings/${section}`)
 }
-
-const organizationId = () => requireEnv('PLATFORM_LIVE_ORGANIZATION_ID')
 
 test.describe('governance settings', () => {
   test('audit logs fail closed on a workspace that is not the organization’s', async ({ page }) => {
-    await signIn(page, 'audit-logs')
+    await openSection(page, 'audit-logs')
     const orgWideRead = page.waitForRequest(
       (request) =>
         request.url().includes('/api/audit-logs?') && !request.url().includes('workspaceId')
@@ -46,7 +34,7 @@ test.describe('governance settings', () => {
   test('the permission editor reads the whole allowlist universe from its catalog', async ({
     page,
   }) => {
-    await signIn(page, 'access-control')
+    await openSection(page, 'access-control')
     const name = `Live check ${Date.now()}`
     await page.getByRole('button', { name: 'Create group' }).click()
     const dialog = page.getByRole('dialog', { name: 'Create permission group' })
@@ -82,7 +70,7 @@ test.describe('governance settings', () => {
   })
 
   test('single sign-on never receives a stored client secret', async ({ page }) => {
-    await signIn(page, 'sso')
+    await openSection(page, 'sso')
     const bodies: string[] = []
     page.on('response', async (response) => {
       if (response.url().includes('/api/auth/sso/providers')) bodies.push(await response.text())
@@ -96,7 +84,7 @@ test.describe('governance settings', () => {
   })
 
   test('security validates session bounds before writing', async ({ page }) => {
-    await signIn(page, 'security')
+    await openSection(page, 'security')
     const field = page.getByRole('textbox', { name: 'Idle timeout (hours)' })
     await field.fill('0')
     const writes: string[] = []
@@ -115,18 +103,18 @@ test.describe('governance settings', () => {
   })
 
   test('data retention keeps its bounds and validates custom patterns', async ({ page }) => {
-    await signIn(page, 'data-retention')
+    await openSection(page, 'data-retention')
     await page.getByRole('button', { name: /^Organization/ }).click()
     await expect(page.getByRole('heading', { name: 'Organization defaults' })).toBeVisible()
     await page.getByRole('button', { name: 'Add pattern' }).click()
     await page.getByRole('textbox', { name: 'Pattern (regex)' }).fill('(')
     await expect(page.getByText(/Invalid regex/)).toBeVisible()
     await page.getByRole('button', { name: 'Data retention' }).click()
-    await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Unsaved changes' })).toBeVisible()
   })
 
   test('a data drain withholds Create until its destination is complete', async ({ page }) => {
-    await signIn(page, 'data-drains')
+    await openSection(page, 'data-drains')
     await page.getByRole('button', { name: 'Create drain' }).click()
     await page.getByRole('textbox', { name: 'Name' }).fill('Live check')
     await expect(page.getByRole('button', { name: 'Create', exact: true })).toBeDisabled()
