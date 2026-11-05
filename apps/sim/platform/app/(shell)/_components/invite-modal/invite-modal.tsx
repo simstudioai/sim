@@ -27,6 +27,8 @@ export function InviteModal({ onClose }: InviteModalProps) {
   const [recipients, setRecipients] = useState<Recipient[]>([])
   const [role, setRole] = useState<InviteRole>('member')
 
+  const valid = recipients.filter((recipient) => !recipient.invalid)
+  const rejected = recipients.filter((recipient) => recipient.invalid)
   const problem = recipients
     .filter((recipient) => recipient.invalid)
     .map((recipient) => invite.addressProblem(recipient.address))
@@ -38,15 +40,19 @@ export function InviteModal({ onClose }: InviteModalProps) {
       open
       onOpenChange={onClose}
       confirmLabel='Send invites'
-      confirmDisabled={recipients.length === 0 || Boolean(problem)}
+      confirmDisabled={valid.length === 0}
       onConfirm={async () => {
         const { failed, message } = await invite.submit(
-          recipients.map(({ address }) => address),
+          valid.map(({ address }) => address),
           role
         )
         if (message) {
-          setRecipients(failed.map((address) => ({ address })))
+          setRecipients([...failed.map((address) => ({ address })), ...rejected])
           throw new Error(message)
+        }
+        if (rejected.length > 0) {
+          setRecipients(rejected)
+          return false
         }
       }}
     >
@@ -56,8 +62,9 @@ export function InviteModal({ onClose }: InviteModalProps) {
         recipients={recipients}
         onRecipientsChange={setRecipients}
         validate={(address) => invite.addressProblem(address) === null}
+        submitsWithInvalid
         error={problem ?? undefined}
-        hint={invite.seatWarning(recipients.length)}
+        hint={invite.seatWarning(valid.length)}
       />
       <SelectField
         label='Role'

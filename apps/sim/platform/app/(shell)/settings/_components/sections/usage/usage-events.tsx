@@ -8,7 +8,7 @@ import { useUsageEvents, useUsageView } from '@/platform/lib/data/usage'
 const COLUMNS = [
   { key: 'when', label: 'When', kind: 'text' },
   { key: 'label', label: 'Event', kind: 'text' },
-  { key: 'description', label: 'Description', kind: 'text', showFrom: 'wide' },
+  { key: 'description', label: 'Description', kind: 'text' },
   { key: 'credits', label: 'Credits', kind: 'text' },
 ] as const
 

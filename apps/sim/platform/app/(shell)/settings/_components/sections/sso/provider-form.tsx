@@ -254,6 +254,7 @@ export function ProviderForm({
         />
       ) : null}
       <form
+        noValidate
         autoComplete='off'
         onSubmit={(event) => {
           event.preventDefault()

@@ -113,6 +113,7 @@ function WhitelabelForm({ organizationId, settings, uploadWorkspaceId }: Whitela
   const { text } = form
   return (
     <form
+      noValidate
       aria-label='White-labeling'
       onSubmit={(event) => {
         event.preventDefault()

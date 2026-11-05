@@ -40,9 +40,15 @@ export function PeopleInviteModal({ organizationId, onClose }: PeopleInviteModal
             ? 'Connection request sent'
             : `${result.sentCount} connection requests sent`
         )
-        return
+        const invalid = recipients.filter((recipient) => recipient.invalid)
+        if (invalid.length === 0) return
+        setRecipients(invalid)
+        return false
       }
-      setRecipients(failures.map((item) => ({ address: item.email })))
+      setRecipients([
+        ...failures.map((item) => ({ address: item.email })),
+        ...recipients.filter((recipient) => recipient.invalid),
+      ])
       setDeliveryError(
         result.sentCount > 0
           ? `${result.sentCount} sent. ${failures.length} failed: ${failures.map((item) => item.email).join(', ')}`
@@ -72,6 +78,11 @@ export function PeopleInviteModal({ organizationId, onClose }: PeopleInviteModal
           setDeliveryError(null)
         }}
         validate={(address) => quickValidateEmail(address).isValid}
+        submitsWithInvalid
+        error={recipients
+          .filter((recipient) => recipient.invalid)
+          .map((recipient) => quickValidateEmail(recipient.address).reason)
+          .find(Boolean)}
         disabled={invite.isPending}
       />
       {message && <InlineNotice intent='danger' message={message} />}

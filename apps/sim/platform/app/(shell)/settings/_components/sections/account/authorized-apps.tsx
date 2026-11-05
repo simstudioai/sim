@@ -16,7 +16,7 @@ const TITLE = 'Authorized apps'
 const COLUMNS = [
   { key: 'name', label: 'App', kind: 'text' },
   { key: 'access', label: 'Access', kind: 'text', showFrom: 'compact' },
-  { key: 'authorized', label: 'Authorized', kind: 'text', showFrom: 'wide' },
+  { key: 'authorized', label: 'Authorized', kind: 'text' },
 ] as const
 
 /**
