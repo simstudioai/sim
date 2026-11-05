@@ -2,8 +2,11 @@
 
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
-import { ORGANIZATION_SETTINGS_GROUPS } from '@/components/settings/navigation'
-import { SettingsSidebar } from '@/components/settings/settings-sidebar'
+import {
+  type AccountSettingsSection,
+  ORGANIZATION_SETTINGS_GROUPS,
+  type OrganizationSettingsSection,
+} from '@/components/settings/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
@@ -20,13 +23,54 @@ import {
 import { warmOrganizationSettingsSectionQuery } from '@/app/o/[organizationId]/settings/settings-query-warmers'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
+import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 
-interface OrganizationSettingsSidebarProps {
-  isCollapsed: boolean
-  showCollapsedTooltips: boolean
+export type SettingsSectionKey = AccountSettingsSection | OrganizationSettingsSection
+
+const SECTION_ICONS: Partial<Record<SettingsSectionKey, IconName>> = {
+  general: 'I116',
+  billing: 'I133',
+  'knowledge-graphs': 'I004',
+  members: 'I134',
+  'connected-accounts': 'I070',
+  usage: 'I135',
+  whitelabeling: 'I036',
+  'recently-deleted': 'I053',
+  requests: 'I073',
+  'audit-logs': 'I075',
+  'access-control': 'I050',
+  sso: 'I137',
+  security: 'I136',
+  'data-retention': 'I004',
+  'data-drains': 'I117',
+  integrations: 'I070',
+  'search-mcp': 'I126',
+  'search-slack': 'I123',
+  admin: 'I116',
+  mothership: 'I128',
 }
 
-export function OrganizationSettingsSidebar(props: OrganizationSettingsSidebarProps) {
+export interface SettingsNavItem {
+  key: SettingsSectionKey
+  title: string
+  description?: string
+  icon: IconName
+  href: string
+}
+
+export interface SettingsNavGroup {
+  key: string
+  title: string
+  items: SettingsNavItem[]
+}
+
+/**
+ * The viewer's Settings rail. Order, labels and gates are the organization surface's own
+ * (`organizationSurfaceSettingsNavigation`), with the plan refreshed from the shared billing summary
+ * so a portal change shows on focus. A listed row authorizes nothing: the page and its APIs gate
+ * themselves.
+ */
+export function useSettingsNavigation() {
   const { organization, viewer, connectedAccountsAvailable, searchAccess, settingsFeatures } =
     useOrganizationContext()
   const knowledgeGraphs = useFeatureFlag('mothership-memory-spaces')
@@ -60,34 +104,43 @@ export function OrganizationSettingsSidebar(props: OrganizationSettingsSidebarPr
           hasPaidSubscriptionStatus(summary.data.subscriptionStatus)
         : settingsFeatures.governanceActive,
   }
-
   const routes = organizationRoutes(organization.id)
-
-  return (
-    <SettingsSidebar
-      {...props}
-      plane='organization'
-      activeSection={resolveOrganizationSurfaceSection(pathname ?? '')?.section ?? 'general'}
-      groups={ORGANIZATION_SETTINGS_GROUPS}
-      items={organizationSurfaceSettingsNavigation(
-        isAdmin,
-        features,
-        {
-          connectedAccounts: connectedAccountsAvailable,
-          search: searchAccess.memberScoped,
-          knowledgeGraphs,
-        },
-        session?.user?.role === 'admin'
-      )}
-      hrefForSection={(section) => routes.settingsSection(section)}
-      onSectionIntent={(section) =>
-        warmOrganizationSettingsSectionQuery(
-          queryClient,
-          { organizationId: organization.id, isAdmin },
-          section
-        )
-      }
-      backHref={searchAccess.memberScoped ? routes.home : WORKSPACE_SETTINGS_PATH}
-    />
+  const items = organizationSurfaceSettingsNavigation(
+    isAdmin,
+    features,
+    {
+      connectedAccounts: connectedAccountsAvailable,
+      search: searchAccess.memberScoped,
+      knowledgeGraphs,
+    },
+    session?.user?.role === 'admin'
   )
+  const groups: SettingsNavGroup[] = ORGANIZATION_SETTINGS_GROUPS.map((group) => ({
+    key: group.key,
+    title: group.title,
+    items: items
+      .filter((item) => item.group === group.key)
+      .map((item) => ({
+        key: item.id,
+        title: item.label,
+        description: item.description,
+        icon: SECTION_ICONS[item.id] ?? 'I116',
+        href: routes.settingsSection(item.id),
+      })),
+  })).filter((group) => group.items.length > 0)
+
+  return {
+    groups,
+    activeSection: resolveOrganizationSurfaceSection(pathname ?? '')?.section ?? 'general',
+    isAdmin,
+    hosted: settingsFeatures.hosted,
+    /** Where Back to app lands when no return URL was remembered on the way in. */
+    backHref: searchAccess.memberScoped ? routes.home : WORKSPACE_SETTINGS_PATH,
+    warmSection: (section: SettingsSectionKey) =>
+      warmOrganizationSettingsSectionQuery(
+        queryClient,
+        { organizationId: organization.id, isAdmin },
+        section
+      ),
+  }
 }
