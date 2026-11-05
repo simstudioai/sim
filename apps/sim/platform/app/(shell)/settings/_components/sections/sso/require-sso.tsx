@@ -37,7 +37,7 @@ export function RequireSso({ organizationId }: { organizationId: string }) {
     }
   }
 
-  /** Turning it off stays available: losing the provider must not strand the setting. */
+  // Turning it off stays available: losing the provider must not strand the setting.
   const disabled =
     !data || updatePolicy.isPending || (!data.hasVerifiedProvider && !data.requireSso)
 

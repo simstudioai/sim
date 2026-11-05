@@ -135,49 +135,53 @@ export function DomainsPanel({
   return (
     <SectionStack>
       <SettingsSection title='Verified domains'>
-        <FieldStack>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              if (canAdd) void add()
-            }}
-          >
-            <FieldStack>
-              <TextField
-                label='Add a domain'
-                hint='Prove ownership with a DNS record before using this domain for SSO or directory provisioning.'
-                placeholder='acme.com'
-                value={newDomain}
-                onChange={setNewDomain}
-              />
-              <ActionRow>
-                <Button variant='primary' submit disabled={!canAdd}>
-                  {addDomain.isPending ? 'Adding…' : 'Add domain'}
-                </Button>
-              </ActionRow>
-            </FieldStack>
-          </form>
-          {isLoading ? (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (canAdd) void add()
+          }}
+        >
+          <FieldStack>
+            <TextField
+              label='Add a domain'
+              hint='Prove ownership with a DNS record before using this domain for SSO or directory provisioning.'
+              placeholder='acme.com'
+              value={newDomain}
+              onChange={setNewDomain}
+            />
+            <ActionRow>
+              <Button variant='primary' submit disabled={!canAdd}>
+                {addDomain.isPending ? 'Adding…' : 'Add domain'}
+              </Button>
+            </ActionRow>
+          </FieldStack>
+        </form>
+        {isLoading ? (
+          <FieldStack>
             <LoadingState label='Loading domains…' />
-          ) : data === undefined && isError ? (
+          </FieldStack>
+        ) : data === undefined && isError ? (
+          <FieldStack>
             <QueryErrorState
               message={getErrorMessage(error, 'Failed to load verified domains')}
               retrying={isFetching}
               onRetry={() => void refetch()}
             />
-          ) : domains.length === 0 ? (
+          </FieldStack>
+        ) : domains.length === 0 ? (
+          <FieldStack>
             <Muted>No domains yet.</Muted>
-          ) : (
-            domains.map((domain) => (
-              <DomainRow
-                key={domain.id}
-                organizationId={organizationId}
-                domain={domain}
-                onRemove={(target) => setPendingRemovalId(target.id)}
-              />
-            ))
-          )}
-        </FieldStack>
+          </FieldStack>
+        ) : (
+          domains.map((domain) => (
+            <DomainRow
+              key={domain.id}
+              organizationId={organizationId}
+              domain={domain}
+              onRemove={(target) => setPendingRemovalId(target.id)}
+            />
+          ))
+        )}
       </SettingsSection>
       <Modal
         variant='confirm'

@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
-import { formatDateTime } from '@sim/utils/formatting'
 import {
+  LoadingState,
   QueryErrorState,
   ResourceList,
   SectionStack,
@@ -13,6 +13,7 @@ import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_comp
 import { DrainCreate } from '@/platform/app/(shell)/settings/_components/sections/data-drains/drain-create'
 import { DrainDetail } from '@/platform/app/(shell)/settings/_components/sections/data-drains/drain-detail'
 import { ActivityRow, Button, EmptyState, SearchField } from '@/platform/design-system/components'
+import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   CADENCE_LABELS,
   DESTINATION_LABELS,
@@ -21,6 +22,7 @@ import {
   useDataDrains,
   useSettingsSearch,
 } from '@/platform/lib/data/data-drains'
+import { formatTimestamp } from '@/platform/lib/time'
 
 export default function DataDrainsSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id
@@ -96,24 +98,28 @@ export default function DataDrainsSection({ organization }: SettingsSectionProps
           retrying={isFetching}
           onRetry={() => void refetch()}
         />
-      ) : isPending ? null : drains && drains.length > 0 ? (
+      ) : isPending ? (
+        <LoadingState label='Loading data drains…' />
+      ) : drains && drains.length > 0 ? (
         filtered.length > 0 ? (
-          <ResourceList>
-            {filtered.map((drain) => (
-              <ActivityRow
-                key={drain.id}
-                title={drain.name}
-                detail={`${SOURCE_LABELS[drain.source]} → ${DESTINATION_LABELS[drain.destinationType]} · ${CADENCE_LABELS[drain.scheduleCadence]} · ${drain.lastRunAt ? `Last run ${formatDateTime(new Date(drain.lastRunAt))}` : 'Never run'}`}
-                metadata={drain.enabled ? undefined : 'Disabled'}
-                onOpen={() => void setSelectedId(drain.id)}
-              />
-            ))}
-          </ResourceList>
+          <SettingsSection title='Data drains'>
+            <ResourceList>
+              {filtered.map((drain) => (
+                <ActivityRow
+                  key={drain.id}
+                  title={drain.name}
+                  detail={`${SOURCE_LABELS[drain.source]} → ${DESTINATION_LABELS[drain.destinationType]} · ${CADENCE_LABELS[drain.scheduleCadence]} · ${drain.lastRunAt ? `Last run ${formatTimestamp(new Date(drain.lastRunAt).getTime())}` : 'Never run'}`}
+                  metadata={drain.enabled ? undefined : 'Disabled'}
+                  onOpen={() => void setSelectedId(drain.id)}
+                />
+              ))}
+            </ResourceList>
+          </SettingsSection>
         ) : (
           <EmptyState title={`No drains found matching "${search}"`} />
         )
       ) : (
-        <EmptyState title='Click "Create drain" above to get started' />
+        <EmptyState title='No data drains yet' description='Create a drain to get started.' />
       )}
     </SectionStack>
   )

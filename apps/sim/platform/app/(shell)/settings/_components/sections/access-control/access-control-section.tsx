@@ -75,11 +75,9 @@ function CreateGroupModal({
     <Modal
       open={open}
       onOpenChange={change}
-      title='Create Permission Group'
+      title='Create permission group'
       confirmLabel={createGroup.isPending ? 'Creating…' : 'Create'}
-      confirmDisabled={
-        !name.trim() || createGroup.isPending || (!isDefault && workspaceIds.length === 0)
-      }
+      confirmDisabled={!name.trim() || (!isDefault && workspaceIds.length === 0)}
       onConfirm={async () => {
         await createGroup.mutateAsync({
           organizationId,
@@ -88,7 +86,6 @@ function CreateGroupModal({
           isDefault,
           workspaceIds: isDefault ? undefined : workspaceIds,
         })
-        change(false)
       }}
     >
       <TextField label='Name' placeholder='e.g., Marketing Team' value={name} onChange={setName} />
@@ -159,6 +156,14 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
     )
   }
 
+  const workspacesError = workspaces.error && workspaces.data === undefined && (
+    <QueryErrorState
+      message={getErrorMessage(workspaces.error, 'Failed to load workspaces')}
+      retrying={workspaces.isFetching}
+      onRetry={() => void workspaces.refetch()}
+    />
+  )
+
   const refreshError = groups.error && (
     <QueryErrorState
       message={getErrorMessage(groups.error, 'Failed to refresh permission groups')}
@@ -171,6 +176,7 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
     return (
       <SectionStack>
         {refreshError}
+        {workspacesError}
         <GroupDetail
           key={selectedGroup.id}
           group={selectedGroup}
@@ -189,6 +195,7 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
   return (
     <SectionStack>
       {refreshError}
+      {workspacesError}
       <SectionToolbar
         grow={
           <SearchField
@@ -207,7 +214,7 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
         </Button>
       </SectionToolbar>
       {permissionGroups.length === 0 ? (
-        <EmptyState title='No permission groups yet. Click "Create group" to get started.' />
+        <EmptyState title='No permission groups yet' description='Create a group to get started.' />
       ) : filtered.length === 0 ? (
         <EmptyState title={`No groups found matching "${params.search}"`} />
       ) : (

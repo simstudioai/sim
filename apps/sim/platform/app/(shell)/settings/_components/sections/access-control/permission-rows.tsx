@@ -3,6 +3,7 @@
 import { type ReactNode, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
+  ActionRow,
   LoadingState,
   Muted,
   QueryErrorState,
@@ -16,6 +17,7 @@ import {
   Select,
   StatusTag,
 } from '@/platform/design-system/components'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   type AccessRequestTarget,
@@ -47,10 +49,8 @@ interface PermissionBulkSelectProps extends ControlsProps {
 /** Edits non-inherited targets, offering requests only when every editable target supports them. */
 export function PermissionBulkSelect({ targets, controls }: PermissionBulkSelectProps) {
   const editable = targets.filter((target) => !controls.isInherited(target))
-  const [resetKey, setResetKey] = useState(0)
   return (
     <Select
-      key={resetKey}
       label='Set shown permissions to'
       variant='quiet'
       disabled={!editable.length}
@@ -58,11 +58,10 @@ export function PermissionBulkSelect({ targets, controls }: PermissionBulkSelect
         { value: 'shown', label: 'Set shown to…' },
         ...bulkAccessOptions(editable.every(controls.canRequest)),
       ]}
-      defaultValue='shown'
+      value='shown'
       onValueChange={(state) => {
         if (state === 'shown') return
         controls.onSet(editable, state as PermissionGroupAccessState)
-        setResetKey((key) => key + 1)
       }}
     />
   )
@@ -101,7 +100,7 @@ function PermissionRow({
   return (
     <div className={styles.permission}>
       <SettingsRow label={label} description={explanation || undefined} leading={leading}>
-        <div className={styles.controls}>
+        <ActionRow>
           {badge && <StatusTag label={badge} />}
           <Select
             label={label}
@@ -111,7 +110,7 @@ function PermissionRow({
             disabled={rowDisabled}
             onValueChange={(next) => controls.onSet([target], next as PermissionGroupAccessState)}
           />
-        </div>
+        </ActionRow>
       </SettingsRow>
       {children && (
         <Disclosure label={`Details for ${label}`}>
@@ -167,6 +166,7 @@ export function PermissionGrid({
   controls,
 }: PermissionGridProps) {
   const [search, setSearch] = useState('')
+  const scrollRef = useScrollEdges<HTMLDivElement>()
   const query = search.trim().toLowerCase()
   const filtered = items
     .filter(
@@ -189,7 +189,7 @@ export function PermissionGrid({
         />
       </SectionToolbar>
       {!filtered.length && <Muted>No items match your search.</Muted>}
-      <div className={styles.grid}>
+      <div ref={scrollRef} className={styles.grid}>
         {filtered.map((item) => (
           <PermissionRow
             key={item.id}

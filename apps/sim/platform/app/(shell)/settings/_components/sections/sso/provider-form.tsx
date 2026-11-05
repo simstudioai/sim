@@ -13,20 +13,17 @@ import {
 import { useUnsavedGuard } from '@/platform/app/(shell)/settings/_components/section-parts/use-unsaved-guard'
 import {
   Button,
+  Checkbox,
   CopyField,
   Disclosure,
   SearchableSelect,
   SecretField,
   SegmentedControl,
   SelectField,
-  Switch,
   TextAreaField,
   TextField,
 } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
+import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   buildSsoRegistrationBody,
   DEFAULT_SSO_FORM,
@@ -186,7 +183,7 @@ export function ProviderForm({
   }
 
   function changeType(providerType: SsoProviderForm['providerType']) {
-    /** Claim names are protocol-specific, so an override must not survive a switch. */
+    // Claim names are protocol-specific, so an override must not survive a switch.
     setForm((current) => ({ ...current, providerType, mapId: '', mapEmail: '', mapName: '' }))
     setShowErrors(false)
   }
@@ -363,13 +360,11 @@ export function ProviderForm({
                         value={form.callbackUrl}
                         onChange={(value) => set('callbackUrl', value)}
                       />
-                      <SettingsRow label='Require signed SAML assertions'>
-                        <Switch
-                          label='Require signed SAML assertions'
-                          checked={form.wantAssertionsSigned}
-                          onCheckedChange={(checked) => set('wantAssertionsSigned', checked)}
-                        />
-                      </SettingsRow>
+                      <Checkbox
+                        label='Require signed SAML assertions'
+                        checked={form.wantAssertionsSigned}
+                        onCheckedChange={(checked) => set('wantAssertionsSigned', checked)}
+                      />
                       <SelectField
                         label='NameID format'
                         optional

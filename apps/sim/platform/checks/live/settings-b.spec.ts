@@ -49,7 +49,7 @@ test.describe('governance settings', () => {
     await signIn(page, 'access-control')
     const name = `Live check ${Date.now()}`
     await page.getByRole('button', { name: 'Create group' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Create Permission Group' })
+    const dialog = page.getByRole('dialog', { name: 'Create permission group' })
     await expect(dialog.getByRole('button', { name: 'Create', exact: true })).toBeDisabled()
     await dialog.getByRole('textbox', { name: 'Name' }).fill(name)
     await dialog.getByText('Make this the organization default group').click()
@@ -120,7 +120,7 @@ test.describe('governance settings', () => {
     await expect(page.getByRole('heading', { name: 'Organization defaults' })).toBeVisible()
     await page.getByRole('button', { name: 'Add pattern' }).click()
     await page.getByRole('textbox', { name: 'Pattern (regex)' }).fill('(')
-    await expect(page.getByRole('alert')).toContainText('Invalid regex')
+    await expect(page.getByText(/Invalid regex/)).toBeVisible()
     await page.getByRole('button', { name: 'Data retention' }).click()
     await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toBeVisible()
   })

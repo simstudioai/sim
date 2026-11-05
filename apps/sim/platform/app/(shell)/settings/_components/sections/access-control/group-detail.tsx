@@ -1,10 +1,8 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
-import { formatDate } from '@sim/utils/formatting'
 import {
-  ActionRow,
   DetailHeader,
   FieldStack,
   LoadingState,
@@ -74,6 +72,7 @@ import {
   useUpdatePermissionGroup,
 } from '@/platform/lib/data/access-control'
 import { toast } from '@/platform/lib/data/toast'
+import { formatTimestamp } from '@/platform/lib/time'
 
 const TABS = [
   { value: 'general', label: 'General' },
@@ -190,23 +189,18 @@ export function GroupDetail({
   const [editingDescription, setEditingDescription] = useState((group.description ?? '').trim())
   const [addingMembers, setAddingMembers] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  /** Only the most recent scope write may reconcile or revert, so rapid edits cannot settle stale. */
+  // Only the most recent scope write may reconcile or revert, so rapid edits cannot settle stale.
   const scopeWriteSeq = useRef(0)
 
-  const resolvers = useMemo(
-    () => (model ? createPermissionResolvers(editingConfig, model.accessCatalog) : null),
-    [editingConfig, model]
-  )
-  const controls: PermissionControls | null =
-    resolvers && model
-      ? {
-          ...resolvers,
-          onSet: (targets: AccessRequestTarget[], state: PermissionGroupAccessState) =>
-            setEditingConfig((previous) =>
-              applyPermissionAccess(previous, targets, state, model.accessCatalog)
-            ),
-        }
-      : null
+  const controls: PermissionControls | null = model
+    ? {
+        ...createPermissionResolvers(editingConfig, model.accessCatalog),
+        onSet: (targets: AccessRequestTarget[], state: PermissionGroupAccessState) =>
+          setEditingConfig((previous) =>
+            applyPermissionAccess(previous, targets, state, model.accessCatalog)
+          ),
+      }
+    : null
 
   const isAgentDefaultValid = model
     ? isAgentDefaultUsable(editingConfig, { hosted, providerIds: model.providerIds }, model.facts)
@@ -340,14 +334,18 @@ export function GroupDetail({
         .filter((id) => matchesStatusFilter(status, controls.getState({ kind: 'provider', id })))
       return (
         <SectionStack>
-          <AgentDefault
-            config={editingConfig}
-            model={model}
-            hosted={hosted}
-            onChange={(defaultAgentModel) =>
-              setEditingConfig((previous) => ({ ...previous, defaultAgentModel }))
-            }
-          />
+          <SettingsSection title='Agent default'>
+            <FieldStack>
+              <AgentDefault
+                config={editingConfig}
+                model={model}
+                hosted={hosted}
+                onChange={(defaultAgentModel) =>
+                  setEditingConfig((previous) => ({ ...previous, defaultAgentModel }))
+                }
+              />
+            </FieldStack>
+          </SettingsSection>
           <SectionToolbar
             grow={
               <SearchField
@@ -368,14 +366,16 @@ export function GroupDetail({
           {filtered.length === 0 ? (
             <Muted>No providers match your filters.</Muted>
           ) : (
-            filtered.map((providerId) => (
-              <ProviderRow
-                key={providerId}
-                providerId={providerId}
-                model={model}
-                controls={controls}
-              />
-            ))
+            <SettingsSection title='Providers'>
+              {filtered.map((providerId) => (
+                <ProviderRow
+                  key={providerId}
+                  providerId={providerId}
+                  model={model}
+                  controls={controls}
+                />
+              ))}
+            </SettingsSection>
           )}
         </SectionStack>
       )
@@ -410,7 +410,9 @@ export function GroupDetail({
           {core.length === 0 && tools.length === 0 && <Muted>No blocks match your filters.</Muted>}
           {core.length > 0 && (
             <SettingsSection title='Core Blocks'>
-              <PermissionBulkSelect targets={targets(core)} controls={controls} />
+              <SettingsRow label='All core blocks'>
+                <PermissionBulkSelect targets={targets(core)} controls={controls} />
+              </SettingsRow>
               {core.map((block) => (
                 <BlockToolRow key={block.type} block={block} controls={controls} />
               ))}
@@ -418,11 +420,12 @@ export function GroupDetail({
           )}
           {tools.length > 0 && (
             <SettingsSection title='Integrations and Triggers'>
-              <Muted>
-                Choose access for an integration, then expand it to set individual tools. Parent
-                restrictions apply to every tool.
-              </Muted>
-              <PermissionBulkSelect targets={targets(tools)} controls={controls} />
+              <SettingsRow
+                label='All integrations and triggers'
+                description='Choose access for an integration, then expand it to set individual tools. Parent restrictions apply to every tool.'
+              >
+                <PermissionBulkSelect targets={targets(tools)} controls={controls} />
+              </SettingsRow>
               {tools.map((block) => (
                 <BlockToolRow key={block.type} block={block} controls={controls} />
               ))}
@@ -595,50 +598,58 @@ export function GroupDetail({
             {viewing.isDefault ? (
               <SettingsRow label='Governs every workspace in the organization' />
             ) : (
-              <FieldStack>
-                <MultiSelect
-                  label={
-                    viewing.workspaces.length > 0
-                      ? `Governs ${viewing.workspaces.length} workspace${viewing.workspaces.length === 1 ? '' : 's'}`
-                      : 'Select the workspaces this group governs'
-                  }
-                  searchLabel='Search workspaces…'
-                  placeholder={workspacesLoading ? 'Loading workspaces…' : 'Select workspaces…'}
-                  options={workspaceOptions}
-                  value={viewing.workspaces.map((ws) => ws.id)}
-                  disabled={workspacesLoading}
-                  onValueChange={(ids) => void changeScope(ids)}
-                />
+              <>
+                <FieldStack>
+                  <MultiSelect
+                    label={
+                      viewing.workspaces.length > 0
+                        ? `Governs ${viewing.workspaces.length} workspace${viewing.workspaces.length === 1 ? '' : 's'}`
+                        : 'Select the workspaces this group governs'
+                    }
+                    searchLabel='Search workspaces…'
+                    placeholder={workspacesLoading ? 'Loading workspaces…' : 'Select workspaces…'}
+                    options={workspaceOptions}
+                    value={viewing.workspaces.map((ws) => ws.id)}
+                    disabled={workspacesLoading}
+                    onValueChange={(ids) => void changeScope(ids)}
+                  />
+                </FieldStack>
                 {viewing.workspaces.map((ws) => (
                   <SettingsRow key={ws.id} label={ws.name} />
                 ))}
-              </FieldStack>
+              </>
             )}
           </SettingsSection>
           {!viewing.isDefault && (
             <SettingsSection title='Members'>
               <SettingsRow
                 label={
-                  memberList.length === 0
-                    ? group.membershipMode === 'inherit'
-                      ? 'Applies to all members of its workspaces. Add members to restrict it to specific people.'
-                      : 'No members assigned.'
-                    : `Restricted to ${memberList.length} member${memberList.length === 1 ? '' : 's'}`
+                  members.isPending || members.error
+                    ? 'Members'
+                    : memberList.length === 0
+                      ? group.membershipMode === 'inherit'
+                        ? 'Applies to all members of its workspaces. Add members to restrict it to specific people.'
+                        : 'No members assigned.'
+                      : `Restricted to ${memberList.length} member${memberList.length === 1 ? '' : 's'}`
                 }
               >
-                <ActionRow>
-                  <Button
-                    variant='primary'
-                    size='compact'
-                    icon='I074'
-                    onClick={() => setAddingMembers(true)}
-                  >
-                    Add
-                  </Button>
-                </ActionRow>
+                <Button
+                  variant='primary'
+                  size='compact'
+                  icon='I074'
+                  onClick={() => setAddingMembers(true)}
+                >
+                  Add
+                </Button>
               </SettingsRow>
               {members.isPending ? (
                 <LoadingState label='Loading members…' />
+              ) : members.data === undefined ? (
+                <QueryErrorState
+                  message={getErrorMessage(members.error, 'Failed to load members')}
+                  retrying={members.isFetching}
+                  onRetry={() => void members.refetch()}
+                />
               ) : (
                 memberList.map((member) => {
                   const name = member.userName || member.userEmail || 'Unknown'
@@ -646,7 +657,7 @@ export function GroupDetail({
                     <SettingsRow
                       key={member.id}
                       label={name}
-                      description={`${member.userEmail || name} · Added ${formatDate(new Date(member.assignedAt))}`}
+                      description={`${member.userEmail || name} · Added ${formatTimestamp(new Date(member.assignedAt).getTime())}`}
                       leading={<Avatar name={name} src={member.userImage ?? undefined} />}
                     >
                       <ActionMenu
@@ -690,7 +701,7 @@ export function GroupDetail({
         destructive
         open={confirmingDelete}
         onOpenChange={setConfirmingDelete}
-        title='Delete Permission Group'
+        title='Delete permission group'
         description={`Are you sure you want to delete ${viewing.name}? All members will be removed from this group. This action cannot be undone.`}
         confirmLabel={deleteGroup.isPending ? 'Deleting…' : 'Delete'}
         onConfirm={async () => {

@@ -11,14 +11,16 @@ export type PropertyItem = { id: string; label: string } & (
 
 interface PropertyListProps {
   title: string
+  /** Name the list for assistive technology only, where its section already titles it. */
+  titleHidden?: boolean
   properties: readonly PropertyItem[]
 }
 
-export function PropertyList({ title, properties }: PropertyListProps) {
+export function PropertyList({ title, titleHidden, properties }: PropertyListProps) {
   const heading = useId()
   return (
     <section aria-labelledby={heading} className={styles.list}>
-      <h2 id={heading} data-type='T042'>
+      <h2 id={heading} data-type='T042' data-visually-hidden={titleHidden || undefined}>
         {title}
       </h2>
       <dl className={styles.rows}>

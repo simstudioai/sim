@@ -72,6 +72,12 @@
   padding-block: var(--spacing-4);
 }
 
+.rows {
+  display: grid;
+  gap: var(--ui-list-gap);
+  min-inline-size: 0;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -80,7 +86,6 @@
 }
 
 .pre {
-  overflow-x: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   color: var(--ui-secondary);

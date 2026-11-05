@@ -19,7 +19,10 @@ import {
   Modal,
   TextField,
 } from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
+import {
+  SettingsRow,
+  SettingsSection,
+} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   MIN_IDLE_TIMEOUT_HOURS,
   parseSessionPolicyHours,
@@ -118,11 +121,16 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
               Discard
             </Button>
           )}
-          <Button variant='destructive' onClick={() => setConfirmingRevoke(true)}>
-            Sign out all members
-          </Button>
         </ActionRow>
       </FieldStack>
+      <SettingsRow
+        label='End all sessions'
+        description='Everyone signs in again on their next request.'
+      >
+        <Button variant='destructive' onClick={() => setConfirmingRevoke(true)}>
+          Sign out all members
+        </Button>
+      </SettingsRow>
       <Modal
         variant='confirm'
         destructive
@@ -187,20 +195,20 @@ function NetworkSection({ organizationId }: { organizationId: string }) {
       <FieldStack>
         {isPending ? (
           <LoadingState label='Loading network settings…' />
-        ) : error || data?.mode === 'unavailable' ? (
+        ) : !data || data.mode === 'unavailable' ? (
           <QueryErrorState
             message={getErrorMessage(error, 'Could not load network settings')}
             retrying={isFetching}
             onRetry={() => void refetch()}
           />
-        ) : data?.mode === 'gateway' && data.publicIps.length > 0 ? (
+        ) : data.mode === 'gateway' && data.publicIps.length > 0 ? (
           <>
             <Muted>Allowlist every address below for supported HTTPS connections.</Muted>
             {data.publicIps.map((ip) => (
               <CopyField key={ip} label={`Outbound IP ${ip}`} value={`${ip}/32`} />
             ))}
           </>
-        ) : data ? (
+        ) : (
           <Muted>
             {data.mode === 'blocked'
               ? 'Supported HTTPS connections are paused.'
@@ -208,7 +216,7 @@ function NetworkSection({ organizationId }: { organizationId: string }) {
                 ? 'Your outbound IP addresses aren’t available yet.'
                 : 'Outbound IP addresses are not configured for this organization.'}
           </Muted>
-        ) : null}
+        )}
       </FieldStack>
     </SettingsSection>
   )

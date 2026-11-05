@@ -185,15 +185,25 @@ function RetentionForm({ initialData, organizationId, workspaceOptions }: Retent
 export default function DataRetentionSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id
   const { data, isLoading, isFetching, refetch } = useOrganizationRetention(organizationId)
-  const { data: workspaces = [] } = useWorkspacesQuery(Boolean(organizationId))
+  const workspacesQuery = useWorkspacesQuery(Boolean(organizationId))
 
-  if (isLoading) return <LoadingState label='Loading data retention…' />
+  if (isLoading || workspacesQuery.isPending)
+    return <LoadingState label='Loading data retention…' />
   if (!data) {
     return (
       <QueryErrorState
         message='Failed to load data retention settings.'
         retrying={isFetching}
         onRetry={() => void refetch()}
+      />
+    )
+  }
+  if (!workspacesQuery.data) {
+    return (
+      <QueryErrorState
+        message='Failed to load workspaces.'
+        retrying={workspacesQuery.isFetching}
+        onRetry={() => void workspacesQuery.refetch()}
       />
     )
   }
@@ -205,7 +215,7 @@ export default function DataRetentionSection({ organization }: SettingsSectionPr
       key={organizationId}
       initialData={data}
       organizationId={organizationId}
-      workspaceOptions={workspaces
+      workspaceOptions={workspacesQuery.data
         .filter((workspace) => workspace.organizationId === organizationId)
         .map((workspace) => ({ value: workspace.id, label: workspace.name }))}
     />

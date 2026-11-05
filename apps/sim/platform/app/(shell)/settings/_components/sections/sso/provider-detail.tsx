@@ -84,6 +84,7 @@ export function ProviderDetail({
       <SettingsSection title='Identity provider'>
         <FieldStack>
           <PropertyList
+            titleHidden
             title='Configuration'
             properties={[
               {

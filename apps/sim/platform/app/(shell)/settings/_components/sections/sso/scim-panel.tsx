@@ -41,8 +41,8 @@ import {
 import { toast } from '@/platform/lib/data/toast'
 import { formatCalendarDate, formatRelativeTime } from '@/platform/lib/time'
 
-function formatInstant(iso: string | null): string {
-  return iso ? formatRelativeTime(new Date(iso).getTime(), Date.now()) : 'never'
+function formatInstant(iso: string | null, now: number): string {
+  return iso ? formatRelativeTime(new Date(iso).getTime(), now) : 'never'
 }
 
 function formatExpiry(iso: string): string {
@@ -65,6 +65,7 @@ function ActivityList({ organizationId, active }: { organizationId: string; acti
     )
   }
   if (!data || data.length === 0) return <Muted>No requests yet.</Muted>
+  const now = Date.now()
   return (
     <>
       {data.map((entry) => {
@@ -76,7 +77,7 @@ function ActivityList({ organizationId, active }: { organizationId: string; acti
             description={
               failed && entry.detail
                 ? `${entry.scimType ? `${entry.scimType}: ` : ''}${entry.detail}`
-                : formatInstant(entry.createdAt)
+                : formatInstant(entry.createdAt, now)
             }
           >
             <StatusTag label={String(entry.status)} intent={failed ? 'danger' : 'neutral'} />
@@ -116,7 +117,7 @@ function ConnectionDetails({ organizationId, active, connection }: ConnectionDet
 
   async function toggleSetting(key: (typeof SETTING_TOGGLES)[number]['key'], value: boolean) {
     try {
-      /** Only the changed key is sent; the server merges it, so a concurrent edit is not reverted. */
+      // Only the changed key is sent; the server merges it, so a concurrent edit is not reverted.
       await configure.mutateAsync({ organizationId, settings: { [key]: value } })
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to update setting'))
@@ -151,6 +152,7 @@ function ConnectionDetails({ organizationId, active, connection }: ConnectionDet
     }
   }
 
+  const now = Date.now()
   return (
     <>
       <SettingsSection title='Connection'>
@@ -163,8 +165,8 @@ function ConnectionDetails({ organizationId, active, connection }: ConnectionDet
           <Muted>
             {connection.userCount} provisioned member{connection.userCount === 1 ? '' : 's'},{' '}
             {connection.groupCount} group{connection.groupCount === 1 ? '' : 's'}. Last request{' '}
-            {formatInstant(connection.lastRequestAt)}; last reconciled{' '}
-            {formatInstant(connection.reconciledAt)}.
+            {formatInstant(connection.lastRequestAt, now)}; last reconciled{' '}
+            {formatInstant(connection.reconciledAt, now)}.
           </Muted>
         </FieldStack>
       </SettingsSection>
@@ -172,33 +174,30 @@ function ConnectionDetails({ organizationId, active, connection }: ConnectionDet
       <SettingsSection title='Tokens'>
         <FieldStack>
           <Muted>Shown once. Keep up to two active tokens for rotation.</Muted>
-          {connection.credentials.length === 0 ? (
-            <Muted>No tokens yet.</Muted>
-          ) : (
-            connection.credentials.map((credential) => (
-              <SettingsRow
-                key={credential.id}
-                label={`${credential.tokenPrefix}…`}
-                description={`Last used ${formatInstant(credential.lastUsedAt)} · ${
-                  credential.expiresAt
-                    ? `expires ${formatExpiry(credential.expiresAt)}`
-                    : 'no expiry'
-                }`}
-              >
-                <ActionMenu
-                  label={`${credential.tokenPrefix} actions`}
-                  actions={[
-                    {
-                      id: 'revoke',
-                      label: 'Revoke',
-                      destructive: true,
-                      onSelect: () => setPendingRevokeId(credential.id),
-                    },
-                  ]}
-                />
-              </SettingsRow>
-            ))
-          )}
+          {connection.credentials.length === 0 && <Muted>No tokens yet.</Muted>}
+        </FieldStack>
+        {connection.credentials.map((credential) => (
+          <SettingsRow
+            key={credential.id}
+            label={`${credential.tokenPrefix}…`}
+            description={`Last used ${formatInstant(credential.lastUsedAt, now)} · ${
+              credential.expiresAt ? `expires ${formatExpiry(credential.expiresAt)}` : 'no expiry'
+            }`}
+          >
+            <ActionMenu
+              label={`${credential.tokenPrefix} actions`}
+              actions={[
+                {
+                  id: 'revoke',
+                  label: 'Revoke',
+                  destructive: true,
+                  onSelect: () => setPendingRevokeId(credential.id),
+                },
+              ]}
+            />
+          </SettingsRow>
+        ))}
+        <FieldStack>
           <ActionRow>
             <Select
               label='Token expiry'
@@ -242,20 +241,22 @@ function ConnectionDetails({ organizationId, active, connection }: ConnectionDet
           <Muted>
             Map directory groups to permission groups, workspaces, or the organization admin role.
           </Muted>
-          <GroupMappings
-            organizationId={organizationId}
-            active={active}
-            autoMapByName={connection.settings.autoMapPermissionGroupsByName === true}
-            onReconcile={runReconcile}
-            reconciling={reconcile.isPending}
-          />
         </FieldStack>
+        <GroupMappings
+          organizationId={organizationId}
+          active={active}
+          autoMapByName={connection.settings.autoMapPermissionGroupsByName === true}
+          onReconcile={runReconcile}
+          reconciling={reconcile.isPending}
+        />
       </SettingsSection>
 
       <SettingsSection title='Activity'>
         <FieldStack>
           <Muted>Requests from your identity provider, including errors.</Muted>
-          <ActivityList organizationId={organizationId} active={active} />
+        </FieldStack>
+        <ActivityList organizationId={organizationId} active={active} />
+        <FieldStack>
           <ActionRow>
             <Button
               size='compact'
@@ -276,7 +277,6 @@ function ConnectionDetails({ organizationId, active, connection }: ConnectionDet
         }}
         title='Credential issued'
         confirmLabel='Done'
-        onConfirm={() => setIssuedSecret(null)}
       >
         <CopyField
           label='Token'

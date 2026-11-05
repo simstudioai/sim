@@ -3,8 +3,10 @@
 import {
   FieldStack,
   Muted,
+  QueryErrorState,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { Button, Checkbox } from '@/platform/design-system/components'
+import { Checkbox } from '@/platform/design-system/components'
+import { LoadMoreFooter } from '@/platform/design-system/components/scroll-area/load-more-footer'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import { isApiClientError, useProjectList } from '@/platform/lib/data/access-control'
 
@@ -40,7 +42,13 @@ export function ProjectIssueRestrictions({
           For selected Projects, teammates governed by this group need access to every active
           environment to use Issues.
         </Muted>
-        {projects.error && <Muted>{projects.error.message}</Muted>}
+        {projects.error && (
+          <QueryErrorState
+            message={projects.error.message}
+            retrying={projects.isFetching}
+            onRetry={() => void projects.refetch()}
+          />
+        )}
         {choices.map((project) => (
           <Checkbox
             key={project.id}
@@ -55,15 +63,13 @@ export function ProjectIssueRestrictions({
             }
           />
         ))}
-        {projects.hasNextPage && (
-          <Button
-            size='compact'
-            disabled={projects.isFetchingNextPage}
-            onClick={() => void projects.fetchNextPage()}
-          >
-            {projects.isFetchingNextPage ? 'Loading…' : 'Load more'}
-          </Button>
-        )}
+        <LoadMoreFooter
+          state={{
+            hasMore: projects.hasNextPage,
+            loading: projects.isFetchingNextPage,
+            onLoadMore: () => void projects.fetchNextPage(),
+          }}
+        />
       </FieldStack>
     </SettingsSection>
   )

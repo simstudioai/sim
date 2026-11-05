@@ -1,9 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { Muted } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { getErrorMessage } from '@sim/utils/errors'
+import {
+  ActionRow,
+  LoadingState,
+  Muted,
+  QueryErrorState,
+} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/access-control/permission-rows.module.css'
 import { Button, Checkbox, Modal, SearchField } from '@/platform/design-system/components'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { useOrganizationRoster } from '@/platform/lib/data/access-control'
 
 interface AddMembersModalProps {
@@ -22,7 +29,14 @@ export function AddMembersModal({
   onAdd,
   isAdding,
 }: AddMembersModalProps) {
-  const { data: roster } = useOrganizationRoster(organizationId)
+  const {
+    data: roster,
+    isPending,
+    error,
+    isFetching,
+    refetch,
+  } = useOrganizationRoster(organizationId)
+  const scrollRef = useScrollEdges<HTMLDivElement>()
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const existing = new Set(existingUserIds)
@@ -66,12 +80,20 @@ export function AddMembersModal({
       onOpenChange={(open) => {
         if (!open) onClose()
       }}
-      title='Add Members'
-      confirmLabel={isAdding ? 'Adding…' : 'Add Members'}
-      confirmDisabled={selected.size === 0 || isAdding}
+      title='Add members'
+      confirmLabel={isAdding ? 'Adding…' : 'Add members'}
+      confirmDisabled={selected.size === 0}
       onConfirm={() => onAdd([...selected])}
     >
-      {available.length === 0 ? (
+      {isPending ? (
+        <LoadingState label='Loading members…' />
+      ) : roster === undefined ? (
+        <QueryErrorState
+          message={getErrorMessage(error, 'Failed to load members')}
+          retrying={isFetching}
+          onRetry={() => void refetch()}
+        />
+      ) : available.length === 0 ? (
         <Muted>All organization members are already in this group.</Muted>
       ) : (
         <>
@@ -80,13 +102,15 @@ export function AddMembersModal({
             placeholder='Search members...'
             onValueChange={setSearch}
           />
-          <Button size='compact' onClick={toggleAll}>
-            {allFilteredSelected ? 'Deselect All' : 'Select All'}
-          </Button>
+          <ActionRow>
+            <Button size='compact' onClick={toggleAll}>
+              {allFilteredSelected ? 'Deselect all' : 'Select all'}
+            </Button>
+          </ActionRow>
           {filtered.length === 0 ? (
             <Muted>{`No members found matching "${search}"`}</Muted>
           ) : (
-            <div className={styles.memberPicker}>
+            <div ref={scrollRef} className={styles.memberPicker}>
               {filtered.map((member) => (
                 <Checkbox
                   key={member.userId}

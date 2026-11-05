@@ -171,7 +171,7 @@ export function usePermissionEditorModel(organizationId: string) {
   }
 }
 
-/** The list's search and the group being viewed, on the same URL keys as the legacy page. */
+/** The list's search and the group being viewed. */
 export function useAccessControlParams() {
   const [search, setSearch] = useSettingsSearch()
   const [groupId, setGroupId] = useQueryState(groupIdParam.key, {

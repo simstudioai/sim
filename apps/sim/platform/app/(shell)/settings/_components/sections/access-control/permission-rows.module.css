@@ -3,12 +3,6 @@
   min-inline-size: 0;
 }
 
-.controls {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-8);
-}
-
 .nested {
   display: grid;
   gap: var(--spacing-8);

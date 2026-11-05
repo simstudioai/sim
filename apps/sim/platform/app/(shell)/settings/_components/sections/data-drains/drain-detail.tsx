@@ -2,12 +2,12 @@
 
 import { useState } from 'react'
 import { toError } from '@sim/utils/errors'
-import { formatDateTime } from '@sim/utils/formatting'
 import {
   DetailHeader,
   FieldStack,
   LoadingState,
   Muted,
+  QueryErrorState,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { Button, Modal, PropertyList, StatusTag, Switch } from '@/platform/design-system/components'
@@ -29,6 +29,7 @@ import {
   useUpdateDataDrain,
 } from '@/platform/lib/data/data-drains'
 import { toast } from '@/platform/lib/data/toast'
+import { formatTimestamp } from '@/platform/lib/time'
 
 const RECENT_RUN_LIMIT = 10
 
@@ -65,7 +66,7 @@ function RunRow({ run }: { run: DataDrainRun }) {
   return (
     <SettingsRow
       label={`${run.rowsExported.toLocaleString()} rows · ${formatFileSize(run.bytesWritten, { includeBytes: true })}`}
-      description={`${run.trigger} · ${formatDateTime(new Date(run.startedAt))}${run.error ? ` · ${run.error}` : ''}`}
+      description={`${run.trigger} · ${formatTimestamp(new Date(run.startedAt).getTime())}${run.error ? ` · ${run.error}` : ''}`}
     >
       <StatusTag label={run.status} intent={RUN_STATUS_INTENT[run.status]} />
     </SettingsRow>
@@ -162,6 +163,7 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
       <SettingsSection title='Schedule'>
         <FieldStack>
           <PropertyList
+            titleHidden
             title='Schedule details'
             properties={[
               { id: 'source', label: 'Source', kind: 'text', value: SOURCE_LABELS[drain.source] },
@@ -175,14 +177,16 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
                 id: 'last-run',
                 label: 'Last run',
                 kind: 'text',
-                value: drain.lastRunAt ? formatDateTime(new Date(drain.lastRunAt)) : 'Never',
+                value: drain.lastRunAt
+                  ? formatTimestamp(new Date(drain.lastRunAt).getTime())
+                  : 'Never',
               },
               {
                 id: 'last-success',
                 label: 'Last success',
                 kind: 'text',
                 value: drain.lastSuccessAt
-                  ? formatDateTime(new Date(drain.lastSuccessAt))
+                  ? formatTimestamp(new Date(drain.lastSuccessAt).getTime())
                   : 'Never',
               },
             ]}
@@ -192,6 +196,7 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
       <SettingsSection title='Destination'>
         <FieldStack>
           <PropertyList
+            titleHidden
             title='Destination details'
             properties={[
               {
@@ -215,7 +220,15 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
           <FieldStack>
             <LoadingState label='Loading runs…' />
           </FieldStack>
-        ) : runs.data && runs.data.length > 0 ? (
+        ) : runs.data === undefined ? (
+          <FieldStack>
+            <QueryErrorState
+              message={toError(runs.error).message}
+              retrying={runs.isFetching}
+              onRetry={() => void runs.refetch()}
+            />
+          </FieldStack>
+        ) : runs.data.length > 0 ? (
           runs.data.map((run) => <RunRow key={run.id} run={run} />)
         ) : (
           <FieldStack>

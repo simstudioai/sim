@@ -30,7 +30,7 @@ export {
 } from '@/ee/data-drains/labels'
 export { useSettingsSearch } from '@/hooks/use-settings-search'
 
-/** The drain being viewed, on the same URL key as the legacy page. */
+/** The drain being viewed. */
 export function useDataDrainParam() {
   return useQueryState(dataDrainIdParam.key, { ...dataDrainIdParam.parser, ...dataDrainIdUrlKeys })
 }

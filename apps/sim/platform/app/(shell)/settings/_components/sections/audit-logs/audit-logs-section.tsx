@@ -1,13 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { formatDateTime } from '@sim/utils/formatting'
 import {
   ActionRow,
   LoadingState,
   Muted,
   Preformatted,
   QueryErrorState,
+  RowStack,
   SectionStack,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -37,6 +37,7 @@ import {
   useAuditLogFeed,
 } from '@/platform/lib/data/audit-logs'
 import { toast } from '@/platform/lib/data/toast'
+import { formatTimestamp } from '@/platform/lib/time'
 
 type AuditEntry = ReturnType<typeof useAuditLogFeed>['entries'][number]
 
@@ -62,7 +63,7 @@ function AuditEntryRow({ entry }: { entry: AuditEntry }) {
           />
           <Muted>
             {entry.actorEmail || entry.actorName || 'System'} ·{' '}
-            {formatDateTime(new Date(entry.createdAt))}
+            {formatTimestamp(new Date(entry.createdAt).getTime())}
           </Muted>
         </ActionRow>
       }
@@ -98,10 +99,10 @@ function AuditEntryRow({ entry }: { entry: AuditEntry }) {
       {metadata
         .filter(([, value]) => value.kind === 'json')
         .map(([key, value]) => (
-          <div key={key}>
+          <RowStack key={key}>
             <Muted>{formatMetadataLabel(key)}</Muted>
             <Preformatted>{value.text}</Preformatted>
-          </div>
+          </RowStack>
         ))}
     </Disclosure>
   )
@@ -222,9 +223,11 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
 
       {feed.entries.length > 0 ? (
         <>
-          {feed.entries.map((entry) => (
-            <AuditEntryRow key={entry.id} entry={entry} />
-          ))}
+          <RowStack>
+            {feed.entries.map((entry) => (
+              <AuditEntryRow key={entry.id} entry={entry} />
+            ))}
+          </RowStack>
           <LoadMoreFooter
             state={{
               hasMore: feed.hasNextPage,
@@ -236,7 +239,11 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
       ) : feed.isLoading ? (
         <LoadingState label='Loading audit logs…' />
       ) : scope.isUnavailable ? (
-        <EmptyState title="Couldn't check that workspace. Refresh to try again." />
+        <QueryErrorState
+          message="Couldn't check that workspace."
+          retrying={refreshing}
+          onRetry={() => void refresh()}
+        />
       ) : scope.isUnresolved ? (
         <EmptyState title='That workspace is not part of this organization.' />
       ) : feed.isError ? (

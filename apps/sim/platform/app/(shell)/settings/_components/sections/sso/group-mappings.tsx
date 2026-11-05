@@ -10,10 +10,10 @@ import {
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { useUnsavedGuard } from '@/platform/app/(shell)/settings/_components/section-parts/use-unsaved-guard'
 import {
+  ActionMenu,
   Button,
   InlineNotice,
   Modal,
-  RecipientTag,
   SearchableSelect,
   Select,
 } from '@/platform/design-system/components'
@@ -123,7 +123,6 @@ function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: A
         )}
         <Button
           variant='primary'
-          size='compact'
           disabled={!body || upsertMapping.isPending}
           onClick={() => void add()}
         >
@@ -164,10 +163,12 @@ export function GroupMappings({
     isFetching,
     refetch,
   } = useScimGroupMappings(organizationId, active)
-  const { data: allPermissionGroups = [] } = usePermissionGroups(organizationId, active)
-  /** The default group governs by having no members, so it cannot be a membership target. */
+  const permissionGroupsQuery = usePermissionGroups(organizationId, active)
+  const allPermissionGroups = permissionGroupsQuery.data ?? []
+  // The default group governs by having no members, so it cannot be a membership target.
   const permissionGroups = allPermissionGroups.filter((group) => !group.isDefault)
-  const { data: workspaces = [] } = useOrganizationWorkspaces(organizationId, active)
+  const workspacesQuery = useOrganizationWorkspaces(organizationId, active)
+  const workspaces = workspacesQuery.data ?? []
   const deleteMapping = useDeleteScimGroupMapping()
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null)
   const pendingRemove = groups
@@ -189,6 +190,22 @@ export function GroupMappings({
       />
     )
   }
+  if (permissionGroupsQuery.isPending || workspacesQuery.isPending) {
+    return <LoadingState label='Loading groups…' />
+  }
+  // The pickers and the name-match warning both read these, so a failed read must not look empty.
+  if (!permissionGroupsQuery.data || !workspacesQuery.data) {
+    return (
+      <QueryErrorState
+        message='Failed to load mapping targets'
+        retrying={permissionGroupsQuery.isFetching || workspacesQuery.isFetching}
+        onRetry={() => {
+          void permissionGroupsQuery.refetch()
+          void workspacesQuery.refetch()
+        }}
+      />
+    )
+  }
   if (!groups || groups.length === 0) {
     return (
       <Muted>No groups yet. Push a group from your identity provider and it appears here.</Muted>
@@ -207,19 +224,29 @@ export function GroupMappings({
               label={group.displayName}
               description={`${group.memberCount} member${group.memberCount === 1 ? '' : 's'}`}
             />
-            {group.mappings.length > 0 && (
-              <ActionRow>
-                {group.mappings.map((mapping) => (
-                  <RecipientTag
-                    key={mapping.id}
-                    address={`${describeScimMapping(mapping, names)}${mapping.source === 'automatic' ? ' · Automatic' : ''}`}
-                    onRemove={() => {
-                      if (!deleteMapping.isPending) setPendingRemoveId(mapping.id)
-                    }}
+            {group.mappings.map((mapping) => {
+              const target = describeScimMapping(mapping, names)
+              return (
+                <SettingsRow
+                  key={mapping.id}
+                  label={target}
+                  description={mapping.source === 'automatic' ? 'Automatic' : undefined}
+                >
+                  <ActionMenu
+                    label={`${target} actions`}
+                    actions={[
+                      {
+                        id: 'remove',
+                        label: 'Remove',
+                        destructive: true,
+                        disabled: deleteMapping.isPending,
+                        onSelect: () => setPendingRemoveId(mapping.id),
+                      },
+                    ]}
                   />
-                ))}
-              </ActionRow>
-            )}
+                </SettingsRow>
+              )
+            })}
             {unassigned.length > 0 && (
               <InlineNotice
                 intent='danger'

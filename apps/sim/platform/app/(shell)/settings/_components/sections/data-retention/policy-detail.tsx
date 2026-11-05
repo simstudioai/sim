@@ -13,6 +13,7 @@ import styles from '@/platform/app/(shell)/settings/_components/sections/data-re
 import {
   Button,
   Checkbox,
+  FieldFrame,
   IconButton,
   Input,
   Modal,
@@ -52,7 +53,7 @@ function CustomPatternsEditor({
       {patterns.map((pattern, index) => {
         const error = customPatternError(pattern.regex)
         return (
-          <div key={index} className={styles.patternBlock}>
+          <FieldFrame key={index} label={`Custom pattern ${index + 1}`} labelHidden error={error}>
             <div className={styles.pattern}>
               <Input
                 label='Name'
@@ -80,12 +81,7 @@ function CustomPatternsEditor({
                 onClick={() => onChange(patterns.filter((_, i) => i !== index))}
               />
             </div>
-            {error && (
-              <p className={styles.error} data-type='T052' role='alert'>
-                {error}
-              </p>
-            )}
-          </div>
+          </FieldFrame>
         )
       })}
       <ActionRow>

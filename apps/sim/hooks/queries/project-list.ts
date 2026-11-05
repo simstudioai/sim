@@ -7,8 +7,8 @@ const PROJECT_LIST_STALE_TIME = 30_000
 
 export const projectListKeys = {
   all: ['projects'] as const,
-  lists: () => ['projects', 'list'] as const,
-  list: (organizationId: string) => ['projects', 'list', organizationId] as const,
+  lists: () => [...projectListKeys.all, 'list'] as const,
+  list: (organizationId: string) => [...projectListKeys.lists(), organizationId] as const,
 }
 
 /** Lists the caller's Projects, given whether the `projects` rollout flag is on. */

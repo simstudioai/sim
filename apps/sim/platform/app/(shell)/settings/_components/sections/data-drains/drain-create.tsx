@@ -14,16 +14,13 @@ import {
 import { useUnsavedGuard } from '@/platform/app/(shell)/settings/_components/section-parts/use-unsaved-guard'
 import {
   Button,
+  Checkbox,
   SecretField,
   SelectField,
-  Switch,
   TextAreaField,
   TextField,
 } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
+import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   CADENCE_OPTIONS,
   type CADENCE_TYPES,
@@ -61,9 +58,7 @@ function DestinationInput({ field, state, onChange }: DestinationInputProps) {
       )
     case 'switch':
       return (
-        <SettingsRow label={field.label}>
-          <Switch label={field.label} checked={Boolean(state[field.key])} onCheckedChange={set} />
-        </SettingsRow>
+        <Checkbox label={field.label} checked={Boolean(state[field.key])} onCheckedChange={set} />
       )
     case 'secret':
       return (

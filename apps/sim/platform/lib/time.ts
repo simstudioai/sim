@@ -48,6 +48,19 @@ export function formatClockTime(timestampMs: number, timeZone = 'UTC') {
   return clock.format(new Date(timestampMs)).replace(/\s/gu, ' ')
 }
 
+/** An absolute date and time, for a record people compare. Defaults to the viewer's zone. */
+export function formatTimestamp(timestampMs: number, timeZone?: string) {
+  return new Intl.DateTimeFormat(LOCALE, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    ...CLOCK_OPTIONS,
+    timeZone,
+  })
+    .format(new Date(timestampMs))
+    .replace(/\s/gu, ' ')
+}
+
 /** Minutes are wall-clock positions within a calendar day. The end may extend past midnight. */
 export function formatTimeRange(startMinute: number, endMinute: number) {
   const start = startMinute * MINUTE

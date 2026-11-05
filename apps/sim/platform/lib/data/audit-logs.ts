@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { useQueryStates } from 'nuqs'
 import { downloadCsvExport } from '@/lib/core/utils/csv-download'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/time-range'
@@ -53,11 +54,16 @@ export function useAuditLogFeed(organizationId: string) {
   const [search, setSearch] = useSettingsSearch()
   const debouncedSearch = useDebounce(search, SEARCH_DEBOUNCE_MS).trim()
 
+  /** A preset's start reads the clock, so it is pinned per range or every render would be a new key. */
+  const startDate = useMemo(
+    () => getStartDateFromTimeRange(timeRange, customStart)?.toISOString(),
+    [timeRange, customStart]
+  )
   const filters: AuditLogFilters = {
     search: debouncedSearch || undefined,
     resourceType: urlFilters.types.length > 0 ? urlFilters.types.join(',') : undefined,
     workspaceId: scope.workspace?.id,
-    startDate: getStartDateFromTimeRange(timeRange, customStart)?.toISOString(),
+    startDate,
     endDate: getEndDateFromTimeRange(timeRange, customEnd)?.toISOString(),
   }
   const feed = useAuditLogs(organizationId, filters, scope.feedEnabled)

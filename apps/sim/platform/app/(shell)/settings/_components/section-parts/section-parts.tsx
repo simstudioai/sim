@@ -56,6 +56,11 @@ export function Muted({ children }: ChildrenProps) {
   )
 }
 
+/** Sibling rows that are not a list of links, at the list gap. */
+export function RowStack({ children }: ChildrenProps) {
+  return <div className={styles.rows}>{children}</div>
+}
+
 /** Machine-formatted text such as a JSON value or a DNS record, kept verbatim. */
 export function Preformatted({ children }: ChildrenProps) {
   return (

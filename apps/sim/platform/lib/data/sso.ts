@@ -41,7 +41,7 @@ export {
 } from '@/ee/sso/lib/provider-form'
 export { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
 
-/** The tab, provider and create-flow deep link, on the same URL keys as the legacy page. */
+/** The tab, provider and create-flow deep link. */
 export function useSsoSettingsParams() {
   return useQueryStates(ssoSettingsParsers, ssoSettingsUrlKeys)
 }
