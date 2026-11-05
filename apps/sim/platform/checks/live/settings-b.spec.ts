@@ -70,9 +70,11 @@ test.describe('governance settings', () => {
   })
 
   test('single sign-on never receives a stored client secret', async ({ page }) => {
-    // Waits on this page's read, so its body cannot belong to a page that navigated away.
-    const providers = page.waitForResponse((response) =>
-      response.url().includes('/api/auth/sso/providers')
+    // Signed in elsewhere first, so the body read here cannot belong to a page that navigated away.
+    await openSection(page, 'general')
+    const providers = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' && response.url().includes('/api/auth/sso/providers')
     )
     await page.goto('/org/settings/sso')
     await expect(page.getByRole('radio', { name: 'Domains' })).toBeAttached()
