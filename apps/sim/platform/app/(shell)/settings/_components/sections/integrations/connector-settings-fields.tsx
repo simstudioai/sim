@@ -339,6 +339,7 @@ export function ConnectorSettingsFields({
       )}
       {gitlabPermissions && configFieldsProps && (
         <Disclosure
+          chevron
           label='More options'
           open={fields.showMoreOptions}
           onOpenChange={fields.setShowMoreOptions}

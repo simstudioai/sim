@@ -374,6 +374,7 @@ export function ProviderForm({
                 </>
               )}
               <Disclosure
+                chevron
                 label='Advanced options'
                 open={showAdvanced}
                 onOpenChange={setShowAdvanced}
@@ -474,6 +475,7 @@ export function ProviderForm({
                 />
               )}
               <Disclosure
+                chevron
                 label='Attribute mapping'
                 open={showMapping}
                 onOpenChange={setShowMapping}

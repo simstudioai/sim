@@ -278,7 +278,7 @@ function SlackManifest({ manifest, createAppUrl, disabled }: SlackManifestProps)
           message='Could not copy the manifest. Allow clipboard access and try again.'
         />
       )}
-      <Disclosure label='View manifest'>
+      <Disclosure chevron label='View manifest'>
         <Preformatted>{manifest}</Preformatted>
       </Disclosure>
     </>

@@ -107,7 +107,7 @@ export function ReviewModal({ organizationId, requestId, onClose }: ReviewModalP
                       </li>
                     ))}
                   </ul>
-                  <Disclosure label='Change details'>
+                  <Disclosure chevron label='Change details'>
                     <div className={styles.changeDetails}>
                       {model.workspaces && (
                         <RequestText label='Workspaces'>{model.workspaces}</RequestText>

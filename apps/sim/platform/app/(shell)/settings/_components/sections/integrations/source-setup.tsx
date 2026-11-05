@@ -324,7 +324,7 @@ export function SourceSetupForm({
                   <GitLabCsvUploads form={gitlabPermissions} disabled={isCreating} />
                 )}
                 {hasOptions && (
-                  <Disclosure label='More options'>
+                  <Disclosure chevron label='More options'>
                     <FieldStack>
                       {!form.canSetUpGitHubInstallation && contentCredentialField}
                       {configFieldsProps && form.hasOptionalSetupFields && (
