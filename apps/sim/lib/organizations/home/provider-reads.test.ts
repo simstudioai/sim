@@ -83,6 +83,7 @@ async function readGmailThreads(input: { accessToken: string; signal: AbortSigna
   const { threads } = await readGmailThreadsPage({
     ...input,
     credentialId: `credential-${credentialCount}`,
+    accountId: 'account',
     count: HOME_EMAIL_THREAD_LIMIT,
   })
   return threads
@@ -295,13 +296,33 @@ describe('sharing a Gmail read across accounts', () => {
         : respond(gmailThread('t', [metadataMessage('Ada', 'S', 'P')]))
     )
     const read = (accessToken: string, credentialId: string) =>
-      readGmailThreadsPage({ accessToken, signal, credentialId, count: 1 })
+      readGmailThreadsPage({ accessToken, signal, credentialId, accountId: 'account', count: 1 })
     await read('token-a', 'mailbox-cached')
     const rotated = await read('token-b', 'mailbox-cached')
     expect(mailboxEmail).toHaveBeenCalledTimes(1)
     expect(rotated.threads[0].url).toBe(gmailThreadUrl('t', 'reader@example.com'))
     await read('token-c', 'mailbox-other')
     expect(mailboxEmail).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads the mailbox again when a reconnect moves the credential to another account', async () => {
+    providerFetch.mockImplementation(async (url: string) =>
+      url.includes('/threads?')
+        ? respond({ threads: [{ id: 't' }] })
+        : respond(gmailThread('t', [metadataMessage('Ada', 'S', 'P')]))
+    )
+    const read = (accountId: string) =>
+      readGmailThreadsPage({
+        accessToken: 'token',
+        signal,
+        credentialId: 'mailbox-reconnected',
+        accountId,
+        count: 1,
+      })
+    await read('account-old')
+    mailboxEmail.mockResolvedValue('new@example.com')
+    const reconnected = await read('account-new')
+    expect(reconnected.threads[0].url).toBe(gmailThreadUrl('t', 'new@example.com'))
   })
 
   it('does not cache a failed mailbox lookup', async () => {
@@ -312,7 +333,13 @@ describe('sharing a Gmail read across accounts', () => {
     )
     mailboxEmail.mockRejectedValueOnce(new GoogleApiError('gmail.users.getProfile', 500, []))
     const read = () =>
-      readGmailThreadsPage({ accessToken: 't', signal, credentialId: 'mailbox-failed', count: 1 })
+      readGmailThreadsPage({
+        accessToken: 't',
+        signal,
+        credentialId: 'mailbox-failed',
+        accountId: 'account',
+        count: 1,
+      })
     await expect(read()).rejects.toMatchObject({ failure: 'unavailable' })
     await expect(read()).resolves.toMatchObject({ threads: [expect.anything()] })
   })

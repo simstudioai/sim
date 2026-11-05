@@ -175,8 +175,9 @@ function mailboxReadFailure(error: unknown): HomeProviderReadError {
 }
 
 /**
- * The address thread links open as, which a grant does not change while it stays connected. Keyed by
- * credential and holding only the address: the token itself is resolved fresh for every read.
+ * The address thread links open as. A reconnect can point a credential at another Google account, on
+ * any instance, so the key names the account too. It holds only the address: the token itself is
+ * resolved fresh for every read.
  */
 const gmailMailboxes = new LRUCache<string, string>({
   max: 10_000,
@@ -187,13 +188,15 @@ async function readGmailMailbox({
   accessToken,
   signal,
   credentialId,
-}: ProviderReadInput & { credentialId: string }) {
-  const cached = gmailMailboxes.get(credentialId)
+  accountId,
+}: ProviderReadInput & { credentialId: string; accountId: string | null }) {
+  const key = `${credentialId}:${accountId}`
+  const cached = gmailMailboxes.get(key)
   if (cached !== undefined) return cached
   const mailbox = await getGmailMailboxEmail(accessToken, { signal }).catch((error: unknown) => {
     throw mailboxReadFailure(error)
   })
-  gmailMailboxes.set(credentialId, mailbox)
+  gmailMailboxes.set(key, mailbox)
   return mailbox
 }
 
@@ -208,8 +211,9 @@ export async function readGmailThreads({
   accessToken,
   signal,
   credentialId,
+  accountId,
   count,
-}: ProviderReadInput & { credentialId: string; count: number }): Promise<{
+}: ProviderReadInput & { credentialId: string; accountId: string | null; count: number }): Promise<{
   threads: HomeEmailThread[]
   cursor: GmailThreadCursor
 }> {
@@ -219,7 +223,7 @@ export async function readGmailThreads({
     signal
   )
   if (!list.success) throw new HomeProviderReadError('unavailable')
-  const mailbox = await readGmailMailbox({ accessToken, signal, credentialId })
+  const mailbox = await readGmailMailbox({ accessToken, signal, credentialId, accountId })
   const cursor: GmailThreadCursor = {
     mailbox,
     unreadThreadIds: list.output.threads
