@@ -51,7 +51,7 @@ describe('Slack email to Sim member resolution', () => {
     limit
       .mockResolvedValueOnce([{ id: 'u1', emailVerified: true }])
       .mockResolvedValueOnce([{ id: 'm1' }])
-      .mockResolvedValueOnce([{ id: 'conflict' }])
+      .mockResolvedValueOnce([{ subjectId: 'U2', userId: 'u1' }])
     await expect(resolveSlackSearchMember('org1', 'T1', 'U1', 'alice@example.com')).rejects.toThrow(
       'verified Sim account'
     )

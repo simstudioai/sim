@@ -1321,7 +1321,7 @@
     "apps/sim/executor/handlers/agent/memory.ts": 3,
     "apps/sim/executor/handlers/agent/memory.use-cases.test.ts": 5,
     "apps/sim/executor/handlers/condition/handler.test.ts": 10,
-    "apps/sim/executor/handlers/credential/handler.ts": 2,
+    "apps/sim/executor/handlers/credential/handler.ts": 1,
     "apps/sim/executor/handlers/generic/handler.ts": 1,
     "apps/sim/executor/handlers/mothership/handler.test.ts": 1,
     "apps/sim/executor/handlers/mothership/handler.ts": 1,

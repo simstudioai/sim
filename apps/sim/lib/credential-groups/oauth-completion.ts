@@ -9,6 +9,12 @@ export const CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES = {
     'GitHub did not allow access to your email addresses. Ask an admin to check that the GitHub App has Email addresses: Read-only permission, then authorize the app again.',
   permissions_required: 'All requested permissions are required to connect this account.',
   configuration_changed: 'The connection settings changed. Try connecting your account again.',
+  account_already_connected:
+    'This account is already connected. To add another, choose a different account when you sign in.',
+  account_limit_reached:
+    'You have connected the maximum number of accounts for this integration. Disconnect one to add another.',
+  account_mismatch:
+    'Reconnect with the account originally used for this connection. To use a different account, add it as a new account.',
   rate_limited: 'Authorization is being rate limited. Wait a few minutes and try again.',
   provider_unavailable:
     'The account provider could not verify your account right now. Try connecting again in a few minutes.',

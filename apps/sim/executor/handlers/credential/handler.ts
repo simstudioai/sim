@@ -101,28 +101,36 @@ export class CredentialBlockHandler implements BlockHandler {
       case 'find_organization_account':
       case 'list_organization_accounts': {
         const find = operation === 'find_organization_account'
+        const email = find
+          ? requireString(inputs.email, 'Email')
+          : parseOptionalString(inputs.email, 'Email')
         const result = await listCredentialGroupCredentials.execute({
           principal,
           input: {
             workspaceId: ctx.workspaceId,
-            email: find
-              ? requireString(inputs.email, 'Email')
-              : parseOptionalString(inputs.email, 'Email'),
+            email,
             credentialProviderIds: find
               ? [requireString(inputs.organizationProvider, 'Provider')]
               : parseStringList(inputs.organizationProviders, 'Providers'),
-            limit: find ? 2 : parseLimit(inputs.limit),
+            limit: find ? MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE : parseLimit(inputs.limit),
             cursor: find ? undefined : parseOptionalString(inputs.cursor, 'Cursor'),
           },
         })
         if (!find) {
           return { ...result, emails: result.credentials.map((account) => account.accountEmail) }
         }
-        if (result.credentials.length !== 1 || result.hasMore)
+        const matches =
+          result.credentials.length > 1
+            ? result.credentials.filter(
+                (account) => account.accountEmail.toLowerCase() === email?.toLowerCase()
+              )
+            : result.credentials
+        const [match] = matches
+        if (!match || matches.length !== 1)
           throw new Error(
-            `Expected exactly one organization account; found ${result.credentials.length}${result.hasMore ? '+' : ''}. Check the email, provider, and connection status.`
+            `Expected exactly one organization account; found ${result.credentials.length}${result.hasMore ? '+' : ''}. Check the email, provider, and connection status. A person with several accounts of one provider needs List Organization Accounts to choose between them.`
           )
-        return omit(result.credentials[0]!, ['accountEmail'])
+        return omit(match, ['accountEmail'])
       }
       case 'find_organization_mcp_connection':
       case 'list_organization_mcp_connections': {

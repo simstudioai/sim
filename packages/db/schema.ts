@@ -6448,8 +6448,13 @@ export const credential = pgTable(
       table.credentialGroupEnrollmentId
     ),
     mcpServerIdx: index('credential_mcp_server_idx').on(table.mcpServerId),
-    credentialGroupOptionUnique: uniqueIndex('credential_group_option_unique')
-      .on(table.credentialGroupEnrollmentId, table.credentialGroupOptionId)
+    credentialGroupOptionIdentityUnique: uniqueIndex('credential_group_option_identity_unique')
+      .on(
+        table.credentialGroupEnrollmentId,
+        table.credentialGroupOptionId,
+        table.providerSubjectId,
+        sql`coalesce(${table.providerTenantId}, '')`
+      )
       .where(sql`${table.type} = 'managed_oauth'`),
     managedMcpEnrollmentServerUnique: uniqueIndex('credential_managed_mcp_enrollment_server_unique')
       .on(table.credentialGroupEnrollmentId, table.mcpServerId)

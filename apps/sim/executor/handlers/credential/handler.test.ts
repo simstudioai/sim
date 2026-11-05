@@ -3,6 +3,7 @@ import {
   executorPrincipalMockFns,
 } from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE } from '@/lib/credential-groups/credentials'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -66,14 +67,17 @@ describe('Credential organization operations', () => {
         workspaceId: 'child-workspace',
         email: account.email,
         credentialProviderIds: ['google-email'],
-        limit: 2,
+        limit: MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE,
         cursor: undefined,
       },
     })
   })
   it.each([0, 2])('rejects an ambiguous or missing account (%i matches)', async (count) => {
     mocks.oauth.mockResolvedValue({
-      credentials: Array.from({ length: count }, () => account),
+      credentials: Array.from({ length: count }, (_, index) => ({
+        ...account,
+        accountEmail: `other-${index}@example.com`,
+      })),
       hasMore: false,
     })
     await expect(
@@ -83,6 +87,22 @@ describe('Credential organization operations', () => {
         organizationProvider: 'google-email',
       })
     ).rejects.toThrow('Expected exactly one')
+  })
+  it('chooses the account whose own address is the email when a person has several', async () => {
+    mocks.oauth.mockResolvedValue({
+      credentials: [
+        { ...account, credentialId: 'other', accountEmail: 'other@example.com' },
+        { ...account, credentialId: 'exact', accountEmail: account.email.toUpperCase() },
+      ],
+      hasMore: false,
+    })
+    expect(
+      await handler.execute(ctx, block, {
+        operation: 'find_organization_account',
+        email: account.email,
+        organizationProvider: 'google-email',
+      })
+    ).toMatchObject({ credentialId: 'exact' })
   })
   it('returns the person’s MCP credential separately from the shared server', async () => {
     const connection = {

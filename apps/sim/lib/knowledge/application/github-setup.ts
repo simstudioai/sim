@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { credential, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
-import { and, eq } from 'drizzle-orm'
+import { and, asc, eq, isNull, sql } from 'drizzle-orm'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { completePublicCredentialGroupOAuth } from '@/lib/credential-groups/application/public-enrollment'
 import { getCredentialGroupOAuthContextForEnrollment } from '@/lib/credential-groups/enrollments'
@@ -20,8 +20,8 @@ import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/au
 import { resolveKnowledgeOrganizationContext } from '@/lib/knowledge/application/contexts'
 import {
   connectGitHubSearchInstallation,
-  findGitHubSearchReaderCredential,
   listGitHubSearchInstallations,
+  listGitHubSearchReaderCredentials,
 } from '@/lib/knowledge/application/github-installations'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { provisionKnowledgeConnectorMembersBinding } from '@/lib/knowledge/connectors/member-provisioning'
@@ -252,9 +252,11 @@ async function authorizeReader(attempt: GitHubSetupAttempt) {
         eq(credential.organizationId, attempt.organizationId),
         eq(credential.type, 'managed_oauth'),
         eq(credential.credentialGroupEnrollmentId, enrollment.id),
-        eq(credential.credentialGroupOptionId, binding.credentialGroupOptionId)
+        eq(credential.credentialGroupOptionId, binding.credentialGroupOptionId),
+        isNull(credential.revokedAt)
       )
     )
+    .orderBy(sql`(${credential.managedOauthStatus} = 'needs_reauth') DESC`, asc(credential.id))
     .limit(1)
   const url = await startCredentialGroupOAuth(context, token, {
     completionRedirect: true,
@@ -383,12 +385,12 @@ export const continueGitHubSearchSetup = defineAuthorizedKnowledgeUseCase({
       ...scope,
       completionId: input.setupId,
     })
-    const reader = await findGitHubSearchReaderCredential(
+    const readers = await listGitHubSearchReaderCredentials(
       db,
       input.organizationId,
       principal.userId
     )
-    if (!receipt || reader?.id !== receipt)
+    if (!receipt || !readers.some((reader) => reader.id === receipt))
       throw new OrchestrationError(
         'forbidden',
         'Complete GitHub authorization before continuing setup.'

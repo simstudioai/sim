@@ -306,7 +306,7 @@ export const startOrganizationAccountConnection = defineOrganizationAccountsUseC
         optionId: input.optionId,
         completionId: input.oauthCompletionId,
         returnTo: input.returnTo,
-        connectionIntent: input.connectionIntent,
+        connectionIntent: input.connectionIntent ?? { kind: 'create' },
       })
     }
     const { invitationLink } = await createViewerCredentialGroupEnrollment({

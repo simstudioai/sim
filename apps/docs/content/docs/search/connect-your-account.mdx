@@ -22,7 +22,9 @@ After your admin adds a source in **Settings → Sources**, connect your own acc
   variant="overview"
 />
 
-Your organization currently supports one connected account per provider. Open the app to see that account's permissions and connection actions.
+To connect another account of the same app, such as Google Drive for two different work accounts, open the app and choose **Add account**, then pick the other account when the provider asks. You can connect up to five accounts per app, and Search looks across all of them. Slack accounts must belong to your organization's connected workspace. Managed connections such as Coda, Notion, Granola, and Fireflies currently support one account. Open an account to see its permissions and connection actions.
+
+Reconnecting keeps the same account. To use a different one, add it as a new account or disconnect the old one first. Your organization and the provider must allow each account to authorize Sim.
 
 The connection is usable when authorization completes; no initial indexing run is required. If a provider is missing, ask an admin to add it in **Sources**. `Not configured` means its app or deployment setup needs an admin's attention.
 
@@ -33,7 +35,7 @@ You do not choose repositories, channels, labels, or an indexing method during p
 | Source setup | Personal connection |
 | --- | --- |
 | **Member accounts** | Connect your own provider account. |
-| **GitHub App** | Connect GitHub once per Sim organization. Each selected repository must be readable by you and the installation. |
+| **GitHub App** | Connect one or more GitHub accounts. Each selected repository must be readable by you and the installation. |
 | Google service account: Gmail, Calendar, Drive | Connect each corresponding Google service. The source verifies your identity and resource access through delegation. |
 | Confluence service account | Connect Confluence. Both your account and the service connection must read the selected content. |
 | Coda | Connect personal Coda MCP. Service mode also verifies the parent document with its REST token. |

@@ -295,14 +295,24 @@ describe('credential group OAuth persistence', () => {
   )
 
   it.each([
-    { kind: 'create' as const },
-    { kind: 'reconnect' as const, credentialId: 'other-account' },
+    { connectionIntent: { kind: 'create' as const }, message: 'already connected' },
+    {
+      connectionIntent: { kind: 'reconnect' as const, credentialId: 'other-account' },
+      message: 'account changed',
+    },
   ])(
     'rejects changing an active account through the wrong connection intent',
-    async (connectionIntent) => {
+    async ({ connectionIntent, message }) => {
       dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'completed' }])
       queueTableRows(schemaMock.credentialGroup, [GROUP])
-      queueTableRows(schemaMock.credential, [{ id: 'credential-1', revokedAt: null }])
+      queueTableRows(schemaMock.credential, [
+        {
+          id: 'credential-1',
+          revokedAt: null,
+          providerSubjectId: 'google-subject-1',
+          providerTenantId: null,
+        },
+      ])
       await expect(
         completeCredentialGroupOAuth(
           CONTEXT,
@@ -326,7 +336,7 @@ describe('credential group OAuth persistence', () => {
           },
           'code'
         )
-      ).rejects.toThrow('account changed')
+      ).rejects.toThrow(message)
       expect(dbChainMockFns.update).not.toHaveBeenCalled()
     }
   )

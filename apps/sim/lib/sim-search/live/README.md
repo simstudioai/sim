@@ -5,7 +5,7 @@ This describes the live enterprise-search path. Credential Groups and ordinary k
 ## Admin and member surfaces
 
 - **Sources** controls integration availability and account mode per integration.
-- **Member accounts** has no resource configuration. A member connects their own account under Integrations, and searches content that account can access through the provider API. Old member resource filters are ignored and cleared when settings are saved.
+- **Member accounts** has no resource configuration. A member connects their own account under Integrations, and searches content that account can access through the provider API. A member can add several accounts of one provider, such as Google Drive in two tenants; each is searched and cited separately, and every search counts them toward its account limit. Old member resource filters are ignored and cleared when settings are saved.
 - **Service account** selects an admin-managed source. Its connection owns the resource settings; Sources does not duplicate them. GitHub uses one GitHub App source per repository instead of a single selected source. A member still connects their own account, except for GitLab. Search returns the intersection of the member's provider permissions and the source's current resource boundary.
 - GitLab is always service-account mode. Slack and Jira currently support member mode only.
 - Removing a source integration prevents subsequent account resolution, searches, and reads. Paused, archived, deleted, wrong-organization, wrong-provider, and unapproved service sources cannot authorize search.

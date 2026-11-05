@@ -16,6 +16,11 @@ import {
   type CredentialGroupOAuthContext,
   lockCredentialGroupEnrollmentLifecycle,
 } from '@/lib/credential-groups/enrollments'
+import { CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT } from '@/lib/credential-groups/limits'
+import {
+  CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES,
+  type CredentialGroupOAuthFailure,
+} from '@/lib/credential-groups/oauth-completion'
 import type { CredentialGroupConnectionIntent } from '@/lib/credential-groups/oauth-intent'
 import {
   type CredentialGroupOAuthAttempt,
@@ -146,6 +151,50 @@ export async function startCredentialGroupOAuth(
   return await prepared.buildAuthorizationUrl({ state, nonce })
 }
 
+function accountConflict(failure: CredentialGroupOAuthFailure) {
+  return new CredentialGroupOAuthError(
+    CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES[failure],
+    409,
+    undefined,
+    failure
+  )
+}
+
+/**
+ * Applies what the member asked for to the identity the provider verified. A person adds accounts
+ * explicitly, so a reconnect or an intentless invitation link never grows the set by itself.
+ */
+function assertAccountAllowed({
+  intent,
+  accounts,
+  existing,
+}: {
+  intent?: CredentialGroupConnectionIntent
+  accounts: Array<{ id: string; revokedAt: Date | null }>
+  existing?: { id: string; revokedAt: Date | null }
+}) {
+  if (intent?.kind === 'reconnect') {
+    if (!accounts.some((account) => account.id === intent.credentialId))
+      throw new CredentialGroupOAuthError(
+        'The account changed during authorization. Refresh your connections and try again.',
+        409
+      )
+    if (existing?.id !== intent.credentialId) throw accountConflict('account_mismatch')
+    return
+  }
+  if (existing && !existing.revokedAt) {
+    if (intent?.kind === 'create') throw accountConflict('account_already_connected')
+    return
+  }
+  const liveAccounts = accounts.filter((account) => !account.revokedAt).length
+  if (intent?.kind !== 'create') {
+    if (liveAccounts > 0) throw accountConflict('account_mismatch')
+    return
+  }
+  if (liveAccounts >= CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT)
+    throw accountConflict('account_limit_reached')
+}
+
 async function persistGrant(
   context: CredentialGroupOAuthContext,
   adapter: CredentialGroupProviderAdapter,
@@ -222,7 +271,7 @@ async function persistGrant(
       )
     }
 
-    const [existing] = await tx
+    const accounts = await tx
       .select({
         id: credential.id,
         revokedAt: credential.revokedAt,
@@ -239,28 +288,16 @@ async function persistGrant(
           eq(credential.credentialGroupOptionId, context.option.id)
         )
       )
-      .limit(1)
-
-    if (
-      (connectionIntent?.kind === 'create' && existing && !existing.revokedAt) ||
-      (connectionIntent?.kind === 'reconnect' && existing?.id !== connectionIntent.credentialId)
-    ) {
-      throw new CredentialGroupOAuthError(
-        'The account changed during authorization. Refresh your connections and try again.',
-        409
-      )
-    }
-
-    if (
-      existing &&
-      (existing.providerSubjectId !== grant.providerSubjectId ||
-        existing.providerTenantId !== grant.providerTenantId)
-    ) {
-      throw new CredentialGroupOAuthError(
-        'Reconnect with the account originally used for this connection. Switching to a different account is not supported for this connection.',
-        409
-      )
-    }
+    const existing = accounts.find(
+      (account) =>
+        account.providerSubjectId === grant.providerSubjectId &&
+        account.providerTenantId === grant.providerTenantId
+    )
+    assertAccountAllowed({
+      intent: connectionIntent,
+      accounts,
+      existing,
+    })
 
     let refreshToken = grant.refreshToken
     if (!refreshToken && existing?.encryptedOauthTokenSet) {

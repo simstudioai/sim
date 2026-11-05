@@ -76,7 +76,7 @@ vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveM
 vi.mock('@/lib/knowledge/application/github-installations', () => ({
   listGitHubSearchInstallations: { execute: hoisted.list },
   connectGitHubSearchInstallation: { execute: hoisted.connect },
-  findGitHubSearchReaderCredential: hoisted.reader,
+  listGitHubSearchReaderCredentials: hoisted.reader,
 }))
 vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
   provisionKnowledgeConnectorMembersBinding: hoisted.provision,
@@ -204,7 +204,7 @@ beforeEach(() => {
   m.values.clear()
   m.list.mockResolvedValue({ available: true, needsUserConnection: false, installations: [] })
   m.connect.mockResolvedValue({ credential: resultCredential, created: true })
-  m.reader.mockResolvedValue(reader)
+  m.reader.mockResolvedValue([reader])
   m.receipt.mockResolvedValue(null)
   m.provision.mockResolvedValue({ credentialGroupId: 'group', credentialGroupOptionId: 'option' })
   m.enrollment.mockResolvedValue({

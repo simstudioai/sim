@@ -227,7 +227,7 @@ export default async function CredentialGroupEnrollmentPage({
     )
   const visibleOptions = focusedOption ? [focusedOption] : activeOptions
   const focusedConnected =
-    focusedOption?.connections[0]?.status === 'connected' &&
+    focusedOption?.connections.some((connection) => connection.status === 'connected') &&
     (returnToSearch || connectedOptionId === focusedOption.id)
   const connectedOption = connectedOptionId
     ? activeOptions.find((option) => option.id === connectedOptionId)
@@ -286,7 +286,6 @@ export default async function CredentialGroupEnrollmentPage({
           <div className='au:space-y-2'>
             {visibleOptions.map((option) => {
               const ProviderIcon = getCredentialGroupProviderService(option.provider).icon
-              const connection = option.connections[0]
               return (
                 <SettingsResourceRow
                   key={option.id}
@@ -308,7 +307,7 @@ export default async function CredentialGroupEnrollmentPage({
                     focusedConnected ? undefined : (
                       <OAuthConnectLink
                         href={`/api/credential-groups/enroll/${encodeURIComponent(token)}/oauth/${encodeURIComponent(option.id)}${focused ? `?returnTo=${returnToSearch ? 'search' : 'accounts'}` : ''}`}
-                        reconnect={Boolean(connection)}
+                        reconnect={option.connections.length > 0}
                         variant={focused ? 'primary' : undefined}
                       />
                     )

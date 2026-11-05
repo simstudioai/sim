@@ -370,7 +370,14 @@ export async function resolveViewerConnectorMemberships(input: {
       )
     )
 
-  const credentialsByOption = new Map(rows.map((row) => [row.credentialGroupOptionId, row]))
+  const credentialsByOption = new Map<string | null, (typeof rows)[number]>()
+  for (const row of rows) {
+    if (
+      row.managedOauthStatus === 'active' ||
+      !credentialsByOption.has(row.credentialGroupOptionId)
+    )
+      credentialsByOption.set(row.credentialGroupOptionId, row)
+  }
   const enrollmentStatus = rows[0]?.enrollmentStatus ?? null
   for (const connector of memberConnectors) {
     if (!readyOptionIds.has(connector.credentialGroupOptionId)) continue
