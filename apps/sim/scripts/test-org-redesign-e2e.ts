@@ -2755,6 +2755,18 @@ async function integrationChecks() {
   )
 
   section('3 Tool permissions')
+  await check('a leftover tools filter on an account with no tools does not dead-end', async () => {
+    await withSession(CONNECTED, async ({ page }) => {
+      await page.route('**/connected-accounts/personal/*/tool-permissions', async (route) => {
+        const response = await route.fetch()
+        await route.fulfill({ response, json: { ...(await response.json()), tools: [] } })
+      })
+      await page.goto(orgUrl(`/integrations/accounts/${GRANTS.gmail.credentialId}?tools=x`))
+      const panel = page.getByRole('region', { name: 'Tool permissions' })
+      await expect(panel.getByText('No Assistant tools are available')).toBeVisible()
+      await expect(panel.getByText('No matching tools')).toHaveCount(0)
+    })
+  })
   await check(
     'member: approval notice, Allow disabled, Ask and Block selectable, saves with revision',
     async () => {
