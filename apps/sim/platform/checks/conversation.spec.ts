@@ -57,18 +57,28 @@ test('Home fills the available chart column and keeps calendar day controls on t
   const chart = page.getByRole('region', { name: 'Tasks run' })
   const tasks = page.getByRole('region', { name: 'Needs your attention' })
   const calendar = page.getByRole('region', { name: 'Calendar', exact: true })
+  await expect(chart).toBeVisible()
   for (const width of [390, 768, 1040, 1440]) {
     await page.setViewportSize({ width, height: 900 })
-    const [chartBox, tasksBox, previous, next] = await Promise.all([
-      chart.boundingBox(),
-      tasks.boundingBox(),
-      calendar.getByRole('button', { name: 'Previous day' }).boundingBox(),
-      calendar.getByRole('button', { name: 'Next day' }).boundingBox(),
-    ])
-    if (!chartBox || !tasksBox || !previous || !next) throw new Error('Missing dashboard geometry')
-    expect.soft(chartBox.x).toBeCloseTo(tasksBox.x, 0)
-    expect.soft(chartBox.width).toBeCloseTo(tasksBox.width, 0)
-    expect.soft(previous.y + previous.height / 2).toBeCloseTo(next.y + next.height / 2, 0)
+    const sections = await chart.or(tasks).evaluateAll((elements) =>
+      elements.map((el) => {
+        const { x, width } = el.getBoundingClientRect()
+        return { x, width }
+      })
+    )
+    const buttons = calendar.getByRole('button', { name: /^(Previous|Next) day$/ })
+    const centers = await buttons.evaluateAll((elements) =>
+      elements.map((el) => {
+        const { y, height } = el.getBoundingClientRect()
+        return y + height / 2
+      })
+    )
+    expect(sections).toHaveLength(2)
+    expect(centers).toHaveLength(2)
+    expect(sections[0].width).toBeGreaterThan(0)
+    expect(sections[0].x).toBeCloseTo(sections[1].x, 0)
+    expect(sections[0].width).toBeCloseTo(sections[1].width, 0)
+    expect(centers[0]).toBeCloseTo(centers[1], 0)
   }
 })
 
