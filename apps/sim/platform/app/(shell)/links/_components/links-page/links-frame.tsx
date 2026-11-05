@@ -3,8 +3,10 @@
 import type { ReactNode } from 'react'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import styles from '@/platform/app/(shell)/links/_components/links-page/links-page.module.css'
-import { ActionMenu, Button, SearchField } from '@/platform/design-system/components'
+import { Button } from '@/platform/design-system/components/button/button'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
+import { ActionMenu } from '@/platform/design-system/components/menu/action-menu'
+import { SearchField } from '@/platform/design-system/components/search-field/search-field'
 import { openChromeStore } from '@/platform/lib/data/links'
 
 const SKELETON_ROWS = 6

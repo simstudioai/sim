@@ -7,7 +7,8 @@ import {
   useSlackSearchOnboarding,
 } from '@/hooks/queries/slack-search-onboarding'
 import styles from '@/platform/app/(shell)/integrations/_components/integrations-page/integrations-page.module.css'
-import { Button, InlineNotice } from '@/platform/design-system/components'
+import { Button } from '@/platform/design-system/components/button/button'
+import { InlineNotice } from '@/platform/design-system/components/status/status'
 
 interface SlackSearchActionsProps {
   organizationId: string

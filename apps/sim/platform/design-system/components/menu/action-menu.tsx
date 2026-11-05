@@ -49,6 +49,9 @@ export type MenuAction = {
     }
 )
 
+/** A function is called only once the menu opens, so a closed row builds none of its actions. */
+type MenuActions = readonly MenuAction[] | (() => readonly MenuAction[])
+
 interface ActionMenuProps {
   label: string
   defaultValue?: string
@@ -58,7 +61,7 @@ interface ActionMenuProps {
 
 interface TriggeredMenuProps {
   label: string
-  actions: readonly MenuAction[]
+  actions: MenuActions
   icon?: IconName
   open?: boolean
   onOpenChange?: (open: boolean) => void
@@ -119,6 +122,11 @@ function actionRows(actions: readonly MenuAction[]): ReactNode {
   ))
 }
 
+/** A boundary: the popup's portal renders it only while the menu is open. */
+function MenuActionRows({ actions }: { actions: MenuActions }) {
+  return actionRows(typeof actions === 'function' ? actions() : actions)
+}
+
 function TriggeredMenu({
   label,
   actions,
@@ -132,6 +140,7 @@ function TriggeredMenu({
   triggerText,
 }: TriggeredMenuProps) {
   const { trigger, container, opener } = usePopoverContainer()
+  const disabled = typeof actions !== 'function' && !actions.length
   return (
     <Menu.Root
       modal={false}
@@ -148,14 +157,14 @@ function TriggeredMenu({
           size={triggerSize}
           label={label}
           icon={icon}
-          disabled={!actions.length}
+          disabled={disabled}
         />
       ) : (
         <Button
           render={<Menu.Trigger ref={trigger} aria-label={triggerText ? label : undefined} />}
           variant='quiet'
           size={triggerText ? 'compact' : undefined}
-          disabled={!actions.length}
+          disabled={disabled}
         >
           {triggerText ?? label}
         </Button>
@@ -166,7 +175,7 @@ function TriggeredMenu({
             {heading}
           </div>
         )}
-        {actionRows(actions)}
+        <MenuActionRows actions={actions} />
       </ActionMenuPopup>
     </Menu.Root>
   )
@@ -174,7 +183,7 @@ function TriggeredMenu({
 
 interface ContextActionMenuProps {
   label: string
-  actions: readonly MenuAction[]
+  actions: MenuActions
   onOpenChange?: (open: boolean) => void
   children: ReactNode
 }
@@ -193,7 +202,7 @@ export function ContextActionMenu({
         {children}
       </ContextMenu.Trigger>
       <ActionMenuPopup label={label} container={container}>
-        {actionRows(actions)}
+        <MenuActionRows actions={actions} />
       </ActionMenuPopup>
     </ContextMenu.Root>
   )

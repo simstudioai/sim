@@ -1,6 +1,8 @@
 import styles from '@/platform/app/(shell)/integrations/_components/tool-permissions/tool-permissions.module.css'
-import { EmptyState, SearchField, SegmentedControl } from '@/platform/design-system/components'
+import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
+import { SearchField } from '@/platform/design-system/components/search-field/search-field'
+import { SegmentedControl } from '@/platform/design-system/components/segmented-control/segmented-control'
 import type {
   ToolPermissionChange,
   ToolPermissionsModel,

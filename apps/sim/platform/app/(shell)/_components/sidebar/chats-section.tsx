@@ -169,7 +169,7 @@ export function ChatsSection({
             <SectionRow
               key={chat.id}
               label={chat.title}
-              actions={rowActions(chat)}
+              actions={() => rowActions(chat)}
               selected={isMultiSelecting && selectedChats.has(chat.id)}
               status={chatStatus(chat, isCurrent)}
               onMenuOpenChange={(menuOpen) => {

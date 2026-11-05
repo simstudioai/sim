@@ -1,4 +1,4 @@
-import { Chip } from '@/platform/design-system/components'
+import { Chip } from '@/platform/design-system/components/button/button'
 import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
 import type { GenericSecrets } from '@/platform/lib/integrations/model'
 

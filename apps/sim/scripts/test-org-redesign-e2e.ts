@@ -110,6 +110,7 @@ interface FirstPaint {
   totalRequestCount: number
   duplicates: string[]
   prefetchedAndRefetched: string[]
+  perWorkspaceReads: string[]
 }
 
 const checks: {
@@ -1693,6 +1694,31 @@ async function homeChecks() {
       })
     }
   }
+  await check('a run of day clicks reads the provider once, for the day it stops on', async () => {
+    await withSession(CONNECTED, async (session) => {
+      const { page } = session
+      await stubConnectedHome(page)
+      await page.goto(orgUrl('/home'))
+      const calendar = homeRegion(page, 'Calendar')
+      const standup = calendar.getByText(/^Standup /)
+      await expect(standup).toBeVisible()
+      await session.settle()
+      session.requests.length = 0
+      const next = calendar.getByRole('button', { name: 'Next day', exact: true })
+      for (let click = 0; click < 4; click++)
+        await next.evaluate((button: HTMLElement) => button.click())
+      await expect(page).toHaveURL((address) => address.searchParams.has('day'))
+      await expect(standup).toBeVisible()
+      await session.settle()
+      const day = new URL(page.url()).searchParams.get('day')
+      await expect(standup).toHaveText(`Standup ${day}`)
+      const reads = session.requests.filter(({ path }) =>
+        path.includes(`/organizations/${ORGANIZATION_ID}/home/calendar`)
+      )
+      assert.equal(reads.length, 1, `A burst of days read ${reads.length} times`)
+      assert(reads[0].path.includes(`date=${day}`), 'The read was not for the day shown')
+    })
+  })
   await check('a member gets no Tasks run chart rather than a broken one', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(orgUrl('/home'))
@@ -1912,6 +1938,39 @@ async function homeChecks() {
     }
   )
   section('3 Home: admin')
+  await check('the chart reads the window it shows, and going back reads nothing', async () => {
+    await withSession(ADMIN, async (session) => {
+      const { page } = session
+      await page.goto(orgUrl('/home'))
+      const chart = homeRegion(page, 'Tasks run')
+      await expect(chart.locator('[data-plot="home-activity"]')).toBeVisible()
+      await session.settle()
+      const reads = () =>
+        session.requests
+          .map(({ path }) => path)
+          .filter((path) => path.includes('/usage/activity/summary'))
+      const days = (path: string) => {
+        const query = new URL(path, origin).searchParams
+        return (
+          (Date.parse(String(query.get('endDate'))) - Date.parse(String(query.get('startDate')))) /
+            86_400_000 +
+          1
+        )
+      }
+      assert.deepEqual(reads().map(days), [7], 'Home did not read the default window alone')
+      const choose = async (from: string, to: string) => {
+        await chart.getByRole('button', { name: `Range: ${from}` }).click()
+        await page.getByRole('menuitemradio', { name: to }).click()
+        await expect(chart.getByRole('button', { name: `Range: ${to}` })).toBeVisible()
+        await expect(chart.locator('[data-plot="home-activity"]')).toBeVisible()
+        await session.settle()
+      }
+      await choose('Last 7 days', 'Last 30 days')
+      assert.deepEqual(reads().map(days), [7, 30], 'A wider range was not read once')
+      await choose('Last 30 days', 'Last 7 days')
+      assert.deepEqual(reads().map(days), [7, 30], 'A narrower range read again')
+    })
+  })
   await check('an admin pages through Workspaces the way the rail does', async () => {
     await withSession(ADMIN, async ({ page }) => {
       await page.goto(orgUrl('/home'))
@@ -3581,6 +3640,20 @@ const PREFETCHED_SECRET_SOURCE = [
 ]
 const PREFETCHED_LINKS = [{ label: 'links first page', pattern: /\/sim-links(\?(?!.*cursor=)|$)/ }]
 
+/** The composer's lists: about a dozen for each workspace, so they wait until someone asks. */
+const PER_WORKSPACE_READ = [
+  /^\/api\/skills\?/,
+  /^\/api\/workflows\?/,
+  /^\/api\/table\?/,
+  /^\/api\/workspaces\/[^/]+\/files/,
+  /^\/api\/knowledge\?/,
+  /^\/api\/folders\?/,
+  /^\/api\/mothership\/chats\?(?=.*workspaceId=)/,
+  /^\/api\/permission-groups\/user/,
+  /^\/api\/logs\?/,
+]
+const isPerWorkspaceRead = (path: string) => PER_WORKSPACE_READ.some((read) => read.test(path))
+
 async function firstPaintChecks() {
   section('6 First paint')
   const pages = [
@@ -3620,6 +3693,52 @@ async function firstPaintChecks() {
     primary: (page: Page) => Locator
     prefetched: { label: string; pattern: RegExp }[]
   }[]
+  await check(
+    'an admin composer reads no workspace list until its menu opens, then the menu fills',
+    async () => {
+      await withSession(ADMIN, async (session) => {
+        const { page } = session
+        await page.goto(orgUrl('/home'))
+        await composer(page).first().waitFor({ timeout: 30_000 })
+        await session.settle()
+        const reads = () =>
+          session.requests.map(({ path }) => path).filter((path) => isPerWorkspaceRead(path))
+        assert.deepEqual(reads(), [], 'The composer read every workspace on load')
+        await page.getByRole('button', { name: 'Add resources' }).click()
+        const menu = page.getByRole('menu')
+        await expect(
+          menu.getByRole('menuitem', { name: MEMBER_ADMIN_WORKSPACE.name })
+        ).toBeVisible()
+        await expect.poll(() => reads().length).toBeGreaterThan(0)
+        await session.settle()
+        await expect(menu.getByText('Loading resources')).toHaveCount(0)
+        await menu.getByPlaceholder('Search resources').fill(MEMBER_ADMIN_WORKSPACE.name)
+        await expect(
+          menu.getByRole('menuitem', { name: MEMBER_ADMIN_WORKSPACE.name })
+        ).toBeVisible()
+      })
+    }
+  )
+  await check('a slash in an admin composer reads skills, not the resource lists', async () => {
+    await withSession(ADMIN, async (session) => {
+      const { page } = session
+      await page.goto(orgUrl('/home'))
+      await composer(page).first().waitFor({ timeout: 30_000 })
+      await session.settle()
+      await composer(page).first().pressSequentially('/')
+      await expect(page.getByRole('menu').getByRole('menuitem').first()).toBeVisible()
+      await session.settle()
+      const reads = session.requests
+        .map(({ path }) => path)
+        .filter((path) => isPerWorkspaceRead(path))
+      assert(reads.length > 0, 'The skills were never read')
+      assert.deepEqual(
+        reads.filter((path) => !path.startsWith('/api/skills?')),
+        [],
+        'A slash read the resource lists'
+      )
+    })
+  })
   await check(
     'Links paints its first page from the server, even with the client read refused',
     async () => {
@@ -3690,6 +3809,9 @@ async function firstPaintChecks() {
             const duplicates = [...counts.entries()]
               .filter(([, count]) => count > 1)
               .map(([label, count]) => `${label} x${count}`)
+            const perWorkspaceReads = labelled.filter((label) =>
+              isPerWorkspaceRead(label.replace(/^\S+ /, ''))
+            )
             const refetched = entry.prefetched.flatMap(({ label, pattern }) =>
               api.some(({ method, path }) => method === 'GET' && pattern.test(path)) ? [label] : []
             )
@@ -3703,9 +3825,11 @@ async function firstPaintChecks() {
               totalRequestCount: session.requests.length,
               duplicates,
               prefetchedAndRefetched: refetched,
+              perWorkspaceReads,
             })
             assert.deepEqual(duplicates, [], 'A read was fetched twice on first paint')
             assert.deepEqual(refetched, [], 'A prefetched key was fetched again on first paint')
+            assert.deepEqual(perWorkspaceReads, [], 'The composer read every workspace on load')
           })
         }
       )

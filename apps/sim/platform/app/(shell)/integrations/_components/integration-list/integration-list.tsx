@@ -1,6 +1,8 @@
 import styles from '@/platform/app/(shell)/integrations/_components/integration-list/integration-list.module.css'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
-import { ActivityRow, EmptyState, SearchField } from '@/platform/design-system/components'
+import { ActivityRow } from '@/platform/design-system/components/activity-row/activity-row'
+import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
+import { SearchField } from '@/platform/design-system/components/search-field/search-field'
 import {
   type GenericSecrets,
   isConnectable,

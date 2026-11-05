@@ -50,6 +50,8 @@ import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
 import { isTouchMobileViewport } from '@/hooks/use-is-mobile'
 import type { ChatContext } from '@/stores/panel'
 
+const NO_SKILLS: SkillDefinition[] = []
+
 /**
  * Computes the viewport position of a caret offset inside a textarea by
  * mirroring its text into a hidden, identically-styled div and measuring a
@@ -143,6 +145,19 @@ export interface UsePromptEditorProps {
   initialContexts?: ChatContext[]
   availableSkills?: (SkillDefinition & { workspaceName?: string })[]
   /**
+   * Whether the viewer has asked for the resource lists yet. A host passes this when those lists
+   * are too costly to load because the field took focus, which every desktop page load does on its
+   * own. Omit it to load them on the field's first focus.
+   */
+  resourceIntent?: boolean
+  /** Called when the viewer presses the field, opens the `+` menu, or types an `@`. */
+  onResourceIntent?: () => void
+  /**
+   * True while `availableSkills` is still arriving. Chips wait for the whole list, because a name
+   * unique among the workspaces read so far may not be unique among them all.
+   */
+  skillsLoading?: boolean
+  /**
    * Notified when a context is added through an interactive path — a mention
    * pick, a resource drop, or a skill pick. Paste re-registration is
    * intentionally silent so pasting never auto-opens host side panels.
@@ -184,9 +199,14 @@ export function usePromptEditor({
   initialValue = '',
   initialContexts,
   availableSkills,
+  resourceIntent,
+  onResourceIntent,
+  skillsLoading = false,
   onContextAdd,
   onPasteFiles,
 }: UsePromptEditorProps) {
+  const onResourceIntentRef = useRef(onResourceIntent)
+  onResourceIntentRef.current = onResourceIntent
   const contextsEnabledRef = useRef(contextsEnabled)
   contextsEnabledRef.current = contextsEnabled
   const { data: queriedSkills = [], isPlaceholderData: skillsAreStale } = useSkills(
@@ -283,7 +303,7 @@ export function usePromptEditor({
   })
 
   const skillAutoMention = useSkillAutoMention({
-    skills,
+    skills: skillsLoading ? NO_SKILLS : skills,
     mcpServers,
     workspaceId: organizationId ? workspaceId : undefined,
     organizationScoped: Boolean(organizationId),
@@ -340,6 +360,33 @@ export function usePromptEditor({
     }
     seedRef.current = skills.length > 0 || mcpServers.length > 0 ? null : converted
   }, [skills.length, mcpServers.length, applyAutoMentions])
+
+  /**
+   * A list loaded on demand can arrive after the text it would have chipped: a `/name ` typed or
+   * pasted while it was on its way. The token still being typed stays out of the pass, since its
+   * own boundary keystroke chips it. Each trigger is one character wide, so swapping it in place
+   * leaves the caret and the native undo history where they were.
+   */
+  const skillsWereLoading = useRef(skillsLoading)
+  useEffect(() => {
+    const finishedLoading = skillsWereLoading.current && !skillsLoading
+    skillsWereLoading.current = skillsLoading
+    const textarea = textareaRef.current
+    if (!finishedLoading || !textarea || !contextsEnabledRef.current) return
+    const current = valueRef.current
+    const active = slashRangeRef.current
+    const converted = active
+      ? skillAutoMention.applyToText(current.slice(0, active.start)) +
+        current.slice(active.start, active.end) +
+        skillAutoMention.applyToText(current.slice(active.end))
+      : skillAutoMention.applyToText(current)
+    if (converted === current) return
+    for (let index = 0; index < converted.length; index++) {
+      if (converted[index] !== current[index])
+        textarea.setRangeText(converted[index], index, index + 1, 'preserve')
+    }
+    commitValue(converted)
+  }, [skillsLoading, skillAutoMention.applyToText, textareaRef, commitValue])
 
   /**
    * Programmatically replaces the editor text. Chipifies by default so any
@@ -813,6 +860,7 @@ export function usePromptEditor({
       if (!wasActive) {
         // Anchor at the caret so the menu floats above the user's cursor.
         const anchor = getCaretAnchor(textarea, active.start)
+        onResourceIntentRef.current?.()
         plusMenuRef.current?.open(anchor, { mention: true })
       }
     },
@@ -890,7 +938,9 @@ export function usePromptEditor({
    * viewport position — the toolbar `+` button flow.
    */
   const openResourceMenu = useCallback((anchor: { left: number; top: number }) => {
-    if (contextsEnabledRef.current) plusMenuRef.current?.open(anchor)
+    if (!contextsEnabledRef.current) return
+    onResourceIntentRef.current?.()
+    plusMenuRef.current?.open(anchor)
   }, [])
 
   const handleInputChange = useCallback(
@@ -1452,6 +1502,12 @@ export function usePromptEditor({
     contextsEnabled,
     /** @internal */
     skills,
+    /** @internal */
+    skillsLoading,
+    /** @internal */
+    resourceIntent,
+    /** @internal */
+    onResourceIntent,
     /** @internal */
     mcpServers,
     /** @internal */

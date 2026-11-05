@@ -1,6 +1,6 @@
 'use client'
 
-import { type MouseEventHandler, type ReactNode, useEffect, useRef } from 'react'
+import { type MouseEventHandler, type ReactNode, useEffect, useRef, useState } from 'react'
 import {
   Chip,
   ComposerActionButton,
@@ -103,6 +103,9 @@ interface ComposerProps {
   modelSelectorOptions?: ModelSelectorOptions
 }
 
+/** A `/` starting a token: typed, pasted, or carried in by a draft, all of which skills can chip. */
+const SLASH_TOKEN = /(^|\s)\//
+
 /** Organization composer with scoped resources, attachments, voice, and draft restoration. */
 export function Composer({
   chrome,
@@ -136,8 +139,14 @@ export function Composer({
   const workspaces = (imagesOnly ? [] : allWorkspaces).filter(
     (workspace) => workspace.organizationId === organization.id
   )
+  // The field takes focus on load, so focus alone says nothing about wanting these per-workspace lists.
+  const [resourceIntent, setResourceIntent] = useState(false)
+  const skillsWanted = resourceIntent || SLASH_TOKEN.test(value)
   const skillQueries = useQueries({
-    queries: workspaces.map((workspace) => getSkillsQueryOptions(workspace.id)),
+    queries: workspaces.map((workspace) => ({
+      ...getSkillsQueryOptions(workspace.id),
+      enabled: skillsWanted,
+    })),
   })
   const skills = imagesOnly
     ? []
@@ -150,6 +159,9 @@ export function Composer({
   const editor = usePromptEditor({
     workspaceId: '',
     availableSkills: skills,
+    skillsLoading: skillsWanted && skillQueries.some((query) => query.isPending),
+    resourceIntent,
+    onResourceIntent: () => setResourceIntent(true),
     organizationId: organization.id,
     contextsEnabled: !imagesOnly,
     initialValue: value,

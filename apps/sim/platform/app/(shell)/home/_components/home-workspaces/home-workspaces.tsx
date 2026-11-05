@@ -10,7 +10,9 @@ import type {
 } from '@/platform/app/(shell)/home/_components/model'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { WidgetSkeleton } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
-import { ActivityRow, Chip, InlineNotice, Spinner } from '@/platform/design-system/components'
+import { ActivityRow } from '@/platform/design-system/components/activity-row/activity-row'
+import { Chip } from '@/platform/design-system/components/button/button'
+import { InlineNotice, Spinner } from '@/platform/design-system/components/status/status'
 import { formatRelativeTime } from '@/platform/lib/time'
 
 /** The sidebar's own page size, so "See more" advances the same way in both places. */

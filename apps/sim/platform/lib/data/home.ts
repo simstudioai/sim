@@ -31,18 +31,21 @@ import {
 import { useRemoveSearchHistorySource, useSearchHistory } from '@/hooks/queries/search-history'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useOrderedWorkspacesQuery } from '@/hooks/queries/workspace'
-import type {
-  AttentionItem,
-  EmailItem,
-  HomeAccountView,
-  HomeActions,
-  HomeActivityState,
-  HomeCalendarDay,
-  HomeListState,
-  HomeView,
-  HomeWidgetActions,
-  HomeWidgetState,
-  HomeWorkspaceItem,
+import { useDebounce } from '@/hooks/use-debounce'
+import {
+  ACTIVITY_WINDOW_DAYS,
+  type ActivityWindowDays,
+  type AttentionItem,
+  type EmailItem,
+  type HomeAccountView,
+  type HomeActions,
+  type HomeActivityState,
+  type HomeCalendarDay,
+  type HomeListState,
+  type HomeView,
+  type HomeWidgetActions,
+  type HomeWidgetState,
+  type HomeWorkspaceItem,
 } from '@/platform/app/(shell)/home/_components/model'
 import { homeDayParam } from '@/platform/app/(shell)/home/search-params'
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
@@ -73,8 +76,8 @@ import {
   useOrganizationHomeStore,
 } from '@/stores/organization-home/store'
 
-/** Long enough to fit the 7, 30 and 90 day chart windows in one read of daily buckets. */
-const ACTIVITY_DAYS = 90
+/** How long a day must stay chosen before it is read, so a run of clicks is one read at the provider. */
+const CALENDAR_DAY_SETTLE_MS = 250
 const REFUSAL_STATUSES: ReadonlySet<number> = new Set([401, 403, 404, 409])
 const NO_WIDGETS: readonly OrganizationHomeWidget[] = []
 
@@ -198,8 +201,11 @@ function useHomeCalendar(
   hidden: boolean
 ): HomeWidgetRead<HomeCalendarDay> {
   const date = selectedDay ?? clock.today
+  const settledDate = useDebounce(date, CALENDAR_DAY_SETTLE_MS)
+  // Keyed by the shown day throughout: the header moves at once, a day already read shows at once,
+  // and any other reads as loading until it settles, exactly as an unread day always has.
   const read = useOrganizationHomeCalendar(organizationId, date, timeZone, {
-    enabled: connection.status === 'connected' && !hidden,
+    enabled: connection.status === 'connected' && !hidden && settledDate === date,
   })
   const retry = () => void read.refetch()
   if (connection.status !== 'connected') return { state: connection, retry: retryConnection }
@@ -224,7 +230,15 @@ function useHomeActivity(
   today: string,
   timeZone: string,
   hidden: boolean
-): { state: HomeActivityState; retry: () => void } {
+): {
+  state: HomeActivityState
+  days: ActivityWindowDays
+  setDays: (days: ActivityWindowDays) => void
+  retry: () => void
+} {
+  const [days, setSelectedDays] = useState<ActivityWindowDays>(ACTIVITY_WINDOW_DAYS[0])
+  // The widest window read so far, which holds every narrower one, so going back costs nothing.
+  const [readDays, setReadDays] = useState<ActivityWindowDays>(days)
   const allowed =
     resolveOrganizationSectionAccess({
       section: 'usage',
@@ -236,17 +250,25 @@ function useHomeActivity(
     organization.organization.id,
     {
       preset: 'custom',
-      startDate: addCalendarDays(today, 1 - ACTIVITY_DAYS),
+      startDate: addCalendarDays(today, 1 - readDays),
       endDate: today,
       timezone: timeZone,
     },
-    { enabled: allowed && !hidden }
+    { enabled: allowed && !hidden, keepPreviousWindow: true }
   )
+  const setDays = (next: ActivityWindowDays) => {
+    setSelectedDays(next)
+    setReadDays(summary.isError ? next : (Math.max(readDays, next) as ActivityWindowDays))
+  }
   const retry = () => void summary.refetch()
+  const range = { days, setDays, retry }
   if (!allowed || (summary.error && isRefusal(summary.error)))
-    return { state: { status: 'hidden' }, retry }
-  if (summary.data) return { state: { status: 'ready', points: toTaskPoints(summary.data) }, retry }
-  return { state: withoutResult(summary), retry }
+    return { state: { status: 'hidden' }, ...range }
+  const points = summary.data && toTaskPoints(summary.data)
+  // The narrower window a wider read replaces can still answer for a range it covers.
+  if (points && (!summary.isPlaceholderData || points.length >= days))
+    return { state: { status: 'ready', points }, ...range }
+  return { state: withoutResult(summary), ...range }
 }
 
 function useHomeRecents(organization: OrganizationSurfaceContext, userId: string | undefined) {
@@ -427,6 +449,7 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
       firstName: firstNameOf(session?.user),
       attention: attention.state,
       activity: activity.state,
+      activityDays: activity.days,
       email: email.state,
       calendar: calendar.state,
       workspaces: workspaces.state,
@@ -447,6 +470,7 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
       returnToToday: () => showDay(null),
       retryAttention: attention.retry,
       retryActivity: activity.retry,
+      setActivityDays: activity.setDays,
       retryWorkspaces: workspaces.retry,
       retryRecents: recents.retry,
       removeRecent: recents.remove,

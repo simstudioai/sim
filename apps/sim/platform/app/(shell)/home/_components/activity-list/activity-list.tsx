@@ -7,14 +7,12 @@ import type {
 } from '@/platform/app/(shell)/home/_components/model'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { WidgetSkeleton } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
-import {
-  ActivityRow,
-  Avatar,
-  EmptyState,
-  Icon,
-  InlineNotice,
-  ScrollArea,
-} from '@/platform/design-system/components'
+import { ActivityRow } from '@/platform/design-system/components/activity-row/activity-row'
+import { Avatar } from '@/platform/design-system/components/avatar/avatar'
+import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
+import { Icon } from '@/platform/design-system/components/icon/icon'
+import { ScrollArea } from '@/platform/design-system/components/scroll-area/scroll-area'
+import { InlineNotice } from '@/platform/design-system/components/status/status'
 import { formatRelativeTime } from '@/platform/lib/time'
 
 interface EmailListProps {
