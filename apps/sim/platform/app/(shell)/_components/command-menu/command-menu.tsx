@@ -38,7 +38,6 @@ export function CommandMenu({ open, onClose, navigate, chats, workspaces }: Comm
             items: workspaces.map((item) => ({
               id: item.id,
               label: item.name,
-              icon: 'I025',
               value: '/home',
             })),
           },

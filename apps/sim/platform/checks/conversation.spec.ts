@@ -233,6 +233,36 @@ test('a new chat carries its local draft and attachments through navigation with
   await expect(page.getByText('Include the owner', { exact: true })).toBeVisible()
 })
 
+test('each message reveals its own footer across the text and the gap to its actions', async ({
+  page,
+}) => {
+  await page.goto(`${populated}/chat/weekly-review?state=full`)
+  const prompt = page.getByText(/^Review the renewal brief for Aster Labs/)
+  const answer = page.getByText(/^The renewal is in good shape/)
+  const userTime = page.getByText('3:46 PM', { exact: true })
+  const responseTime = page.getByText('4:04 PM', { exact: true })
+  const visible = (control: Locator) =>
+    control.evaluate((element) => element.checkVisibility({ opacityProperty: true }))
+
+  await prompt.hover()
+  expect(await visible(userTime)).toBe(true)
+  expect(await visible(responseTime)).toBe(false)
+  const [bubble, copy] = await Promise.all([
+    prompt.boundingBox(),
+    page.getByRole('button', { name: 'Copy message', exact: true }).boundingBox(),
+  ])
+  if (!bubble || !copy) throw new Error('The prompt and its footer must be on screen')
+  await page.mouse.move(bubble.x + bubble.width / 2, (bubble.y + bubble.height + copy.y) / 2)
+  expect(await visible(userTime)).toBe(true)
+  await answer.hover()
+  expect(await visible(responseTime)).toBe(true)
+  expect(await visible(userTime)).toBe(false)
+  await page.getByRole('button', { name: 'Copy response', exact: true }).hover()
+  expect(await visible(responseTime)).toBe(true)
+  await page.getByRole('heading', { name: 'Review the renewal brief' }).hover()
+  expect(await visible(responseTime)).toBe(false)
+})
+
 test('chat activity, recovery, and feedback controls work at intermediate and narrow widths', async ({
   page,
 }) => {

@@ -16,10 +16,8 @@
   font-weight: var(--font-weight-medium);
 }
 .user {
-  position: relative;
+  justify-self: end;
   justify-items: end;
-}
-.user > * {
   max-inline-size: min(100%, var(--container-chat-message));
 }
 .bubble {
@@ -51,38 +49,12 @@
   margin-inline-start: calc(-1 * var(--ui-action-overhang));
 }
 .userActions {
-  position: absolute;
-  inset-block-start: 100%;
-  padding-block-start: var(--ui-section-gap);
-  inset-inline-end: 0;
   margin-inline-end: calc(var(--spacing-16) - var(--ui-action-overhang));
 }
-.userActions,
-.responseActions time {
-  opacity: 0;
-}
-.user:hover .userActions,
-.responseActions:hover time {
-  opacity: 1;
-}
-@container conversation (width < 24rem) {
-  .userActions {
-    position: static;
-    padding-block-start: 0;
-  }
-}
-.user:only-child .userActions {
-  position: static;
-  padding-block-start: 0;
-}
-@media (hover: none) {
-  .userActions {
-    position: static;
-    padding-block-start: 0;
-  }
-  .userActions,
-  .responseActions time {
-    opacity: 1;
+@media (hover: hover) {
+  .user:not(:hover) .userActions:not(:has([aria-describedby])),
+  .answer:not(:hover) .responseActions:not(:has([aria-describedby], [aria-expanded="true"])) time {
+    opacity: 0;
   }
 }
 .status,

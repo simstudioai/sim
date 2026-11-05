@@ -42,7 +42,6 @@ export function AttachmentTile({ item, onPreview, onRemove }: AttachmentTileProp
           onRemove && (
             <IconButton
               icon='I105'
-              variant='destructive'
               size='compact'
               label={`Remove ${item.name}`}
               onClick={() => onRemove(item.id)}

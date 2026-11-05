@@ -9,7 +9,7 @@ import { useScrollEdges } from '@/platform/design-system/components/scroll-area/
 interface Command {
   id: string
   label: string
-  icon: IconName
+  icon?: IconName
   value: string
 }
 
@@ -59,7 +59,7 @@ export function CommandPalette({ groups, label, onSelect }: CommandPaletteProps)
                   data-type='T043'
                   onClick={() => onSelect(item.value)}
                 >
-                  <Icon name={item.icon} />
+                  {item.icon && <Icon name={item.icon} />}
                   <span>{item.label}</span>
                 </Autocomplete.Item>
               )}

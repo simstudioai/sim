@@ -60,8 +60,7 @@
     "variant": {
       "quiet": ["C0523"],
       "solid": ["C0385", "C0386", "C0388", "C0389"],
-      "floating": ["C0263", "C0264"],
-      "destructive": []
+      "floating": ["C0263", "C0264"]
     }
   },
   "SearchField": {

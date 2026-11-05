@@ -1,4 +1,5 @@
 import { expect, type Locator, test } from '@playwright/test'
+import sharp from 'sharp'
 
 const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
 
@@ -59,54 +60,103 @@ function paint(control: Locator) {
   })
 }
 
+/** Sample the rendered fill inside the corner, clear of the label and rounded edge. */
+async function fillLightness(button: Locator) {
+  const rgb = await sharp(await button.screenshot({ scale: 'css' }))
+    .extract({ left: 8, top: 8, width: 1, height: 1 })
+    .removeAlpha()
+    .raw()
+    .toBuffer()
+  return button.evaluate((_, channels) => {
+    const brush = document.createElement('canvas').getContext('2d')
+    if (!brush) throw new Error('Cannot measure the rendered button')
+    brush.fillStyle = `oklab(from rgb(${channels}) l 0 0)`
+    return Number.parseFloat(brush.fillStyle.slice('oklab('.length)) * 100
+  }, rgb.join(' '))
+}
+
+async function pressAndMeasure(button: Locator) {
+  await button.page().mouse.move(0, 0)
+  const rest = await fillLightness(button)
+  await button.hover()
+  const hover = await fillLightness(button)
+  await button.page().mouse.down()
+  const pressed = await fillLightness(button)
+  await button.page().mouse.up()
+  return [rest - hover, rest - pressed]
+}
+
 for (const theme of ['light', 'dark']) {
-  test(`destructive actions have quiet menu feedback and a filled confirmation in ${theme} mode`, async ({
-    page,
-  }) => {
-    await page.emulateMedia({ reducedMotion: 'reduce' })
-    await page.goto(`${origin}/home?theme=${theme}&state=full`)
-    await page.getByRole('button', { name: 'Email options' }).click()
-    const hide = page.getByRole('menuitem', { name: 'Hide Email' })
-    const disconnect = page.getByRole('menuitem', { name: 'Disconnect Email' })
-    await hide.hover()
-    expect((await paint(disconnect)).ink.red).toBe(false)
-    await disconnect.hover()
-    const hovered = await paint(disconnect)
-    expect(hovered.ink.red).toBe(true)
-    expect(hovered.background.red).toBe(true)
-    expect(hovered.background.alpha / 255).toBeCloseTo(0.06, 2)
-    await hide.hover()
-    await hide.press('ArrowDown')
-    expect(await paint(disconnect)).toEqual(hovered)
-    await disconnect.press('Enter')
-
-    const dialog = page.getByRole('dialog', { name: 'Disconnect Email?' })
-    const confirm = dialog.getByRole('button', { name: 'Disconnect', exact: true })
-    const rest = (await paint(confirm)).background
-    expect(rest.red).toBe(true)
-    expect(rest.alpha).toBe(255)
-    await confirm.hover()
-    const hover = (await paint(confirm)).background
-    expect(hover.red).toBe(true)
-    expect(hover.rgb).not.toEqual(rest.rgb)
-    await page.mouse.down()
-    const pressed = (await paint(confirm)).background
-    expect(pressed.red).toBe(true)
-    expect(pressed.rgb).not.toEqual(hover.rgb)
-    await page.mouse.up()
-    await expect(dialog).toBeHidden()
-
-    await page.goto(`${origin}/chat/weekly-review?theme=${theme}&state=stress`)
-    const remove = page.getByRole('button', {
-      name: 'Remove dashboard.png',
-      exact: true,
+  test.describe(`${theme} action feedback`, () => {
+    test.beforeEach(async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: 'reduce' })
+      await page.goto(`${origin}/chat/weekly-review?theme=${theme}&state=full`)
     })
-    await page.mouse.move(0, 0)
-    expect((await paint(remove)).ink.red).toBe(false)
-    await remove.hover()
-    const removal = await paint(remove)
-    expect(removal.ink.red).toBe(true)
-    expect(removal.background).toEqual(hovered.background)
+
+    test('archiving and saving have the same perceptual hover and press steps', async ({
+      page,
+    }) => {
+      const chat = page.getByRole('link', { name: 'Review the renewal brief', exact: true })
+      const options = page.getByRole('button', { name: 'Actions for Review the renewal brief' })
+      await chat.hover()
+      await options.click()
+      const rename = page.getByRole('menuitem', { name: 'Rename' })
+      await rename.click()
+      const primary = await pressAndMeasure(page.getByRole('button', { name: 'Save', exact: true }))
+
+      await chat.hover()
+      await options.click()
+      const archive = page.getByRole('menuitem', { name: 'Archive' })
+      await rename.hover()
+      expect((await paint(archive)).ink.red).toBe(false)
+      await archive.hover()
+      const hovered = await paint(archive)
+      expect(hovered.ink.red).toBe(true)
+      expect(hovered.background.red).toBe(true)
+      expect(hovered.background.alpha / 255).toBeCloseTo(0.06, 2)
+      await rename.hover()
+      await rename.press('ArrowDown')
+      expect(await paint(archive)).toEqual(hovered)
+      await archive.press('Enter')
+
+      const dialog = page.getByRole('dialog', { name: 'Archive chat' })
+      const confirm = dialog.getByRole('button', { name: 'Archive', exact: true })
+      const fill = (await paint(confirm)).background
+      expect(fill.red).toBe(true)
+      expect(fill.alpha).toBe(255)
+      const danger = await pressAndMeasure(confirm)
+      await expect(dialog).toBeHidden()
+      await test.info().attach('Perceptual change from rest', {
+        body: JSON.stringify({ states: ['hover', 'pressed'], save: primary, archive: danger }),
+        contentType: 'application/json',
+      })
+      expect(danger[0]).toBeGreaterThan(1)
+      expect(danger[1]).toBeGreaterThan(danger[0])
+      for (const [state, delta] of danger.entries()) {
+        expect(
+          Math.abs(delta - primary[state]),
+          `Archive ${delta}, Save ${primary[state]}`
+        ).toBeLessThan(1)
+      }
+    })
+
+    test('dismissing a recent uses the same neutral action as closing a tab', async ({ page }) => {
+      await page.getByRole('button', { name: 'Open chat panel' }).click()
+      const panel = page.getByRole('complementary', { name: 'Chat panel' })
+      const close = panel.getByRole('button', { name: 'Close Workspaces tab' })
+      await close.hover()
+      const neutral = await paint(close)
+      expect(neutral.ink.red).toBe(false)
+      const list = panel.getByRole('list', { name: 'Recents' })
+      const labels = list.getByRole('listitem')
+      const before = await labels.allTextContents()
+      const remove = list.getByRole('button', { name: 'Remove Renewal brief from recents' })
+      await remove.hover()
+      expect(await paint(remove)).toEqual(neutral)
+      await remove.click()
+      await expect(labels).toHaveText(before.filter((label) => label !== 'Renewal brief'))
+      await expect(panel.getByRole('tab', { selected: true })).toHaveAccessibleName('Workspaces')
+    })
   })
 }
 

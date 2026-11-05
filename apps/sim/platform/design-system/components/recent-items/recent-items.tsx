@@ -7,7 +7,7 @@ import { ScrollArea } from '@/platform/design-system/components/scroll-area/scro
 export interface RecentItem {
   id: string
   label: string
-  icon: IconName
+  icon?: IconName
 }
 
 interface RecentItemsProps {
@@ -31,7 +31,7 @@ export function RecentItems({ label, title = label, items, onSelect, onRemove }:
               <ControlRow
                 label={item.label}
                 icon={item.icon}
-                actionSide='start'
+                actionSide={item.icon ? 'start' : 'end'}
                 render={
                   onSelect ? <button type='button' onClick={() => onSelect(item.id)} /> : <span />
                 }
@@ -40,7 +40,6 @@ export function RecentItems({ label, title = label, items, onSelect, onRemove }:
                     <IconButton
                       icon='I105'
                       size='compact'
-                      variant='destructive'
                       label={`Remove ${item.label} from recents`}
                       onClick={() => onRemove(item.id)}
                     />

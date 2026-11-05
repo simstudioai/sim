@@ -53,13 +53,14 @@
   grid-column: 2;
   min-inline-size: 0;
   padding: var(--ui-row-block) var(--ui-row-inset);
-  border: var(--spacing-stroke-default) solid var(--ui-divider);
   border-radius: var(--ui-control-radius);
-  background: linear-gradient(var(--control-avatar) 0 0), var(--ui-canvas);
+  background: var(--control-muted-fill);
 }
 .event:has(.eventName:hover) {
-  background: linear-gradient(var(--ui-hover) 0 0), var(--ui-canvas);
-  border-color: var(--control-hover-border);
+  background: var(--control-muted-hover);
+}
+.event:has(.eventName:active) {
+  background: var(--control-muted-pressed);
 }
 .event > :last-child {
   position: relative;

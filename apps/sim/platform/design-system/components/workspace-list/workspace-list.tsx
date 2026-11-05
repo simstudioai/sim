@@ -25,7 +25,6 @@ export function WorkspaceList({ label, items, onSelect, target = 'standard' }: W
               <li className={styles.workspaceRow} key={item.id}>
                 <ControlRow
                   label={item.name}
-                  icon='I025'
                   wrap
                   render={
                     onSelect ? <button type='button' onClick={() => onSelect(item.id)} /> : <span />
@@ -45,7 +44,7 @@ export function SidebarWorkspaceItems({ label, items }: WorkspaceItemsProps) {
     <ul className={styles.rows} aria-label={label}>
       {items.map((item) => (
         <li key={item.id}>
-          <ControlRow icon='I025' label={item.name} render={<span />} />
+          <ControlRow label={item.name} render={<span />} />
         </li>
       ))}
     </ul>

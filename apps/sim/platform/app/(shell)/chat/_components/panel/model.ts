@@ -1,12 +1,12 @@
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 
-export interface PanelRecent {
+export type PanelRecent = {
   id: string
   label: string
-  icon: IconName
-  destination: 'file' | 'workspace' | 'website'
-  address?: string
-}
+} & (
+  | { destination: 'workspace'; icon?: never; address?: never }
+  | { destination: 'file' | 'website'; icon: IconName; address?: string }
+)
 
 export interface PanelData {
   recents: PanelRecent[]

@@ -10,7 +10,6 @@
   align-items: start;
   justify-content: space-between;
   gap: var(--ui-row-gap);
-  margin-inline-start: max(0px, calc(var(--ui-navigation-inset) - (100cqi - 100%) / 2));
   margin-inline-end: calc(-1 * var(--ui-action-overhang));
 }
 .greeting > div {

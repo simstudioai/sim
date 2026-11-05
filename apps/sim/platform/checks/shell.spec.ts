@@ -102,7 +102,7 @@ test('the narrow drawer returns focus on Escape, routes through settings, and ke
     await page.setViewportSize({ width, height: 640 })
     await page.goto(`${origin}/home?state=stress&theme=light`)
     const toggle = page.getByRole('button', { name: 'Expand sidebar' })
-    const openerHeight = (await toggle.boundingBox())?.height
+    const opener = await toggle.boundingBox()
     await toggle.click()
     const drawer = page.getByRole('dialog', { name: 'Navigation drawer' })
     await expect(drawer).toBeVisible()
@@ -114,7 +114,10 @@ test('the narrow drawer returns focus on Escape, routes through settings, and ke
       expect(box?.height).toBe(rowHeight)
       expect(box?.width).toBe(rowHeight)
     }
-    expect(openerHeight).toBe(rowHeight)
+    const collapse = await drawer.getByRole('button', { name: 'Collapse sidebar' }).boundingBox()
+    if (!collapse || !opener) throw new Error('The sidebar controls must be measurable')
+    expect(opener.y).toBe(collapse.y)
+    expect(opener.height).toBe(collapse.height)
     const help = drawer.getByRole('button', { name: 'Help', exact: true })
     const anchor = await help.boundingBox()
     await help.click()

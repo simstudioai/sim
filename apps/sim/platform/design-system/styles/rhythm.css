@@ -14,9 +14,10 @@
   --ui-icon-stroke: 1.125px;
   --ui-action-overhang: calc((var(--spacing-app-control-sm) - var(--ui-glyph-size)) / 2);
   --ui-icon-muted: color-mix(in srgb, var(--color-light-text-strong) 54%, var(--color-light-canvas));
+  --ui-active-icon-strength: 72%;
   --ui-icon-active: color-mix(
     in srgb,
-    var(--color-light-text-strong) 72%,
+    var(--color-light-text-strong) var(--ui-active-icon-strength),
     var(--color-light-canvas)
   );
   --ui-icon-ink: var(--ui-icon-muted);
@@ -30,6 +31,7 @@
 
 [data-platform-ui][data-theme="dark"] {
   --ui-icon-muted: color-mix(in srgb, var(--color-dark-muted) 88%, var(--color-dark-canvas));
+  --ui-active-icon-strength: 100%;
   --ui-icon-active: var(--color-dark-text);
 }
 

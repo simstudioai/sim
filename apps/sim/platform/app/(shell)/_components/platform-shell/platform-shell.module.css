@@ -24,15 +24,12 @@
 .openControl {
   position: absolute;
   z-index: 2;
-  inset-block-start: calc((var(--spacing-56) - var(--spacing-app-chip)) / 2);
+  inset-block-start: var(--shell-edge-inset);
   inset-inline-start: var(--ui-row-inset);
 }
 .homeContent {
   position: relative;
   container-type: inline-size;
-}
-.homeContent > .openControl {
-  inset-block-start: var(--shell-home-row-start);
 }
 .desktopBar {
   display: flex;
@@ -110,7 +107,7 @@
 }
 .shell[data-desktop][data-conversation][data-sidebar-collapsed] .desktopBar {
   justify-self: start;
-  border: 0;
+  border-color: transparent;
 }
 .shell[data-desktop][data-conversation][data-sidebar-collapsed] > .content {
   grid-column: 1;
@@ -118,7 +115,7 @@
 @media (max-width: 48rem) {
   .shell[data-desktop][data-conversation] .desktopBar {
     justify-self: start;
-    border: 0;
+    border-color: transparent;
   }
   .shell[data-desktop][data-conversation] > .content {
     grid-column: 1;

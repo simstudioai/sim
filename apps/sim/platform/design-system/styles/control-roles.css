@@ -1,24 +1,30 @@
 [data-platform-ui] {
   --control-people-width: 15rem;
   --control-on-solid: var(--color-tooltip-text);
-  --control-solid-shade: var(--color-light-text-strong);
+  --control-primary-fill: color-mix(in srgb, var(--ui-strong) 80%, var(--ui-canvas));
+  --control-solid-step: 0.03;
   --control-danger: var(--color-light-danger);
   --control-danger-soft: var(--color-red-soft);
   --control-hover-border: var(--color-ink-20);
   --control-avatar: var(--color-surface-muted);
-  --control-retry-fill: var(--color-surface-muted);
+  --control-muted-fill: var(--color-neutral-silver);
+  --control-muted-hover: var(--color-neutral-238);
+  --control-muted-pressed: var(--color-neutral-235);
   --control-tooltip: var(--color-tooltip-surface);
   --control-tooltip-ink: var(--color-tooltip-text);
 }
 
 [data-platform-ui][data-theme="dark"] {
   --control-on-solid: var(--color-dark-canvas);
-  --control-solid-shade: var(--color-dark-canvas);
+  --control-primary-fill: var(--ui-ink);
+  --control-solid-step: 0.1;
   --control-danger: var(--color-dark-red);
   --control-danger-soft: var(--color-dark-red-soft);
   --control-hover-border: var(--color-white-20);
   --control-avatar: var(--color-dark-selected);
-  --control-retry-fill: var(--color-dark-raised);
+  --control-muted-fill: var(--color-dark-raised);
+  --control-muted-hover: var(--color-dark-hover);
+  --control-muted-pressed: var(--color-dark-selected);
   --control-tooltip: var(--color-dark-tooltip-surface);
   --control-tooltip-ink: var(--color-dark-text);
 }
@@ -34,7 +40,13 @@
 }
 
 [data-platform-ui] [data-solid] {
-  --control-solid-fill: var(--ui-ink);
+  --control-solid-fill: var(--control-primary-fill);
+  --control-solid-hover: oklch(
+    from var(--control-solid-fill) calc(l - var(--control-solid-step)) c h
+  );
+  --control-solid-pressed: oklch(
+    from var(--control-solid-fill) calc(l - 1.75 * var(--control-solid-step)) c h
+  );
 }
 [data-platform-ui] [data-solid][data-variant="destructive"] {
   --control-solid-fill: var(--control-danger);
@@ -42,11 +54,15 @@
 [data-platform-ui] [data-destructive-quiet] {
   --ui-hover: color-mix(in srgb, var(--control-danger) 6%, transparent);
   --ui-selected: color-mix(in srgb, var(--control-danger) 8%, transparent);
-  --ui-icon-active: var(--control-danger);
+  --ui-icon-active: color-mix(
+    in srgb,
+    var(--control-danger) var(--ui-active-icon-strength),
+    var(--ui-canvas)
+  );
 }
 [data-platform-ui]
   [data-destructive-quiet]:not(:disabled, [data-disabled]):is(:hover, [data-highlighted]) {
-  --ui-icon-ink: var(--control-danger);
+  --ui-icon-ink: var(--ui-icon-active);
   color: var(--control-danger);
 }
 

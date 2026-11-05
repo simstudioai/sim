@@ -62,7 +62,7 @@ interface IconButtonProps {
   label: string
   icon: IconName
   size?: 'small' | 'row' | 'compact'
-  variant?: 'quiet' | 'solid' | 'floating' | 'destructive'
+  variant?: 'quiet' | 'solid' | 'floating'
   disabled?: boolean
   onClick?: MouseEventHandler<HTMLButtonElement>
   tooltip?: boolean
@@ -92,7 +92,6 @@ export function IconButton({
       'data-size': size,
       'data-variant': variant,
       'data-solid': variant === 'solid' || undefined,
-      'data-destructive-quiet': variant === 'destructive' || undefined,
       'data-material': variant === 'floating' ? 'reading' : undefined,
       'data-elevation': variant === 'floating' ? 'composer' : undefined,
       disabled,

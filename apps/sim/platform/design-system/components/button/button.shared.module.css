@@ -57,9 +57,6 @@
   min-height: var(--spacing-28);
   padding-inline: var(--spacing-8);
 }
-.button[data-variant="muted"] {
-  background: var(--control-retry-fill);
-}
 
 :is(.button, .iconButton):enabled:hover {
   background: var(--ui-hover);
@@ -69,17 +66,27 @@
   background: var(--ui-selected);
 }
 
+.button[data-variant="muted"] {
+  background: var(--control-muted-fill);
+}
+.button[data-variant="muted"]:enabled:hover {
+  background: var(--control-muted-hover);
+}
+.button[data-variant="muted"]:enabled:active {
+  background: var(--control-muted-pressed);
+}
+
 :is(.button, .iconButton)[data-solid] {
   background: var(--control-solid-fill);
   color: var(--control-on-solid);
 }
 
 :is(.button, .iconButton)[data-solid]:enabled:hover {
-  background: color-mix(in srgb, var(--control-solid-fill) 84%, var(--control-solid-shade));
+  background: var(--control-solid-hover);
 }
 
 :is(.button, .iconButton)[data-solid]:enabled:active {
-  background: color-mix(in srgb, var(--control-solid-fill) 72%, var(--control-solid-shade));
+  background: var(--control-solid-pressed);
 }
 
 .button:disabled,
