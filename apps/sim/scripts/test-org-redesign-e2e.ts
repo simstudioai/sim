@@ -2923,15 +2923,26 @@ async function settingsChecks() {
       ).toBeVisible()
     })
   })
-  await check('a section on its older page renders beside the surface', async () => {
+  await check('Sources, Credential Groups and Slack render inside the surface', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      for (const [path, title] of [
+        ['/settings/integrations', 'Sources'],
+        ['/settings/connected-accounts', 'Credential Groups'],
+        ['/settings/search-slack', 'Sim Search in Slack'],
+      ] as const) {
+        await page.goto(orgUrl(path))
+        await expect(page.getByLabel('Settings location')).toContainText(title)
+        await expect(
+          page.locator('[data-platform-ui]').getByRole('heading', { name: title, exact: true })
+        ).toBeVisible()
+      }
+    })
+  })
+  await check('Add source opens on the surface', async () => {
     await withSession(ADMIN, async ({ page }) => {
       await page.goto(orgUrl('/settings/integrations'))
-      await expect(page.getByLabel('Settings location')).toContainText('Sources')
-      const heading = page.getByRole('heading', { name: 'Sources', exact: true })
-      await expect(heading).toBeVisible()
-      await expect(
-        page.locator('[data-platform-ui]').getByRole('heading', { name: 'Sources' })
-      ).toHaveCount(0)
+      await page.getByRole('button', { name: 'Add source', exact: true }).click()
+      await expect(page.getByRole('dialog', { name: 'Add source' })).toBeVisible()
     })
   })
   await check('a legacy alias opens its section under the same URL', async () => {
@@ -3223,55 +3234,14 @@ async function blastRadiusChecks() {
     }
   )
   await check(
-    'a Settings section on its older page is styled the same under /o as under /workspace',
+    "the workspace's Credential Groups stays on its own page, outside any surface",
     async () => {
-      const sampleContent = (page: Page) =>
-        page.evaluate(() => {
-          const props = [
-            'font-family',
-            'font-size',
-            'font-weight',
-            'letter-spacing',
-            'color',
-            'background-color',
-            'border-top-left-radius',
-          ]
-          const output: Record<string, string> = {}
-          const controls = Array.from(
-            document.querySelectorAll('h1, h2, h3, label, input, button, p')
-          ).filter(
-            (element) =>
-              !element.closest('aside, [data-platform-ui]') && (element as HTMLElement).offsetParent
-          )
-          for (const element of controls.slice(0, 80)) {
-            const key = `${element.tagName} ${(element.textContent ?? '').trim().slice(0, 32)}`
-            const style = getComputedStyle(element)
-            output[key] = props.map((prop) => style.getPropertyValue(prop)).join(' | ')
-          }
-          return output
-        })
-      await withSession(ADMIN, async (session) => {
-        const { page } = session
+      await withSession(ADMIN, async ({ page }) => {
         await page.goto(url(`/workspace/${MEMBER_ADMIN_WORKSPACE.id}/settings/connected-accounts`))
         await expect(
           page.getByRole('heading', { name: 'Credential Groups', exact: true })
         ).toBeVisible()
-        await session.settle()
-        const workspace = await sampleContent(page)
-        await page.goto(orgUrl('/settings/connected-accounts'))
-        await expect(
-          page.getByRole('heading', { name: 'Credential Groups', exact: true })
-        ).toBeVisible()
-        await session.settle()
-        const organization = await sampleContent(page)
-        const shared = Object.keys(workspace).filter((key) => key in organization)
-        assert(shared.length > 5, `Only ${shared.length} shared controls`)
-        assert.deepEqual(
-          shared
-            .filter((key) => workspace[key] !== organization[key])
-            .map((key) => `${key}: ${workspace[key]} vs ${organization[key]}`),
-          []
-        )
+        await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
       })
     },
     // The workspace shell reads its inbox whatever the group's hideInboxTab says.
