@@ -2,9 +2,8 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { MessageComposer } from '@/platform/app/(shell)/_components/composer/message-composer'
-import { userTurn } from '@/platform/app/(shell)/_components/composer/user-turn'
 import type { HomeMode } from '@/platform/app/(shell)/_components/model'
-import { useChatChanges } from '@/platform/app/(shell)/_components/session/chat-changes'
+import { useComposerHost } from '@/platform/app/(shell)/_components/session/composer-host'
 import styles from '@/platform/app/(shell)/home/_components/home-composer/home-composer.module.css'
 import type { HomeData } from '@/platform/app/(shell)/home/_components/model'
 import { Icon, SegmentedControl } from '@/platform/design-system/components'
@@ -19,7 +18,10 @@ interface HomeComposerProps {
 export function HomeComposer({ references, mode, onModeChange }: HomeComposerProps) {
   const router = useRouter()
   const search = useSearchParams()
-  const { createChat } = useChatChanges()
+  const host = useComposerHost()
+  const startChat = host.useStartChat()
+  const searchAvailable = host.useSearchAvailable()
+  const composer = host.useComposer({ draftKey: 'home', references, requestMode: 'agent' })
   return (
     <section className={styles.composer} aria-label='Start a conversation'>
       <header className={styles.heading}>
@@ -37,19 +39,20 @@ export function HomeComposer({ references, mode, onModeChange }: HomeComposerPro
         />
       </header>
       <MessageComposer
-        draftKey='home'
-        references={references}
+        composer={composer}
         placeholder={
           mode === 'Build'
             ? 'Ask about your business, or give Sim something to do…'
             : 'Search your company’s knowledge…'
         }
         onSubmit={(draft) => {
-          const id = createChat(
-            draft.text.slice(0, 70) || draft.attachments[0]?.name || 'New chat',
-            [userTurn(draft)]
-          )
-          router.push(platformHref(`/chat/${id}`, search))
+          if (mode === 'Search' && searchAvailable) {
+            if (!draft.text) return false
+            const query = new URLSearchParams({ q: draft.text })
+            router.push(platformHref(`/search?${query}`, search))
+            return undefined
+          }
+          return startChat(draft)
         }}
       />
     </section>

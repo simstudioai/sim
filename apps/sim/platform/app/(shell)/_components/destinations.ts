@@ -9,11 +9,11 @@ export const PLATFORM_DESTINATIONS = [
 
 const [HOME, SETTINGS, INTEGRATIONS] = PLATFORM_DESTINATIONS
 
-/** The legacy navigation's gates and order. Search and Benchmark stay on the legacy surface. */
+/** The legacy navigation's gates and order. Benchmark stays on the legacy surface. */
 export function resolveLiveDestinations(organization: PlatformOrganization): ShellDestination[] {
   const { mothershipAvailable, canBuild, searchAccess, navFlags } = organization
   const routes = legacyRoutes(organization)
-  const search = { id: 'search', label: 'Search', icon: 'I089', value: routes.search } as const
+  const search = { id: 'search', label: 'Search', icon: 'I089', value: '/search' } as const
   const people = { id: 'people', label: 'People', icon: 'I104', value: '/people' } as const
   const benchmark = {
     id: 'benchmark',

@@ -2,6 +2,7 @@ import { type ReactNode, Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { AccessDenied, SurfaceUnavailable } from '@/platform/app/_components/shell-gate/shell-gate'
 import { resolveLiveDestinations } from '@/platform/app/(shell)/_components/destinations'
+import { LiveComposerHost } from '@/platform/app/(shell)/_components/live-shell/live-composer-host'
 import { ProductSession } from '@/platform/app/(shell)/_components/product-session'
 import { SessionState } from '@/platform/app/(shell)/_components/session-state/session-state'
 import { resolveSettingsNavigation } from '@/platform/app/(shell)/_components/settings-navigation/destinations'
@@ -36,9 +37,11 @@ export async function LiveShell({ children }: { children: ReactNode }) {
       dehydratedState={await prefetchShell(organization)}
     >
       <Suspense fallback={null}>
-        <ProductSession fixtures={null} banner={<SessionState />}>
-          {children}
-        </ProductSession>
+        <LiveComposerHost>
+          <ProductSession fixtures={null} banner={<SessionState />}>
+            {children}
+          </ProductSession>
+        </LiveComposerHost>
       </Suspense>
     </LiveProviders>
   )

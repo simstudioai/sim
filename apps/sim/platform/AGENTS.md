@@ -56,7 +56,9 @@ Use [the shared Platform time formatters](lib/time.ts) for displayed ages, clock
 
 ## Phase 3 data seam
 
-Only `lib/data/**` may import from outside this project: query hooks under `@/hooks/queries/<domain>`, contracts and clients under `@/lib/api/<module>`, and the named helpers listed in `scripts/check-platform-design.ts`. `@/app/<route>`, `@/components/<name>` and the legacy `@sim/emcn` barrel stay banned there too. Add a helper to that list only after reading its runtime import closure.
+Only `lib/data/**` may import from outside this project: query hooks under `@/hooks/queries/<domain>`, contracts and clients under `@/lib/api/<module>`, and the named helpers listed in `scripts/check-platform-design.ts`. `@/app/<route>`, `@/components/<name>` and the legacy `@sim/emcn` barrel stay banned there too, apart from named modules on that list, such as the chat hook. Add a helper to that list only after reading its runtime import closure.
+
+The chat hook runs here unchanged. Views read a `ChatRuntime` (`(shell)/_components/chat/model.ts`), filled by `lib/data/chat.ts` on live data and by the session on fixtures. What the hook reaches for a canvas this app does not have, `canvasShims` in `next.config.ts` replaces with a named module under `lib/data/shims/` saying what it drops.
 
 Each `lib/data/<domain>.ts` wraps the existing hook and maps its contract shape to a Platform view model with a pure adapter. Never fork a hook, key factory, invalidation or contract; a hook that lacks a needed option gains it additively. A module's first import of a query hook that toasts resolves through `lib/data/emcn-shim.ts`, which webpack substitutes for `@sim/emcn` and which exports only `toast`, bridged to the notification tray. Any other name from that package fails the build, which is what proves no legacy UI entered.
 

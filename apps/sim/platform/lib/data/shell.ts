@@ -15,11 +15,7 @@ import type {
   ShellWorkspace,
 } from '@/platform/app/(shell)/_components/model'
 import { useOrganization } from '@/platform/lib/data/organization'
-import {
-  canListOrganizationChats,
-  legacyRoutes,
-  type PlatformOrganization,
-} from '@/platform/lib/data/organization-model'
+import { canListOrganizationChats } from '@/platform/lib/data/organization-model'
 
 function toShellWorkspace(
   workspace: Workspace,
@@ -34,16 +30,13 @@ function toShellWorkspace(
   }
 }
 
-/** Assistant chats live under Search, which stays on the legacy surface. */
-function toShellChat(chat: MothershipChatMetadata, organization: PlatformOrganization): ShellChat {
+/** Assistant chats live under Search. */
+function toShellChat(chat: MothershipChatMetadata): ShellChat {
   return {
     id: chat.id,
     title: chat.name,
     mode: chat.mode,
-    href:
-      chat.mode === 'assistant'
-        ? legacyRoutes(organization).searchChat(chat.id)
-        : `/chat/${chat.id}`,
+    href: chat.mode === 'assistant' ? `/search/chat/${chat.id}` : `/chat/${chat.id}`,
     isActive: chat.isActive,
     isUnread: chat.isUnread,
     isPinned: chat.isPinned,
@@ -97,7 +90,7 @@ export function useShellData(navigation: ShellNavigation): ShellData {
     workspaces: (workspaces.data ?? [])
       .filter((workspace) => workspace.organizationId === organizationId)
       .map((workspace) => toShellWorkspace(workspace, pinnedIds.data)),
-    chats: (chats.data ?? []).map((chat) => toShellChat(chat, organization)),
+    chats: (chats.data ?? []).map(toShellChat),
     inbox: [],
     notifications: [],
     unbacked: ['inbox', 'sortWorkspaces'],

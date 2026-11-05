@@ -1,0 +1,39 @@
+.results,
+.rows {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-section-gap);
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+  min-inline-size: 0;
+}
+.rowBody {
+  display: grid;
+  flex: 1;
+  gap: var(--ui-stack-gap);
+  min-inline-size: 0;
+}
+.rowTitle {
+  min-inline-size: 0;
+}
+.rowTitle:hover,
+.link {
+  text-decoration: underline;
+}
+.quiet,
+.snippet {
+  color: var(--ui-secondary);
+}
+.snippet {
+  overflow-wrap: anywhere;
+}

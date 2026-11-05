@@ -3,6 +3,8 @@
 import type { ReactNode } from 'react'
 import { type DehydratedState, HydrationBoundary, QueryClientProvider } from '@tanstack/react-query'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
+import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
+import { LiveChatEvents } from '@/platform/lib/data/chat-events'
 import { OrganizationProvider } from '@/platform/lib/data/organization'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { getQueryClient } from '@/platform/lib/data/query-client'
@@ -41,7 +43,10 @@ export function LiveProviders({
         <NuqsAdapter>
           <OrganizationProvider organization={organization}>
             <SessionProvider>
-              <LiveShellProvider navigation={navigation}>{children}</LiveShellProvider>
+              <FeatureFlagsProvider flags={organization.featureFlags}>
+                <LiveChatEvents />
+                <LiveShellProvider navigation={navigation}>{children}</LiveShellProvider>
+              </FeatureFlagsProvider>
             </SessionProvider>
           </OrganizationProvider>
         </NuqsAdapter>
