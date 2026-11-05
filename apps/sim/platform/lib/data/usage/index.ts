@@ -2,7 +2,6 @@ export type {
   OrganizationUsageBreakdown,
   UsageBreakdownDimension,
 } from '@/lib/api/contracts/organization-usage'
-export type { UsageTab } from '@/ee/organization-usage/constants'
 export type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
 export type { UsageCalendarDay, UsageList } from './reads'
 export {

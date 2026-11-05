@@ -1,5 +1,8 @@
 import styles from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css'
-import { SkeletonBlock } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
+import {
+  SkeletonBlock,
+  SkeletonLane,
+} from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 
 /** Home's arrangement before its data, so nothing moves when the page arrives. */
 export function HomeDashboardSkeleton() {
@@ -7,12 +10,15 @@ export function HomeDashboardSkeleton() {
     <div className={styles.dashboard} aria-busy='true'>
       <div className={styles.placeholderGreeting} />
       <div className={styles.placeholderComposer} />
+      <SkeletonLane label='Loading recents' />
       <div className={styles.columns}>
         <div className={styles.column}>
           <SkeletonBlock label='Loading activity' />
+          <SkeletonBlock label='Loading email' />
         </div>
         <div className={styles.column}>
           <SkeletonBlock label='Loading what needs your attention' />
+          <SkeletonBlock label='Loading your calendar' />
         </div>
       </div>
     </div>

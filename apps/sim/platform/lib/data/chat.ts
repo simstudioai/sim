@@ -212,6 +212,13 @@ export function useLiveChatRuntime({
   const awaitingIds = useToolPermissionStore((state) => state.awaitingIds)
   const submittedIds = useToolPermissionStore((state) => state.submittedIds)
   const { mutateAsync: decideToolPermissions } = useDecideToolPermissions()
+  const approvals = useMemo(
+    () => ({
+      outstanding: awaitingIds.filter((id) => !submittedIds.includes(id)),
+      submitted: submittedIds,
+    }),
+    [awaitingIds, submittedIds]
+  )
   const decideTools = useCallback(
     async (ids: readonly string[], decision: ToolDecision): Promise<'ok' | 'gone'> => {
       const list = [...ids]
@@ -302,10 +309,7 @@ export function useLiveChatRuntime({
         })
     },
     cancelQueueEdit: chat.cancelQueueEdit,
-    approvals: {
-      outstanding: awaitingIds.filter((id) => !submittedIds.includes(id)),
-      submitted: submittedIds,
-    },
+    approvals,
     registerApproval,
     decideTools,
     review,

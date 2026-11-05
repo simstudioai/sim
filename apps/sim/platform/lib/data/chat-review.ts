@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { assistantActionPresentation } from '@/components/assistant-actions/presentation'
 import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
@@ -57,65 +57,84 @@ export function useAssistantReview({
   for (let index = messages.length - 1; index >= 0 && !turnId; index--) {
     if (messages[index].role === 'assistant') turnId = messages[index].id
   }
-  if (!enabled) return undefined
-  const actions = review.data?.actions ?? []
-  return {
-    turnId,
-    status: review.isError ? 'error' : review.isPending ? 'loading' : 'ready',
-    pending,
-    retry: () => void review.refetch(),
-    actions: actions.map((action) => ({
-      id: action.toolCallId,
-      title: assistantActionPresentation(action).title,
-      account: action.account
-        ? { name: action.account.displayName, active: action.account.active }
-        : undefined,
-      fields: action.fields.map((field) => ({
-        name: field.name,
-        label: field.label,
-        value: field.value,
-        editable: field.editable,
-        multiline: field.format !== 'text',
+  const reviewData = review.data
+  const refetchReview = review.refetch
+  const reviewFailed = review.isError
+  const reviewPending = review.isPending
+  const receiptPages = receipts.data?.pages
+  const decideAction = decide.mutateAsync
+  // Rebuilt only when a read changes, so a stream chunk leaves settled turns alone.
+  return useMemo(() => {
+    if (!enabled) return undefined
+    const actions = reviewData?.actions ?? []
+    return {
+      turnId,
+      status: reviewFailed ? 'error' : reviewPending ? 'loading' : 'ready',
+      pending,
+      retry: () => void refetchReview(),
+      actions: actions.map((action) => ({
+        id: action.toolCallId,
+        title: assistantActionPresentation(action).title,
+        account: action.account
+          ? { name: action.account.displayName, active: action.account.active }
+          : undefined,
+        fields: action.fields.map((field) => ({
+          name: field.name,
+          label: field.label,
+          value: field.value,
+          editable: field.editable,
+          multiline: field.format !== 'text',
+        })),
       })),
-    })),
-    receipts: (receipts.data?.pages ?? [])
-      .flatMap((page) => page.receipts)
-      .map((receipt) => ({
-        id: receipt.toolCallId,
-        title: assistantActionPresentation(receipt).title,
-        state: receipt.state,
-        stateLabel: RECEIPT_LABELS[receipt.state] ?? receipt.state,
-        warning: receipt.warning ?? undefined,
-      })),
-    decide: async (ids, decision, edits) => {
-      setPending(true)
-      const failures: string[] = []
-      try {
-        for (const id of ids) {
-          const action = actions.find((item) => item.toolCallId === id)
-          if (!action || !review.data?.runId) continue
-          const changed = Object.fromEntries(
-            Object.entries(edits?.[id] ?? {}).filter(([name, value]) => {
-              const field = action.fields.find((item) => item.name === name)
-              return field?.editable && field.value !== value
-            })
-          )
-          try {
-            await decide.mutateAsync({
-              toolCallId: id,
-              runId: review.data.runId,
-              proposalVersion: action.proposalVersion,
-              decision,
-              ...(decision === 'allow' && Object.keys(changed).length ? { edits: changed } : {}),
-            })
-          } catch (error) {
-            failures.push(getErrorMessage(error, 'Could not save this review'))
+      receipts: (receiptPages ?? [])
+        .flatMap((page) => page.receipts)
+        .map((receipt) => ({
+          id: receipt.toolCallId,
+          title: assistantActionPresentation(receipt).title,
+          state: receipt.state,
+          stateLabel: RECEIPT_LABELS[receipt.state] ?? receipt.state,
+          warning: receipt.warning ?? undefined,
+        })),
+      decide: async (ids, decision, edits) => {
+        setPending(true)
+        const failures: string[] = []
+        try {
+          for (const id of ids) {
+            const action = actions.find((item) => item.toolCallId === id)
+            if (!action || !reviewData?.runId) continue
+            const changed = Object.fromEntries(
+              Object.entries(edits?.[id] ?? {}).filter(([name, value]) => {
+                const field = action.fields.find((item) => item.name === name)
+                return field?.editable && field.value !== value
+              })
+            )
+            try {
+              await decideAction({
+                toolCallId: id,
+                runId: reviewData.runId,
+                proposalVersion: action.proposalVersion,
+                decision,
+                ...(decision === 'allow' && Object.keys(changed).length ? { edits: changed } : {}),
+              })
+            } catch (error) {
+              failures.push(getErrorMessage(error, 'Could not save this review'))
+            }
           }
+        } finally {
+          setPending(false)
         }
-      } finally {
-        setPending(false)
-      }
-      if (failures.length) throw new Error(failures[0])
-    },
-  }
+        if (failures.length) throw new Error(failures[0])
+      },
+    }
+  }, [
+    enabled,
+    turnId,
+    reviewData,
+    refetchReview,
+    reviewFailed,
+    reviewPending,
+    receiptPages,
+    decideAction,
+    pending,
+  ])
 }

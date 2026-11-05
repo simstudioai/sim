@@ -30,14 +30,16 @@ import {
 } from '@/lib/api/contracts/organization'
 import { client } from '@/lib/auth/client'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
-import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
+import {
+  ORGANIZATION_ROSTER_STALE_TIME,
+  organizationKeys,
+} from '@/hooks/queries/utils/organization-keys'
 import { organizationUsageKeys } from '@/hooks/queries/utils/organization-usage-keys'
 import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
 const invitationListsKey = ['invitations', 'list'] as const
 
-export const ORGANIZATION_ROSTER_STALE_TIME = 30 * 1000
 export const ORGANIZATION_DETAIL_STALE_TIME = 30 * 1000
 export const ORGANIZATION_MEMBER_USAGE_LIMIT_STALE_TIME = 30 * 1000
 /**

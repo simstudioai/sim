@@ -1,8 +1,10 @@
 import 'server-only'
 import { type DehydratedState, dehydrate } from '@tanstack/react-query'
 import { getOrganizationRosterContract } from '@/lib/api/contracts/organization'
-import { ORGANIZATION_ROSTER_STALE_TIME } from '@/hooks/queries/organization'
-import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
+import {
+  ORGANIZATION_ROSTER_STALE_TIME,
+  organizationKeys,
+} from '@/hooks/queries/utils/organization-keys'
 import { makeQueryClient } from '@/hooks/queries/utils/query-client'
 import { prefetchSignal, serverRequestJson } from '@/platform/lib/data/server-request'
 

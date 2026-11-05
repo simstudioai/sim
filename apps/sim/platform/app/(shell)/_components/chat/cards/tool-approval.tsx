@@ -5,7 +5,10 @@ import { generateId } from '@sim/utils/id'
 import styles from '@/platform/app/(shell)/_components/chat/cards/cards.module.css'
 import type { PlatformTool, ToolDecision } from '@/platform/app/(shell)/_components/chat/model'
 import { usePlatformNotices } from '@/platform/app/(shell)/_components/notification-tray/notification-tray'
-import { useChatRuntime } from '@/platform/app/(shell)/_components/session/chat-runtime'
+import {
+  useChatHandlers,
+  useChatInteractions,
+} from '@/platform/app/(shell)/_components/session/chat-runtime'
 import { ActionMenu, Button, Icon } from '@/platform/design-system/components'
 import { ActivityBody } from '@/platform/design-system/components/activity-row/activity-body'
 
@@ -16,7 +19,8 @@ const BROWSER_TOOL = /^browser[_-]/
  * turn, until one of these is answered; a failed answer restores the buttons so it can be retried.
  */
 export function ToolApproval({ tool }: { tool: PlatformTool }) {
-  const { approvals, registerApproval, decideTools } = useChatRuntime()
+  const { approvals } = useChatInteractions()
+  const { registerApproval, decideTools } = useChatHandlers()
   const { notify } = usePlatformNotices()
   const [expired, setExpired] = useState(false)
   useEffect(() => registerApproval(tool.id), [registerApproval, tool.id])

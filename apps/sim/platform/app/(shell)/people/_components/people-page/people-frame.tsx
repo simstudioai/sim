@@ -17,7 +17,14 @@ export function PeopleFrame({ title = 'People', actions, loading, children }: Pe
         <h1 data-type='T076'>{title}</h1>
         {actions && <div className={styles.actions}>{actions}</div>}
       </header>
-      {loading ? <PeopleStatus>{loading}</PeopleStatus> : children}
+      {loading ? (
+        <>
+          <div className={styles.viewsPlaceholder} aria-hidden='true' />
+          <PeopleStatus>{loading}</PeopleStatus>
+        </>
+      ) : (
+        children
+      )}
     </main>
   )
 }

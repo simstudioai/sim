@@ -6,7 +6,7 @@ import type {
   AssistantReceipt,
   AssistantReviewAction,
 } from '@/platform/app/(shell)/_components/chat/model'
-import { useChatRuntime } from '@/platform/app/(shell)/_components/session/chat-runtime'
+import { useChatInteractions } from '@/platform/app/(shell)/_components/session/chat-runtime'
 import { Button, FailureNotice, InlineNotice, StatusTag } from '@/platform/design-system/components'
 import { Input, TextArea } from '@/platform/design-system/components/field/inputs'
 
@@ -132,7 +132,7 @@ function Receipt({ receipt }: { receipt: AssistantReceipt }) {
  * the turn they belong to; failure to load is shown rather than read as nothing to review.
  */
 export function AssistantReview({ turnId }: { turnId: string }) {
-  const { review } = useChatRuntime()
+  const { review } = useChatInteractions()
   const [edits, setEdits] = useState<Edits>({})
   const [failure, setFailure] = useState('')
   if (!review || review.turnId !== turnId) return null

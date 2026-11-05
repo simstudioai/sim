@@ -1,5 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
+import { LoadingState } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/members/members.module.css'
 import { Button, FailureNotice, InlineNotice, StatusTag } from '@/platform/design-system/components'
 import {
@@ -14,7 +15,7 @@ interface SeatsOverviewProps {
 }
 
 export function SeatsOverview({ seats }: SeatsOverviewProps) {
-  if (seats.status === 'pending') return null
+  if (seats.status === 'pending') return <LoadingState label='Loading seats' rows={1} />
   if (seats.status === 'error')
     return (
       <FailureNotice

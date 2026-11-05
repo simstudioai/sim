@@ -10,7 +10,10 @@ import {
   ToolInteraction,
 } from '@/platform/app/(shell)/_components/chat/message/tool-activity'
 import type { PlatformPart, PlatformTurn } from '@/platform/app/(shell)/_components/chat/model'
-import { useChatRuntime } from '@/platform/app/(shell)/_components/session/chat-runtime'
+import {
+  useChatHandlers,
+  useChatInteractions,
+} from '@/platform/app/(shell)/_components/session/chat-runtime'
 import { Button } from '@/platform/design-system/components'
 
 type AssistantTurn = Extract<PlatformTurn, { role: 'assistant' }>
@@ -69,7 +72,8 @@ function ResponsePart({ part }: { part: PlatformPart }) {
 export function ResponseMessage({ turn }: ResponseMessageProps) {
   const { state, parts, copyText, failure, waiting, endsWithInteraction } = turn
   const settled = state === 'complete' || state === 'stopped'
-  const { review, retry } = useChatRuntime()
+  const { review } = useChatInteractions()
+  const { retry } = useChatHandlers()
   const inReview = review?.turnId === turn.id && (review.actions.length > 0 || review.pending)
   return (
     <div className={styles.answer}>
