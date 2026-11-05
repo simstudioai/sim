@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { RedesignHost } from '@/app/o/[organizationId]/_redesign/redesign-host'
+import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 
 interface LinksSurfaceProps {
   children: ReactNode
@@ -9,7 +9,7 @@ interface LinksSurfaceProps {
 export function LinksSurface({ children }: LinksSurfaceProps) {
   return (
     <div className='grid h-full min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] overflow-y-auto'>
-      <RedesignHost>{children}</RedesignHost>
+      <RedesignSurface>{children}</RedesignSurface>
     </div>
   )
 }
