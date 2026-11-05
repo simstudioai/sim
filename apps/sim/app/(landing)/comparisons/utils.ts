@@ -184,20 +184,33 @@ export function betterThanQuestion(competitor: CompetitorProfile): string {
 }
 
 /**
- * Every buyer question the page answers in its own section, in page order: the lead question,
- * the "better than" question, then the intro, glance, and closing questions.
+ * The buyer questions the page answers in their own sections, grouped by position: `opening`
+ * (the lead, "better than", and intro questions) ahead of the product definitions, `glance`
+ * after the at-a-glance table, and `closing` after the documented limitations.
  */
-export function getQuestionSections(competitor: CompetitorProfile): ComparisonQuestion[] {
+export function getQuestionSectionGroups(competitor: CompetitorProfile): {
+  opening: ComparisonQuestion[]
+  glance: ComparisonQuestion[]
+  closing: ComparisonQuestion[]
+} {
   const { leadQuestion, leadAnswer, betterThanAnswer, questions } = competitor
-  return [
-    ...(leadQuestion && leadAnswer ? [{ question: leadQuestion, answer: leadAnswer }] : []),
-    ...(betterThanAnswer
-      ? [{ question: betterThanQuestion(competitor), answer: betterThanAnswer }]
-      : []),
-    ...(questions?.intro ?? []),
-    ...(questions?.glance ?? []),
-    ...(questions?.closing ?? []),
-  ]
+  return {
+    opening: [
+      ...(leadQuestion && leadAnswer ? [{ question: leadQuestion, answer: leadAnswer }] : []),
+      ...(betterThanAnswer
+        ? [{ question: betterThanQuestion(competitor), answer: betterThanAnswer }]
+        : []),
+      ...(questions?.intro ?? []),
+    ],
+    glance: questions?.glance ?? [],
+    closing: questions?.closing ?? [],
+  }
+}
+
+/** Every question from {@link getQuestionSectionGroups}, in page order. */
+function getQuestionSections(competitor: CompetitorProfile): ComparisonQuestion[] {
+  const { opening, glance, closing } = getQuestionSectionGroups(competitor)
+  return [...opening, ...glance, ...closing]
 }
 
 function proseToText(prose: Prose): string {
