@@ -25,8 +25,8 @@ const DirectorySyncModal = dynamic(() =>
 )
 
 const VIEWS = [
-  { value: 'chart', label: 'Org chart', icon: 'I118' },
-  { value: 'directory', label: 'Directory', icon: 'I134' },
+  { value: 'chart', label: 'Org chart', icon: 'I134' },
+  { value: 'directory', label: 'Directory', icon: 'I033' },
 ] as const
 
 export function PeoplePage() {

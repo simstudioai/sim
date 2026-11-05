@@ -39,7 +39,7 @@ export function ResponseActions(actions: MessageActionsModel) {
         )}
         {actions.canRate && (
           <ActionMenu
-            icon='I069'
+            icon='I017'
             label='Rate response'
             actions={RATINGS.map(({ value, label, icon }) => ({
               id: value,
