@@ -1,0 +1,148 @@
+.inputFrame:has(.input:disabled) {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.optional {
+  color: var(--ui-secondary);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.field {
+  gap: var(--spacing-field-label-gap);
+  color: var(--ui-ink);
+}
+
+.inputFrame {
+  display: grid;
+  min-width: 0;
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  color: var(--ui-ink);
+}
+
+.input {
+  display: block;
+  min-width: 0;
+  width: 100%;
+  height: calc(var(--spacing-app-chip) - 2 * var(--spacing-stroke-default));
+  padding-inline: var(--spacing-8);
+  background: transparent;
+  color: inherit;
+}
+
+.input::placeholder {
+  color: var(--ui-secondary);
+  opacity: 1;
+}
+
+.inputFrame:has(.input:enabled:hover) {
+  border-color: var(--control-hover-border);
+}
+
+.inputFrame:has(.input:focus-visible) {
+  border-color: var(--ui-secondary);
+}
+
+.inputFrame:has(.input[aria-invalid="true"]) {
+  border-color: var(--control-danger);
+}
+
+.error {
+  color: var(--control-danger);
+}
+
+.hint {
+  color: var(--ui-secondary);
+}
+
+.inputFrame[data-trailing] {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ui-action-gap);
+  padding-inline-end: var(--spacing-1);
+}
+
+.fileDrop {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  min-block-size: var(--spacing-76);
+  padding: var(--spacing-12);
+  gap: var(--ui-row-gap);
+  border: var(--spacing-stroke-default) dashed var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  color: var(--ui-secondary);
+  overflow-wrap: anywhere;
+}
+
+.fileDrop:where(:not([data-disabled]):is(:hover, [data-dragging])) {
+  border-color: var(--control-hover-border);
+}
+
+.fileDrop[data-dragging] {
+  background: var(--ui-hover);
+}
+
+.fileDrop[data-invalid] {
+  border-color: var(--control-danger);
+}
+
+.fileDrop[data-disabled] {
+  opacity: var(--opacity-disabled);
+}
+
+.fileInput {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.fileInput:disabled {
+  cursor: default;
+}
+
+.fileCopy {
+  display: grid;
+  flex: 1;
+  min-inline-size: 0;
+  gap: var(--ui-stack-gap);
+}
+
+.fileCopy > [data-selected] {
+  color: var(--ui-ink);
+}
+
+.filePreview {
+  flex: none;
+  inline-size: var(--spacing-48);
+  block-size: var(--spacing-48);
+  border-radius: var(--radius-item);
+  object-fit: contain;
+}
+
+.fileRemove {
+  position: relative;
+  flex: none;
+}
+
+textarea.input {
+  height: calc(var(--spacing-76) - 2 * var(--spacing-stroke-default));
+  min-height: calc(var(--spacing-76) - 2 * var(--spacing-stroke-default));
+  padding-block: var(--spacing-8);
+}
+
+textarea.input[data-density="expanded"] {
+  height: calc(2 * (var(--spacing-56) - var(--spacing-stroke-default)));
+}

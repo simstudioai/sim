@@ -2,7 +2,7 @@ import type {
   WorkspaceKnowledgeSearchResult,
   WorkspaceSearchFilters,
 } from '@/lib/api/contracts/knowledge'
-import type { ResourceScope } from '@/lib/core/resource-scope'
+import { type ResourceScope, resourceScopeKey } from '@/lib/core/resource-scope'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { matchSnippet } from '@/lib/knowledge/search/snippet'
 import type { SearchResource } from '@/lib/mothership/generated/resources'
@@ -11,6 +11,15 @@ import {
   isHttpUrl,
   type SourceTagData,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+
+/** A new query, reader or access scope starts a fresh search and rolling-date anchor. */
+export function liveSearchResultsKey(
+  scope: ResourceScope,
+  userId: string | undefined,
+  query: string
+): string {
+  return JSON.stringify([resourceScopeKey(scope), userId, query])
+}
 
 /**
  * One card per document, keeping the best-ranked chunk of each: the list is
@@ -81,5 +90,4 @@ export interface SearchResultsProps {
   query: string
   /** Binds the Assistant turn to the selected canonical document. */
   onSummarize?: (prompt: string, filters: WorkspaceSearchFilters) => void
-  onSearchChange?: (search: SearchResource) => void
 }

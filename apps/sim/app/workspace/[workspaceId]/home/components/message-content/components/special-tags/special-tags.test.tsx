@@ -115,7 +115,7 @@ import {
 } from '@/lib/mothership/chat/sim-key-redaction'
 import type { CredentialItemData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
 import { SpecialTags } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
-import { organizationSecretKeys } from '@/hooks/queries/organization-secrets'
+import { organizationSecretKeys } from '@/hooks/queries/utils/organization-secret-keys'
 
 const mockOrganizationContext = organizationProviderMockFns.mockUseOptionalOrganizationContext
 const mockSession = authClientMockFns.mockUseSession

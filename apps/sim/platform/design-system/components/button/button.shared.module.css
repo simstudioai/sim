@@ -1,0 +1,198 @@
+@reference "../../styles/theme.css";
+
+.button,
+.iconButton,
+.chip {
+  @apply inline-flex items-center justify-center gap-control-gap;
+  border: 0;
+  background: transparent;
+  color: var(--ui-ink);
+  cursor: pointer;
+  border-radius: var(--ui-control-radius);
+}
+
+.button,
+.chip {
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.button {
+  min-height: var(--spacing-app-control-md);
+  padding-inline: var(--spacing-control-inline);
+}
+
+.button[data-variant="secondary"] {
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  background: var(--ui-reading);
+}
+
+.iconButton {
+  flex: none;
+  width: var(--spacing-app-control-sm);
+  height: var(--spacing-app-control-sm);
+  padding: 0;
+}
+
+.iconButton[data-size="row"] {
+  width: var(--spacing-app-chip);
+  height: var(--spacing-app-chip);
+}
+
+.iconButton[data-size="compact"] {
+  width: var(--spacing-24);
+  height: var(--spacing-24);
+}
+.iconButton[data-size="inline"] {
+  inline-size: var(--spacing-16);
+  block-size: var(--spacing-16);
+}
+.iconButton[data-size="inline"] > svg {
+  width: var(--spacing-14);
+  height: var(--spacing-14);
+}
+
+.chip {
+  min-height: var(--spacing-app-chip);
+  padding-inline: var(--ui-row-inset);
+  gap: var(--ui-row-gap);
+  justify-content: start;
+  text-align: start;
+}
+.wrappedLabel {
+  overflow-wrap: anywhere;
+}
+
+.button[data-size="compact"] {
+  min-height: var(--spacing-28);
+  padding-inline: var(--spacing-8);
+}
+
+:is(.button, .iconButton):is(:enabled, a[href]):hover {
+  background: var(--ui-hover);
+}
+
+:is(.button, .iconButton):is(:enabled, a[href]):active {
+  background: var(--ui-selected);
+}
+
+.button[data-variant="muted"] {
+  background: var(--control-muted-fill);
+}
+.button[data-variant="muted"]:is(:enabled, a[href]):hover {
+  background: var(--control-muted-hover);
+}
+.button[data-variant="muted"]:is(:enabled, a[href]):active {
+  background: var(--control-muted-pressed);
+}
+
+:is(.button, .iconButton)[data-solid] {
+  background: var(--control-solid-fill);
+  color: var(--control-on-solid);
+}
+
+:is(.button, .iconButton)[data-solid]:is(:enabled, a[href]):hover {
+  background: var(--control-solid-hover);
+}
+
+:is(.button, .iconButton)[data-solid]:is(:enabled, a[href]):active {
+  background: var(--control-solid-pressed);
+}
+
+.button:disabled,
+.iconButton:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+@media (pointer: coarse) {
+  .iconButton[data-size="inline"] {
+    inline-size: var(--spacing-20);
+    block-size: var(--spacing-20);
+  }
+  .iconButton[data-size="small"] {
+    inline-size: var(--spacing-app-touch-target);
+    block-size: var(--spacing-app-touch-target);
+  }
+}
+
+.chip:where(a[href], :enabled):hover,
+.chipRow:where(:hover, :has([aria-expanded="true"])) > .chip {
+  background: var(--ui-hover);
+}
+.chip:where(a[href], :enabled):active,
+.chip:is(
+    [aria-pressed="true"],
+    [aria-expanded="true"],
+    [aria-current="page"],
+    [aria-selected="true"]
+  ) {
+  background: var(--ui-selected);
+}
+.chipRow {
+  display: grid;
+  grid-template-areas: "row";
+  min-inline-size: 0;
+  align-items: center;
+}
+.chipRow > .chip,
+.chipAction,
+.chipStatus {
+  grid-area: row;
+}
+.chipRow[data-action-side="end"] > .chip {
+  padding-inline-end: var(--spacing-app-chip);
+}
+.chipAction {
+  display: flex;
+  justify-self: end;
+  margin-inline: calc((var(--spacing-app-chip) - var(--spacing-24)) / 2);
+  opacity: 0;
+}
+.chipRow[data-action-side="start"] > .chipAction {
+  justify-self: start;
+}
+.chipRow:hover .chipAction,
+.chipRow:has(:focus-visible) .chipAction,
+.chipRow:has([role="tab"]) .chipAction,
+.chipAction:has([aria-expanded="true"]) {
+  opacity: 1;
+}
+.chipRow[data-action-side="start"]:is(:hover, :has(:focus-visible)) > .chip > svg {
+  visibility: hidden;
+}
+
+.chipStatus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: end;
+  inline-size: var(--spacing-app-chip);
+  color: var(--ui-secondary);
+  pointer-events: none;
+}
+.chipRow:has([aria-expanded="true"]) .chipStatus,
+.chipRow:has(:focus-visible):has(.chipAction) .chipStatus {
+  visibility: hidden;
+}
+@media (hover: hover) {
+  .chipRow:hover:has(.chipAction) .chipStatus {
+    visibility: hidden;
+  }
+}
+
+@media (hover: none) {
+  .chipAction {
+    opacity: 1;
+  }
+  .chipRow[data-status] > .chip {
+    padding-inline-end: calc(2 * var(--spacing-app-chip));
+  }
+  .chipRow[data-status] > .chipStatus {
+    margin-inline-end: var(--spacing-app-chip);
+    visibility: visible;
+  }
+  .chipRow[data-action-side="start"] > .chip > svg {
+    visibility: hidden;
+  }
+}

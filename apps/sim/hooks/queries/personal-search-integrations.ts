@@ -10,7 +10,7 @@ import {
 } from '@/lib/api/contracts/knowledge/personal-integrations'
 import { isDesktopApp } from '@/lib/desktop'
 import { connectDesktopSource } from '@/lib/desktop/source-connect'
-import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
+import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 export const PERSONAL_SEARCH_INTEGRATIONS_STALE_TIME = 15_000

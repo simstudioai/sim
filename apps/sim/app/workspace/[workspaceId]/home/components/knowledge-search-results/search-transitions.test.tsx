@@ -22,7 +22,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   userId: 'reader',
-  summarize: vi.fn(),
   urlUpdate: vi.fn(),
 }))
 vi.mock('@/lib/auth/client', () => authClientMock)
@@ -33,30 +32,6 @@ vi.mock('@/hooks/use-speech-to-text', () => ({
   useSpeechToText: () => ({ isSupported: false }),
 }))
 vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
-vi.mock(
-  '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card',
-  () => ({
-    SourceCard: ({
-      source,
-      onSummarize,
-    }: {
-      source: { title: string; url: string }
-      onSummarize?: (source: { title: string; url: string }) => void
-    }) => (
-      <div>
-        <a href={source.url} data-source-link>
-          {source.title}
-        </a>
-        <button type='button'>Copy link</button>
-        {onSummarize && (
-          <button type='button' onClick={() => onSummarize(source)}>
-            Summarize
-          </button>
-        )}
-      </div>
-    ),
-  })
-)
 
 import type {
   WorkspaceKnowledgeSearchBody,
@@ -67,12 +42,10 @@ import {
   resolveDeploymentShape,
   seedDeploymentShape,
 } from '@/lib/core/config/deployment-shape'
-import type { ResourceScope } from '@/lib/core/resource-scope'
-import { SearchLandingHistory } from '@/app/o/[organizationId]/components/search-landing-history'
-import { OrganizationSearch } from '@/app/o/[organizationId]/search/search'
-import { KnowledgeSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/knowledge-search-results'
-import { searchHistoryKeys } from '@/hooks/queries/search-history'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+import { searchHistoryKeys } from '@/hooks/queries/utils/search-history-keys'
+import { SearchHistory } from '@/platform/app/(shell)/search/_components/search-surface/search-history'
+import { OrganizationSearchSurface } from '@/platform/app/(shell)/search/_components/search-surface/search-surface'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 
 nextNavigationMockFns.mockUsePathname.mockReturnValue('/o/organization/search')
@@ -137,36 +110,12 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-async function render({
-  scope = { kind: 'organization', organizationId: 'organization' },
-  query = 'launch',
-  params = '',
-  organizationPage = false,
-  filters,
-  topK,
-}: {
-  scope?: ResourceScope
-  query?: string
-  params?: string
-  organizationPage?: boolean
-  filters?: import('@/lib/api/contracts/knowledge').WorkspaceSearchFilters
-  topK?: number
-} = {}) {
+async function render(params = '') {
   await act(async () => {
     root.render(
       <QueryClientProvider client={client}>
         <NuqsTestingAdapter hasMemory searchParams={params} onUrlUpdate={mocks.urlUpdate}>
-          {organizationPage ? (
-            <OrganizationSearch userId='reader' />
-          ) : (
-            <KnowledgeSearchResults
-              scope={scope}
-              query={query}
-              filters={filters}
-              topK={topK}
-              onSummarize={mocks.summarize}
-            />
-          )}
+          <OrganizationSearchSurface userId='reader' />
         </NuqsTestingAdapter>
       </QueryClientProvider>
     )
@@ -215,7 +164,7 @@ describe('live search submission feedback', () => {
     async (draft) => {
       const shape = resolveDeploymentShape()
       seedDeploymentShape({ ...shape, features: shape.features })
-      await render({ organizationPage: true, params: '?q=launch' })
+      await render('?q=launch')
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1)
       })
@@ -267,16 +216,12 @@ describe('live search submission feedback', () => {
   it('acknowledges the submitted query before exposing refinement controls', async () => {
     const shape = resolveDeploymentShape()
     seedDeploymentShape({ ...shape, features: shape.features })
-    await render({ organizationPage: true, params: '?q=launch' })
+    await render('?q=launch')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1)
     })
     expect(requests).toHaveLength(1)
-    expect(
-      [...container.querySelectorAll('button')].some(
-        (element) => element.textContent === 'All sources'
-      )
-    ).toBe(false)
+    expect(container.querySelector('[role="group"][aria-label="Search filters"]')).toBeNull()
     expect(
       container.querySelector<HTMLButtonElement>('button[aria-label="Stop search"]')?.disabled
     ).toBe(false)
@@ -326,9 +271,9 @@ it('removes cached private history when access is denied during revalidation', a
   await act(async () => {
     root.render(
       <QueryClientProvider client={client}>
-        <SearchLandingHistory organizationId='organization' userId='reader' onSearch={() => {}}>
+        <SearchHistory userId='reader' onSearch={() => {}}>
           <input aria-label='Search' />
-        </SearchLandingHistory>
+        </SearchHistory>
       </QueryClientProvider>
     )
     await vi.advanceTimersByTimeAsync(1)
@@ -352,7 +297,7 @@ it('keeps an unsent draft when a different recent search is opened', async () =>
     sources: [],
     queries: [{ query: 'launch', searchedAt: new Date().toISOString() }],
   })
-  await render({ organizationPage: true })
+  await render()
   const recent = [...container.querySelectorAll('button')].find(
     (button) => button.textContent === 'launch'
   )

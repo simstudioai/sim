@@ -20,7 +20,6 @@ import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
-import { OrganizationSidebar } from '@/app/o/[organizationId]/components/organization-sidebar'
 import { SimLinkOrganizationProvider } from '@/app/o/[organizationId]/links/sim-link-organization-provider'
 import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
 import { OrganizationProvider } from '@/app/o/[organizationId]/providers/organization-provider'
@@ -32,6 +31,7 @@ import {
 } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { Sidebar } from '@/platform/app/(shell)/_components/sidebar/sidebar'
 
 const logger = createLogger('OrganizationLayout')
 
@@ -139,7 +139,7 @@ export default async function OrganizationLayout({
                 <SettingsNavigationProvider>
                   <WorkspaceChrome
                     sidebar={
-                      <OrganizationSidebar
+                      <Sidebar
                         benchmarkEnabled={benchmarkEnabled}
                         simLinksEnabled={simLinksEnabled}
                         peopleEnabled={peopleEnabled}

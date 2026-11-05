@@ -1,0 +1,100 @@
+[data-platform-ui] {
+  --control-people-width: 15rem;
+  --control-on-solid: var(--color-tooltip-text);
+  --control-primary-fill: color-mix(in srgb, var(--ui-strong) 80%, var(--ui-canvas));
+  --control-solid-step: 0.03;
+  --control-danger: var(--color-light-danger);
+  --control-danger-soft: var(--color-red-soft);
+  --status-info: var(--color-light-accent);
+  --status-info-soft: var(--color-blue-soft);
+  --status-success: var(--color-light-success);
+  --status-success-soft: var(--color-green-soft);
+  --status-warning: var(--color-light-warning);
+  --status-warning-soft: var(--color-orange-soft);
+  --control-hover-border: var(--color-ink-20);
+  --control-avatar: var(--color-surface-muted);
+  --control-muted-fill: var(--color-neutral-silver);
+  --control-muted-hover: var(--color-neutral-238);
+  --control-muted-pressed: var(--color-neutral-235);
+  --control-tooltip: var(--color-tooltip-surface);
+  --control-tooltip-ink: var(--color-tooltip-text);
+}
+
+[data-platform-ui][data-theme="dark"] {
+  --control-on-solid: var(--color-dark-canvas);
+  --control-primary-fill: var(--ui-ink);
+  --control-solid-step: 0.1;
+  --control-danger: var(--color-dark-red);
+  --control-danger-soft: var(--color-dark-red-soft);
+  --status-info: var(--color-dark-blue);
+  --status-info-soft: var(--color-dark-blue-soft);
+  --status-success: var(--color-dark-green);
+  --status-success-soft: var(--color-dark-green-soft);
+  --status-warning: var(--color-dark-orange);
+  --status-warning-soft: var(--color-dark-orange-soft);
+  --control-hover-border: var(--color-white-20);
+  --control-avatar: var(--color-dark-selected);
+  --control-muted-fill: var(--color-dark-raised);
+  --control-muted-hover: var(--color-dark-hover);
+  --control-muted-pressed: var(--color-dark-selected);
+  --control-tooltip: var(--color-dark-tooltip-surface);
+  --control-tooltip-ink: var(--color-dark-text);
+}
+
+[data-platform-ui][data-theme="dark"] svg {
+  --color-nav-link-muted: var(--color-dark-text-secondary);
+  --color-light-text-secondary: var(--color-dark-text-secondary);
+  --color-app-text-secondary: var(--color-app-dark-text-secondary);
+  --color-app-text-primary: var(--color-app-dark-text-primary);
+  --color-control-text: var(--color-dark-text);
+  --color-chart-series: var(--color-app-dark-chart-series);
+  --color-chart-area: var(--color-app-dark-chart-area);
+}
+
+[data-platform-ui] [data-solid] {
+  --control-solid-fill: var(--control-primary-fill);
+  --control-solid-hover: oklch(
+    from var(--control-solid-fill) calc(l - var(--control-solid-step)) c h
+  );
+  --control-solid-pressed: oklch(
+    from var(--control-solid-fill) calc(l - 1.75 * var(--control-solid-step)) c h
+  );
+}
+[data-platform-ui] [data-solid][data-variant="destructive"] {
+  --control-solid-fill: var(--control-danger);
+}
+[data-platform-ui] [data-destructive-quiet] {
+  --ui-hover: color-mix(in srgb, var(--control-danger) 6%, transparent);
+  --ui-selected: color-mix(in srgb, var(--control-danger) 8%, transparent);
+  --ui-icon-active: color-mix(
+    in srgb,
+    var(--control-danger) var(--ui-active-icon-strength),
+    var(--ui-canvas)
+  );
+}
+[data-platform-ui]
+  [data-destructive-quiet]:not(:disabled, [data-disabled]):is(:hover, [data-highlighted]) {
+  --ui-icon-ink: var(--ui-icon-active);
+  color: var(--control-danger);
+}
+
+[data-platform-ui] [data-solid] svg {
+  --color-nav-link-muted: currentColor;
+  --color-app-text-secondary: currentColor;
+}
+
+[data-platform-ui] {
+  --settings-control-width: 11.25rem;
+  --settings-picker-surface: transparent;
+  --switch-off: var(--color-light-divider);
+  --switch-on: var(--color-light-accent);
+  --switch-thumb: var(--color-tooltip-text);
+  --switch-thumb-edge: var(--color-neutral-0-a7-843137);
+  --switch-thumb-shadow: 0 1px 2px var(--color-black-4);
+}
+
+[data-platform-ui][data-theme="dark"] {
+  --settings-picker-surface: var(--color-dark-reading);
+  --switch-off: var(--color-dark-raised);
+  --switch-on: var(--color-dark-blue);
+}

@@ -3,9 +3,11 @@ import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
-import { OrganizationConversation } from '@/app/o/[organizationId]/components/organization-conversation'
+import { Hydrated } from '@/app/o/[organizationId]/_redesign/hydrated'
 import { getOrganizationHomeRedirect } from '@/app/o/[organizationId]/home/home-redirect'
-import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
+import { HomeConversation } from '@/platform/app/(shell)/home/_components/home-conversation/home-conversation'
+import { HomeDashboardSkeleton } from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton'
+import { prefetchHome } from '@/platform/lib/data/prefetch-member-inventory'
 
 export const metadata: Metadata = {
   title: 'Home',
@@ -24,9 +26,18 @@ export default async function OrganizationHomePage({
   const homeRedirect = getOrganizationHomeRedirect(context, organizationId)
   if (homeRedirect) redirect(homeRedirect)
 
+  const requestMode = context.canBuild ? 'agent' : 'assistant'
   return (
-    <Suspense fallback={<HomeFallback />}>
-      <OrganizationConversation requestMode='agent' userName={session.user.name} />
+    <Suspense fallback={<HomeDashboardSkeleton requestMode={requestMode} />}>
+      <Hydrated
+        state={prefetchHome(context, {
+          kind: 'session',
+          userId: session.user.id,
+          sessionId: session.session.id,
+        })}
+      >
+        <HomeConversation requestMode={requestMode} />
+      </Hydrated>
     </Suspense>
   )
 }

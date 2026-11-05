@@ -9,6 +9,10 @@ import {
   credentialGroupOAuthCompletionChannel,
   isCredentialGroupOAuthFailure,
 } from '@/lib/credential-groups/oauth-completion'
+import {
+  getCredentialGroupProviderService,
+  isCredentialGroupProvider,
+} from '@/lib/credential-groups/providers'
 import { isDesktopApp } from '@/lib/desktop'
 import {
   readSearchConnectionAttempt,
@@ -19,12 +23,13 @@ import {
   writeSearchConnectionAttempt,
 } from '@/lib/knowledge/search/connection-attempt'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
-import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
+import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
 import {
   personalSearchIntegrationKeys,
   useConnectPersonalSearchIntegration,
   usePersonalSearchIntegrations,
 } from '@/hooks/queries/personal-search-integrations'
+import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 interface SearchIntegrationConnectionProps {
@@ -217,7 +222,25 @@ export function useSearchIntegrationConnection({
         error: 'Connection canceled. You can try again.',
       })
   }, [attempt, key])
+  const connector = SEARCH_CONNECTORS.find((entry) => entry.type === target.connectorType)
+  const service = isCredentialGroupProvider(target.provider)
+    ? getCredentialGroupProviderService(target.provider)
+    : undefined
+  const name = connector?.meta.name ?? service?.name ?? target.provider
+  const action = target.credentialId ? 'Reconnect' : 'Connect'
   return {
+    action,
+    icon: connector?.serviceIcon ?? service?.icon,
+    label: connected
+      ? `Connected ${name}`
+      : query.isPending
+        ? `Checking ${name} connections`
+        : pending
+          ? `Waiting for ${name} connection`
+          : !available
+            ? `${name} connection is no longer available`
+            : `${action} ${name}`,
+    disabled: query.isPending || isPending || connected || (!available && !pending),
     connect,
     cancel,
     inventoryError: query.error?.message,

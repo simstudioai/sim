@@ -932,13 +932,13 @@ try {
         )
         await expect(wikiResult).toBeVisible()
         await capture('search-populated-desktop')
-        await page.getByRole('button', { name: 'Filter by source: All sources' }).click()
+        await page.getByRole('combobox', { name: 'Filter by source: All sources' }).click()
         await capture('search-source-filter')
-        await page.getByRole('menuitem', { name: 'Google Drive', exact: true }).click()
+        await page.getByRole('option', { name: 'Google Drive', exact: true }).click()
         await expect(page).toHaveURL((url) => url.searchParams.get('source') === 'google_drive')
         await expect(wikiResult).toHaveCount(0)
         await capture('search-filtered')
-        await page.getByRole('button', { name: 'Filter by date: Any time' }).click()
+        await page.getByRole('combobox', { name: 'Filter by date: Any time' }).click()
         await capture('search-date-filter')
         await page.keyboard.press('Escape')
         await page.setViewportSize({ width: 390, height: 844 })
@@ -1021,13 +1021,17 @@ try {
     }
   )
   await check(
-    'Search-only members can reopen assistant history without access to Home chat',
+    'Search-only members have Home with the Assistant and their history, but no agent chat',
     async () => {
       await sql`insert into permission_group (id, organization_id, name, config, created_by, is_default)
       values (${generateId()}, ${organizationId}, 'Search only',
         ${sql.json({ disableWorkspaceCreation: true })}, ${userId}, true)`
       await page.goto(`${baseUrl.origin}${root}/home`)
-      await expect(page).toHaveURL((url) => url.pathname === `${root}/search`)
+      await expect(page).toHaveURL((url) => url.pathname === `${root}/home`)
+      await expect(page.getByRole('textbox', { name: 'Ask Sim' })).toBeVisible()
+      await page.goto(`${baseUrl.origin}${root}/chat/${agentId}`)
+      await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
+      await expect(page.getByRole('textbox', { name: 'Ask Sim' })).toHaveCount(0)
       await page.goto(`${baseUrl.origin}${root}/search/chat/${assistantId}`)
       await expect(page.getByText(answer, { exact: true })).toBeVisible()
     }
@@ -1051,11 +1055,14 @@ try {
     const deniedRecoveries = browserErrorEvents.filter(
       (event) =>
         event.digest === 'NEXT_HTTP_ERROR_FALLBACK;404' &&
-        event.url === `${baseUrl.origin}${root}/search/chat/${deniedChatId}` &&
-        [
-          'Assistant history rejects a chat from another organization',
-          'A streamed denied chat remains navigable after hydration',
-        ].includes(event.stage)
+        ((event.url === `${baseUrl.origin}${root}/search/chat/${deniedChatId}` &&
+          [
+            'Assistant history rejects a chat from another organization',
+            'A streamed denied chat remains navigable after hydration',
+          ].includes(event.stage)) ||
+          (event.url === `${baseUrl.origin}${root}/chat/${agentId}` &&
+            event.stage ===
+              'Search-only members have Home with the Assistant and their history, but no agent chat'))
     )
     const recoveryCount = deniedRecoveries.reduce((total, event) => total + event.count, 0)
     assert.equal(
