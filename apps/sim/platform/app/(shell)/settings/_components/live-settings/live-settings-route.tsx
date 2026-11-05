@@ -4,13 +4,13 @@ import { SETTINGS_SECTIONS } from '@/platform/app/(shell)/settings/_components/s
 import { SettingsScreen } from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 
-interface LiveSettingsProps {
+interface LiveSettingsRouteProps {
   path: readonly string[]
   query: Record<string, string | string[] | undefined>
 }
 
 /** The shell layout has already answered any surface failure. */
-export async function LiveSettings({ path, query }: LiveSettingsProps) {
+export async function LiveSettingsRoute({ path, query }: LiveSettingsRouteProps) {
   const surface = await readOrganizationSurface()
   if (surface.status !== 'ok') return null
   const { organization } = surface

@@ -1,6 +1,5 @@
 'use client'
 
-import { formatDate } from '@sim/utils/formatting'
 import {
   useOrganizationMothershipChats,
   useRestoreMothershipChat,
@@ -8,6 +7,7 @@ import {
 import { useSettingsSearch } from '@/hooks/use-settings-search'
 import { queryView } from '@/platform/lib/data/query-view'
 import { toast } from '@/platform/lib/data/toast'
+import { formatInstantDate } from '@/platform/lib/time'
 
 export function useDeletedChats(organizationId: string) {
   const [search, setSearch] = useSettingsSearch()
@@ -31,7 +31,9 @@ export function useDeletedChats(organizationId: string) {
       .map((chat) => ({
         id: chat.id,
         name: chat.name,
-        deleted: chat.deletedAt ? `Deleted ${formatDate(chat.deletedAt)}` : undefined,
+        deleted: chat.deletedAt
+          ? `Deleted ${formatInstantDate(new Date(chat.deletedAt).getTime())}`
+          : undefined,
       })),
   }
 }

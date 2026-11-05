@@ -11,10 +11,10 @@ export default async function Page({
 }: PageProps<'/settings/[[...section]]'>) {
   const [query, { section: path }] = await Promise.all([searchParams, params])
   if (resolvePlatformMode() === 'live') {
-    const { LiveSettings } = await import(
-      '@/platform/app/(shell)/settings/_components/live-settings/live-settings'
+    const { LiveSettingsRoute } = await import(
+      '@/platform/app/(shell)/settings/_components/live-settings/live-settings-route'
     )
-    return <LiveSettings path={path ?? []} query={query} />
+    return <LiveSettingsRoute path={path ?? []} query={query} />
   }
   const section = path?.[0] ?? 'preferences'
   const destination = SETTINGS_DESTINATIONS.find((item) => item.key === section)

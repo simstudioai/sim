@@ -2,7 +2,6 @@
 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { formatDate } from '@sim/utils/formatting'
 import { sleep } from '@sim/utils/helpers'
 import { formatQuotedNameList, normalizeEmail } from '@sim/utils/string'
 import type { PersonalOrganizationAccount } from '@/lib/api/contracts/organization-accounts'
@@ -31,6 +30,7 @@ import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
 import { loadMoreOf, queryView } from '@/platform/lib/data/query-view'
 import { toast } from '@/platform/lib/data/toast'
+import { formatInstantDate } from '@/platform/lib/time'
 
 const logger = createLogger('PlatformAccount')
 
@@ -70,7 +70,7 @@ export function useAuthorizedAppsList() {
       id: app.clientId,
       name: app.name,
       access: summarizeOAuthAccess(app.scopes),
-      authorized: `Authorized ${formatDate(new Date(app.authorizedAt))}`,
+      authorized: `Authorized ${formatInstantDate(new Date(app.authorizedAt).getTime())}`,
     })),
     loadMore: loadMoreOf(apps, 'Failed to load more authorized apps'),
     revoke: async (id: string, name: string) => {

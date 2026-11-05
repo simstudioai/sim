@@ -15,6 +15,7 @@ export function SettingsLeaveGuard() {
       variant='confirm'
       title='Unsaved changes'
       confirmLabel='Discard changes'
+      cancelLabel='Keep editing'
       destructive
       onConfirm={confirm}
     >

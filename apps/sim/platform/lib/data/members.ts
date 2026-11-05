@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
-import { formatDate } from '@sim/utils/formatting'
 import { useQueryState } from 'nuqs'
 import type {
   OrganizationRoster,
@@ -42,6 +41,7 @@ import { useOrganization } from '@/platform/lib/data/organization'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { toast } from '@/platform/lib/data/toast'
 import { plural } from '@/platform/lib/plural'
+import { formatInstantDate } from '@/platform/lib/time'
 
 type OrganizationRole = RosterMember['role']
 export type WorkspacePermission = RosterWorkspaceAccess['permission']
@@ -122,7 +122,7 @@ interface RosterViewer {
 
 function joinedLabel(member: RosterMember): string {
   if (member.suspendedAt) return 'Deactivated by your directory'
-  return `Joined ${formatDate(new Date(member.createdAt))}`
+  return `Joined ${formatInstantDate(new Date(member.createdAt).getTime())}`
 }
 
 /**

@@ -57,11 +57,9 @@ import {
 } from '@/hooks/queries/organization-usage'
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
 import { toast } from '@/platform/lib/data/toast'
-import { formatCalendarDate } from '@/platform/lib/time'
+import { DAY_MS, formatCalendarDate } from '@/platform/lib/time'
 
 const logger = createLogger('PlatformUsage')
-
-const DAY_MS = 24 * 60 * 60 * 1000
 
 export const USAGE_TABS = USAGE_TAB_ORDER.map((tab) => ({
   value: tab,

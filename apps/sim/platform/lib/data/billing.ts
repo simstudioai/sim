@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { formatDate } from '@sim/utils/formatting'
 import { useSubscription } from '@/lib/auth/client'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { dollarsToCredits, formatCreditCost } from '@/lib/billing/credits/conversion'
@@ -39,7 +38,7 @@ import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { queryView } from '@/platform/lib/data/query-view'
 import { toast } from '@/platform/lib/data/toast'
-import { formatCalendarDate } from '@/platform/lib/time'
+import { formatCalendarDate, formatInstantDate } from '@/platform/lib/time'
 
 const logger = createLogger('PlatformBilling')
 
@@ -211,7 +210,7 @@ export function useBillingSection(organization: PlatformOrganization) {
           const badge = getInvoiceStatusBadge(invoice.status)
           return {
             id: invoice.id,
-            date: formatDate(new Date(invoice.created * 1000)),
+            date: formatInstantDate(invoice.created * 1000),
             amount: formatInvoiceAmount(invoice.total, invoice.currency),
             description: invoice.description,
             statusLabel: badge.label,

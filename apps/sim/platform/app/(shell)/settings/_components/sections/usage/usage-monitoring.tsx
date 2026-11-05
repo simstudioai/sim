@@ -56,9 +56,10 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
     expanded: true,
   })
   const workspaceName = workspaceList.data?.rows.find((row) => row.id === workspace)?.label
-  /** Only once the list has loaded, so a deep link does not flash the Workspaces tab first. */
+  /** A dead id falls back to the Workspaces tab, once the list can actually say it is dead. */
   const isWorkspaceDetail =
-    isWorkspaceSelected && (workspaceList.loading || workspaceName !== undefined)
+    isWorkspaceSelected &&
+    (workspaceList.loading || workspaceList.failed || workspaceName !== undefined)
   const dimension: UsageBreakdownDimension = isWorkspaceDetail
     ? 'workflow'
     : isOverview || tab === 'activity'

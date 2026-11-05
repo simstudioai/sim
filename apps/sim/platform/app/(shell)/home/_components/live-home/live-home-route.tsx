@@ -6,7 +6,7 @@ import { prefetchHome } from '@/platform/lib/data/prefetch-home'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 
 /** The live Home entry: the legacy page's gate, then its cheap reads for first paint. */
-export async function LiveHomePage() {
+export async function LiveHomeRoute() {
   const surface = await readOrganizationSurface()
   // The layout already rendered this outcome's login, denial or error state.
   if (surface.status !== 'ok') return null

@@ -639,6 +639,7 @@ export function GroupDetail({
                   variant='primary'
                   size='compact'
                   icon='I074'
+                  disabled={members.data === undefined}
                   onClick={() => setAddingMembers(true)}
                 >
                   Add
