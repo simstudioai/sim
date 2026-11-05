@@ -1,5 +1,29 @@
-.sections {
+.sections,
+.account,
+.list {
   display: grid;
   min-inline-size: 0;
+}
+.sections {
   gap: var(--ui-product-section-gap);
+}
+.account {
+  gap: var(--ui-section-gap);
+}
+.header,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.header {
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+}
+.actions {
+  gap: var(--ui-action-gap);
+}
+.list {
+  gap: var(--ui-list-gap);
+  margin-inline: calc(-1 * var(--ui-row-inset));
 }

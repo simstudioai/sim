@@ -51,3 +51,10 @@
   border-color: var(--choice-edge);
   box-shadow: var(--choice-shadow);
 }
+.radio:disabled,
+.choice:has(.radio:disabled) {
+  cursor: default;
+}
+.radio:disabled + .choiceLabel {
+  opacity: var(--opacity-disabled);
+}

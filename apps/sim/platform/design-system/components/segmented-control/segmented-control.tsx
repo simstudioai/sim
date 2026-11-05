@@ -9,6 +9,7 @@ interface Choice<Value extends string = string> {
   value: Value
   label: string
   icon?: IconName
+  disabled?: boolean
 }
 
 interface SelectionItemProps extends Choice {
@@ -25,6 +26,7 @@ export function SelectionItem({
   value,
   icon,
   checked,
+  disabled,
   defaultChecked,
   onReselect,
   onSelect,
@@ -37,6 +39,7 @@ export function SelectionItem({
         name={name}
         value={value}
         checked={checked}
+        disabled={disabled}
         defaultChecked={defaultChecked}
         onClick={
           onReselect &&
@@ -87,10 +90,11 @@ export function SegmentedControl<Value extends string>({
           value={option.value}
           label={option.label}
           icon={option.icon}
+          disabled={option.disabled}
           checked={selected === option.value}
           onSelect={() => select(option.value)}
           onReselect={
-            options.length === 2 && selected === option.value
+            options.length === 2 && selected === option.value && !options[1 - index].disabled
               ? () => select(options[1 - index].value)
               : undefined
           }

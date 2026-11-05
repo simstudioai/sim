@@ -56,8 +56,6 @@ interface RecipientFieldProps {
   defaultRecipients?: readonly Recipient[]
   name?: string
   placeholder?: string
-  required?: boolean
-  maxRecipients?: number
 }
 
 export function RecipientField({
@@ -65,8 +63,6 @@ export function RecipientField({
   defaultRecipients = [],
   name,
   placeholder,
-  required,
-  maxRecipients,
 }: RecipientFieldProps) {
   const id = useId()
   const input = useRef<HTMLInputElement>(null)
@@ -76,9 +72,7 @@ export function RecipientField({
   const [draft, setDraft] = useState('')
   const error = recipients.some((recipient) => recipient.invalid)
     ? 'Enter a valid email address.'
-    : maxRecipients !== undefined && recipients.length > maxRecipients
-      ? `Enter up to ${maxRecipients} email addresses.`
-      : undefined
+    : undefined
 
   useLayoutEffect(() => {
     const editor = input.current
@@ -151,7 +145,6 @@ export function RecipientField({
             inputMode='email'
             autoComplete='off'
             spellCheck={false}
-            required={required && recipients.length === 0}
             data-type='T043'
             placeholder={recipients.length ? undefined : placeholder}
             value={draft}

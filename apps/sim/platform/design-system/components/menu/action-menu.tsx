@@ -403,6 +403,7 @@ export function MenuItem({
       return (
         <Menu.RadioItem
           value={value ?? label}
+          disabled={disabled}
           onClick={onSelect}
           closeOnClick
           label={label}

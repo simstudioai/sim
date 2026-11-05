@@ -44,9 +44,11 @@ export interface PreviewData {
 }
 
 /** Only invoke the scenario's import on a server that opted into preview data. */
-function fixture<T>(read: (scenario: Scenario) => Promise<T>) {
-  return (scenario: Scenario): Promise<T | null> =>
-    process.env.SIM_PLATFORM_FIXTURES === '1' ? read(scenario) : Promise.resolve(null)
+function fixture<T, Args extends unknown[]>(
+  read: (scenario: Scenario, ...args: Args) => Promise<T>
+) {
+  return (scenario: Scenario, ...args: Args): Promise<T | null> =>
+    process.env.SIM_PLATFORM_FIXTURES === '1' ? read(scenario, ...args) : Promise.resolve(null)
 }
 
 export const loadPreviewData = fixture(
@@ -81,48 +83,20 @@ export const loadConversationData = fixture(
   async (scenario) =>
     (await import('@/platform/fixtures/conversation-data')).conversationScenarios[scenario]
 )
-const loadIntegrationScenario = fixture(async (scenario) => {
-  const [{ integrationScenario }, { integrationProviders }, { shellScenarios }] = await Promise.all(
-    [
-      import('@/platform/fixtures/integration-data'),
-      import('@/platform/fixtures/integration-providers'),
-      import('@/platform/fixtures/shell-data'),
-    ]
-  )
-  return integrationScenario(scenario, integrationProviders, shellScenarios[scenario].workspaces)
-})
-
-export async function loadIntegrationsData(
-  scenario: Scenario,
-  member: boolean
-): Promise<IntegrationsData | null> {
-  const data = await loadIntegrationScenario(scenario)
-  if (!data || !member) return data
-  const integrations = data.integrations
-    .filter((item) => item.searchApproved || item.accountMethods.length)
-    .map((item) => ({
-      ...item,
-      people: [],
-      sources: [],
-      sourceId: null,
-      endpoint: undefined,
-      clientId: undefined,
-      accounts: item.accounts.map((entry) =>
-        entry.permissions
-          ? { ...entry, permissions: { ...entry.permissions, canAutoApprove: false } }
-          : entry
-      ),
-    }))
-  const permitted = new Set(integrations.map((item) => item.providerId))
-  return {
-    canManage: false,
-    providers: data.providers.filter((provider) => permitted.has(provider.id)),
-    integrations,
-    workspaces: [],
-    credentialTypes: [],
-    workspaceGrants: {},
+export const loadIntegrationsData = fixture(
+  async (scenario, secrets?: string | string[]): Promise<IntegrationsData> => {
+    const [{ memberIntegrations }, { integrationProviders }, { memberSecretSource }] =
+      await Promise.all([
+        import('@/platform/fixtures/integration-data'),
+        import('@/platform/fixtures/integration-providers'),
+        import('@/platform/fixtures/member-secret-source'),
+      ])
+    return {
+      integrations: memberIntegrations(scenario, integrationProviders),
+      genericSecrets: memberSecretSource(scenario, secrets),
+    }
   }
-}
+)
 export const loadPanelData = fixture(
   async (scenario) => (await import('@/platform/fixtures/panel-data')).panelScenarios[scenario]
 )

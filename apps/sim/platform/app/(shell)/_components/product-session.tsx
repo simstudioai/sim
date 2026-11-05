@@ -35,7 +35,7 @@ export function ProductSession({ children, fixtures, banner }: ProductSessionPro
           <ChatChangesProvider>
             <ComposerDrafts>
               <ProductSurface preference={readAppearance(search.get('theme'))}>
-                <IntegrationChanges key={search.get('role') === 'member' ? 'member' : 'admin'}>
+                <IntegrationChanges>
                   <PlatformShell data={live ?? fixtures?.[scenario] ?? null} banner={banner}>
                     {children}
                   </PlatformShell>

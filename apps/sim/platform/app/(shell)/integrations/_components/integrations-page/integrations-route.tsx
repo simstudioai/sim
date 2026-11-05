@@ -10,11 +10,11 @@ interface IntegrationsRouteProps {
 
 export async function IntegrationsRoute({ section, searchParams }: IntegrationsRouteProps) {
   const query = await searchParams
-  const data = await loadIntegrationsData(readScenario(query.state), query.role === 'member')
+  const data = await loadIntegrationsData(readScenario(query.state), query.secrets)
   if (
     section &&
-    section !== 'access' &&
-    !data?.providers.some((provider) => provider.id === section)
+    !(section === 'secrets' && data?.genericSecrets) &&
+    !data?.integrations.some((item) => item.providerId === section)
   )
     notFound()
   return <IntegrationsPage data={data} section={section} />

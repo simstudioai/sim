@@ -1,175 +1,140 @@
 import 'server-only'
 import type { Scenario } from '@/platform/fixtures'
 import type {
+  AccountMethod,
   IntegrationAccount,
-  IntegrationProvider,
-  IntegrationsData,
   OrganizationIntegration,
 } from '@/platform/lib/integrations/model'
 
-function account(
-  id: string,
-  method: IntegrationAccount['method'],
-  label: string
-): IntegrationAccount {
-  return { id, method, label, status: 'active' }
+type Connection = Omit<OrganizationIntegration, 'providerId' | 'name'>
+
+function account(id: string, label: string, method: AccountMethod): IntegrationAccount {
+  return { id, label, method, status: 'active', canReconnect: true }
 }
 
-function integration(
-  providerId: string,
-  config: Partial<OrganizationIntegration>
-): OrganizationIntegration {
-  return {
-    providerId,
-    label: '',
-    required: false,
-    accountMethods: [],
-    accounts: [],
-    people: [],
-    searchApproved: false,
-    searchMode: null,
-    sources: [],
-    sourceId: null,
-    ...config,
-  }
-}
-
-const full: OrganizationIntegration[] = [
-  integration('salesforce', {
-    accountMethods: ['oauth'],
-    accounts: [{ ...account('crm', 'oauth', 'emir@sim.ai'), status: 'needs_reauth' }],
-  }),
-  integration('github', {
-    searchApproved: true,
-    searchMode: 'service_account',
-    sources: ['simstudioai/sim', 'simstudioai/docs'].map((repo) => ({
-      id: repo,
-      label: repo,
-      mode: 'service_account',
-      available: true,
-      enabled: true,
-      scope: [{ label: 'Repository', values: [repo] }],
-    })),
-    accountMethods: ['oauth'],
-  }),
-  integration('gmail', {
-    searchApproved: true,
-    searchMode: 'member',
-    accountMethods: ['oauth'],
-    accounts: [
-      {
-        ...account('mail', 'oauth', 'emir@sim.ai'),
-        permissions: {
-          read: 'allow',
-          write: 'ask',
-          canAutoApprove: true,
-          tools: [
-            { id: 'gmail_read', label: 'Read email', kind: 'read', override: null },
-            { id: 'gmail_send', label: 'Send email', kind: 'write', override: null },
-          ],
-        },
-      },
-    ],
-    people: [
-      { id: 'nina', email: 'nina@example.com', status: 'completed' },
-      { id: 'alex', email: 'alex@example.com', status: 'invited' },
-      { id: 'maya', email: 'maya@example.com', status: 'delivery_failed' },
-    ],
-  }),
-  integration('google_drive', {
-    searchApproved: true,
-    searchMode: 'service_account',
-    sourceId: 'team-drive',
-    accountMethods: ['oauth'],
-    sources: [
-      {
-        id: 'team-drive',
-        label: 'Team shared drive',
-        mode: 'service_account',
-        available: true,
-        enabled: true,
-        scope: [{ label: 'Folders', values: ['Product handbook'] }],
-      },
-    ],
-  }),
-  integration('slack', {
-    searchApproved: true,
-    searchMode: 'member',
-    accountMethods: ['slack'],
-    label: 'Sim team',
-    required: true,
-    slackStatus: 'ready',
-    slackTeam: 'Sim team',
-    accounts: [account('team', 'slack', 'Sim team')],
-    people: [{ id: 'nina', email: 'nina@example.com', status: 'completed' }],
-  }),
-  integration('linear', { searchApproved: true, searchMode: 'member', accountMethods: ['oauth'] }),
-  integration('notion', {
-    searchApproved: true,
-    searchMode: 'member',
-    accountMethods: ['mcp'],
-    accounts: [account('notion', 'mcp', 'Sim teamspace')],
-  }),
-  integration('outlook', {
-    accountMethods: ['oauth'],
-    accounts: [account('outlook', 'oauth', 'Operations mailbox')],
-  }),
-]
-
-const credentialIds: Record<string, string> = {
-  google_drive: 'google-drive',
-  google_calendar: 'google-calendar',
-  google_meet: 'google-meet',
-  github: 'github-repositories',
-}
-
-export function integrationScenario(
-  scenario: Scenario,
-  providers: IntegrationProvider[],
-  workspaces: IntegrationsData['workspaces']
-): IntegrationsData {
-  const integrations = scenario === 'empty' ? [] : [...full]
-  if (scenario === 'stress') {
-    for (const provider of providers) {
-      if (integrations.some((item) => item.providerId === provider.id)) continue
-      const searchMode = provider.searchModes[0] ?? null
-      integrations.push(
-        integration(provider.id, {
-          accountMethods: [...provider.accountMethods],
-          searchMode,
-          searchApproved: Boolean(searchMode),
-        })
-      )
-    }
-  }
-  const credentialTypes = providers.flatMap((provider) =>
-    provider.accountMethods.map((method) => {
-      const protocol = method === 'mcp' || method === 'databricks' ? 'mcp' : 'oauth'
-      const id = protocol === 'oauth' ? (credentialIds[provider.id] ?? provider.id) : provider.id
-      return {
-        id: `${protocol}:${id}`,
-        label:
-          provider.accountMethods.length > 1
-            ? `${provider.name} (${protocol === 'mcp' ? 'MCP' : 'OAuth'})`
-            : provider.name,
-      }
-    })
-  )
-  credentialTypes.push({ id: 'personal_token:gitlab', label: 'GitLab' })
-  return {
-    canManage: true,
-    providers,
-    integrations,
-    workspaces,
-    credentialTypes,
-    workspaceGrants: {
-      ...(workspaces[0] && {
-        [workspaces[0].id]: {
-          mode: 'selected' as const,
-          credentialTypes: ['oauth:gmail', 'oauth:slack'],
-        },
-      }),
-      ...(workspaces[1] && { [workspaces[1].id]: { mode: 'all' as const } }),
+const gmail = account('gmail-primary', 'emir@sim.ai', 'oauth')
+gmail.permissions = {
+  read: 'allow',
+  write: 'ask',
+  canAutoApprove: true,
+  tools: [
+    {
+      id: 'gmail_list_labels_v2',
+      label: 'Gmail List Labels',
+      description: 'List labels in your mailbox.',
+      kind: 'read',
+      override: null,
     },
+    {
+      id: 'gmail_send_v2',
+      label: 'Gmail Send',
+      description: 'Send an email from this account.',
+      kind: 'write',
+      override: null,
+    },
+    {
+      id: 'gmail_draft_v2',
+      label: 'Gmail Draft',
+      description: 'Create a draft in this mailbox.',
+      kind: 'write',
+      override: null,
+    },
+  ],
+}
+
+function ready(
+  accounts: IntegrationAccount[],
+  connectableMethod: AccountMethod | null = null
+): Connection {
+  return {
+    accounts,
+    connectableMethod,
+    availability: 'ready',
+    accessDescription: 'All accessible content',
   }
+}
+
+const full: Record<string, Connection> = {
+  fireflies: ready([account('fireflies', 'Emir', 'mcp')]),
+  github: {
+    ...ready([account('github', 'emirkarabeg', 'oauth')]),
+    accessDescription: 'Selected repositories you can access',
+  },
+  gmail: ready([gmail]),
+  google_calendar: ready([account('calendar', 'emir@sim.ai', 'oauth')]),
+  google_drive: ready([account('drive', 'emir@sim.ai', 'oauth')]),
+  hubspot: ready([account('hubspot', 'Sim', 'mcp')]),
+  linear: ready([], 'oauth'),
+  notion: ready([], 'mcp'),
+  salesforce: ready([{ ...account('crm', 'emir@sim.ai', 'oauth'), status: 'needs_reauth' }]),
+  slack: {
+    ...ready([]),
+    availability: 'unconfigured',
+    accessDescription: 'Slack sign-in has not been configured for this organization.',
+  },
+}
+
+export function memberIntegrations(
+  scenario: Scenario,
+  providers: readonly { id: string; name: string }[]
+): OrganizationIntegration[] {
+  if (scenario === 'empty') return []
+  const selected: Record<string, Connection> =
+    scenario === 'full'
+      ? full
+      : {
+          ...full,
+          gmail: ready([
+            gmail,
+            {
+              ...account('gmail-secondary', 'Customer operations and research', 'oauth'),
+              permissions: {
+                read: 'ask',
+                write: 'ask',
+                canAutoApprove: false,
+                tools: gmail.permissions?.tools ?? [],
+              },
+            },
+          ]),
+          coda: ready([], 'mcp'),
+          jira: ready([], 'oauth'),
+          lucid: ready([], 'mcp'),
+          zoom: {
+            ...ready([]),
+            availability: 'unavailable',
+            accessDescription: 'Zoom is currently unavailable.',
+          },
+          confluence: {
+            ...ready([{ ...account('confluence', 'Engineering', 'oauth'), canReconnect: false }]),
+            availability: 'disabled',
+            accessDescription: 'Disabled by your organization',
+          },
+          google_meet: ready([], 'oauth'),
+          granola: {
+            ...ready([]),
+            availability: 'paused',
+            accessDescription: 'Connections are paused by your organization.',
+          },
+          gitlab: {
+            ...ready([]),
+            availability: 'managed',
+            accessDescription: 'Access follows project permissions',
+          },
+        }
+  return providers.flatMap(({ id, name }) => {
+    const config = selected[id]
+    if (!config) return []
+    const candidate = config.connectableMethod
+      ? account(`${id}-available`, 'emir@sim.ai', config.connectableMethod)
+      : undefined
+    return [
+      {
+        providerId: id,
+        name,
+        ...config,
+        connectionCandidate: candidate,
+        fixtureAuthorization: true,
+      },
+    ]
+  })
 }
