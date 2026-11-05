@@ -44,9 +44,6 @@
         "@next/swc-linux-x64-gnu": "16.4.1",
       },
     },
-    "apps/css-proof": {
-      "name": "@sim/css-proof",
-    },
     "apps/desktop": {
       "name": "@sim/desktop",
       "version": "0.0.0",
@@ -2045,8 +2042,6 @@
     "@sim/browser-extension-protocol": ["@sim/browser-extension-protocol@workspace:packages/browser-extension-protocol"],
 
     "@sim/browser-protocol": ["@sim/browser-protocol@workspace:packages/browser-protocol"],
-
-    "@sim/css-proof": ["@sim/css-proof@workspace:apps/css-proof"],
 
     "@sim/db": ["@sim/db@workspace:packages/db"],
 

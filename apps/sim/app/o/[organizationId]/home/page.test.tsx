@@ -13,7 +13,10 @@ const mocks = vi.hoisted(() => ({ context: vi.fn(), prefetchHome: vi.fn() }))
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/organizations/surface', () => ({ getOrganizationSurfaceContext: mocks.context }))
 vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
-vi.mock('@/platform/lib/data/prefetch-home', () => ({ prefetchHome: mocks.prefetchHome }))
+vi.mock('@/platform/lib/data/prefetch', () => ({}))
+vi.mock('@/platform/lib/data/prefetch-member-inventory', () => ({
+  prefetchHome: mocks.prefetchHome,
+}))
 vi.mock('@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton', () => ({
   HomeDashboardSkeleton: ({ requestMode }: { requestMode: string }) => (
     <div>Home for {requestMode}</div>
@@ -39,6 +42,7 @@ import OrganizationSearchPage from '@/app/o/[organizationId]/search/page'
 const mockChat = mothershipChatLifecycleMockFns.mockGetAccessibleCopilotChatAuth
 
 const params = Promise.resolve({ organizationId: 'org-1', chatId: 'chat-1' })
+const searchParams = Promise.resolve({})
 const session = { user: { id: 'viewer', name: 'Taylor' }, session: { id: 'session-1' } }
 
 describe('organization Search page gates', () => {
@@ -54,7 +58,7 @@ describe('organization Search page gates', () => {
 
   it.each([
     ['Home', () => OrganizationHomePage({ params })],
-    ['Search', () => OrganizationSearchPage({ params })],
+    ['Search', () => OrganizationSearchPage({ params, searchParams })],
     ['chat', () => OrganizationChatPage({ params })],
     ['organization entry', () => OrganizationPage({ params })],
   ] as const)('denies %s to nonmembers before loading content', async (_name, open) => {

@@ -17,6 +17,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip'
 import { useSourceNavigation } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { useHydrated } from '@/hooks/use-hydrated'
 import styles from '@/platform/app/(shell)/_components/search/search.module.css'
 import { ActionMenu, type MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
@@ -171,7 +172,8 @@ export const CompactSourceRow = memo(function CompactSourceRow({
   source: SourceTagData
 }) {
   const label = sourceLabel(source)
-  const meta = sourceMeta(source)
+  // Its date is in the viewer's zone, which the server cannot render.
+  const meta = sourceMeta(useHydrated() ? source : { ...source, updatedAt: undefined })
   return (
     <div className={styles.compactRow}>
       <SourceMark source={source} />

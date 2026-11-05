@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { requireIntegrationsViewer } from '@/app/o/[organizationId]/integrations/access'
-import { OrganizationIntegrations } from '@/app/o/[organizationId]/integrations/integrations'
+import { HydratedIntegrations } from '@/app/o/[organizationId]/integrations/hydrated-integrations'
 import { integrationPath } from '@/platform/lib/integrations/model'
 
 export const metadata: Metadata = {
@@ -14,6 +14,9 @@ interface IntegrationProviderPageProps {
 
 export default async function IntegrationProviderPage({ params }: IntegrationProviderPageProps) {
   const { organizationId, provider } = await params
-  await requireIntegrationsViewer(organizationId, integrationPath(organizationId, provider))
-  return <OrganizationIntegrations section={provider} />
+  const viewer = await requireIntegrationsViewer(
+    organizationId,
+    integrationPath(organizationId, provider)
+  )
+  return <HydratedIntegrations {...viewer} section={provider} />
 }

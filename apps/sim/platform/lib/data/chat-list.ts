@@ -2,6 +2,7 @@
 
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import type { organizationRoutes } from '@/lib/navigation/paths'
 import {
   MothershipChatDeleteError,
   useDeleteMothershipChat,
@@ -11,6 +12,13 @@ import {
   useRenameMothershipChat,
   useSetMothershipChatPinned,
 } from '@/hooks/queries/mothership-chats'
+
+export function organizationChatHref(
+  chat: { id: string; mode?: string },
+  routes: ReturnType<typeof organizationRoutes>
+) {
+  return chat.mode === 'assistant' ? routes.searchChat(chat.id) : routes.chat(chat.id)
+}
 
 /** A partial bulk failure still reports which chats went, so the view can narrow what is left. */
 interface ChatRemoval {

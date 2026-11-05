@@ -69,8 +69,7 @@ export function ToolPermissions({
         const matching = matches.filter((tool) => tool.kind === kind)
         if (!matching.length) return null
         const tools = permissions.tools.filter((item) => item.kind === kind)
-        const defaultValue = permissions[kind]
-        const defaultLabel = POLICY_LABELS[defaultValue]
+        const defaultLabel = POLICY_LABELS[permissions[kind]]
         const groupValue = tools.every((tool) => tool.policy === tools[0].policy)
           ? tools[0].policy
           : MIXED
@@ -113,17 +112,11 @@ export function ToolPermissions({
                       description={
                         tool.inherited
                           ? `Inherits ${defaultLabel} from ${label.toLowerCase()}.`
-                          : `Choose ${defaultLabel} to inherit the default for ${label.toLowerCase()}.`
+                          : undefined
                       }
                       options={choices}
                       value={tool.policy}
-                      onSelect={(policy) =>
-                        onChange({
-                          kind: 'tool',
-                          toolId: tool.id,
-                          policy: policy === defaultValue ? null : policy,
-                        })
-                      }
+                      onSelect={(policy) => onChange({ kind: 'tool', toolId: tool.id, policy })}
                     />
                   </div>
                 </li>

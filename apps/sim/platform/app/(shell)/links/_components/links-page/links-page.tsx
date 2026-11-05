@@ -110,18 +110,21 @@ function LinkRowContextMenu({ links, children, ...actions }: LinkRowContextMenuP
 interface LinksTableProps extends RowActions {
   links: readonly SimLink[]
   loadMore: LoadMoreState
+  /** The instant "Updated" counts back from. The rows render on the server, so it can't be the clock. */
+  asOf: number | undefined
 }
 
 /** Memoized so a keystroke in the search field does not re-render every visible row. */
 const LinksTable = memo(function LinksTable({
   links,
   loadMore,
+  asOf,
   onCopy,
   onEdit,
   onDelete,
 }: LinksTableProps) {
   const rows = useMemo(() => {
-    const now = Date.now()
+    const now = asOf ?? Date.now()
     return links.map((link) => {
       const origin = simLinkOrigin(link.url)
       return {
@@ -173,7 +176,7 @@ const LinksTable = memo(function LinksTable({
         ),
       }
     })
-  }, [links, onCopy, onEdit, onDelete])
+  }, [links, asOf, onCopy, onEdit, onDelete])
 
   return (
     <LinkRowContextMenu links={links} onCopy={onCopy} onEdit={onEdit} onDelete={onDelete}>
@@ -233,6 +236,7 @@ export function LinksPage({ organizationId }: LinksPageProps) {
         <LinksTable
           links={links.rows}
           loadMore={links.loadMore}
+          asOf={links.asOf}
           onCopy={links.copy}
           onEdit={setEditing}
           onDelete={setDeleting}

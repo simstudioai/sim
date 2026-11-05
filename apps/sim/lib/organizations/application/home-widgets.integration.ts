@@ -24,12 +24,12 @@ import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspac
 import * as providerTransport from '@/lib/core/security/input-validation.server'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import { encryptManagedOAuthTokenSet } from '@/lib/credentials/managed-oauth'
+import * as knowledgeAvailability from '@/lib/knowledge/access/availability'
 import {
   readOrganizationHomeCalendar,
   readOrganizationHomeEmail,
 } from '@/lib/organizations/application/home-widgets'
 import { HOME_EMAIL_THREAD_LIMIT } from '@/lib/organizations/home/limits'
-import * as organizationSurface from '@/lib/organizations/surface'
 import { GET as getCalendarRoute } from '@/app/api/organizations/[id]/home/calendar/route'
 import { GET as getEmailRoute } from '@/app/api/organizations/[id]/home/email/route'
 
@@ -337,15 +337,13 @@ describe('whose mail a widget reads', () => {
 describe('what a widget reports', () => {
   it('refuses a member with no integrations surface, before any provider', async () => {
     serveProviders()
-    const real = await organizationSurface.getOrganizationSurfaceContext(organizationId, memberId)
-    if (!real) throw new Error('Fixture member has no organization surface')
-    const surface = vi.spyOn(organizationSurface, 'getOrganizationSurfaceContext')
-    surface.mockResolvedValueOnce({ ...real, connectedAccountsAvailable: false })
+    const memberScoped = vi.spyOn(knowledgeAvailability, 'isKnowledgeMemberAccessAvailable')
+    memberScoped.mockResolvedValueOnce(false)
     await expect(
       readOrganizationHomeEmail.execute({ principal: session(memberId), input })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(provider).not.toHaveBeenCalled()
-    surface.mockRestore()
+    memberScoped.mockRestore()
   })
 
   it('settles both reads on reconnect when they race a token the provider refuses', async () => {

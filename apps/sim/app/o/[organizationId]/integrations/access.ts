@@ -1,3 +1,4 @@
+import type { SessionPrincipal } from '@sim/auth/principal'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
@@ -10,7 +11,12 @@ import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 export async function requireIntegrationsViewer(organizationId: string, callbackUrl: string) {
   const session = await getSession()
   if (!session?.user) redirect(buildAuthCrossLink('/login', { callbackUrl, isInviteFlow: false }))
-  const context = await getOrganizationSurfaceContext(organizationId, session.user.id)
-  if (!context?.searchAccess.memberScoped) notFound()
-  return session.user.id
+  const surface = await getOrganizationSurfaceContext(organizationId, session.user.id)
+  if (!surface?.searchAccess.memberScoped) notFound()
+  const principal: SessionPrincipal = {
+    kind: 'session',
+    userId: session.user.id,
+    sessionId: session.session.id,
+  }
+  return { principal, surface }
 }

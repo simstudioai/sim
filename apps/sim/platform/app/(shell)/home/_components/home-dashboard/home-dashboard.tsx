@@ -55,7 +55,6 @@ export function HomeDashboard({ view, actions, requestMode, composer }: HomeDash
       notify({
         id,
         title: `${WIDGET_LABELS[widget]} hidden`,
-        icon: 'I072',
         action: 'Undo',
         onAction: () => actions.setWidgetHidden(widget, false),
       })

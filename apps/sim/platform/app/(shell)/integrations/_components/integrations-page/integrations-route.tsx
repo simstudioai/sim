@@ -25,6 +25,30 @@ import { EmptyState, InlineNotice } from '@/platform/design-system/components'
 import { useIntegrationActions, useMemberIntegrations } from '@/platform/lib/data/integrations'
 import { GENERIC_SECRETS_SEGMENT, integrationPath } from '@/platform/lib/integrations/model'
 
+const LOADING_CONNECTIONS = 'Loading your connections'
+const LOADING_CONNECTION = 'Loading connection'
+
+interface IntegrationsRouteFallbackProps {
+  /** A provider's page, which has no index heading to hold. */
+  detail: boolean
+}
+
+/** Holds the page's place while its prefetch settles, in the words its reads use once mounted. */
+export function IntegrationsRouteFallback({ detail }: IntegrationsRouteFallbackProps) {
+  return (
+    <IntegrationsPage>
+      {detail ? (
+        <InlineNotice message={LOADING_CONNECTION} />
+      ) : (
+        <>
+          <IntegrationsHeading />
+          <InlineNotice message={LOADING_CONNECTIONS} />
+        </>
+      )}
+    </IntegrationsPage>
+  )
+}
+
 export interface IntegrationsRouteProps {
   organizationId: string
   /** The `/integrations/[provider]` segment; absent on the index. */
@@ -55,7 +79,7 @@ export function IntegrationsRoute({
   const inventoryStatus = inventory.error ? (
     <QueryFailure message='Could not load your connections' query={inventory} />
   ) : !inventory.data ? (
-    <InlineNotice message='Loading your connections' />
+    <InlineNotice message={LOADING_CONNECTIONS} />
   ) : null
   const readFailures = (
     <>
@@ -113,7 +137,7 @@ export function IntegrationsRoute({
       : { href: indexHref, label: 'Integrations' }
   const unavailable = (loading: boolean) =>
     loading ? (
-      <InlineNotice message='Loading connection' />
+      <InlineNotice message={LOADING_CONNECTION} />
     ) : (
       <EmptyState title='This integration is no longer available.' />
     )

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { RedesignHost } from '@/app/o/[organizationId]/_redesign/redesign-host'
+import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 
 interface IntegrationsHostProps {
   children: ReactNode
@@ -9,7 +9,7 @@ interface IntegrationsHostProps {
 export function IntegrationsHost({ children }: IntegrationsHostProps) {
   return (
     <div className='h-full overflow-y-auto [&>[data-platform-ui]]:min-h-full'>
-      <RedesignHost>{children}</RedesignHost>
+      <RedesignSurface>{children}</RedesignSurface>
     </div>
   )
 }

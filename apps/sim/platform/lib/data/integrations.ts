@@ -31,7 +31,7 @@ function useActionFailureNotice() {
     notices.notify({
       id: ACTION_NOTICE_ID,
       title: getErrorMessage(error, 'That did not work. Try again.'),
-      icon: 'I070',
+      variant: 'error',
     })
 }
 
@@ -51,13 +51,16 @@ export function useMemberIntegrations(organizationId: string) {
   }
 }
 
+/** A failure reports itself. */
 export function useIntegrationActions(organizationId: string) {
   const connect = useConnectOrganizationAccount()
   const reconnect = useReconnectPersonalOrganizationAccount()
   const disconnect = useDisconnectPersonalOrganizationAccount()
   const onError = useActionFailureNotice()
+  const connecting = connect.isPending || reconnect.isPending
   return {
-    pending: connect.isPending || reconnect.isPending || disconnect.isPending,
+    connecting,
+    pending: connecting || disconnect.isPending,
     connect: (target: NonNullable<OrganizationIntegration['connectionTarget']>) =>
       connect.mutate({ organizationId, ...target }, { onError }),
     reconnect: (credentialId: string) => reconnect.mutate(credentialId, { onError }),

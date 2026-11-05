@@ -15,19 +15,13 @@ import {
   canReadMemberIntegrations,
   memberIntegrationEntries,
 } from '@/lib/credential-groups/member-integrations'
-import { hasSearchIntegrationReady } from '@/lib/credential-groups/search-readiness'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { useGetStartedSteps } from '@/app/o/[organizationId]/home/components/get-started/use-get-started-steps'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { useOrganizationAccessRequests } from '@/hooks/queries/access-requests'
 import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
-import { useHasSearchAuthorization } from '@/hooks/queries/oauth-provider'
-import {
-  useConnectOrganizationAccount,
-  useDisconnectPersonalOrganizationAccount,
-  useOrganizationAccounts,
-  useReconnectPersonalOrganizationAccount,
-} from '@/hooks/queries/organization-accounts'
+import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
 import { useOrganizationActivitySummary } from '@/hooks/queries/organization-activity'
 import {
   useOrganizationHomeCalendar,
@@ -42,7 +36,6 @@ import type {
   HomeActions,
   HomeActivityState,
   HomeCalendarDay,
-  HomeGetStartedStep,
   HomeListState,
   HomeView,
   HomeWidgetActions,
@@ -50,6 +43,7 @@ import type {
 } from '@/platform/app/(shell)/home/_components/model'
 import { homeDayParam } from '@/platform/app/(shell)/home/search-params'
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
+import { organizationChatHref } from '@/platform/lib/data/chat-list'
 import {
   greetingAt,
   HOME_CALENDAR_SOURCES,
@@ -67,6 +61,7 @@ import {
   toTaskPoints,
   wallClockMinute,
 } from '@/platform/lib/data/home-model'
+import { useIntegrationActions } from '@/platform/lib/data/integrations'
 import { MINUTE_MS } from '@/platform/lib/time'
 import {
   type OrganizationHomeWidget,
@@ -138,21 +133,12 @@ function useHomeIntegrations(organization: OrganizationSurfaceContext) {
 }
 
 function useConnectionActions(organizationId: string): Omit<HomeWidgetActions, 'retry'> {
-  const connect = useConnectOrganizationAccount()
-  const reconnect = useReconnectPersonalOrganizationAccount()
-  const disconnect = useDisconnectPersonalOrganizationAccount()
-  const reportFailure = (error: unknown) =>
-    toast.error(getErrorMessage(error, 'The account could not be connected.'))
-  const connecting = connect.isPending || reconnect.isPending
+  const { connecting, connect, reconnect, disconnect } = useIntegrationActions(organizationId)
   return {
-    connect: connecting
-      ? undefined
-      : (optionId) => connect.mutate({ organizationId, optionId }, { onError: reportFailure }),
-    reconnect: connecting
-      ? undefined
-      : (credentialId) => reconnect.mutate(credentialId, { onError: reportFailure }),
+    connect: connecting ? undefined : (optionId) => connect({ optionId }),
+    reconnect: connecting ? undefined : reconnect,
     disconnect: async (credentialId) => {
-      await disconnect.mutateAsync({ credentialId, organizationId })
+      await disconnect(credentialId)
     },
   }
 }
@@ -263,7 +249,7 @@ function useHomeActivity(
 function useHomeRecents(organization: OrganizationSurfaceContext, userId: string | undefined) {
   const organizationId = organization.organization.id
   const allowed = organization.searchAccess.memberScoped
-  const history = useSearchHistory(allowed ? organizationId : undefined)
+  const history = useSearchHistory(allowed ? organizationId : undefined, userId)
   const remove = useRemoveSearchHistorySource(organizationId, userId)
   const state: HomeListState<RecentItem> = !allowed
     ? { status: 'ready', items: [] }
@@ -301,7 +287,7 @@ function useHomeAttention(
     chats: (chats.data ?? []).map((chat) => ({
       id: chat.id,
       title: chat.name,
-      href: chat.mode === 'assistant' ? routes.searchChat(chat.id) : routes.chat(chat.id),
+      href: organizationChatHref(chat, routes),
       isUnread: chat.isUnread,
       updatedAt: chat.updatedAt.getTime(),
     })),
@@ -331,39 +317,6 @@ function useHomeAttention(
       if (canReview) void requests.refetch()
     },
   }
-}
-
-/** Search-only members start here, so their onboarding comes with the Assistant composer. */
-function useHomeGetStarted(
-  organization: OrganizationSurfaceContext,
-  integrations: ReturnType<typeof useHomeIntegrations>,
-  assistant: boolean
-): HomeGetStartedStep[] {
-  const { viewer, connectedAccountsAvailable, searchAccess } = organization
-  const authorized = useHasSearchAuthorization(viewer.canUseSearchMcp && assistant)
-
-  if (!assistant || !searchAccess.memberScoped) return []
-  const routes = organizationRoutes(organization.organization.id)
-  const steps: HomeGetStartedStep[] = []
-  if (viewer.canConnectSearchIntegrations && connectedAccountsAvailable) {
-    steps.push({
-      id: 'connect-integration',
-      title: 'Connect an integration',
-      detail: 'Choose what Sim can search for you',
-      href: viewer.isAdmin ? routes.settingsSection('integrations') : routes.integrations,
-      complete: hasSearchIntegrationReady(integrations.accounts.data, integrations.policies.data),
-    })
-  }
-  if (viewer.canUseSearchMcp) {
-    steps.push({
-      id: 'connect-sim-search',
-      title: 'Connect Sim Search MCP',
-      detail: 'Use your company’s knowledge from your other AI tools',
-      href: routes.settingsSection('search-mcp'),
-      complete: authorized,
-    })
-  }
-  return steps
 }
 
 function firstNameOf(user: { name?: string | null; email?: string | null } | null | undefined) {
@@ -422,7 +375,8 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
     connectionActions.reconnect,
     [email.state, calendar.state].flatMap((state) => ('accounts' in state ? state.accounts : []))
   )
-  const getStarted = useHomeGetStarted(organization, integrations, assistant)
+  // Search-only members start here, so their onboarding comes with the Assistant composer.
+  const getStarted = useGetStartedSteps(assistant && organization.searchAccess.memberScoped)
 
   const showDay = (day: string | null) =>
     void setSelectedDay(day === today ? null : day, { history: 'replace', scroll: false })

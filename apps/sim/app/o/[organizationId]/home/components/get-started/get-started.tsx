@@ -5,25 +5,7 @@ import { cn } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import { HomeSection } from '@/components/home/home-section'
 import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
-import { hasSearchIntegrationReady } from '@/lib/credential-groups/search-readiness'
-import { organizationRoutes } from '@/lib/navigation/paths'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import { useHasSearchAuthorization } from '@/hooks/queries/oauth-provider'
-import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
-import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
-
-type StepId = 'connect-integration' | 'connect-sim-search'
-
-interface GetStartedStep {
-  id: StepId
-  label: string
-}
-
-/** The onboarding steps, in the order a new organization works through them. */
-const STEPS: readonly GetStartedStep[] = [
-  { id: 'connect-integration', label: 'Connect an integration' },
-  { id: 'connect-sim-search', label: 'Connect Sim Search MCP' },
-]
+import { useGetStartedSteps } from '@/app/o/[organizationId]/home/components/get-started/use-get-started-steps'
 
 const ROW_CLASS =
   'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors hover-hover:bg-[var(--surface-5)]'
@@ -70,30 +52,7 @@ function StepMark({ complete }: { complete: boolean }) {
  * and reads as done from the organization's real state: a configured integration and an OAuth app authorized to use Search.
  */
 export function GetStarted() {
-  const { organization, viewer, connectedAccountsAvailable } = useOrganizationContext()
-  const routes = organizationRoutes(organization.id)
-  const canConnectIntegrations = viewer.canConnectSearchIntegrations && connectedAccountsAvailable
-  const { data: accounts } = useOrganizationAccounts(
-    canConnectIntegrations ? organization.id : undefined
-  )
-  const { data: integrations } = useSearchIntegrations(organization.id, {
-    enabled: canConnectIntegrations,
-  })
-  const hasSearchAuthorization = useHasSearchAuthorization(viewer.canUseSearchMcp)
-
-  const hrefs: Record<StepId, string> = {
-    'connect-integration': viewer.isAdmin
-      ? routes.settingsSection('integrations')
-      : routes.integrations,
-    'connect-sim-search': routes.settingsSection('search-mcp'),
-  }
-  const completed: Record<StepId, boolean> = {
-    'connect-integration': hasSearchIntegrationReady(accounts, integrations),
-    'connect-sim-search': hasSearchAuthorization,
-  }
-  const steps = STEPS.filter((step) =>
-    step.id === 'connect-sim-search' ? viewer.canUseSearchMcp : canConnectIntegrations
-  )
+  const steps = useGetStartedSteps()
 
   const [expanded, setExpanded] = useState(true)
   /**
@@ -118,14 +77,9 @@ export function GetStarted() {
       animationsEnabled={animationsEnabled}
       onToggle={handleToggleExpanded}
     >
-      {steps.map((step, i) => {
-        const complete = completed[step.id]
+      {steps.map(({ id, title, href, complete }, i) => {
         return (
-          <SettingsGuardedLink
-            key={step.id}
-            href={hrefs[step.id]}
-            className={cn(ROW_CLASS, i > 0 && 'border-t')}
-          >
+          <SettingsGuardedLink key={id} href={href} className={cn(ROW_CLASS, i > 0 && 'border-t')}>
             <StepMark complete={complete} />
             <span
               className={cn(
@@ -133,7 +87,7 @@ export function GetStarted() {
                 complete ? 'text-[var(--brand-blue)]' : 'text-[var(--text-body)]'
               )}
             >
-              {step.label}
+              {title}
             </span>
             <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
           </SettingsGuardedLink>
