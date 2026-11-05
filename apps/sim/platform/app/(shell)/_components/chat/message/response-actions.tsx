@@ -27,7 +27,6 @@ export function ResponseActions({ turn }: ResponseActionsProps) {
   const { rate, fork } = useChatHandlers()
   const [feedback, setFeedback] = useState<Rating | null>(null)
   const [rating, setRating] = useState<Rating | null>(null)
-  const [details, setDetails] = useState('')
   return (
     <>
       <div className={styles.responseActions} data-type='T060'>
@@ -56,16 +55,13 @@ export function ResponseActions({ turn }: ResponseActionsProps) {
         variant='feedback'
         open={feedback !== null}
         onOpenChange={(open) => {
-          if (!open) {
-            setFeedback(null)
-            setDetails('')
-          }
+          if (!open) setFeedback(null)
         }}
         title='Share feedback'
         description='What could Sim have done better?'
         confirmLabel='Send feedback'
-        onConfirm={async () => {
-          const written = details.trim()
+        onConfirm={async (values) => {
+          const written = String(values.get('details') ?? '').trim()
           // An empty details field sends nothing, as the rating alone means little to read.
           if (rate && written && turn.userQuery && feedback) {
             await rate({
@@ -77,7 +73,6 @@ export function ResponseActions({ turn }: ResponseActionsProps) {
           }
           setRating(feedback)
           setFeedback(null)
-          setDetails('')
         }}
       >
         {feedback && (
@@ -100,8 +95,7 @@ export function ResponseActions({ turn }: ResponseActionsProps) {
                 label='Details'
                 placeholder='Tell us what was missing or how the response could improve.'
                 density='expanded'
-                value={details}
-                onChange={setDetails}
+                name='details'
               />
             </FieldFrame>
             {turn.requestId && <CopyField label='Request ID' value={turn.requestId} />}
