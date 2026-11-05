@@ -8,12 +8,12 @@ function requireEnv(name: string): string {
 
 /** A seeded admin of an Enterprise organization, or a self-hosted deployment with these features on. */
 async function signIn(page: Page, section: string) {
-  await page.goto(`/platform/settings/${section}`)
+  await page.goto(`/org/settings/${section}`)
   await expect(page).toHaveURL(/\/login\?/)
   await page.locator('#email').fill(requireEnv('PLATFORM_LIVE_ADMIN_EMAIL'))
   await page.locator('#password').fill(requireEnv('PLATFORM_LIVE_ADMIN_PASSWORD'))
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-  await expect(page).toHaveURL(new RegExp(`/platform/settings/${section}`))
+  await expect(page).toHaveURL(new RegExp(`/org/settings/${section}`))
 }
 
 const organizationId = () => requireEnv('PLATFORM_LIVE_ORGANIZATION_ID')
@@ -25,14 +25,14 @@ test.describe('governance settings', () => {
       (request) =>
         request.url().includes('/api/audit-logs?') && !request.url().includes('workspaceId')
     )
-    await page.goto('/platform/settings/audit-logs')
+    await page.goto('/org/settings/audit-logs')
     await orgWideRead
 
     const reads: string[] = []
     page.on('request', (request) => {
       if (request.url().includes('/api/audit-logs')) reads.push(request.url())
     })
-    await page.goto('/platform/settings/audit-logs?workspace=not-a-real-workspace')
+    await page.goto('/org/settings/audit-logs?workspace=not-a-real-workspace')
     await expect(page.getByText('That workspace is not part of this organization.')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Export' })).toBeDisabled()
     await page.getByRole('button', { name: 'Refresh' }).click()
@@ -87,7 +87,7 @@ test.describe('governance settings', () => {
     page.on('response', async (response) => {
       if (response.url().includes('/api/auth/sso/providers')) bodies.push(await response.text())
     })
-    await page.goto('/platform/settings/sso')
+    await page.goto('/org/settings/sso')
     await expect(page.getByRole('radio', { name: 'Domains' })).toBeAttached()
     for (const body of bodies) {
       expect(body).not.toMatch(/"clientSecret":"(?!\[REDACTED\])/)

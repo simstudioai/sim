@@ -25,14 +25,14 @@ The same app serves three modes, resolved on the server:
 | `live` | `SIM_PLATFORM_API_ORIGIN`, `NEXT_PUBLIC_APP_URL` | The viewer's real organization, over the main app's `/api` |
 | `none` | Neither | Empty routes |
 
-Deployed, the Platform is a zone at `/platform` on the main app's origin, so it shares the session cookie, `/api` and security headers:
+Deployed, the Platform is a zone at `/org` on the main app's origin, so it shares the session cookie, `/api` and security headers:
 
 | Variable | Set on | Purpose |
 | --- | --- | --- |
-| `SIM_PLATFORM_BASE_PATH=/platform` | Platform, at build | Prefixes routes and assets |
+| `SIM_PLATFORM_BASE_PATH=/org` | Platform, at build | Prefixes routes and assets |
 | `SIM_PLATFORM_API_ORIGIN` | Platform, at runtime | Where server reads go, with the viewer's cookies |
 | `NEXT_PUBLIC_APP_URL` | Platform, at runtime | The main app's public origin, for login and legacy links |
-| `SIM_PLATFORM_ORIGIN` | Main app, at build and runtime | The `/platform` rewrite is baked at build; the organization redirect reads it at runtime |
+| `SIM_PLATFORM_ORIGIN` | Main app, at build and runtime | The `/org` rewrite is baked at build; the organization redirect reads it at runtime |
 | `platform-org-ui` flag | AppConfig, or `PLATFORM_ORG_UI` | Which organizations the legacy layout redirects here |
 
 With none of these set, nothing changes for either app. The legacy layout redirects only flagged members, keeps its query string, and leaves unmapped routes on the legacy surface. To run live locally without the zone, start the main app, sign in at its origin, then start this app with `SIM_PLATFORM_API_ORIGIN=http://localhost:3000` and `NEXT_PUBLIC_APP_URL=http://localhost:3000`; with no base path it proxies `/api` itself.

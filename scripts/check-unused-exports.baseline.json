@@ -1234,7 +1234,6 @@
   "apps/sim/lib/api/contracts/cli-auth.ts#approveCliAuthBodySchema",
   "apps/sim/lib/api/contracts/cli-auth.ts#cliAuthScopeSchema",
   "apps/sim/lib/api/contracts/cli-auth.ts#pollCliAuthBodySchema",
-  "apps/sim/lib/api/contracts/common.ts#HelpFormBody",
   "apps/sim/lib/api/contracts/common.ts#IntegrationRequestBody",
   "apps/sim/lib/api/contracts/common.ts#OAuthServiceAvailabilityResponse",
   "apps/sim/lib/api/contracts/common.ts#integrationAvailabilitySchema",

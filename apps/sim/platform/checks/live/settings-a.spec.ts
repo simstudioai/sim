@@ -15,10 +15,10 @@ async function signIn(page: Page, callback: string) {
   await expect(page).toHaveURL(/\/platform(?:\/|$)/)
 }
 
-const settings = (path = '') => `/platform/settings${path}`
+const settings = (path = '') => `/org/settings${path}`
 
 test.beforeEach(async ({ page }) => {
-  await signIn(page, '/platform')
+  await signIn(page, '/org')
 })
 
 test('a theme chosen here persists across a reload and repaints the shell', async ({ page }) => {

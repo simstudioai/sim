@@ -61,7 +61,7 @@ function useWaitClock(messages: readonly ChatMessage[], streaming: boolean): num
 /** History timestamps, then the first instant a live message appeared. */
 function useMessageClock(chatId: string | undefined) {
   const history = useMothershipChatHistory(chatId)
-  const seen = useRef(new Map<string, number>())
+  const seen = useRef<Map<string, number> | null>(null)
   const persisted = useMemo(() => {
     const map = new Map<string, number>()
     for (const message of history.data?.messages ?? []) {
@@ -74,6 +74,7 @@ function useMessageClock(chatId: string | undefined) {
     (message: ChatMessage): number | undefined => {
       const stored = persisted.get(message.id)
       if (stored) return stored
+      seen.current ??= new Map()
       const first = seen.current.get(message.id)
       if (first) return first
       const at = Date.now()

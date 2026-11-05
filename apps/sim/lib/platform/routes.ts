@@ -3,8 +3,8 @@
  * server components, and client code all read it.
  */
 
-/** Where the main app's `/platform` rewrite in `next.config.ts` mounts the zone. */
-const PLATFORM_BASE_PATH = '/platform'
+/** Where the main app's `/org` rewrite in `next.config.ts` mounts the zone. */
+const PLATFORM_BASE_PATH = '/org'
 
 /**
  * Carries the requested `/o/...` URL from the proxy to the organization layout, which Next gives no

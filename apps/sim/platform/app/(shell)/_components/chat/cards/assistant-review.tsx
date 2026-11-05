@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import styles from '@/platform/app/(shell)/_components/chat/cards/cards.module.css'
 import type {
   AssistantReceipt,
@@ -146,7 +147,7 @@ export function AssistantReview({ turnId }: { turnId: string }) {
         Object.fromEntries(Object.entries(current).filter(([id]) => !ids.includes(id)))
       )
     } catch (error) {
-      setFailure(error instanceof Error ? error.message : 'Could not save this review')
+      setFailure(getErrorMessage(error, 'Could not save this review'))
     }
   }
   if (status === 'error')
