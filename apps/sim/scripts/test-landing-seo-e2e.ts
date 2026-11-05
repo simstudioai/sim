@@ -422,6 +422,28 @@ async function run() {
     assert(String(product['@id']).endsWith('#software'), `Offers sit on ${product['@id']}`)
   })
 
+  await check('pricing says self-hosting the open-source core is free', async () => {
+    const { body } = await get('/pricing')
+    const visibleText = decodeHtml(
+      body
+        .replace(/<script\b[\s\S]*?<\/script>/g, '')
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/<[^>]+>/g, '')
+    )
+    assert(visibleText.includes('open source under the Apache 2.0 license'), 'license note missing')
+    assert(visibleText.includes('self-host it for free'), 'self-hosting note missing')
+    assert(visibleText.includes('Self-Hosted Enterprise Features'), 'Enterprise row label missing')
+  })
+
+  await check('Copilot Studio comparison aliases reach the comparison page', async () => {
+    for (const alias of ['microsoft-copilot-studio', 'copilot-studio']) {
+      const { status, location } = await get(`/comparisons/${alias}`)
+      assert.equal(status, 308, alias)
+      assert(location, `${alias}: expected a redirect`)
+      assert.equal(new URL(location, baseUrl).pathname, '/comparisons/microsoft-copilot', alias)
+    }
+  })
+
   await check('comparison pages lead with their answer and their tracked-prompt FAQs', async () => {
     const failures: string[] = []
     for (const profile of [

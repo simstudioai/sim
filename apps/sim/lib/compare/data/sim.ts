@@ -181,7 +181,7 @@ export const simProfile: CompetitorProfile = {
         value:
           'Cloud-hosted (managed, multi-tenant SaaS) or self-hosted (Docker/Kubernetes). No documented managed single-tenant/VPC hosting tier in between',
         detail:
-          'The Enterprise plan\'s only hosting-related row in the pricing comparison table is a boolean "Self Hosting" flag; there is no dedicated-instance/VPC offering.',
+          'The Enterprise plan\'s only hosting-related row in the pricing comparison table is a boolean "Self-Hosted Enterprise Features" flag; there is no dedicated-instance/VPC offering.',
         shortValue: 'Cloud-hosted or self-hosted, no mid-tier VPC option',
         confidence: 'verified',
         sources: [
