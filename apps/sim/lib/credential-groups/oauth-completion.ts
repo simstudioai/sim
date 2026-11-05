@@ -17,7 +17,7 @@ export const CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES = {
     'Sim could not confirm which account an existing connection belongs to. Reconnect it, then try adding another account.',
   account_unverified: 'Sim could not confirm which account this is. Try connecting it again.',
   account_mismatch:
-    'Reconnect with the account originally used for this connection. To use a different account, add it from Integrations.',
+    'Reconnect with the account originally used for this connection. To use a different account, disconnect this one or add it from Integrations.',
   rate_limited: 'Authorization is being rate limited. Wait a few minutes and try again.',
   provider_unavailable:
     'The account provider could not verify your account right now. Try connecting again in a few minutes.',

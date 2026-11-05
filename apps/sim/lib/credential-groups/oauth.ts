@@ -228,6 +228,7 @@ async function persistGrant(
       .select({
         id: credential.id,
         revokedAt: credential.revokedAt,
+        managedOauthStatus: credential.managedOauthStatus,
         providerSubjectId: credential.providerSubjectId,
         providerTenantId: credential.providerTenantId,
         encryptedOauthTokenSet: credential.encryptedOauthTokenSet,

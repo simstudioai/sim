@@ -18,6 +18,7 @@ import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CredentialGroupOAuthContext } from '@/lib/credential-groups/enrollments'
+import { listCredentialGroupEnrollments } from '@/lib/credential-groups/enrollments'
 import { identifyStoredManagedMcpConnections } from '@/lib/credential-groups/mcp-oauth'
 import { completeCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
 import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
@@ -336,6 +337,21 @@ describe('reconnecting one of several accounts', () => {
   })
 })
 
+describe('adding an account that needs reconnecting', () => {
+  it('refreshes it instead of calling it already connected', async () => {
+    const first = await connect('work@first-tenant.test', { kind: 'create' })
+    await db
+      .update(credential)
+      .set({ managedOauthStatus: 'needs_reauth' })
+      .where(eq(credential.id, first.credentialId))
+
+    const refreshed = await connect('work@first-tenant.test', { kind: 'create' })
+
+    expect(refreshed).toMatchObject({ created: false, credentialId: first.credentialId })
+    expect(await rows()).toMatchObject([{ status: 'active' }])
+  })
+})
+
 describe('after disconnecting', () => {
   it('does not let reconnecting a disconnected account exceed the limit', async () => {
     const created = []
@@ -483,6 +499,32 @@ describe('managed MCP accounts', () => {
     expect(await failureOf(connectMcp(null, intent))).toBe('account_unverified')
   })
 
+  it('keeps the People list working when someone has several accounts of one server', async () => {
+    await connectMcp(identityOf('one'), { kind: 'create' })
+    await connectMcp(identityOf('two'), { kind: 'create' })
+
+    const { enrollments } = await listCredentialGroupEnrollments(
+      { kind: 'organization', organizationId },
+      groupId,
+      10
+    )
+
+    expect(enrollments[0]?.mcpConnections).toEqual([
+      { mcpServerId, name: 'Notion', status: 'active', count: 2 },
+    ])
+  })
+
+  it('reconnects a lone account when the provider cannot identify it, keeping its identity', async () => {
+    const only = await connectMcp(identityOf('one'), { kind: 'create' })
+
+    await expect(
+      connectMcp(null, { kind: 'reconnect', credentialId: only.connectionId })
+    ).resolves.toMatchObject({ created: false, connectionId: only.connectionId })
+    await expect(connectMcp(null)).resolves.toMatchObject({ connectionId: only.connectionId })
+
+    expect(await mcpRows()).toMatchObject([{ subject: 'one', displayName: 'one@example.test' }])
+  })
+
   it('still connects a first account when the provider cannot identify it', async () => {
     await expect(connectMcp(null, { kind: 'create' })).resolves.toMatchObject({ created: true })
     expect(await mcpRows()).toMatchObject([{ subject: null, displayName: 'Notion' }])
@@ -524,7 +566,7 @@ describe('managed MCP accounts', () => {
       await identifyStored(notionSelf('one'))
 
       expect(await mcpRows()).toMatchObject([
-        { id: legacy.connectionId, subject: 'one', displayName: 'one@example.test' },
+        { id: legacy.connectionId, subject: 'one', displayName: 'one@example.test · Fixture' },
       ])
       await expect(connectMcp(identityOf('two'), { kind: 'create' })).resolves.toMatchObject({
         created: true,
@@ -564,6 +606,17 @@ describe('managed MCP accounts', () => {
 
       await connectMcp(identityOf('two'), { kind: 'create' })
       expect(await mcpRows()).toHaveLength(2)
+    })
+
+    it('keeps its id when disconnected and connected again, so workflows pinned to it survive', async () => {
+      const legacy = await connectMcp(null, { kind: 'create' })
+      await disconnect(legacy.connectionId)
+
+      await expect(connectMcp(identityOf('one'), { kind: 'create' })).resolves.toMatchObject({
+        created: false,
+        connectionId: legacy.connectionId,
+      })
+      expect(await mcpRows()).toMatchObject([{ id: legacy.connectionId, subject: 'one' }])
     })
 
     it('refuses to adopt an identity another connection already holds', async () => {

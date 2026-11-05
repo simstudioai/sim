@@ -10,7 +10,7 @@ import {
 } from '@/lib/credential-groups/oauth-intent'
 
 const MCP_OAUTH_ATTEMPT_TTL_MS = 10 * 60 * 1000
-const MCP_OAUTH_ATTEMPT_VERSION = 3 as const
+const MCP_OAUTH_ATTEMPT_VERSION = 4 as const
 const MCP_OAUTH_STATE_PREFIX = 'mcp_cg_'
 
 const CONSUME_SCRIPT = `

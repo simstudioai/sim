@@ -8,6 +8,7 @@ import { CredentialGroupOAuthError } from '@/lib/credential-groups/provider-adap
 interface ConnectedAccount {
   id: string
   revokedAt: Date | null
+  managedOauthStatus: string | null
   providerSubjectId: string | null
   providerTenantId: string | null
 }
@@ -23,10 +24,10 @@ function accountConflict(failure: CredentialGroupOAuthFailure) {
 
 /**
  * Applies what the member asked for to the account the provider verified, returning the row to
- * refresh or `undefined` to add one. A person adds accounts explicitly, so a reconnect or an
- * intentless invitation link never grows the set by itself. A managed MCP row or identity may be
- * unknown: that account can stay connected, but nothing else can be added beside it until it is
- * reconnected, since the two could be the same account.
+ * refresh or `undefined` to add one. Only an explicit add can grow the set. A managed MCP row or
+ * identity may be unknown. A lone account still reconnects, as it always could, but nothing is added
+ * beside an unknown account, since the two could be the same one. A disconnected unknown row is
+ * reused so tool references pinned to its id keep working.
  */
 export function resolveAccountWrite<Account extends ConnectedAccount>({
   intent,
@@ -48,6 +49,9 @@ export function resolveAccountWrite<Account extends ConnectedAccount>({
     : undefined
   const live = accounts.filter((account) => !account.revokedAt)
   const hasUnidentifiedLive = live.some((account) => account.providerSubjectId === null)
+  const disconnectedUnidentified = accounts.find(
+    (account) => account.revokedAt && account.providerSubjectId === null
+  )
 
   if (intent?.kind === 'reconnect') {
     const target = accounts.find((account) => account.id === intent.credentialId)
@@ -56,31 +60,34 @@ export function resolveAccountWrite<Account extends ConnectedAccount>({
         'The account changed during authorization. Refresh your connections and try again.',
         409
       )
-    if (target.providerSubjectId !== null && !identity) throw accountConflict('account_unverified')
-    if (existing ? existing.id !== target.id : target.providerSubjectId !== null)
-      throw accountConflict('account_mismatch')
+    if (identity) {
+      if (existing ? existing.id !== target.id : target.providerSubjectId !== null)
+        throw accountConflict('account_mismatch')
+    } else if (
+      target.providerSubjectId !== null &&
+      live.some((account) => account.id !== target.id)
+    ) {
+      throw accountConflict('account_unverified')
+    }
     if (target.revokedAt && live.length >= limit) throw accountConflict('account_limit_reached')
     return target
   }
 
   if (intent?.kind === 'create') {
-    if (existing && !existing.revokedAt) throw accountConflict('account_already_connected')
+    if (existing && !existing.revokedAt) {
+      if (existing.managedOauthStatus === 'active')
+        throw accountConflict('account_already_connected')
+      return existing
+    }
     if (live.length > 0 && !identity) throw accountConflict('account_unverified')
     if (hasUnidentifiedLive) throw accountConflict('account_identity_required')
     if (live.length >= limit) throw accountConflict('account_limit_reached')
-    return (
-      existing ??
-      (identity ? undefined : accounts.find((account) => account.providerSubjectId === null))
-    )
+    return existing ?? (live.length === 0 ? disconnectedUnidentified : undefined)
   }
 
   if (existing && !existing.revokedAt) return existing
-  if (live.length === 0)
-    return (
-      existing ??
-      (identity ? undefined : accounts.find((account) => account.providerSubjectId === null))
-    )
-  if (live.length === 1 && hasUnidentifiedLive && !existing) return live[0]
+  if (live.length === 0) return existing ?? disconnectedUnidentified
+  if (live.length === 1 && !existing && (!identity || hasUnidentifiedLive)) return live[0]
   throw accountConflict(identity ? 'account_mismatch' : 'account_unverified')
 }
 

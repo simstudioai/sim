@@ -3169,15 +3169,8 @@
     {
       "idx": 453,
       "version": "7",
-      "when": 1793908192283,
-      "tag": "0453_credential_multiple_accounts_per_option",
-      "breakpoints": true
-    },
-    {
-      "idx": 454,
-      "version": "7",
-      "when": 1793911189472,
-      "tag": "0454_credential_managed_mcp_account_identity",
+      "when": 1793920630365,
+      "tag": "0453_credential_multiple_accounts_per_provider",
       "breakpoints": true
     }
   ]

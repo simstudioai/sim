@@ -19,7 +19,11 @@ describe('reading the connected account from a provider response', () => {
           user: { type: 'person', id: 'user-1', name: 'Pat', email: 'pat@example.test' },
         })
       )
-    ).toEqual({ subject: 'user-1', tenant: 'workspace-1', label: 'pat@example.test' })
+    ).toEqual({
+      subject: 'user-1',
+      tenant: 'workspace-1',
+      label: 'pat@example.test · Engineering',
+    })
   })
 
   it('falls back to the workspace name for a Notion bot with no email', () => {

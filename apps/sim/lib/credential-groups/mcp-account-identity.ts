@@ -70,14 +70,15 @@ export function readManagedMcpAccountIdentity(
       const subject = stringOrNumber(user.id)
       const tenant = stringOrNumber(workspace.id)
       if (!subject || !tenant) return null
+      const person = stringOrNumber(user.email) ?? stringOrNumber(user.name)
+      const workspaceName = stringOrNumber(workspace.name)
       return {
         subject,
         tenant,
         label:
-          stringOrNumber(user.email) ??
-          stringOrNumber(user.name) ??
-          stringOrNumber(workspace.name) ??
-          subject,
+          person && workspaceName
+            ? `${person} · ${workspaceName}`
+            : (person ?? workspaceName ?? subject),
       }
     }
     case 'hubspot': {
@@ -87,7 +88,7 @@ export function readManagedMcpAccountIdentity(
       return {
         subject: stringOrNumber(record.userId) ?? tenant,
         tenant,
-        label: stringOrNumber(record.email) ?? `HubSpot account ${tenant}`,
+        label: `HubSpot account ${tenant}`,
       }
     }
     case 'granola':

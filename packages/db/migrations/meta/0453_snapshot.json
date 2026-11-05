@@ -1,5 +1,5 @@
 {
-  "id": "53f5f835-7051-4ca4-bfd7-33af7dce7464",
+  "id": "ae1c3abd-b4a0-4658-8dd6-4858c603d078",
   "prevId": "35b63b2c-4264-43f4-950e-3458173a8603",
   "version": "7",
   "dialect": "postgresql",
@@ -4207,8 +4207,8 @@
           "method": "btree",
           "with": {}
         },
-        "credential_managed_mcp_enrollment_server_unique": {
-          "name": "credential_managed_mcp_enrollment_server_unique",
+        "credential_managed_mcp_enrollment_server_identity_unique": {
+          "name": "credential_managed_mcp_enrollment_server_identity_unique",
           "columns": [
             {
               "expression": "credential_group_enrollment_id",
@@ -4220,6 +4220,18 @@
               "expression": "mcp_server_id",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "coalesce(\"provider_subject_id\", '')",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "coalesce(\"provider_tenant_id\", '')",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -4458,7 +4470,7 @@
         },
         "credential_managed_mcp_source_check": {
           "name": "credential_managed_mcp_source_check",
-          "value": "(type::text <> 'managed_mcp') OR (\n        id LIKE 'mcp-cg-%'\n        AND account_id IS NULL\n        AND provider_id IS NULL\n        AND authorization_app_id IS NULL\n        AND credential_group_enrollment_id IS NOT NULL\n        AND credential_group_option_id IS NULL\n        AND mcp_server_id IS NOT NULL\n        AND managed_oauth_status IS NOT NULL\n        AND (managed_oauth_status <> 'active' OR (\n          encrypted_oauth_token_set IS NOT NULL\n          AND mcp_tools IS NOT NULL\n        ))\n        AND granted_at IS NOT NULL\n        AND managed_oauth_scope_version IS NULL\n        AND provider_subject_id IS NULL\n        AND provider_tenant_id IS NULL\n        AND granted_scopes IS NULL\n        AND provider_metadata IS NULL\n        AND created_by IS NULL\n        AND env_key IS NULL\n        AND env_owner_user_id IS NULL\n        AND encrypted_service_account_key IS NULL\n        AND unredacted = false\n      )"
+          "value": "(type::text <> 'managed_mcp') OR (\n        id LIKE 'mcp-cg-%'\n        AND account_id IS NULL\n        AND provider_id IS NULL\n        AND authorization_app_id IS NULL\n        AND credential_group_enrollment_id IS NOT NULL\n        AND credential_group_option_id IS NULL\n        AND mcp_server_id IS NOT NULL\n        AND managed_oauth_status IS NOT NULL\n        AND (managed_oauth_status <> 'active' OR (\n          encrypted_oauth_token_set IS NOT NULL\n          AND mcp_tools IS NOT NULL\n        ))\n        AND granted_at IS NOT NULL\n        AND managed_oauth_scope_version IS NULL\n        AND granted_scopes IS NULL\n        AND provider_metadata IS NULL\n        AND created_by IS NULL\n        AND env_key IS NULL\n        AND env_owner_user_id IS NULL\n        AND encrypted_service_account_key IS NULL\n        AND unredacted = false\n      )"
         },
         "credential_creator_source_check": {
           "name": "credential_creator_source_check",

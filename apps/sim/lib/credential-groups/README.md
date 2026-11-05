@@ -20,9 +20,9 @@ Disconnect revokes the local grant and invalidates pending invitation-based auth
 | --- | --- | --- |
 | Select Credential | Workspace OAuth credential | Existing credential reference |
 | List Credentials | Optional workspace provider filter | Existing reference list |
-| Find Organization Account | Email and OAuth provider | Exactly one reference; among several accounts, the one whose own address is the email. Otherwise an error |
+| Find Organization Account | Email and OAuth provider | The person's first connected account for that provider, otherwise an error |
 | List Organization Accounts | Optional email/providers, limit/cursor | Bounded reference page |
-| Find Organization MCP Connection | Email and MCP provider | Exactly one personal MCP reference, otherwise an error |
+| Find Organization MCP Connection | Email and MCP provider | The person's first connected MCP reference for that provider, otherwise an error |
 | List Organization MCP Connections | Optional email/provider, limit/cursor | Bounded MCP reference page |
 
 MCP `credentialId` identifies the person’s connection (`mcp-cg-…`) and is used to select the connection in the MCP block. `mcpServerId` identifies shared configuration and does not grant access to a person’s token. The block never returns secrets or invitation links. Org operations are hidden in ineligible workspaces; saved invalid configurations fail during execution.

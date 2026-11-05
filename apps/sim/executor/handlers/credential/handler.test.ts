@@ -3,8 +3,6 @@ import {
   executorPrincipalMockFns,
 } from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE } from '@/lib/credential-groups/credentials'
-import { MAX_CREDENTIAL_GROUP_MCP_CONNECTION_PAGE_SIZE } from '@/lib/credential-groups/mcp-connections'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -68,32 +66,26 @@ describe('Credential organization operations', () => {
         workspaceId: 'child-workspace',
         email: account.email,
         credentialProviderIds: ['google-email'],
-        limit: MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE,
+        limit: 1,
         cursor: undefined,
       },
     })
   })
-  it.each([0, 2])('rejects an ambiguous or missing account (%i matches)', async (count) => {
-    mocks.oauth.mockResolvedValue({
-      credentials: Array.from({ length: count }, (_, index) => ({
-        ...account,
-        accountEmail: `other-${index}@example.com`,
-      })),
-      hasMore: false,
-    })
+  it('rejects a missing account', async () => {
+    mocks.oauth.mockResolvedValue({ credentials: [], hasMore: false })
     await expect(
       handler.execute(ctx, block, {
         operation: 'find_organization_account',
         email: account.email,
         organizationProvider: 'google-email',
       })
-    ).rejects.toThrow('Expected exactly one')
+    ).rejects.toThrow('No organization account')
   })
-  it('chooses the account whose own address is the email when a person has several', async () => {
+  it('keeps returning the first connected account when a person adds another', async () => {
     mocks.oauth.mockResolvedValue({
       credentials: [
-        { ...account, credentialId: 'other', accountEmail: 'other@example.com' },
-        { ...account, credentialId: 'exact', accountEmail: account.email.toUpperCase() },
+        { ...account, credentialId: 'first', accountEmail: 'first@example.com' },
+        { ...account, credentialId: 'added', accountEmail: account.email },
       ],
       hasMore: false,
     })
@@ -103,7 +95,7 @@ describe('Credential organization operations', () => {
         email: account.email,
         organizationProvider: 'google-email',
       })
-    ).toMatchObject({ credentialId: 'exact' })
+    ).toMatchObject({ credentialId: 'first' })
   })
   it('returns the person’s MCP credential separately from the shared server', async () => {
     const connection = {
@@ -124,7 +116,7 @@ describe('Credential organization operations', () => {
         input: expect.objectContaining({
           connectorId: 'fireflies',
           email: account.email,
-          limit: MAX_CREDENTIAL_GROUP_MCP_CONNECTION_PAGE_SIZE,
+          limit: 1,
         }),
       })
     )

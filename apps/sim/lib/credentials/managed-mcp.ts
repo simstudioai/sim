@@ -397,7 +397,9 @@ export async function persistManagedMcpCredential(params: {
     const accounts = await tx
       .select({
         id: credential.id,
+        displayName: credential.displayName,
         revokedAt: credential.revokedAt,
+        managedOauthStatus: credential.managedOauthStatus,
         providerSubjectId: credential.providerSubjectId,
         providerTenantId: credential.providerTenantId,
       })
@@ -417,7 +419,7 @@ export async function persistManagedMcpCredential(params: {
       accounts,
       identity,
     })
-    const displayName = identity?.label ?? params.mcpServerName
+    const displayName = identity?.label ?? existing?.displayName ?? params.mcpServerName
     const values = {
       mcpOauthConfigVersion: params.oauthConfigVersion,
       displayName,

@@ -805,7 +805,7 @@ export async function listCredentialGroupEnrollments(
   if (connectionRows.length > connectionSummaryLimit) {
     throw new Error('Managed credential connection summaries exceed the supported provider states')
   }
-  const mcpConnectionSummaryLimit = enrollmentIds.length * activeMcpServers.length
+  const mcpConnectionSummaryLimit = enrollmentIds.length * activeMcpServers.length * 3
   const mcpConnectionRows =
     enrollmentIds.length === 0 || activeMcpServers.length === 0
       ? []
@@ -814,6 +814,7 @@ export async function listCredentialGroupEnrollments(
             enrollmentId: credential.credentialGroupEnrollmentId,
             mcpServerId: credential.mcpServerId,
             status: credential.managedOauthStatus,
+            count: count(credential.id),
           })
           .from(credential)
           .where(
@@ -825,6 +826,11 @@ export async function listCredentialGroupEnrollments(
                 activeMcpServers.map((server) => server.id)
               )
             )
+          )
+          .groupBy(
+            credential.credentialGroupEnrollmentId,
+            credential.mcpServerId,
+            credential.managedOauthStatus
           )
           .limit(mcpConnectionSummaryLimit + 1)
   if (mcpConnectionRows.length > mcpConnectionSummaryLimit) {
@@ -855,6 +861,7 @@ export async function listCredentialGroupEnrollments(
       mcpServerId: server.id,
       name: server.name,
       status: toCredentialGroupConnectionStatus(connection.status),
+      count: connection.count,
     }
     const current = mcpConnectionsByEnrollment.get(connection.enrollmentId)
     if (current) current.push(summary)
