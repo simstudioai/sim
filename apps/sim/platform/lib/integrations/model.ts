@@ -30,13 +30,15 @@ export interface OrganizationIntegration {
   name: string
   description: string
   setupGuideUrl: string
+  searchResource: string | null
+  searchReads: readonly { id: string; label: string }[]
   requestedScopes: readonly { id: string; label: string }[] | null
   accessDescription: string
   availability: 'ready' | 'managed' | 'unconfigured' | 'disabled' | 'paused' | 'unavailable'
   connectableMethod: AccountMethod | null
   connectionCandidate?: IntegrationAccount
   fixtureAuthorization?: true
-  accounts: IntegrationAccount[]
+  account: IntegrationAccount | null
 }
 
 export interface IntegrationsData {
@@ -44,9 +46,12 @@ export interface IntegrationsData {
   genericSecrets: MemberSecretSource | null
 }
 
-export function memberIntegrationHref(path: string, search: Pick<URLSearchParams, 'get'>) {
+export function memberIntegrationHref(
+  path: string,
+  search: Pick<URLSearchParams, 'get'>,
+  query = search.get('q')
+) {
   const destination = platformHref(path, search)
-  const query = search.get('q')
   if (!query) return destination
   return `${destination}${destination.includes('?') ? '&' : '?'}${new URLSearchParams({ q: query })}`
 }
@@ -64,8 +69,6 @@ export function memberStatus(item: OrganizationIntegration) {
     case 'unavailable':
       return 'Currently unavailable'
   }
-  if (item.accounts.some((account) => account.status === 'needs_reauth' && account.canReconnect))
+  if (item.account?.status === 'needs_reauth' && item.account.canReconnect)
     return 'Reconnect needed'
-  const count = item.accounts.length
-  return count ? `${count} ${count === 1 ? 'account' : 'accounts'}` : 'Not connected'
 }

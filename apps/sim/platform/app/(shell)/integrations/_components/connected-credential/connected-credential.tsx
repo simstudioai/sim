@@ -1,25 +1,39 @@
 'use client'
 
 import { useState } from 'react'
+import styles from '@/platform/app/(shell)/integrations/_components/connected-credential/connected-credential.module.css'
 import { ActionMenu, Modal } from '@/platform/design-system/components'
 import type { IntegrationAccount } from '@/platform/lib/integrations/model'
 
-interface CredentialActionsProps {
+interface ConnectedCredentialProps {
   account: IntegrationAccount
+  status?: string
   canAuthorize: boolean
   onReconnect: () => void
   onDisconnect: () => void
 }
 
-export function CredentialActions({
+export function ConnectedCredential({
   account,
+  status,
   canAuthorize,
   onReconnect,
   onDisconnect,
-}: CredentialActionsProps) {
+}: ConnectedCredentialProps) {
   const [confirming, setConfirming] = useState(false)
   return (
-    <>
+    <section aria-label='Connected credential' className={styles.credential}>
+      <div className={styles.identity}>
+        <h2 className={styles.muted} data-type='T050'>
+          Connected credential
+        </h2>
+        <p data-type='T059'>{account.label}</p>
+        {status && (
+          <p className={styles.muted} data-type='T050'>
+            {status}
+          </p>
+        )}
+      </div>
       <ActionMenu
         label={`Manage ${account.label}`}
         icon='I108'
@@ -58,6 +72,6 @@ export function CredentialActions({
           onConfirm={onDisconnect}
         />
       )}
-    </>
+    </section>
   )
 }

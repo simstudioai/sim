@@ -1,6 +1,7 @@
 import 'server-only'
 import type { Scenario } from '@/platform/fixtures'
 import type { MemberSecretSource } from '@/platform/lib/integrations/member-secret-source'
+import { memberSecretMetadata } from '@/platform/lib/integrations/metadata.generated'
 
 export function memberSecretSource(
   scenario: Scenario,
@@ -8,6 +9,6 @@ export function memberSecretSource(
 ): MemberSecretSource | null {
   if (scenario !== 'stress') return null
   return requestedMode === 'organization'
-    ? { mode: 'organization' }
-    : { mode: 'member', names: ['ANALYTICS_API_KEY', 'REPORTING_TOKEN'] }
+    ? { ...memberSecretMetadata, mode: 'organization' }
+    : { ...memberSecretMetadata, mode: 'member', names: ['ANALYTICS_API_KEY', 'REPORTING_TOKEN'] }
 }

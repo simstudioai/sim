@@ -5,7 +5,7 @@ import type { IntegrationsData, OrganizationIntegration } from '@/platform/lib/i
 
 type AccountEdits = Pick<
   OrganizationIntegration,
-  'accounts' | 'connectableMethod' | 'connectionCandidate'
+  'account' | 'connectableMethod' | 'connectionCandidate'
 >
 
 function useEdits() {
@@ -37,7 +37,7 @@ export function useOrganizationIntegrations(data: IntegrationsData | null) {
       setAccounts((current) => ({
         ...current,
         [item.providerId]: {
-          accounts: item.accounts,
+          account: item.account,
           connectableMethod: item.connectableMethod,
           connectionCandidate: item.connectionCandidate,
         },

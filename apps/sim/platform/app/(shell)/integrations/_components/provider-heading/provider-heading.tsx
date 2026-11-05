@@ -4,10 +4,9 @@ import { Icon } from '@/platform/design-system/components'
 
 interface ProviderHeadingProps {
   name: string
-  description?: string
+  description: string
   providerId?: string
-  credential?: { label: string; status: string }
-  action?: ReactNode
+  children?: ReactNode
   titleRef?: Ref<HTMLHeadingElement>
 }
 
@@ -15,8 +14,7 @@ export function ProviderHeading({
   name,
   description,
   providerId,
-  credential,
-  action,
+  children,
   titleRef,
 }: ProviderHeadingProps) {
   return (
@@ -24,27 +22,15 @@ export function ProviderHeading({
       <span className={styles.mark}>
         {providerId ? <Icon providerId={providerId} /> : <Icon name='I070' />}
       </span>
-      <h1
-        ref={titleRef}
-        tabIndex={titleRef ? -1 : undefined}
-        className={styles.title}
-        data-type='T076'
-      >
-        {name}
-      </h1>
-      {action && <div className={styles.actions}>{action}</div>}
-      {(description || credential) && (
+      <div className={styles.content}>
         <div className={styles.copy}>
-          {description && <p data-type='T048'>{description}</p>}
-          {credential && (
-            <p data-type='T050'>
-              {credential.status}
-              {' · '}
-              <span>{credential.label}</span>
-            </p>
-          )}
+          <h1 ref={titleRef} tabIndex={titleRef ? -1 : undefined} data-type='T076'>
+            {name}
+          </h1>
+          <p data-type='T048'>{description}</p>
         </div>
-      )}
+        {children}
+      </div>
     </header>
   )
 }

@@ -1,25 +1,24 @@
 .section,
-.scopes,
-.scope {
+.heading,
+.group,
+.items {
   display: grid;
   min-inline-size: 0;
 }
 .section {
   gap: var(--ui-section-gap);
 }
-.header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
+.heading {
+  gap: var(--ui-stack-gap);
+}
+.group {
   gap: var(--ui-row-gap);
 }
-.scopes {
+.items {
   gap: var(--ui-list-gap);
-  margin-block-start: var(--ui-row-gap);
-}
-.scope {
-  gap: var(--ui-stack-gap);
   overflow-wrap: anywhere;
+}
+.items,
+.heading p {
   color: var(--ui-secondary);
 }

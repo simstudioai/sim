@@ -6,6 +6,12 @@ export const providerMetadata = [
     description: 'Read and write Coda docs, pages, tables, and rows',
     setupGuideUrl: 'https://docs.sim.ai/search/coda',
     searchResource: 'Documents',
+    searchReads: [
+      { id: 'search', label: 'Search pages and table rows' },
+      { id: 'content_read', label: 'Read page content' },
+      { id: 'document_outline', label: 'Read document outlines' },
+      { id: 'table_rows_read', label: 'Read table rows' },
+    ],
     requestedScopes: null,
   },
   {
@@ -14,6 +20,7 @@ export const providerMetadata = [
     description: 'Manage Confluence pages, comments, and attachments',
     setupGuideUrl: 'https://docs.sim.ai/search/confluence',
     searchResource: 'Spaces',
+    searchReads: [],
     requestedScopes: [
       { id: 'read:confluence-content.all', label: 'Read all Confluence content' },
       { id: 'read:confluence-space.summary', label: 'Read Confluence space information' },
@@ -69,6 +76,11 @@ export const providerMetadata = [
     description: 'Interact with Fireflies.ai meeting transcripts and recordings',
     setupGuideUrl: 'https://docs.sim.ai/search/fireflies',
     searchResource: 'Meetings',
+    searchReads: [
+      { id: 'fireflies_get_transcripts', label: 'Search meeting titles and transcripts' },
+      { id: 'fireflies_get_transcript', label: 'Read transcripts with speakers and timestamps' },
+      { id: 'fireflies_get_summary', label: 'Read available meeting summaries' },
+    ],
     requestedScopes: null,
   },
   {
@@ -77,6 +89,7 @@ export const providerMetadata = [
     description: 'Interact with GitHub or trigger workflows from GitHub events',
     setupGuideUrl: 'https://docs.sim.ai/search/github',
     searchResource: 'Repositories',
+    searchReads: [],
     requestedScopes: [],
   },
   {
@@ -85,6 +98,7 @@ export const providerMetadata = [
     description: 'Interact with GitLab projects, issues, merge requests, and pipelines',
     setupGuideUrl: 'https://docs.sim.ai/search/gitlab',
     searchResource: 'Projects',
+    searchReads: [],
     requestedScopes: [],
   },
   {
@@ -94,6 +108,7 @@ export const providerMetadata = [
       'Send, read, search, and move Gmail messages or trigger workflows from Gmail events',
     setupGuideUrl: 'https://docs.sim.ai/search/gmail',
     searchResource: 'Labels',
+    searchReads: [],
     requestedScopes: [
       { id: 'https://www.googleapis.com/auth/userinfo.email', label: 'View email address' },
       { id: 'https://www.googleapis.com/auth/userinfo.profile', label: 'View basic profile info' },
@@ -112,6 +127,7 @@ export const providerMetadata = [
     description: 'Manage Google Calendar events',
     setupGuideUrl: 'https://docs.sim.ai/search/google-calendar',
     searchResource: 'Calendars',
+    searchReads: [],
     requestedScopes: [
       { id: 'https://www.googleapis.com/auth/userinfo.email', label: 'View email address' },
       { id: 'https://www.googleapis.com/auth/userinfo.profile', label: 'View basic profile info' },
@@ -125,6 +141,7 @@ export const providerMetadata = [
     description: 'Manage files, folders, and permissions',
     setupGuideUrl: 'https://docs.sim.ai/search/google-drive',
     searchResource: 'Folders and shared drives',
+    searchReads: [],
     requestedScopes: [
       { id: 'https://www.googleapis.com/auth/userinfo.email', label: 'View email address' },
       { id: 'https://www.googleapis.com/auth/userinfo.profile', label: 'View basic profile info' },
@@ -145,6 +162,7 @@ export const providerMetadata = [
     description: 'Create and manage Google Meet meetings',
     setupGuideUrl: 'https://docs.sim.ai/search/google-meet',
     searchResource: 'Meetings',
+    searchReads: [],
     requestedScopes: [
       { id: 'https://www.googleapis.com/auth/userinfo.email', label: 'View email address' },
       { id: 'https://www.googleapis.com/auth/userinfo.profile', label: 'View basic profile info' },
@@ -165,6 +183,12 @@ export const providerMetadata = [
     description: 'Access meeting notes, transcripts, and audit events from Granola',
     setupGuideUrl: 'https://docs.sim.ai/search/granola',
     searchResource: 'Meetings',
+    searchReads: [
+      { id: 'query_granola_meetings', label: 'Search meeting notes' },
+      { id: 'list_meetings', label: 'Find meetings by date' },
+      { id: 'get_meetings', label: 'Read meeting notes' },
+      { id: 'get_meeting_transcript', label: 'Read available meeting transcripts' },
+    ],
     requestedScopes: null,
   },
   {
@@ -173,6 +197,10 @@ export const providerMetadata = [
     description: 'Interact with HubSpot CRM or trigger workflows from HubSpot events',
     setupGuideUrl: 'https://docs.sim.ai/search/hubspot',
     searchResource: 'CRM records',
+    searchReads: [
+      { id: 'search_crm_objects', label: 'Search CRM records' },
+      { id: 'get_crm_objects', label: 'Read CRM records' },
+    ],
     requestedScopes: null,
   },
   {
@@ -181,6 +209,7 @@ export const providerMetadata = [
     description: 'Manage Jira issues, comments, attachments, and worklogs',
     setupGuideUrl: 'https://docs.sim.ai/search/jira',
     searchResource: 'Projects',
+    searchReads: [],
     requestedScopes: [
       { id: 'read:jira-user', label: 'View Jira user profiles, including email addresses' },
       { id: 'read:jira-work', label: 'View Jira projects and issues, and search issues' },
@@ -295,6 +324,7 @@ export const providerMetadata = [
     description: 'Interact with Linear issues, projects, and more',
     setupGuideUrl: 'https://docs.sim.ai/search/linear',
     searchResource: 'Projects',
+    searchReads: [],
     requestedScopes: [
       { id: 'read', label: 'Read issues, projects, teams, and other workspace data' },
       {
@@ -309,6 +339,13 @@ export const providerMetadata = [
     description: 'Search Lucidchart diagrams and Lucidspark boards using your Lucid account',
     setupGuideUrl: 'https://docs.sim.ai/search/lucid',
     searchResource: 'Documents',
+    searchReads: [
+      { id: 'search', label: 'Search document titles' },
+      { id: 'fetch', label: 'Read document content' },
+      { id: 'lucid_search_document', label: 'Search within a document' },
+      { id: 'lucid_get_document_metadata', label: 'Read document details' },
+      { id: 'lucid_list_folder_contents', label: 'Browse folders' },
+    ],
     requestedScopes: null,
   },
   {
@@ -317,6 +354,15 @@ export const providerMetadata = [
     description: 'Manage Notion pages',
     setupGuideUrl: 'https://docs.sim.ai/search/notion',
     searchResource: 'Pages',
+    searchReads: [
+      { id: 'notion-search', label: 'Find pages and databases by keyword' },
+      { id: 'notion-ai-search', label: 'Search with AI when available' },
+      { id: 'notion-fetch', label: 'Read pages and databases' },
+      { id: 'notion-list-private-pages', label: 'Browse private pages' },
+      { id: 'notion-list-shared-pages', label: 'Browse shared pages' },
+      { id: 'notion-list-favorite-pages', label: 'Browse favorite pages' },
+      { id: 'notion-list-recent-pages', label: 'Browse recent pages' },
+    ],
     requestedScopes: null,
   },
   {
@@ -325,6 +371,7 @@ export const providerMetadata = [
     description: 'Interact with Salesforce CRM',
     setupGuideUrl: 'https://docs.sim.ai/search/connect-your-account',
     searchResource: null,
+    searchReads: [],
     requestedScopes: [
       { id: 'api', label: 'Access Salesforce API' },
       { id: 'refresh_token', label: 'Maintain long-term access to Salesforce account' },
@@ -338,6 +385,7 @@ export const providerMetadata = [
       'Manage Slack messages, channels, users, files, Lists, canvases, and Agent Sessions',
     setupGuideUrl: 'https://docs.sim.ai/search/slack',
     searchResource: 'Channels',
+    searchReads: [],
     requestedScopes: [
       { id: 'channels:history', label: 'Read public channel messages' },
       { id: 'channels:read', label: 'View public channels' },
@@ -363,6 +411,10 @@ export const providerMetadata = [
     description: 'Create and manage Zoom meetings and recordings',
     setupGuideUrl: 'https://docs.sim.ai/search/zoom',
     searchResource: 'Meetings',
+    searchReads: [
+      { id: 'search_meetings', label: 'Search past meetings' },
+      { id: 'get_meeting_assets', label: 'Read available transcripts, notes, and summaries' },
+    ],
     requestedScopes: [
       { id: 'meeting:read:search', label: 'Search past meetings' },
       { id: 'meeting:read:assets', label: 'Read meeting assets' },
@@ -389,3 +441,7 @@ export const gmailToolMetadata = [
     kind: 'read',
   },
 ] as const
+export const memberSecretMetadata = {
+  name: 'Generic Secrets',
+  description: 'Store shared or personal secrets for organization Home conversations',
+} as const

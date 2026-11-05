@@ -1,51 +1,66 @@
-'use client'
-
-import { useState } from 'react'
 import styles from '@/platform/app/(shell)/integrations/_components/connection-access/connection-access.module.css'
 import {
   SCOPE_GROUPS,
   scopeGroup,
 } from '@/platform/app/(shell)/integrations/_components/connection-access/scope-groups'
-import { Button, Disclosure } from '@/platform/design-system/components'
+import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 import type { OrganizationIntegration } from '@/platform/lib/integrations/model'
+
+interface AccessGroupProps {
+  title: string
+  items: readonly { id: string; label: string }[]
+}
+
+function AccessGroup({ title, items }: AccessGroupProps) {
+  if (!items.length) return null
+  return (
+    <div className={styles.group}>
+      <h3 data-type='T059'>
+        <CountedLabel label={title} count={items.length} />
+      </h3>
+      <ul className={styles.items} aria-label={title}>
+        {items.map(({ id, label }) => (
+          <li data-type='T060' key={id}>
+            {label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
 
 interface ConnectionAccessProps {
   integration: OrganizationIntegration
 }
 
 export function ConnectionAccess({ integration }: ConnectionAccessProps) {
-  const [showIds, setShowIds] = useState(false)
-  const scopes = integration.requestedScopes
-  if (!scopes?.length) return null
+  const { searchReads, searchResource, requestedScopes, availability, accessDescription } =
+    integration
   return (
-    <section className={styles.section} aria-label='Requested permissions'>
-      <header className={styles.header}>
-        <h2 data-type='T093'>Requested permissions</h2>
-        <Button
-          size='compact'
-          variant='quiet'
-          render={<button type='button' aria-expanded={showIds} />}
-          onClick={() => setShowIds(!showIds)}
-        >
-          {showIds ? 'Hide scope IDs' : 'Show scope IDs'}
-        </Button>
-      </header>
-      {SCOPE_GROUPS.map((group) => {
-        const entries = scopes.filter(({ id }) => scopeGroup(id) === group)
-        if (!entries.length) return null
-        return (
-          <Disclosure key={group} label={group} initiallyOpen>
-            <ul className={styles.scopes} aria-label={group}>
-              {entries.map(({ id, label }) => (
-                <li key={id} className={styles.scope}>
-                  <span data-type='T060'>{label}</span>
-                  {showIds && label !== id && <span data-type='T050'>{id}</span>}
-                </li>
-              ))}
-            </ul>
-          </Disclosure>
-        )
-      })}
-    </section>
+    <>
+      {searchResource &&
+        availability === 'ready' &&
+        (searchReads.length > 0 || !requestedScopes?.length) && (
+          <section className={styles.section} aria-label='Search access'>
+            <header className={styles.heading}>
+              <h2 data-type='T093'>Search access</h2>
+              <p data-type='T060'>{accessDescription}</p>
+            </header>
+            <AccessGroup title='Read-only tools' items={searchReads} />
+          </section>
+        )}
+      {requestedScopes && requestedScopes.length > 0 && (
+        <section className={styles.section} aria-label='Requested permissions'>
+          <h2 data-type='T093'>Requested permissions</h2>
+          {SCOPE_GROUPS.map((group) => (
+            <AccessGroup
+              key={group}
+              title={group}
+              items={requestedScopes.filter(({ id }) => scopeGroup(id) === group)}
+            />
+          ))}
+        </section>
+      )}
+    </>
   )
 }

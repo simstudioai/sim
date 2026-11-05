@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { IconButton } from '@/platform/design-system/components/button/button'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
@@ -10,6 +10,7 @@ interface SearchFieldProps {
   label: string
   placeholder?: string
   defaultValue?: string
+  value?: string
   shortcut?: '⌘K' | '/'
   variant?: 'outlined' | 'sidebar'
   onValueChange?: (query: string) => void
@@ -19,13 +20,22 @@ export function SearchField({
   label,
   placeholder,
   defaultValue = '',
+  value,
   shortcut,
   variant = 'outlined',
   onValueChange,
 }: SearchFieldProps) {
   const input = useRef<HTMLInputElement>(null)
   const queryEdges = useScrollEdges('horizontal', { viewport: input })
-  const [query, setQuery] = useState(defaultValue)
+  const [draft, setDraft] = useState(defaultValue)
+  const query = value ?? draft
+  const adoptInitialInput = useEffectEvent(() => {
+    const typed = input.current?.value
+    if (typed !== undefined && typed !== query) change(typed)
+  })
+  useEffect(() => {
+    adoptInitialInput()
+  }, [])
   useEffect(() => {
     if (!shortcut) return
     function focus(event: KeyboardEvent) {
@@ -57,9 +67,9 @@ export function SearchField({
     return () => document.removeEventListener('keydown', focus)
   }, [shortcut])
 
-  function change(value: string) {
-    setQuery(value)
-    onValueChange?.(value)
+  function change(next: string) {
+    if (value === undefined) setDraft(next)
+    onValueChange?.(next)
   }
   return (
     <div className={styles.search} data-variant={variant}>

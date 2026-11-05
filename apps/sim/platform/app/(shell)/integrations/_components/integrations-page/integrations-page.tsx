@@ -32,7 +32,7 @@ export function IntegrationsPage({ data, section }: IntegrationsPageProps) {
           {item && <IntegrationDetails key={item.providerId} integration={item} onChange={save} />}
           {secrets && (
             <>
-              <ProviderHeading name='Generic Secrets' />
+              <ProviderHeading name={secrets.name} description={secrets.description} />
               <MemberSecrets source={secrets} />
             </>
           )}

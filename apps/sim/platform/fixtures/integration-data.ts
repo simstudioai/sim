@@ -9,7 +9,7 @@ import type {
 
 type Connection = Pick<
   OrganizationIntegration,
-  'accounts' | 'availability' | 'connectableMethod'
+  'account' | 'availability' | 'connectableMethod'
 > & { accessDescription?: string }
 
 function account(id: string, label: string, method: AccountMethod): IntegrationAccount {
@@ -25,31 +25,31 @@ gmail.permissions = {
 }
 
 function ready(
-  accounts: IntegrationAccount[],
+  account: IntegrationAccount | null = null,
   connectableMethod: AccountMethod | null = null
 ): Connection {
   return {
-    accounts,
+    account,
     connectableMethod,
     availability: 'ready',
   }
 }
 
 const full: Record<string, Connection> = {
-  fireflies: ready([account('fireflies', 'Fireflies', 'mcp')]),
+  fireflies: ready(account('fireflies', 'Fireflies', 'mcp')),
   github: {
-    ...ready([account('github', 'emir@sim.ai', 'oauth')]),
+    ...ready(account('github', 'emir@sim.ai', 'oauth')),
     accessDescription: 'Selected repositories you can access',
   },
-  gmail: ready([gmail]),
-  google_calendar: ready([account('calendar', 'emir@sim.ai', 'oauth')]),
-  google_drive: ready([account('drive', 'emir@sim.ai', 'oauth')]),
-  hubspot: ready([account('hubspot', 'HubSpot', 'mcp')]),
-  linear: ready([], 'oauth'),
-  notion: ready([], 'mcp'),
-  salesforce: ready([{ ...account('crm', 'emir@sim.ai', 'oauth'), status: 'needs_reauth' }]),
+  gmail: ready(gmail),
+  google_calendar: ready(account('calendar', 'emir@sim.ai', 'oauth')),
+  google_drive: ready(account('drive', 'emir@sim.ai', 'oauth')),
+  hubspot: ready(account('hubspot', 'HubSpot', 'mcp')),
+  linear: ready(null, 'oauth'),
+  notion: ready(null, 'mcp'),
+  salesforce: ready({ ...account('crm', 'emir@sim.ai', 'oauth'), status: 'needs_reauth' }),
   slack: {
-    ...ready([]),
+    ...ready(),
     availability: 'unconfigured',
     accessDescription: 'Slack sign-in has not been configured for this organization.',
   },
@@ -62,40 +62,39 @@ export function memberIntegrations(scenario: Scenario): OrganizationIntegration[
       ? full
       : {
           ...full,
-          gmail: ready([
-            {
-              ...gmail,
-              permissions: {
-                read: 'ask',
-                write: 'ask',
-                canAutoApprove: false,
-                tools: gmail.permissions?.tools ?? [],
-              },
+          gmail: ready({
+            ...gmail,
+            permissions: {
+              read: 'ask',
+              write: 'ask',
+              canAutoApprove: false,
+              tools: gmail.permissions?.tools ?? [],
             },
-          ]),
-          coda: ready([], 'mcp'),
-          jira: ready([], 'oauth'),
-          lucid: ready([], 'mcp'),
+          }),
+          coda: ready(null, 'mcp'),
+          jira: ready(null, 'oauth'),
+          lucid: ready(null, 'mcp'),
           zoom: {
-            ...ready([]),
+            ...ready(),
             availability: 'unavailable',
             accessDescription: 'Zoom is currently unavailable.',
           },
           confluence: {
-            ...ready([
-              { ...account('confluence', 'engineering@sim.ai', 'oauth'), canReconnect: false },
-            ]),
+            ...ready({
+              ...account('confluence', 'engineering@sim.ai', 'oauth'),
+              canReconnect: false,
+            }),
             availability: 'disabled',
             accessDescription: 'Disabled by your organization',
           },
-          google_meet: ready([], 'oauth'),
+          google_meet: ready(null, 'oauth'),
           granola: {
-            ...ready([]),
+            ...ready(),
             availability: 'paused',
             accessDescription: 'Connections are paused by your organization.',
           },
           gitlab: {
-            ...ready([]),
+            ...ready(),
             availability: 'managed',
             accessDescription: 'Access follows project permissions',
           },
@@ -113,6 +112,7 @@ export function memberIntegrations(scenario: Scenario): OrganizationIntegration[
     return [
       {
         providerId: id,
+        searchResource,
         ...metadata,
         ...config,
         accessDescription:

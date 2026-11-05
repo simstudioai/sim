@@ -1,25 +1,26 @@
 .header {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
-  gap: var(--ui-stack-gap) var(--ui-row-gap);
+  gap: var(--ui-row-gap);
 }
 .mark {
   display: grid;
   place-items: center;
   block-size: var(--leading-32);
 }
-.title {
-  overflow-wrap: anywhere;
-}
-.actions {
-  display: flex;
-  justify-self: end;
-}
+.content,
 .copy {
   display: grid;
-  grid-column: 2 / -1;
-  gap: var(--ui-row-block);
+  min-inline-size: 0;
   overflow-wrap: anywhere;
+}
+.content {
+  gap: var(--ui-section-gap);
+}
+.copy {
+  gap: var(--ui-stack-gap);
+}
+.copy p {
   color: var(--ui-secondary);
 }
