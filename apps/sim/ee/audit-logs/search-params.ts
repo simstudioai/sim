@@ -1,8 +1,5 @@
 import { createSerializer, parseAsArrayOf, parseAsString } from 'nuqs/server'
-import {
-  parseAsDateString,
-  parseAsTimeRange,
-} from '@/app/workspace/[workspaceId]/logs/search-params'
+import { parseAsDateString, parseAsTimeRange } from '@/lib/logs/time-range-params'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
 export const DEFAULT_AUDIT_TIME_RANGE: TimeRange = 'Past 30 days'
