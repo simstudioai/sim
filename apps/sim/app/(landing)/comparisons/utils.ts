@@ -120,15 +120,15 @@ export function buildBottomLine(competitor: CompetitorProfile): ComparisonVerdic
  * question/answer pair is independently quotable per the landing GEO rules,
  * and every answer names "Sim" and the competitor explicitly. Every answer
  * draws on a real, sourced {@link Fact} field rather than a generic claim,
- * and no two questions repeat the same answer. A profile that answers its buyer questions as
- * page sections gets those questions instead, so its FAQ data matches what the page shows.
+ * and no two questions repeat the same answer. A profile that {@link answersQuestionsInPlace}
+ * gets those questions instead, so its FAQ data matches what the page shows.
  */
 export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFaq[] {
-  if (competitor.questions) {
-    return getQuestionSections(competitor).map(({ question, answer }) => ({
-      question,
-      answer: proseToText(answer),
-    }))
+  if (answersQuestionsInPlace(competitor)) {
+    const { lead, opening, glance, closing } = getQuestionSectionGroups(competitor)
+    return [...(lead ? [lead] : []), ...opening, ...glance, ...closing].map(
+      ({ question, answer }) => ({ question, answer: proseToText(answer) })
+    )
   }
   const name = competitor.name
   const facts = competitor.facts
@@ -178,39 +178,38 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
   return faqs
 }
 
-/** Heading of the section answering {@link CompetitorProfile.betterThanAnswer}. */
-export function betterThanQuestion(competitor: CompetitorProfile): string {
-  return `Is Sim better than ${competitor.name}?`
+/**
+ * Whether the page answers its buyer questions as sections (see
+ * {@link CompetitorProfile.questions}). Such a page omits the FAQ block, and its FAQ structured
+ * data lists those questions instead.
+ */
+export function answersQuestionsInPlace(competitor: CompetitorProfile): boolean {
+  return competitor.questions !== undefined
 }
 
 /**
- * The buyer questions the page answers in their own sections, grouped by position: `opening`
- * (the lead, "better than", and intro questions) ahead of the product definitions, `glance`
+ * The buyer questions the page answers in their own sections, by position: `lead` in the hero,
+ * `opening` (the "better than" and intro questions) ahead of the product definitions, `glance`
  * after the at-a-glance table, and `closing` after the documented limitations.
  */
 export function getQuestionSectionGroups(competitor: CompetitorProfile): {
+  lead: ComparisonQuestion | undefined
   opening: ComparisonQuestion[]
   glance: ComparisonQuestion[]
   closing: ComparisonQuestion[]
 } {
   const { leadQuestion, leadAnswer, betterThanAnswer, questions } = competitor
   return {
+    lead: leadQuestion && leadAnswer ? { question: leadQuestion, answer: leadAnswer } : undefined,
     opening: [
-      ...(leadQuestion && leadAnswer ? [{ question: leadQuestion, answer: leadAnswer }] : []),
       ...(betterThanAnswer
-        ? [{ question: betterThanQuestion(competitor), answer: betterThanAnswer }]
+        ? [{ question: `Is Sim better than ${competitor.name}?`, answer: betterThanAnswer }]
         : []),
       ...(questions?.intro ?? []),
     ],
     glance: questions?.glance ?? [],
     closing: questions?.closing ?? [],
   }
-}
-
-/** Every question from {@link getQuestionSectionGroups}, in page order. */
-function getQuestionSections(competitor: CompetitorProfile): ComparisonQuestion[] {
-  const { opening, glance, closing } = getQuestionSectionGroups(competitor)
-  return [...opening, ...glance, ...closing]
 }
 
 function proseToText(prose: Prose): string {

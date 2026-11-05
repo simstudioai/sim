@@ -258,8 +258,8 @@ export interface CompetitorProfile {
    */
   leadAnswer?: Prose
   /**
-   * The question {@link leadAnswer} answers. When set, the lead renders under it as the page's
-   * first section, in place of the generic introduction.
+   * The question {@link leadAnswer} answers. When set, the hero shows the lead answer under it as
+   * a question heading, in place of the generic introduction.
    */
   leadQuestion?: string
   /**

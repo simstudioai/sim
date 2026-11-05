@@ -80,11 +80,11 @@ function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10)
 }
 
-/** The key facts of one `/comparisons/{id}` page as markdown, from the same profile data. */
 function questionMarkdown({ question, answer }: ComparisonQuestion): string {
   return `**${question}**\n\n${proseToMarkdown(answer)}`
 }
 
+/** The key facts of one `/comparisons/{id}` page as markdown, from the same profile data. */
 function comparisonMarkdown(competitor: CompetitorProfile): string {
   const verdict = buildBottomLine(competitor)
   const questions = getQuestionSectionGroups(competitor)
@@ -104,7 +104,11 @@ function comparisonMarkdown(competitor: CompetitorProfile): string {
     `### Sim vs ${competitor.name}`,
     `URL: ${toSiteUrl(`/comparisons/${competitor.id}`)} · Facts last verified ${isoDate(verified)}`,
     `${competitor.name}: ${competitor.oneLiner}`,
-    competitor.leadAnswer && !competitor.leadQuestion ? proseToMarkdown(competitor.leadAnswer) : '',
+    questions.lead
+      ? questionMarkdown(questions.lead)
+      : competitor.leadAnswer
+        ? proseToMarkdown(competitor.leadAnswer)
+        : '',
     ...questions.opening.map(questionMarkdown),
     competitor.glance
       ? [
