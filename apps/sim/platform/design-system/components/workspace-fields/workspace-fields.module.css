@@ -56,7 +56,7 @@
   min-inline-size: 0;
   max-inline-size: 100%;
   gap: var(--ui-action-gap);
-  padding-inline: var(--spacing-4) var(--spacing-2);
+  padding-inline: var(--spacing-5) var(--spacing-1);
   border-radius: var(--ui-control-radius);
   background: var(--ui-hover);
 }
@@ -64,6 +64,12 @@
 .tag[data-invalid] {
   background: var(--control-danger-soft);
   color: var(--control-danger);
+}
+
+@media (pointer: coarse) {
+  .tag {
+    padding-inline: var(--spacing-6) 0;
+  }
 }
 
 .recipientViewport {
