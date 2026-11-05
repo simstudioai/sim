@@ -6,11 +6,11 @@ import { getAccessibleCopilotChatAuth } from '@/lib/mothership/chat/lifecycle'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import OrganizationChatLoading from '@/app/o/[organizationId]/chat/[chatId]/loading'
-import { OrganizationConversation } from '@/app/o/[organizationId]/components/organization-conversation'
 import {
   canUseOrganizationChat,
   getOrganizationBuildRedirect,
 } from '@/app/o/[organizationId]/home/home-redirect'
+import { ChatRoute } from '@/platform/app/(shell)/_components/conversation/chat-route'
 
 export const metadata: Metadata = { title: 'Chat' }
 
@@ -41,7 +41,7 @@ export default async function OrganizationChatPage({
 
   return (
     <Suspense fallback={<OrganizationChatLoading />}>
-      <OrganizationConversation
+      <ChatRoute
         userName={session.user.name ?? undefined}
         chatId={chatId}
         requestMode={chat.mode}

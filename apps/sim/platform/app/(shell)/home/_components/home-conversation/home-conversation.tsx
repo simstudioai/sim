@@ -7,7 +7,7 @@ import { organizationRoutes } from '@/lib/navigation/paths'
 import { OrganizationConversation } from '@/app/o/[organizationId]/components/organization-conversation'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { SEARCH_MODES } from '@/app/o/[organizationId]/search/use-organization-search'
-import { HOME_COMPOSER_CHROME } from '@/platform/app/(shell)/home/_components/home-composer-chrome/home-composer-chrome'
+import { CONVERSATION_APPEARANCE } from '@/platform/app/(shell)/_components/conversation/appearance'
 import { HomeDashboardSkeleton } from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton'
 import { LiveHome } from '@/platform/app/(shell)/home/_components/live-home/live-home'
 import { SearchSurfaceHeader } from '@/platform/app/(shell)/search/_components/search-surface/search-surface-header'
@@ -65,10 +65,10 @@ export function HomeConversation({ requestMode }: HomeConversationProps) {
       key={conversationInstance}
       requestMode={requestMode}
       draftId={requestMode === 'assistant' ? HOME_ASSISTANT_DRAFT_ID : undefined}
+      appearance={CONVERSATION_APPEARANCE}
+      fallback={<HomeDashboardSkeleton requestMode={requestMode} />}
       landing={{
         chatHeader: requestMode === 'assistant' ? assistantChatHeader : undefined,
-        composerChrome: HOME_COMPOSER_CHROME,
-        fallback: <HomeDashboardSkeleton requestMode={requestMode} />,
         render: (slot) => <LiveHome {...slot} />,
       }}
     />

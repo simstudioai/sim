@@ -75,7 +75,6 @@ import {
 } from '@/app/o/[organizationId]/components/organization-conversation'
 
 const landing = {
-  fallback: <div>Dashboard skeleton</div>,
   render: ({ requestMode, composer }: OrganizationLandingSlot) => (
     <div>
       <div>Dashboard for {requestMode}</div>
@@ -121,13 +120,25 @@ afterEach(async () => {
 describe('an Assistant conversation on a surface with its own landing', () => {
   it('holds the surface’s fallback until the session arrives', async () => {
     authClientMockFns.mockUseSession.mockReturnValue({ data: null })
-    await render(<OrganizationConversation requestMode='assistant' landing={landing} />)
+    await render(
+      <OrganizationConversation
+        requestMode='assistant'
+        fallback={<div>Dashboard skeleton</div>}
+        landing={landing}
+      />
+    )
     expect(container.textContent).toBe('Dashboard skeleton')
   })
 
   it('shows no dashboard while a restored chat entry hands itself back to the router', async () => {
     nextNavigationMockFns.mockUsePathname.mockReturnValue('/o/organization-a/search/chat/chat-1')
-    await render(<OrganizationConversation requestMode='assistant' landing={landing} />)
+    await render(
+      <OrganizationConversation
+        requestMode='assistant'
+        fallback={<div>Dashboard skeleton</div>}
+        landing={landing}
+      />
+    )
     expect(container.textContent).toBe('')
   })
 })

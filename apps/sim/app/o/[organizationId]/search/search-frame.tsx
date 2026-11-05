@@ -2,9 +2,9 @@
 
 import { lazy, type ReactNode, Suspense } from 'react'
 import { cn } from '@sim/emcn'
+import type { OrganizationConversationProps } from '@/app/o/[organizationId]/components/organization-conversation'
 import type { OrganizationSearchState } from '@/app/o/[organizationId]/search/use-organization-search'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
-import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
 
 const OrganizationConversation = lazy(() =>
   import('@/app/o/[organizationId]/components/organization-conversation').then((module) => ({
@@ -18,13 +18,23 @@ interface SearchFrameProps {
   header: ReactNode
   /** The Search view. It renders beside the conversation, never around it. */
   children: ReactNode
+  /** How the Assistant view looks: its own chrome, its landing, and what stands in for it loading. */
+  assistant: Pick<OrganizationConversationProps, 'appearance' | 'fallback' | 'landing'>
+  /** Shown while the viewer's saved view has not resolved. */
+  unresolvedFallback: ReactNode
 }
 
 /**
  * Hosts the two views of Search. Assistant stays mounted and `inert` while Search shows, so a running
  * answer keeps streaming and its draft survives a switch.
  */
-export function SearchFrame({ search, header, children }: SearchFrameProps) {
+export function SearchFrame({
+  search,
+  header,
+  children,
+  assistant,
+  unresolvedFallback,
+}: SearchFrameProps) {
   const { activeMode } = search
   return (
     <div className='h-full min-h-0 min-w-0 bg-[var(--bg)] pt-[var(--workspace-content-title-bar-inset)]'>
@@ -37,9 +47,10 @@ export function SearchFrame({ search, header, children }: SearchFrameProps) {
               activeMode === 'assistant' ? 'flex' : 'hidden'
             )}
           >
-            <Suspense fallback={<HomeFallback header={header} />}>
+            <Suspense fallback={assistant.fallback}>
               <OrganizationConversation
                 key={search.conversationInstance}
+                {...assistant}
                 requestMode='assistant'
                 chatId={search.chatId}
                 header={header}
@@ -50,7 +61,7 @@ export function SearchFrame({ search, header, children }: SearchFrameProps) {
             </Suspense>
           </div>
         )}
-        {!activeMode && <HomeFallback />}
+        {!activeMode && unresolvedFallback}
         {activeMode === 'search' && (
           <>
             <div className={cn(RESOURCE_HEADER_CLASSES.layout, RESOURCE_HEADER_CLASSES.content)}>

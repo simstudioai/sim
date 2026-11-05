@@ -33,7 +33,10 @@ import { inter } from '@/app/_styles/fonts/inter/inter'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components/message-actions'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
-import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import {
+  type ChatAppearance,
+  ChatSurfaceProvider,
+} from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ComposerScrollArea } from '@/app/workspace/[workspaceId]/home/components/composer-scroll-area'
 import {
   assistantMessageHasRenderableContent,
@@ -131,6 +134,7 @@ interface MothershipChatProps {
   animateInput?: boolean
   onInputAnimationEnd?: () => void
   className?: string
+  appearance?: ChatAppearance
 }
 
 /**
@@ -428,6 +432,7 @@ export function MothershipChat({
   animateInput = false,
   onInputAnimationEnd,
   className,
+  appearance,
 }: MothershipChatProps) {
   const queryClient = useQueryClient()
   const styles = LAYOUT_STYLES[layout]
@@ -918,6 +923,7 @@ export function MothershipChat({
       onViewSources={onViewSources}
       onNavigateToChat={onNavigateToChat}
       onWorkspaceResourceSelect={onWorkspaceResourceSelect}
+      appearance={appearance}
     >
       <div
         ref={containerRef}
@@ -955,7 +961,7 @@ export function MothershipChat({
           onCopy={handleCopy}
         >
           {isLoading && !hasMessages ? (
-            <MothershipChatSkeleton layout={layout} />
+            (appearance?.loadingTranscript ?? <MothershipChatSkeleton layout={layout} />)
           ) : (
             <div
               ref={sizerRef}
@@ -1004,7 +1010,7 @@ export function MothershipChat({
                             contexts={msg.contexts}
                             attachments={msg.attachments}
                             rowClassName={cn(styles.userRow, styles.rowGap)}
-                            bubbleClassName={styles.userBubble}
+                            bubbleClassName={cn(styles.userBubble, appearance?.userBubbleClassName)}
                             attachmentWidthClassName={styles.attachmentWidth}
                           />
                         )
@@ -1049,26 +1055,27 @@ export function MothershipChat({
               onEdit={handleEditQueued}
               onCancelEdit={onCancelQueueEdit}
             />
-            {!isLoading &&
-              (composer ?? (
-                <UserInput
-                  key={composerKey ?? draftScopeKey}
-                  ref={userInputRef}
-                  fileDropTarget={fileDropTarget}
-                  onSubmit={onComposerSubmit ?? onSubmit}
-                  attachments={composerAttachments}
-                  resourceActions={composerResourceActions}
-                  toolbarActions={composerToolbarActions}
-                  modelSelectorOptions={composerModelSelectorOptions}
-                  isSending={isStreamActive}
-                  onStopGeneration={onStopGeneration}
-                  isInitialView={false}
-                  onSendQueuedHead={handleSendQueuedHead}
-                  onEditQueuedTail={handleEditQueuedTail}
-                  draftScopeKey={draftScopeKey}
-                  getMessages={getHistoryMessages}
-                />
-              ))}
+            {isLoading
+              ? appearance?.loadingComposer
+              : (composer ?? (
+                  <UserInput
+                    key={composerKey ?? draftScopeKey}
+                    ref={userInputRef}
+                    fileDropTarget={fileDropTarget}
+                    onSubmit={onComposerSubmit ?? onSubmit}
+                    attachments={composerAttachments}
+                    resourceActions={composerResourceActions}
+                    toolbarActions={composerToolbarActions}
+                    modelSelectorOptions={composerModelSelectorOptions}
+                    isSending={isStreamActive}
+                    onStopGeneration={onStopGeneration}
+                    isInitialView={false}
+                    onSendQueuedHead={handleSendQueuedHead}
+                    onEditQueuedTail={handleEditQueuedTail}
+                    draftScopeKey={draftScopeKey}
+                    getMessages={getHistoryMessages}
+                  />
+                ))}
           </div>
         </ComposerScrollArea>
       </div>
