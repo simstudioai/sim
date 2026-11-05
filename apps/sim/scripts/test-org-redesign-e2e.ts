@@ -604,7 +604,7 @@ async function landingChecks() {
             address.searchParams.get('view') === 'authorized-apps'
         )
         await page.goto(orgUrl('/settings/team'))
-        await expect(page.getByPlaceholder('Search members...')).toBeVisible()
+        await expect(page.getByPlaceholder('Search members…')).toBeVisible()
         await page.goto(orgUrl('/access-requests'))
         await expect(page).toHaveURL((address) => address.pathname === `${root}/settings/requests`)
         await page.goto(orgUrl('/settings/audit-logs'))
@@ -867,7 +867,7 @@ async function sidebarChecks() {
       await page.goto(orgUrl('/settings/general'))
       await expect(mainNav(page)).toHaveCount(0)
       await expect(sidebar(page).getByRole('link', { name: 'Members', exact: true })).toBeVisible()
-      await sidebar(page).getByRole('button', { name: 'Back', exact: true }).click()
+      await sidebar(page).getByRole('button', { name: 'Back to app', exact: true }).click()
       await expect(page).toHaveURL(orgUrl('/home'))
       await expect(composer(page)).toBeVisible()
     })
@@ -2907,14 +2907,67 @@ async function settingsChecks() {
       })
     })
   }
-  await check('the settings shell renders correctly around legacy content', async () => {
+  await check('the settings frame: breadcrumb and a section on the design', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(orgUrl('/settings/general'))
+      await expect(page.getByLabel('Settings location')).toContainText('General')
       await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible()
       await expect(page.getByRole('button', { name: 'Reset password', exact: true })).toBeVisible()
       await expect(sidebar(page).locator('[data-platform-ui]').first()).toBeVisible()
+      await expect(
+        page.locator('[data-platform-ui]').getByRole('heading', { name: 'General', exact: true })
+      ).toBeVisible()
     })
   })
+  await check('a section on its older page renders beside the surface', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(orgUrl('/settings/integrations'))
+      await expect(page.getByLabel('Settings location')).toContainText('Sources')
+      const heading = page.getByRole('heading', { name: 'Sources', exact: true })
+      await expect(heading).toBeVisible()
+      await expect(
+        page.locator('[data-platform-ui]').getByRole('heading', { name: 'Sources' })
+      ).toHaveCount(0)
+    })
+  })
+  await check('a legacy alias opens its section under the same URL', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(orgUrl('/settings/team'))
+      await expect(page.getByLabel('Settings location')).toContainText('Members')
+      await expect(page.getByPlaceholder('Search members…')).toBeVisible()
+    })
+  })
+  await check(
+    "Settings search finds sections and settings, within the viewer's gates",
+    async () => {
+      await withSession(ADMIN, async ({ page }) => {
+        await page.goto(orgUrl('/settings/members'))
+        const rail = sidebar(page)
+        const field = rail.getByRole('searchbox', { name: 'Search settings' })
+        await page.keyboard.press('/')
+        await expect(field).toBeFocused()
+        await field.fill('password')
+        await rail.getByRole('link', { name: 'Reset password', exact: true }).click()
+        await expect(page).toHaveURL(orgUrl('/settings/general'))
+        await expect(
+          page.getByRole('button', { name: 'Reset password', exact: true })
+        ).toBeInViewport()
+        await field.fill('scim')
+        await rail.getByRole('link', { name: 'Directory provisioning', exact: true }).click()
+        await expect(page).toHaveURL(orgUrl('/settings/sso?tab=provisioning'))
+        await field.fill('audit')
+        await expect(rail.getByRole('link', { name: 'Audit logs', exact: true })).toBeVisible()
+        await field.fill('no setting is called this')
+        await expect(rail.getByText('No matching settings')).toBeVisible()
+      })
+      await withSession(MEMBER, async ({ page }) => {
+        await page.goto(orgUrl('/settings/general'))
+        const rail = sidebar(page)
+        await rail.getByRole('searchbox', { name: 'Search settings' }).fill('audit')
+        await expect(rail.getByText('No matching settings')).toBeVisible()
+      })
+    }
+  )
   await check(
     'Members: roster and search for a member; Leave present, Invite and seats hidden',
     async () => {
@@ -2947,14 +3000,12 @@ async function settingsChecks() {
   await check('Requests and Search MCP render for a member', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(orgUrl('/settings/requests'))
-      await expect(
-        page.getByText('No requests yet. Requests you send will appear here.')
-      ).toBeVisible()
+      await expect(page.getByText('No requests yet')).toBeVisible()
       await page.goto(orgUrl('/settings/search-mcp'))
       await expect(
         page
           .getByRole('button', { name: /Copy configuration/ })
-          .or(page.getByText(/Server URL|Terminal command/).first())
+          .or(page.getByLabel(/Server URL|Terminal command/).first())
       ).toBeVisible()
     })
   })
@@ -2966,7 +3017,7 @@ async function settingsChecks() {
         .getByRole('button', { name: 'Settings', exact: true })
         .click()
       await expect(page).toHaveURL(orgUrl('/settings/general'))
-      await sidebar(page).getByRole('button', { name: 'Back', exact: true }).click()
+      await sidebar(page).getByRole('button', { name: 'Back to app', exact: true }).click()
       await expect(page).toHaveURL(orgUrl('/links'))
     })
   })
@@ -3108,7 +3159,7 @@ async function blastRadiusChecks() {
     }
   )
   await check(
-    'legacy Settings content is styled the same under /o as under /workspace',
+    'a Settings section on its older page is styled the same under /o as under /workspace',
     async () => {
       const sampleContent = (page: Page) =>
         page.evaluate(() => {
@@ -3124,7 +3175,10 @@ async function blastRadiusChecks() {
           const output: Record<string, string> = {}
           const controls = Array.from(
             document.querySelectorAll('h1, h2, h3, label, input, button, p')
-          ).filter((element) => !element.closest('aside') && (element as HTMLElement).offsetParent)
+          ).filter(
+            (element) =>
+              !element.closest('aside, [data-platform-ui]') && (element as HTMLElement).offsetParent
+          )
           for (const element of controls.slice(0, 80)) {
             const key = `${element.tagName} ${(element.textContent ?? '').trim().slice(0, 32)}`
             const style = getComputedStyle(element)
@@ -3134,15 +3188,15 @@ async function blastRadiusChecks() {
         })
       await withSession(ADMIN, async (session) => {
         const { page } = session
-        await page.goto(url(`/workspace/${MEMBER_ADMIN_WORKSPACE.id}/settings/general`))
+        await page.goto(url(`/workspace/${MEMBER_ADMIN_WORKSPACE.id}/settings/connected-accounts`))
         await expect(
-          page.getByRole('button', { name: 'Reset password', exact: true })
+          page.getByRole('heading', { name: 'Credential Groups', exact: true })
         ).toBeVisible()
         await session.settle()
         const workspace = await sampleContent(page)
-        await page.goto(orgUrl('/settings/general'))
+        await page.goto(orgUrl('/settings/connected-accounts'))
         await expect(
-          page.getByRole('button', { name: 'Reset password', exact: true })
+          page.getByRole('heading', { name: 'Credential Groups', exact: true })
         ).toBeVisible()
         await session.settle()
         const organization = await sampleContent(page)

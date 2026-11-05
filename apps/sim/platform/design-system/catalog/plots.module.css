@@ -17,23 +17,29 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.stackLayer {
+  fill: currentColor;
+}
 .stackLayer[data-layer="0"] {
-  fill: var(--ui-plot-primary);
+  color: var(--ui-plot-primary);
 }
 .stackLayer[data-layer="1"] {
-  fill: var(--ui-plot-secondary);
+  color: var(--ui-plot-secondary);
 }
 .stackLayer[data-layer="2"] {
-  fill: var(--ui-plot-violet-1);
+  color: var(--ui-plot-violet-1);
 }
 .stackLayer[data-layer="3"] {
-  fill: var(--ui-plot-violet-2);
+  color: var(--ui-plot-violet-2);
 }
 .stackLayer[data-layer="4"] {
-  fill: var(--ui-plot-violet-3);
+  color: var(--ui-plot-violet-3);
 }
 .stackLayer[data-layer="5"] {
-  fill: var(--ui-plot-violet-4);
+  color: var(--ui-plot-violet-4);
+}
+.stackLayer[data-dimmed] {
+  fill: color-mix(in srgb, currentColor calc(var(--opacity-disabled) * 100%), var(--ui-canvas));
 }
 .arc[data-series="0"] {
   stroke: var(--ui-plot-violet-1);

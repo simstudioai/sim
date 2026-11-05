@@ -1,19 +1,10 @@
-'use client'
-
 import type { ReactNode } from 'react'
-import { SettingsPendingSection } from '@/components/settings/settings-pending-section'
-import { resolveOrganizationSurfaceHeaderMeta } from '@/app/o/[organizationId]/settings/navigation'
+import { SettingsFrame } from '@/app/o/[organizationId]/settings/settings-frame'
 
 interface OrganizationSettingsLayoutProps {
   children: ReactNode
 }
 
 export default function OrganizationSettingsLayout({ children }: OrganizationSettingsLayoutProps) {
-  return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <SettingsPendingSection resolveMeta={resolveOrganizationSurfaceHeaderMeta}>
-        {children}
-      </SettingsPendingSection>
-    </div>
-  )
+  return <SettingsFrame>{children}</SettingsFrame>
 }

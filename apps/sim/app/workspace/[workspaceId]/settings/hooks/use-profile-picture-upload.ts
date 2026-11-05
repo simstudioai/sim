@@ -158,12 +158,12 @@ export function useProfilePictureUpload({
    * that should revert an unsaved pick/removal without clearing the saved image.
    * Unlike {@link handleRemove}, this does not emit `onUpload(null)`.
    */
-  const reset = useCallback(() => {
+  const reset = useCallback((savedImage = currentImageRef.current) => {
     if (previewRef.current) {
       URL.revokeObjectURL(previewRef.current)
       previewRef.current = null
     }
-    setPreviewUrl(currentImageRef.current || null)
+    setPreviewUrl(savedImage || null)
     setFileName(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
@@ -186,6 +186,7 @@ export function useProfilePictureUpload({
     handleFileChange,
     handleFileDrop,
     handleRemove,
+    handleFile: processFile,
     reset,
     isUploading,
   }
