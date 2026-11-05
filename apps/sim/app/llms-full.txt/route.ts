@@ -100,7 +100,6 @@ function comparisonMarkdown(competitor: CompetitorProfile): string {
     `URL: ${toSiteUrl(`/comparisons/${competitor.id}`)} · Facts last verified ${isoDate(verified)}`,
     `${competitor.name}: ${competitor.oneLiner}`,
     competitor.leadAnswer && !competitor.leadQuestion ? proseToMarkdown(competitor.leadAnswer) : '',
-    competitor.betterThanAnswer ? proseToMarkdown(competitor.betterThanAnswer) : '',
     ...getQuestionSections(competitor).map(
       ({ question, answer }) => `**${question}**\n\n${proseToMarkdown(answer)}`
     ),

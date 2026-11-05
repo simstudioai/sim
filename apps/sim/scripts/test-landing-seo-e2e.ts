@@ -17,6 +17,7 @@ import {
   n8nProfile,
   openaiAgentkitProfile,
   openClawProfile,
+  type Prose,
   pipedreamProfile,
   vellumProfile,
 } from '@/lib/compare/data'
@@ -508,6 +509,24 @@ async function run() {
       assert(!text.includes('Frequently asked questions</h2>'), 'generated FAQ block still renders')
       for (const row of profile.glance ?? []) {
         assert(text.includes(`${row.label}</th>`), `at-a-glance row missing: ${row.label}`)
+      }
+
+      const visibleText = decodeHtml(
+        body
+          .replace(/<script\b[\s\S]*?<\/script>/g, '')
+          .replace(/<!--[\s\S]*?-->/g, '')
+          .replace(/<[^>]+>/g, '')
+      )
+      const proseText = (prose: Prose) =>
+        prose.map((part) => (typeof part === 'string' ? part : part.text)).join('')
+      const expectedProse = [
+        ...(profile.leadAnswer ? [profile.leadAnswer] : []),
+        ...[...intro, ...glance, ...closing].map((q) => q.answer),
+        ...(profile.glance ?? []).flatMap((row) => [row.sim, row.competitor]),
+      ]
+      for (const prose of expectedProse) {
+        const expected = proseText(prose)
+        assert(visibleText.includes(expected), `page text missing: ${expected.slice(0, 80)}`)
       }
 
       const relatedStart = text.indexOf('Related reading</h2>')

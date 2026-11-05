@@ -18,6 +18,7 @@ import { QuestionSections } from '@/app/(landing)/comparisons/components/questio
 import { getLibraryPostsForCompetitor } from '@/app/(landing)/comparisons/library-links'
 import {
   ALL_COMPETITORS,
+  betterThanQuestion,
   buildBottomLine,
   buildComparisonFaqs,
   getCompetitorBySlug,
@@ -200,7 +201,11 @@ export default async function ComparisonProviderPage({
               Sim vs {competitor.name}
             </h1>
             {competitor.leadQuestion && competitor.leadAnswer ? (
-              <section aria-labelledby='lead-question-heading' className='flex flex-col gap-3'>
+              <section
+                id='lead-question'
+                aria-labelledby='lead-question-heading'
+                className='flex flex-col gap-3'
+              >
                 <h2
                   id='lead-question-heading'
                   className='max-w-[720px] text-balance text-[var(--text-primary)] text-xl leading-[120%] tracking-[-0.02em] lg:text-2xl'
@@ -228,14 +233,14 @@ export default async function ComparisonProviderPage({
                   pricing, security, and support. Every fact below is sourced and dated, last
                   verified {verifiedDate}.
                 </p>
-                <p className='sr-only'>
-                  Sim is an open-source AI workspace for building, deploying, and managing AI
-                  agents. This page compares Sim to {competitor.name} across platform architecture,
-                  AI capabilities, integrations, pricing, security and compliance, observability,
-                  and support, using sourced, dated facts for buyers evaluating both platforms.
-                </p>
               </>
             )}
+            <p className='sr-only'>
+              Sim is an open-source AI workspace for building, deploying, and managing AI agents.
+              This page compares Sim to {competitor.name} across platform architecture, AI
+              capabilities, integrations, pricing, security and compliance, observability, and
+              support, using sourced, dated facts for buyers evaluating both platforms.
+            </p>
           </div>
         </div>
 
@@ -256,7 +261,7 @@ export default async function ComparisonProviderPage({
                     id='better-than-heading'
                     className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
                   >
-                    Is Sim better than {competitor.name}?
+                    {betterThanQuestion(competitor)}
                   </h2>
                   <p className='max-w-[720px] text-[var(--text-body)] text-small leading-[150%]'>
                     <ProseText prose={competitor.betterThanAnswer} />

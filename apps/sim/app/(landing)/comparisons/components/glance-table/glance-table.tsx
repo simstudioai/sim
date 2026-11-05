@@ -21,7 +21,7 @@ const STACKED_LABEL_CLASS = 'block font-medium text-[var(--text-muted)] text-cap
 export function GlanceTable({ rows, competitorName }: GlanceTableProps) {
   const heading = `Sim vs ${competitorName}: at a glance`
   return (
-    <section aria-labelledby='glance-heading' className='px-6 py-10'>
+    <section id='glance' aria-labelledby='glance-heading' className='px-6 py-10'>
       <h2
         id='glance-heading'
         className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'

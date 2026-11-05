@@ -178,14 +178,22 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
   return faqs
 }
 
+/** Heading of the section answering {@link CompetitorProfile.betterThanAnswer}. */
+export function betterThanQuestion(competitor: CompetitorProfile): string {
+  return `Is Sim better than ${competitor.name}?`
+}
+
 /**
  * Every buyer question the page answers in its own section, in page order: the lead question,
- * then the intro, glance, and closing questions.
+ * the "better than" question, then the intro, glance, and closing questions.
  */
 export function getQuestionSections(competitor: CompetitorProfile): ComparisonQuestion[] {
-  const { leadQuestion, leadAnswer, questions } = competitor
+  const { leadQuestion, leadAnswer, betterThanAnswer, questions } = competitor
   return [
     ...(leadQuestion && leadAnswer ? [{ question: leadQuestion, answer: leadAnswer }] : []),
+    ...(betterThanAnswer
+      ? [{ question: betterThanQuestion(competitor), answer: betterThanAnswer }]
+      : []),
     ...(questions?.intro ?? []),
     ...(questions?.glance ?? []),
     ...(questions?.closing ?? []),
