@@ -205,12 +205,13 @@ function ServiceAccountSource({
     { connectorType: provider }
   )
   const entries = (sources.data ?? []).filter((source) => source.accessMode === 'admin')
-  const selectable = entries
-    .filter((source) => source.enabled && source.availability === 'available')
-    .map((source) => ({
-      value: source.connectorId,
-      label: source.sourceDescription || connectorDisplayName(provider),
-    }))
+  const options = entries.map((source) => ({
+    value: source.connectorId,
+    label: `${source.sourceDescription || connectorDisplayName(provider)}${
+      !source.enabled ? ' · Paused' : source.availability !== 'available' ? ' · Unavailable' : ''
+    }`,
+    disabled: !source.enabled || source.availability !== 'available',
+  }))
   if (
     !sourceId &&
     !sources.isPending &&
@@ -225,21 +226,16 @@ function ServiceAccountSource({
         <SearchableSelect
           label='Service account connection'
           searchLabel='Search connections'
-          options={selectable}
+          options={options}
           value={sourceId || null}
           onValueChange={(value) => onChange(value ?? '')}
           placeholder={sources.isPending ? 'Loading connections' : 'Select a connection'}
           selectedLabel={
-            sourceId && !selectable.some((option) => option.value === sourceId)
+            sourceId && !options.some((option) => option.value === sourceId)
               ? 'Configured connection'
               : undefined
           }
           disabled={disabled || sources.isPending || sources.isError || !entries.length}
-          hint={
-            entries.length > selectable.length
-              ? 'Paused or unavailable connections cannot be selected.'
-              : undefined
-          }
         />
       )}
       {sources.isError && !sources.isFetchNextPageError && (

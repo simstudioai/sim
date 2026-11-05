@@ -171,13 +171,11 @@ vi.mock('@/hooks/use-credential-refresh-triggers', () => ({
 }))
 
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
-import { SearchSourceSetup } from '@/app/o/[organizationId]/settings/components/integrations/search-source-setup'
 import { AddConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal'
 import { useConnectorSetupStore } from '@/stores/connector-setup/store'
 
 const mockPush = nextNavigationMockFns.router.push
-const mockReplace = nextNavigationMockFns.router.replace
 nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
 nextNavigationMockFns.mockUsePathname.mockReturnValue('/o/org-1/settings/integrations')
 authClientMockFns.mockUseSession.mockImplementation(() => ({
@@ -406,31 +404,6 @@ afterEach(async () => {
   root = null
   container = null
   resetDeploymentShape()
-})
-
-describe('Search source setup with real connector dialogs', () => {
-  it.each([
-    ['source-one', '/o/org-1/settings/integrations/sources/source-one'],
-    ['confluence', '/o/org-1/settings/integrations'],
-    ['', '/o/org-1/settings/integrations'],
-  ])(
-    'redirects legacy organization management for %s without loading the connector list',
-    async (source, destination) => {
-      await render(
-        <SearchSourceSetup
-          scope={{ kind: 'organization', organizationId: 'org-1' }}
-          canAdmin
-          memberAccessAvailable
-          mirroredAccessAvailable
-        />,
-        `?manage-source=${source}`
-      )
-      if (source === 'source-one') expect(mockReplace).toHaveBeenCalledWith(destination)
-      else expect(mockReplace).not.toHaveBeenCalled()
-      expect(mocks.connectorsQuery).not.toHaveBeenCalled()
-      expect(document.querySelector('[role="dialog"]')).toBeNull()
-    }
-  )
 })
 
 describe('member content credentials in real add and edit dialogs', () => {

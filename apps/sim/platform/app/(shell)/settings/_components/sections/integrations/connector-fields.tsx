@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { useId } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
@@ -13,31 +13,35 @@ import {
   ActionRow,
   Muted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import apiKey from '@/platform/app/(shell)/settings/_components/sections/integrations/api-key-field.module.css'
 import {
-  ActionMenu,
   Button,
   FailureNotice,
   FieldFrame,
   FileField,
+  Icon,
   InlineNotice,
+  Input,
   MultiSelect,
   SearchableSelect,
-  SecretField,
   SegmentedControl,
   StatusTag,
   TextField,
   Tooltip,
 } from '@/platform/design-system/components'
+import popup from '@/platform/design-system/components/menu/popup.shared.module.css'
 import {
   type ConnectorConfigFieldsProps,
+  formatDisplayText,
   GITLAB_CSV_FILES,
   GITLAB_TOKEN_TABS,
   type GitLabPermissionForm,
   isConnectorFieldRequired,
   slackSearchSetupHref,
-  useAvailableEnvVarKeys,
   useConnectorAccessField,
+  useConnectorApiKeyField,
   useConnectorSelector,
+  useEnvVarSuggestions,
 } from '@/platform/lib/data/sources'
 
 const SELECT_ALL = '__select_all__'
@@ -52,8 +56,9 @@ interface SelectorProps extends Omit<Parameters<typeof useConnectorSelector>[0],
 function ConnectorSelector({ label, hint, optional, ...options }: SelectorProps) {
   const { field, value, disabled, credentialId } = options
   const selector = useConnectorSelector(options)
+  const query = selector.searchTerm.trim().toLowerCase()
   const visibleOptions = selector.comboboxOptions
-    .filter((option) => !option.hidden)
+    .filter((option) => !option.hidden && option.label.toLowerCase().includes(query))
     .map(({ value: optionValue, label: optionLabel }) => ({
       value: optionValue,
       label: optionLabel,
@@ -72,12 +77,37 @@ function ConnectorSelector({ label, hint, optional, ...options }: SelectorProps)
     error: selector.error?.message,
     onLoadMore: selector.loadMore,
     onRetry: () => void selector.refetch(),
+    emptyMessage:
+      selector.truncated && selector.hasSearch
+        ? 'No matches in partial results'
+        : selector.hasMore && selector.hasSearch
+          ? 'No matches in loaded options'
+          : selector.hasMore
+            ? 'No options loaded'
+            : selector.emptyMessage,
+    footer:
+      selector.hasMore && selector.hasSearch ? (
+        <button
+          type='button'
+          className={popup.item}
+          data-type='T060'
+          disabled={selector.isFetchingMore}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => void (selector.error ? selector.refetch() : selector.loadAll())}
+        >
+          {selector.isFetchingMore
+            ? 'Searching options...'
+            : selector.error
+              ? 'Try again'
+              : 'Search all options'}
+        </button>
+      ) : selector.truncated && visibleOptions.length > 0 ? (
+        <p className={popup.heading} data-type='T060'>
+          Showing partial results
+        </p>
+      ) : undefined,
   }
   const blocked = disabled || !credentialId || !selector.depsResolved
-  const fieldHint = selector.truncated
-    ? 'Too many to list. Try a more exact term.'
-    : (hint ?? undefined)
-
   if (selector.isMulti) {
     const current = Array.isArray(value) ? value : value ? [value] : []
     const allValue = field.selectAllValue ?? SELECT_ALL
@@ -108,7 +138,7 @@ function ConnectorSelector({ label, hint, optional, ...options }: SelectorProps)
           }}
           search={search}
           disabled={blocked}
-          hint={fieldHint}
+          hint={hint}
         />
         {selector.bulkError && <InlineNotice intent='danger' message={selector.bulkError} />}
       </>
@@ -126,7 +156,7 @@ function ConnectorSelector({ label, hint, optional, ...options }: SelectorProps)
       onValueChange={(next) => selector.handleChange(next ?? '')}
       search={search}
       disabled={blocked}
-      hint={fieldHint}
+      hint={hint}
     />
   )
 }
@@ -538,7 +568,90 @@ interface ApiKeyFieldProps {
   disabled?: boolean
 }
 
-/** Takes a key or a `{{SECRET}}` reference. Only secret names are offered, never their values. */
+interface ApiKeySuggestionsProps {
+  searchTerm: string
+  inputValue: string
+  cursorPosition: number
+  workspaceId?: string
+  onClose: () => void
+  onSelect: (newValue: string, newCursorPosition: number) => void
+}
+
+/** Mounted only while a `{{` is open, so secret names are read only when asked for. */
+function ApiKeySuggestions({
+  searchTerm,
+  inputValue,
+  cursorPosition,
+  workspaceId,
+  onClose,
+  onSelect,
+}: ApiKeySuggestionsProps) {
+  const suggestions = useEnvVarSuggestions({
+    visible: true,
+    onSelect,
+    searchTerm,
+    inputValue,
+    cursorPosition,
+    onClose,
+    workspaceId,
+  })
+  return (
+    <div className={apiKey.suggestions} data-material='floating' data-elevation='menu'>
+      {suggestions.filteredEnvVars.length === 0 ? (
+        <button
+          type='button'
+          className={popup.item}
+          data-type='T060'
+          onMouseDown={(event) => {
+            event.preventDefault()
+            suggestions.openEnvironmentSettings()
+          }}
+        >
+          <Icon name='I074' />
+          Create Secret
+        </button>
+      ) : (
+        suggestions.filteredGroups.map((group) => (
+          <div key={group.label}>
+            {workspaceId && (
+              <p className={popup.heading} data-type='T060'>
+                {group.label}
+              </p>
+            )}
+            {group.variables.map((envVar) => {
+              const index = suggestions.filteredEnvVars.indexOf(envVar)
+              return (
+                <button
+                  key={`${group.label}-${envVar}`}
+                  type='button'
+                  className={popup.item}
+                  data-type='T060'
+                  data-env-var-index={index}
+                  data-highlighted={index === suggestions.selectedIndex || undefined}
+                  onMouseEnter={() => suggestions.setSelectedIndex(index)}
+                  onMouseDown={(event) => {
+                    event.preventDefault()
+                    suggestions.handleEnvVarSelect(envVar)
+                  }}
+                >
+                  {envVar}
+                </button>
+              )
+            })}
+          </div>
+        ))
+      )}
+    </div>
+  )
+}
+
+const MASK = '•'
+
+/**
+ * Takes a key or a `{{SECRET}}` reference. Bullets replace the value in the input until it is
+ * focused, as on the older field, so an unfocused key is never in the DOM; while focused the text
+ * is drawn by an overlay that colors its references.
+ */
 export function ApiKeyField({
   label,
   value,
@@ -547,30 +660,47 @@ export function ApiKeyField({
   workspaceId,
   disabled,
 }: ApiKeyFieldProps) {
-  const [loadKeys, setLoadKeys] = useState(false)
-  const keys = useAvailableEnvVarKeys(workspaceId, { enabled: loadKeys })
+  const id = useId()
+  const field = useConnectorApiKeyField({ value, onChange, workspaceId })
   return (
-    <div onFocusCapture={() => setLoadKeys(true)} onPointerEnter={() => setLoadKeys(true)}>
-      <SecretField
-        label={label}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        disabled={disabled}
-        hint='Paste a key, or reference a secret as {{NAME}}.'
-      />
-      {keys && keys.size > 0 && (
-        <ActionMenu
-          label='Use a secret'
-          icon='I050'
-          triggerSize='compact'
-          actions={[...keys].sort().map((key) => ({
-            id: key,
-            label: key,
-            onSelect: () => onChange(`{{${key}}}`),
-          }))}
+    <FieldFrame id={id} label={label} hint='Paste a key, or type {{ to reference a secret.'>
+      <div className={apiKey.frame} data-typing={field.isFocused || undefined}>
+        <Input
+          id={id}
+          label={label}
+          type='text'
+          inputRef={field.inputRef}
+          value={field.isFocused ? value : MASK.repeat(value.length)}
+          placeholder={placeholder}
+          disabled={disabled}
+          autoComplete='off'
+          spellCheck={false}
+          onChange={(next) => {
+            if (field.isFocused) field.handleChange(next)
+          }}
+          onSelect={(event) => field.handleSelect(event.currentTarget.selectionStart)}
+          onFocus={field.handleFocus}
+          onBlur={field.handleBlur}
+          onScroll={(event) => field.handleScroll(event.currentTarget.scrollLeft)}
         />
-      )}
-    </div>
+        {field.isFocused && (
+          <div aria-hidden='true' className={apiKey.overlay} data-type='T043'>
+            <div ref={field.attachOverlay}>
+              {formatDisplayText(value, { availableEnvVars: field.availableEnvVars })}
+            </div>
+          </div>
+        )}
+        {field.suggestionsVisible && (
+          <ApiKeySuggestions
+            searchTerm={field.searchTerm}
+            inputValue={value}
+            cursorPosition={field.cursorPosition}
+            workspaceId={workspaceId}
+            onClose={field.closeSuggestions}
+            onSelect={field.handleSuggestion}
+          />
+        )}
+      </div>
+    </FieldFrame>
   )
 }

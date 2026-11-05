@@ -29,7 +29,7 @@ export function SettingsSurface({ children }: SettingsSurfaceProps) {
 
 interface SettingsRowProps {
   label: string
-  description?: string
+  description?: ReactNode
   /** An avatar or glyph aligned with the first line of the label. */
   leading?: ReactNode
   children?: ReactNode

@@ -1,3 +1,4 @@
+export { formatDisplayText } from '@sim/workflow-renderer/formatted-text'
 export { isApiClientError } from '@/lib/api/client/errors'
 export type { SearchIntegrationApproval } from '@/lib/api/contracts/knowledge/search-integrations'
 export type { GenericSecretSource } from '@/lib/api/contracts/organization-secrets'
@@ -39,6 +40,7 @@ export { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 export { connectedAccountsParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
 export { useSearchSourceSetup } from '@/app/o/[organizationId]/settings/components/integrations/use-search-source-setup'
 export { useAddConnectorForm } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/use-add-connector-form'
+export { useConnectorApiKeyField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/use-connector-api-key-field'
 export { isConnectorFieldRequired } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 export { useConnectorAccessField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/use-connector-access-field'
 export type { ConnectorConfigFieldsProps } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields/connector-config-fields'
@@ -52,6 +54,7 @@ export {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-fields'
 export { useConnectorSettingsForm } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form'
 export { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
+export { useEnvVarSuggestions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown/use-env-var-suggestions'
 export {
   GITLAB_CSV_FILES,
   GITLAB_TOKEN_TABS,
@@ -83,7 +86,6 @@ export {
   useSearchIntegrations,
   useUpdateSearchIntegration,
 } from '@/hooks/queries/search-integrations'
-export { useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
 export { useDebounce } from '@/hooks/use-debounce'
 export { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
 export { usePermissionConfig } from '@/hooks/use-permission-config'

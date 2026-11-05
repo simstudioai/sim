@@ -1,6 +1,13 @@
 'use client'
 
-import type { ClipboardEventHandler, FocusEventHandler, ReactNode } from 'react'
+import type {
+  ClipboardEventHandler,
+  FocusEventHandler,
+  ReactNode,
+  Ref,
+  SyntheticEvent,
+  UIEventHandler,
+} from 'react'
 import styles from '@/platform/design-system/components/field/field.module.css'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
@@ -52,6 +59,10 @@ interface InputProps extends ControlProps, TextValueProps, TextEntryProps {
   onFocus?: FocusEventHandler<HTMLInputElement>
   onBlur?: FocusEventHandler<HTMLInputElement>
   onPaste?: ClipboardEventHandler<HTMLInputElement>
+  onSelect?: (event: SyntheticEvent<HTMLInputElement>) => void
+  onScroll?: UIEventHandler<HTMLInputElement>
+  /** The input element, for a caller that places its caret. */
+  inputRef?: Ref<HTMLInputElement>
 }
 
 export function Input({
@@ -80,12 +91,19 @@ export function Input({
   onFocus,
   onBlur,
   onPaste,
+  onSelect,
+  onScroll,
+  inputRef,
 }: InputProps) {
   const scrollRef = useScrollEdges<HTMLInputElement>('horizontal')
   return (
     <span className={styles.inputFrame} data-trailing={trailing ? true : undefined}>
       <input
-        ref={scrollRef}
+        ref={(element) => {
+          scrollRef(element)
+          if (typeof inputRef === 'function') inputRef(element)
+          else if (inputRef) inputRef.current = element
+        }}
         id={id}
         type={type}
         inputMode={inputMode}
@@ -112,6 +130,8 @@ export function Input({
         onFocus={onFocus}
         onBlur={onBlur}
         onPaste={onPaste}
+        onSelect={onSelect}
+        onScroll={onScroll}
       />
       {trailing}
     </span>

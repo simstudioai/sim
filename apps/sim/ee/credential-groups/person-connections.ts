@@ -23,6 +23,7 @@ export function personConnectionSummaries(person: CredentialGroupEnrollmentDetai
             : undefined
         return {
           key: `${connection.provider}:${connection.status}`,
+          providerId: connection.provider as string | undefined,
           name: service?.name ?? display?.detailTitle ?? 'GitLab',
           icon: service?.icon ?? display?.icon ?? undefined,
           count: connection.count,
@@ -32,6 +33,7 @@ export function personConnectionSummaries(person: CredentialGroupEnrollmentDetai
       .filter((connection) => connection.status === 'active')
       .map((connection) => ({
         key: `mcp:${connection.mcpServerId}`,
+        providerId: undefined,
         name: connection.name,
         count: 1,
         icon: undefined,

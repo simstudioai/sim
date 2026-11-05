@@ -3,11 +3,13 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import {
   LoadingState,
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import styles from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/group-people.module.css'
 import { PeopleInviteModal } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/people-invite-modal'
 import {
   ActionMenu,
@@ -18,7 +20,9 @@ import {
   InlineNotice,
   Modal,
   SearchField,
+  StatusTag,
 } from '@/platform/design-system/components'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import {
   SettingsRow,
   SettingsSection,
@@ -32,6 +36,30 @@ import {
   useResendOrganizationAccountInvitation,
   useRevokeOrganizationAccountEnrollment,
 } from '@/platform/lib/data/credential-groups'
+
+interface PersonConnectionsProps {
+  person: Parameters<typeof personConnectionSummaries>[0]
+}
+
+/** The accounts a person has connected, as tags that scroll rather than wrap the row. */
+function PersonConnections({ person }: PersonConnectionsProps) {
+  const scrollRef = useScrollEdges<HTMLSpanElement>('horizontal')
+  const accounts = personConnectionSummaries(person)
+  if (accounts.length === 0) return null
+  return (
+    <span ref={scrollRef} role='group' aria-label='Connected accounts' className={styles.tags}>
+      {accounts.map(({ key, name, icon, count, providerId }) => (
+        <StatusTag
+          key={key}
+          label={count > 1 ? `${name} (${count})` : name}
+          leading={
+            icon || providerId ? <IntegrationMark providerId={providerId} icon={icon} /> : undefined
+          }
+        />
+      ))}
+    </span>
+  )
+}
 
 interface GroupPeopleProps {
   organizationId: string
@@ -75,11 +103,7 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
             <SettingsRow
               key={person.id}
               label={person.email}
-              description={
-                personConnectionSummaries(person)
-                  .map(({ name, count }) => (count > 1 ? `${name} (${count})` : name))
-                  .join(', ') || undefined
-              }
+              description={<PersonConnections person={person} />}
               leading={<Avatar name={person.email} />}
             >
               <ActionMenu
