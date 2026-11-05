@@ -22,6 +22,21 @@
   height: var(--ui-icon-size);
 }
 
+.avatar[data-size="row"] {
+  width: var(--spacing-36);
+  height: var(--spacing-36);
+}
+
+.avatar[data-size="card"] {
+  width: var(--spacing-40);
+  height: var(--spacing-40);
+}
+
+.avatar[data-size="hero"] {
+  width: var(--spacing-80);
+  height: var(--spacing-80);
+}
+
 .avatarImage {
   display: block;
   width: 100%;

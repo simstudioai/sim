@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import * as XLSX from 'xlsx'
-import { readPeopleSheet } from '@/app/o/[organizationId]/people/read-people-sheet'
+import { readPeopleSheet } from '@/lib/people/read-sheet'
 
 /** January 31, 2024 as a date serial in each of Excel's two date systems. */
 const SERIAL_1900 = 45322

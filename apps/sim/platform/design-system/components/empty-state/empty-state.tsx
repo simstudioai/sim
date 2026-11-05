@@ -17,11 +17,11 @@ export function EmptyState({ title, description, action, graphic }: EmptyStatePr
           {graphic}
         </span>
       )}
-      <div>
+      <div className={styles.copy}>
         <h2 data-type='T042'>{title}</h2>
         {description && <p data-type='T067'>{description}</p>}
       </div>
-      {action}
+      {action && <div className={styles.actions}>{action}</div>}
     </section>
   )
 }
