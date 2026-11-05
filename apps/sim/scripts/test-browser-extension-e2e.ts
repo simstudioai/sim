@@ -16,6 +16,7 @@ import {
   type Page,
   type Request,
   type Route,
+  type WebSocketRoute,
 } from '@playwright/test'
 import { pageSnapshotSchema } from '@sim/browser-extension-protocol'
 import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
@@ -524,8 +525,12 @@ try {
     await seed()
   }
   await checkNavigation('A real Better Auth session reaches the extension iframe', async () => {
+    const login = await openPage()
+    await login.goto(`${base.origin}/login`)
     await signInAndSeed()
-    await shell.reload()
+    await login.close()
+    await shell.bringToFront()
+    await frame().getByRole('heading', { name: 'Sign in to Sim', exact: true }).click()
     await expect(
       frame().getByRole('link', { name: 'Extension QA alpha', exact: true })
     ).toBeVisible()
@@ -1327,21 +1332,73 @@ try {
     }
   )
   await checkComposer(
-    'The extension blocks microphone capture even when the Sim origin has permission',
+    'Voice input captures only on click, preserves drafts, and survives a rapid restart',
     async () => {
-      await browserContext.grantPermissions(['microphone'], { origin: base.origin })
-      const denied = await frame().evaluate(async () => {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-          stream.getTracks().forEach((track) => track.stop())
-          return false
-        } catch (error) {
-          return error instanceof DOMException && error.name === 'NotAllowedError'
-        }
+      const input = frame().getByRole('textbox', { name: 'Message', exact: true })
+      const mic = frame().getByRole('button', { name: 'Voice input', exact: true })
+      const stop = frame().getByRole('button', { name: 'Stop listening', exact: true })
+      const sessions: { socket: WebSocketRoute; chunks: number; closed: boolean }[] = []
+      await shell.route('**/api/speech/token', (route) => {
+        injectedRequests.add(route.request())
+        return route.fulfill({ json: { token: 'synthetic-extension-voice' } })
       })
-      assert(denied, 'Microphone capture escaped the extension permissions policy')
-      await expect(frame().getByRole('button', { name: 'Voice input', exact: true })).toHaveCount(0)
-      await browserContext.clearPermissions()
+      await shell.routeWebSocket(
+        'wss://api.elevenlabs.io/v1/speech-to-text/realtime*',
+        (socket) => {
+          const session = { socket, chunks: 0, closed: false }
+          sessions.push(session)
+          socket.onMessage((message) => {
+            const data = toRecord(JSON.parse(String(message)))
+            if (typeof data.audio_base_64 === 'string' && data.audio_base_64.length > 0) {
+              assert.equal(data.sample_rate, 16000)
+              assert(Buffer.from(data.audio_base_64, 'base64').length > 0)
+              session.chunks++
+            }
+          })
+          socket.onClose(() => {
+            session.closed = true
+          })
+        }
+      )
+      await browserContext.grantPermissions(['microphone'], { origin: base.origin })
+      try {
+        await expect(mic).toBeVisible()
+        await input.fill('Keep my draft')
+        assert.equal(sessions.length, 0, 'Voice started before an explicit click')
+        await screenshot('microphone-ready')
+        await mic.click()
+        await expect(stop).toBeVisible()
+        await expect.poll(() => sessions[0]?.chunks ?? 0).toBeGreaterThan(0)
+        sessions[0].socket.send(
+          JSON.stringify({ message_type: 'partial_transcript', text: 'first thought' })
+        )
+        await expect(input).toHaveValue('Keep my draft first thought')
+        await screenshot('microphone-listening')
+        await stop.click()
+        await expect(mic).toBeVisible()
+        await mic.click()
+        await expect(stop).toBeVisible()
+        await expect.poll(() => sessions.length).toBe(2)
+        await expect.poll(() => sessions[0].closed).toBe(true)
+        await expect(stop).toBeVisible()
+        const chunks = sessions[1].chunks
+        await expect.poll(() => sessions[1].chunks).toBeGreaterThan(chunks)
+        sessions[0].socket.send(
+          JSON.stringify({ message_type: 'partial_transcript', text: 'stale thought' })
+        )
+        sessions[1].socket.send(
+          JSON.stringify({ message_type: 'partial_transcript', text: 'second thought' })
+        )
+        await expect(input).toHaveValue('Keep my draft first thought second thought')
+        await stop.click()
+        await expect(mic).toBeVisible()
+        await screenshot('microphone-transcribed')
+        await expect.poll(() => sessions[1].closed).toBe(true)
+        await input.fill('')
+      } finally {
+        await shell.unroute('**/api/speech/token')
+        await browserContext.clearPermissions()
+      }
     }
   )
   await checkComposer(

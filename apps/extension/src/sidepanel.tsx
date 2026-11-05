@@ -413,7 +413,7 @@ function SidePanel({ origin }: SidePanelProps) {
         )}
       </div>
       <iframe
-        allow={`clipboard-write ${origin}`}
+        allow={`clipboard-write ${origin}; microphone ${origin}`}
         ref={frameRef}
         title='Sim chat'
         src={`${origin}/extension`}
