@@ -5,11 +5,18 @@ interface EmptyStateProps {
   title: string
   description?: string
   action?: ReactNode
+  /** A decorative mark above the title. */
+  graphic?: ReactNode
 }
 
-export function EmptyState({ title, description, action }: EmptyStateProps) {
+export function EmptyState({ title, description, action, graphic }: EmptyStateProps) {
   return (
     <section className={styles.empty} data-action={action ? true : undefined}>
+      {graphic && (
+        <span className={styles.graphic} aria-hidden='true'>
+          {graphic}
+        </span>
+      )}
       <div>
         <h2 data-type='T042'>{title}</h2>
         {description && <p data-type='T067'>{description}</p>}

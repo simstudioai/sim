@@ -49,3 +49,7 @@
   border-color: var(--ui-divider);
   background: var(--settings-picker-surface);
 }
+
+.trigger[data-empty] .value {
+  color: var(--ui-secondary);
+}

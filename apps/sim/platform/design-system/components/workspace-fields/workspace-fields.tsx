@@ -2,7 +2,7 @@
 
 import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { IconButton } from '@/platform/design-system/components/button/button'
-import { FieldFrame } from '@/platform/design-system/components/field/fields'
+import { FieldFrame, fieldDescription } from '@/platform/design-system/components/field/fields'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
@@ -54,13 +54,35 @@ export function RecipientTag({ address, invalid, onRemove }: RecipientTagProps) 
 interface RecipientFieldProps {
   label: string
   defaultRecipients?: readonly Recipient[]
+  /** Controlled tags. A caller can mark an address `invalid`, for one the server refused. */
+  recipients?: readonly Recipient[]
+  onRecipientsChange?: (recipients: Recipient[]) => void
+  /** Whether a newly committed address is acceptable. Defaults to the browser's email check. */
+  validate?: (address: string) => boolean
+  /** Replaces the default message shown while any tag is invalid. */
+  error?: string
+  hint?: string
+  disabled?: boolean
   name?: string
   placeholder?: string
+}
+
+function isEmailAddress(address: string) {
+  const email = document.createElement('input')
+  email.type = 'email'
+  email.value = address
+  return email.validity.valid
 }
 
 export function RecipientField({
   label,
   defaultRecipients = [],
+  recipients: controlledRecipients,
+  onRecipientsChange,
+  validate = isEmailAddress,
+  error: errorMessage,
+  hint,
+  disabled,
   name,
   placeholder,
 }: RecipientFieldProps) {
@@ -68,11 +90,17 @@ export function RecipientField({
   const input = useRef<HTMLInputElement>(null)
   const inputEdges = useScrollEdges('horizontal', { viewport: input })
   const viewportEdges = useScrollEdges<HTMLDivElement>()
-  const [recipients, setRecipients] = useState(defaultRecipients)
+  const [localRecipients, setLocalRecipients] = useState(defaultRecipients)
+  const recipients = controlledRecipients ?? localRecipients
   const [draft, setDraft] = useState('')
-  const error = recipients.some((recipient) => recipient.invalid)
-    ? 'Enter a valid email address.'
-    : undefined
+  const error =
+    errorMessage ??
+    (recipients.some((recipient) => recipient.invalid) ? 'Enter a valid email address.' : undefined)
+
+  function setRecipients(next: Recipient[]) {
+    setLocalRecipients(next)
+    onRecipientsChange?.(next)
+  }
 
   useLayoutEffect(() => {
     const editor = input.current
@@ -88,24 +116,18 @@ export function RecipientField({
       .split(/[,;\s]+/)
       .filter(Boolean)
     if (!addresses.length) return
-    const email = document.createElement('input')
-    email.type = 'email'
-    const additions = addresses.map((address) => {
-      email.value = address
-      return { address, invalid: !email.validity.valid }
+    const known = new Set(recipients.map(({ address }) => address.toLowerCase()))
+    const additions = addresses.filter((address) => {
+      const key = address.toLowerCase()
+      if (known.has(key)) return false
+      known.add(key)
+      return true
     })
-    setRecipients((current) => {
-      const known = new Set(current.map(({ address }) => address.toLowerCase()))
-      return [
-        ...current,
-        ...additions.filter(({ address }) => {
-          const key = address.toLowerCase()
-          if (known.has(key)) return false
-          known.add(key)
-          return true
-        }),
-      ]
-    })
+    if (!additions.length) return
+    setRecipients([
+      ...recipients,
+      ...additions.map((address) => ({ address, invalid: !validate(address) })),
+    ])
   }
 
   function finish(text: string) {
@@ -114,15 +136,16 @@ export function RecipientField({
   }
 
   function remove(address: string) {
-    setRecipients((current) => current.filter((recipient) => recipient.address !== address))
+    setRecipients(recipients.filter((recipient) => recipient.address !== address))
     input.current?.focus()
   }
 
   return (
-    <FieldFrame id={id} label={label} error={error}>
+    <FieldFrame id={id} label={label} error={error} hint={hint}>
       <div
         className={styles.recipients}
         data-invalid={error ? true : undefined}
+        data-disabled={disabled || undefined}
         role='presentation'
         onClick={(event) => {
           if (event.target instanceof Element && !event.target.closest('input, button')) {
@@ -136,7 +159,7 @@ export function RecipientField({
               key={recipient.address}
               address={recipient.address}
               invalid={recipient.invalid}
-              onRemove={remove}
+              onRemove={disabled ? undefined : remove}
             />
           ))}
           <input
@@ -145,11 +168,12 @@ export function RecipientField({
             inputMode='email'
             autoComplete='off'
             spellCheck={false}
+            disabled={disabled}
             data-type='T043'
             placeholder={recipients.length ? undefined : placeholder}
             value={draft}
             aria-invalid={error ? true : undefined}
-            aria-describedby={error ? `${id}-error` : undefined}
+            aria-describedby={fieldDescription(id, error, hint)}
             onChange={(event) => {
               const value = event.currentTarget.value
               const last = Math.max(value.lastIndexOf(','), value.lastIndexOf(';'))
@@ -168,7 +192,7 @@ export function RecipientField({
                 finish(draft)
               } else if (event.key === 'Backspace' && !draft) {
                 event.preventDefault()
-                setRecipients((current) => current.slice(0, -1))
+                if (recipients.length) setRecipients(recipients.slice(0, -1))
               }
             }}
             onPaste={(event) => {

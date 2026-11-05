@@ -7,15 +7,17 @@ interface SwitchProps {
   label: string
   checked?: boolean
   defaultChecked?: boolean
+  disabled?: boolean
   onCheckedChange?: (checked: boolean) => void
 }
 
-export function Switch({ label, checked, defaultChecked, onCheckedChange }: SwitchProps) {
+export function Switch({ label, checked, defaultChecked, disabled, onCheckedChange }: SwitchProps) {
   return (
     <BaseSwitch.Root
       aria-label={label}
       checked={checked}
       defaultChecked={defaultChecked}
+      disabled={disabled}
       onCheckedChange={onCheckedChange}
       className={styles.target}
     >

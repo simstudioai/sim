@@ -21,3 +21,13 @@
 .empty p {
   color: var(--ui-secondary);
 }
+
+.graphic {
+  display: inline-flex;
+  color: var(--ui-secondary);
+  margin-block-end: var(--spacing-8);
+}
+
+.empty[data-action] .graphic {
+  margin-block-end: 0;
+}

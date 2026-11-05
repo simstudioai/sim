@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import styles from '@/platform/design-system/components/field/field.module.css'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
@@ -19,10 +20,22 @@ export interface TextValueProps {
   onChange?: (value: string) => void
 }
 
-interface InputProps extends ControlProps, TextValueProps {
+/** Native text-entry attributes, passed through as written. */
+export interface TextEntryProps {
+  type?: 'text' | 'email' | 'url' | 'tel' | 'number' | 'password' | 'time'
+  inputMode?: 'text' | 'email' | 'url' | 'tel' | 'numeric' | 'decimal' | 'search'
+  autoComplete?: string
+  maxLength?: number
+  readOnly?: boolean
+}
+
+interface InputProps extends ControlProps, TextValueProps, TextEntryProps {
   required?: boolean
   pattern?: string
   placeholder?: string
+  spellCheck?: boolean
+  /** An action inside the frame, after the text. */
+  trailing?: ReactNode
 }
 
 export function Input({
@@ -38,13 +51,26 @@ export function Input({
   placeholder,
   required,
   pattern,
+  type,
+  inputMode,
+  autoComplete,
+  maxLength,
+  readOnly,
+  spellCheck,
+  trailing,
 }: InputProps) {
   const scrollRef = useScrollEdges<HTMLInputElement>('horizontal')
   return (
-    <span className={styles.inputFrame}>
+    <span className={styles.inputFrame} data-trailing={trailing ? true : undefined}>
       <input
         ref={scrollRef}
         id={id}
+        type={type}
+        inputMode={inputMode}
+        autoComplete={autoComplete}
+        maxLength={maxLength}
+        readOnly={readOnly}
+        spellCheck={spellCheck}
         required={required}
         pattern={pattern}
         aria-label={label}
@@ -59,11 +85,13 @@ export function Input({
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
       />
+      {trailing}
     </span>
   )
 }
 
-interface TextAreaProps extends Omit<InputProps, 'pattern'> {
+interface TextAreaProps
+  extends Omit<InputProps, 'pattern' | 'type' | 'inputMode' | 'spellCheck' | 'trailing'> {
   density?: 'expanded'
 }
 
@@ -80,6 +108,9 @@ export function TextArea({
   placeholder,
   density,
   required,
+  autoComplete,
+  maxLength,
+  readOnly,
 }: TextAreaProps) {
   const scrollRef = useScrollEdges<HTMLTextAreaElement>()
   return (
@@ -87,6 +118,9 @@ export function TextArea({
       <textarea
         ref={scrollRef}
         id={id}
+        autoComplete={autoComplete}
+        maxLength={maxLength}
+        readOnly={readOnly}
         required={required}
         aria-label={label}
         className={styles.input}

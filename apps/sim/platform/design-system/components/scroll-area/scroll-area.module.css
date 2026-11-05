@@ -52,3 +52,19 @@
 .viewport[data-axis="horizontal"] > .content {
   min-inline-size: 100%;
 }
+.sentinel {
+  block-size: var(--spacing-1);
+}
+.loadStatus {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-block-size: var(--spacing-app-control-md);
+  padding-inline: var(--ui-row-inset);
+  gap: var(--ui-row-gap);
+  color: var(--ui-secondary);
+  overflow-wrap: anywhere;
+}
+.loadStatus[data-failed] {
+  color: var(--control-danger);
+}

@@ -112,6 +112,14 @@
   --ui-table-number: 5.5rem;
   --ui-table-wide: 6.5rem;
   --ui-table-compact: var(--spacing-80);
+  --ui-table-head: var(--spacing-app-control-md);
+  --ui-table-viewport-offset: 12rem;
+}
+
+@media (pointer: coarse) {
+  [data-platform-ui] {
+    --ui-table-head: var(--spacing-app-touch-target);
+  }
 }
 
 [data-platform-ui] {
@@ -121,6 +129,23 @@
   --plot-gradient-ink: var(--ui-plot-primary);
   --plot-stroke-width: var(--spacing-2);
   --ui-plot-area-opacity: 0.16;
+}
+
+[data-platform-ui] [data-scroll-axis][data-sticky-head] {
+  --fade-start: linear-gradient(
+    to bottom,
+    black var(--ui-table-head),
+    transparent var(--ui-table-head),
+    black calc(var(--ui-table-head) + var(--spacing-overflow-fade))
+  );
+  --fade-both: linear-gradient(
+    to bottom,
+    black var(--ui-table-head),
+    transparent var(--ui-table-head),
+    black calc(var(--ui-table-head) + var(--spacing-overflow-fade)),
+    black calc(100% - var(--spacing-overflow-fade)),
+    transparent
+  );
 }
 
 [data-platform-ui] [data-scroll-axis][data-edges="start"] {
