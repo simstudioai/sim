@@ -89,6 +89,7 @@
   --switch-off: var(--color-light-divider);
   --switch-on: var(--color-light-accent);
   --switch-thumb: var(--color-tooltip-text);
+  --switch-thumb-on: var(--switch-thumb);
   --switch-thumb-edge: var(--color-neutral-0-a7-843137);
   --switch-thumb-shadow: 0 1px 2px var(--color-black-4);
 }
@@ -97,4 +98,5 @@
   --settings-picker-surface: var(--color-dark-reading);
   --switch-off: var(--color-dark-raised);
   --switch-on: var(--color-dark-blue);
+  --switch-thumb-on: var(--color-dark-canvas);
 }
