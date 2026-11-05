@@ -896,6 +896,16 @@ export const glyphs = {
       <path d='M15 4a5 5 0 1 1-3.4 8.6L5 19.2H2v-3l6.6-6.6A5 5 0 0 1 15 4ZM17 7h.01' />
     ),
   },
+  I138: {
+    label: 'minus',
+    viewBox: '-1.75 -1.75 24 24',
+    draw: (): ReactNode => <path d='M3 10.25H17.5' />,
+  },
+  I139: {
+    label: 'chevron-left',
+    viewBox: '-2.25 -1.75 24 24',
+    draw: (): ReactNode => <path d='M13.25 3L6.25 10.25L13.25 17.5' />,
+  },
 } as const
 
 export type IconName = keyof typeof glyphs

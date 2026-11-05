@@ -66,6 +66,8 @@ interface TableRow {
   cells?: Readonly<Partial<Record<string, ReactNode>>>
   /** Make the whole row open this destination, through a link on its first cell. */
   href?: string
+  /** Hold the link's prefetch, for a long list of the same route. */
+  prefetch?: boolean
   /** Make the whole row run this, through a button on its first cell. */
   onOpen?: () => void
   /** A control beside the row's target, in a trailing column. */
@@ -158,7 +160,7 @@ const TableRowView = memo(function TableRowView({
             data-type={column.kind === 'text' ? 'T059' : 'T060'}
           >
             {position === 0 && row.href ? (
-              <Link href={row.href} className={styles.rowTarget}>
+              <Link href={row.href} prefetch={row.prefetch} className={styles.rowTarget}>
                 {content}
               </Link>
             ) : position === 0 && row.onOpen ? (

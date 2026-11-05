@@ -575,7 +575,7 @@ async function run() {
           .getByText(longTitle, { exact: true })
         await longTitleLabel.hover()
         await expect(
-          page.locator('[data-native-surface-overlay]').filter({ hasText: longTitle })
+          page.getByRole('tooltip', { includeHidden: true }).filter({ hasText: longTitle })
         ).toBeVisible()
         await page.mouse.move(0, 0)
         await page.screenshot({ path: join(screenshotDir, 'desktop.png') })
@@ -639,8 +639,7 @@ async function run() {
         try {
           await pickerSearch.fill(pagedSearch)
           await expect(page.getByRole('option', { name: /^Directory colleague 001/ })).toBeVisible()
-          const more = page.getByRole('button', { name: 'Load more', exact: true })
-          await expect(more).toBeVisible({ timeout: 5_000 })
+          const options = page.getByRole('listbox', { name: 'Find a person' })
           await Promise.all([
             page.waitForResponse((response) => {
               const url = new URL(response.url())
@@ -651,14 +650,19 @@ async function run() {
                 response.ok()
               )
             }),
-            more.click(),
+            options.evaluate((list) => {
+              list.scrollTop = list.scrollHeight
+            }),
           ])
-          await more.scrollIntoViewIfNeeded()
           await page.getByRole('option', { name: /^Directory colleague 100/ }).click()
           await expect(
             page.getByText('No reporting lines for Directory colleague 100', { exact: true })
           ).toBeVisible()
-          assert.equal(requestedPages.length, 2, 'One click loads exactly one additional page')
+          assert.equal(
+            requestedPages.length,
+            2,
+            'Reaching the end loads exactly one additional page'
+          )
           assert.equal(requestedPages[0], null)
           assert(requestedPages[1], 'Page two resumes with a cursor')
           await page.goBack()
@@ -676,7 +680,7 @@ async function run() {
         await page.getByText(/Maya Chen · VP Engineering/).click()
         await expect(focused('Maya Chen')).toBeVisible()
         await page.getByRole('radio', { name: 'Directory' }).click()
-        const directorySearch = page.getByRole('textbox', { name: 'Search people...', exact: true })
+        const directorySearch = page.getByRole('searchbox', { name: 'Search people', exact: true })
         await directorySearch.focus()
         await directorySearch.press('ControlOrMeta+v')
         await expect(directorySearch).toHaveValue(boundedPaste)
