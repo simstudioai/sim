@@ -433,6 +433,7 @@ async function run() {
     assert(visibleText.includes('open source under the Apache 2.0 license'), 'license note missing')
     assert(visibleText.includes('self-host it for free'), 'self-hosting note missing')
     assert(visibleText.includes('Self-Hosted Enterprise Features'), 'Enterprise row label missing')
+    assert(visibleText.includes('one credit is worth $0.005'), 'credit value note missing')
   })
 
   await check('Copilot Studio comparison aliases reach the comparison page', async () => {
