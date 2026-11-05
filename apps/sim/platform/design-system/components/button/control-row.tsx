@@ -56,7 +56,7 @@ export function ControlRow({
       ),
     },
   })
-  if (!action) return control
+  if (!action && !status) return control
   return (
     <div
       className={styles.chipRow}
@@ -65,7 +65,7 @@ export function ControlRow({
     >
       {control}
       {status && <span className={styles.chipStatus}>{status}</span>}
-      <span className={styles.chipAction}>{action}</span>
+      {action && <span className={styles.chipAction}>{action}</span>}
     </div>
   )
 }

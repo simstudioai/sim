@@ -762,7 +762,6 @@ function runtimeImports(file: string): string[] {
   return found
 }
 
-/** The source file an import names, as the bundler would find it. */
 function resolveSource(file: string, specifier: string): string | null {
   const target = resolveImport(file, specifier)
   if (!target) return null

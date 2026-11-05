@@ -72,6 +72,8 @@ function ModalSurface({
   const [index, setIndex] = useState(0)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** A step back within one step still moves focus, so a repeated Enter cannot reach Cancel. */
+  const [backs, setBacks] = useState(0)
   const open = controlled ?? internal
   const step = steps[index]
   const last = index === steps.length - 1
@@ -115,7 +117,7 @@ function ModalSurface({
         open={open}
         title={title}
         description={step.description}
-        step={index}
+        step={index + backs}
         presentation={presentation}
         busy={pending}
         onClose={dismiss}
@@ -144,8 +146,10 @@ function ModalSurface({
           onPrevious={() => {
             setError(null)
             if (index > 0) setIndex(index - 1)
-            else if (onBack) onBack()
-            else dismiss()
+            else if (onBack) {
+              onBack()
+              setBacks(backs + 1)
+            } else dismiss()
           }}
           cancelLabel={index > 0 || onBack ? 'Back' : cancelLabel}
           disabled={pending || (last && confirmDisabled)}

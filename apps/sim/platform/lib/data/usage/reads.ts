@@ -290,16 +290,11 @@ export function useActivityBreakdown(
   const query = useOrganizationActivityBreakdown(organizationId, window, dimension, sort, page, {
     workspaceId,
   })
-  const rows = useMemo(
-    () =>
-      query.data?.rows.map((row) => ({
-        ...row,
-        failureRateLabel: formatFailureRate(row.failureRate),
-      })),
-    [query.data]
-  )
   return {
-    rows,
+    rows: query.data?.rows.map((row) => ({
+      ...row,
+      failureRateLabel: formatFailureRate(row.failureRate),
+    })),
     hasMore: Boolean(query.data?.hasMore),
     failed: query.isError,
     loading: query.isLoading,

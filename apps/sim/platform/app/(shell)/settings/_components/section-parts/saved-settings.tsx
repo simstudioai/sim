@@ -30,7 +30,6 @@ interface BooleanRowProps {
   description: string
 }
 
-/** A saved on-or-off preference. */
 export function BooleanRow({ setting, label, description }: BooleanRowProps) {
   const { checked, disabled, set } = useBooleanSetting(setting)
   return (

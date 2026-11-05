@@ -38,7 +38,6 @@ export async function serverRequestJson<C extends AnyApiRouteContract>(
   return readContractResponse(contract, response)
 }
 
-/** A first-paint read, which gives up its seat quickly because the client can always fetch it. */
 export function prefetchRequestJson<C extends AnyApiRouteContract>(
   contract: C,
   input: ApiClientRequest<C>

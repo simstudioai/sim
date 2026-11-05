@@ -7,6 +7,7 @@ import styles from '@/platform/app/(shell)/people/_components/directory-sync/dir
 import { canUseProvisioning } from '@/platform/app/(shell)/people/_components/import/import-modal'
 import {
   Button,
+  FailureNotice,
   InlineNotice,
   Modal,
   PropertyList,
@@ -368,14 +369,10 @@ export function DirectorySyncModal({ organization, onClose }: DirectorySyncModal
           Loading directory connection…
         </p>
       ) : directory.loadError ? (
-        <InlineNotice
-          intent='danger'
+        <FailureNotice
           message={directory.loadError.message}
-          action={
-            <Button size='compact' disabled={directory.fetching} onClick={directory.retry}>
-              Retry connection
-            </Button>
-          }
+          retrying={directory.fetching}
+          onRetry={directory.retry}
         />
       ) : mode === 'disconnect' && sync ? (
         <>

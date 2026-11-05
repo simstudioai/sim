@@ -13,7 +13,7 @@ import {
 import {
   Button,
   Checkbox,
-  FailureNotice,
+  InlineNotice,
   SecretField,
   SelectField,
   TextAreaField,
@@ -203,7 +203,9 @@ export function DrainCreate({ organizationId, onBack, onCreated }: DrainCreatePr
                 }}
               />
             ))}
-            {createDrain.error && <FailureNotice message={toError(createDrain.error).message} />}
+            {createDrain.error && (
+              <InlineNotice intent='danger' message={toError(createDrain.error).message} />
+            )}
           </FieldStack>
         </SettingsSection>
         <ActionRow>

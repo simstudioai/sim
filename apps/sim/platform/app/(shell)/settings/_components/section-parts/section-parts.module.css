@@ -114,7 +114,7 @@
   display: block;
   block-size: var(--spacing-12);
   border-radius: var(--radius-4);
-  background: var(--ui-hover);
+  background: var(--control-muted-fill);
 }
 
 .skeletonLabel {

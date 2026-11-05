@@ -142,7 +142,6 @@ interface SectionSkeletonProps {
   rows?: number
 }
 
-/** A section's own heading over its loading rows. */
 export function SectionSkeleton({ title, rows }: SectionSkeletonProps) {
   return (
     <SettingsSection title={title}>
