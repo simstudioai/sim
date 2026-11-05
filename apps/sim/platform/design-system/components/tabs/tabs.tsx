@@ -11,7 +11,7 @@ import styles from '@/platform/design-system/components/tabs/tabs.module.css'
 export interface TabItem {
   id: string
   label: string
-  icon: IconName
+  icon?: IconName
   content: ReactNode
 }
 

@@ -113,7 +113,6 @@ export function PanelContent({
               onOpen={() => onVisit('terminal')}
             />
             <ActivityRow
-              leading={<Icon name='I025' />}
               title='Workspaces'
               detail='Open a workspace'
               showChevron={false}

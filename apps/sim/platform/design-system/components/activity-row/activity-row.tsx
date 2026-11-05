@@ -4,7 +4,7 @@ import { Icon } from '@/platform/design-system/components/icon/icon'
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 
 interface ActivityRowProps {
-  leading: ReactNode
+  leading?: ReactNode
   title: string
   count?: number
   detail: string
@@ -27,9 +27,11 @@ export function ActivityRow({
   return (
     <li>
       <button type='button' className={styles.row} onClick={onOpen}>
-        <span className={styles.leading} aria-hidden='true'>
-          {leading}
-        </span>
+        {leading && (
+          <span className={styles.leading} aria-hidden='true'>
+            {leading}
+          </span>
+        )}
         <span className={styles.copy}>
           <span className={styles.title} data-type='T059'>
             <OverflowText text={count ? `${title} ${count}` : title}>

@@ -9,6 +9,7 @@ import { PanelContent } from '@/platform/app/(shell)/chat/_components/panel/pane
 import { PanelTabs } from '@/platform/app/(shell)/chat/_components/panel/panel-tabs'
 import styles from '@/platform/app/(shell)/chat/_components/panel/panels.module.css'
 import { IconButton } from '@/platform/design-system/components/button/button'
+import type { TabItem } from '@/platform/design-system/components/tabs/tabs'
 import { platformHref } from '@/platform/design-system/navigation'
 
 export type PanelDestination = 'start' | 'workspaces' | 'terminal' | 'file' | 'website'
@@ -18,13 +19,13 @@ interface PanelTab {
   resource?: PanelRecent
 }
 
-const tabs = {
+const tabs: Record<PanelDestination, Pick<TabItem, 'label' | 'icon'>> = {
   start: { label: 'New tab', icon: 'I041' },
-  workspaces: { label: 'Workspaces', icon: 'I025' },
+  workspaces: { label: 'Workspaces' },
   terminal: { label: 'Terminal', icon: 'I107' },
   file: { label: 'File', icon: 'I015' },
   website: { label: 'Browser', icon: 'I041' },
-} as const
+}
 
 const OpenPanel = createContext<((element: HTMLButtonElement) => void) | null>(null)
 
