@@ -15,15 +15,17 @@ Names ignore case and punctuation, so `sim/Team-Handbook` and `sim/teamhandbook`
 
 ## Open links from the address bar
 
-[Install Sim for Chrome](https://chromewebstore.google.com/detail/sim/oanlcahddodnjpdoopcpjlcageejjpmg) in your work profile. In Sim, open **Links → Browser shortcuts** and select **Enable go/ shortcuts**. Type `go/handbook` in the address bar to open a link. Enable **sim/ shortcuts** there if you prefer `sim/handbook`.
+[Install Sim for Chrome](https://chromewebstore.google.com/detail/sim/oanlcahddodnjpdoopcpjlcageejjpmg) in your work profile, then type `go/handbook` or `sim/handbook` in the address bar. Both work as soon as it's installed.
 
 For suggestions, type `sim`, press **Space**, and enter part of a name. Matching links appear with the most opened first. Unlisted links still open by name.
 
 ### If a shortcut opens search
 
-Open the extension’s **+ → Browser shortcuts** and turn on your search engine. Approve Chrome’s site-access prompt if shown. Google (`google.com`), Bing, DuckDuckGo, and Yahoo are supported. Other searches and your default search engine stay unchanged.
+This can happen after you clear your browsing history. A trailing slash (`go/handbook/`) or `http://go/handbook` tells Chrome to navigate directly, and Chrome remembers it from then on.
 
-This handles whole shortcuts such as `go/handbook` or `go/jira/123`. For spaces, query parameters, unsupported search sites, or blocked site access, use `sim` + **Space** or the full `https://www.sim.ai/sim/<name>` address. A trailing slash (`go/handbook/`) or `http://go/handbook` also tells Chrome to navigate directly.
+To catch these searches automatically, open the extension’s **+ → Browser shortcuts** and turn on your search engine. Approve Chrome’s site-access prompt if shown. Google (`google.com`), Bing, DuckDuckGo, and Yahoo are supported. Other searches and your default search engine stay unchanged.
+
+This handles whole shortcuts such as `go/handbook` or `go/jira/123`. For spaces, query parameters, unsupported search sites, or blocked site access, use `sim` + **Space** or the full `https://www.sim.ai/sim/<name>` address.
 
 Turning shortcuts off keeps site access. To remove it, open Chrome’s **Extensions → Manage extensions → Sim → Details**.
 
@@ -45,9 +47,7 @@ Type `sim`, press **Space**, then type a link name and press **Enter**. For mana
 
 ### Show favorites in regular Chrome suggestions
 
-In Sim, choose **Copy link** for a favorite. In Chrome’s bookmark manager (`chrome://bookmarks`), add a bookmark with that URL and name it after the shortcut, such as `sim/handbook`. Chrome can suggest that bookmark when you type `sim/handb` or `handbook` in the address bar. Administrators can distribute selected team favorites through Chrome’s [managed bookmarks policy](https://chromeenterprise.google/policies/managed-bookmarks/).
-
-Organization admins can also open **Browser shortcuts → Team bookmarks**, choose listed links, and select **Export bookmarks**. The downloaded JSON contains a folder to merge into Chrome’s managed bookmarks policy. Its links resolve in the exporting organization, so a bookmark shared outside the team cannot open another team's same-name destination.
+In Sim, choose **Copy link** for a favorite. In Chrome’s bookmark manager (`chrome://bookmarks`), add a bookmark with that URL and name it after the shortcut, such as `sim/handbook`. Chrome can suggest that bookmark when you type `sim/handb` or `handbook` in the address bar.
 
 ## Create a link
 

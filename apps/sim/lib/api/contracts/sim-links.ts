@@ -6,12 +6,7 @@ import {
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
-import {
-  MAX_MANAGED_BOOKMARKS,
-  SIM_LINK_SORTS,
-  simLinkFieldsSchema,
-  simLinkNameSchema,
-} from '@/lib/sim-links/validation'
+import { SIM_LINK_SORTS, simLinkFieldsSchema, simLinkNameSchema } from '@/lib/sim-links/validation'
 import { SORT_DIRECTIONS } from '@/lib/url-state'
 
 const params = z.object({ id: organizationIdSchema })
@@ -64,17 +59,6 @@ export const listSimLinksContract = defineRouteContract({
     mode: 'json',
     schema: z.object({ links: z.array(simLinkSchema), nextCursor: z.string().nullable() }),
   },
-})
-
-const bookmarkLink = z.object({ id: linkParams.shape.linkId, name: simLinkNameSchema })
-export type BookmarkLink = z.output<typeof bookmarkLink>
-
-export const exportSimBookmarksContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/organizations/[id]/sim-links/bookmarks',
-  params,
-  body: z.object({ links: z.array(bookmarkLink).min(1).max(MAX_MANAGED_BOOKMARKS) }),
-  response: { mode: 'json', schema: z.object({ links: z.array(bookmarkLink) }) },
 })
 
 export const createSimLinkContract = defineRouteContract({

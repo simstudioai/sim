@@ -405,55 +405,31 @@ async function run() {
     await api({ ...outsider, orgId }, '', { expected: 404 })
   })
 
-  await check('team bookmarks preserve encoded names and organization across sign-in', async () => {
-    const destination = 'https://team.example.com/help'
-    for (const name of ['managed-help', 'managed:help@team&docs']) {
-      const path = `/sim-links/${encodeURIComponent(orgId)}/${encodeURIComponent(name)}`
-      await create(owner, { name, url: destination })
-      await create(outsider, { name, url: 'https://another-team.example.com/help' })
-      const signedOut = await send(path, null)
-      assert.equal(signedOut.status, 307, `${name}: expected sign-in redirect`)
-      const login = new URL(signedOut.headers.get('location') ?? '/', baseUrl)
-      assert.equal(login.pathname, '/login', name)
-      assert.equal(login.searchParams.get('callbackUrl'), path, name)
-      const opened = await send(path, member)
-      assert.equal(opened.status, 307, `${name}: expected destination redirect`)
-      assert.equal(opened.headers.get('location'), destination, name)
-      const denied = await send(path, outsider)
-      assert.equal(denied.status, 404, name)
-      assert(!denied.headers.get('location'), name)
-    }
-    for (const encodedName of ['%256Danaged-help', 'managed%2Fhelp']) {
-      const denied = await send(`/sim-links/${encodeURIComponent(orgId)}/${encodedName}`, member)
-      assert.equal(denied.status, 404, encodedName)
-      assert(!denied.headers.get('location'), encodedName)
-    }
-  })
-
   await check(
-    'bookmark export requires admin access and drops stale or foreign selections',
+    'organization links preserve encoded names and organization across sign-in',
     async () => {
-      const name = 'managed-directory'
-      const id = await create(owner, { name, url: 'https://directory.example.com' })
-      const otherId = await create(outsider, { name, url: 'https://other.example.com' })
-      const request = {
-        links: [
-          { id, name },
-          { id: otherId, name },
-        ],
+      const destination = 'https://team.example.com/help'
+      for (const name of ['managed-help', 'managed:help@team&docs']) {
+        const path = `/sim-links/${encodeURIComponent(orgId)}/${encodeURIComponent(name)}`
+        await create(owner, { name, url: destination })
+        await create(outsider, { name, url: 'https://another-team.example.com/help' })
+        const signedOut = await send(path, null)
+        assert.equal(signedOut.status, 307, `${name}: expected sign-in redirect`)
+        const login = new URL(signedOut.headers.get('location') ?? '/', baseUrl)
+        assert.equal(login.pathname, '/login', name)
+        assert.equal(login.searchParams.get('callbackUrl'), path, name)
+        const opened = await send(path, member)
+        assert.equal(opened.status, 307, `${name}: expected destination redirect`)
+        assert.equal(opened.headers.get('location'), destination, name)
+        const denied = await send(path, outsider)
+        assert.equal(denied.status, 404, name)
+        assert(!denied.headers.get('location'), name)
       }
-      const exportPolicy = (caller: Member, expected = 200) =>
-        api(caller, '/bookmarks', { method: 'POST', body: request, expected })
-      assert.deepEqual((await exportPolicy(owner)).links, [{ id, name }])
-      await exportPolicy(member, 403)
-      await api(owner, `/${id}`, {
-        method: 'PUT',
-        body: fields({ name, url: 'https://directory.example.com', unlisted: true }),
-      })
-      assert.deepEqual((await exportPolicy(owner)).links, [])
-      await api(owner, `/${id}`, { method: 'DELETE' })
-      await create(owner, { name, url: 'https://replacement.example.com' })
-      assert.deepEqual((await exportPolicy(owner)).links, [])
+      for (const encodedName of ['%256Danaged-help', 'managed%2Fhelp']) {
+        const denied = await send(`/sim-links/${encodeURIComponent(orgId)}/${encodedName}`, member)
+        assert.equal(denied.status, 404, encodedName)
+        assert(!denied.headers.get('location'), encodedName)
+      }
     }
   )
 

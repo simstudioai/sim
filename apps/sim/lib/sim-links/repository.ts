@@ -12,19 +12,6 @@ import {
 } from '@/lib/sim-links/validation'
 import type { SortDirection } from '@/lib/url-state'
 
-export function listBookmarkCandidates(organizationId: string, ids: string[]) {
-  return db
-    .select({ id: simLink.id, name: simLink.name })
-    .from(simLink)
-    .where(
-      and(
-        eq(simLink.organizationId, organizationId),
-        eq(simLink.unlisted, false),
-        inArray(simLink.id, ids)
-      )
-    )
-}
-
 const PAGE_SIZE = 50
 
 export interface SimLinkRecord {

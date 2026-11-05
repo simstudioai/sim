@@ -8,7 +8,6 @@ import { z } from 'zod'
 const NAME_PATTERN = /^[A-Za-z0-9.:@&~_-]+$/
 const NAME_PUNCTUATION = /[.:@&~_-]/g
 const NAME_DISALLOWED = /[^A-Za-z0-9.:@&~_-]/g
-export const MAX_MANAGED_BOOKMARKS = 100
 export const SIM_LINK_DESCRIPTION_MAX_LENGTH = 500
 
 /** List orders: alphabetical by name, or most visited first. */

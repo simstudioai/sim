@@ -209,6 +209,21 @@ try {
   const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'))
   context.setDefaultTimeout(15_000)
   const extensionId = worker.url().split('/')[2]
+  await check('Installing visits each short host once in tabs that close themselves', async () => {
+    await expect
+      .poll(
+        () =>
+          worker.evaluate(
+            async () => (await chrome.storage.local.get('shortHostsLearned')).shortHostsLearned
+          ),
+        { timeout: 30_000 }
+      )
+      .toBe(true)
+    const leftBehind = await worker.evaluate(
+      async () => (await chrome.tabs.query({ url: ['http://go/*', 'http://sim/*'] })).length
+    )
+    assert(leftBehind === 0, 'Short host tabs were left open')
+  })
   const signIn = await context.newPage()
   await signIn.goto(`${origin}/sign-in`)
   await signIn.close()

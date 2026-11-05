@@ -11,6 +11,7 @@ import {
 import { captureIntentSchema } from '@/intent'
 import { registerSimLinkOmnibox } from '@/omnibox'
 import { registerSearchRecovery } from '@/search-recovery'
+import { registerShortHostLearning } from '@/short-hosts'
 import { digestUrl } from '@/utils'
 
 const logger = createLogger('BrowserExtension')
@@ -92,6 +93,7 @@ function open(tab: chrome.tabs.Tab, trigger: 'page' | 'selection' | 'keyboard') 
 
 registerSimLinkOmnibox()
 registerSearchRecovery()
+registerShortHostLearning()
 chrome.runtime.onInstalled.addListener(() => {
   void configure().catch(() => logger.warn('Could not initialize extension controls'))
 })
