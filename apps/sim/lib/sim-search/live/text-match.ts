@@ -150,9 +150,14 @@ export function jiraTextClause(text: string, match: TextMatch = 'all'): string {
  * The text clause for a plain query in Confluence CQL. `any` uses `siteSearch`, Confluence's own
  * relevance search, which ranks a page with the query's rarer words above the many pages sharing
  * one common word, where a `text ~` OR query ranks them the other way round.
+ *
+ * Confluence answers HTTP 400 to a text query holding a colon or backslash, even escaped, and its
+ * analyzer splits words on both, so they go as spaces. Nothing left to match means no clause.
  */
 export function confluenceTextClause(text: string, match: TextMatch = 'all'): string {
-  return `${match === 'any' ? 'siteSearch' : 'text'} ~ ${escapeSearchPhrase(text)}`
+  const searchable = text.replace(/[:\\]/g, ' ').trim()
+  if (!searchable) return ''
+  return `${match === 'any' ? 'siteSearch' : 'text'} ~ ${escapeSearchPhrase(searchable)}`
 }
 
 /** How many distinct terms occur as whole words in the text. */
