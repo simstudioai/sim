@@ -16,10 +16,26 @@ import { isSafeInternalPath } from '@/main/config'
  */
 export const APP_ENTRY_ROUTE = '/home'
 
+/**
+ * Settings for a viewer whose last route names no workspace or organization. The web
+ * app resolves it to their most recent workspace, or to their organization's settings.
+ */
+const SETTINGS_ENTRY_ROUTE = '/workspace?redirect=settings'
+
 /** Workspace id from the last visited route, or null when it carries none. */
 function workspaceIdFromRoute(lastRoute: string | undefined): string | null {
   if (isSafeInternalPath(lastRoute)) {
     const match = /^\/workspace\/([^/?#]+)/.exec(lastRoute)
+    if (match) {
+      return match[1]
+    }
+  }
+  return null
+}
+
+function organizationIdFromRoute(lastRoute: string | undefined): string | null {
+  if (isSafeInternalPath(lastRoute)) {
+    const match = /^\/o\/([^/?#]+)/.exec(lastRoute)
     if (match) {
       return match[1]
     }
@@ -38,10 +54,14 @@ export function newChatRoute(lastRoute: string | undefined): string {
 }
 
 /**
- * Route for "Settings…": the Sim app's settings surface for the workspace the
- * user was last in, falling back to the app entry.
+ * Route for "Settings…": the settings of the workspace or organization the user
+ * was last in. Never the app entry, which lands on a page without settings.
  */
 export function settingsRoute(lastRoute: string | undefined): string {
   const workspaceId = workspaceIdFromRoute(lastRoute)
-  return workspaceId ? `/workspace/${workspaceId}/settings/desktop` : APP_ENTRY_ROUTE
+  if (workspaceId) {
+    return `/workspace/${workspaceId}/settings/desktop`
+  }
+  const organizationId = organizationIdFromRoute(lastRoute)
+  return organizationId ? `/o/${organizationId}/settings/general` : SETTINGS_ENTRY_ROUTE
 }
