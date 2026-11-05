@@ -34,7 +34,10 @@ export function SupportModal({ support, onClose }: SupportModalProps) {
   const [imageError, setImageError] = useState<string>()
   const [processing, setProcessing] = useState(false)
   const previews = useRef(images)
-  previews.current = images
+
+  useEffect(() => {
+    previews.current = images
+  }, [images])
 
   useEffect(
     () => () => {
@@ -48,10 +51,8 @@ export function SupportModal({ support, onClose }: SupportModalProps) {
     setProcessing(true)
     try {
       const prepared = await support.prepareImage(file)
-      setImages((previous) => [
-        ...previous,
-        { id: generateId(), file: prepared, preview: URL.createObjectURL(prepared) },
-      ])
+      const image = { id: generateId(), file: prepared, preview: URL.createObjectURL(prepared) }
+      setImages((previous) => [...previous, image])
     } catch (error) {
       setImageError(getErrorMessage(error, 'That image could not be attached.'))
     } finally {
@@ -60,11 +61,9 @@ export function SupportModal({ support, onClose }: SupportModalProps) {
   }
 
   function detach(id: string) {
-    setImages((previous) => {
-      const removed = previous.find((image) => image.id === id)
-      if (removed) URL.revokeObjectURL(removed.preview)
-      return previous.filter((image) => image.id !== id)
-    })
+    const removed = images.find((image) => image.id === id)
+    if (removed) URL.revokeObjectURL(removed.preview)
+    setImages((previous) => previous.filter((image) => image.id !== id))
   }
 
   return (

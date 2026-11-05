@@ -21,7 +21,7 @@ async function copyLink(href: string) {
   }
 }
 
-export function openLinkInNewTab(href: string) {
+function openLinkInNewTab(href: string) {
   window.open(absoluteHref(href), '_blank', 'noopener,noreferrer')
 }
 

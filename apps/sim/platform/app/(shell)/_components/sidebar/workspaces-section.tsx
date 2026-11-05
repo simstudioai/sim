@@ -43,8 +43,9 @@ export function WorkspacesSection({ data, actions, navigate }: WorkspacesSection
   const { workspacesOpen, setWorkspacesOpen } = useSidebarLayout()
   const [visibleCount, setVisibleCount] = useState(data?.workspacePageSize)
   const [creating, setCreating] = useState(false)
-  const [renaming, setRenaming] = useState<ShellWorkspace | null>(null)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
   const workspaces = data?.workspaces ?? []
+  const renaming = workspaces.find((workspace) => workspace.id === renamingId)
   const workspaceActions = actions.workspaces
   const policy = data?.workspaceCreation
   const canCreate = policy?.canCreate && policy.organizationId === data?.organization.id
@@ -52,31 +53,23 @@ export function WorkspacesSection({ data, actions, navigate }: WorkspacesSection
   const hasMore = visibleCount !== undefined && workspaces.length > visibleCount
 
   function rowActions(item: ShellWorkspace): MenuAction[] {
-    const href = item.href ?? '/home'
+    if (!item.href || !workspaceActions)
+      return [{ id: 'open', label: 'Open workspace', onSelect: () => navigate('/home') }]
     return [
+      ...linkMenuActions(item.href).slice(0, 1),
       {
-        id: 'open',
-        label: 'Open workspace',
-        onSelect: () => navigate(href),
+        id: 'rename',
+        label: 'Rename',
+        icon: 'I036',
+        disabled: item.permissions !== 'admin',
+        onSelect: () => setRenamingId(item.id),
       },
-      ...(item.href ? linkMenuActions(item.href).slice(0, 1) : []),
-      ...(workspaceActions
-        ? ([
-            {
-              id: 'rename',
-              label: 'Rename',
-              icon: 'I036',
-              disabled: item.permissions !== 'admin',
-              onSelect: () => setRenaming(item),
-            },
-            {
-              id: 'pin',
-              label: item.isPinned ? 'Unpin' : 'Pin',
-              icon: 'I131',
-              onSelect: () => workspaceActions.setPinned(item.id, !item.isPinned),
-            },
-          ] satisfies MenuAction[])
-        : []),
+      {
+        id: 'pin',
+        label: item.isPinned ? 'Unpin' : 'Pin',
+        icon: 'I131',
+        onSelect: () => workspaceActions.setPinned(item.id, !item.isPinned),
+      },
     ]
   }
 
@@ -188,7 +181,7 @@ export function WorkspacesSection({ data, actions, navigate }: WorkspacesSection
           {renaming && (
             <Modal
               open
-              onOpenChange={() => setRenaming(null)}
+              onOpenChange={() => setRenamingId(null)}
               title='Rename workspace'
               confirmLabel='Save'
               onConfirm={async (values) => {

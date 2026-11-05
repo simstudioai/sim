@@ -1,6 +1,6 @@
 import type { ShellQueryStatus } from '@/platform/app/(shell)/_components/model'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar-collections.module.css'
-import { Button } from '@/platform/design-system/components'
+import { Button, InlineNotice } from '@/platform/design-system/components'
 
 interface SectionStatusProps {
   /** Absent means the rows are simply there, so nothing here applies. */
@@ -21,14 +21,17 @@ export function SectionStatus({
 }: SectionStatusProps) {
   if (status === 'error')
     return (
-      <div className={styles.message} role='alert'>
-        <span data-type='T052'>{failureLabel}</span>
-        {onRetry && (
-          <Button size='compact' variant='quiet' onClick={onRetry}>
-            Retry
-          </Button>
-        )}
-      </div>
+      <InlineNotice
+        intent='danger'
+        message={failureLabel}
+        action={
+          onRetry && (
+            <Button size='compact' variant='quiet' onClick={onRetry}>
+              Retry
+            </Button>
+          )
+        }
+      />
     )
   if (status === 'success' && isEmpty)
     return (

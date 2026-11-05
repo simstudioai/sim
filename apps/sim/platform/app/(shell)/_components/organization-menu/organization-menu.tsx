@@ -1,6 +1,6 @@
 'use client'
 
-import { type RefObject, useRef, useState } from 'react'
+import { type RefObject, useId, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import dynamic from 'next/dynamic'
 import type { ShellData, ShellOrganizationActions } from '@/platform/app/(shell)/_components/model'
@@ -12,7 +12,6 @@ import {
   MenuItem,
   Modal,
   RecipientField,
-  Tooltip,
 } from '@/platform/design-system/components'
 import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
 import { AnchoredPopover } from '@/platform/design-system/components/menu/anchored-popover'
@@ -56,6 +55,8 @@ export function OrganizationMenu({
   const [savedName, setSavedName] = useState<{ name: string; replaces: string } | null>(null)
   const opener = useRef<HTMLElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
+  const card = useRef<HTMLDivElement>(null)
+  const errorId = useId()
   if (savedName && savedName.replaces !== organization?.name) setSavedName(null)
   const name = savedName?.name ?? organization?.name ?? 'Organization'
   const logo = organization?.logo ?? undefined
@@ -66,20 +67,27 @@ export function OrganizationMenu({
     setRenameError(null)
   }
 
-  async function submitRename() {
-    if (draftName === null || renaming || !actions || !organization) return
+  /** The rename field unmounts when the draft ends, and focus would otherwise fall to the page. */
+  function returnFocusToCard() {
+    requestAnimationFrame(() => card.current?.querySelector('button')?.focus())
+  }
+
+  async function submitRename(): Promise<boolean> {
+    if (draftName === null || renaming || !actions || !organization) return false
     const next = draftName.trim()
     if (!next || next === name) {
       stopRenaming()
-      return
+      return true
     }
     setRenaming(true)
     try {
       await actions.rename(next)
       setSavedName({ name: next, replaces: organization.name })
       stopRenaming()
+      return true
     } catch (error) {
       setRenameError(getErrorMessage(error, 'Failed to rename organization'))
+      return false
     } finally {
       setRenaming(false)
     }
@@ -120,39 +128,9 @@ export function OrganizationMenu({
           </IdentityButton>
         )}
       >
-        <div className={styles.menu}>
+        <div ref={card} className={styles.menu}>
           <div className={styles.overview}>
-            {canEdit && actions ? (
-              <>
-                <input
-                  ref={fileInput}
-                  className={styles.logoInput}
-                  type='file'
-                  accept={actions.logoAccept}
-                  aria-label='Organization logo'
-                  disabled={uploading}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0]
-                    event.target.value = ''
-                    void uploadLogo(file)
-                  }}
-                />
-                <Tooltip label={uploading ? 'Uploading' : 'Change logo'}>
-                  <button
-                    type='button'
-                    className={styles.logoButton}
-                    aria-label='Change organization logo'
-                    aria-busy={uploading}
-                    disabled={uploading}
-                    onClick={() => fileInput.current?.click()}
-                  >
-                    <Avatar name={name} src={logo} organization size='inline' />
-                  </button>
-                </Tooltip>
-              </>
-            ) : (
-              <Avatar name={name} src={logo} organization size='inline' />
-            )}
+            <Avatar name={name} src={logo} organization size='inline' />
             <div className={styles.copy}>
               {draftName !== null ? (
                 <div
@@ -161,10 +139,14 @@ export function OrganizationMenu({
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') {
                       event.preventDefault()
-                      void submitRename()
+                      void submitRename().then((saved) => {
+                        if (saved) returnFocusToCard()
+                      })
                     } else if (event.key === 'Escape') {
                       event.preventDefault()
+                      event.stopPropagation()
                       stopRenaming()
+                      returnFocusToCard()
                     }
                   }}
                 >
@@ -173,27 +155,18 @@ export function OrganizationMenu({
                     value={draftName}
                     disabled={renaming}
                     invalid={Boolean(renameError)}
+                    describedBy={renameError ? errorId : undefined}
                     onChange={(value) => {
                       setDraftName(value)
                       setRenameError(null)
                     }}
                   />
                 </div>
-              ) : canEdit ? (
-                <button
-                  type='button'
-                  className={styles.nameButton}
-                  aria-label='Rename organization'
-                  data-type='T059'
-                  onClick={() => setDraftName(name)}
-                >
-                  {name}
-                </button>
               ) : (
                 <span data-type='T059'>{name}</span>
               )}
               {renameError && (
-                <span className={styles.error} role='alert' data-type='T052'>
+                <span id={errorId} className={styles.error} role='alert' data-type='T052'>
                   {renameError}
                 </span>
               )}
@@ -217,6 +190,35 @@ export function OrganizationMenu({
               </Button>
             )}
           </div>
+          {canEdit && actions && (
+            <>
+              <input
+                ref={fileInput}
+                className={styles.logoInput}
+                type='file'
+                accept={actions.logoAccept}
+                aria-label='Organization logo'
+                disabled={uploading}
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  event.target.value = ''
+                  void uploadLogo(file)
+                }}
+              />
+              <MenuItem
+                label='Rename organization'
+                icon='I036'
+                onSelect={() => setDraftName(name)}
+              />
+              <MenuItem
+                label='Change organization logo'
+                icon='I059'
+                detail={uploading ? 'Uploading' : undefined}
+                disabled={uploading}
+                onSelect={() => fileInput.current?.click()}
+              />
+            </>
+          )}
           <MenuItem
             label='Settings'
             icon='I116'

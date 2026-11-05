@@ -94,7 +94,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Chats section visibility | `organization-sidebar.tsx` | Done | `chatsAvailable` from `canListOrganizationChats`. Unproved |
 | Chat list | `use-organization-chats.ts` | Done | Foundation: `lib/data/shell.ts`; `shell.spec` chat |
 | Mode-aware link | `use-organization-chats.ts` | Done | Assistant chats open under Search on the legacy surface. Unproved |
-| Status dot and pin glyph | `chats-section.tsx` | Done | `ChatIndicator` in `chats-section.tsx`. Unproved |
+| Status dot and pin glyph | `chats-section.tsx` | Done | `ChatIndicator` in `chats-section.tsx`. On touch, where the row action is always shown, the indicator gives way to it. Unproved |
 | No chats yet, silent while loading, retry on failure | `chats-section.tsx` | Done | `section-status.tsx`. Unproved |
 | Row options and right click | `use-organization-chat-actions.ts` | Done | `shell.spec` chat |
 | Shift multi-select, background click clears | `use-chat-selection.ts` | Done | Local to `chats-section.tsx`. Unproved |

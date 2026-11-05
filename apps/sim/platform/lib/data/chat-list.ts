@@ -12,6 +12,7 @@ import {
   useRenameMothershipChat,
   useSetMothershipChatPinned,
 } from '@/hooks/queries/mothership-chats'
+import { prefetchQueryOnIntent } from '@/hooks/queries/utils/prefetch-query-on-intent'
 import type { ShellChatActions } from '@/platform/app/(shell)/_components/model'
 import { toast } from '@/platform/lib/data/toast'
 
@@ -50,7 +51,7 @@ export function useChatListActions(organizationId: string): ShellChatActions {
       const options = mothershipChatHistoryQueryOptions(chatId)
       const timer = setTimeout(() => {
         if (queryClient.getQueryData(options.queryKey) === undefined)
-          void queryClient.prefetchQuery(options)
+          prefetchQueryOnIntent(queryClient, options)
       }, CHAT_PREFETCH_DWELL_MS)
       return () => clearTimeout(timer)
     },

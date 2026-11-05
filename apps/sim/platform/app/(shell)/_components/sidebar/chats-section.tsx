@@ -27,6 +27,7 @@ import type { MenuAction } from '@/platform/design-system/components/menu/action
 import { platformHref } from '@/platform/design-system/navigation'
 
 const NO_SELECTION: ReadonlySet<string> = new Set()
+const CHAT_TITLE_MAX_LENGTH = 200
 
 function ChatIndicator({ chat, isCurrent }: { chat: ShellChat; isCurrent: boolean }) {
   if (chat.isActive)
@@ -58,9 +59,7 @@ interface ChatsSectionProps {
   navigate: (href: string) => void
 }
 
-type ChatEdit =
-  | { kind: 'rename'; chat: ShellChat }
-  | { kind: 'remove'; chats: readonly ShellChat[] }
+type ChatEdit = { kind: 'rename'; chatId: string } | { kind: 'remove'; chats: readonly ShellChat[] }
 
 export function ChatsSection({ chats, status, activeChat, actions, navigate }: ChatsSectionProps) {
   const query = useSearchParams()
@@ -69,7 +68,8 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
   const [selected, setSelected] = useState(NO_SELECTION)
   const selectionAnchor = useRef<string | null>(null)
   const cancelPrefetch = useRef<(() => void) | null>(null)
-  const isMultiSelecting = selected.size > 1
+  const selectedChats = chats.filter((chat) => selected.has(chat.id))
+  const isMultiSelecting = selectedChats.length > 1
 
   useEffect(() => {
     if (!isMultiSelecting) return
@@ -121,10 +121,9 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
         {
           id: 'remove',
           destructive: true,
-          label: `${actions.removeLabel} ${selected.size} chats`,
+          label: `${actions.removeLabel} ${selectedChats.length} chats`,
           icon: 'I061',
-          onSelect: () =>
-            setEditing({ kind: 'remove', chats: chats.filter((item) => selected.has(item.id)) }),
+          onSelect: () => setEditing({ kind: 'remove', chats: selectedChats }),
         },
       ]
     const { setPinned, setRead } = actions
@@ -134,7 +133,7 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
         id: 'rename',
         label: 'Rename',
         icon: 'I036',
-        onSelect: () => setEditing({ kind: 'rename', chat }),
+        onSelect: () => setEditing({ kind: 'rename', chatId: chat.id }),
       },
       ...(setPinned
         ? [
@@ -182,6 +181,8 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
     throw new Error(failure)
   }
 
+  const renamingChat =
+    editing?.kind === 'rename' ? chats.find((chat) => chat.id === editing.chatId) : undefined
   const removing = editing?.kind === 'remove' ? editing.chats : []
   const removeTitle =
     removing.length > 1
@@ -270,7 +271,7 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
           })}
         </div>
       </Disclosure>
-      {editing?.kind === 'rename' && (
+      {renamingChat && (
         <Modal
           open
           onOpenChange={() => setEditing(null)}
@@ -278,16 +279,17 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
           confirmLabel='Save'
           onConfirm={async (values) => {
             const title = values.get('title')
-            if (typeof title !== 'string' || !title.trim() || title.trim() === editing.chat.title)
-              return
-            await actions.rename(editing.chat.id, title.trim())
+            const next = typeof title === 'string' ? title.trim() : ''
+            if (!next) throw new Error('Enter a chat name.')
+            if (next !== renamingChat.title) await actions.rename(renamingChat.id, next)
           }}
         >
           <TextField
             label='Chat name'
             name='title'
-            maxLength={200}
-            defaultValue={editing.chat.title}
+            required
+            maxLength={CHAT_TITLE_MAX_LENGTH}
+            defaultValue={renamingChat.title}
           />
         </Modal>
       )}
@@ -306,7 +308,7 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
               ? `${actions.removeLabel} “${removing[0].title}”?`
               : `${actions.removeLabel} ${removing.length} chats?`}
             {actions.removeLabel === 'Delete' &&
-              ' You can restore it from Recently deleted in Settings.'}
+              ` You can restore ${removing.length === 1 ? 'it' : 'them'} from Recently deleted in Settings.`}
           </p>
         </Modal>
       )}

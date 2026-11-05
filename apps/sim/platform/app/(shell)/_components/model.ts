@@ -97,14 +97,13 @@ export interface ShellData {
 }
 
 /** A partial bulk failure still reports which chats went, so the view can narrow what is left. */
-export interface ChatRemoval {
+interface ChatRemoval {
   removedIds: readonly string[]
   failure?: string
 }
 
 /** The optional members are the ones only a real backend can honour. */
 export interface ShellChatActions {
-  /** What this data source calls removing a chat. */
   removeLabel: 'Archive' | 'Delete'
   rename: (id: string, title: string) => Promise<void>
   remove: (ids: readonly string[]) => Promise<ChatRemoval>
@@ -131,7 +130,7 @@ export interface ShellOrganizationActions {
   uploadLogo: (file: File) => Promise<void>
 }
 
-export interface ShellSupportRequest {
+interface ShellSupportRequest {
   type: string
   subject: string
   message: string

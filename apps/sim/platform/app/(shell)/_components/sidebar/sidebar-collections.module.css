@@ -38,8 +38,6 @@
 .message {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--ui-row-gap);
   min-block-size: var(--spacing-app-chip);
   padding-inline: var(--ui-row-inset);
   color: var(--ui-secondary);
