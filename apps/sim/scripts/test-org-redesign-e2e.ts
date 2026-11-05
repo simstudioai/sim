@@ -444,7 +444,11 @@ const searchField = (page: Page) => page.getByRole('textbox', { name: 'Search yo
 const dialog = (page: Page, name: string | RegExp) => page.getByRole('dialog', { name })
 const orgChip = (page: Page) => page.getByRole('button', { name: 'Organization menu' })
 const orgCard = (page: Page) => dialog(page, 'Organization menu')
-const homeRegion = (page: Page, name: string) => page.getByRole('region', { name, exact: true })
+/** Filtered by heading because the sidebar has a section with the same name as Home's Workspaces. */
+const homeRegion = (page: Page, name: string) =>
+  page
+    .getByRole('region', { name, exact: true })
+    .filter({ has: page.locator('h2', { hasText: name }) })
 
 async function navLabels(page: Page) {
   const links = mainNav(page).getByRole('link')
@@ -1646,7 +1650,7 @@ async function homeChecks() {
                 statusWorkflowName: null,
                 lastRun: {
                   workflowName: 'Invoice sync',
-                  startedAt: new Date(Date.now() - 2 * 60 * 60_000).toISOString(),
+                  startedAt: new Date(Date.now() - 2.5 * 60 * 60_000).toISOString(),
                   failed: true,
                 },
               },
@@ -2973,7 +2977,7 @@ async function settingsChecks() {
     async () => {
       await withSession(MEMBER, async ({ page }) => {
         await page.goto(orgUrl('/settings/members'))
-        await expect(page.getByPlaceholder('Search members...')).toBeVisible()
+        await expect(page.getByPlaceholder('Search members…')).toBeVisible()
         await expect(page.getByText(ADMIN.email).first()).toBeVisible()
         await expect(page.getByRole('button', { name: 'Leave organization' })).toBeVisible()
         await expect(page.getByRole('button', { name: 'Invite', exact: true })).toHaveCount(0)
