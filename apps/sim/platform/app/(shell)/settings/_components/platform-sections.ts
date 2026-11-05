@@ -16,6 +16,7 @@ const PLATFORM_SETTINGS_SECTIONS = [
   'data-drains',
   'integrations',
   'search-mcp',
+  'search-slack',
 ] as const
 
 /** A section the organization view's Settings renders. */

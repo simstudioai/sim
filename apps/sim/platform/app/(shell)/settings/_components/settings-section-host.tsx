@@ -106,6 +106,13 @@ const PLATFORM_SECTIONS: Record<PlatformSettingsSection, ComponentType<SettingsS
       ),
     { loading }
   ),
+  'search-slack': dynamic(
+    () =>
+      import(
+        '@/platform/app/(shell)/settings/_components/sections/search-slack/search-slack-section'
+      ),
+    { loading }
+  ),
   'search-mcp': dynamic(
     () =>
       import('@/platform/app/(shell)/settings/_components/sections/search-mcp/search-mcp-section'),

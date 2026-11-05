@@ -15,7 +15,6 @@ import { isPlatformAdmin } from '@/lib/permissions/super-user'
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
-import { OrganizationSettings } from '@/app/o/[organizationId]/settings/[section]/settings'
 import { resolveOrganizationSurfaceSection } from '@/app/o/[organizationId]/settings/navigation'
 import { getLegacyAccessRequestsQuery } from '@/ee/access-requests/lib/navigation'
 import { isPlatformSettingsSection } from '@/platform/app/(shell)/settings/_components/platform-sections'
@@ -94,11 +93,8 @@ export default async function OrganizationSettingsSectionPage({
         </HydrationBoundary>
       )
     }
-    return isPlatformSettingsSection(resolved.section) ? (
-      <PlatformSettingsSectionHost section={resolved.section} />
-    ) : (
-      <OrganizationSettings section={resolved.section} />
-    )
+    if (!isPlatformSettingsSection(resolved.section)) notFound()
+    return <PlatformSettingsSectionHost section={resolved.section} />
   }
 
   if (resolved.section === 'admin' || resolved.section === 'mothership') {
