@@ -1,0 +1,22 @@
+.directory {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+}
+
+.search {
+  flex: 1;
+  min-inline-size: var(--spacing-192);
+}
+
+.department {
+  flex: none;
+  inline-size: var(--spacing-224);
+  max-inline-size: 100%;
+}

@@ -22,6 +22,12 @@ import type { ShellActions } from '@/platform/app/(shell)/_components/model'
 import { openLinkInNewTab } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
+/** The only desktop build offered is for macOS. iPadOS reports itself as a Mac, but with touch. */
+function canInstallMacApp() {
+  if (typeof navigator === 'undefined' || isDesktopApp()) return false
+  return /Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints <= 1
+}
+
 export function useHelp() {
   const { deployment } = useOrganizationContext()
   const posthog = usePostHog()
@@ -36,7 +42,8 @@ export function useHelp() {
       captureEvent(posthog, 'slack_community_opened', { source: 'help_menu' })
     },
     changelogUrl: deployment.hosted ? '/changelog' : undefined,
-    downloadUrl: deployment.hosted && !isDesktopApp() ? '/api/desktop/update/download' : undefined,
+    downloadUrl:
+      deployment.hosted && canInstallMacApp() ? '/api/desktop/update/download' : undefined,
     desktopUpdate: hasAvailableDesktopUpdate(updateState)
       ? {
           label: desktopUpdateActionLabel(updateState),

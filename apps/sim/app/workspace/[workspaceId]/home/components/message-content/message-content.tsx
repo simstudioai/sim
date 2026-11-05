@@ -994,7 +994,7 @@ function MessageContentInner({
   onPhaseChange,
   actions,
 }: MessageContentProps) {
-  const { onWorkspaceResourceSelect, onViewSources } = useChatSurface()
+  const { onWorkspaceResourceSelect, onViewSources, appearance } = useChatSurface()
   const blockOverlayVersion = useCustomBlockOverlayVersion()
   const cited = useMemo(
     () => resolveMessageCitations(blocks, fallbackContent, requestMode === 'assistant'),
@@ -1110,11 +1110,12 @@ function MessageContentInner({
         !hasActivityIndicator))
 
   const actionsRow = (
-    <div className='flex items-center gap-0.5'>
+    <div className={cn('flex items-center gap-0.5', appearance?.responseActionsClassName)}>
       {actions}
       {sources.length > 0 && (
         <MessageSources
           sources={sources}
+          popoverClassName={appearance?.sourcesPopoverClassName}
           onViewAll={
             messageId && onViewSources ? () => onViewSources(messageId, imageRequestId) : undefined
           }

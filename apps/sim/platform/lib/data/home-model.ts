@@ -303,7 +303,7 @@ export function toAttentionItems({
       title: chat.title,
       detail: 'New reply in this chat',
       occurredAt: chat.updatedAt,
-      icon: 'I050',
+      icon: 'I073',
       href: chat.href,
     })
   }

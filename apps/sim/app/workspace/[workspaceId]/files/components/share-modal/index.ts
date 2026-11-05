@@ -1,1 +1,1 @@
-export { ShareModal } from './share-modal'
+export { type ShareDialogModel, ShareModal } from './share-modal'

@@ -2,6 +2,7 @@
 
 import { useRef } from 'react'
 import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
+import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { SearchFrame } from '@/app/o/[organizationId]/search/search-frame'
 import {
@@ -9,8 +10,14 @@ import {
   useSearchFieldDraft,
 } from '@/app/o/[organizationId]/search/use-organization-search'
 import { VoiceWaveform } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
-import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
 import { useAutoSizeTextarea } from '@/hooks/use-auto-size-textarea'
+import { CONVERSATION_APPEARANCE } from '@/platform/app/(shell)/_components/conversation/appearance'
+import { MicrophoneHelp } from '@/platform/app/(shell)/_components/conversation/dialogs'
+import { ConversationLanding } from '@/platform/app/(shell)/_components/conversation/landing'
+import {
+  ConversationSkeleton,
+  LandingSkeleton,
+} from '@/platform/app/(shell)/_components/conversation/skeletons'
 import { SearchResults } from '@/platform/app/(shell)/_components/search/search-results'
 import { SearchHistory } from '@/platform/app/(shell)/search/_components/search-surface/search-history'
 import styles from '@/platform/app/(shell)/search/_components/search-surface/search-surface.module.css'
@@ -113,10 +120,9 @@ function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
       ) : (
         field
       )}
-      <MicrophonePermissionHelp
-        open={voice.permissionHelpOpen}
-        onOpenChange={voice.setPermissionHelpOpen}
-      />
+      {voice.permissionHelpOpen && (
+        <MicrophoneHelp onClose={() => voice.setPermissionHelpOpen(false)} />
+      )}
     </>
   )
 }
@@ -139,15 +145,38 @@ function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearch
       onSubmit={search.submit}
     />
   )
+  const header = <SearchSurfaceHeader search={search} />
   return (
-    <SearchFrame search={search} header={<SearchSurfaceHeader search={search} />}>
+    <SearchFrame
+      search={search}
+      header={header}
+      unresolvedFallback={<LandingSkeleton field='search' />}
+      assistant={{
+        appearance: CONVERSATION_APPEARANCE,
+        fallback: search.chatId ? (
+          <ConversationSkeleton header={header} />
+        ) : (
+          <LandingSkeleton field='composer' header={header} />
+        ),
+        landing: {
+          render: ({ composer }) => (
+            <ConversationLanding heading={`Search ${organization.name}`}>
+              {composer}
+              <GetStarted />
+            </ConversationLanding>
+          ),
+        },
+      }}
+    >
       <div className={styles.body}>
         <RedesignSurface>
           {query ? (
             <div className={styles.docked}>
-              <div className={styles.dockedField}>{field}</div>
+              <div className={styles.dockedRow}>
+                <div className={`${styles.column} ${styles.dockedField}`}>{field}</div>
+              </div>
               <div ref={resultsScroll} className={styles.scroll}>
-                <div className={styles.resultsColumn}>
+                <div className={`${styles.column} ${styles.resultsColumn}`}>
                   <SearchResults
                     scope={{ kind: 'organization', organizationId: organization.id }}
                     query={query}
@@ -159,10 +188,12 @@ function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearch
           ) : (
             <div className={styles.scroll}>
               <div className={styles.landing}>
-                <h1 className={styles.heading} data-type='T076'>
-                  Search {organization.name}
-                </h1>
-                <div className={styles.landingField}>{field}</div>
+                <div className={styles.column}>
+                  <h1 className={styles.heading} data-type='T076'>
+                    Search {organization.name}
+                  </h1>
+                  {field}
+                </div>
               </div>
             </div>
           )}

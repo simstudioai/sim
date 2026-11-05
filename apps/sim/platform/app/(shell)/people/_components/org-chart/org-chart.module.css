@@ -1,0 +1,159 @@
+.chart {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  gap: var(--spacing-12);
+}
+
+.toolbar,
+.path,
+.footer,
+.pager,
+.emptyActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+
+.emptyActions {
+  justify-content: center;
+}
+
+.picker {
+  flex: none;
+  inline-size: var(--spacing-192);
+  max-inline-size: 100%;
+}
+
+.path {
+  gap: var(--spacing-4);
+  color: var(--ui-secondary);
+}
+
+.current {
+  color: var(--ui-ink);
+}
+
+.footer {
+  justify-content: space-between;
+  color: var(--ui-secondary);
+}
+
+.pager {
+  font-variant-numeric: tabular-nums;
+}
+
+.canvas {
+  position: relative;
+  flex: 1;
+  min-block-size: 22rem;
+  border: var(--spacing-stroke-default) solid var(--ui-divider);
+  border-radius: var(--radius-12);
+  overflow: hidden;
+}
+
+.flow {
+  --xy-background-color: var(--ui-canvas);
+  --xy-edge-stroke: var(--ui-muted);
+  --xy-edge-stroke-width: 1.5;
+  position: absolute;
+  inset: 0;
+}
+
+.controls {
+  display: flex;
+  gap: var(--ui-action-gap);
+}
+
+.handle {
+  inline-size: 0 !important;
+  block-size: 0 !important;
+  min-inline-size: 0 !important;
+  min-block-size: 0 !important;
+  border: 0 !important;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.card {
+  position: relative;
+  inline-size: 100%;
+  block-size: 100%;
+  border: var(--spacing-stroke-default) solid var(--ui-divider);
+  border-radius: var(--radius-12);
+  background: var(--ui-canvas);
+}
+
+.card[data-focus-card] {
+  border-color: var(--ui-border);
+}
+
+.cardTarget {
+  display: grid;
+  align-content: space-between;
+  inline-size: 100%;
+  block-size: 100%;
+  padding: var(--spacing-12);
+  border-radius: inherit;
+  background: var(--ui-reading);
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.cardTarget:hover {
+  background: var(--ui-hover);
+}
+
+.identity {
+  display: flex;
+  align-items: flex-start;
+  min-inline-size: 0;
+  gap: var(--ui-row-gap);
+  padding-inline-end: var(--spacing-24);
+}
+
+.names {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-stack-gap);
+}
+
+.secondary,
+.cardFooter {
+  color: var(--ui-secondary);
+}
+
+.cardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-inline-size: 0;
+  gap: var(--spacing-8);
+}
+
+.cardAction {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--spacing-4);
+  color: var(--ui-ink);
+}
+
+.profileLink {
+  position: absolute;
+  inset-block-start: var(--spacing-8);
+  inset-inline-end: var(--spacing-8);
+  pointer-events: auto;
+}
+
+.graphic {
+  display: block;
+  inline-size: var(--spacing-224);
+  fill: none;
+  stroke: var(--ui-divider);
+  stroke-width: var(--spacing-stroke-default);
+}

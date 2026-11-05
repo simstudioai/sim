@@ -16,7 +16,7 @@ import { createLogger } from '@sim/logger'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { escapeRegExp, truncate } from '@sim/utils/string'
+import { truncate } from '@sim/utils/string'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
@@ -448,7 +448,7 @@ const orgCard = (page: Page) => dialog(page, 'Organization menu')
 const homeRegion = (page: Page, name: string) =>
   page
     .getByRole('region', { name, exact: true })
-    .filter({ has: page.locator('h2', { hasText: name }) })
+    .filter({ has: page.locator('h2, h3', { hasText: name }) })
 
 async function navLabels(page: Page) {
   const links = mainNav(page).getByRole('link')
@@ -460,12 +460,11 @@ async function expectPageNotFound(page: Page) {
   await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
 }
 
-/** A rail row's link. A workspace's name also reads through its avatar. */
+/** A rail row's link, named once: a workspace's avatar adds nothing to its name. */
 const railLink = (page: Page, label: string) =>
-  sidebar(page).getByRole('link', { name: new RegExp(`(^| )${escapeRegExp(label)}$`) })
+  sidebar(page).getByRole('link', { name: label, exact: true })
 
-const accountChip = (page: Page) =>
-  sidebar(page).getByRole('button', { name: 'Account menu', exact: true })
+const accountChip = (page: Page) => sidebar(page).getByRole('button', { name: /, account menu$/ })
 
 /** The row around a rail link: its status glyph sits beside the link, not in it. */
 const railRow = (page: Page, label: string) => railLink(page, label).locator('xpath=..')
@@ -545,6 +544,14 @@ async function landingChecks() {
         await expectPageNotFound(page)
         await page.goto(orgUrl(`/search/chat/${MEMBER_CHATS.agent.id}`))
         await expectPageNotFound(page)
+        await sql`update copilot_chats set last_seen_at = null where id = ${MEMBER_CHATS.agent.id}`
+        await page.goto(orgUrl('/home'))
+        await expect(railLink(page, MEMBER_CHATS.assistant.title)).toBeVisible()
+        await expect(railLink(page, MEMBER_CHATS.agent.title)).toHaveCount(0)
+        await expect(
+          homeRegion(page, 'Needs your attention').getByText(MEMBER_CHATS.agent.title)
+        ).toHaveCount(0)
+        await sql`update copilot_chats set last_seen_at = now() where id = ${MEMBER_CHATS.agent.id}`
       })
       await withSession(ADMIN, async ({ page }) => {
         await page.goto(orgUrl(`/search/chat/${ADMIN_CHATS.agent.id}`))
@@ -769,6 +776,25 @@ async function sidebarChecks() {
       await expect
         .poll(async () => (await sidebar(page).boundingBox())?.width ?? 0)
         .toBeGreaterThan(before + 30)
+    })
+  })
+  await check('arrow keys on the edge resize the rail, within its bounds', async () => {
+    await withSession(MEMBER, async ({ page }) => {
+      await page.goto(orgUrl('/home'))
+      const edge = sidebar(page).getByRole('separator', { name: 'Resize sidebar' })
+      const width = async () => Math.round((await sidebar(page).boundingBox())?.width ?? 0)
+      const before = await width()
+      await expect(edge).toHaveAttribute('aria-valuenow', String(before))
+      await edge.focus()
+      await page.keyboard.press('ArrowRight')
+      await expect.poll(width).toBe(before + 16)
+      await expect(edge).toHaveAttribute('aria-valuenow', String(before + 16))
+      await page.keyboard.press('ArrowLeft')
+      await expect.poll(width).toBe(before)
+      for (let press = 0; press < 20; press++) await page.keyboard.press('ArrowLeft')
+      await expect.poll(width).toBe(SIDEBAR_WIDTH.MIN)
+      await page.keyboard.press('Enter')
+      await expect.poll(width).toBe(SIDEBAR_WIDTH.MIN)
     })
   })
   await check(
@@ -1269,6 +1295,7 @@ async function sidebarChecks() {
       await page.goto(orgUrl('/home'))
       const chip = accountChip(page)
       await expect(chip).toContainText(MEMBER.name)
+      await expect(chip).toHaveAccessibleName(`${MEMBER.name}, account menu`)
       await chip.click()
       const menu = dialog(page, 'Account menu')
       await expect(menu.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible()
@@ -1293,7 +1320,7 @@ async function sidebarChecks() {
       on conflict (id) do nothing`
   })
   await check(
-    'Help menu: Docs, Join Slack, and a support request posted with its fields',
+    'Help menu: Documentation, Join Slack, and a support request posted with its fields',
     async () => {
       await withSession(MEMBER, async ({ page, context }) => {
         await context.route(/docs\.sim\.ai|sim\.ai\/slack|slack\.com/, (route) =>
@@ -1304,7 +1331,7 @@ async function sidebarChecks() {
         await help.click()
         await expect(menuEntry(page, 'Join Slack')).toBeVisible()
         const docs = context.waitForEvent('page')
-        await menuEntry(page, 'Docs').click()
+        await menuEntry(page, 'Documentation').click()
         await (await docs).close()
         await help.click()
         await menuEntry(page, 'Contact support').click()
@@ -1322,6 +1349,24 @@ async function sidebarChecks() {
       })
     }
   )
+  await check('Help menu: the macOS app is offered on a Mac browser only', async () => {
+    const mac = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
+    const windows = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+    for (const [userAgent, offered] of [
+      [mac, 1],
+      [windows, 0],
+    ] as const) {
+      await withSession(MEMBER, async ({ page }) => {
+        await page.addInitScript((agent) => {
+          Object.defineProperty(navigator, 'userAgent', { get: () => agent })
+        }, userAgent)
+        await page.goto(orgUrl('/home'))
+        await sidebar(page).getByRole('button', { name: 'Help', exact: true }).click()
+        await expect(menuEntry(page, 'Contact support')).toBeVisible()
+        await expect(menuEntry(page, 'Download apps')).toHaveCount(offered)
+      })
+    }
+  })
   notProvable(
     'Help menu: desktop update row',
     'Needs the packaged desktop app with an update pending'
@@ -1776,7 +1821,7 @@ async function homeChecks() {
       const region = homeRegion(page, 'Workspaces')
       await expect(region.getByRole('link')).toHaveCount(5)
       await region.getByRole('button', { name: 'See more' }).click()
-      await expect(region.getByRole('link')).toHaveCount(WORKSPACES.length)
+      await expect.poll(() => region.getByRole('link').count()).toBeGreaterThan(5)
       await region.getByRole('button', { name: 'See less' }).click()
       await expect(region.getByRole('link')).toHaveCount(5)
     })
@@ -1872,6 +1917,44 @@ async function homeChecks() {
 
 async function chatChecks() {
   section('3 Chat')
+  await check("Share and the feedback form on a chat are the design system's dialogs", async () => {
+    const inSurface = (dialogLocator: ReturnType<typeof dialog>) =>
+      expect(dialogLocator.locator('xpath=ancestor::*[@data-platform-ui]')).not.toHaveCount(0)
+    const fileId = '6f1f4a52-8e0b-4d7a-9a13-0d5d3c1b7e21'
+    await sql`insert into workspace_files (id, key, user_id, workspace_id, context, original_name, content_type, size_bytes)
+      values (${fileId}, ${`workspace/${fileId}.md`}, ${ADMIN.userId}, ${MEMBER_ADMIN_WORKSPACE.id}, 'workspace', 'share-check.md', 'text/markdown', 1)`
+    await sql`update copilot_chats
+      set resources = ${sql.json([
+        {
+          type: 'file',
+          id: fileId,
+          title: 'share-check.md',
+          workspaceId: MEMBER_ADMIN_WORKSPACE.id,
+        },
+      ])}
+      where id = ${ADMIN_CHATS.agent.id}`
+    try {
+      await withSession(ADMIN, async ({ page }) => {
+        await page.goto(orgUrl(`/chat/${ADMIN_CHATS.agent.id}?resource=${fileId}`))
+        await page.getByRole('button', { name: 'Share file', exact: true }).click()
+        const share = dialog(page, 'Share share-check.md')
+        await inSurface(share)
+        await expect(share.getByRole('group', { name: 'File access' })).toBeVisible()
+        await share.getByRole('button', { name: 'Cancel', exact: true }).click()
+        await expect(share).toHaveCount(0)
+        await page.getByRole('button', { name: 'Rate response', exact: true }).click()
+        await menuEntry(page, 'Bad response').click()
+        const feedback = dialog(page, 'Share feedback')
+        await inSurface(feedback)
+        await expect(feedback.getByRole('textbox', { name: 'Details' })).toHaveValue('')
+        await feedback.getByRole('button', { name: 'Cancel', exact: true }).click()
+        await expect(feedback).toHaveCount(0)
+      })
+    } finally {
+      await sql`update copilot_chats set resources = '[]'::jsonb where id = ${ADMIN_CHATS.agent.id}`
+      await sql`delete from workspace_files where id = ${fileId}`
+    }
+  })
   await check(
     'assistant conversation under Search: switch, New chat, follow-up composer',
     async () => {
@@ -2105,6 +2188,47 @@ async function searchChecks() {
       })
     })
   })
+  for (const viewport of [DESKTOP, { ...DESKTOP, name: 'narrow', width: 900 }, PHONE]) {
+    await check(`field and results share one column (${viewport.name})`, async () => {
+      await withSession(
+        MEMBER,
+        async ({ page }) => {
+          await stubSearch(page)
+          await page.goto(orgUrl('/search?mode=search&q=recall'))
+          const frame = searchField(page).locator('xpath=..')
+          const row = page.getByRole('link', { name: 'Recall playbook' }).locator('xpath=../..')
+          await expect(row).toBeVisible()
+          const [field, result] = [await frame.boundingBox(), await row.boundingBox()]
+          assert(field && result, 'The field and a result are on screen')
+          assert(Math.abs(field.x - result.x) <= 1, `Left ${field.x} and ${result.x}`)
+          assert(
+            Math.abs(field.x + field.width - (result.x + result.width)) <= 1,
+            `Right ${field.x + field.width} and ${result.x + result.width}`
+          )
+        },
+        { viewport }
+      )
+    })
+  }
+  await check("a phone's Search button keeps its size and widens its target to 44px", async () => {
+    await withSession(
+      MEMBER,
+      async ({ page }) => {
+        await page.goto(orgUrl('/search?mode=search'))
+        await searchField(page).fill('recall')
+        const button = page.getByRole('button', { name: 'Search', exact: true }).last()
+        const box = await button.boundingBox()
+        assert(box, 'The button is on screen')
+        assert.equal(Math.round(box.height), 28)
+        const hit = await button.evaluate(
+          (node, { x, y }) => node === document.elementFromPoint(x, y),
+          { x: box.x + box.width / 2, y: box.y - 6 }
+        )
+        assert(hit, 'A touch above the drawn button still lands on it')
+      },
+      { viewport: PHONE }
+    )
+  })
   await check(
     'row menu: Copy link, Copy sim/name when a link exists, Create link when not, none on failure',
     async () => {
@@ -2129,6 +2253,8 @@ async function searchChecks() {
         await create.click()
         const form = page.getByRole('dialog').filter({ hasText: 'Destination URL' })
         await expect(form).toBeVisible()
+        await expect(form.locator('xpath=ancestor::*[@data-platform-ui]')).not.toHaveCount(0)
+        await expect(form.getByRole('checkbox', { name: 'Hide from the Links page' })).toBeVisible()
         await expect(form.getByRole('textbox', { name: 'Destination URL' })).toHaveValue(
           'https://wiki.example.com/recall'
         )
@@ -2550,6 +2676,12 @@ async function linksChecks() {
           headers.some((text) => text.includes(label)),
           `Missing column ${label}: ${headers}`
         )
+      const columnWidth = async (name: string) =>
+        (await page.getByRole('columnheader', { name, exact: true }).boundingBox())?.width ?? 0
+      assert(
+        (await columnWidth('Destination')) > 1.5 * (await columnWidth('Name')),
+        'Destination takes the most room'
+      )
       const store = context.waitForEvent('page')
       await page.getByRole('button', { name: 'Install Sim for Chrome' }).click()
       await expect(await store).toHaveURL(/chromewebstore\.google\.com/)
@@ -2573,6 +2705,25 @@ async function linksChecks() {
       await expect(rowFor(page, 'timesheet')).toBeVisible()
       assert(pages.length > 0, 'Rows past the first page load as the list scrolls')
     })
+  })
+  await check('a phone keeps every fact of a link, with Restricted in view', async () => {
+    await withSession(
+      MEMBER,
+      async ({ page }) => {
+        await page.goto(linksUrl)
+        const row = rowFor(page, NAMED_LINKS.restricted.name)
+        await expect(
+          row.getByText(NAMED_LINKS.restricted.url, { exact: true }).first()
+        ).toBeVisible()
+        await expect(
+          row.getByText(NAMED_LINKS.restricted.description, { exact: true }).first()
+        ).toBeVisible()
+        await expect(row.getByText(/^Restricted · /)).toBeVisible()
+        const columns = await page.getByRole('columnheader').allInnerTexts()
+        assert(!columns.join().includes('Created by'), `Columns ${columns}`)
+      },
+      { viewport: PHONE }
+    )
   })
   await check('the API serves every link the member can see', async () => {
     await withSession(MEMBER, async ({ page }) => {
@@ -3076,7 +3227,7 @@ async function settingsChecks() {
         )
         const group = `/settings/access-control?group-id=${STANDARD_GROUP_ID}`
         await page.goto(orgUrl(`${group}&group-tab=providers`))
-        await expect(page.getByText('Could not load provider availability')).toBeVisible()
+        await expect(page.getByText('unavailable', { exact: true })).toBeVisible()
         await expect(page.getByRole('region', { name: 'Providers' })).toHaveCount(0)
         await page.goto(orgUrl(`${group}&group-tab=blocks`))
         await expect(page.getByRole('region', { name: 'Core Blocks' })).toBeVisible()

@@ -1,0 +1,25 @@
+.secondary {
+  color: var(--ui-secondary);
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-action-gap);
+}
+
+.issues {
+  display: grid;
+  gap: var(--ui-list-gap);
+  max-block-size: var(--spacing-192);
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+.issues li[data-severity="skipped"] {
+  color: var(--control-danger);
+}
+.sources {
+  display: grid;
+  gap: var(--ui-list-gap);
+}

@@ -30,8 +30,8 @@ import { formatRelativeTime } from '@/platform/lib/time'
 
 const COLUMNS = [
   { key: 'name', label: 'Name', kind: 'text' },
-  { key: 'destination', label: 'Destination', kind: 'text', showFrom: 'compact' },
-  { key: 'description', label: 'Description', kind: 'text', showFrom: 'wide' },
+  { key: 'destination', label: 'Destination', kind: 'text', showFrom: 'compact', width: '27%' },
+  { key: 'description', label: 'Description', kind: 'text', showFrom: 'wide', width: '19%' },
   { key: 'owner', label: 'Created by', kind: 'text', showFrom: 'wide' },
   { key: 'access', label: 'Access', kind: 'text', showFrom: 'wide' },
   { key: 'updated', label: 'Updated', kind: 'text', showFrom: 'wide' },
@@ -107,6 +107,28 @@ function LinkRowContextMenu({ links, children, ...actions }: LinkRowContextMenuP
   )
 }
 
+interface LinkSummaryProps {
+  link: SimLink
+  updated: string
+}
+
+/**
+ * What the table's hidden columns would say, under the name, so a narrow table loses nothing. Access
+ * leads its line, where truncation cannot take it.
+ */
+function LinkSummary({ link, updated }: LinkSummaryProps) {
+  const facts = [accessLabel(link), link.createdBy?.name, updated].filter(Boolean).join(' · ')
+  return (
+    <span className={styles.summary} data-type='T052'>
+      <span className={styles.summaryDestination}>
+        <OverflowText text={link.url}>{link.url}</OverflowText>
+      </span>
+      {link.description && <OverflowText text={link.description}>{link.description}</OverflowText>}
+      <OverflowText text={facts}>{facts}</OverflowText>
+    </span>
+  )
+}
+
 interface LinksTableProps extends RowActions {
   links: readonly SimLink[]
   loadMore: LoadMoreState
@@ -127,24 +149,30 @@ const LinksTable = memo(function LinksTable({
     const now = asOf ?? Date.now()
     return links.map((link) => {
       const origin = simLinkOrigin(link.url)
+      const updated = formatRelativeTime(new Date(link.updatedAt).getTime(), now)
       return {
         id: link.id,
         values: {
           access: accessLabel(link),
-          updated: formatRelativeTime(new Date(link.updatedAt).getTime(), now),
+          updated,
         },
         cells: {
           name: (
             <TableLabel
               leading={
-                <Favicon
-                  host={origin ? new URL(origin).hostname : null}
-                  fallback={<Icon name='I041' />}
-                  className={styles.favicon}
-                />
+                <span className={styles.nameLeading}>
+                  <Favicon
+                    host={origin ? new URL(origin).hostname : null}
+                    fallback={<Icon name='I041' />}
+                    className={styles.favicon}
+                  />
+                </span>
               }
             >
-              <OverflowText text={link.name}>{link.name}</OverflowText>
+              <span className={styles.nameCell}>
+                <OverflowText text={link.name}>{link.name}</OverflowText>
+                <LinkSummary link={link} updated={updated} />
+              </span>
             </TableLabel>
           ),
           destination: <OverflowText text={link.url}>{link.url}</OverflowText>,
@@ -158,6 +186,7 @@ const LinksTable = memo(function LinksTable({
                   size='inline'
                   name={link.createdBy.name}
                   src={link.createdBy.image ?? undefined}
+                  decorative
                 />
               }
             >
@@ -223,7 +252,7 @@ export function LinksPage({ organizationId }: LinksPageProps) {
         ) : (
           <EmptyState
             graphic={<Icon name='I041' />}
-            title='Links'
+            title='No links yet'
             description='Create short links like handbook for the pages your team opens most.'
             action={
               <Button variant='primary' onClick={links.startCreate}>

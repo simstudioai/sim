@@ -1,0 +1,49 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+  margin-inline: auto;
+  inline-size: min(calc(100% - 2 * var(--ui-page-inline-gutter)), var(--container-app-settings));
+  padding-block: var(--shell-home-row-start) var(--ui-page-inset-block);
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+}
+
+.actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+}
+
+.heading {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-12);
+}
+
+.titles {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-stack-gap);
+  overflow-wrap: anywhere;
+}
+
+.secondary {
+  color: var(--ui-secondary);
+}
+
+.rows {
+  display: grid;
+  gap: var(--spacing-8);
+}
+
+.list {
+  display: grid;
+  gap: var(--ui-list-gap);
+}

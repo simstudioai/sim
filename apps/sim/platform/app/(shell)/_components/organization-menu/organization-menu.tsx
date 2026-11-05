@@ -83,6 +83,7 @@ export function OrganizationMenu({
       <AnchoredPopover
         presentation='menu'
         label='Organization menu'
+        triggerLabel={`${name}, organization menu`}
         anchor={anchor}
         open={open}
         onOpenChange={(next, trigger) => {
@@ -95,8 +96,8 @@ export function OrganizationMenu({
         trigger={(button) => (
           <IdentityButton
             render={button}
-            label='Organization menu'
-            leading={<Avatar name={name} src={logo} organization size='inline' />}
+            label={`${name}, organization menu`}
+            leading={<Avatar name={name} src={logo} organization size='inline' decorative />}
             trailingIcon='I051'
           >
             {name}
@@ -105,7 +106,7 @@ export function OrganizationMenu({
       >
         <div ref={card} className={styles.menu}>
           <div className={styles.overview}>
-            <Avatar name={name} src={logo} organization size='inline' />
+            <Avatar name={name} src={logo} organization size='inline' decorative />
             <div className={styles.copy}>
               {draftName !== null ? (
                 <div

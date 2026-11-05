@@ -6,7 +6,8 @@ import { organizationRoutes } from '@/lib/navigation/paths'
 import { isPeopleEnabled } from '@/lib/people/feature-flag'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import PageLoading from '@/app/o/[organizationId]/people/[memberId]/loading'
-import { Person } from '@/app/o/[organizationId]/people/[memberId]/person'
+import { PeopleSurface } from '@/app/o/[organizationId]/people/people-surface'
+import { PersonProfile } from '@/platform/app/(shell)/people/_components/person/person'
 
 export const metadata: Metadata = { title: 'People' }
 
@@ -27,7 +28,9 @@ export default async function PersonPage({ params }: PersonPageProps) {
   if (!(await isPeopleEnabled(organizationId))) notFound()
   return (
     <Suspense fallback={<PageLoading />}>
-      <Person organizationId={organizationId} memberId={memberId} />
+      <PeopleSurface>
+        <PersonProfile memberId={memberId} />
+      </PeopleSurface>
     </Suspense>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, type ReactNode, type Ref, useCallback, useRef } from 'react'
+import { type CSSProperties, memo, type ReactNode, type Ref, useCallback, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import Link from 'next/link'
 import styles from '@/platform/design-system/components/data-display/data-display.module.css'
@@ -51,6 +51,8 @@ type TableColumn = {
   key: string
   label: string
   showFrom?: 'compact' | 'wide'
+  /** The column's share of a table wide enough for every column; narrower tables split evenly. */
+  width?: `${number}%`
   /** Offer this column to `onSortChange`. The caller owns the order of `rows`. */
   sortable?: boolean
 } & (
@@ -66,6 +68,8 @@ interface TableRow {
   cells?: Readonly<Partial<Record<string, ReactNode>>>
   /** Make the whole row open this destination, through a link on its first cell. */
   href?: string
+  /** Hold the link's prefetch, for a long list of the same route. */
+  prefetch?: boolean
   /** Make the whole row run this, through a button on its first cell. */
   onOpen?: () => void
   /** A control beside the row's target, in a trailing column. */
@@ -158,7 +162,7 @@ const TableRowView = memo(function TableRowView({
             data-type={column.kind === 'text' ? 'T059' : 'T060'}
           >
             {position === 0 && row.href ? (
-              <Link href={row.href} className={styles.rowTarget}>
+              <Link href={row.href} prefetch={row.prefetch} className={styles.rowTarget}>
                 {content}
               </Link>
             ) : position === 0 && row.onOpen ? (
@@ -196,6 +200,10 @@ function TableHead({ fields, actionColumn, sort, onSortChange }: TableHeadProps)
             <th
               key={column.key}
               scope='col'
+              style={
+                column.width ? ({ '--column-width': column.width } as CSSProperties) : undefined
+              }
+              data-width={column.width ? true : undefined}
               aria-sort={sortable ? ARIA_SORT[direction ?? 'none'] : undefined}
               data-kind={column.kind}
               data-from={column.showFrom}

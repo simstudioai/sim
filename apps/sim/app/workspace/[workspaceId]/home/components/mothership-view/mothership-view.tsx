@@ -1,6 +1,14 @@
 'use client'
 
-import { type ComponentProps, forwardRef, memo, useCallback, useRef, useState } from 'react'
+import {
+  type ComponentProps,
+  forwardRef,
+  memo,
+  type ReactNode,
+  useCallback,
+  useRef,
+  useState,
+} from 'react'
 import { cn } from '@sim/emcn'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
@@ -19,6 +27,7 @@ import {
   isPreviewable,
   RICH_PREVIEWABLE_EXTENSIONS,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import type { ShareDialogModel } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import { ChatPanelContent } from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
@@ -104,6 +113,9 @@ interface MothershipViewProps {
   activityResourceIds?: ReadonlySet<string>
   isCollapsed: boolean
   className?: string
+  tabsClassName?: string
+  sourcesClassName?: string
+  renderShareDialog?: (dialog: ShareDialogModel) => ReactNode
   previewSession?: FilePreviewSession | null
   isAgentResponding?: boolean
   onSummarize: (message: string, filters: WorkspaceSearchFilters) => void
@@ -125,6 +137,9 @@ export const MothershipView = memo(
       activityResourceIds,
       isCollapsed,
       className,
+      tabsClassName,
+      sourcesClassName,
+      renderShareDialog,
       previewSession,
       isAgentResponding,
       onSummarize,
@@ -235,6 +250,7 @@ export const MothershipView = memo(
       >
         <div className='flex min-h-0 flex-1 flex-col'>
           <ResourceTabs
+            className={tabsClassName}
             organizationId={organizationId}
             allowBuildControls={allowBuildControls}
             workspaceId={workspaceId}
@@ -255,6 +271,7 @@ export const MothershipView = memo(
                     workspaceId={activeWorkspaceId}
                     resource={active}
                     downloadSourceRef={fileDownloadSourceRef}
+                    renderShareDialog={renderShareDialog}
                   />
                 </ResourceWorkspaceHost>
               ) : null
@@ -303,7 +320,11 @@ export const MothershipView = memo(
               )
             })}
             {active?.type === 'sources' && (
-              <SourcesResourceContent resource={active} chatId={chatId} />
+              <SourcesResourceContent
+                resource={active}
+                chatId={chatId}
+                className={sourcesClassName}
+              />
             )}
             {active && active.type !== 'sources' && !isPersistentPanel(active) && (
               <ScopedResourceContent

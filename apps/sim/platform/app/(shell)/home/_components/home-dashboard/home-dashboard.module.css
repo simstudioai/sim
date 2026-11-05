@@ -109,7 +109,7 @@
   block-size: var(--spacing-132);
 }
 /*
- * The real composer's height, the same for both modes: `home-composer-chrome.module.css`'s frame,
+ * The real composer's height, the same for both modes: `composer-chrome.module.css`'s frame,
  * field, and gap around a 30px toolbar row, or the 44px touch targets on a coarse pointer.
  */
 .placeholderComposer {

@@ -1,0 +1,284 @@
+/*
+ * The thread, the panel's chrome, and the composer's frame hold legacy components, so they sit
+ * outside any surface and cannot read design-system tokens. Where a host token already paints the
+ * design's value (`--surface-5` for the bubble, `--surface-hover`, `--text-icon`), they keep it.
+ * `.palette` and `.panel`'s rule are the values of `--ui-ink`, `--ui-muted`, and `--ui-divider`,
+ * set on the host tokens the legacy components read; the host's own theme class switches them, as
+ * it switches a `system` surface.
+ *
+ * Unlayered, so these rules outrank the legacy components' Tailwind utilities.
+ */
+.palette {
+  --text-primary: rgb(10 10 10 / 80%);
+  --text-muted: rgb(10 10 10 / 60%);
+}
+html[class~="dark"] .palette {
+  --text-primary: #e6e6e6;
+  --text-muted: #a8a8a8;
+}
+
+/* The element itself also carries the host's Inter class, so this needs the extra specificity. */
+div.thread,
+.thread
+  :not(
+    code,
+    pre,
+    code *,
+    pre *,
+    [class*="font-mono"],
+    [class*="font-mono"] *,
+    [data-platform-ui],
+    [data-platform-ui] *
+  ) {
+  font-family: "Geist", sans-serif;
+  letter-spacing: normal;
+}
+.thread {
+  -webkit-font-smoothing: antialiased;
+}
+/* The `T048` type role, on the prose and the user's message. */
+.thread [data-chat-find-content],
+.thread [data-chat-find-content] :is(p, li) {
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+}
+.thread [data-chat-find-content] :is(h1, h2, h3, h4, strong) {
+  font-weight: 500;
+}
+/* The composer's shadow rises above its frame, and the footer it sits in scrolls. */
+.thread > :last-child {
+  padding-block-start: 0.25rem;
+}
+
+.userBubble {
+  max-inline-size: min(100%, 40rem);
+  padding: 0.75rem 1rem;
+}
+
+/*
+ * A 14px glyph in the design's 28px action box, its edge on the text's own. The row's own buttons
+ * are design-system ones in a surface; the direct child is the legacy sources button beside them.
+ */
+.responseActions {
+  margin-inline-start: -0.4375rem;
+}
+.responseActions > button {
+  border-radius: 0.5rem;
+  color: var(--text-muted);
+}
+@media (pointer: fine) {
+  .responseActions > button {
+    block-size: 1.75rem;
+    min-inline-size: 1.75rem;
+  }
+}
+.responseActions > [data-platform-ui] {
+  background: transparent;
+}
+.responseActionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+.dialogHost {
+  user-select: text;
+}
+.dialogHost > [data-platform-ui] {
+  background: transparent;
+}
+.shareFields {
+  display: contents;
+}
+.shareLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-action-gap);
+}
+.pageContextMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+  color: var(--ui-secondary);
+}
+.pageContextText {
+  max-block-size: 50dvh;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.helpSteps {
+  display: grid;
+  gap: var(--ui-row-gap);
+  padding-inline-start: var(--spacing-16);
+  list-style: decimal;
+}
+.helpNote {
+  color: var(--ui-secondary);
+}
+
+/* Portalled out of the thread, so it holds its own type. */
+div.sourcesPopover,
+.sourcesPopover :not(code, pre, code *, pre *) {
+  font-family: "Geist", sans-serif;
+  letter-spacing: normal;
+}
+
+.panel {
+  border-color: rgb(0 0 0 / 6%);
+}
+html[class~="dark"] .panel {
+  border-color: #383838;
+}
+.tabs [data-tab-strip-button] {
+  font-family: "Geist", sans-serif;
+  font-size: 0.8125rem;
+  line-height: 1rem;
+  letter-spacing: normal;
+}
+.sources,
+.sources * {
+  font-family: "Geist", sans-serif;
+  letter-spacing: normal;
+}
+
+/*
+ * Search's landing, in the values behind `search-surface.module.css`'s `.landing` and `.field`: the
+ * composer between surfaces cannot read them. The field's slot keeps the height of Search's field
+ * and the taller composer overflows it downward, so the heading holds still across a view switch.
+ */
+.landingScroll {
+  flex: 1;
+  min-block-size: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
+}
+.landing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 100%;
+  padding: 3.5rem 0.75rem 2rem;
+}
+.landing > [data-platform-ui] {
+  max-inline-size: 100%;
+  background: transparent;
+}
+.landingField {
+  inline-size: 100%;
+  max-inline-size: var(--container-chat, 44rem);
+}
+@media (width >= 48rem) {
+  .landing {
+    padding: 2vh 1.5rem 22vh;
+  }
+  .landingField {
+    block-size: 2.875rem;
+  }
+}
+@media (width >= 48rem) and (pointer: coarse) {
+  .landingField {
+    block-size: 3.125rem;
+  }
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 0;
+  min-inline-size: 0;
+  background: var(--bg);
+}
+.landingField > [data-platform-ui],
+.transcriptSkeleton > [data-platform-ui],
+.composerSkeleton > [data-platform-ui] {
+  background: transparent;
+}
+.placeholderHeading,
+.placeholderField {
+  border-radius: var(--ui-control-radius);
+  background: var(--control-muted-fill);
+}
+.placeholderHeading {
+  block-size: var(--spacing-32);
+  inline-size: var(--container-208);
+  max-inline-size: 100%;
+  margin-block-end: var(--spacing-28);
+}
+.placeholderField {
+  block-size: 2.875rem;
+  border-radius: var(--radius-composer);
+}
+/* Search's frame insets its whole column and clears the inset for what it holds. */
+.headerBand {
+  padding-block-start: var(--workspace-content-title-bar-inset, 0px);
+}
+.headerBand ~ * {
+  --workspace-content-title-bar-inset: 0px;
+}
+
+/* `MothershipChat`'s scroll container and footer, in the same box around the same column. */
+.transcriptFrame {
+  flex: 1;
+  min-block-size: 0;
+  overflow: hidden;
+  margin-block-start: var(--workspace-content-title-bar-inset);
+  padding: 1rem 0.75rem 0.5rem;
+  scrollbar-gutter: stable both-edges;
+}
+.transcriptSkeleton {
+  max-inline-size: var(--container-chat, 44rem);
+  margin-inline: auto;
+}
+.transcriptLines {
+  display: grid;
+  gap: var(--spacing-12);
+  margin-block-end: var(--spacing-32);
+}
+.transcriptLines > span,
+.transcriptBubble {
+  display: block;
+  background: var(--control-muted-fill);
+}
+.transcriptLines > span {
+  block-size: var(--spacing-14);
+  border-radius: var(--spacing-4);
+}
+.transcriptLines > :nth-child(1) {
+  inline-size: 90%;
+}
+.transcriptLines > :nth-child(2) {
+  inline-size: 75%;
+}
+.transcriptLines > :nth-child(3) {
+  inline-size: 82%;
+}
+.transcriptLines > :nth-child(4) {
+  inline-size: 40%;
+}
+.transcriptBubble {
+  block-size: var(--spacing-40);
+  inline-size: 55%;
+  margin-block-end: var(--spacing-32);
+  margin-inline-start: auto;
+  border-radius: var(--radius-dialog);
+}
+.composerFrame {
+  flex: none;
+  padding: 0.25rem 0.75rem max(0.75rem, env(safe-area-inset-bottom));
+}
+.composerSkeleton {
+  max-inline-size: var(--container-chat, 44rem);
+  margin-inline: auto;
+}
+@media (width >= 48rem) {
+  .transcriptFrame {
+    padding-inline: 1.5rem;
+  }
+  .composerFrame {
+    padding: 0.25rem 1.5rem 1rem;
+  }
+}

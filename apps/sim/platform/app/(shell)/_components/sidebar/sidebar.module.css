@@ -3,6 +3,7 @@
   block-size: 100%;
   overflow: hidden;
 }
+/* The peek card is the host chrome's, so its rounding follows the host's radius. */
 .sidebar[data-peeking] {
   border-radius: calc(var(--radius) - 1px);
 }
@@ -10,7 +11,7 @@
 [data-peek]:has(.sidebar) {
   overflow: visible;
 }
-/* Floating layers sit above a legacy page's own stacking beside the rail. */
+/* Host scale: these layers stack against the legacy page beside the rail, outside any surface. */
 .sidebar [data-side] {
   z-index: var(--z-popover);
 }
@@ -160,6 +161,11 @@ button:hover > .railMark > .railGlyph {
 }
 .edge[data-collapsed] {
   cursor: e-resize;
+}
+/* The edge sits outside the rail's surfaces, so it reads the host's own ink. */
+.edge:focus-visible {
+  outline: 1px solid var(--text-muted);
+  outline-offset: -1px;
 }
 @media (max-width: 48rem) {
   .edge,

@@ -3,6 +3,8 @@
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { organizationRoutes } from '@/lib/navigation/paths'
+import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import {
   MothershipChatDeleteError,
   useDeleteMothershipChat,
@@ -18,6 +20,22 @@ export function organizationChatHref(
   routes: ReturnType<typeof organizationRoutes>
 ) {
   return chat.mode === 'assistant' ? routes.searchChat(chat.id) : routes.chat(chat.id)
+}
+
+/**
+ * Whether the chat routes would open this chat for the viewer. An agent or Plan chat is refused to
+ * a viewer who can no longer build, and a Plan chat once Plan is off, so neither is offered. A chat
+ * with no mode is an optimistic entry the viewer just started.
+ */
+export function useCanOpenOrganizationChat() {
+  const { mothershipAvailable, canBuild, searchAccess } = useOrganizationContext()
+  const planEnabled = useFeatureFlag('mothership-plan-mode')
+  return ({ mode }: { mode?: string }) => {
+    if (!mothershipAvailable) return false
+    if (mode === 'assistant') return searchAccess.memberScoped
+    if (mode === 'plan') return canBuild && planEnabled
+    return mode === 'agent' ? canBuild : canBuild || searchAccess.memberScoped
+  }
 }
 
 /** A partial bulk failure still reports which chats went, so the view can narrow what is left. */
