@@ -194,14 +194,6 @@ export const listSimLinks = defineAuthorizedOrganizationUseCase({
   },
 })
 
-async function findLinkIdByName(organizationId: string, typedName: string) {
-  const link = await repository.findSimLinkDestination(
-    organizationId,
-    stripSimLinkPrefix(typedName)
-  )
-  return link?.id
-}
-
 /**
  * One link by id or by name as typed. Hidden exactly as browsing hides it: an unlisted link reads
  * as missing to anyone who cannot manage it.
@@ -215,7 +207,14 @@ export const getSimLinkView = defineAuthorizedOrganizationUseCase({
   }: OrganizationUseCaseContext<OrganizationInput & ({ linkId: string } | { name: string })>) {
     const viewer = viewerOf(context)
     const linkId =
-      'linkId' in input ? input.linkId : await findLinkIdByName(input.organizationId, input.name)
+      'linkId' in input
+        ? input.linkId
+        : (
+            await repository.findSimLinkDestination(
+              input.organizationId,
+              stripSimLinkPrefix(input.name)
+            )
+          )?.id
     const record = linkId ? await repository.getSimLink(db, input.organizationId, linkId) : null
     if (!record || (record.unlisted && !canManage(record.createdBy?.id ?? null, viewer)))
       throw new OrchestrationError('not_found', 'Link not found')

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Chip, ChipModalBody, ChipModalHeader, ChipModalSurface } from '@sim/emcn'
 import { PAGE_ACCESS_ORIGINS } from '@/config'
 
@@ -8,25 +8,17 @@ interface PageAccessButtonProps {
 }
 
 export function PageAccessButton({ allowed, onAccessGranted }: PageAccessButtonProps) {
-  const mounted = useRef(false)
   const [status, setStatus] = useState<'idle' | 'requesting' | 'error'>('idle')
-
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-    }
-  }, [])
 
   async function enable() {
     if (status === 'requesting') return
     setStatus('requesting')
     try {
       const granted = await chrome.permissions.request({ origins: PAGE_ACCESS_ORIGINS })
-      if (mounted.current) setStatus('idle')
+      setStatus('idle')
       if (granted) onAccessGranted()
     } catch {
-      if (mounted.current) setStatus('error')
+      setStatus('error')
     }
   }
 
@@ -47,7 +39,11 @@ export function PageAccessButton({ allowed, onAccessGranted }: PageAccessButtonP
       <Chip disabled={status === 'requesting'} onClick={() => void enable()}>
         Allow across websites
       </Chip>
-      {status === 'error' && <span role='status'>Could not enable page access. Try again.</span>}
+      {status === 'error' && (
+        <span role='status' className='text-[var(--text-error)] text-caption'>
+          Could not enable page access. Try again.
+        </span>
+      )}
     </span>
   )
 }

@@ -8,17 +8,19 @@ import { createRoot } from 'react-dom/client'
 import {
   captureActivePage,
   captureErrorMessage,
+  PAGE_CHANGED_MESSAGE,
   PageCaptureError,
   SiteAccessRequiredError,
   UnreadableSelectionError,
 } from '@/capture'
 import { CAPTURE_INTENT_KEY, CAPTURE_INTENT_TTL_MS, REFERENCE_PAGE_KEY, SIM_ORIGIN } from '@/config'
 import { type CaptureIntent, captureIntentSchema } from '@/intent'
-import { createReferenceCapture } from '@/reference'
+import { createReferenceCapture, PAGE_ATTACHMENT_PENDING_MESSAGE } from '@/reference'
 import { SearchRecoveryDialog } from '@/search-recovery-dialog'
 import { PageAccessButton, SiteAccessDialog } from '@/site-access'
 import '@/shell.css'
 
+const PAGE_ATTACHMENT_EXPIRED_MESSAGE = 'The page attachment expired. Attach it again.'
 const BLOCKED_SELECTION =
   'Select readable text again, attach the page explicitly, or turn off Reference current page.'
 const KEYBOARD_FOCUS_HINT = navigator.platform.startsWith('Mac')
@@ -49,9 +51,7 @@ function SidePanel({ origin }: SidePanelProps) {
     if (!(status instanceof SiteAccessRequiredError)) return
     const navigated = (tabId: number, change: chrome.tabs.OnUpdatedInfo) => {
       if (tabId === status.tabId && (change.status === 'loading' || change.url !== undefined)) {
-        setStatus((current) =>
-          current === status ? 'The page changed. Attach it again.' : current
-        )
+        setStatus((current) => (current === status ? PAGE_CHANGED_MESSAGE : current))
       }
     }
     const activated = (tab: chrome.tabs.OnActivatedInfo) => {
@@ -74,7 +74,7 @@ function SidePanel({ origin }: SidePanelProps) {
     if (Date.now() - Date.parse(snapshot.capturedAt) > CAPTURE_INTENT_TTL_MS) {
       pendingRef.current = null
       focusRequested.current = false
-      setStatus('The page attachment expired. Attach it again.')
+      setStatus(PAGE_ATTACHMENT_EXPIRED_MESSAGE)
       return
     }
     const message: ExtensionToAppMessage = {
@@ -130,12 +130,12 @@ function SidePanel({ origin }: SidePanelProps) {
     }
   ) {
     if (referenceRef.current?.busy()) {
-      setStatus('Wait for the page attachment, then try again.')
+      setStatus(PAGE_ATTACHMENT_PENDING_MESSAGE)
       return
     }
     if (busyRef.current) return
     if (pendingRef.current) {
-      setStatus('Wait for the page attachment, then try again.')
+      setStatus(PAGE_ATTACHMENT_PENDING_MESSAGE)
       return
     }
     busyRef.current = true
@@ -171,7 +171,7 @@ function SidePanel({ origin }: SidePanelProps) {
       manualCaptureError: () => {
         if (busyRef.current || pendingRef.current || processingManual || manualIntents.size)
           return {
-            message: 'Wait for the page attachment, then try again.',
+            message: PAGE_ATTACHMENT_PENDING_MESSAGE,
           }
         if (unreadableSelection.current) return { message: BLOCKED_SELECTION, reason: 'selection' }
       },
@@ -249,7 +249,7 @@ function SidePanel({ origin }: SidePanelProps) {
         }
         if (disposed || !intent) return
         if (!currentIntent(intent, window.id)) {
-          setStatus('The page attachment expired. Attach it again.')
+          setStatus(PAGE_ATTACHMENT_EXPIRED_MESSAGE)
           return
         }
         if (intent.kind === 'focus') {
@@ -362,7 +362,7 @@ function SidePanel({ origin }: SidePanelProps) {
       ) {
         pendingRef.current = null
         focusRequested.current = false
-        setStatus('The page attachment expired. Attach it again.')
+        setStatus(PAGE_ATTACHMENT_EXPIRED_MESSAGE)
       }
       void consumeIntent()
     }, 5_000)

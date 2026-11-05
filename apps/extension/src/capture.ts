@@ -9,6 +9,8 @@ import { extractPageText } from '@/extract'
 import { digestUrl } from '@/utils'
 
 /** A public capture error whose message is safe to share with the hosted composer. */
+export const PAGE_CHANGED_MESSAGE = 'The page changed. Attach it again.'
+
 export class PageCaptureError extends Error {}
 
 /** Chrome scripting failures may contain the full private URL of the tab. */
@@ -49,7 +51,7 @@ export async function captureActivePage(
   if (tab?.id === undefined || tab.incognito)
     throw new PageCaptureError('This page cannot be attached.')
   if (expected && expected.tabId !== tab.id) {
-    throw new PageCaptureError('The page changed. Attach it again.')
+    throw new PageCaptureError(PAGE_CHANGED_MESSAGE)
   }
   if (!tab.url) {
     const allowed = await chrome.permissions.contains({ origins: PAGE_ACCESS_ORIGINS })
@@ -75,10 +77,10 @@ export async function captureActivePage(
   signal?.addEventListener('abort', removeListeners, { once: true })
   try {
     const snapshot = await readTab({ tabId: tab.id, url: tab.url }, kind, expected, signal)
-    if (changed) throw new PageCaptureError('The page changed. Attach it again.')
+    if (changed) throw new PageCaptureError(PAGE_CHANGED_MESSAGE)
     return snapshot
   } catch (error) {
-    if (changed) throw new PageCaptureError('The page changed. Attach it again.')
+    if (changed) throw new PageCaptureError(PAGE_CHANGED_MESSAGE)
     if (expected && !(error instanceof PageCaptureError))
       throw new PageCaptureError('The original page is unavailable. Attach the current page.')
     throw error
@@ -95,7 +97,7 @@ async function readTab(
 ) {
   const url = new URL(tab.url)
   if (expected && (await digestUrl(tab.url)) !== expected.urlDigest) {
-    throw new PageCaptureError('The page changed. Attach it again.')
+    throw new PageCaptureError(PAGE_CHANGED_MESSAGE)
   }
   let pathname = url.pathname
   if (url.origin === SIM_ORIGIN) {
@@ -132,12 +134,12 @@ async function readTab(
     world: 'ISOLATED',
   })
   if (identity[0]?.documentId !== result.documentId || identity[0]?.result !== tab.url) {
-    throw new PageCaptureError('The page changed. Attach it again.')
+    throw new PageCaptureError(PAGE_CHANGED_MESSAGE)
   }
   const [current] = await chrome.tabs.query({ active: true, currentWindow: true })
   signal?.throwIfAborted()
   if (current?.id !== tab.tabId || current.url !== tab.url || current.status === 'loading') {
-    throw new PageCaptureError('The page changed. Attach it again.')
+    throw new PageCaptureError(PAGE_CHANGED_MESSAGE)
   }
   if (result.result.error) {
     if (kind === 'selection')
