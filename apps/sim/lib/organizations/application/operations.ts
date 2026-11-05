@@ -22,6 +22,15 @@ export const organizationOperations = {
     oauthScope: 'api:read',
   }),
   /**
+   * permission-group-exempt: this is a member's own view of their organization; each capability it reports is resolved from the same permission config rather than gating the read.
+   */
+  readSurface: defineOrganizationOperation({
+    id: 'organizations.surface.read',
+    minimumRole: 'member',
+    capability: 'none',
+    principalKinds: ['session'],
+  }),
+  /**
    * permission-group-exempt: administrators must be able to discover workspaces they govern.
    */
   listWorkspaces: defineOrganizationOperation({
