@@ -3,7 +3,7 @@
  */
 import postcss from 'postcss'
 import { describe, expect, it } from 'vitest'
-import embed from '../apps/sim/lib/postcss/platform-embed.cjs'
+import embed from '@/lib/postcss/platform-embed.cjs'
 import { findEntryEscapes, findModuleEscapes } from './check-platform-css'
 
 const ENTRY = '/repo/apps/sim/platform/design-system/styles/embedded.css'

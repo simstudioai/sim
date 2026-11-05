@@ -40,9 +40,12 @@
         // The design system's public surface: a snapshot consumers pick from, kept whole so it stays
         // identical to its source and rebases cleanly.
         "platform/design-system/**/*.{ts,tsx}",
-        // Foundation for the organization redesign's lanes. Remove once their pages import these.
+        // CSS Modules reach this through `@reference`, which knip does not follow.
+        "platform/design-system/styles/theme.css",
+        // Foundation for the organization redesign. Remove each once a page imports it.
         "app/o/[[]organizationId[]]/_redesign/redesign-host.tsx",
-        "platform/app/(shell)/_components/notification-tray/notification-tray.tsx",
+        "platform/app/[(]shell[)]/_components/**/*.{ts,tsx}",
+        "platform/lib/time.ts",
         // Compile-time fixture compatibility assertion, included by tsconfig.
         "lib/table/fixture-contract.ts",
         // scripts/generate-docs.ts imports this through pathToFileURL.
