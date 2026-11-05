@@ -57,7 +57,7 @@ export function Sidebar(flags: OrganizationNavFlags) {
   const header = useRef<HTMLDivElement>(null)
   const footer = useRef<HTMLDivElement>(null)
   const { handlePointerDown } = useSidebarResize()
-  const warmers = useNavWarmers(organization.id)
+  const warmers = useNavWarmers()
   const [workspacesOpen, setWorkspacesOpen] = useState(true)
   const [chatsOpen, setChatsOpen] = useState(true)
   const setCommandOpen = useSearchModalStore((state) => state.setOpen)
