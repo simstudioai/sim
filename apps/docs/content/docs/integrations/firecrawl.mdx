@@ -454,4 +454,38 @@ Retrieve the remaining and allocated Firecrawl credits for the team.
 
 </ReferenceDetails>
 
+### Firecrawl Enrich
+
+Find work emails, mobile numbers, LinkedIn profiles, company domains, and company information through Firecrawl Alexandria. Uses FullEnrich for contact lookups and People Data Labs for company and name-based profile lookups. Provider terms must be enabled in Firecrawl. People Data Labs has a 50,000-record annual team limit.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Firecrawl API key |
+| `enrichmentType` | string | Yes | Lookup type: work_email, phone, linkedin, company, or company_domain |
+| `fullName` | string | No | Full name of the person |
+| `companyDomain` | string | No | Company website domain |
+| `companyName` | string | No | Company name when the domain is unknown |
+| `linkedinUrl` | string | No | LinkedIn profile URL for work email or mobile lookup |
+| `email` | string | No | Email address for reverse LinkedIn profile lookup |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | string | Work email, when found |
+| `emailVerified` | boolean | True only when FullEnrich reports DELIVERABLE; catch-all and high-probability addresses remain unverified |
+| `phone` | string | Mobile number, when found |
+| `linkedinUrl` | string | LinkedIn profile URL, when found |
+| `domain` | string | Company website domain, when found |
+| `employeeCount` | string | Company headcount or size range |
+| `description` | string | Company description |
+| `creditsUsed` | number | Firecrawl credits charged for this lookup |
+| `status` | number | Provider or HTTP response status |
+
+</ReferenceDetails>
+
 

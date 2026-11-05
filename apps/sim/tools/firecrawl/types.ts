@@ -1,5 +1,29 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
+export interface FirecrawlEnrichParams {
+  apiKey: string
+  enrichmentType: 'work_email' | 'phone' | 'linkedin' | 'company' | 'company_domain'
+  fullName?: string
+  companyDomain?: string
+  companyName?: string
+  linkedinUrl?: string
+  email?: string
+}
+
+export interface FirecrawlEnrichResponse extends ToolResponse {
+  output: {
+    email: string | null
+    emailVerified: boolean
+    phone: string | null
+    linkedinUrl: string | null
+    domain: string | null
+    employeeCount: string | null
+    description: string | null
+    creditsUsed: number
+    status: number
+  }
+}
+
 /**
  * Shared output property definitions for Firecrawl API responses.
  * Based on Firecrawl API documentation: https://docs.firecrawl.dev/api-reference

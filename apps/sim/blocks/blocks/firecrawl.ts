@@ -53,6 +53,7 @@ export const FirecrawlBlock: BlockConfig = {
         ],
         parse: [{ text: 'Parse', field: DOCUMENT_FIELD, core: true, after: 'into markdown' }],
         credit_usage: ['Read remaining credit balance'],
+        enrich: [{ text: 'Look up', field: 'enrichmentType', core: true }],
       },
     },
   },
@@ -75,8 +76,82 @@ export const FirecrawlBlock: BlockConfig = {
         { label: 'Agent', id: 'agent' },
         { label: 'Parse Document', id: 'parse' },
         { label: 'Credit Usage', id: 'credit_usage' },
+        { label: 'Enrich Contact or Company', id: 'enrich' },
       ],
       value: () => 'scrape',
+    },
+    {
+      id: 'enrichmentType',
+      title: 'Enrichment Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Work Email', id: 'work_email' },
+        { label: 'Mobile Number', id: 'phone' },
+        { label: 'LinkedIn Profile', id: 'linkedin' },
+        { label: 'Company Information', id: 'company' },
+        { label: 'Company Domain', id: 'company_domain' },
+      ],
+      value: () => 'work_email',
+      condition: { field: 'operation', value: 'enrich' },
+      required: true,
+    },
+    {
+      id: 'fullName',
+      title: 'Full Name',
+      type: 'short-input',
+      placeholder: 'Full name of the person',
+      condition: {
+        field: 'operation',
+        value: 'enrich',
+        and: { field: 'enrichmentType', value: ['work_email', 'phone', 'linkedin'] },
+      },
+    },
+    {
+      id: 'companyDomain',
+      title: 'Company Domain',
+      type: 'short-input',
+      placeholder: 'example.com',
+      condition: {
+        field: 'operation',
+        value: 'enrich',
+        and: { field: 'enrichmentType', value: ['work_email', 'phone', 'linkedin', 'company'] },
+      },
+    },
+    {
+      id: 'companyName',
+      title: 'Company Name',
+      type: 'short-input',
+      placeholder: 'Company name',
+      condition: {
+        field: 'operation',
+        value: 'enrich',
+        and: {
+          field: 'enrichmentType',
+          value: ['work_email', 'phone', 'linkedin', 'company_domain'],
+        },
+      },
+    },
+    {
+      id: 'linkedinUrl',
+      title: 'LinkedIn Profile URL',
+      type: 'short-input',
+      placeholder: 'https://www.linkedin.com/in/...',
+      condition: {
+        field: 'operation',
+        value: 'enrich',
+        and: { field: 'enrichmentType', value: ['work_email', 'phone'] },
+      },
+    },
+    {
+      id: 'email',
+      title: 'Email',
+      type: 'short-input',
+      placeholder: 'Email address for reverse lookup',
+      condition: {
+        field: 'operation',
+        value: 'enrich',
+        and: { field: 'enrichmentType', value: ['linkedin'] },
+      },
     },
     {
       id: 'fileUpload',
@@ -470,6 +545,7 @@ Example 2 - Product Data:
       'firecrawl_agent',
       'firecrawl_parse',
       'firecrawl_credit_usage',
+      'firecrawl_enrich',
     ],
     config: {
       tool: (params) => {
@@ -500,6 +576,8 @@ Example 2 - Product Data:
             return 'firecrawl_parse'
           case 'credit_usage':
             return 'firecrawl_credit_usage'
+          case 'enrich':
+            return 'firecrawl_enrich'
           default:
             return 'firecrawl_scrape'
         }
@@ -714,6 +792,15 @@ Example 2 - Product Data:
             if (jobId) result.jobId = jobId
             break
 
+          case 'enrich':
+            result.enrichmentType = params.enrichmentType
+            result.fullName = params.fullName
+            result.companyDomain = params.companyDomain
+            result.companyName = params.companyName
+            result.linkedinUrl = params.linkedinUrl
+            result.email = params.email
+            break
+
           case 'credit_usage':
             break
         }
@@ -723,6 +810,12 @@ Example 2 - Product Data:
     },
   },
   inputs: {
+    enrichmentType: { type: 'string', description: 'Contact or company lookup type' },
+    fullName: { type: 'string', description: 'Full name of the person' },
+    companyDomain: { type: 'string', description: 'Company website domain' },
+    companyName: { type: 'string', description: 'Company name' },
+    linkedinUrl: { type: 'string', description: 'LinkedIn profile URL' },
+    email: { type: 'string', description: 'Email address for reverse lookup' },
     apiKey: { type: 'string', description: 'Firecrawl API key' },
     operation: { type: 'string', description: 'Operation to perform' },
     url: { type: 'string', description: 'Target website URL' },
@@ -775,6 +868,13 @@ Example 2 - Product Data:
     zeroDataRetention: { type: 'boolean', description: 'Enable zero data retention' },
   },
   outputs: {
+    email: { type: 'string', description: 'Work email, when found' },
+    emailVerified: { type: 'boolean', description: 'Whether the work email is mailbox-verified' },
+    phone: { type: 'string', description: 'Mobile number, when found' },
+    linkedinUrl: { type: 'string', description: 'LinkedIn profile URL, when found' },
+    domain: { type: 'string', description: 'Company website domain, when found' },
+    employeeCount: { type: 'string', description: 'Company headcount or size range' },
+    description: { type: 'string', description: 'Company description' },
     // Scrape output
     markdown: { type: 'string', description: 'Page content markdown' },
     html: { type: 'string', description: 'Raw HTML content' },

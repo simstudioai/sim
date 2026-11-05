@@ -38,20 +38,9 @@ export function normalizeDomain(value: unknown): string {
     .replace(/\/.*$/, '')
 }
 
-/** Returns the first non-empty string in an array (or `undefined`). */
-export function firstNonEmpty(value: unknown): string | undefined {
-  if (!Array.isArray(value)) return undefined
-  for (const item of value) {
-    const s = str(item)
-    if (s) return s
-  }
-  return undefined
-}
-
 /**
  * Splits a full name into first / last for providers whose API requires both
- * (e.g. Hunter). Returns `null` when the name has fewer than two parts, so the
- * provider falls through to one that accepts a single name string.
+ * (e.g. FullEnrich). Returns `null` when the name has fewer than two parts.
  */
 export function splitName(fullName: unknown): { firstName: string; lastName: string } | null {
   const parts = str(fullName).split(/\s+/).filter(Boolean)
