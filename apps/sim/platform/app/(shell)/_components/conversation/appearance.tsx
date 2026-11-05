@@ -10,6 +10,7 @@ import {
   ComposerPlaceholder,
   TranscriptPlaceholder,
 } from '@/platform/app/(shell)/_components/conversation/skeletons'
+import hostBridge from '@/platform/design-system/styles/host-bridge.module.css'
 
 /** The design's look for the shared conversation: the same at every organization destination. */
 export const CONVERSATION_APPEARANCE: OrganizationConversationAppearance = {
@@ -18,7 +19,7 @@ export const CONVERSATION_APPEARANCE: OrganizationConversationAppearance = {
   chat: {
     userBubbleClassName: styles.userBubble,
     responseActionsClassName: styles.responseActions,
-    sourcesPopoverClassName: styles.sourcesPopover,
+    sourcesPopoverClassName: `${hostBridge.tokens} ${styles.sourcesPopover}`,
     renderResponseActions: (actions) => <ResponseActions {...actions} />,
     renderPageContextDialog: (dialog) => <PageContextDialog {...dialog} />,
     loadingTranscript: <TranscriptPlaceholder />,

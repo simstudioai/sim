@@ -58,9 +58,6 @@ vi.mock('@/hooks/queries/mothership-chats', () => ({
   useMarkMothershipChatRead: () => ({ mutate: vi.fn() }),
 }))
 vi.mock('@/app/o/[organizationId]/home/components/composer', () => ({ Composer: mocks.composer }))
-vi.mock('@/app/o/[organizationId]/home/components/get-started', () => ({
-  GetStarted: () => <div>Legacy get started</div>,
-}))
 vi.mock('@/app/workspace/[workspaceId]/home/components/suggested-actions', () => ({
   SuggestedActions: () => <div>Suggested actions</div>,
 }))

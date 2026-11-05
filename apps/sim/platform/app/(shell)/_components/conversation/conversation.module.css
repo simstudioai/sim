@@ -1,20 +1,15 @@
 /*
  * The thread, the panel's chrome, and the composer's frame hold legacy components, so they sit
- * outside any surface and cannot read design-system tokens. Where a host token already paints the
- * design's value (`--surface-5` for the bubble, `--surface-hover`, `--text-icon`), they keep it.
- * `.palette` and `.panel`'s rule are the values of `--ui-ink`, `--ui-muted`, and `--ui-divider`,
- * set on the host tokens the legacy components read; the host's own theme class switches them, as
- * it switches a `system` surface.
+ * outside any surface and read the design system through `host-bridge.module.css`. `.palette` sets
+ * the host tokens those legacy components read from it.
  *
  * Unlayered, so these rules outrank the legacy components' Tailwind utilities.
  */
 .palette {
-  --text-primary: rgb(10 10 10 / 80%);
-  --text-muted: rgb(10 10 10 / 60%);
-}
-html[class~="dark"] .palette {
-  --text-primary: #e6e6e6;
-  --text-muted: #a8a8a8;
+  --text-primary: var(--design-ui-ink);
+  --text-muted: var(--design-ui-muted);
+  --text-icon: var(--design-ui-secondary);
+  --surface-hover: var(--design-ui-hover);
 }
 
 /* The element itself also carries the host's Inter class, so this needs the extra specificity. */
@@ -30,7 +25,7 @@ div.thread,
     [data-platform-ui],
     [data-platform-ui] *
   ) {
-  font-family: "Geist", sans-serif;
+  font-family: var(--design-font-sans), sans-serif;
   letter-spacing: normal;
 }
 .thread {
@@ -39,20 +34,20 @@ div.thread,
 /* The `T048` type role, on the prose and the user's message. */
 .thread [data-chat-find-content],
 .thread [data-chat-find-content] :is(p, li) {
-  font-size: 0.875rem;
-  line-height: 1.375rem;
+  font-size: var(--design-text-body);
+  line-height: var(--design-leading-22);
 }
 .thread [data-chat-find-content] :is(h1, h2, h3, h4, strong) {
-  font-weight: 500;
+  font-weight: var(--design-font-weight-medium);
 }
 /* The composer's shadow rises above its frame, and the footer it sits in scrolls. */
 .thread > :last-child {
-  padding-block-start: 0.25rem;
+  padding-block-start: var(--design-spacing-4);
 }
 
 .userBubble {
-  max-inline-size: min(100%, 40rem);
-  padding: 0.75rem 1rem;
+  max-inline-size: min(100%, var(--design-container-chat-message));
+  padding: var(--design-spacing-12) var(--design-spacing-16);
 }
 
 /*
@@ -60,16 +55,16 @@ div.thread,
  * are design-system ones in a surface; the direct child is the legacy sources button beside them.
  */
 .responseActions {
-  margin-inline-start: -0.4375rem;
+  margin-inline-start: calc((var(--design-spacing-14) - var(--design-spacing-app-control-sm)) / 2);
 }
 .responseActions > button {
-  border-radius: 0.5rem;
+  border-radius: var(--design-radius-control);
   color: var(--text-muted);
 }
 @media (pointer: fine) {
   .responseActions > button {
-    block-size: 1.75rem;
-    min-inline-size: 1.75rem;
+    block-size: var(--design-spacing-app-control-sm);
+    min-inline-size: var(--design-spacing-app-control-sm);
   }
 }
 .responseActions > [data-platform-ui] {
@@ -121,32 +116,28 @@ div.thread,
 /* Portalled out of the thread, so it holds its own type. */
 div.sourcesPopover,
 .sourcesPopover :not(code, pre, code *, pre *) {
-  font-family: "Geist", sans-serif;
+  font-family: var(--design-font-sans), sans-serif;
   letter-spacing: normal;
 }
 
 .panel {
-  border-color: rgb(0 0 0 / 6%);
-}
-html[class~="dark"] .panel {
-  border-color: #383838;
+  border-color: var(--design-ui-divider);
 }
 .tabs [data-tab-strip-button] {
-  font-family: "Geist", sans-serif;
-  font-size: 0.8125rem;
-  line-height: 1rem;
+  font-family: var(--design-font-sans), sans-serif;
+  font-size: var(--design-text-control);
+  line-height: var(--design-leading-16);
   letter-spacing: normal;
 }
 .sources,
 .sources * {
-  font-family: "Geist", sans-serif;
+  font-family: var(--design-font-sans), sans-serif;
   letter-spacing: normal;
 }
 
 /*
- * Search's landing, in the values behind `search-surface.module.css`'s `.landing` and `.field`: the
- * composer between surfaces cannot read them. The field's slot keeps the height of Search's field
- * and the taller composer overflows it downward, so the heading holds still across a view switch.
+ * Assistant's landing, on Search's lines: the heading hangs `--landing-offset` below the view
+ * switch, so what follows it can differ in height without moving it across a switch.
  */
 .landingScroll {
   flex: 1;
@@ -158,9 +149,7 @@ html[class~="dark"] .panel {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  min-block-size: 100%;
-  padding: 3.5rem 0.75rem 2rem;
+  padding: var(--landing-offset) var(--design-spacing-12) var(--design-spacing-32);
 }
 .landing > [data-platform-ui] {
   max-inline-size: 100%;
@@ -168,20 +157,18 @@ html[class~="dark"] .panel {
 }
 .landingField {
   inline-size: 100%;
-  max-inline-size: var(--container-chat, 44rem);
+  max-inline-size: var(--design-container-chat);
 }
 @media (width >= 48rem) {
   .landing {
-    padding: 2vh 1.5rem 22vh;
-  }
-  .landingField {
-    block-size: 2.875rem;
+    padding-inline: var(--design-spacing-24);
   }
 }
-@media (width >= 48rem) and (pointer: coarse) {
-  .landingField {
-    block-size: 3.125rem;
-  }
+.landingGetStarted {
+  margin-block-start: var(--design-spacing-24);
+}
+.landingGetStarted > [data-platform-ui] {
+  background: transparent;
 }
 
 .skeleton {
@@ -209,7 +196,13 @@ html[class~="dark"] .panel {
   margin-block-end: var(--spacing-28);
 }
 .placeholderField {
-  block-size: 2.875rem;
+  block-size: calc(
+    var(--spacing-app-control-sm) +
+    2 *
+    var(--spacing-8) +
+    2 *
+    var(--spacing-stroke-default)
+  );
   border-radius: var(--radius-composer);
 }
 /* Search's frame insets its whole column and clears the inset for what it holds. */
@@ -226,11 +219,11 @@ html[class~="dark"] .panel {
   min-block-size: 0;
   overflow: hidden;
   margin-block-start: var(--workspace-content-title-bar-inset);
-  padding: 1rem 0.75rem 0.5rem;
+  padding: var(--design-spacing-16) var(--design-spacing-12) var(--design-spacing-8);
   scrollbar-gutter: stable both-edges;
 }
 .transcriptSkeleton {
-  max-inline-size: var(--container-chat, 44rem);
+  max-inline-size: var(--design-container-chat);
   margin-inline: auto;
 }
 .transcriptLines {
@@ -268,17 +261,18 @@ html[class~="dark"] .panel {
 }
 .composerFrame {
   flex: none;
-  padding: 0.25rem 0.75rem max(0.75rem, env(safe-area-inset-bottom));
+  padding: var(--design-spacing-4) var(--design-spacing-12)
+    max(var(--design-spacing-12), env(safe-area-inset-bottom));
 }
 .composerSkeleton {
-  max-inline-size: var(--container-chat, 44rem);
+  max-inline-size: var(--design-container-chat);
   margin-inline: auto;
 }
 @media (width >= 48rem) {
   .transcriptFrame {
-    padding-inline: 1.5rem;
+    padding-inline: var(--design-spacing-24);
   }
   .composerFrame {
-    padding: 0.25rem 1.5rem 1rem;
+    padding: var(--design-spacing-4) var(--design-spacing-24) var(--design-spacing-16);
   }
 }

@@ -517,3 +517,65 @@ it('a skill typed to its boundary before the lists land chips when they do, care
   await settleQueries(() => expect(input.value).toBe(' review now'))
   expect(input.selectionStart).toBe(9)
 })
+
+it('holds a slash message sent before the skills land, then sends it with its skill', async () => {
+  let resolveSkills: (skills: unknown[]) => void = () => {}
+  mocks.skillQuery.mockReturnValue(
+    new Promise((resolve) => {
+      resolveSkills = resolve
+    })
+  )
+  await render(true, '', 'agent')
+  const input = required<HTMLTextAreaElement>('[aria-label="Ask Sim"]')
+  await act(async () => typeInto(input, '/'))
+  await act(async () => typeInto(input, '/review this'))
+  const pressEnter = () =>
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  await act(async () => pressEnter())
+  expect(mocks.contexts).not.toHaveBeenCalled()
+  expect(input.closest('[aria-busy="true"]')).not.toBeNull()
+  await act(async () => {
+    resolveSkills([
+      {
+        id: 'skill-a',
+        workspaceId: 'workspace-a',
+        userId: 'user-a',
+        name: 'review',
+        description: 'Review a draft',
+        content: 'Review carefully.',
+        canEdit: true,
+        createdAt: '',
+        updatedAt: '',
+      },
+    ])
+  })
+  await settleQueries()
+  await vi.waitFor(async () => {
+    await act(async () => {})
+    expect(mocks.contexts).toHaveBeenLastCalledWith([
+      { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
+    ])
+  })
+  expect(input.closest('[aria-busy="true"]')).toBeNull()
+})
+
+it('a message with no slash goes out without waiting for any list', async () => {
+  mocks.skillQuery.mockReturnValue(new Promise(() => {}))
+  await render(true, '', 'agent')
+  const input = required<HTMLTextAreaElement>('[aria-label="Ask Sim"]')
+  await act(async () => typeInto(input, 'just a question'))
+  await act(async () => required<HTMLButtonElement>('button[aria-label="Send"]').click())
+  expect(mocks.contexts).toHaveBeenCalledTimes(1)
+})
+
+it('editing a held message cancels the hold', async () => {
+  mocks.skillQuery.mockReturnValue(new Promise(() => {}))
+  await render(true, '', 'agent')
+  const input = required<HTMLTextAreaElement>('[aria-label="Ask Sim"]')
+  await act(async () => typeInto(input, '/review this'))
+  await act(async () => required<HTMLButtonElement>('button[aria-label="Send"]').click())
+  expect(input.closest('[aria-busy="true"]')).not.toBeNull()
+  await act(async () => typeInto(input, '/review this now'))
+  expect(input.closest('[aria-busy="true"]')).toBeNull()
+  expect(mocks.contexts).not.toHaveBeenCalled()
+})

@@ -6,7 +6,6 @@ import { CONVERSATION_APPEARANCE } from '@/platform/app/(shell)/_components/conv
 import { ConversationSkeleton } from '@/platform/app/(shell)/_components/conversation/skeletons'
 
 interface ChatRouteProps {
-  userName?: string
   chatId: string
   requestMode: ChatRequestMode
 }

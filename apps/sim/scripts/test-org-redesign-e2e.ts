@@ -2025,36 +2025,104 @@ async function homeChecks() {
       })
     })
   })
-  await check('the resource toggle waits for a resource, then collapses and reopens', async () => {
-    const toggle = (page: Page, action: 'Expand' | 'Collapse') =>
-      page.getByRole('button', { name: `${action} resource view`, exact: true })
-    await withSession(ADMIN, async ({ page }) => {
-      await stubSearch(page)
-      await page.goto(orgUrl('/home'))
-      await expect(composer(page)).toBeVisible()
-      await expect(toggle(page, 'Expand')).toHaveCount(0)
-      await expect(toggle(page, 'Collapse')).toHaveCount(0)
-      const resource = encodeURIComponent(`search:organization:${ORGANIZATION_ID}`)
-      await page.goto(orgUrl(`/home?q=parts&resource=${resource}`))
-      await toggle(page, 'Collapse').click()
-      await toggle(page, 'Expand').click()
-      await expect(toggle(page, 'Collapse')).toBeVisible()
-    })
-  })
-  await check('on a phone neither Home nor a chat without resources has the toggle', async () => {
+  await check(
+    'Assistant hides the resource toggle until a resource; a builder always has it',
+    async () => {
+      const toggle = (page: Page, action: 'Expand' | 'Collapse') =>
+        page.getByRole('button', { name: `${action} resource view`, exact: true })
+      await withSession(MEMBER, async ({ page }) => {
+        await page.goto(orgUrl('/home'))
+        await expect(composer(page)).toBeVisible()
+        await expect(page.getByRole('button', { name: /resource view/ })).toHaveCount(0)
+      })
+      await withSession(ADMIN, async ({ page }) => {
+        await stubSearch(page)
+        await page.goto(orgUrl(`/chat/${ADMIN_CHATS.agent.id}`))
+        await expect(composer(page)).toBeVisible()
+        await toggle(page, 'Expand').click()
+        await expect(
+          page.getByRole('button', { name: 'Add resource tab', exact: true })
+        ).toBeVisible()
+        await toggle(page, 'Collapse').click()
+        const resource = encodeURIComponent(`search:organization:${ORGANIZATION_ID}`)
+        await page.goto(orgUrl(`/home?q=parts&resource=${resource}`))
+        await toggle(page, 'Collapse').click()
+        await toggle(page, 'Expand').click()
+        await expect(toggle(page, 'Collapse')).toBeVisible()
+      })
+    }
+  )
+  await check("on a phone a builder's empty chat keeps the toggle in its own row", async () => {
     await withSession(
       ADMIN,
       async ({ page }) => {
         const anyToggle = page.getByRole('button', { name: /resource view/ })
-        await page.goto(orgUrl('/home'))
-        await expect(composer(page)).toBeVisible()
-        await expect(anyToggle).toHaveCount(0)
         await page.goto(orgUrl(`/chat/${ADMIN_CHATS.agent.id}`))
         await expect(composer(page)).toBeVisible()
-        await expect(anyToggle).toHaveCount(0)
+        await expect(anyToggle).toBeVisible()
+        const firstMessage = page.getByText(/^About /).first()
+        await expect(firstMessage).toBeVisible()
+        const toggleBox = await anyToggle.boundingBox()
+        const messageBox = await firstMessage.boundingBox()
+        assert(toggleBox && messageBox, 'The toggle and the first message are both laid out')
+        assert(
+          messageBox.y >= toggleBox.y + toggleBox.height,
+          "The transcript starts below the toggle's row"
+        )
       },
       { viewport: PHONE }
     )
+    await withSession(
+      MEMBER,
+      async ({ page }) => {
+        await page.goto(orgUrl('/home'))
+        await expect(composer(page)).toBeVisible()
+        await expect(page.getByRole('button', { name: /resource view/ })).toHaveCount(0)
+      },
+      { viewport: PHONE }
+    )
+  })
+  await check('a /skill or @mention sent before its list lands waits for the list', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      let releaseSkills = () => {}
+      const skillsHeld = new Promise<void>((resolve) => {
+        releaseSkills = resolve
+      })
+      await page.route(/\/api\/skills/, async (route) => {
+        await skillsHeld
+        await route.continue()
+      })
+      const sends: string[] = []
+      page.on('request', (request) => {
+        if (request.method() === 'POST' && request.url().endsWith('/api/mothership/chat')) {
+          sends.push(request.url())
+        }
+      })
+      await page.goto(orgUrl('/home'))
+      await composer(page).fill('/review this')
+      await composer(page).press('Enter')
+      await expect(composer(page).locator('xpath=ancestor::*[@aria-busy="true"]')).toHaveCount(1)
+      await page.waitForTimeout(500)
+      assert.deepEqual(sends, [], 'The message waits for the skill lists')
+      releaseSkills()
+      await expect.poll(() => sends.length, { timeout: 30_000 }).toBeGreaterThan(0)
+    })
+    await withSession(ADMIN, async ({ page }) => {
+      let releaseLists = () => {}
+      const listsHeld = new Promise<void>((resolve) => {
+        releaseLists = resolve
+      })
+      await page.route(/\/api\/(workflows|table|knowledge)/, async (route) => {
+        await listsHeld
+        await route.continue()
+      })
+      await page.goto(orgUrl('/home'))
+      await composer(page).click()
+      await composer(page).pressSequentially('@op')
+      await composer(page).press('Enter')
+      await expect(composer(page)).toHaveValue('@op')
+      releaseLists()
+    })
   })
   await check('the handoff search params restore a results tab on Home', async () => {
     await withSession(ADMIN, async ({ page }) => {
@@ -2523,7 +2591,7 @@ async function searchChecks() {
   await check('landing heading, composer, and Get started, not in the Search view', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(orgUrl('/search?mode=assistant'))
-      await expect(page.getByRole('heading', { name: `Search ${ORGANIZATION_NAME}` })).toBeVisible()
+      await expect(page.getByRole('heading', { name: `Ask ${ORGANIZATION_NAME}` })).toBeVisible()
       await expect(composer(page)).toHaveAttribute('placeholder', 'Ask about your sources')
       await expect(page.getByText('Get started', { exact: true })).toBeVisible()
       await expect(page.getByRole('link', { name: /Connect an integration/ })).toHaveAttribute(

@@ -74,6 +74,7 @@ export interface ComposerChrome {
   renderSubmitControl: (action: ComposerSubmitAction) => ReactNode
   /** The blocked-microphone help, shown only while it is open. */
   renderMicrophoneHelp: (onClose: () => void) => ReactNode
+  modelSelectorOptions?: ModelSelectorOptions
 }
 
 interface ComposerProps {
@@ -105,6 +106,16 @@ interface ComposerProps {
 
 /** A `/` starting a token: typed, pasted, or carried in by a draft, all of which skills can chip. */
 const SLASH_TOKEN = /(^|\s)\//
+/** A list that never lands must not eat the message: it goes out as written after this long. */
+const HELD_SEND_MAX_MS = 10_000
+
+/** A send waiting for the skill lists, so a `/name` in it is not sent as plain text. */
+interface HeldSend {
+  text: string
+  /** The text has been chipped against the landed lists, including a token still being typed. */
+  chipped: boolean
+  expired: boolean
+}
 
 /** Organization composer with scoped resources, attachments, voice, and draft restoration. */
 export function Composer({
@@ -135,13 +146,16 @@ export function Composer({
   const searchInput = imagesOnly && !compact
   const hasAdditionalAttachments = Boolean(attachments)
   const { organization } = useOrganizationContext()
-  const { data: allWorkspaces = [] } = useWorkspacesQuery(!imagesOnly)
+  const { data: allWorkspaces = [], isPending: workspacesPending } = useWorkspacesQuery(!imagesOnly)
+  // The extension's panel keeps its own timing; only the full page waits for complete lists.
+  const waitsForLists = !compact && !imagesOnly
   const workspaces = (imagesOnly ? [] : allWorkspaces).filter(
     (workspace) => workspace.organizationId === organization.id
   )
   // The field takes focus on load, so focus alone says nothing about wanting these per-workspace lists.
   const [resourceIntent, setResourceIntent] = useState(false)
-  const skillsWanted = resourceIntent || SLASH_TOKEN.test(value)
+  const [heldSend, setHeldSend] = useState<HeldSend | null>(null)
+  const skillsWanted = resourceIntent || heldSend !== null || SLASH_TOKEN.test(value)
   const skillQueries = useQueries({
     queries: workspaces.map((workspace) => ({
       ...getSkillsQueryOptions(workspace.id),
@@ -156,10 +170,13 @@ export function Composer({
           skills: skillQueries[index].isPlaceholderData ? [] : (skillQueries[index].data ?? []),
         }))
       )
+  const skillListsPending =
+    (waitsForLists && workspacesPending) || skillQueries.some((query) => query.isPending)
   const editor = usePromptEditor({
     workspaceId: '',
     availableSkills: skills,
-    skillsLoading: skillsWanted && skillQueries.some((query) => query.isPending),
+    skillsLoading: skillsWanted && skillListsPending,
+    waitsForFullResources: waitsForLists,
     resourceIntent,
     onResourceIntent: () => setResourceIntent(true),
     organizationId: organization.id,
@@ -222,7 +239,7 @@ export function Composer({
   const placeholder = isInitialView && !compact ? animatedPlaceholder : 'Send message to Sim'
 
   const { pending: preparingSubmission, accept: acceptSubmission } = submission
-  const submit = () => {
+  const send = () => {
     if (attachedFilesRef.current.some((file) => file.uploading)) return
     const hasPayload =
       editor.getValue().trim().length > 0 ||
@@ -252,6 +269,40 @@ export function Composer({
       textareaRef.current
     )
   }
+
+  const submit = () => {
+    const text = editor.getPlainValue()
+    if (waitsForLists && skillListsPending && SLASH_TOKEN.test(text)) {
+      setHeldSend((held) => held ?? { text, chipped: false, expired: false })
+      return
+    }
+    send()
+  }
+  const sendRef = useRef(send)
+  sendRef.current = send
+  useEffect(() => {
+    if (!heldSend || heldSend.expired) return
+    const timer = setTimeout(
+      () => setHeldSend((held) => held && { ...held, expired: true }),
+      HELD_SEND_MAX_MS
+    )
+    return () => clearTimeout(timer)
+  }, [heldSend])
+  useEffect(() => {
+    if (!heldSend) return
+    if (editorRef.current.getPlainValue() !== heldSend.text) {
+      setHeldSend(null)
+      return
+    }
+    if (skillListsPending && !heldSend.expired) return
+    if (!heldSend.chipped) {
+      editorRef.current.setValue(heldSend.text)
+      setHeldSend({ ...heldSend, chipped: true })
+      return
+    }
+    setHeldSend(null)
+    sendRef.current()
+  }, [heldSend, skillListsPending, editor.value])
 
   const openResourceMenu = (event: { currentTarget: Element }) => {
     const rect = event.currentTarget.getBoundingClientRect()
@@ -362,7 +413,12 @@ export function Composer({
     chrome.renderSubmitControl(
       isSending
         ? { kind: 'stop', label: 'Stop generation', onClick: onStop }
-        : { kind: 'send', label: 'Send', disabled: !canSubmit, onClick: submit }
+        : {
+            kind: 'send',
+            label: 'Send',
+            disabled: !canSubmit || Boolean(heldSend),
+            onClick: submit,
+          }
     )
   ) : isSending ? (
     <ComposerActionButton type='button' onClick={onStop} aria-label='Stop generation' active>
@@ -372,9 +428,9 @@ export function Composer({
     <ComposerActionButton
       type='button'
       onClick={submit}
-      disabled={!canSubmit}
+      disabled={!canSubmit || Boolean(heldSend)}
       aria-label='Send'
-      active={canSubmit}
+      active={canSubmit && !heldSend}
     >
       <ArrowUp className='block size-[16px] text-white dark:text-black' />
     </ComposerActionButton>
@@ -392,7 +448,7 @@ export function Composer({
 
   return (
     <div
-      aria-busy={preparingSubmission || undefined}
+      aria-busy={preparingSubmission || Boolean(heldSend) || undefined}
       inert={preparingSubmission}
       onDragEnter={files.handleDragEnter}
       onDragLeave={files.handleDragLeave}
@@ -441,7 +497,9 @@ export function Composer({
         <InputToolbar
           plan={requestMode === 'plan'}
           showModelSelector={!imagesOnly}
-          modelSelectorOptions={imagesOnly ? undefined : modelSelectorOptions}
+          modelSelectorOptions={
+            imagesOnly ? undefined : (modelSelectorOptions ?? chrome?.modelSelectorOptions)
+          }
           leadingControls={leadingControls}
           voiceControl={voiceControl}
           submitControl={submitControl}

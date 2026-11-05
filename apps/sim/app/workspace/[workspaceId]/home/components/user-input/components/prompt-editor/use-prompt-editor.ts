@@ -157,6 +157,8 @@ export interface UsePromptEditorProps {
    * unique among the workspaces read so far may not be unique among them all.
    */
   skillsLoading?: boolean
+  /** Enter keeps waiting while the `@` lists load, rather than picking from the partial results. */
+  waitsForFullResources?: boolean
   /**
    * Notified when a context is added through an interactive path — a mention
    * pick, a resource drop, or a skill pick. Paste re-registration is
@@ -202,6 +204,7 @@ export function usePromptEditor({
   resourceIntent,
   onResourceIntent,
   skillsLoading = false,
+  waitsForFullResources = false,
   onContextAdd,
   onPasteFiles,
 }: UsePromptEditorProps) {
@@ -1504,6 +1507,8 @@ export function usePromptEditor({
     skills,
     /** @internal */
     skillsLoading,
+    /** @internal */
+    waitsForFullResources,
     /** @internal */
     resourceIntent,
     /** @internal */

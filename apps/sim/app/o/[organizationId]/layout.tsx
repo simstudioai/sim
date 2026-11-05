@@ -32,6 +32,7 @@ import {
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { Sidebar } from '@/platform/app/(shell)/_components/sidebar/sidebar'
+import hostBridge from '@/platform/design-system/styles/host-bridge.module.css'
 
 const logger = createLogger('OrganizationLayout')
 
@@ -133,7 +134,7 @@ export default async function OrganizationLayout({
         <OrganizationProvider context={context}>
           <OrganizationSimLinkProvider organizationId={simLinkOrganizationId}>
             <GlobalCommandsProvider>
-              <WorkspaceViewport className='workspace-root'>
+              <WorkspaceViewport className={`workspace-root ${hostBridge.tokens}`}>
                 <ImpersonationBanner />
                 <SessionExpired />
                 <SettingsNavigationProvider>

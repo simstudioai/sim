@@ -26,9 +26,7 @@ import {
   ASSISTANT_IMAGE_MAX_TOTAL_BYTES,
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
-import { OrganizationLanding } from '@/app/o/[organizationId]/components/organization-landing'
 import { Composer, type ComposerChrome } from '@/app/o/[organizationId]/home/components/composer'
-import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
   organizationSearchParsers,
@@ -44,7 +42,6 @@ import { useSearchHistoryActions } from '@/app/workspace/[workspaceId]/home/comp
 import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
 import { SourcesResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/sources-resource-content'
-import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
 import type { ModelSelectorOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
 import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
 import {
@@ -69,7 +66,6 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
-import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { type PrepareChatSubmission, useComposerSubmission } from '@/hooks/use-composer-submission'
 import { useHydrated } from '@/hooks/use-hydrated'
@@ -110,7 +106,6 @@ export interface OrganizationConversationProps {
   active?: boolean
   summaryRequest?: OrganizationSummaryRequest
   onSummaryConsumed?: (id: string) => void
-  userName?: string
   chatId?: string
   requestMode: ChatRequestMode
   header?: ReactNode
@@ -119,7 +114,7 @@ export interface OrganizationConversationProps {
   appearance?: OrganizationConversationAppearance
   /** Replaces the blank frame shown until the conversation can mount. */
   fallback?: ReactNode
-  /** Replaces the default landing until the first turn takes over. */
+  /** Shown until the first turn takes over. */
   landing?: {
     /** Shown over the conversation once the first turn has replaced the landing. */
     chatHeader?: ReactNode
@@ -162,7 +157,6 @@ export function OrganizationConversation(props: OrganizationConversationProps) {
 }
 
 function OrganizationConversationContent({
-  userName,
   chatId,
   requestMode: destinationMode,
   header: frameHeader,
@@ -364,7 +358,6 @@ function OrganizationConversationContent({
   const { recordQuery } = useSearchHistoryActions()
   const { sendMessage } = chat
   const { mutate: markRead } = useMarkMothershipChatRead({ organizationId: organization.id })
-  const firstName = userName?.split(' ')[0] ?? ''
 
   useEffect(() => {
     if (active && chat.resolvedChatId && !chat.isSending && !chat.isReconnecting)
@@ -532,15 +525,7 @@ function OrganizationConversationContent({
     />
   )
 
-  const shortcuts =
-    requestMode !== 'assistant' ? (
-      <SuggestedActions
-        organizationId={organization.id}
-        onSelectPrompt={(prompt) => setDraft(mentionifyIntegrations(prompt))}
-      />
-    ) : (
-      <GetStarted />
-    )
+  const allowBuildControls = requestMode !== 'assistant' && canBuild
 
   const content = (
     <div
@@ -560,7 +545,7 @@ function OrganizationConversationContent({
           <MothershipChat
             className={appearance?.threadClassName}
             appearance={appearance?.chat}
-            reserveResourceHeader={!header && chat.resources.length > 0}
+            reserveResourceHeader={!header && (chat.resources.length > 0 || allowBuildControls)}
             onNavigateToChat={panelOptions?.onNavigateToChat}
             layout={panelOptions ? 'copilot-view' : undefined}
             onViewSources={(messageId, requestId) =>
@@ -601,21 +586,8 @@ function OrganizationConversationContent({
           </div>
           <ComposerScrollArea className='px-3 pb-3'>{composer}</ComposerScrollArea>
         </>
-      ) : landing ? (
-        landing.render({ requestMode, composer })
       ) : (
-        <OrganizationLanding
-          heading={
-            requestMode === 'assistant'
-              ? `Search ${organization.name}`
-              : requestMode === 'plan'
-                ? `What should we understand and plan${firstName ? `, ${firstName}` : ''}?`
-                : `What should we get done${firstName ? `, ${firstName}` : ''}?`
-          }
-        >
-          {composer}
-          <div className='relative md:absolute md:inset-x-0 md:top-full'>{shortcuts}</div>
-        </OrganizationLanding>
+        landing?.render({ requestMode, composer })
       )}
     </div>
   )
@@ -654,8 +626,8 @@ function OrganizationConversationContent({
     <ChatResourcePanel
       appearance={appearance?.panel}
       header={header}
-      hideToggleUntilResource
-      allowBuildControls={requestMode !== 'assistant' && canBuild}
+      hideToggleUntilResource={!allowBuildControls}
+      allowBuildControls={allowBuildControls}
       organizationId={organization.id}
       chat={chat}
       panel={panel}

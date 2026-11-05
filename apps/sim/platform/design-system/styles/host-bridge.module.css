@@ -1,0 +1,80 @@
+/*
+ * The design system's tokens exist only inside a `[data-platform-ui]` surface, whose names collide
+ * with the host's, so components that sit between surfaces (the composer's frame, the chat's thread,
+ * the column around them) cannot read them. `--design-<token>` carries `--<token>`'s value under a
+ * name the host never uses, on the organization view's root.
+ *
+ * Every `--design-*` here must resolve to its token's value in that theme: `check:platform-css`
+ * compares them against the compiled design system and fails on drift.
+ */
+.tokens {
+  --design-ui-ink: rgb(10 10 10 / 80%);
+  --design-ui-secondary: rgb(10 10 10 / 60%);
+  --design-ui-muted: rgb(10 10 10 / 60%);
+  --design-ui-divider: rgb(0 0 0 / 6%);
+  --design-ui-hover: rgb(10 10 10 / 6%);
+  --design-font-sans: "Geist";
+  --design-font-weight-regular: 400;
+  --design-font-weight-medium: 500;
+  --design-text-body: 0.875rem;
+  --design-text-control: 0.8125rem;
+  --design-leading-22: 1.375rem;
+  --design-leading-16: 1rem;
+  --design-radius-control: 0.5rem;
+  --design-spacing-4: 0.25rem;
+  --design-spacing-8: 0.5rem;
+  --design-spacing-12: 0.75rem;
+  --design-spacing-14: 0.875rem;
+  --design-spacing-16: 1rem;
+  --design-spacing-24: 1.5rem;
+  --design-spacing-32: 2rem;
+  --design-spacing-40: 2.5rem;
+  --design-spacing-48: 3rem;
+  --design-spacing-64: 4rem;
+  --design-spacing-132: 8.25rem;
+  --design-spacing-app-control-sm: 1.75rem;
+  --design-spacing-app-touch-target: 2.75rem;
+  --design-container-chat: 44rem;
+  --design-container-chat-message: 40rem;
+  --design-ui-page-max-size: calc(75rem + 2 * 3rem);
+
+  /* How far both Search views' headings hang below the view switch, at every width. */
+  --landing-offset: var(--design-spacing-132);
+
+  /*
+   * The composer's box, shared by its frame and its placeholder so one cannot outgrow the other. Its
+   * toolbar row holds 30px legacy controls around 28px design-system ones: the frame's insets and
+   * the gap each give back that row's 1px of centering.
+   */
+  --composer-inset-block-start: calc(var(--design-spacing-16) + 1px);
+  --composer-inset-inline: calc(var(--design-spacing-12) + 1px);
+  --composer-inset-block-end: var(--design-spacing-12);
+  --composer-field-block: var(--design-spacing-48);
+  --composer-gap: calc(var(--design-spacing-16) - 1px);
+  --composer-toolbar-block: 1.875rem;
+  --composer-block: calc(
+    var(--composer-inset-block-start) +
+    var(--composer-field-block) +
+    var(--composer-gap) +
+    var(--composer-toolbar-block) +
+    var(--composer-inset-block-end)
+  );
+}
+html[class~="dark"] .tokens {
+  --design-ui-ink: #e6e6e6;
+  --design-ui-secondary: #b0b0b0;
+  --design-ui-muted: #a8a8a8;
+  --design-ui-divider: #383838;
+  --design-ui-hover: rgb(255 255 255 / 6%);
+}
+@media (pointer: coarse) {
+  .tokens {
+    --composer-toolbar-block: var(--design-spacing-app-touch-target);
+  }
+}
+@media (max-width: 40rem) {
+  .tokens {
+    --composer-field-block: var(--design-spacing-40);
+    --composer-gap: calc(var(--design-spacing-12) - 1px);
+  }
+}

@@ -2,7 +2,7 @@
 
 import { useRef } from 'react'
 import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
-import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
+import { useGetStartedSteps } from '@/app/o/[organizationId]/home/components/get-started/use-get-started-steps'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { SearchFrame } from '@/app/o/[organizationId]/search/search-frame'
 import {
@@ -12,6 +12,7 @@ import {
 import { VoiceWaveform } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { useAutoSizeTextarea } from '@/hooks/use-auto-size-textarea'
 import { CONVERSATION_APPEARANCE } from '@/platform/app/(shell)/_components/conversation/appearance'
+import conversationStyles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
 import { MicrophoneHelp } from '@/platform/app/(shell)/_components/conversation/dialogs'
 import { ConversationLanding } from '@/platform/app/(shell)/_components/conversation/landing'
 import {
@@ -19,6 +20,7 @@ import {
   LandingSkeleton,
 } from '@/platform/app/(shell)/_components/conversation/skeletons'
 import { SearchResults } from '@/platform/app/(shell)/_components/search/search-results'
+import { GetStarted } from '@/platform/app/(shell)/home/_components/get-started/get-started'
 import { SearchHistory } from '@/platform/app/(shell)/search/_components/search-surface/search-history'
 import styles from '@/platform/app/(shell)/search/_components/search-surface/search-surface.module.css'
 import { SearchSurfaceHeader } from '@/platform/app/(shell)/search/_components/search-surface/search-surface-header'
@@ -127,6 +129,19 @@ function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
   )
 }
 
+/** Its own surface, because the composer above it is legacy. */
+function AssistantGetStarted() {
+  const steps = useGetStartedSteps()
+  if (steps.length === 0) return null
+  return (
+    <div className={conversationStyles.landingGetStarted}>
+      <RedesignSurface>
+        <GetStarted steps={steps} />
+      </RedesignSurface>
+    </div>
+  )
+}
+
 interface OrganizationSearchSurfaceProps {
   userId: string
   chatId?: string
@@ -160,9 +175,9 @@ function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearch
         ),
         landing: {
           render: ({ composer }) => (
-            <ConversationLanding heading={`Search ${organization.name}`}>
+            <ConversationLanding heading={`Ask ${organization.name}`}>
               {composer}
-              <GetStarted />
+              <AssistantGetStarted />
             </ConversationLanding>
           ),
         },

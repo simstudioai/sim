@@ -232,6 +232,7 @@ export function PromptEditor({
             workspaceId={editor.workspaceId}
             organizationId={editor.organizationId}
             warm={editor.resourceIntent ?? hasFocused}
+            selectWaitsForFullResults={editor.waitsForFullResources}
             onResourceSelect={editor.insertResource}
             onWorkspaceSelect={editor.insertWorkspace}
             onClose={editor.handlePlusMenuClose}
