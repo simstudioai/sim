@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-28",
+  "updatedAt": "2026-11-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -9445,16 +9445,20 @@
         {
           "name": "Credit Usage",
           "description": "Retrieve the remaining and allocated Firecrawl credits for the team."
+        },
+        {
+          "name": "Enrich Contact or Company",
+          "description": "Find work emails, phone numbers, LinkedIn profiles, company domains, and company information through Firecrawl Alexandria. Uses FullEnrich for contact lookups and People Data Labs for company, name-based profile, and single-part-name contact lookups. Provider terms must be enabled in Firecrawl. People Data Labs has a 50,000-record annual team limit."
         }
       ],
-      "operationCount": 13,
+      "operationCount": 14,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "search",
       "tags": ["web-scraping", "automation"],
-      "updatedAt": "2026-10-20"
+      "updatedAt": "2026-11-05"
     },
     {
       "type": "fireflies_v2",

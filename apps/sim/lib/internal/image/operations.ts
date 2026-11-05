@@ -19,10 +19,12 @@ import {
 import { MAX_REMOTE_IMAGE_BYTES } from '@/lib/internal/image/fetch'
 import { buildImageGenerationRequest } from '@/lib/internal/image/request'
 import type { ImageGenerationInput, ImageProvider } from '@/lib/internal/image/schema'
+import { FalAIResultError, fetchFalAIResult } from '@/lib/media/falai-result'
 import { recordServiceMeteringFailure } from '@/lib/mothership/billing/service-observer'
-import { type FalAICostMetadata, getFalAICostMetadata } from '@/lib/tools/falai-pricing'
+import type { FalAICostMetadata } from '@/lib/tools/falai-pricing'
 import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { resolveStoredFileMetadata } from '@/lib/uploads/utils/stored-file-metadata'
 
 const logger = createLogger('ImageOperations')
@@ -78,7 +80,7 @@ export async function executeImageGeneration(
   context: ImageOperationContext
 ): Promise<Response> {
   const { requestId } = context
-  let completedFalCost: FalAICostMetadata | undefined
+  let undeliveredFalCost: FalAICostMetadata | undefined
   logger.info(`[${requestId}] Image generation request started`)
 
   try {
@@ -108,7 +110,7 @@ export async function executeImageGeneration(
         requestId,
         logger,
         (cost) => {
-          completedFalCost = cost
+          undeliveredFalCost = cost
         },
         context.signal
       )
@@ -126,16 +128,16 @@ export async function executeImageGeneration(
 
     return Response.json(storedImage)
   } catch (error) {
-    if (completedFalCost) {
-      logger.warn('Hosted fal image completed but delivery failed', {
+    if (undeliveredFalCost) {
+      logger.warn('Hosted fal image result delivery interrupted', {
         requestId,
-        falaiBilling: completedFalCost,
+        falaiBilling: undeliveredFalCost,
       })
-      const { requestId: jobId, endpointId, costDollars } = completedFalCost
+      const { requestId: jobId, endpointId, costDollars } = undeliveredFalCost
       await recordServiceMeteringFailure(
-        `Completed fal image ${jobId} (${endpointId}): USD ${costDollars}; delivery failed`
+        `Undelivered fal image ${jobId} (${endpointId}): USD ${costDollars} (${undeliveredFalCost.source}); reconciliation required`
       ).catch((meteringError) => {
-        logger.error('Failed to record completed fal image for reconciliation', {
+        logger.error('Failed to record undelivered fal image for reconciliation', {
           requestId,
           error: getErrorMessage(meteringError),
         })
@@ -146,7 +148,14 @@ export async function executeImageGeneration(
     const errorMessage = getUserFacingErrorMessage(error, 'Unknown error')
     return Response.json(
       { error: errorMessage },
-      { status: isPayloadSizeLimitError(error) ? 413 : 500 }
+      {
+        status:
+          error instanceof FalAIResultError
+            ? error.status
+            : isPayloadSizeLimitError(error)
+              ? 413
+              : 500,
+      }
     )
   }
 }
@@ -207,7 +216,7 @@ async function bufferFromImageUrl(
   const imageResponse = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP, {
     profile: 'contentFetch',
     method: 'GET',
-    maxResponseBytes: MAX_IMAGE_BYTES,
+    maxResponseBytes: MAX_BUFFERED_TRANSFER_BYTES,
     signal,
   })
   if (!imageResponse.ok) {
@@ -221,7 +230,7 @@ async function bufferFromImageUrl(
 
   const contentType = imageResponse.headers.get('content-type') || 'image/png'
   const buffer = await readResponseToBufferWithLimit(imageResponse, {
-    maxBytes: MAX_IMAGE_BYTES,
+    maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
     label: 'generated image download',
     signal,
   })
@@ -500,46 +509,31 @@ async function generateWithFalAI(
 
     const status = getStringProperty(statusData, 'status')
     if (status === 'COMPLETED') {
-      const statusError = statusData.error
-      if (statusError) {
-        throw new Error(`Fal.ai generation failed: ${getFalAIErrorMessage(statusError)}`)
-      }
-
-      const falaiCost = body.useHostedCostTracking
-        ? await getFalAICostMetadata({ apiKey, endpointId: endpoint, requestId: falRequestId })
-        : undefined
-      if (falaiCost) onFalCost(falaiCost)
-      signal?.throwIfAborted()
-
-      const resultUrl = falQueueUrl(getStringProperty(statusData, 'response_url') || responseUrl)
-      const resultValidation = await validateUrlWithDNS(resultUrl, 'resultUrl', 'contentFetch')
-      if (!resultValidation.isValid) {
-        throw new Error(resultValidation.error)
-      }
-      const resultResponse = await secureFetchWithPinnedIP(resultUrl, resultValidation.resolvedIP, {
-        profile: 'contentFetch',
-        maxRedirects: 0,
-        headers: {
-          Authorization: `Key ${apiKey}`,
-        },
+      const { data: resultData, cost: falaiCost } = await fetchFalAIResult({
+        apiKey,
+        endpointId: endpoint,
+        requestId: falRequestId,
+        queueError: statusData.error,
         maxResponseBytes: MAX_IMAGE_JSON_BYTES,
+        trackCost: body.useHostedCostTracking,
+        onCost: onFalCost,
         signal,
+        fetchResponse: async (resultSignal) => {
+          const resultUrl = falQueueUrl(
+            getStringProperty(statusData, 'response_url') || responseUrl
+          )
+          const resultValidation = await validateUrlWithDNS(resultUrl, 'resultUrl', 'contentFetch')
+          if (!resultValidation.isValid) throw new Error(resultValidation.error)
+          return secureFetchWithPinnedIP(resultUrl, resultValidation.resolvedIP, {
+            profile: 'contentFetch',
+            maxRedirects: 0,
+            headers: { Authorization: `Key ${apiKey}` },
+            maxResponseBytes: MAX_IMAGE_JSON_BYTES,
+            signal: resultSignal,
+          })
+        },
       })
 
-      if (!resultResponse.ok) {
-        await readResponseTextWithLimit(resultResponse, {
-          maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
-          label: 'Fal.ai result error response',
-          signal,
-        }).catch(() => '')
-        throw new Error(`Failed to fetch Fal.ai result: ${resultResponse.status}`)
-      }
-
-      const resultData = await readResponseJsonWithLimit(resultResponse, {
-        maxBytes: MAX_IMAGE_JSON_BYTES,
-        label: 'Fal.ai result response',
-        signal,
-      })
       if (!isRecordLike(resultData)) {
         throw new Error('Invalid Fal.ai result response')
       }
