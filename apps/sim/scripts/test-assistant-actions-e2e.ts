@@ -745,7 +745,7 @@ try {
       forgedUrl.searchParams.set('account', firefliesCredentialId)
       await page.goto(forgedUrl.toString())
       await expect(
-        page.getByText('This account is no longer connected.', { exact: true })
+        page.getByRole('heading', { name: 'This account is no longer connected.', exact: true })
       ).toBeVisible()
       await expect(page.getByRole('button', { name: /^Manage / })).toHaveCount(0)
       await expect(page.getByRole('searchbox', { name: 'Search tools', exact: true })).toHaveCount(
