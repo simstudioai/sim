@@ -13,6 +13,7 @@ import {
   ALL_COMPETITORS,
   buildBottomLine,
   getLatestVerifiedDate,
+  getQuestionSections,
   SIM_LATEST_VERIFIED,
 } from '@/app/(landing)/comparisons/utils'
 import { PLATFORM_MENU } from '@/app/(landing)/components/navbar/components/nav-menu-chip'
@@ -98,8 +99,21 @@ function comparisonMarkdown(competitor: CompetitorProfile): string {
     `### Sim vs ${competitor.name}`,
     `URL: ${toSiteUrl(`/comparisons/${competitor.id}`)} · Facts last verified ${isoDate(verified)}`,
     `${competitor.name}: ${competitor.oneLiner}`,
-    competitor.leadAnswer ? proseToMarkdown(competitor.leadAnswer) : '',
+    competitor.leadAnswer && !competitor.leadQuestion ? proseToMarkdown(competitor.leadAnswer) : '',
     competitor.betterThanAnswer ? proseToMarkdown(competitor.betterThanAnswer) : '',
+    ...getQuestionSections(competitor).map(
+      ({ question, answer }) => `**${question}**\n\n${proseToMarkdown(answer)}`
+    ),
+    competitor.glance
+      ? [
+          `| Decision point | Sim | ${competitor.name} |`,
+          '| --- | --- | --- |',
+          ...competitor.glance.map(
+            (row) =>
+              `| ${row.label} | ${proseToMarkdown(row.sim)} | ${proseToMarkdown(row.competitor)} |`
+          ),
+        ].join('\n')
+      : '',
     `- ${verdict.chooseSim}\n- ${verdict.chooseCompetitor}`,
     competitor.standoutFeatures.length > 0
       ? `Standout features of ${competitor.name}:\n\n${competitor.standoutFeatures.map((f) => `- ${f.title}: ${f.description}`).join('\n')}`

@@ -76,12 +76,16 @@ function topByScore<T>(items: T[], score: (item: T) => number): T[] {
 }
 
 /**
- * Library articles about, linking to, or naming `competitor`, strongest match first, then
- * newest first.
+ * The profile's `relatedReading` articles when it sets them; otherwise library articles about,
+ * linking to, or naming `competitor`, strongest match first, then newest first.
  */
 export async function getLibraryPostsForCompetitor(
   competitor: CompetitorProfile
 ): Promise<ContentMeta[]> {
+  if (competitor.relatedReading) {
+    const postsBySlug = new Map((await getAllPostMeta()).map((post) => [post.slug, post]))
+    return competitor.relatedReading.flatMap((slug) => postsBySlug.get(slug) ?? [])
+  }
   const patterns = buildMentionPatterns(competitor)
   const [posts, linkingPosts] = await Promise.all([
     getAllPostMeta(),

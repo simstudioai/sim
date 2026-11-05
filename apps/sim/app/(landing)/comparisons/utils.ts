@@ -1,4 +1,5 @@
 import {
+  type ComparisonQuestion,
   type CompetitorProfile,
   claudeCoworkProfile,
   crewaiProfile,
@@ -12,6 +13,7 @@ import {
   n8nProfile,
   openaiAgentkitProfile,
   openClawProfile,
+  type Prose,
   pipedreamProfile,
   powerAutomateProfile,
   retoolProfile,
@@ -118,9 +120,16 @@ export function buildBottomLine(competitor: CompetitorProfile): ComparisonVerdic
  * question/answer pair is independently quotable per the landing GEO rules,
  * and every answer names "Sim" and the competitor explicitly. Every answer
  * draws on a real, sourced {@link Fact} field rather than a generic claim,
- * and no two questions repeat the same answer.
+ * and no two questions repeat the same answer. A profile that answers its buyer questions as
+ * page sections gets those questions instead, so its FAQ data matches what the page shows.
  */
 export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFaq[] {
+  if (competitor.questions) {
+    return getQuestionSections(competitor).map(({ question, answer }) => ({
+      question,
+      answer: proseToText(answer),
+    }))
+  }
   const name = competitor.name
   const facts = competitor.facts
   const faqs: ComparisonFaq[] = [
@@ -167,6 +176,24 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
   }
 
   return faqs
+}
+
+/**
+ * Every buyer question the page answers in its own section, in page order: the lead question,
+ * then the intro, glance, and closing questions.
+ */
+export function getQuestionSections(competitor: CompetitorProfile): ComparisonQuestion[] {
+  const { leadQuestion, leadAnswer, questions } = competitor
+  return [
+    ...(leadQuestion && leadAnswer ? [{ question: leadQuestion, answer: leadAnswer }] : []),
+    ...(questions?.intro ?? []),
+    ...(questions?.glance ?? []),
+    ...(questions?.closing ?? []),
+  ]
+}
+
+function proseToText(prose: Prose): string {
+  return prose.map((segment) => (typeof segment === 'string' ? segment : segment.text)).join('')
 }
 
 function buildKeyDifferenceAnswer(competitor: CompetitorProfile): string {

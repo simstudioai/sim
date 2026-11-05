@@ -13,6 +13,7 @@ import {
   dustProfile,
   gumloopProfile,
   langflowProfile,
+  microsoftCopilotProfile,
   n8nProfile,
   openaiAgentkitProfile,
   openClawProfile,
@@ -466,6 +467,60 @@ async function run() {
     }
     assert.deepEqual(failures, [])
   })
+
+  await check(
+    'a comparison page answering its buyer questions in place keeps their order',
+    async () => {
+      const profile = microsoftCopilotProfile
+      const { status, body } = await get(`/comparisons/${profile.id}`)
+      assert.equal(status, 200)
+      const text = decodeHtml(body)
+      const { intro = [], glance = [], closing = [] } = profile.questions ?? {}
+      assert(
+        profile.leadQuestion && intro.length && glance.length && closing.length,
+        'profile no longer exercises every question position'
+      )
+      const questions = [
+        profile.leadQuestion,
+        ...[...intro, ...glance, ...closing].map((q) => q.question),
+      ]
+      assert.deepEqual(faqQuestions(body), questions, 'FAQPage lists the page questions in order')
+
+      const headings = [
+        profile.leadQuestion,
+        ...intro.map((q) => q.question),
+        `Sim vs ${profile.name}: at a glance`,
+        ...glance.map((q) => q.question),
+        'feature-by-feature comparison',
+        ...closing.map((q) => q.question),
+        'Bottom line',
+      ]
+      const positions = headings.map((heading) => text.indexOf(`${heading}</h2>`))
+      assert(
+        positions.every((at) => at >= 0),
+        `missing heading: ${headings[positions.indexOf(-1)]}`
+      )
+      assert.deepEqual(
+        [...positions].sort((a, b) => a - b),
+        positions,
+        'question sections are out of reading order'
+      )
+      assert(!text.includes('Frequently asked questions</h2>'), 'generated FAQ block still renders')
+      for (const row of profile.glance ?? []) {
+        assert(text.includes(`${row.label}</th>`), `at-a-glance row missing: ${row.label}`)
+      }
+
+      const relatedStart = text.indexOf('Related reading</h2>')
+      const relatedEnd = text.indexOf('More comparisons</h2>')
+      assert(relatedStart >= 0 && relatedEnd > relatedStart, 'related reading section missing')
+      const relatedSlugs = new Set(
+        [...text.slice(relatedStart, relatedEnd).matchAll(/href="\/library\/([^"/?#]+)"/g)].map(
+          (match) => match[1]
+        )
+      )
+      assert.deepEqual([...relatedSlugs], profile.relatedReading)
+    }
+  )
 
   await check('rebuilt integration pages render their comparison and FAQs', async () => {
     const failures: string[] = []
