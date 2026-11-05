@@ -7,7 +7,7 @@ import { requireEnv, signIn } from '@/platform/checks/live/session'
  * flips and flips back, `PLATFORM_LIVE_REMOVABLE_EMAIL` someone reseeded before each run, and
  * `PLATFORM_LIVE_REFUSED_INVITE_EMAIL` an address the batch invite always refuses.
  */
-const MEMBERS = '/platform/settings/members'
+const MEMBERS = '/org/settings/members'
 const password = () => requireEnv('PLATFORM_LIVE_PASSWORD')
 
 async function signInAsAdmin(page: Page) {

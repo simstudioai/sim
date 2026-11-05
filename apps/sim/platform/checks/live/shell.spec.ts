@@ -13,7 +13,7 @@ test('signing in through the zone lands on a shell showing the real organization
   const password = requireEnv('PLATFORM_LIVE_PASSWORD')
   const organization = requireEnv('PLATFORM_LIVE_ORGANIZATION_NAME')
 
-  await page.goto('/platform')
+  await page.goto('/org')
   await expect(page).toHaveURL(/\/login\?.*callbackUrl=%2Fplatform/)
 
   await page.locator('#email').fill(email)
@@ -25,7 +25,7 @@ test('signing in through the zone lands on a shell showing the real organization
 })
 
 async function signIn(page: Page, email: string, password: string) {
-  await page.goto('/platform')
+  await page.goto('/org')
   await page.locator('#email').fill(email)
   await page.locator('#password').fill(password)
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()
@@ -168,6 +168,6 @@ test('sign out ends the session and the zone returns to login', async ({ page })
     .getByRole('button', { name: 'Sign out' })
     .click()
   await expect(page).toHaveURL(/\/login/)
-  await page.goto('/platform')
+  await page.goto('/org')
   await expect(page).toHaveURL(/\/login\?.*callbackUrl=%2Fplatform/)
 })

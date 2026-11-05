@@ -9,12 +9,12 @@ function requireEnv(name: string): string {
 test('A query lands in the URL, searches under the viewer, and a filter narrows it', async ({
   page,
 }) => {
-  await page.goto('/platform/search')
+  await page.goto('/org/search')
   await page.locator('#email').fill(requireEnv('PLATFORM_LIVE_EMAIL'))
   await page.locator('#password').fill(requireEnv('PLATFORM_LIVE_PASSWORD'))
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-  await expect(page).toHaveURL(/\/platform/)
-  await page.goto('/platform/search')
+  await expect(page).toHaveURL(/\/org/)
+  await page.goto('/org/search')
 
   const searched = page.waitForRequest(
     (request) => request.method() === 'POST' && request.url().includes('/api/knowledge/search')
@@ -36,7 +36,7 @@ test('A query lands in the URL, searches under the viewer, and a filter narrows 
 })
 
 test('Home’s Search segment opens Search with the query', async ({ page }) => {
-  await page.goto('/platform/home')
+  await page.goto('/org/home')
   await page.locator('#email').fill(requireEnv('PLATFORM_LIVE_EMAIL'))
   await page.locator('#password').fill(requireEnv('PLATFORM_LIVE_PASSWORD'))
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()

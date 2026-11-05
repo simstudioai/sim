@@ -7,7 +7,7 @@ function requireEnv(name: string): string {
 }
 
 async function signIn(page: Page) {
-  await page.goto('/platform/home')
+  await page.goto('/org/home')
   await page.locator('#email').fill(requireEnv('PLATFORM_LIVE_EMAIL'))
   await page.locator('#password').fill(requireEnv('PLATFORM_LIVE_PASSWORD'))
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()
@@ -24,7 +24,7 @@ async function organizationId(page: Page): Promise<string> {
 test.describe('Home on real data', () => {
   test.beforeEach(async ({ page }) => {
     await signIn(page)
-    await page.goto('/platform/home')
+    await page.goto('/org/home')
   })
 
   test('the Email and Calendar widgets each settle in a state the member can act on', async ({

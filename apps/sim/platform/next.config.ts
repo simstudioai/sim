@@ -5,7 +5,7 @@ import type { NextConfig } from 'next'
 function readBasePath(value: string | undefined): string | undefined {
   if (!value) return undefined
   if (!/^(?:\/[\w-]+)+$/.test(value)) {
-    throw new Error(`SIM_PLATFORM_BASE_PATH must look like /platform, received "${value}"`)
+    throw new Error(`SIM_PLATFORM_BASE_PATH must look like /org, received "${value}"`)
   }
   return value
 }

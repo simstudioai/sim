@@ -11,7 +11,7 @@ const password = () => requireEnv('PLATFORM_LIVE_PASSWORD')
 test('the directory filters, pages and opens a profile that returns to the same view', async ({
   page,
 }) => {
-  await signIn(page, requireEnv('PLATFORM_LIVE_EMAIL'), password(), '/platform/people')
+  await signIn(page, requireEnv('PLATFORM_LIVE_EMAIL'), password(), '/org/people')
   await expect(page.getByRole('heading', { name: 'People', level: 1 })).toBeVisible()
   await page.getByRole('radio', { name: 'Directory' }).check({ force: true })
   const table = page.getByRole('table', { name: 'People' })
@@ -28,19 +28,19 @@ test('the directory filters, pages and opens a profile that returns to the same 
 })
 
 test('the chart reads without a canvas and an unknown focus says so', async ({ page }) => {
-  await signIn(page, requireEnv('PLATFORM_LIVE_EMAIL'), password(), '/platform/people?view=chart')
+  await signIn(page, requireEnv('PLATFORM_LIVE_EMAIL'), password(), '/org/people?view=chart')
   await expect(page.getByRole('heading', { name: 'People', level: 1 })).toBeVisible()
   await expect(page.locator('.react-flow')).toHaveCount(0)
-  await page.goto('/platform/people?view=chart&focus=platform-live-missing')
+  await page.goto('/org/people?view=chart&focus=platform-live-missing')
   await expect(page.getByRole('heading', { name: 'Person unavailable' })).toBeVisible()
 })
 
 test('a member withheld the directory gets no People, from the sidebar or a saved link', async ({
   page,
 }) => {
-  await signIn(page, requireEnv('PLATFORM_LIVE_NO_DIRECTORY_EMAIL'), password(), '/platform')
+  await signIn(page, requireEnv('PLATFORM_LIVE_NO_DIRECTORY_EMAIL'), password(), '/org')
   await expect(page.getByRole('button', { name: 'Organization menu' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'People', exact: true })).toHaveCount(0)
-  const response = await page.goto('/platform/people')
+  const response = await page.goto('/org/people')
   expect(response?.status()).toBe(404)
 })

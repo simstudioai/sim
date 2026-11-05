@@ -7,7 +7,7 @@ function requireEnv(name: string): string {
 }
 
 async function signIn(page: Page) {
-  await page.goto('/platform/home')
+  await page.goto('/org/home')
   await page.locator('#email').fill(requireEnv('PLATFORM_LIVE_EMAIL'))
   await page.locator('#password').fill(requireEnv('PLATFORM_LIVE_PASSWORD'))
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()
@@ -37,13 +37,13 @@ test('A chat outside the viewer’s access is not found rather than an empty cha
   page,
 }) => {
   await signIn(page)
-  const response = await page.goto('/platform/chat/00000000-0000-4000-8000-000000000000')
+  const response = await page.goto('/org/chat/00000000-0000-4000-8000-000000000000')
   expect(response?.status()).toBe(404)
 })
 
 test('A resource in the URL survives a reload of the chat route', async ({ page }) => {
   await signIn(page)
-  await page.goto('/platform/chat?resource=stale-id')
+  await page.goto('/org/chat?resource=stale-id')
   await expect(page.getByRole('textbox')).toBeVisible()
   await expect(page).toHaveURL(/resource=stale-id/)
 })
@@ -51,7 +51,7 @@ test('A resource in the URL survives a reload of the chat route', async ({ page 
 test('A running turn streams, stops, and keeps what arrived', async ({ page }) => {
   test.skip(!orchestrator, 'Needs PLATFORM_LIVE_ORCHESTRATOR=1')
   await signIn(page)
-  await page.goto('/platform/chat')
+  await page.goto('/org/chat')
   await page.getByRole('textbox').fill('Count slowly from 1 to 50, one number per line.')
   await page.getByRole('button', { name: 'Send message' }).click()
   await expect(page).toHaveURL(/\/platform\/chat\/[^/?]+/, { timeout: 30_000 })
@@ -73,7 +73,7 @@ test('A message sent during a running turn waits in the queue and can be removed
 }) => {
   test.skip(!orchestrator, 'Needs PLATFORM_LIVE_ORCHESTRATOR=1')
   await signIn(page)
-  await page.goto('/platform/chat')
+  await page.goto('/org/chat')
   const field = page.getByRole('textbox')
   await field.fill('Count slowly from 1 to 50, one number per line.')
   await page.getByRole('button', { name: 'Send message' }).click()
@@ -92,7 +92,7 @@ test('A gated tool holds the turn until the prompt is answered', async ({ page }
     'Needs an orchestrator and a prompt that triggers a gated tool'
   )
   await signIn(page)
-  await page.goto('/platform/chat')
+  await page.goto('/org/chat')
   await page.getByRole('textbox').fill(requireEnv('PLATFORM_LIVE_APPROVAL_PROMPT'))
   await page.getByRole('button', { name: 'Send message' }).click()
   const allow = page.getByRole('button', { name: 'Allow', exact: true })
