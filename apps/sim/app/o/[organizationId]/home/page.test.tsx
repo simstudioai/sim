@@ -13,7 +13,10 @@ const mocks = vi.hoisted(() => ({ context: vi.fn(), prefetchHome: vi.fn() }))
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/organizations/surface', () => ({ getOrganizationSurfaceContext: mocks.context }))
 vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
-vi.mock('@/platform/lib/data/prefetch-home', () => ({ prefetchHome: mocks.prefetchHome }))
+vi.mock('@/platform/lib/data/prefetch', () => ({
+  prefetchHome: mocks.prefetchHome,
+  prefetchSearch: mocks.prefetchHome,
+}))
 vi.mock('@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton', () => ({
   HomeDashboardSkeleton: ({ requestMode }: { requestMode: string }) => (
     <div>Home for {requestMode}</div>

@@ -1052,7 +1052,6 @@
   "apps/sim/hooks/queries/organization-billing-summary.ts#ORGANIZATION_BILLING_SUMMARY_STALE_TIME",
   "apps/sim/hooks/queries/organization-network.ts#ORGANIZATION_NETWORK_STALE_TIME",
   "apps/sim/hooks/queries/organization-network.ts#organizationNetworkKeys",
-  "apps/sim/hooks/queries/organization-secrets.ts#ORGANIZATION_SECRET_STALE_TIME",
   "apps/sim/hooks/queries/organization-usage.ts#ORGANIZATION_USAGE_BREAKDOWN_STALE_TIME",
   "apps/sim/hooks/queries/organization-usage.ts#ORGANIZATION_USAGE_EVENTS_STALE_TIME",
   "apps/sim/hooks/queries/organization-usage.ts#ORGANIZATION_USAGE_OVERVIEW_STALE_TIME",

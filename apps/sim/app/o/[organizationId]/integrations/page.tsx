@@ -9,7 +9,7 @@ import { organizationRoutes } from '@/lib/navigation/paths'
 import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
 import { slackSearchIntegrationsPath } from '@/lib/slack-search/onboarding'
 import { requireIntegrationsViewer } from '@/app/o/[organizationId]/integrations/access'
-import { OrganizationIntegrations } from '@/app/o/[organizationId]/integrations/integrations'
+import { HydratedIntegrations } from '@/app/o/[organizationId]/integrations/hydrated-integrations'
 import {
   loadIntegrationConnectionParams,
   loadIntegrationView,
@@ -75,7 +75,7 @@ export default async function OrganizationIntegrationsPage({
     slack === undefined ? undefined : slackSearchOnboardingInputSchema.safeParse({ token: slack })
   if (context && !context.success) notFound()
   const slackToken = context?.data?.token
-  const userId = await requireIntegrationsViewer(
+  const viewer = await requireIntegrationsViewer(
     organizationId,
     connectionTarget
       ? searchConnectionPath(organizationId, connectionTarget)
@@ -83,6 +83,7 @@ export default async function OrganizationIntegrationsPage({
         ? slackSearchIntegrationsPath(organizationId, slackToken)
         : organizationRoutes(organizationId).integrations
   )
+  const { userId } = viewer.principal
   const view = await loadIntegrationView(query)
   if (view.integration) {
     const segment =
@@ -98,7 +99,8 @@ export default async function OrganizationIntegrationsPage({
     )
   }
   return (
-    <OrganizationIntegrations
+    <HydratedIntegrations
+      {...viewer}
       connectionRequest={connectionTarget ? { target: connectionTarget, userId } : undefined}
       slackOnboarding={slackToken ? { token: slackToken, userId } : undefined}
     />

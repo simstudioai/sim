@@ -1,5 +1,5 @@
 import { truncateAtCodePoint } from '@sim/utils/string'
-import { createParser, createSerializer, parseAsString } from 'nuqs/server'
+import { createLoader, createParser, createSerializer, parseAsString } from 'nuqs/server'
 import { SIM_LINK_SEARCH_MAX_LENGTH, SIM_LINK_SORTS } from '@/lib/sim-links/validation'
 import { createSortParams } from '@/lib/url-state'
 
@@ -24,3 +24,9 @@ export const simLinksSortParams = createSortParams(SIM_LINK_SORTS, {
 })
 
 export const simLinksUrlKeys = { history: 'replace', clearOnDefault: true } as const
+
+/** The list a visit asks for, so a server prefetch reads the entry the page's hook will. */
+export const loadSimLinksListView = createLoader({
+  search: simLinksParsers.search,
+  ...simLinksSortParams.parsers,
+})

@@ -11,7 +11,7 @@ import {
 import { getOrganizationHomeRedirect } from '@/app/o/[organizationId]/home/home-redirect'
 import { HomeConversation } from '@/platform/app/(shell)/home/_components/home-conversation/home-conversation'
 import { HomeDashboardSkeleton } from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton'
-import { prefetchHome } from '@/platform/lib/data/prefetch-home'
+import { prefetchHome } from '@/platform/lib/data/prefetch'
 
 export const metadata: Metadata = {
   title: 'Home',

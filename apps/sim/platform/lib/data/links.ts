@@ -32,7 +32,6 @@ import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
 import { usePlatformNotices } from '@/platform/app/(shell)/_components/notification-tray/notification-tray'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
-import { loadMoreOf, queryView } from '@/platform/lib/data/query-view'
 
 const logger = createLogger('SimLinks')
 
@@ -78,28 +77,26 @@ export function useLinksPage(organizationId: string) {
   const notices = usePlatformNotices()
 
   const rows = useMemo(() => links.data?.pages.flatMap((page) => page.links) ?? [], [links.data])
-  const paging = loadMoreOf(links, 'Failed to load more links')
-  // Asking for a page cancels a running refetch, so paging waits for it to settle.
-  const hasMore = paging.hasMore && !links.isFetching
-  const { loading, error: loadMoreError } = paging
-  const { fetchNextPage } = links
+  // Placeholder rows belong to the previous search, and asking for a page cancels a running refetch.
+  const hasMore = links.hasNextPage && !links.isPlaceholderData && !links.isFetching
+  const { isFetchingNextPage, isFetchNextPageError, fetchNextPage } = links
   const loadMore = useMemo(
     () => ({
       hasMore,
-      loading,
-      error: loadMoreError,
+      loading: isFetchingNextPage,
+      error: isFetchNextPageError ? 'Failed to load more links' : undefined,
       onLoadMore: () => void fetchNextPage(),
     }),
-    [hasMore, loading, loadMoreError, fetchNextPage]
+    [hasMore, isFetchingNextPage, isFetchNextPageError, fetchNextPage]
   )
   const copy = useCallback(
     async (name: string) => {
       try {
         await writeTextToClipboard(simLinkUrl(window.location.origin, name))
-        notices.notify({ id: COPY_NOTICE_ID, title: 'Link copied', icon: 'I006' })
+        notices.notify({ id: COPY_NOTICE_ID, title: 'Link copied', variant: 'success' })
       } catch (error) {
         logger.error('Failed to copy Sim link', { error })
-        notices.notify({ id: COPY_NOTICE_ID, title: 'Unable to copy link', icon: 'I006' })
+        notices.notify({ id: COPY_NOTICE_ID, title: 'Unable to copy link', variant: 'error' })
       }
     },
     [notices]
@@ -123,11 +120,19 @@ export function useLinksPage(organizationId: string) {
   const activeSortLabel = SORT_OPTIONS.find(({ id }) => id === activeSort?.column)?.label
 
   return {
-    ...queryView(links),
+    /** A failed refresh keeps its rows; only a list that never loaded reports a failure. */
+    status: links.isLoadingError
+      ? ('error' as const)
+      : links.data
+        ? ('success' as const)
+        : ('pending' as const),
+    retry: () => void links.refetch(),
     error: links.error?.message,
     rows,
     /** The rows still belong to the previous search, so an empty list says nothing yet. */
     isPlaceholder: links.isPlaceholderData,
+    /** When the rows were read, which server and client agree on. Unset for placeholder rows. */
+    asOf: links.isPlaceholderData ? undefined : links.dataUpdatedAt,
     term,
     search,
     setSearch,

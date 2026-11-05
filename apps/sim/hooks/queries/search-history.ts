@@ -14,13 +14,15 @@ import {
   searchHistoryKeys,
 } from '@/hooks/queries/utils/search-history-keys'
 
-export function useSearchHistory(organizationId: string | undefined) {
+/** `userId` spares a caller that already knows the viewer the wait for the session to load. */
+export function useSearchHistory(organizationId: string | undefined, userId?: string) {
   const { data: session } = useSession()
+  const viewerId = userId ?? session?.user?.id
   return useQuery({
-    queryKey: searchHistoryKeys.list(organizationId, session?.user?.id),
+    queryKey: searchHistoryKeys.list(organizationId, viewerId),
     queryFn: ({ signal }) =>
       requestJson(listSearchHistoryContract, { params: { id: organizationId! }, signal }),
-    enabled: Boolean(organizationId && session?.user?.id),
+    enabled: Boolean(organizationId && viewerId),
     staleTime: SEARCH_HISTORY_STALE_TIME,
   })
 }

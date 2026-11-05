@@ -1,6 +1,8 @@
+'use client'
+
 import type { ReactNode } from 'react'
 import styles from '@/platform/app/(shell)/integrations/_components/integrations-page/integrations-page.module.css'
-import { Chip } from '@/platform/design-system/components'
+import { Chip, InlineNotice } from '@/platform/design-system/components'
 
 interface IntegrationsPageProps {
   /** A detail page's way back. The index has none. */
@@ -35,5 +37,21 @@ export function IntegrationsHeading({ handoff }: IntegrationsHeadingProps) {
       <p data-type='T048'>Connect your accounts to the apps your organization makes available.</p>
       {handoff}
     </header>
+  )
+}
+
+/** Holds the page's place while its prefetch settles, in the words its reads use once mounted. */
+export function IntegrationsPageFallback({ detail }: { detail: boolean }) {
+  return (
+    <IntegrationsPage>
+      {detail ? (
+        <InlineNotice message='Loading connection' />
+      ) : (
+        <>
+          <IntegrationsHeading />
+          <InlineNotice message='Loading your connections' />
+        </>
+      )}
+    </IntegrationsPage>
   )
 }
