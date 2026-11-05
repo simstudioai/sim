@@ -171,6 +171,15 @@ async function check(name: string, run: () => Promise<void>) {
   }
 }
 
+function integrationRow(name: string) {
+  return page
+    .getByRole('main')
+    .getByRole('link')
+    .filter({
+      has: page.getByText(name, { exact: true }),
+    })
+}
+
 async function capture(name: string) {
   await page.evaluate(() => document.fonts.ready)
   await page.addStyleTag({ content: 'nextjs-portal { display: none; }' })
@@ -566,11 +575,14 @@ try {
       waitUntil: 'domcontentloaded',
       timeout: 180_000,
     })
-    await page.getByRole('link', { name: 'Open Salesforce integration', exact: true }).click()
+    await integrationRow('Salesforce').click()
     await expect(page.getByRole('button', { name: 'Add account', exact: true })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: /^Manage / }).click()
+    await expect(
+      page.getByRole('menuitem', { name: 'Reconnect account', exact: true })
+    ).toBeVisible()
     await capture('integration-account-actions')
-    await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Disconnect account', exact: true }).click()
     await expect(page.getByRole('dialog', { name: 'Disconnect Salesforce' })).toBeVisible()
     await capture('integration-disconnect-confirmation')
     await page.getByRole('button', { name: 'Cancel', exact: true }).click()
@@ -589,9 +601,7 @@ try {
       const data = readAssistantToolPermissionsContract.response.schema.parse(await response.json())
       assert.equal(data.account.credentialId, account.credentialId)
       assert.equal(data.tools.length > 0, account.supported, account.name)
-      await page
-        .getByRole('link', { name: `Open ${account.name} integration`, exact: true })
-        .click()
+      await integrationRow(account.name).click()
       const permissions = page.getByRole('textbox', { name: 'Search tools', exact: true })
       if (account.supported) {
         await expect(permissions).toBeVisible()
@@ -602,24 +612,19 @@ try {
       await capture(`integration-detail-${account.name.toLowerCase().replaceAll(' ', '-')}`)
     }
     await page.goto(`${baseUrl.origin}${root}/integrations`)
-    await expect(
-      page.getByRole('link', { name: 'Open Salesforce integration', exact: true })
-    ).toBeVisible()
+    await expect(integrationRow('Salesforce')).toBeVisible()
     await capture('integrations-desktop')
   })
   await check(
     'A synthetic duplicate-provider fixture isolates permissions and disconnects only the selected account',
     async () => {
       await page.goto(`${baseUrl.origin}${root}/integrations`)
-      await page.getByRole('link', { name: 'Open Jira integration', exact: true }).click()
-      await expect(page).toHaveURL((url) => url.searchParams.get('integration') === 'source:jira')
+      await integrationRow('Jira').click()
+      await expect(page).toHaveURL((url) => url.pathname === `${root}/integrations/jira`)
       const accountsUrl = page.url()
-      const firstAccount = page.getByRole('link', {
-        name: 'Open taylor@acme.example account',
-        exact: true,
-      })
+      const firstAccount = page.getByRole('link', { name: 'taylor@acme.example', exact: true })
       const secondAccount = page.getByRole('link', {
-        name: 'Open launch-team@acme.example account',
+        name: 'launch-team@acme.example',
         exact: true,
       })
       await expect(firstAccount).toBeVisible()
@@ -664,10 +669,15 @@ try {
       await firstAccount.click()
       await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeChecked()
       await page.goto(selectedUrl)
-      await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toBeVisible()
       await expect(policy.getByRole('radio', { name: 'Block', exact: true })).toBeChecked()
+      await page
+        .getByRole('button', { name: 'Manage launch-team@acme.example', exact: true })
+        .click()
+      await expect(
+        page.getByRole('menuitem', { name: 'Reconnect account', exact: true })
+      ).toBeVisible()
       await capture('integration-selected-account-actions')
-      await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
+      await page.getByRole('menuitem', { name: 'Disconnect account', exact: true }).click()
       const confirmation = page.getByRole('dialog', { name: 'Disconnect Jira', exact: true })
       await expect(confirmation).toContainText('launch-team@acme.example')
       await expect(confirmation).not.toContainText('taylor@acme.example')
@@ -715,12 +725,12 @@ try {
         )
       )
       await page.goto(`${baseUrl.origin}${root}/integrations`)
-      await page.getByRole('link', { name: 'Open Coda integration', exact: true }).click()
-      await expect(page).toHaveURL((url) => url.searchParams.get('integration') === 'source:coda')
+      await integrationRow('Coda').click()
+      await expect(page).toHaveURL((url) => url.pathname === `${root}/integrations/coda`)
       const detailUrl = page.url()
-      const connect = page.getByRole('button', { name: 'Connect', exact: true })
+      const connect = page.getByRole('button', { name: 'Coda', exact: true })
       await expect(connect).toBeEnabled()
-      await expect(page.getByText('No account connected', { exact: true })).toBeVisible()
+      await expect(page.getByText('Connect your Coda account', { exact: true })).toBeVisible()
       await expect(page.getByText('meetings@acme.example', { exact: true })).toHaveCount(0)
       await capture('integration-enabled-empty')
       const forgedUrl = new URL(detailUrl)
@@ -729,16 +739,14 @@ try {
       await expect(
         page.getByText('This account is no longer connected.', { exact: true })
       ).toBeVisible()
-      await expect(page.getByRole('button', { name: 'Disconnect', exact: true })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: /^Manage / })).toHaveCount(0)
       await expect(page.getByRole('textbox', { name: 'Search tools', exact: true })).toHaveCount(0)
       await sql`update organization_search_integration set approved = false where organization_id = ${organizationId} and connector_type = 'coda'`
       try {
         await page.goto(`${baseUrl.origin}${root}/integrations`)
-        await expect(
-          page.getByRole('link', { name: 'Open Coda integration', exact: true })
-        ).toBeVisible()
-        await page.getByRole('link', { name: 'Open Coda integration', exact: true }).click()
-        await expect(page).toHaveURL((url) => url.searchParams.get('integration') === 'source:coda')
+        await expect(integrationRow('Coda')).toBeVisible()
+        await integrationRow('Coda').click()
+        await expect(page).toHaveURL((url) => url.pathname === `${root}/integrations/coda`)
         await expect(page.getByText('Disabled by your organization', { exact: true })).toBeVisible()
         await expect(connect).toBeDisabled()
         await capture('integration-disabled-empty')
@@ -760,18 +768,13 @@ try {
       await sql`update credential_group set options = (select jsonb_agg(case when value->>'id' = 'salesforce' then value || '{"status":"disabled"}'::jsonb else value end) from jsonb_array_elements(options)) where id = ${groupId}`
       try {
         await page.goto(`${baseUrl.origin}${root}/integrations`)
-        const salesforce = page.getByRole('link', {
-          name: 'Open Salesforce integration',
-          exact: true,
-        })
+        const salesforce = integrationRow('Salesforce')
         await expect(salesforce).toBeVisible()
         await salesforce.click()
-        await expect(page).toHaveURL(
-          (url) => url.searchParams.get('integration') === 'app:salesforce'
-        )
-        await expect(page.getByText('No account connected', { exact: true })).toBeVisible()
+        await expect(page).toHaveURL((url) => url.pathname === `${root}/integrations/salesforce`)
         await expect(page.getByText('Connections unavailable', { exact: true })).toBeVisible()
-        await expect(connect).toHaveCount(0)
+        await expect(page.getByRole('region', { name: 'Connected credential' })).toHaveCount(0)
+        await expect(page.getByRole('button', { name: 'Salesforce', exact: true })).toBeDisabled()
         await capture('integration-disabled-app-empty')
       } finally {
         await sql`update credential set managed_oauth_status = 'active' where id = ${nativeCredentialId}`
