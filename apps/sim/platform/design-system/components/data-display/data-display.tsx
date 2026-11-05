@@ -3,12 +3,14 @@
 import { type CSSProperties, memo, type ReactNode, type Ref, useCallback, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import Link from 'next/link'
+import { IconButton } from '@/platform/design-system/components/button/button'
 import styles from '@/platform/design-system/components/data-display/data-display.module.css'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { LoadMoreFooter } from '@/platform/design-system/components/scroll-area/load-more-footer'
 import { ScrollArea } from '@/platform/design-system/components/scroll-area/scroll-area'
 import type { LoadMoreState } from '@/platform/design-system/components/scroll-area/use-load-more'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
+import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
 
 interface MetricGroupProps {
   metrics: readonly { label: string; value: string | number; description?: string }[]
@@ -19,13 +21,15 @@ export function MetricGroup({ metrics }: MetricGroupProps) {
     <dl className={styles.metrics}>
       {metrics.map(({ label, value, description }) => (
         <div className={styles.metric} key={label}>
-          <dt data-type='T050'>{label}</dt>
+          <dt className={styles.metricLabel} data-type='T050'>
+            {label}
+            {description && (
+              <Tooltip label={description}>
+                <IconButton icon='I047' label={`About ${label.toLowerCase()}`} size='inline' />
+              </Tooltip>
+            )}
+          </dt>
           <dd data-type='T102'>{value}</dd>
-          {description && (
-            <dd className={styles.metricDescription} data-type='T060'>
-              {description}
-            </dd>
-          )}
         </div>
       ))}
     </dl>

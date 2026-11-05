@@ -91,7 +91,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
             <Button render={<Link href={view.auditLogsHref(workspace)} />}>Open logs</Button>
           )}
         </DetailHeader>
-        <UsageCredits label={periodLabel} overview={workspaceOverview} />
+        <UsageCredits label={`Credits · ${periodLabel}`} overview={workspaceOverview} />
         <UsageCalendar
           organizationId={organizationId}
           timezone={window.timezone}
@@ -157,7 +157,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
       </div>
       {isOverview ? (
         <>
-          <UsageCredits label={periodLabel} overview={overview} />
+          <UsageCredits label='Credits' overview={overview} />
           <UsageCalendar organizationId={organizationId} timezone={window.timezone} />
           <div className={styles.cards}>
             <UsageConsumers

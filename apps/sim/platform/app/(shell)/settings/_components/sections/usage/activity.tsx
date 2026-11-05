@@ -34,7 +34,7 @@ interface ActivityOverviewProps {
 function SummaryView({ summary }: { summary: ReturnType<typeof useActivitySummary> }) {
   return (
     <section className={styles.block} aria-label='Activity'>
-      <h2 data-type='T093'>Activity</h2>
+      <h2 data-type='T042'>Activity</h2>
       {summary.failed ? (
         <FailureNotice message='Couldn’t load activity.' onRetry={summary.retry} />
       ) : summary.pending ? (
@@ -132,7 +132,7 @@ export function ActivityPanel({ organizationId }: { organizationId: string }) {
       )}
       <SummaryView summary={summary} />
       <section className={styles.block} aria-label='Breakdown'>
-        <h2 data-type='T093'>Breakdown</h2>
+        <h2 data-type='T042'>Breakdown</h2>
         <div className={styles.toolbar}>
           <Select
             label='Group activity by'
