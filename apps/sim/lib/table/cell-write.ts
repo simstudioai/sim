@@ -14,9 +14,11 @@ import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getValueAtPath } from '@sim/utils/object'
 import { and, eq } from 'drizzle-orm'
+import { withIdempotentWriteRetry } from '@/lib/db/read-retry'
+import { CELL_DATABASE_RETRY } from '@/lib/table/constants'
 import { appendTableEvent } from '@/lib/table/events'
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
-import { writeExecutionsPatch } from '@/lib/table/rows/executions'
+import { loadExecutionsForRow, writeExecutionsPatch } from '@/lib/table/rows/executions'
 import {
   createTableRowSecretProvenanceFromEncryptedExecution,
   createUnknownTableRowSecretProvenance,
@@ -136,6 +138,15 @@ export async function writeWorkflowGroupState(
     return 'skipped'
   }
 
+  emitCellStateEvent(ctx, payload)
+
+  return 'wrote'
+}
+
+function emitCellStateEvent(
+  { tableId, rowId, groupId, table }: WriteWorkflowGroupContext,
+  payload: WriteWorkflowGroupStatePayload
+): void {
   // The SSE snapshot must carry what was persisted, not the raw block output.
   // `updateRow` coerces its own merged copy, so the patch object here still
   // holds the workflow's value — for a `select` column that's the option *name*
@@ -145,7 +156,7 @@ export async function writeWorkflowGroupState(
   // bookkeeping, so it must not be mutated. The `null` policy mirrors what
   // `updateRow` persists for a computed write, so the snapshot the client sees
   // and the row on disk agree about a block output its column cannot hold.
-  const rawEventOutputs = payload.eventOutputs ?? dataPatch
+  const rawEventOutputs = payload.eventOutputs ?? payload.dataPatch
   const hasOutputs = rawEventOutputs && Object.keys(rawEventOutputs).length > 0
   const eventOutputs = hasOutputs ? { ...rawEventOutputs } : rawEventOutputs
   if (hasOutputs && eventOutputs) coerceRowValues(eventOutputs, table.schema, 'null')
@@ -164,8 +175,44 @@ export async function writeWorkflowGroupState(
     ...(runningBlockIds && runningBlockIds.length > 0 ? { runningBlockIds } : {}),
     ...(blockErrors && Object.keys(blockErrors).length > 0 ? { blockErrors } : {}),
   })
+}
 
-  return 'wrote'
+/**
+ * {@link writeWorkflowGroupState} that survives a lost database connection, for writes a cell cannot
+ * afford to drop: its pickup and terminal states.
+ *
+ * A lost connection leaves the outcome unknown, so each repeat first checks what the last attempt
+ * did. Re-applying a commit that landed could undo what the user did since, such as editing the
+ * output or stopping a downstream group. A cell whose state already matches only needs its event,
+ * which the lost attempt never emitted, and a terminal state with no row left was cleared by the
+ * user, whose write it must not bring back.
+ *
+ * A `cancelled` stamp is never repeated. It carries no guard, so a repeat could kill a run the user
+ * started after it.
+ */
+export async function writeWorkflowGroupStateDurably(
+  ctx: WriteWorkflowGroupContext,
+  payload: WriteWorkflowGroupStatePayload
+): Promise<'wrote' | 'skipped'> {
+  const { status } = payload.executionState
+  if (status === 'cancelled') return writeWorkflowGroupState(ctx, payload)
+
+  let attempted = false
+  return withIdempotentWriteRetry(
+    async () => {
+      if (attempted) {
+        const current = (await loadExecutionsForRow(db, ctx.rowId))[ctx.groupId]
+        if (current?.executionId === ctx.executionId && current.status === status) {
+          emitCellStateEvent(ctx, payload)
+          return 'wrote'
+        }
+        if (!current && status !== 'running') return 'skipped'
+      }
+      attempted = true
+      return writeWorkflowGroupState(ctx, payload)
+    },
+    { label: 'writeWorkflowGroupState', ...CELL_DATABASE_RETRY }
+  )
 }
 
 export interface WorkflowCellProgressWrite {
@@ -366,7 +413,7 @@ export async function markWorkflowGroupPickedUp(
   ctx: WriteWorkflowGroupContext,
   prev: Pick<RowExecutionMetadata, 'workflowId' | 'jobId'>
 ): Promise<'wrote' | 'skipped'> {
-  return writeWorkflowGroupState(ctx, {
+  return writeWorkflowGroupStateDurably(ctx, {
     executionState: {
       status: 'running',
       executionId: ctx.executionId,

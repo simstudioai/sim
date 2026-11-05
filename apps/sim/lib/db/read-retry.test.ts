@@ -1,6 +1,10 @@
 import { sleep } from '@sim/utils/helpers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { isTransientDatabaseReadError, withDatabaseReadRetry } from '@/lib/db/read-retry'
+import {
+  isTransientDatabaseReadError,
+  withDatabaseReadRetry,
+  withIdempotentWriteRetry,
+} from '@/lib/db/read-retry'
 
 function driverError(code: string): Error {
   return new Error('query wrapper', { cause: Object.assign(new Error('driver failure'), { code }) })
@@ -86,5 +90,64 @@ describe('independent database read retries', () => {
     const read = vi.fn().mockRejectedValue(error)
     await expect(withDatabaseReadRetry(read)).rejects.toBe(error)
     expect(read).toHaveBeenCalledOnce()
+  })
+
+  it('paces retries by the caller backoff, so a budget can outlast a burst of resets', async () => {
+    vi.useFakeTimers()
+    const read = vi.fn().mockRejectedValue(driverError('ECONNRESET'))
+    const started = Date.now()
+    const result = expect(
+      withDatabaseReadRetry(read, { maxAttempts: 2, backoff: { baseMs: 1000, maxMs: 1000 } })
+    ).rejects.toThrow()
+    await vi.runAllTimersAsync()
+    await result
+    expect(Date.now() - started).toBeGreaterThanOrEqual(800)
+  })
+})
+
+describe('idempotent database write retries', () => {
+  /** A write's own error carries its statement, which is what marks a socket error as the database's. */
+  function lostConnection(code = 'ECONNRESET'): Error {
+    return Object.assign(new Error('Failed query: update "x"'), {
+      query: 'update "x"',
+      params: [],
+      cause: Object.assign(new Error('read ECONNRESET'), { code }),
+    })
+  }
+
+  it('repeats a write whose connection was lost and returns its result', async () => {
+    vi.useFakeTimers()
+    const write = vi.fn().mockRejectedValueOnce(lostConnection()).mockResolvedValueOnce('wrote')
+    const result = withIdempotentWriteRetry(write)
+    await vi.runAllTimersAsync()
+    await expect(result).resolves.toBe('wrote')
+    expect(write).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['55P03', '40P01', '40001', '53300', '57014', '23505'])(
+    'surfaces %s rather than holding a worker through contention or repeating a rejected write',
+    async (code) => {
+      const error = Object.assign(new Error('rejected'), { code })
+      const write = vi.fn().mockRejectedValue(error)
+      await expect(withIdempotentWriteRetry(write)).rejects.toBe(error)
+      expect(write).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('leaves a socket error that did not come from a query to the caller', async () => {
+    const error = Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })
+    const write = vi.fn().mockRejectedValue(error)
+    await expect(withIdempotentWriteRetry(write)).rejects.toBe(error)
+    expect(write).toHaveBeenCalledOnce()
+  })
+
+  it('stops at its attempt ceiling and preserves the final error', async () => {
+    vi.useFakeTimers()
+    const error = lostConnection()
+    const write = vi.fn().mockRejectedValue(error)
+    const result = expect(withIdempotentWriteRetry(write, { maxAttempts: 2 })).rejects.toBe(error)
+    await vi.runAllTimersAsync()
+    await result
+    expect(write).toHaveBeenCalledTimes(2)
   })
 })
