@@ -19,10 +19,12 @@ import { sleep } from '@sim/utils/helpers'
 import { escapeRegExp, truncate } from '@sim/utils/string'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   ADMIN,
   ADMIN_CHATS,
   CONNECTED,
+  type EVERYONE,
   GRANTS,
   LINK_COUNT,
   MEMBER,
@@ -75,14 +77,9 @@ const artifactDirectory = `${reportPath}.artifacts`
 const sql = postgres(databaseUrl.toString(), { max: 2 })
 const root = `/o/${ORGANIZATION_ID}`
 const url = (path: string) => `${origin}${path}`
+const orgUrl = (path: string) => url(`${root}${path}`)
 
-type Persona =
-  | typeof OWNER
-  | typeof ADMIN
-  | typeof MEMBER
-  | typeof CONNECTED
-  | typeof NARROW
-  | typeof OUTSIDER
+type Persona = (typeof EVERYONE)[number]
 type Status = 'passed' | 'failed' | 'skipped'
 type Theme = 'light' | 'dark'
 interface Viewport {
@@ -110,7 +107,6 @@ interface FirstPaint {
   firstContentfulPaintMs: number | null
   primaryVisibleMs: number
   apiRequests: string[]
-  apiRequestCount: number
   totalRequestCount: number
   duplicates: string[]
   prefetchedAndRefetched: string[]
@@ -141,13 +137,12 @@ let currentSection = 'Setup'
 /** What the running check expects to fail; everything else is reported. */
 let allowedFailures: RegExp[] = []
 
-/** Redirects and not-found render through React's streaming errors, which every such route emits. */
-const HANDLED_RUNTIME = /NEXT_REDIRECT|NEXT_HTTP_ERROR_FALLBACK|Minified React error #419/
+const HANDLED_RUNTIME = /NEXT_REDIRECT|NEXT_HTTP_ERROR_FALLBACK/
+/** A Suspense boundary the server gave up on, which is only fine when it was a redirect or not-found. */
+const STREAMED_FAILURE = /Minified React error #419/
 const HIGH_VOLUME_REQUEST = /\/api\/mothership\/events|\/socket\.io\//
 
-const browser: Browser = await chromium.launch({
-  args: [`--unsafely-treat-insecure-origin-as-secure=${origin}`],
-})
+const browser: Browser = await chromium.launch()
 
 function reportCounts() {
   const counts = { passed: 0, failed: 0, skipped: 0 }
@@ -212,14 +207,16 @@ class Session {
     readonly page: Page
   ) {
     page.on('pageerror', (error) => {
-      if (!HANDLED_RUNTIME.test(error.message)) recordProblem('runtime', page.url(), error.message)
+      if (!HANDLED_RUNTIME.test(error.message) && !STREAMED_FAILURE.test(error.message))
+        recordProblem('runtime', page.url(), error.message)
     })
     page.on('console', (message) => {
       if (message.type() !== 'error') return
       const text = message.text()
       if (
         /content security policy|hydrat|minified react error/i.test(text) &&
-        !HANDLED_RUNTIME.test(text)
+        !HANDLED_RUNTIME.test(text) &&
+        !STREAMED_FAILURE.test(text)
       )
         recordProblem('console', page.url(), text)
     })
@@ -279,6 +276,16 @@ async function cookieFor(persona: Persona) {
   )
 }
 
+async function sessionCookie(persona: Persona) {
+  return {
+    name: 'better-auth.session_token',
+    value: await cookieFor(persona),
+    url: origin,
+    httpOnly: true,
+    sameSite: 'Lax' as const,
+  }
+}
+
 interface OpenOptions {
   viewport?: Viewport
   theme?: Theme
@@ -296,9 +303,28 @@ async function open(persona: Persona | null, options: OpenOptions = {}): Promise
     colorScheme: options.theme ?? 'light',
     hasTouch: viewport === PHONE,
     isMobile: viewport === PHONE,
-    permissions: ['clipboard-read', 'clipboard-write'],
   })
-  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin })
+  await context.exposeBinding(
+    'reportStreamedFailure',
+    (_source, address: string, message: string, digests: string[]) => {
+      if (!digests.some((digest) => HANDLED_RUNTIME.test(digest)))
+        recordProblem('runtime', address, `${message} digests: ${digests.join(', ')}`)
+    }
+  )
+  await context.addInitScript((pattern) => {
+    window.addEventListener('error', (event) => {
+      if (!new RegExp(pattern).test(event.message)) return
+      const digests = Array.from(document.querySelectorAll('template[data-dgst]')).map(
+        (template) => template.getAttribute('data-dgst') ?? ''
+      )
+      if (typeof event.error?.digest === 'string') digests.push(event.error.digest)
+      void (
+        window as typeof window & {
+          reportStreamedFailure: (...args: unknown[]) => Promise<void>
+        }
+      ).reportStreamedFailure(location.href, event.message, digests)
+    })
+  }, STREAMED_FAILURE.source)
   // Plain HTTP has no Clipboard API, which production's HTTPS has; this records what the app copies.
   await context.addInitScript(() => {
     if (navigator.clipboard) return
@@ -308,20 +334,12 @@ async function open(persona: Persona | null, options: OpenOptions = {}): Promise
         writeText: async (text: string) => {
           copied = text
         },
+        write: async () => {},
         readText: async () => copied,
       },
     })
   })
-  if (persona)
-    await context.addCookies([
-      {
-        name: 'better-auth.session_token',
-        value: await cookieFor(persona),
-        url: origin,
-        httpOnly: true,
-        sameSite: 'Lax',
-      },
-    ])
+  if (persona) await context.addCookies([await sessionCookie(persona)])
   return new Session(context, await context.newPage())
 }
 
@@ -356,6 +374,18 @@ interface CheckOptions {
   allow?: RegExp[]
 }
 
+function record(name: string, section: string, started: number, error?: string) {
+  checks.push({
+    name,
+    section,
+    status: error ? 'failed' : 'passed',
+    durationMs: Math.round(performance.now() - started),
+    ...(error ? { error } : {}),
+  })
+  if (error) logger.error(`FAIL ${section}: ${name}`, { error })
+  else logger.info(`PASS ${section}: ${name}`)
+}
+
 async function check(name: string, run: () => Promise<void>, options: CheckOptions = {}) {
   currentCheck = `${currentSection}: ${name}`
   allowedFailures = options.allow ?? []
@@ -367,23 +397,9 @@ async function check(name: string, run: () => Promise<void>, options: CheckOptio
   )
   try {
     await Promise.race([run(), timeout.promise])
-    checks.push({
-      name,
-      section: currentSection,
-      status: 'passed',
-      durationMs: Math.round(performance.now() - started),
-    })
-    logger.info(`PASS ${currentCheck}`)
+    record(name, currentSection, started)
   } catch (error) {
-    const message = truncate(getErrorMessage(error), 2000)
-    checks.push({
-      name,
-      section: currentSection,
-      status: 'failed',
-      durationMs: Math.round(performance.now() - started),
-      error: message,
-    })
-    logger.error(`FAIL ${currentCheck}`, { error: message })
+    record(name, currentSection, started, truncate(getErrorMessage(error), 2000))
   } finally {
     clearTimeout(timer)
     allowedFailures = []
@@ -426,6 +442,8 @@ const mainNav = (page: Page) => page.getByRole('navigation', { name: 'Main navig
 const composer = (page: Page) => page.getByRole('textbox', { name: 'Ask Sim' })
 const searchField = (page: Page) => page.getByRole('textbox', { name: 'Search your sources' })
 const dialog = (page: Page, name: string | RegExp) => page.getByRole('dialog', { name })
+const orgChip = (page: Page) => page.getByRole('button', { name: 'Organization menu' })
+const orgCard = (page: Page) => dialog(page, 'Organization menu')
 const homeRegion = (page: Page, name: string) => page.getByRole('region', { name, exact: true })
 
 async function navLabels(page: Page) {
@@ -481,7 +499,7 @@ async function landingChecks() {
       await page.locator('#email').fill(MEMBER.email)
       await page.locator('#password').fill(PASSWORD)
       await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-      await expect(page).toHaveURL(url(`${root}/home`), { timeout: 45_000 })
+      await expect(page).toHaveURL(orgUrl('/home'), { timeout: 45_000 })
       await expect(composer(page)).toBeVisible()
     })
   })
@@ -492,7 +510,7 @@ async function landingChecks() {
         await withSession(persona, async ({ page }) => {
           for (const path of ['/o', root, '/home']) {
             await page.goto(url(path))
-            await expect(page).toHaveURL(url(`${root}/home`))
+            await expect(page).toHaveURL(orgUrl('/home'))
           }
           await expect(composer(page)).toBeVisible()
         })
@@ -501,15 +519,15 @@ async function landingChecks() {
   }
   await check('member: Search first load pins the saved mode into the URL', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/search`))
-      await expect(page).toHaveURL(url(`${root}/search?mode=search`))
+      await page.goto(orgUrl('/search'))
+      await expect(page).toHaveURL(orgUrl('/search?mode=search'))
       await expect(searchField(page)).toBeVisible()
     })
   })
   await check('assistant chats redirect into Search from /chat', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/chat/${MEMBER_CHATS.assistant.id}`))
-      await expect(page).toHaveURL(url(`${root}/search/chat/${MEMBER_CHATS.assistant.id}`))
+      await page.goto(orgUrl(`/chat/${MEMBER_CHATS.assistant.id}`))
+      await expect(page).toHaveURL(orgUrl(`/search/chat/${MEMBER_CHATS.assistant.id}`))
       await expect(
         page.getByText(`Here is what I found about ${MEMBER_CHATS.assistant.title}.`)
       ).toBeVisible()
@@ -519,35 +537,35 @@ async function landingChecks() {
     'an agent chat is not found for a member and renders for an admin',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
-        await page.goto(url(`${root}/chat/${MEMBER_CHATS.agent.id}`))
+        await page.goto(orgUrl(`/chat/${MEMBER_CHATS.agent.id}`))
         await expectPageNotFound(page)
-        await page.goto(url(`${root}/search/chat/${MEMBER_CHATS.agent.id}`))
+        await page.goto(orgUrl(`/search/chat/${MEMBER_CHATS.agent.id}`))
         await expectPageNotFound(page)
       })
       await withSession(ADMIN, async ({ page }) => {
-        await page.goto(url(`${root}/search/chat/${ADMIN_CHATS.agent.id}`))
-        await expect(page).toHaveURL(url(`${root}/chat/${ADMIN_CHATS.agent.id}`))
+        await page.goto(orgUrl(`/search/chat/${ADMIN_CHATS.agent.id}`))
+        await expect(page).toHaveURL(orgUrl(`/chat/${ADMIN_CHATS.agent.id}`))
         await expect(
           page.getByText(`Here is what I found about ${ADMIN_CHATS.agent.title}.`)
         ).toBeVisible()
       })
     },
-    { allow: [/404/] }
+    { allow: [/404 GET \/(o|api\/mothership)\//] }
   )
   await check(
     'a chat that is not theirs, or in another organization, is not found',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
-        await page.goto(url(`${root}/chat/${ADMIN_CHATS.agent.id}`))
+        await page.goto(orgUrl(`/chat/${ADMIN_CHATS.agent.id}`))
         await expectPageNotFound(page)
-        await page.goto(url(`${root}/search/chat/${ADMIN_CHATS.assistant.id}`))
+        await page.goto(orgUrl(`/search/chat/${ADMIN_CHATS.assistant.id}`))
         await expectPageNotFound(page)
         await page.getByRole('link', { name: 'Return home', exact: true }).click()
-        await expect(page).toHaveURL(url(`${root}/home`))
+        await expect(page).toHaveURL(orgUrl('/home'))
         await expect(composer(page)).toBeVisible()
       })
     },
-    { allow: [/404/] }
+    { allow: [/404 GET \/(o|api\/mothership)\//] }
   )
   await check('signed out, every organization route goes to login', async () => {
     await withSession(null, async ({ page }) => {
@@ -556,7 +574,7 @@ async function landingChecks() {
         '/links',
         '/integrations?connectorType=gmail&provider=gmail&connectionMode=live&optionId=gmail',
       ]) {
-        await page.goto(url(`${root}${path}`))
+        await page.goto(orgUrl(`${path}`))
         await expect(page).toHaveURL((address) => address.pathname === '/login')
       }
     })
@@ -567,7 +585,7 @@ async function landingChecks() {
   )
   await check('a non-member sees the denial and a way to their workspaces', async () => {
     await withSession(OUTSIDER, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       await expect(page.getByRole('heading', { name: 'Organization access denied' })).toBeVisible()
       await expect(page.getByRole('link', { name: 'View your workspaces' })).toBeVisible()
       await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
@@ -577,63 +595,58 @@ async function landingChecks() {
     'settings redirects and aliases resolve, and unavailable sections are not found',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
-        await page.goto(url(`${root}/settings`))
-        await expect(page).toHaveURL(url(`${root}/settings/general`))
-        await page.goto(url(`${root}/settings/authorized-apps`))
+        await page.goto(orgUrl('/settings'))
+        await expect(page).toHaveURL(orgUrl('/settings/general'))
+        await page.goto(orgUrl('/settings/authorized-apps'))
         await expect(page).toHaveURL(
           (address) =>
             address.pathname === `${root}/settings/general` &&
             address.searchParams.get('view') === 'authorized-apps'
         )
-        await page.goto(url(`${root}/settings/team`))
+        await page.goto(orgUrl('/settings/team'))
         await expect(page.getByPlaceholder('Search members...')).toBeVisible()
-        await page.goto(url(`${root}/access-requests`))
+        await page.goto(orgUrl('/access-requests'))
         await expect(page).toHaveURL((address) => address.pathname === `${root}/settings/requests`)
-        await page.goto(url(`${root}/settings/audit-logs`))
+        await page.goto(orgUrl('/settings/audit-logs'))
         await expectPageNotFound(page)
       })
     },
-    { allow: [/404/] }
+    { allow: [/404 GET \/o\//] }
   )
   await check(
     'People is not found with its flag off, and bad Integrations params are not found',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
-        await page.goto(url(`${root}/people`))
+        await page.goto(orgUrl('/people'))
         await expectPageNotFound(page)
-        await page.goto(url(`${root}/integrations?connectorType=not-a-connector`))
+        await page.goto(orgUrl('/integrations?connectorType=not-a-connector'))
         await expectPageNotFound(page)
-        await page.goto(url(`${root}/integrations?slack=!!`))
+        await page.goto(orgUrl('/integrations?slack=!!'))
         await expectPageNotFound(page)
       })
     },
-    { allow: [/404/] }
+    { allow: [/404 GET \/o\//] }
   )
 }
 
 async function sidebarChecks() {
   section('2 Sidebar: nav')
-  for (const [persona, labels] of [
-    [MEMBER, ['Home', 'Search', 'Integrations', 'Links']],
-    [ADMIN, ['Home', 'Search', 'Integrations', 'Links']],
-    [OWNER, ['Home', 'Search', 'Integrations', 'Links']],
-    [NARROW, ['Home', 'Search', 'Integrations', 'Links']],
-  ] as const) {
+  for (const persona of [MEMBER, ADMIN, OWNER, NARROW]) {
     await check(`${persona.key}: nav rows in today's order, plus Home for members`, async () => {
       await withSession(persona, async ({ page }) => {
-        await page.goto(url(`${root}/home`))
-        assert.deepEqual(await navLabels(page), labels)
+        await page.goto(orgUrl('/home'))
+        assert.deepEqual(await navLabels(page), ['Home', 'Search', 'Integrations', 'Links'])
       })
     })
   }
   await check('the current row is lit on descendants, and none on an agent chat', async () => {
     await withSession(ADMIN, async ({ page }) => {
-      await page.goto(url(`${root}/search/chat/${ADMIN_CHATS.assistant.id}`))
+      await page.goto(orgUrl(`/search/chat/${ADMIN_CHATS.assistant.id}`))
       await expect(mainNav(page).getByRole('link', { name: 'Search' })).toHaveAttribute(
         'aria-current',
         'page'
       )
-      await page.goto(url(`${root}/chat/${ADMIN_CHATS.agent.id}`))
+      await page.goto(orgUrl(`/chat/${ADMIN_CHATS.agent.id}`))
       await expect(mainNav(page).locator('[aria-current="page"]')).toHaveCount(0)
     })
   })
@@ -641,22 +654,22 @@ async function sidebarChecks() {
     'right click on a nav row: Open in new tab and Copy link with the full URL',
     async () => {
       await withSession(MEMBER, async ({ page, context }) => {
-        await page.goto(url(`${root}/home`))
+        await page.goto(orgUrl('/home'))
         const row = mainNav(page).getByRole('link', { name: 'Links', exact: true })
         await row.click({ button: 'right' })
         await menuEntry(page, 'Copy link').click()
-        await expect.poll(() => clipboard(page)).toBe(url(`${root}/links`))
+        await expect.poll(() => clipboard(page)).toBe(orgUrl('/links'))
         await row.click({ button: 'right' })
         const popup = context.waitForEvent('page')
         await menuEntry(page, 'Open in new tab').click()
-        await expect(await popup).toHaveURL(url(`${root}/links`))
+        await expect(await popup).toHaveURL(orgUrl('/links'))
       })
     }
   )
   await check('hover warms Links and Integrations through their own reads', async () => {
     await withSession(MEMBER, async (session) => {
       const { page } = session
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       await session.settle()
       session.requests.length = 0
       await mainNav(page).getByRole('link', { name: 'Links', exact: true }).hover()
@@ -671,7 +684,7 @@ async function sidebarChecks() {
     'collapse button and Mod+B toggle the icon rail, kept by cookie with no flash',
     async () => {
       await withSession(MEMBER, async ({ page, context }) => {
-        await page.goto(url(`${root}/home`))
+        await page.goto(orgUrl('/home'))
         const rail = sidebar(page)
         await page.getByRole('button', { name: 'Collapse sidebar', exact: true }).click()
         await expect(rail).toHaveAttribute('data-collapsed', 'true')
@@ -683,7 +696,7 @@ async function sidebarChecks() {
             async () => (await context.cookies()).find((c) => c.name === 'sidebar_collapsed')?.value
           )
           .toBe('1')
-        const html = await (await context.request.get(url(`${root}/home`))).text()
+        const html = await (await context.request.get(orgUrl('/home'))).text()
         assert(/aria-label="Organization sidebar"/.test(html), 'The rail is in the document')
         assert(
           /data-collapsed="true"[^>]*aria-label="Organization sidebar"|aria-label="Organization sidebar"[^>]*data-collapsed="true"/.test(
@@ -706,19 +719,19 @@ async function sidebarChecks() {
     'collapsed: tooltips name the rows, flyouts show every row, keyboard expands',
     async () => {
       await withSession(ADMIN, async ({ page }) => {
-        await page.goto(url(`${root}/home`))
+        await page.goto(orgUrl('/home'))
         await page.getByRole('button', { name: 'Collapse sidebar', exact: true }).click()
         await mainNav(page).getByRole('link', { name: 'Search', exact: true }).hover()
         await expect(page.getByRole('tooltip').filter({ hasText: 'Search' })).toBeVisible()
         await sidebar(page).getByRole('button', { name: 'Workspaces', exact: true }).hover()
-        const flyout = page.getByRole('dialog', { name: 'Workspaces' })
+        const flyout = dialog(page, 'Workspaces')
         await expect(flyout).toBeVisible()
         for (const { name } of WORKSPACES)
           await expect(flyout.getByText(name, { exact: true })).toBeVisible()
         await expect(flyout.getByText('New workspace')).toBeVisible()
         await page.mouse.move(800, 500)
         await sidebar(page).getByRole('button', { name: 'Chats', exact: true }).hover()
-        const chats = page.getByRole('dialog', { name: 'Chats' })
+        const chats = dialog(page, 'Chats')
         await expect(chats.getByText(ADMIN_CHATS.agent.title)).toBeVisible()
         await page.mouse.move(800, 500)
         const edge = sidebar(page).getByRole('button', { name: 'Expand sidebar' }).last()
@@ -730,17 +743,17 @@ async function sidebarChecks() {
   )
   await check('a collapsed member flyout omits New workspace', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       await page.getByRole('button', { name: 'Collapse sidebar', exact: true }).click()
       await sidebar(page).getByRole('button', { name: 'Workspaces', exact: true }).hover()
-      const flyout = page.getByRole('dialog', { name: 'Workspaces' })
+      const flyout = dialog(page, 'Workspaces')
       await expect(flyout.getByText(MEMBER_ADMIN_WORKSPACE.name)).toBeVisible()
       await expect(flyout.getByText('New workspace')).toHaveCount(0)
     })
   })
   await check('dragging the edge resizes the rail', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       const edge = sidebar(page).getByRole('separator', { name: 'Resize sidebar' })
       const before = (await sidebar(page).boundingBox())?.width ?? 0
       const box = await edge.boundingBox()
@@ -758,7 +771,7 @@ async function sidebarChecks() {
     await withSession(
       MEMBER,
       async ({ page }) => {
-        await page.goto(url(`${root}/home`))
+        await page.goto(orgUrl('/home'))
         await expect(composer(page)).toBeVisible()
         await expect(
           page.getByRole('button', { name: 'Collapse sidebar', exact: true })
@@ -767,7 +780,7 @@ async function sidebarChecks() {
         await toggle.tap()
         await expect(mainNav(page).getByRole('link', { name: 'Links', exact: true })).toBeVisible()
         await mainNav(page).getByRole('link', { name: 'Links', exact: true }).tap()
-        await expect(page).toHaveURL(url(`${root}/links`))
+        await expect(page).toHaveURL(orgUrl('/links'))
         await expect(page.getByRole('heading', { name: 'Links' })).toBeVisible()
       },
       { viewport: PHONE }
@@ -775,11 +788,11 @@ async function sidebarChecks() {
   })
   await check('the rail swaps to Settings navigation and back', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/settings/general`))
+      await page.goto(orgUrl('/settings/general'))
       await expect(mainNav(page)).toHaveCount(0)
       await expect(sidebar(page).getByRole('link', { name: 'Members', exact: true })).toBeVisible()
       await sidebar(page).getByRole('button', { name: 'Back', exact: true }).click()
-      await expect(page).toHaveURL(url(`${root}/home`))
+      await expect(page).toHaveURL(orgUrl('/home'))
       await expect(composer(page)).toBeVisible()
     })
   })
@@ -791,17 +804,17 @@ async function sidebarChecks() {
     'chip names the organization; a member gets a read-only card with Settings',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
-        await page.goto(url(`${root}/home`))
-        const chip = page.getByRole('button', { name: 'Organization menu' })
+        await page.goto(orgUrl('/home'))
+        const chip = orgChip(page)
         await expect(chip).toContainText(ORGANIZATION_NAME)
         await chip.click()
-        const card = page.getByRole('dialog', { name: 'Organization menu' })
+        const card = orgCard(page)
         await expect(card.getByText(/\d+ members?/)).toBeVisible()
         await expect(card.getByRole('button', { name: 'Rename organization' })).toHaveCount(0)
         await expect(card.getByRole('button', { name: 'Change organization logo' })).toHaveCount(0)
         await expect(card.getByRole('button', { name: 'Invite', exact: true })).toHaveCount(0)
         await card.getByRole('button', { name: 'Settings', exact: true }).click()
-        await expect(page).toHaveURL(url(`${root}/settings/members`))
+        await expect(page).toHaveURL(orgUrl('/settings/members'))
       })
     }
   )
@@ -809,9 +822,9 @@ async function sidebarChecks() {
     'an admin renames inline: Enter saves, Escape cancels, and it survives reload',
     async () => {
       await withSession(ADMIN, async ({ page }) => {
-        await page.goto(url(`${root}/home`))
-        const chip = page.getByRole('button', { name: 'Organization menu' })
-        const card = page.getByRole('dialog', { name: 'Organization menu' })
+        await page.goto(orgUrl('/home'))
+        const chip = orgChip(page)
+        const card = orgCard(page)
         async function startRename() {
           if (!(await card.isVisible())) await chip.click()
           await card.getByRole('button', { name: 'Rename organization' }).click()
@@ -850,9 +863,9 @@ async function sidebarChecks() {
             ? route.fulfill({ status: 400, json: { error: 'That name is taken' } })
             : route.continue()
         )
-        await page.goto(url(`${root}/home`))
-        await page.getByRole('button', { name: 'Organization menu' }).click()
-        const card = page.getByRole('dialog', { name: 'Organization menu' })
+        await page.goto(orgUrl('/home'))
+        await orgChip(page).click()
+        const card = orgCard(page)
         await card.getByRole('button', { name: 'Rename organization' }).click()
         const field = card.getByRole('textbox', { name: 'Organization name' })
         await field.fill('Taken name')
@@ -861,15 +874,15 @@ async function sidebarChecks() {
         await expect(card).toBeVisible()
       })
     },
-    { allow: [/400/] }
+    { allow: [/400 (PATCH|PUT) \/api\/organizations\//] }
   )
   await check(
     'an admin can change the logo from the card',
     async () => {
       await withSession(ADMIN, async ({ page }) => {
-        await page.goto(url(`${root}/home`))
-        await page.getByRole('button', { name: 'Organization menu' }).click()
-        const card = page.getByRole('dialog', { name: 'Organization menu' })
+        await page.goto(orgUrl('/home'))
+        await orgChip(page).click()
+        const card = orgCard(page)
         await expect(card.getByRole('button', { name: 'Change organization logo' })).toBeEnabled()
         const upload = page.waitForRequest(
           (request) =>
@@ -890,20 +903,15 @@ async function sidebarChecks() {
   )
   await check('Invite follows the default group, and an admin invites when it allows', async () => {
     await withSession(ADMIN, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
-      await page.getByRole('button', { name: 'Organization menu' }).click()
-      await expect(
-        page
-          .getByRole('dialog', { name: 'Organization menu' })
-          .getByRole('button', { name: 'Invite', exact: true })
-      ).toHaveCount(0)
+      await page.goto(orgUrl('/home'))
+      await orgChip(page).click()
+      await expect(orgCard(page).getByRole('button', { name: 'Invite', exact: true })).toHaveCount(
+        0
+      )
       await sql`update permission_group set config = config - 'disableInvitations' where id = ${STANDARD_GROUP_ID}`
       await page.reload()
-      await page.getByRole('button', { name: 'Organization menu' }).click()
-      await page
-        .getByRole('dialog', { name: 'Organization menu' })
-        .getByRole('button', { name: 'Invite', exact: true })
-        .click()
+      await orgChip(page).click()
+      await orgCard(page).getByRole('button', { name: 'Invite', exact: true }).click()
       const modal = dialog(page, 'Invite people')
       await expect(modal).toBeVisible()
       const field = modal.getByRole('textbox', { name: 'Email addresses' })
@@ -941,7 +949,7 @@ async function sidebarChecks() {
   section('2 Sidebar: workspaces')
   await check('a member sees only their workspaces; + is disabled and says why', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       await expect(
         sidebar(page).getByRole('link', { name: MEMBER_ADMIN_WORKSPACE.name })
       ).toBeVisible()
@@ -958,13 +966,13 @@ async function sidebarChecks() {
   })
   await check('no workspaces says so', async () => {
     await withSession(NARROW, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       await expect(sidebar(page).getByText('No workspaces yet')).toBeVisible()
     })
   })
   await check('an admin pages through workspaces and the section collapses', async () => {
     await withSession(ADMIN, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       const rail = sidebar(page)
       await expect(rail.getByRole('link', { name: WORKSPACES[4].name })).toBeVisible()
       await expect(rail.getByRole('link', { name: WORKSPACES[6].name })).toHaveCount(0)
@@ -980,7 +988,7 @@ async function sidebarChecks() {
     'workspace menu: Open in new tab, Pin, Rename gated, nothing destructive',
     async () => {
       await withSession(MEMBER, async ({ page, context }) => {
-        await page.goto(url(`${root}/home`))
+        await page.goto(orgUrl('/home'))
         const writeMenu = await openRowMenu(page, MEMBER_WRITE_WORKSPACE.name)
         await expect(menuEntry(page, 'Rename')).toBeDisabled()
         await expect(writeMenu.getByRole('menuitem')).toHaveText([
@@ -1008,7 +1016,7 @@ async function sidebarChecks() {
   )
   await check('an admin creates a workspace and enters it', async () => {
     await withSession(ADMIN, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       await sidebar(page).getByRole('button', { name: 'New workspace', exact: true }).click()
       const modal = dialog(page, 'Create workspace')
       await modal.getByRole('textbox', { name: 'Name' }).fill('Created in acceptance')
@@ -1020,7 +1028,7 @@ async function sidebarChecks() {
   })
   await check('rename a workspace from its menu', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       await openRowMenu(page, MEMBER_ADMIN_WORKSPACE.name)
       await menuEntry(page, 'Rename').click()
       const modal = dialog(page, 'Rename workspace')
@@ -1045,25 +1053,25 @@ async function sidebarChecks() {
   section('2 Sidebar: chats')
   await check('rows link by mode, and an empty list says so', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       await expect(
         sidebar(page).getByRole('link', { name: MEMBER_CHATS.assistant.title })
       ).toHaveAttribute('href', `${root}/search/chat/${MEMBER_CHATS.assistant.id}`)
     })
     await withSession(ADMIN, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       await expect(
         sidebar(page).getByRole('link', { name: ADMIN_CHATS.agent.title })
       ).toHaveAttribute('href', `${root}/chat/${ADMIN_CHATS.agent.id}`)
     })
     await withSession(NARROW, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       await expect(sidebar(page).getByText('No chats yet')).toBeVisible()
     })
   })
   await check('unread dot, hidden on the chat itself; Mark as read and unread work', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       const row = railRow(page, MEMBER_CHATS.unread.title)
       await expect(row.getByRole('img', { name: 'Unread' })).toBeVisible()
       await openRowMenu(page, MEMBER_CHATS.unread.title)
@@ -1081,7 +1089,7 @@ async function sidebarChecks() {
   })
   await check('menu: Copy link, Pin, Rename inline, right click opens the same menu', async () => {
     await withSession(MEMBER, async ({ page, context }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       const title = MEMBER_CHATS.assistant.title
       const row = railLink(page, title)
       await row.click({ button: 'right' })
@@ -1096,7 +1104,7 @@ async function sidebarChecks() {
       await menuEntry(page, 'Copy link').click()
       await expect
         .poll(() => clipboard(page))
-        .toBe(url(`${root}/search/chat/${MEMBER_CHATS.assistant.id}`))
+        .toBe(orgUrl(`/search/chat/${MEMBER_CHATS.assistant.id}`))
       await openRowMenu(page, title)
       await menuEntry(page, 'Pin').click()
       await expect(railRow(page, title).getByRole('img', { name: 'Pinned' })).toBeVisible()
@@ -1111,7 +1119,7 @@ async function sidebarChecks() {
       await openRowMenu(page, `${title} renamed`)
       const popup = context.waitForEvent('page')
       await menuEntry(page, 'Open in new tab').click()
-      await expect(await popup).toHaveURL(url(`${root}/search/chat/${MEMBER_CHATS.assistant.id}`))
+      await expect(await popup).toHaveURL(orgUrl(`/search/chat/${MEMBER_CHATS.assistant.id}`))
       await openRowMenu(page, `${title} renamed`)
       await menuEntry(page, 'Rename').click()
       await modal.getByRole('textbox', { name: 'Chat name' }).fill(title)
@@ -1121,7 +1129,7 @@ async function sidebarChecks() {
   })
   await check('deleting the open chat returns to where its mode lives', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/search/chat/${MEMBER_CHATS.removable.id}`))
+      await page.goto(orgUrl(`/search/chat/${MEMBER_CHATS.removable.id}`))
       await openRowMenu(page, MEMBER_CHATS.removable.title)
       await menuEntry(page, 'Delete').click()
       const modal = dialog(page, 'Delete chat')
@@ -1137,7 +1145,7 @@ async function sidebarChecks() {
     'shift click selects a range, background click clears, bulk delete keeps failed rows',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
-        await page.goto(url(`${root}/home`))
+        await page.goto(orgUrl('/home'))
         const first = sidebar(page).getByRole('link', { name: MEMBER_CHATS.bulkOne.title })
         const second = sidebar(page).getByRole('link', { name: MEMBER_CHATS.bulkTwo.title })
         await first.click({ modifiers: ['Shift'] })
@@ -1172,28 +1180,27 @@ async function sidebarChecks() {
         await expect(second).toHaveCount(0)
       })
     },
-    { allow: [/500/] }
+    { allow: [/500 DELETE \/api\/mothership\/chats\//] }
   )
 
   section('2 Sidebar: footer')
   await check('account chip and menu: Settings and Sign out', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       const chip = accountChip(page)
       await expect(chip).toContainText(MEMBER.name)
       await chip.click()
-      const menu = page.getByRole('dialog', { name: 'Account menu' })
+      const menu = dialog(page, 'Account menu')
       await expect(menu.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible()
       await menu.getByRole('button', { name: 'Settings', exact: true }).click()
-      await expect(page).toHaveURL(url(`${root}/settings/general`))
+      await expect(page).toHaveURL(orgUrl('/settings/general'))
     })
   })
   await check('sign out ends the session', async () => {
     await withSession(CONNECTED, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       await accountChip(page).click()
-      await page
-        .getByRole('dialog', { name: 'Account menu' })
+      await dialog(page, 'Account menu')
         .getByRole('button', { name: 'Sign out', exact: true })
         .click()
       await expect(page).toHaveURL(
@@ -1212,7 +1219,7 @@ async function sidebarChecks() {
         await context.route(/docs\.sim\.ai|sim\.ai\/slack|slack\.com/, (route) =>
           route.fulfill({ status: 200, contentType: 'text/html', body: 'stand-in' })
         )
-        await page.goto(url(`${root}/home`))
+        await page.goto(orgUrl('/home'))
         const help = sidebar(page).getByRole('button', { name: 'Help', exact: true })
         await help.click()
         await expect(menuEntry(page, 'Join Slack')).toBeVisible()
@@ -1296,8 +1303,8 @@ async function homeChecks() {
     'Home renders the greeting, the Assistant composer, and no Build/Search picker',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
-        await page.goto(url(`${root}/home`))
-        await expect(page).toHaveURL(url(`${root}/home`))
+        await page.goto(orgUrl('/home'))
+        await expect(page).toHaveURL(orgUrl('/home'))
         await expect(page.getByRole('heading', { level: 1 })).toContainText(', Mia')
         await expect(page.getByText('Ask about your company’s knowledge.')).toBeVisible()
         await expect(composer(page)).toHaveAttribute('placeholder', 'Ask about your sources')
@@ -1311,7 +1318,7 @@ async function homeChecks() {
     'the Assistant composer sends to the assistant route and lands under Search',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
-        await page.goto(url(`${root}/home`))
+        await page.goto(orgUrl('/home'))
         await composer(page).fill('Say hello from Home')
         const posted = page.waitForRequest(
           (request) => request.method() === 'POST' && request.url().endsWith('/api/mothership/chat')
@@ -1339,16 +1346,16 @@ async function homeChecks() {
   )
   await check('Home, Search and the agent keep separate drafts', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       await composer(page).fill('A draft on Home')
-      await page.goto(url(`${root}/search?mode=assistant`))
+      await page.goto(orgUrl('/search?mode=assistant'))
       await expect(composer(page)).toHaveValue('')
       await composer(page).fill('A draft in Search')
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       await expect(composer(page)).toHaveValue('A draft on Home')
-      await page.goto(url(`${root}/search?mode=assistant`))
+      await page.goto(orgUrl('/search?mode=assistant'))
       await expect(composer(page)).toHaveValue('A draft in Search')
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       await composer(page).fill('')
     })
   })
@@ -1359,7 +1366,7 @@ async function homeChecks() {
         await context.route('https://accounts.google.com/**', (route) =>
           route.fulfill({ status: 200, contentType: 'text/html', body: 'Google stand-in' })
         )
-        await page.goto(url(`${root}/home`))
+        await page.goto(orgUrl('/home'))
         const email = homeRegion(page, 'Email')
         await expect(email.getByText('Connect your email', { exact: true })).toBeVisible()
         await expect(email.getByRole('button', { name: 'Gmail', exact: true })).toBeEnabled()
@@ -1382,7 +1389,7 @@ async function homeChecks() {
   await check('Connected members see their mail and schedule, and can change the day', async () => {
     await withSession(CONNECTED, async ({ page }) => {
       await stubConnectedHome(page)
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       const email = homeRegion(page, 'Email')
       await expect(email.getByText('Parts recall notice')).toBeVisible()
       await expect(email.getByText('Connect your email')).toHaveCount(0)
@@ -1392,14 +1399,14 @@ async function homeChecks() {
   })
   await check('a member gets no Tasks run chart rather than a broken one', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       await expect(homeRegion(page, 'Email')).toBeVisible()
       await expect(homeRegion(page, 'Tasks run')).toHaveCount(0)
     })
   })
   await check('Recents list real history and × removes it for good', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       const recents = homeRegion(page, 'Recents')
       const row = recents.getByRole('link', { name: SEEDED_SOURCE.title })
       await expect(row).toBeVisible()
@@ -1416,14 +1423,14 @@ async function homeChecks() {
   await check('Unread chats need attention and open under Search', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await sql`update copilot_chats set last_seen_at = null where id = ${MEMBER_CHATS.bulkOne.id}`
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       const attention = homeRegion(page, 'Needs your attention')
       await expect(attention.getByText(MEMBER_CHATS.unread.title)).toBeVisible()
     })
   })
   await check('Get started keeps its steps, with Integrations for a member', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       const started = homeRegion(page, 'Get started')
       await expect(started.getByRole('link', { name: /Connect an integration/ })).toHaveAttribute(
         'href',
@@ -1434,7 +1441,7 @@ async function homeChecks() {
   })
   await check('Customize Home hides a widget, and Undo brings it back', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       await page.getByRole('button', { name: 'Customize Home' }).click()
       await page.getByRole('menuitemcheckbox', { name: 'Email' }).click()
       await page.keyboard.press('Escape')
@@ -1445,7 +1452,7 @@ async function homeChecks() {
   })
   await check('widget reads refuse another organization', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       const response = await page.request.get(
         url(`/api/organizations/${OUTSIDER.key}-org/home/email`)
       )
@@ -1456,7 +1463,7 @@ async function homeChecks() {
   section('3 Home: narrow group')
   await check('A narrow group has Home with no dead Connect button', async () => {
     await withSession(NARROW, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       await expect(composer(page)).toBeVisible()
       for (const title of ['Email', 'Calendar']) {
         const widget = homeRegion(page, title)
@@ -1475,8 +1482,8 @@ async function homeChecks() {
     'the agent composer with its tools, Suggested actions, and the Tasks run chart',
     async () => {
       await withSession(ADMIN, async ({ page }) => {
-        await page.goto(url(`${root}/home`))
-        await expect(page).toHaveURL(url(`${root}/home`))
+        await page.goto(orgUrl('/home'))
+        await expect(page).toHaveURL(orgUrl('/home'))
         await expect(page.getByRole('heading', { level: 1 })).toContainText(', Ada')
         await expect(composer(page)).toBeVisible()
         await expect(page.getByRole('button', { name: 'Add resources' })).toBeVisible()
@@ -1490,7 +1497,7 @@ async function homeChecks() {
   )
   await check('an agent turn streams, keeps its route, and Stop ends it', async () => {
     await withSession(ADMIN, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       await composer(page).fill('Count slowly from 1 to 50, one number per line.')
       const posted = page.waitForRequest(
         (request) => request.method() === 'POST' && request.url().endsWith('/api/mothership/chat')
@@ -1521,7 +1528,7 @@ async function homeChecks() {
           },
         })
       )
-      await page.goto(url(`${root}/home?q=parts`))
+      await page.goto(orgUrl('/home?q=parts'))
       await expect(composer(page)).toBeVisible()
     })
   })
@@ -1535,7 +1542,7 @@ async function chatChecks() {
     'assistant conversation under Search: switch, New chat, follow-up composer',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
-        await page.goto(url(`${root}/search/chat/${MEMBER_CHATS.assistant.id}`))
+        await page.goto(orgUrl(`/search/chat/${MEMBER_CHATS.assistant.id}`))
         const views = page.getByRole('navigation', { name: 'Search views' })
         await expect(views.getByRole('button', { name: 'Assistant', exact: true })).toHaveAttribute(
           'aria-current',
@@ -1549,7 +1556,7 @@ async function chatChecks() {
             .or(page.getByRole('button', { name: 'Add resources' }))
         ).toBeHidden()
         await page.getByRole('button', { name: 'New chat', exact: true }).click()
-        await expect(page).toHaveURL(url(`${root}/search?mode=assistant`))
+        await expect(page).toHaveURL(orgUrl('/search?mode=assistant'))
       })
     }
   )
@@ -1557,7 +1564,7 @@ async function chatChecks() {
     'a stream survives switching to the Search view: Assistant stays mounted, inert',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
-        await page.goto(url(`${root}/search?mode=assistant`))
+        await page.goto(orgUrl('/search?mode=assistant'))
         await composer(page).fill('Count slowly from 1 to 50, one number per line.')
         await composer(page).press('Enter')
         await expect(page).toHaveURL(/\/search\/chat\/[^/?]+/, { timeout: 30_000 })
@@ -1583,7 +1590,7 @@ async function chatChecks() {
   )
   await check('a message during a turn queues; up arrow recalls the tail', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/search?mode=assistant`))
+      await page.goto(orgUrl('/search?mode=assistant'))
       await composer(page).fill('Count slowly from 1 to 50, one number per line.')
       await composer(page).press('Enter')
       await expect(page.getByRole('button', { name: 'Stop generation' })).toBeVisible({
@@ -1652,7 +1659,7 @@ async function searchChecks() {
   section('3 Search: Search view')
   await check('switch, landing heading, focused field, and history', async () => {
     await withSession(ADMIN, async ({ page }) => {
-      await page.goto(url(`${root}/search`))
+      await page.goto(orgUrl('/search'))
       const views = page.getByRole('navigation', { name: 'Search views' })
       await expect(views.getByRole('button', { name: 'Search', exact: true })).toHaveAttribute(
         'aria-current',
@@ -1679,24 +1686,24 @@ async function searchChecks() {
   })
   await check('Back returns across a mode switch, and the mode survives a reload', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/search`))
-      await expect(page).toHaveURL(url(`${root}/search?mode=search`))
+      await page.goto(orgUrl('/search'))
+      await expect(page).toHaveURL(orgUrl('/search?mode=search'))
       const views = page.getByRole('navigation', { name: 'Search views' })
       await views.getByRole('button', { name: 'Assistant', exact: true }).click()
-      await expect(page).toHaveURL(url(`${root}/search?mode=assistant`))
+      await expect(page).toHaveURL(orgUrl('/search?mode=assistant'))
       await page.goBack()
-      await expect(page).toHaveURL(url(`${root}/search?mode=search`))
+      await expect(page).toHaveURL(orgUrl('/search?mode=search'))
       await expect(searchField(page)).toBeVisible()
       await views.getByRole('button', { name: 'Assistant', exact: true }).click()
-      await page.goto(url(`${root}/search`))
-      await expect(page).toHaveURL(url(`${root}/search?mode=assistant`))
+      await page.goto(orgUrl('/search'))
+      await expect(page).toHaveURL(orgUrl('/search?mode=assistant'))
       await views.getByRole('button', { name: 'Search', exact: true }).click()
     })
   })
   await check('field grows on Shift+Enter, Enter submits, a query docks the field', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await stubSearch(page)
-      await page.goto(url(`${root}/search?mode=search`))
+      await page.goto(orgUrl('/search?mode=search'))
       const field = searchField(page)
       await field.fill('Parts')
       const before = (await field.boundingBox())?.height ?? 0
@@ -1714,13 +1721,13 @@ async function searchChecks() {
       )
       await expect(page.getByRole('button', { name: 'New search', exact: true })).toBeVisible()
       await page.getByRole('button', { name: 'New search', exact: true }).click()
-      await expect(page).toHaveURL(url(`${root}/search?mode=search`))
+      await expect(page).toHaveURL(orgUrl('/search?mode=search'))
       await expect(searchField(page)).toHaveValue('')
     })
   })
   await check('an unconnected member gets the connect prompt, not an empty result', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/search?mode=search&q=warranty`))
+      await page.goto(orgUrl('/search?mode=search&q=warranty'))
       await expect(page.getByText('No connected apps are available for this search.')).toBeVisible()
       await expect(page.getByRole('link', { name: 'Connect apps' })).toHaveAttribute(
         'href',
@@ -1731,10 +1738,8 @@ async function searchChecks() {
   await check('results: filters, row menu, new tab link, keyboard movement', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await stubSearch(page)
-      await page.goto(url(`${root}/search?mode=search&q=recall`))
-      const results = page
-        .getByRole('list', { name: 'Search results' })
-        .or(page.locator('[aria-label="Search results"]'))
+      await page.goto(orgUrl('/search?mode=search&q=recall'))
+      const results = page.getByRole('region', { name: 'Search results' })
       await expect(results.getByText('Service bulletin', { exact: true }).first()).toBeVisible()
       const links = page.locator('a[data-source-link]')
       await expect(links.first()).toHaveAttribute('target', '_blank')
@@ -1752,7 +1757,7 @@ async function searchChecks() {
   await check('Summarize moves to Assistant and sends a turn scoped to that document', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await stubSearch(page)
-      await page.goto(url(`${root}/search?mode=search&q=recall`))
+      await page.goto(orgUrl('/search?mode=search&q=recall'))
       await page.getByRole('button', { name: 'Actions for Service bulletin', exact: true }).click()
       const posted = page.waitForRequest(
         (request) => request.method() === 'POST' && request.url().endsWith('/api/mothership/chat')
@@ -1771,7 +1776,7 @@ async function searchChecks() {
     async () => {
       await withSession(MEMBER, async ({ page }) => {
         await stubSearch(page)
-        await page.goto(url(`${root}/search?mode=search&q=recall`))
+        await page.goto(orgUrl('/search?mode=search&q=recall'))
         await page
           .getByRole('button', { name: 'Actions for Service bulletin', exact: true })
           .click()
@@ -1797,13 +1802,13 @@ async function searchChecks() {
         await page.route(`**/api/organizations/${ORGANIZATION_ID}/sim-links?**`, (route) =>
           route.fulfill({ status: 500, json: { error: 'No' } })
         )
-        await page.goto(url(`${root}/search?mode=search&q=other`))
+        await page.goto(orgUrl('/search?mode=search&q=other'))
         await page.getByRole('button', { name: 'Actions for Recall playbook', exact: true }).click()
         await expect(menuEntry(page, 'Copy link')).toBeVisible()
         await expect(menuEntry(page, 'Create link')).toHaveCount(0, { timeout: 15_000 })
       })
     },
-    { allow: [/500/] }
+    { allow: [/500 GET .*\/sim-links\?/] }
   )
   await check(
     'states: failure with Try again, partial coverage, no results, custom range',
@@ -1846,31 +1851,31 @@ async function searchChecks() {
               : answer,
           })
         })
-        await page.goto(url(`${root}/search?mode=search&q=recall`))
+        await page.goto(orgUrl('/search?mode=search&q=recall'))
         await expect(page.getByText('Search couldn’t run.')).toBeVisible()
         failing = false
         await page.getByRole('button', { name: 'Try again', exact: true }).click()
         await expect(page.getByText('Service bulletin', { exact: true }).first()).toBeVisible()
         partial = true
-        await page.goto(url(`${root}/search?mode=search&q=partial`))
+        await page.goto(orgUrl('/search?mode=search&q=partial'))
         await expect(
           page.getByText('Some apps couldn’t be searched. Showing available results.')
         ).toBeVisible()
         partial = false
-        await page.goto(url(`${root}/search?mode=search&q=nothing`))
+        await page.goto(orgUrl('/search?mode=search&q=nothing'))
         await expect(page.getByText(/Search found no results|No connected apps/)).toBeVisible()
-        await page.goto(url(`${root}/search?mode=search&q=recall&updated=custom`))
+        await page.goto(orgUrl('/search?mode=search&q=recall&updated=custom'))
         await expect(page.getByText('Choose the days to search.')).toBeVisible()
       })
     },
-    { allow: [/503/] }
+    { allow: [/503 POST \/api\/knowledge\/search/] }
   )
   await check(
     'history states: failure retries, Clear history empties',
     async () => {
       await withSession(ADMIN, async ({ page }) => {
         await withTableHidden('organization_search_history', async (restore) => {
-          await page.goto(url(`${root}/search?mode=search`))
+          await page.goto(orgUrl('/search?mode=search'))
           await expect(page.getByText('Recent activity couldn’t load.')).toBeVisible({
             timeout: 40_000,
           })
@@ -1886,14 +1891,14 @@ async function searchChecks() {
         await expect(page.getByRole('region', { name: 'Recent activity' })).toHaveCount(0)
       })
     },
-    { allow: [/500/] }
+    { allow: [/500 GET \/api\//] }
   )
   await check('New search and Search draft for a query come back on return', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await stubSearch(page)
-      await page.goto(url(`${root}/search?mode=search&q=recall`))
+      await page.goto(orgUrl('/search?mode=search&q=recall'))
       await searchField(page).fill('recall edits')
-      await page.goto(url(`${root}/search?mode=search&q=recall`))
+      await page.goto(orgUrl('/search?mode=search&q=recall'))
       await expect(searchField(page)).toHaveValue('recall edits')
     })
   })
@@ -1901,7 +1906,7 @@ async function searchChecks() {
   section('3 Search: Assistant view')
   await check('landing heading, composer, and Get started, not in the Search view', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/search?mode=assistant`))
+      await page.goto(orgUrl('/search?mode=assistant'))
       await expect(page.getByRole('heading', { name: `Search ${ORGANIZATION_NAME}` })).toBeVisible()
       await expect(composer(page)).toHaveAttribute('placeholder', 'Ask about your sources')
       await expect(page.getByText('Get started', { exact: true })).toBeVisible()
@@ -1909,14 +1914,14 @@ async function searchChecks() {
         'href',
         `${root}/integrations`
       )
-      await page.goto(url(`${root}/search?mode=search`))
+      await page.goto(orgUrl('/search?mode=search'))
       await expect(searchField(page)).toBeVisible()
       await expect(page.getByText('Get started', { exact: true })).toHaveCount(0)
     })
   })
   await check('chat URL keeps filters and mode', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/search?mode=assistant&q=recall&source=slack&updated=7d`))
+      await page.goto(orgUrl('/search?mode=assistant&q=recall&source=slack&updated=7d'))
       await composer(page).fill('Filtered question')
       await composer(page).press('Enter')
       await expect(page).toHaveURL(/\/search\/chat\/[^/?]+/, { timeout: 30_000 })
@@ -1932,7 +1937,7 @@ async function integrationChecks() {
   section('3 Integrations')
   await check('title, search, and every approved provider, with no Microsoft row', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/integrations`))
+      await page.goto(orgUrl('/integrations'))
       await expect(page.getByRole('heading', { level: 1, name: 'Integrations' })).toBeVisible()
       for (const name of [
         'Gmail',
@@ -1964,10 +1969,8 @@ async function integrationChecks() {
     'search filters by name and is kept in the URL through a detail and back',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
-        await page.goto(url(`${root}/integrations`))
-        const field = page
-          .getByRole('searchbox', { name: 'Search integrations' })
-          .or(page.getByRole('textbox', { name: 'Search integrations' }))
+        await page.goto(orgUrl('/integrations'))
+        const field = page.getByRole('searchbox', { name: 'Search integrations' })
         await field.fill('jira')
         await expect(page).toHaveURL((address) => address.searchParams.get('q') === 'jira')
         await expect(page.getByRole('link', { name: /^Gmail/ })).toHaveCount(0)
@@ -1991,7 +1994,7 @@ async function integrationChecks() {
     async () => {
       await withSession(MEMBER, async ({ page }) => {
         for (const path of ['/integrations', '/integrations/gmail']) {
-          await page.goto(url(`${root}${path}`))
+          await page.goto(orgUrl(`${path}`))
           await expect(page.locator('meta[name="referrer"]')).toHaveAttribute(
             'content',
             'no-referrer'
@@ -2002,7 +2005,7 @@ async function integrationChecks() {
   )
   await check('legacy ?integration= links reach the detail with their account', async () => {
     await withSession(CONNECTED, async ({ page }) => {
-      await page.goto(url(`${root}/integrations?integration=source:gmail&q=g`))
+      await page.goto(orgUrl('/integrations?integration=source:gmail&q=g'))
       await expect(page).toHaveURL(
         (address) =>
           address.pathname === `${root}/integrations/gmail` && address.searchParams.get('q') === 'g'
@@ -2017,10 +2020,10 @@ async function integrationChecks() {
         await context.route('https://accounts.google.com/**', (route) =>
           route.fulfill({ status: 200, contentType: 'text/html', body: 'Google stand-in' })
         )
-        await page.goto(url(`${root}/integrations/gitlab`))
+        await page.goto(orgUrl('/integrations/gitlab'))
         await expect(page.getByRole('heading', { level: 1, name: 'GitLab' })).toBeVisible()
         await expect(page.getByRole('button', { name: 'GitLab', exact: true })).toHaveCount(0)
-        await page.goto(url(`${root}/integrations/gmail`))
+        await page.goto(orgUrl('/integrations/gmail'))
         await expect(page.getByText('Connect your Gmail account')).toBeVisible()
         const authorization = context.waitForEvent('request', (request) =>
           request.url().startsWith('https://accounts.google.com/')
@@ -2034,7 +2037,7 @@ async function integrationChecks() {
     'a connected account: listed first, auto-selected, Manage has Reconnect and Disconnect',
     async () => {
       await withSession(CONNECTED, async ({ page }) => {
-        await page.goto(url(`${root}/integrations`))
+        await page.goto(orgUrl('/integrations'))
         await expect(
           page.getByRole('region', { name: 'Your accounts' }).getByRole('link', { name: /^Gmail/ })
         ).toContainText('1 account')
@@ -2057,13 +2060,13 @@ async function integrationChecks() {
   )
   await check('a stale ?account= says so', async () => {
     await withSession(CONNECTED, async ({ page }) => {
-      await page.goto(url(`${root}/integrations/gmail?account=gone`))
+      await page.goto(orgUrl('/integrations/gmail?account=gone'))
       await expect(page.getByText('This account is no longer connected.')).toBeVisible()
     })
   })
   await check('an unknown provider says it is no longer available', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/integrations/not-a-provider`))
+      await page.goto(orgUrl('/integrations/not-a-provider'))
       await expect(page.getByText('This integration is no longer available.')).toBeVisible()
     })
   })
@@ -2084,7 +2087,7 @@ async function integrationChecks() {
       const retry = (page: Page) => page.getByRole('button', { name: /Retry|Try again/ }).first()
       await withSession(MEMBER, async ({ page }) => {
         await withTableHidden('credential_group', async (restore) => {
-          await page.goto(url(`${root}/integrations`))
+          await page.goto(orgUrl('/integrations'))
           await expect(page.getByText('Could not load your connections')).toBeVisible({
             timeout: 40_000,
           })
@@ -2095,7 +2098,7 @@ async function integrationChecks() {
       })
       await withSession(MEMBER, async ({ page }) => {
         await withTableHidden('organization_search_integration', async (restore) => {
-          await page.goto(url(`${root}/integrations`))
+          await page.goto(orgUrl('/integrations'))
           await expect(page.getByText('Could not load Search connections')).toBeVisible({
             timeout: 40_000,
           })
@@ -2105,7 +2108,7 @@ async function integrationChecks() {
         })
       })
     },
-    { allow: [/500/] }
+    { allow: [/500 GET \/api\//] }
   )
 
   section('3 Tool permissions')
@@ -2113,16 +2116,12 @@ async function integrationChecks() {
     'member: approval notice, Allow disabled, Ask and Block selectable, saves with revision',
     async () => {
       await withSession(CONNECTED, async ({ page }) => {
-        await page.goto(url(`${root}/integrations/gmail`))
+        await page.goto(orgUrl('/integrations/gmail'))
         const panel = page.getByRole('region', { name: 'Tool permissions' })
         await expect(
           panel.getByText('Your organization requires approval before tools run.')
         ).toBeVisible()
-        await expect(
-          panel
-            .getByRole('textbox', { name: 'Search tools' })
-            .or(panel.getByRole('searchbox', { name: 'Search tools' }))
-        ).toBeVisible()
+        await expect(panel.getByRole('searchbox', { name: 'Search tools' })).toBeVisible()
         await expect(panel.getByRole('heading', { name: /Read-only tools/ })).toBeVisible()
         await expect(panel.getByRole('heading', { name: /Write tools/ })).toBeVisible()
         const group = panel.getByRole('group', { name: 'Write tools permission' })
@@ -2144,19 +2143,15 @@ async function integrationChecks() {
   )
   await check('the account route still opens its permissions', async () => {
     await withSession(CONNECTED, async ({ page }) => {
-      await page.goto(url(`${root}/integrations/accounts/${GRANTS.gmail.credentialId}`))
-      await expect(
-        page
-          .getByRole('region', { name: 'Tool permissions' })
-          .or(page.getByText('Tool permissions'))
-      ).toBeVisible()
+      await page.goto(orgUrl(`/integrations/accounts/${GRANTS.gmail.credentialId}`))
+      await expect(page.getByRole('region', { name: 'Tool permissions' })).toBeVisible()
     })
   })
 
   section('3 Generic Secrets')
   await check('member mode opens the personal editor and keeps q on the way back', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/integrations?q=secret`))
+      await page.goto(orgUrl('/integrations?q=secret'))
       const row = page
         .getByRole('main')
         .getByRole('link')
@@ -2178,7 +2173,7 @@ async function integrationChecks() {
   await check('organization mode lists a read-only view under the organization', async () => {
     await sql`update organization_secret_source set mode = 'organization' where organization_id = ${ORGANIZATION_ID}`
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/integrations?q=secret`))
+      await page.goto(orgUrl('/integrations?q=secret'))
       const row = page
         .getByRole('region', { name: 'Managed by your organization' })
         .getByRole('link')
@@ -2202,13 +2197,10 @@ async function integrationChecks() {
 }
 
 async function linksChecks() {
-  const linksUrl = url(`${root}/links`)
+  const linksUrl = orgUrl('/links')
   const rowFor = (page: Page, name: string) =>
     page.getByRole('row').filter({ has: page.getByText(name, { exact: true }) })
-  const search = (page: Page) =>
-    page
-      .getByRole('searchbox', { name: 'Search links' })
-      .or(page.getByRole('textbox', { name: 'Search links' }))
+  const search = (page: Page) => page.getByRole('searchbox', { name: 'Search links' })
 
   section('3 Links')
   await check('header, Chrome install, columns, and the list copes with 183 links', async () => {
@@ -2425,7 +2417,7 @@ async function linksChecks() {
         assert.equal(opened.headers().location, 'https://parts.example.com/123')
       })
     },
-    { allow: [/409/] }
+    { allow: [/409 POST .*\/sim-links/] }
   )
   await check('?create= prefills the name, and an unknown sim/ link offers it', async () => {
     await withSession(MEMBER, async ({ page }) => {
@@ -2496,7 +2488,7 @@ async function linksChecks() {
     'loading, failure with Retry, and the empty state',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
-        await page.goto(url(`${root}/home`))
+        await page.goto(orgUrl('/home'))
         const hold = createDeferred<void>()
         await page.route(
           (address) => address.pathname === `${root}/links` && address.searchParams.has('_rsc'),
@@ -2528,7 +2520,7 @@ async function linksChecks() {
         await expect(dialog(page, 'New link')).toBeVisible()
       })
     },
-    { allow: [/500/] }
+    { allow: [/500 GET \/api\//] }
   )
   await check('the phone keeps Links usable', async () => {
     await withSession(
@@ -2574,7 +2566,7 @@ async function settingsChecks() {
   ] as const) {
     await check(`${persona.key}: the same sections, in order`, async () => {
       await withSession(persona, async ({ page }) => {
-        await page.goto(url(`${root}/settings/general`))
+        await page.goto(orgUrl('/settings/general'))
         const links = sidebar(page).getByRole('link')
         await expect(links.first()).toBeVisible()
         const labels = (await links.allInnerTexts()).map((text) => text.trim()).filter(Boolean)
@@ -2587,14 +2579,8 @@ async function settingsChecks() {
   }
   await check('the settings shell renders correctly around legacy content', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/settings/general`))
-      await expect(
-        page
-          .getByRole('main')
-          .or(page.locator('body'))
-          .getByRole('button', { name: 'Sign out', exact: true })
-          .first()
-      ).toBeVisible()
+      await page.goto(orgUrl('/settings/general'))
+      await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible()
       await expect(page.getByRole('button', { name: 'Reset password', exact: true })).toBeVisible()
       await expect(sidebar(page).locator('[data-platform-ui]').first()).toBeVisible()
     })
@@ -2603,14 +2589,14 @@ async function settingsChecks() {
     'Members: roster and search for a member; Leave present, Invite and seats hidden',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
-        await page.goto(url(`${root}/settings/members`))
+        await page.goto(orgUrl('/settings/members'))
         await expect(page.getByPlaceholder('Search members...')).toBeVisible()
         await expect(page.getByText(ADMIN.email).first()).toBeVisible()
         await expect(page.getByRole('button', { name: 'Leave organization' })).toBeVisible()
         await expect(page.getByRole('button', { name: 'Invite', exact: true })).toHaveCount(0)
       })
       await withSession(OWNER, async ({ page }) => {
-        await page.goto(url(`${root}/settings/members`))
+        await page.goto(orgUrl('/settings/members'))
         await expect(page.getByRole('button', { name: 'Invite', exact: true })).toBeVisible()
         await expect(page.getByRole('button', { name: 'Leave organization' })).toHaveCount(0)
       })
@@ -2618,7 +2604,7 @@ async function settingsChecks() {
   )
   await check('Recently deleted restores an owned chat', async () => {
     await withSession(ADMIN, async ({ page }) => {
-      await page.goto(url(`${root}/settings/recently-deleted`))
+      await page.goto(orgUrl('/settings/recently-deleted'))
       await expect(page.getByPlaceholder('Search deleted chats')).toBeVisible()
       await expect(page.getByText(ADMIN_CHATS.deleted.title)).toBeVisible()
       await page
@@ -2630,11 +2616,11 @@ async function settingsChecks() {
   })
   await check('Requests and Search MCP render for a member', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/settings/requests`))
+      await page.goto(orgUrl('/settings/requests'))
       await expect(
         page.getByText('No requests yet. Requests you send will appear here.')
       ).toBeVisible()
-      await page.goto(url(`${root}/settings/search-mcp`))
+      await page.goto(orgUrl('/settings/search-mcp'))
       await expect(
         page
           .getByRole('button', { name: /Copy configuration/ })
@@ -2644,41 +2630,24 @@ async function settingsChecks() {
   })
   await check('Back from Settings returns to the remembered page', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/links`))
+      await page.goto(orgUrl('/links'))
       await accountChip(page).click()
-      await page
-        .getByRole('dialog', { name: 'Account menu' })
+      await dialog(page, 'Account menu')
         .getByRole('button', { name: 'Settings', exact: true })
         .click()
-      await expect(page).toHaveURL(url(`${root}/settings/general`))
+      await expect(page).toHaveURL(orgUrl('/settings/general'))
       await sidebar(page).getByRole('button', { name: 'Back', exact: true }).click()
-      await expect(page).toHaveURL(url(`${root}/links`))
+      await expect(page).toHaveURL(orgUrl('/links'))
     })
   })
-  await check('an unsaved settings change guards leaving through the workspace row', async () => {
-    notProvable(
-      'Settings leave guard: dirty state',
-      'Only White-labeling has a dirty form, covered by its own surface'
-    )
-  })
+  notProvable(
+    'Settings leave guard: dirty state',
+    'Only White-labeling has a dirty form, covered by its own surface'
+  )
   await check('admin settings sections all open', async () => {
     await withSession(ADMIN, async ({ page }) => {
-      for (const path of [
-        'subscription',
-        'credential-groups',
-        'audit-logs',
-        'access-control',
-        'sso',
-        'security',
-        'data-retention',
-        'data-drains',
-        'integrations',
-        'search-mcp',
-        'slack-search',
-        'usage',
-        'whitelabeling',
-      ]) {
-        const response = await page.goto(url(`${root}/settings/${path}`))
+      for (const path of [...SETTINGS_FOR_ADMIN, 'search-mcp']) {
+        const response = await page.goto(orgUrl(`/settings/${path}`))
         assert((response?.status() ?? 500) < 400, `settings/${path} ${response?.status()}`)
         await expect(sidebar(page)).toBeVisible()
       }
@@ -2778,7 +2747,7 @@ async function blastRadiusChecks() {
           async (session) => {
             const { page } = session
             for (const path of ['links', 'integrations', 'search?mode=search', 'home']) {
-              await page.goto(url(`${root}/${path}`))
+              await page.goto(orgUrl(`/${path}`))
               await session.settle()
             }
             await page.evaluate((href) => {
@@ -2841,7 +2810,7 @@ async function blastRadiusChecks() {
         ).toBeVisible()
         await session.settle()
         const workspace = await sampleContent(page)
-        await page.goto(url(`${root}/settings/general`))
+        await page.goto(orgUrl('/settings/general'))
         await expect(
           page.getByRole('button', { name: 'Reset password', exact: true })
         ).toBeVisible()
@@ -2868,8 +2837,8 @@ async function blastRadiusChecks() {
         // Opened outside the extension's frame, where a chrome-extension target has no meaning.
         await page.addInitScript(() => {
           const post = window.postMessage.bind(window)
-          window.postMessage = ((message: unknown, target: string) => {
-            if (!String(target).startsWith('chrome-extension://')) post(message, target)
+          window.postMessage = ((...args: Parameters<typeof post>) => {
+            if (!String(args[1]).startsWith('chrome-extension://')) post(...args)
           }) as typeof window.postMessage
         })
         const consoleErrors: string[] = []
@@ -2912,32 +2881,23 @@ async function blastRadiusChecks() {
         }
       })
     },
-    { allow: [/404/] }
+    { allow: [/404 GET \/(sim|invite|platform)/] }
   )
-  await check(
-    'legacy CSS from /o does not reach the login page or the home page by client nav',
-    async () => {
-      await withSession(MEMBER, async ({ page }) => {
-        await page.goto(url(`${root}/home`))
-        const leaked = await page.evaluate(() => {
-          const rootStyle = getComputedStyle(document.documentElement)
-          return ['--color-border', '--color-accent', '--font-sans', '--text-caption'].filter(
-            (token) => {
-              const inPlatform = document.querySelector('[data-platform-ui]')
-              if (!inPlatform) return false
-              return (
-                rootStyle.getPropertyValue(token).trim() !== '' &&
-                rootStyle.getPropertyValue(token).trim() ===
-                  getComputedStyle(inPlatform).getPropertyValue(token).trim() &&
-                token === '--text-caption'
-              )
-            }
-          )
-        })
-        assert.deepEqual(leaked, [])
+  await check('the surface defines its caption token without reaching :root', async () => {
+    await withSession(MEMBER, async ({ page }) => {
+      await page.goto(orgUrl('/home'))
+      const { onRoot, onSurface } = await page.evaluate(() => {
+        const read = (element: Element | null) =>
+          element ? getComputedStyle(element).getPropertyValue('--text-caption').trim() : null
+        return {
+          onRoot: read(document.documentElement),
+          onSurface: read(document.querySelector('[data-platform-ui]')),
+        }
       })
-    }
-  )
+      assert(onSurface, 'Home mounts the surface, which defines the token')
+      assert.notEqual(onRoot, onSurface, 'The surface token reached :root')
+    })
+  })
 }
 
 const PREFETCHED_ON_LAYOUT = [
@@ -3003,7 +2963,7 @@ async function firstPaintChecks() {
           reads.push(route.request().url())
           return route.fulfill({ status: 500, json: { error: 'The client must not need this' } })
         })
-        await page.goto(url(`${root}/links`))
+        await page.goto(orgUrl('/links'))
         await expect(
           page.getByRole('row').filter({ hasText: NAMED_LINKS.handbook.name })
         ).toBeVisible()
@@ -3013,9 +2973,9 @@ async function firstPaintChecks() {
           [],
           'The seeded first page was fetched again'
         )
-        await page.goto(url(`${root}/links?sort=popular&dir=desc`))
+        await page.goto(orgUrl('/links?sort=popular&dir=desc'))
         await expect(page.getByRole('row').nth(1)).toContainText(NAMED_LINKS.mostUsed.name)
-        await page.goto(url(`${root}/links?search=${NAMED_LINKS.mostUsed.name}`))
+        await page.goto(orgUrl(`/links?search=${NAMED_LINKS.mostUsed.name}`))
         await expect(page.getByRole('row').nth(1)).toContainText(NAMED_LINKS.mostUsed.name)
         assert.deepEqual(
           reads.filter((address) => !address.includes('cursor=')),
@@ -3024,12 +2984,12 @@ async function firstPaintChecks() {
         )
       })
     },
-    { allow: [/sim-links/] }
+    { allow: [/500 GET .*\/sim-links/] }
   )
   await check('the Links document already carries the first page of rows', async () => {
     await withSession(MEMBER, async ({ page, context }) => {
-      await page.goto(url(`${root}/home`))
-      const html = await (await context.request.get(url(`${root}/links`))).text()
+      await page.goto(orgUrl('/home'))
+      const html = await (await context.request.get(orgUrl('/links'))).text()
       assert(html.includes(NAMED_LINKS.handbook.url), 'The document holds the seeded rows')
     })
   })
@@ -3040,26 +3000,13 @@ async function firstPaintChecks() {
         async () => {
           await withSession(persona, async (session) => {
             const { page } = session
-            // The first compile of a route is not what a member sees, so warm the build once.
-            await page.goto(url(`${root}/${entry.path}`))
+            // A returning member's browser already holds the app's scripts.
+            await page.goto(orgUrl(`/${entry.path}`))
             await entry.primary(page).first().waitFor({ timeout: 30_000 })
             await session.settle()
-            await page
-              .context()
-              .clearCookies()
-              .catch(() => {})
-            await page.context().addCookies([
-              {
-                name: 'better-auth.session_token',
-                value: await cookieFor(persona),
-                url: origin,
-                httpOnly: true,
-                sameSite: 'Lax',
-              },
-            ])
             session.requests.length = 0
             const started = performance.now()
-            await page.goto(url(`${root}/${entry.path}`), { waitUntil: 'commit' })
+            await page.goto(orgUrl(`/${entry.path}`), { waitUntil: 'commit' })
             await entry.primary(page).first().waitFor({ timeout: 30_000 })
             const primaryVisibleMs = Math.round(performance.now() - started)
             await session.settle()
@@ -3087,7 +3034,6 @@ async function firstPaintChecks() {
               firstContentfulPaintMs: paints['first-contentful-paint'] ?? null,
               primaryVisibleMs,
               apiRequests: labelled,
-              apiRequestCount: labelled.length,
               totalRequestCount: session.requests.length,
               duplicates,
               prefetchedAndRefetched: refetched,
@@ -3117,6 +3063,9 @@ const SETTINGS_FOR_ADMIN = [
   'slack-search',
 ]
 
+const settingsRoutes = (sections: readonly string[]) =>
+  sections.map((section) => ({ name: `settings-${section}`, path: `settings/${section}` }))
+
 function routesFor(persona: Persona): { name: string; path: string }[] {
   const shared = [
     { name: 'home', path: 'home' },
@@ -3129,10 +3078,7 @@ function routesFor(persona: Persona): { name: string; path: string }[] {
     { name: 'generic-secrets', path: 'integrations/secrets' },
     { name: 'links', path: 'links' },
     { name: 'links-new', path: 'links?create=new-link' },
-    ...SETTINGS_FOR_ALL.map((section) => ({
-      name: `settings-${section}`,
-      path: `settings/${section}`,
-    })),
+    ...settingsRoutes(SETTINGS_FOR_ALL),
   ]
   if (persona === MEMBER)
     return [...shared, { name: 'assistant-chat', path: `search/chat/${MEMBER_CHATS.assistant.id}` }]
@@ -3140,10 +3086,7 @@ function routesFor(persona: Persona): { name: string; path: string }[] {
     return [
       ...shared,
       ...(persona === ADMIN ? [{ name: 'agent-chat', path: `chat/${ADMIN_CHATS.agent.id}` }] : []),
-      ...SETTINGS_FOR_ADMIN.map((section) => ({
-        name: `settings-${section}`,
-        path: `settings/${section}`,
-      })),
+      ...settingsRoutes(SETTINGS_FOR_ADMIN),
     ]
   if (persona === CONNECTED)
     return [
@@ -3167,8 +3110,11 @@ async function fullPageScreenshot(page: Page, path: string, viewport: Viewport) 
     }
     return Math.min(tallest, 3600)
   })
-  await page.setViewportSize({ width: viewport.width, height })
-  await sleep(150)
+  const grows = height > viewport.height
+  if (grows) {
+    await page.setViewportSize({ width: viewport.width, height })
+    await sleep(150)
+  }
   await page.screenshot({
     path,
     fullPage: true,
@@ -3176,23 +3122,12 @@ async function fullPageScreenshot(page: Page, path: string, viewport: Viewport) 
     style: 'nextjs-portal { display: none; }',
     timeout: 20_000,
   })
-  await page.setViewportSize({ width: viewport.width, height: viewport.height })
+  if (grows) await page.setViewportSize({ width: viewport.width, height: viewport.height })
 }
 
 async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
   const name = `${persona.key} ${viewport.name} ${theme}: every route renders healthy`
   const started = performance.now()
-  const finish = (status: Status, error?: string) => {
-    checks.push({
-      name,
-      section: 'Route walk',
-      status,
-      durationMs: Math.round(performance.now() - started),
-      ...(error ? { error } : {}),
-    })
-    if (error) logger.error(`FAIL Route walk: ${name}`, { error })
-    else logger.info(`PASS Route walk: ${name}`)
-  }
   try {
     await withSession(
       persona,
@@ -3201,7 +3136,7 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
         const failures: string[] = []
         if (persona === CONNECTED) await stubConnectedHome(page)
         for (const route of routesFor(persona)) {
-          const response = await page.goto(url(`${root}/${route.path}`), { timeout: 60_000 })
+          const response = await page.goto(orgUrl(`/${route.path}`), { timeout: 60_000 })
           await session.settle()
           if (route.name === 'home')
             await composer(page)
@@ -3245,39 +3180,30 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
       },
       { viewport, theme }
     )
-    finish('passed')
+    record(name, 'Route walk', started)
   } catch (error) {
-    finish('failed', truncate(getErrorMessage(error), 2000))
+    record(name, 'Route walk', started, truncate(getErrorMessage(error), 2000))
   }
 }
 
 async function walkRoutes(personas: Persona[]) {
   section('Route walk')
   currentCheck = 'Route walk'
-  // Hundreds of loads from one address reach Better Auth's own limiter, which a member never does.
-  allowedFailures = [/429 [A-Z]+ \/api\/auth\//]
   const plan = personas.flatMap((persona) =>
     [DESKTOP, PHONE].flatMap((viewport) =>
       (['light', 'dark'] as const).map((theme) => ({ persona, viewport, theme }))
     )
   )
-  let next = 0
-  await Promise.all(
-    Array.from({ length: WALK_CONCURRENCY }, async () => {
-      while (next < plan.length) {
-        const { persona, viewport, theme } = plan[next++]
-        await walkOne(persona, viewport, theme)
-      }
-    })
+  await mapWithConcurrency(plan, WALK_CONCURRENCY, ({ persona, viewport, theme }) =>
+    walkOne(persona, viewport, theme)
   )
-  allowedFailures = []
 }
 
 async function peoplePhaseChecks() {
   section('People with its flag on')
   await check('nav: People sits after Search', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/home`))
+      await page.goto(orgUrl('/home'))
       assert.deepEqual(await navLabels(page), ['Home', 'Search', 'People', 'Integrations', 'Links'])
     })
   })
@@ -3285,7 +3211,7 @@ async function peoplePhaseChecks() {
     'a member reads that an administrator connects the directory, and no name',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
-        await page.goto(url(`${root}/people`))
+        await page.goto(orgUrl('/people'))
         await expect(
           page
             .getByRole('radio', { name: 'Org chart' })
@@ -3300,14 +3226,14 @@ async function peoplePhaseChecks() {
   )
   await check('an admin can sync and import from the empty state', async () => {
     await withSession(ADMIN, async ({ page }) => {
-      await page.goto(url(`${root}/people`))
+      await page.goto(orgUrl('/people'))
       await expect(page.getByRole('button', { name: /Directory sync/ }).first()).toBeVisible()
       await expect(page.getByRole('button', { name: /Import/ }).first()).toBeVisible()
     })
   })
   await check('the directory lists the organization with paging', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/people?view=directory`))
+      await page.goto(orgUrl('/people?view=directory'))
       await expect(page.getByText(ADMIN.name).first()).toBeVisible()
     })
   })
@@ -3327,7 +3253,7 @@ async function walkPeopleRoutes() {
                 ['chart', 'people'],
                 ['directory', 'people?view=directory'],
               ]) {
-                await session.page.goto(url(`${root}/${path}`))
+                await session.page.goto(orgUrl(`/${path}`))
                 await session.settle()
                 await fullPageScreenshot(
                   session.page,

@@ -2118,6 +2118,16 @@ try {
       await expect(frame().getByRole('textbox', { name: 'Ask Sim', exact: true })).toBeVisible()
       await expect(frame().getByRole('button', { name: 'Voice input', exact: true })).toBeVisible()
       await expect(frame().locator('[data-platform-ui]')).toHaveCount(0)
+      await expect(frame().getByRole('region', { name: 'Email', exact: true })).toHaveCount(0)
+      assert.deepEqual(
+        await frame().evaluate(() =>
+          performance
+            .getEntriesByType('resource')
+            .map((entry) => entry.name)
+            .filter((name) => /\/home\/(email|calendar)|\/usage\/activity/.test(name))
+        ),
+        []
+      )
       await screenshot('organization-new-chat')
       await setPanelViewport(320, 844)
       await screenshot('organization-microphone-320')

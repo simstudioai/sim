@@ -311,6 +311,7 @@ case "$group" in
     bun --no-env-file scripts/org-redesign-e2e/scripted-agent.ts 3031 \
       > "$report_dir/org-redesign-agent.log" 2>&1 &
     agent_pid=$!
+    wait_ready "$agent_pid" http://127.0.0.1:3031/health 'scripted agent'
     start_app org-redesign 3029 'organization redesign' record-http-status
     start_realtime org-redesign 3030
     wait_for_browsers

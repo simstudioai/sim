@@ -23,7 +23,10 @@ import {
   userStats,
   workspace,
 } from '@sim/db/schema'
+import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
+import { generateRandomHex } from '@sim/utils/random'
+import { normalizeEmail } from '@sim/utils/string'
 import { hashPassword } from 'better-auth/crypto'
 import { inArray } from 'drizzle-orm'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
@@ -65,11 +68,7 @@ import {
  * Seeds the organization `test-org-redesign-e2e.ts` runs against. Ids are stable and a rerun starts
  * over, so a failed run can be repeated against the same database.
  */
-const databaseUrl = process.env.DATABASE_URL
-if (!databaseUrl) throw new Error('DATABASE_URL must be set')
-if (!/test/i.test(new URL(databaseUrl).pathname)) {
-  throw new Error('Seed only a dedicated test database')
-}
+assertDisposableTestDatabaseUrl(process.env.DATABASE_URL ?? '')
 
 const CREDENTIAL_GROUP_ID = 'org-redesign-credential-group'
 const allUserIds = EVERYONE.map(({ userId }) => userId)
@@ -78,43 +77,23 @@ const passwordHash = await hashPassword(PASSWORD)
 
 /** Workspace access per viewer: admins hold all of it, members only what they were given. */
 function workspacePermissions() {
-  const rows: {
-    id: string
-    userId: string
-    entityType: 'workspace'
-    entityId: string
+  const rows = (
+    viewers: readonly (typeof MEMBER | typeof ADMIN | typeof OWNER)[],
+    entityId: string,
     permissionType: 'admin' | 'write'
-  }[] = []
-  for (const { id: entityId } of WORKSPACES) {
-    for (const viewer of [OWNER, ADMIN]) {
-      rows.push({
-        id: `${entityId}-${viewer.key}`,
-        userId: viewer.userId,
-        entityType: 'workspace',
-        entityId,
-        permissionType: 'admin',
-      })
-    }
-  }
-  for (const viewer of [MEMBER, CONNECTED]) {
-    rows.push(
-      {
-        id: `${MEMBER_ADMIN_WORKSPACE.id}-${viewer.key}`,
-        userId: viewer.userId,
-        entityType: 'workspace',
-        entityId: MEMBER_ADMIN_WORKSPACE.id,
-        permissionType: 'admin',
-      },
-      {
-        id: `${MEMBER_WRITE_WORKSPACE.id}-${viewer.key}`,
-        userId: viewer.userId,
-        entityType: 'workspace',
-        entityId: MEMBER_WRITE_WORKSPACE.id,
-        permissionType: 'write',
-      }
-    )
-  }
-  return rows
+  ) =>
+    viewers.map(({ key, userId }) => ({
+      id: `${entityId}-${key}`,
+      userId,
+      entityType: 'workspace' as const,
+      entityId,
+      permissionType,
+    }))
+  return [
+    ...WORKSPACES.flatMap(({ id }) => rows([OWNER, ADMIN], id, 'admin')),
+    ...rows([MEMBER, CONNECTED], MEMBER_ADMIN_WORKSPACE.id, 'admin'),
+    ...rows([MEMBER, CONNECTED], MEMBER_WRITE_WORKSPACE.id, 'write'),
+  ]
 }
 
 /** The numbered rows sort after the named ones, and creators and activity vary across them. */
@@ -164,7 +143,7 @@ await db.transaction(async (tx) => {
       id: userId,
       email,
       name,
-      normalizedEmail: email.toLowerCase(),
+      normalizedEmail: normalizeEmail(email),
       emailVerified: true,
       createdAt: now,
       updatedAt: now,
@@ -268,26 +247,22 @@ await db.transaction(async (tx) => {
       membershipMode: 'explicit',
     },
   ])
-  await tx.insert(permissionGroupMember).values([
-    ...[MEMBER, CONNECTED, ...FILLERS].map(({ key, userId }) => ({
-      id: `org-redesign-group-member-${key}`,
-      permissionGroupId: STANDARD_GROUP_ID,
-      organizationId: ORGANIZATION_ID,
-      userId,
-    })),
-    {
-      id: `org-redesign-group-member-${NARROW.key}`,
-      permissionGroupId: NARROW_GROUP_ID,
-      organizationId: ORGANIZATION_ID,
-      userId: NARROW.userId,
-    },
-    ...[OWNER, ADMIN].map(({ key, userId }) => ({
-      id: `org-redesign-group-member-${key}`,
-      permissionGroupId: FULL_GROUP_ID,
-      organizationId: ORGANIZATION_ID,
-      userId,
-    })),
-  ])
+  await tx.insert(permissionGroupMember).values(
+    (
+      [
+        [STANDARD_GROUP_ID, [MEMBER, CONNECTED, ...FILLERS]],
+        [NARROW_GROUP_ID, [NARROW]],
+        [FULL_GROUP_ID, [OWNER, ADMIN]],
+      ] as const
+    ).flatMap(([permissionGroupId, people]) =>
+      people.map(({ key, userId }) => ({
+        id: `org-redesign-group-member-${key}`,
+        permissionGroupId,
+        organizationId: ORGANIZATION_ID,
+        userId,
+      }))
+    )
+  )
 
   for (const { id, name } of WORKSPACES) {
     await tx.insert(project).values({
@@ -413,7 +388,7 @@ await db.transaction(async (tx) => {
     credentialGroupId: CREDENTIAL_GROUP_ID,
     email: CONNECTED.email,
     status: 'completed',
-    invitationTokenHash: generateId().replaceAll('-', '').repeat(2),
+    invitationTokenHash: generateRandomHex(64),
     invitationExpiresAt: new Date(now.getTime() + 86_400_000),
     invitedAt: now,
   })
