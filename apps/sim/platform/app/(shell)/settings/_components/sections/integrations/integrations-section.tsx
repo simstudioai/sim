@@ -139,7 +139,7 @@ export default function IntegrationsSection({ organization: context }: SettingsS
         grow={
           <SearchField
             label='Search sources'
-            placeholder='Search sources'
+            placeholder='Search sources…'
             value={search}
             onValueChange={setSearch}
           />

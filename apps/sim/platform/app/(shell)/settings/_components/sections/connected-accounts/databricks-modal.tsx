@@ -66,11 +66,11 @@ export function DatabricksModal({ organizationId, onClose, existingServer }: Dat
         if (!open) onClose()
       }}
       title={adding ? 'Add Databricks' : 'Configure Databricks'}
-      confirmLabel={pending ? (adding ? 'Adding...' : 'Saving...') : adding ? 'Add' : 'Save'}
+      confirmLabel={pending ? (adding ? 'Adding…' : 'Saving…') : adding ? 'Add' : 'Save'}
       confirmDisabled={pending || !canSave}
       onConfirm={submit}
     >
-      {existingServer && setup.isPending && <Muted>Loading Databricks configuration...</Muted>}
+      {existingServer && setup.isPending && <Muted>Loading Databricks configuration…</Muted>}
       {fieldsAvailable && (
         <>
           <TextField

@@ -342,7 +342,7 @@ function SourceSettingsForm({
               disabled={!form.dirty || !form.canSave || form.saving}
               onClick={form.save}
             >
-              {form.saving ? 'Saving...' : 'Save'}
+              {form.saving ? 'Saving…' : 'Save'}
             </Button>
           </span>
         </Tooltip>

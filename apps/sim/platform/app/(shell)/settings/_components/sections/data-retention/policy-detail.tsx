@@ -141,7 +141,7 @@ function StagePanel({ stageKey, description, value, onChange }: StagePanelProps)
       </Muted>
       <SearchField
         label='Search PII types'
-        placeholder='Search PII types...'
+        placeholder='Search PII types…'
         onValueChange={setSearch}
       />
       <SelectField

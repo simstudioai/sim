@@ -83,7 +83,7 @@ export default function AdminSection() {
               }
               onClick={() => admin.handleImpersonate(user.id, user.email)}
             >
-              {admin.impersonatingUserId === user.id ? 'Switching...' : 'Impersonate'}
+              {admin.impersonatingUserId === user.id ? 'Switching…' : 'Impersonate'}
             </Button>
             <ActionMenu
               label={`${user.email} actions`}
@@ -126,7 +126,7 @@ export default function AdminSection() {
     admin.impersonationGuardError ??
     (admin.unbanUser.error || admin.impersonateUser.error
       ? ((admin.unbanUser.error ?? admin.impersonateUser.error)?.message ??
-        'Action failed. Please try again.')
+        'Action failed. Try again.')
       : null)
   const pendingEmail = admin.pendingUser?.email ?? 'this user'
 
@@ -148,12 +148,12 @@ export default function AdminSection() {
         )}
         {superUser && (
           <SettingsRow
-            label='Mothership Environment'
+            label='Mothership environment'
             description='Default uses the configured Sim agent URL.'
             field
           >
             <SelectField
-              label='Mothership Environment'
+              label='Mothership environment'
               value={settings?.mothershipEnvironment ?? 'default'}
               options={MOTHERSHIP_ENV_OPTIONS}
               disabled={admin.updateSetting.isPending}
@@ -200,7 +200,7 @@ export default function AdminSection() {
               }
               onClick={admin.handleImport}
             >
-              {importWorkflow.isPending ? 'Importing...' : 'Import'}
+              {importWorkflow.isPending ? 'Importing…' : 'Import'}
             </Button>
           </ActionRow>
           {importWorkflow.error && (
@@ -209,7 +209,7 @@ export default function AdminSection() {
           {importWorkflow.isSuccess && (
             <InlineNotice
               intent='success'
-              message={`Workflow imported successfully (new ID: ${importWorkflow.data.newWorkflowId}, ${importWorkflow.data.copilotChatsImported ?? 0} copilot chats imported)`}
+              message={`Workflow imported (new ID: ${importWorkflow.data.newWorkflowId}, ${importWorkflow.data.copilotChatsImported ?? 0} copilot chats imported)`}
             />
           )}
         </FieldStack>
@@ -226,12 +226,12 @@ export default function AdminSection() {
             <ActionRow>
               <SearchField
                 label='Search users'
-                placeholder='Search by email or paste a user ID...'
+                placeholder='Search by email or paste a user ID…'
                 value={admin.searchInput}
                 onValueChange={admin.setSearchInput}
               />
               <Button size='compact' submit disabled={admin.usersLoading}>
-                {admin.usersLoading ? 'Searching...' : 'Search'}
+                {admin.usersLoading ? 'Searching…' : 'Search'}
               </Button>
               <Button size='compact' icon='I074' onClick={() => admin.setIsAddUserOpen(true)}>
                 Add user
@@ -305,7 +305,7 @@ export default function AdminSection() {
             if (!open) admin.closePendingAction()
           }}
           title='Ban user'
-          confirmLabel={admin.banUser.isPending ? 'Banning...' : 'Ban'}
+          confirmLabel={admin.banUser.isPending ? 'Banning…' : 'Ban'}
           confirmDisabled={admin.banUser.isPending}
           onConfirm={() => {
             admin.handleConfirmBan()
@@ -339,8 +339,8 @@ export default function AdminSection() {
           confirmLabel={
             admin.setUserRole.isPending
               ? admin.isDemotion
-                ? 'Demoting...'
-                : 'Promoting...'
+                ? 'Demoting…'
+                : 'Promoting…'
               : admin.isDemotion
                 ? 'Demote'
                 : 'Promote'
@@ -391,7 +391,7 @@ function AddUserModal({ onClose, onCreated }: AddUserModalProps) {
         if (!open) form.handleClose()
       }}
       title='Add user'
-      confirmLabel={isSubmissionPending ? 'Adding...' : 'Add user'}
+      confirmLabel={isSubmissionPending ? 'Adding…' : 'Add user'}
       confirmDisabled={!form.canSubmit}
       onConfirm={() => {
         form.handleAddUser()

@@ -109,7 +109,7 @@ export function SourceSetup({ backLabel, children, ...options }: SourceSetupProp
           <>
             <SearchField
               label='Find a source'
-              placeholder='Find a source'
+              placeholder='Find a source…'
               value={setup.search}
               onValueChange={setup.setSearch}
             />

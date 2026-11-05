@@ -104,7 +104,7 @@ export function AddMembersModal({
         <>
           <SearchField
             label='Search members'
-            placeholder='Search members...'
+            placeholder='Search members…'
             onValueChange={setSearch}
           />
           <ActionRow>

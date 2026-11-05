@@ -45,7 +45,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
     <>
       <SearchField
         label='Search requests'
-        placeholder='Search requests...'
+        placeholder='Search requests…'
         value={list.search}
         onValueChange={list.setSearch}
         maxLength={ACCESS_REQUEST_MAX_SEARCH_LENGTH}

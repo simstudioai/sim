@@ -82,7 +82,7 @@ export default function DataDrainsSection({ organization }: SettingsSectionProps
         grow={
           <SearchField
             label='Search data drains'
-            placeholder='Search data drains...'
+            placeholder='Search data drains…'
             value={search}
             onValueChange={setSearch}
           />

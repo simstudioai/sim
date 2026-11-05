@@ -254,7 +254,7 @@ export function SourceSetupForm({
                               ? 'Account'
                               : 'Service account'
                         }
-                        searchLabel='Search accounts'
+                        searchLabel='Search accounts…'
                         placeholder={
                           form.canConnectOAuth
                             ? `Select ${connectorConfig.name} account`

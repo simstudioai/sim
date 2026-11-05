@@ -96,7 +96,7 @@ function ConnectorSelector({ label, hint, optional, ...options }: SelectorProps)
           onClick={() => void (selector.error ? selector.refetch() : selector.loadAll())}
         >
           {selector.isFetchingMore
-            ? 'Searching options...'
+            ? 'Searching options…'
             : selector.error
               ? 'Try again'
               : 'Search all options'}
@@ -393,7 +393,7 @@ export function ContentCredentialField({
   return (
     <SearchableSelect
       label='Sync documents with'
-      searchLabel='Search accounts'
+      searchLabel='Search accounts…'
       placeholder='Choose an account'
       value={credentialId ?? CONNECTED_MEMBERS}
       options={[{ value: CONNECTED_MEMBERS, label: 'Connected members' }, ...options]}

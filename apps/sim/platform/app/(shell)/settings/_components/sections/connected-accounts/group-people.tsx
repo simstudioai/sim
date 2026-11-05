@@ -158,7 +158,7 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
               disabled={people.isFetchingNextPage}
               onClick={() => void people.fetchNextPage()}
             >
-              {people.isFetchingNextPage ? 'Loading...' : 'Load more'}
+              {people.isFetchingNextPage ? 'Loading…' : 'Load more'}
             </Button>
           </SettingsRow>
         )}

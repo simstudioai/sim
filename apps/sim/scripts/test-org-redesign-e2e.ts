@@ -3183,7 +3183,7 @@ const ADMIN_SETTINGS = [
   'General',
   'Subscription',
   'Members',
-  'Credential Groups',
+  'Credential groups',
   'Insights',
   'White-labeling',
   'Recently deleted',
@@ -3230,11 +3230,11 @@ async function settingsChecks() {
       ).toBeVisible()
     })
   })
-  await check('Sources, Credential Groups and Slack render inside the surface', async () => {
+  await check('Sources, Credential groups and Slack render inside the surface', async () => {
     await withSession(ADMIN, async ({ page }) => {
       for (const [path, title] of [
         ['/settings/integrations', 'Sources'],
-        ['/settings/connected-accounts', 'Credential Groups'],
+        ['/settings/connected-accounts', 'Credential groups'],
         ['/settings/search-slack', 'Sim Search in Slack'],
       ] as const) {
         await page.goto(orgUrl(path))
@@ -3543,13 +3543,13 @@ async function blastRadiusChecks() {
     }
   )
   await check(
-    "a workspace's Credential Groups link opens the organization's page",
+    "a workspace's Credential groups link opens the organization's page",
     async () => {
       await withSession(ADMIN, async ({ page }) => {
         await page.goto(url(`/workspace/${MEMBER_ADMIN_WORKSPACE.id}/settings/connected-accounts`))
         await expect(page).toHaveURL(/\/o\/[^/]+\/settings\/connected-accounts/)
         await expect(
-          page.getByRole('heading', { level: 1, name: 'Credential Groups', exact: true })
+          page.getByRole('heading', { level: 1, name: 'Credential groups', exact: true })
         ).toBeVisible()
       })
     },

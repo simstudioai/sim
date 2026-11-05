@@ -253,7 +253,7 @@ export function GroupDetail({
       }))
     } catch (error) {
       toast.error("Couldn't save changes", {
-        description: getErrorMessage(error, 'Please try again in a moment.'),
+        description: getErrorMessage(error, 'Try again in a moment.'),
       })
     }
   }
@@ -282,7 +282,7 @@ export function GroupDetail({
       if (seq !== scopeWriteSeq.current) return
       setViewing(previous)
       toast.error("Couldn't update workspaces", {
-        description: getErrorMessage(error, 'Please try again in a moment.'),
+        description: getErrorMessage(error, 'Try again in a moment.'),
       })
     }
   }
@@ -307,7 +307,7 @@ export function GroupDetail({
       }))
     } catch (error) {
       toast.error("Couldn't update the default group", {
-        description: getErrorMessage(error, 'Please try again in a moment.'),
+        description: getErrorMessage(error, 'Try again in a moment.'),
       })
     }
   }
@@ -317,7 +317,7 @@ export function GroupDetail({
       await removeMember.mutateAsync({ organizationId, permissionGroupId: viewing.id, memberId })
     } catch (error) {
       toast.error("Couldn't remove member", {
-        description: getErrorMessage(error, 'Please try again in a moment.'),
+        description: getErrorMessage(error, 'Try again in a moment.'),
       })
     }
   }
@@ -374,7 +374,7 @@ export function GroupDetail({
               <SearchField
                 key='providers'
                 label='Search providers'
-                placeholder='Search providers...'
+                placeholder='Search providers…'
                 value={search}
                 onValueChange={params.setSearch}
               />
@@ -422,7 +422,7 @@ export function GroupDetail({
               <SearchField
                 key='blocks'
                 label='Search blocks'
-                placeholder='Search blocks...'
+                placeholder='Search blocks…'
                 value={search}
                 onValueChange={params.setSearch}
               />
@@ -483,9 +483,7 @@ export function GroupDetail({
           items={items.map(({ value, label }) => ({ id: value, label }))}
           kind={kind}
           searchLabel={
-            kind === 'knowledge_connector'
-              ? 'Search connectors...'
-              : 'Search authentication modes...'
+            kind === 'knowledge_connector' ? 'Search connectors…' : 'Search authentication modes…'
           }
           emptyLabel={
             kind === 'knowledge_connector' ? 'No connectors available.' : 'No modes available.'
@@ -501,7 +499,7 @@ export function GroupDetail({
             <SearchField
               key='platform'
               label='Search features'
-              placeholder='Search features...'
+              placeholder='Search features…'
               value={search}
               onValueChange={params.setSearch}
             />

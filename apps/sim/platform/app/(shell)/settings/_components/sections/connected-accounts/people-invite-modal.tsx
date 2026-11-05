@@ -59,7 +59,7 @@ export function PeopleInviteModal({ organizationId, onClose }: PeopleInviteModal
         if (!open) onClose()
       }}
       title='Request account connections'
-      confirmLabel={invite.isPending ? 'Sending...' : 'Send requests'}
+      confirmLabel={invite.isPending ? 'Sending…' : 'Send requests'}
       confirmDisabled={!emails.length || invite.isPending}
       onConfirm={submit}
     >

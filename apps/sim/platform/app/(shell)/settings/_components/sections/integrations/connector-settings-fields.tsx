@@ -260,7 +260,7 @@ export function ConnectorSettingsFields({
                   : 'Account'
                 : 'Indexing account'
             }
-            searchLabel='Search accounts'
+            searchLabel='Search accounts…'
             placeholder='Select the account to sync as'
             options={credentialOptions}
             value={workspaceCredentialId ?? credentialId}
@@ -307,7 +307,7 @@ export function ConnectorSettingsFields({
         ) && (
           <SearchableSelect
             label='Account for browsing'
-            searchLabel='Search accounts'
+            searchLabel='Search accounts…'
             placeholder={`Select your ${connectorConfig.name} account`}
             hint={
               isSearchIndex
