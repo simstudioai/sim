@@ -15,7 +15,13 @@ import { ProviderDetail } from '@/platform/app/(shell)/settings/_components/sect
 import { ProviderForm } from '@/platform/app/(shell)/settings/_components/sections/sso/provider-form'
 import { RequireSso } from '@/platform/app/(shell)/settings/_components/sections/sso/require-sso'
 import { ScimPanel } from '@/platform/app/(shell)/settings/_components/sections/sso/scim-panel'
-import { ActivityRow, Button, EmptyState, Modal } from '@/platform/design-system/components'
+import {
+  ActivityRow,
+  Button,
+  EmptyState,
+  Modal,
+  SegmentedControl,
+} from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   canMakeProviderPrimary,
