@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Modal, RecipientField, SelectField } from '@/platform/design-system/components'
+import { SelectField } from '@/platform/design-system/components/field/fields'
+import { Modal } from '@/platform/design-system/components/modal/modal'
+import { RecipientField } from '@/platform/design-system/components/workspace-fields/workspace-fields'
 import { ORGANIZATION_ROLE_OPTIONS, useInviteMembers } from '@/platform/lib/data/invite'
 
 interface InviteModalProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  onClose: () => void
 }
 
 interface Recipient {
@@ -21,18 +22,10 @@ type InviteRole = (typeof ORGANIZATION_ROLE_OPTIONS)[number]['value']
  * addresses stay in the field with their reasons so a retry resends only those, and the seat warning
  * never blocks, because the server decides per address.
  */
-export function InviteModal({ open, onOpenChange }: InviteModalProps) {
-  const invite = useInviteMembers(open)
+export function InviteModal({ onClose }: InviteModalProps) {
+  const invite = useInviteMembers()
   const [recipients, setRecipients] = useState<Recipient[]>([])
   const [role, setRole] = useState<InviteRole>('member')
-  const [wasOpen, setWasOpen] = useState(open)
-  if (wasOpen !== open) {
-    setWasOpen(open)
-    if (open) {
-      setRecipients([])
-      setRole('member')
-    }
-  }
 
   const problem = recipients
     .filter((recipient) => recipient.invalid)
@@ -42,10 +35,10 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
   return (
     <Modal
       title='Invite people'
-      open={open}
-      onOpenChange={onOpenChange}
+      open
+      onOpenChange={onClose}
       confirmLabel='Send invites'
-      confirmDisabled={!invite.canInvite || recipients.length === 0 || Boolean(problem)}
+      confirmDisabled={recipients.length === 0 || Boolean(problem)}
       onConfirm={async () => {
         const { failed, message } = await invite.submit(
           recipients.map(({ address }) => address),
@@ -65,14 +58,12 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
         validate={(address) => invite.addressProblem(address) === null}
         error={problem ?? undefined}
         hint={invite.seatWarning(recipients.length)}
-        disabled={!invite.canInvite}
       />
       <SelectField
         label='Role'
         options={ORGANIZATION_ROLE_OPTIONS}
         value={role}
         onValueChange={(next) => setRole(next === 'admin' ? 'admin' : 'member')}
-        disabled={!invite.canInvite}
       />
     </Modal>
   )

@@ -1,8 +1,8 @@
 'use client'
 
 import { ANONYMOUS_USER_ID } from '@sim/auth/principal'
-import type { Workspace, WorkspaceCreationPolicy } from '@/lib/api/contracts'
-import { organizationRoutes, WORKSPACES_PATH } from '@/lib/navigation/paths'
+import type { Workspace } from '@/lib/api/contracts'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import type { UserProfile } from '@/hooks/queries/current-user-data'
 import type { MothershipChatMetadata } from '@/hooks/queries/mothership-chats'
@@ -14,17 +14,8 @@ import {
   useWorkspaceCreationPolicy,
 } from '@/hooks/queries/workspace'
 import { buildOrganizationNavItems } from '@/platform/app/(shell)/_components/destinations'
-import type {
-  ShellActions,
-  ShellChat,
-  ShellData,
-  ShellWorkspace,
-} from '@/platform/app/(shell)/_components/model'
-import { useChatListActions } from '@/platform/lib/data/chat-list'
-import { useAccountActions } from '@/platform/lib/data/shell-actions'
-import { useWorkspaceActions } from '@/platform/lib/data/workspaces'
-
-const workspaceHref = (workspaceId: string) => `${WORKSPACES_PATH}/${workspaceId}`
+import type { ShellChat, ShellData, ShellWorkspace } from '@/platform/app/(shell)/_components/model'
+import { workspaceHref } from '@/platform/lib/data/workspaces'
 
 function toShellWorkspace(
   workspace: Workspace,
@@ -63,17 +54,6 @@ function toShellUser(profile: UserProfile | undefined): ShellData['user'] {
   }
 }
 
-function toWorkspaceCreation(
-  policy: WorkspaceCreationPolicy | null | undefined
-): ShellData['workspaceCreation'] {
-  if (!policy) return undefined
-  return {
-    canCreate: policy.canCreate,
-    organizationId: policy.organizationId,
-    reason: policy.reason,
-  }
-}
-
 export interface OrganizationNavFlags {
   benchmarkEnabled: boolean
   simLinksEnabled: boolean
@@ -81,55 +61,46 @@ export interface OrganizationNavFlags {
 }
 
 /**
- * The viewer's shell, shaped for the sidebar's views and backed by the hooks and keys the layout
- * prefetches, so the rail paints hydrated.
+ * The viewer's shell, shaped for the sidebar's views and read through the hooks and keys the layout
+ * prefetches, so the rail paints hydrated. A failed background refetch keeps the rows it has, and
+ * says nothing: only a list that never loaded reports a failure.
  */
-export function useOrganizationShell(flags: OrganizationNavFlags): {
-  data: ShellData
-  actions: ShellActions
-} {
-  const { organization, viewer, searchAccess, mothershipAvailable, canBuild, deployment } =
-    useOrganizationContext()
+export function useOrganizationShell(flags: OrganizationNavFlags) {
+  const { organization, searchAccess, mothershipAvailable, canBuild } = useOrganizationContext()
   const routes = organizationRoutes(organization.id)
   const workspaces = useOrderedWorkspacesQuery()
   const pinnedIds = usePinnedWorkspaceIds()
-  const creationPolicy = useWorkspaceCreationPolicy()
+  const { data: policy } = useWorkspaceCreationPolicy()
   const chatsAvailable = mothershipAvailable && (canBuild || searchAccess.memberScoped)
   const chats = useOrganizationMothershipChats(organization.id, 'active', {
     enabled: chatsAvailable,
   })
   const profile = useUserProfile()
-  const chatActions = useChatListActions(organization.id)
-  const workspaceActions = useWorkspaceActions(workspaceHref)
-  const accountActions = useAccountActions({
-    organizationId: organization.id,
-    hosted: deployment.hosted,
-    viewer,
-  })
+  const data: ShellData = {
+    organization,
+    user: toShellUser(profile.data),
+    workspaces: (workspaces.data ?? [])
+      .filter((workspace) => workspace.organizationId === organization.id)
+      .map((workspace) => toShellWorkspace(workspace, pinnedIds.data)),
+    chats: chatsAvailable ? (chats.data ?? []).map((chat) => toShellChat(chat, routes)) : [],
+    status: {
+      workspaces: workspaces.isRefetchError ? 'success' : workspaces.status,
+      chats: chats.isRefetchError ? 'success' : chats.status,
+    },
+    workspaceCreation: {
+      canCreate: policy?.canCreate === true && policy.organizationId === organization.id,
+      reason: policy?.reason ?? null,
+    },
+    chatsAvailable,
+    destinations: buildOrganizationNavItems(organization.id, {
+      searchAvailable: searchAccess.memberScoped,
+      homeAvailable: (mothershipAvailable && canBuild) || searchAccess.memberScoped,
+      ...flags,
+    }),
+  }
   return {
-    data: {
-      organization,
-      user: toShellUser(profile.data),
-      workspaces: (workspaces.data ?? [])
-        .filter((workspace) => workspace.organizationId === organization.id)
-        .map((workspace) => toShellWorkspace(workspace, pinnedIds.data)),
-      chats: (chats.data ?? []).map((chat) => toShellChat(chat, routes)),
-      status: {
-        workspaces: workspaces.status,
-        chats: chats.status,
-      },
-      workspaceCreation: toWorkspaceCreation(creationPolicy.data),
-      chatsAvailable,
-      destinations: buildOrganizationNavItems(organization.id, {
-        searchAvailable: searchAccess.memberScoped,
-        homeAvailable: (mothershipAvailable && canBuild) || searchAccess.memberScoped,
-        ...flags,
-      }),
-    },
-    actions: {
-      ...accountActions,
-      chats: { ...chatActions, retry: () => void chats.refetch() },
-      workspaces: { ...workspaceActions, retry: () => void workspaces.refetch() },
-    },
+    data,
+    retryChats: () => void chats.refetch(),
+    retryWorkspaces: () => void workspaces.refetch(),
   }
 }

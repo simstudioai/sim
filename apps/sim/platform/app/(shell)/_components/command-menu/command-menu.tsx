@@ -1,3 +1,5 @@
+'use client'
+
 import type {
   ShellChat,
   ShellDestination,
@@ -5,29 +7,28 @@ import type {
 } from '@/platform/app/(shell)/_components/model'
 import { CommandPalette } from '@/platform/design-system/components/command-palette/command-palette'
 import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
+import { useSearchModalStore } from '@/stores/modals/search/store'
 
 interface CommandMenuProps {
-  open: boolean
-  onClose: () => void
   navigate: (href: string) => void
   chats: readonly ShellChat[]
   workspaces: readonly ShellWorkspace[]
   destinations: readonly ShellDestination[]
 }
 
-export function CommandMenu({
-  open,
-  onClose,
-  navigate,
-  chats,
-  workspaces,
-  destinations,
-}: CommandMenuProps) {
+/** The same store the desktop shell's View > Search toggles. Reads it here so the rail needn't. */
+export function CommandMenu({ navigate, chats, workspaces, destinations }: CommandMenuProps) {
+  const open = useSearchModalStore((state) => state.isOpen)
+  const setOpen = useSearchModalStore((state) => state.setOpen)
+  if (!open) return null
   return (
-    <OverlayDialog label='Search' presentation='command' open={open} onClose={onClose}>
+    <OverlayDialog label='Search' presentation='command' open onClose={() => setOpen(false)}>
       <CommandPalette
         label='Search the platform'
-        onSelect={navigate}
+        onSelect={(href) => {
+          setOpen(false)
+          navigate(href)
+        }}
         groups={[
           { items: destinations },
           {

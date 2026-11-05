@@ -6,7 +6,10 @@ import { simLinksSortParams } from '@/app/o/[organizationId]/links/search-params
 import { organizationAccountsQueryOptions } from '@/hooks/queries/organization-accounts'
 import { searchIntegrationsQueryOptions } from '@/hooks/queries/search-integrations'
 import { simLinksQueryOptions } from '@/hooks/queries/sim-links'
-import { prefetchQueryOnIntent } from '@/hooks/queries/utils/prefetch-query-on-intent'
+import {
+  dropFailedSpeculativeQuery,
+  prefetchQueryOnIntent,
+} from '@/hooks/queries/utils/prefetch-query-on-intent'
 
 const NAV_WARM_DWELL_MS = 80
 
@@ -33,11 +36,9 @@ export function useNavWarmers(organizationId: string) {
     if (destination === 'sim-links') {
       const { column, direction } = simLinksSortParams.default
       const options = simLinksQueryOptions(organizationId, '', column, direction)
-      void queryClient.prefetchInfiniteQuery(options).then(() => {
-        const state = queryClient.getQueryState(options.queryKey)
-        if (state?.status !== 'error' || state.data !== undefined) return
-        queryClient.removeQueries({ queryKey: options.queryKey, exact: true, type: 'inactive' })
-      })
+      void queryClient
+        .prefetchInfiniteQuery(options)
+        .then(() => dropFailedSpeculativeQuery(queryClient, options.queryKey))
     }
   }
 

@@ -2,10 +2,12 @@
   display: flex;
   block-size: 100%;
   overflow: hidden;
-  border-radius: inherit;
+}
+.sidebar[data-peeking] {
+  border-radius: calc(var(--radius) - 1px);
 }
 /* The peek card floats, so it is the frame its menus are placed against, and it must not clip them. */
-[data-peek]:has(> * > .sidebar) {
+[data-peek]:has(.sidebar) {
   overflow: visible;
 }
 /* Floating layers sit above a legacy page's own stacking beside the rail. */
@@ -152,8 +154,8 @@ button:hover > .railMark > .railGlyph {
   position: relative;
   z-index: 2;
   flex: none;
-  inline-size: var(--spacing-4);
-  margin-inline-start: calc(-1 * var(--spacing-4));
+  inline-size: 0.25rem;
+  margin-inline-start: -0.25rem;
   cursor: ew-resize;
 }
 .edge[data-collapsed] {

@@ -10,6 +10,11 @@ import popup from '@/platform/design-system/components/menu/popup.shared.module.
 import { usePopoverContainer } from '@/platform/design-system/components/menu/use-popover-container'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
+/** A boundary, so the rows are built only when the panel is mounted, not on every rail render. */
+function RailFlyoutRows({ render }: { render: () => ReactNode }) {
+  return render()
+}
+
 interface RailFlyoutProps {
   label: string
   icon: IconName
@@ -59,7 +64,7 @@ export function RailFlyout({ label, icon, children }: RailFlyoutProps) {
               onMouseEnter={hover.contentProps.onMouseEnter}
               onMouseLeave={hover.contentProps.onMouseLeave}
             >
-              {children(hover.setLocked)}
+              <RailFlyoutRows render={() => children(hover.setLocked)} />
             </Popover.Popup>
           </Popover.Positioner>
         </Popover.Portal>

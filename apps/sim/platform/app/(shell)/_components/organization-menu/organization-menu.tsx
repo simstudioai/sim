@@ -2,12 +2,17 @@
 
 import { type RefObject, useId, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
+import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
 import { InviteModal } from '@/platform/app/(shell)/_components/invite-modal/invite-modal'
-import type { ShellData, ShellOrganizationActions } from '@/platform/app/(shell)/_components/model'
+import type { ShellData } from '@/platform/app/(shell)/_components/model'
 import styles from '@/platform/app/(shell)/_components/organization-menu/organization-menu.module.css'
-import { Avatar, Button, Input, MenuItem } from '@/platform/design-system/components'
+import { Avatar } from '@/platform/design-system/components/avatar/avatar'
+import { Button } from '@/platform/design-system/components/button/button'
+import { Input } from '@/platform/design-system/components/field/inputs'
 import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
+import { MenuItem } from '@/platform/design-system/components/menu/action-menu'
 import { AnchoredPopover } from '@/platform/design-system/components/menu/anchored-popover'
+import { useOrganizationActions } from '@/platform/lib/data/shell-actions'
 import { plural } from '@/platform/lib/plural'
 
 function focusNameField(frame: HTMLDivElement | null) {
@@ -19,7 +24,6 @@ function focusNameField(frame: HTMLDivElement | null) {
 interface OrganizationMenuProps {
   anchor: RefObject<HTMLElement | null>
   organization: ShellData['organization']
-  actions: ShellOrganizationActions
   onOpen: () => void
   onSettings: () => void
 }
@@ -27,7 +31,6 @@ interface OrganizationMenuProps {
 export function OrganizationMenu({
   anchor,
   organization,
-  actions,
   onOpen,
   onSettings,
 }: OrganizationMenuProps) {
@@ -35,8 +38,8 @@ export function OrganizationMenu({
   const [invite, setInvite] = useState(false)
   const [draftName, setDraftName] = useState<string | null>(null)
   const [renameError, setRenameError] = useState<string | null>(null)
-  const [renaming, setRenaming] = useState(false)
-  const [uploading, setUploading] = useState(false)
+  const actions = useOrganizationActions()
+  const { isRenaming: renaming, isUploadingLogo: uploading } = actions
   /** The name just saved, shown until the refreshed surface replaces the one it was saved over. */
   const [savedName, setSavedName] = useState<{ name: string; replaces: string } | null>(null)
   const opener = useRef<HTMLElement>(null)
@@ -64,7 +67,6 @@ export function OrganizationMenu({
       stopRenaming()
       return true
     }
-    setRenaming(true)
     try {
       await actions.rename(next)
       setSavedName({ name: next, replaces: organization.name })
@@ -73,16 +75,7 @@ export function OrganizationMenu({
     } catch (error) {
       setRenameError(getErrorMessage(error, 'Failed to rename organization'))
       return false
-    } finally {
-      setRenaming(false)
     }
-  }
-
-  async function uploadLogo(file: File | undefined) {
-    if (!file || uploading) return
-    setUploading(true)
-    await actions.uploadLogo(file)
-    setUploading(false)
   }
 
   return (
@@ -173,13 +166,13 @@ export function OrganizationMenu({
                 ref={fileInput}
                 className={styles.logoInput}
                 type='file'
-                accept={actions.logoAccept}
+                accept={LOGO_ACCEPT_ATTRIBUTE}
                 aria-label='Organization logo'
                 disabled={uploading}
                 onChange={(event) => {
                   const file = event.target.files?.[0]
                   event.target.value = ''
-                  void uploadLogo(file)
+                  if (file) void actions.uploadLogo(file)
                 }}
               />
               <MenuItem
@@ -206,7 +199,7 @@ export function OrganizationMenu({
           />
         </div>
       </AnchoredPopover>
-      {invite && <InviteModal open={invite} onOpenChange={setInvite} />}
+      {invite && <InviteModal onClose={() => setInvite(false)} />}
     </>
   )
 }

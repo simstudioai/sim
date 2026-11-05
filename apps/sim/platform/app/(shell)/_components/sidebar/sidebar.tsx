@@ -3,9 +3,8 @@
 import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { getOrganizationSettingsHref } from '@/components/settings/navigation'
 import { isMacPlatform } from '@/lib/core/utils/platform'
-import { organizationRoutes } from '@/lib/navigation/paths'
+import { isPathOrDescendant, organizationRoutes } from '@/lib/navigation/paths'
 import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import { OrganizationSettingsRail } from '@/app/o/[organizationId]/settings/organization-settings-rail'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
@@ -24,22 +23,18 @@ import {
 } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar.module.css'
 import { WorkspacesSection } from '@/platform/app/(shell)/_components/sidebar/workspaces-section'
-import {
-  Avatar,
-  ContextActionMenu,
-  Icon,
-  IconButton,
-  ScrollArea,
-  Tooltip,
-} from '@/platform/design-system/components'
+import { Avatar } from '@/platform/design-system/components/avatar/avatar'
+import { IconButton } from '@/platform/design-system/components/button/button'
 import { ControlRow } from '@/platform/design-system/components/button/control-row'
+import { Icon } from '@/platform/design-system/components/icon/icon'
+import { ContextActionMenu } from '@/platform/design-system/components/menu/action-menu'
+import { ScrollArea } from '@/platform/design-system/components/scroll-area/scroll-area'
+import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
 import { useNavWarmers } from '@/platform/lib/data/nav-warmers'
 import { type OrganizationNavFlags, useOrganizationShell } from '@/platform/lib/data/shell'
+import { useShellActions } from '@/platform/lib/data/shell-actions'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
-
-/** Menus and dialogs portal into their surface, so unlike legacy popovers they sit inside the rail. */
-const OVERLAY_SELECTOR = '[data-side], dialog'
 
 /**
  * The organization surface's rail in the design system's style, hosted by the same `WorkspaceChrome`
@@ -54,9 +49,10 @@ const OVERLAY_SELECTOR = '[data-side], dialog'
 export function Sidebar(flags: OrganizationNavFlags) {
   const { isCollapsed: railCollapsed, isPeeking, onToggle } = useSidebarChrome()
   const collapsed = railCollapsed && !isPeeking
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ''
   const router = useRouter()
-  const { data, actions } = useOrganizationShell(flags)
+  const { data, retryChats, retryWorkspaces } = useOrganizationShell(flags)
+  const actions = useShellActions()
   const { organization, destinations } = data
   const header = useRef<HTMLDivElement>(null)
   const footer = useRef<HTMLDivElement>(null)
@@ -64,13 +60,12 @@ export function Sidebar(flags: OrganizationNavFlags) {
   const warmers = useNavWarmers(organization.id)
   const [workspacesOpen, setWorkspacesOpen] = useState(true)
   const [chatsOpen, setChatsOpen] = useState(true)
-  const commandOpen = useSearchModalStore((state) => state.isOpen)
   const setCommandOpen = useSearchModalStore((state) => state.setOpen)
 
-  const settingsPath = organizationRoutes(organization.id).settings
-  const isSettings = pathname === settingsPath || Boolean(pathname?.startsWith(`${settingsPath}/`))
-  const membersSettings = getOrganizationSettingsHref(organization.id, 'members')
-  const generalSettings = organizationRoutes(organization.id).settingsSection('general')
+  const routes = organizationRoutes(organization.id)
+  const isSettings = isPathOrDescendant(pathname, routes.settings)
+  const membersSettings = routes.settingsSection('members')
+  const generalSettings = routes.settingsSection('general')
   const shortcutModifier = isMacPlatform() ? '⌘' : 'Ctrl+'
 
   useRegisterGlobalCommands(() =>
@@ -88,9 +83,7 @@ export function Sidebar(flags: OrganizationNavFlags) {
       data-settings={isSettings || undefined}
       aria-label='Organization sidebar'
       onClick={(event) => {
-        const overlay = event.target instanceof Element && event.target.closest(OVERLAY_SELECTOR)
-        if (!overlay && isSidebarBackgroundClick(event))
-          useFolderStore.getState().clearChatSelection()
+        if (isSidebarBackgroundClick(event)) useFolderStore.getState().clearChatSelection()
       }}
     >
       <div className={styles.column}>
@@ -128,7 +121,6 @@ export function Sidebar(flags: OrganizationNavFlags) {
                   <OrganizationMenu
                     anchor={header}
                     organization={organization}
-                    actions={actions.organization}
                     onOpen={() => router.prefetch(membersSettings)}
                     onSettings={() => actions.navigate(membersSettings)}
                   />
@@ -157,12 +149,7 @@ export function Sidebar(flags: OrganizationNavFlags) {
             </div>
           </div>
           <CommandMenu
-            open={commandOpen}
-            onClose={() => setCommandOpen(false)}
-            navigate={(href) => {
-              setCommandOpen(false)
-              actions.navigate(href)
-            }}
+            navigate={actions.navigate}
             chats={data.chats}
             workspaces={data.workspaces}
             destinations={destinations}
@@ -170,14 +157,13 @@ export function Sidebar(flags: OrganizationNavFlags) {
         </RedesignSurface>
         <div className={styles.body}>
           {isSettings ? (
-            <OrganizationSettingsRail isCollapsed={collapsed} showCollapsedTooltips={collapsed} />
+            <OrganizationSettingsRail collapsed={collapsed} />
           ) : (
             <RedesignSurface>
               <div className={styles.bodyFrame} data-material='shell'>
                 <nav className={styles.nav} aria-label='Main navigation'>
                   {destinations.map((item) => {
-                    const selected =
-                      pathname === item.value || Boolean(pathname?.startsWith(`${item.value}/`))
+                    const selected = isPathOrDescendant(pathname, item.value)
                     const row = (
                       <ControlRow
                         label={collapsed ? undefined : item.label}
@@ -212,6 +198,7 @@ export function Sidebar(flags: OrganizationNavFlags) {
                     <WorkspacesSection
                       data={data}
                       actions={actions}
+                      onRetry={retryWorkspaces}
                       collapsed={collapsed}
                       open={workspacesOpen}
                       onOpenChange={setWorkspacesOpen}
@@ -221,7 +208,7 @@ export function Sidebar(flags: OrganizationNavFlags) {
                         organizationId={organization.id}
                         chats={data.chats}
                         status={data.status.chats}
-                        actions={actions.chats}
+                        onRetry={retryChats}
                         collapsed={collapsed}
                         open={chatsOpen}
                         onOpenChange={setChatsOpen}
@@ -250,7 +237,7 @@ export function Sidebar(flags: OrganizationNavFlags) {
               <span className={styles.accountSkeleton} aria-hidden />
             )}
             <div className={styles.help}>
-              <HelpMenu help={actions.help} />
+              <HelpMenu />
             </div>
           </div>
         </RedesignSurface>

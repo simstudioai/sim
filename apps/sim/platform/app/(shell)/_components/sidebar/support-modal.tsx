@@ -1,18 +1,26 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import type { ShellSupport } from '@/platform/app/(shell)/_components/model'
-import { readFormText } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import {
-  AttachmentGrid,
-  FileField,
-  Modal,
+  ACCEPTED_HELP_IMAGE_TYPES,
+  compressHelpImage,
+  DEFAULT_HELP_REQUEST_TYPE,
+  HELP_REQUEST_TYPE_OPTIONS,
+  submitHelpRequest,
+  validateHelpImage,
+} from '@/lib/help/request'
+import { readFormText } from '@/platform/app/(shell)/_components/sidebar/row-links'
+import { AttachmentGrid } from '@/platform/design-system/components/attachments/attachment-grid'
+import {
   SelectField,
   TextAreaField,
   TextField,
-} from '@/platform/design-system/components'
+} from '@/platform/design-system/components/field/fields'
+import { FileField } from '@/platform/design-system/components/field/file-field'
+import { Modal } from '@/platform/design-system/components/modal/modal'
 
 interface SupportImage {
   id: string
@@ -20,11 +28,10 @@ interface SupportImage {
 }
 
 interface SupportModalProps {
-  support: ShellSupport
   onClose: () => void
 }
 
-export function SupportModal({ support, onClose }: SupportModalProps) {
+export function SupportModal({ onClose }: SupportModalProps) {
   const [images, setImages] = useState<readonly SupportImage[]>([])
   const [imageError, setImageError] = useState<string>()
   const [processing, setProcessing] = useState(false)
@@ -33,8 +40,9 @@ export function SupportModal({ support, onClose }: SupportModalProps) {
     setImageError(undefined)
     setProcessing(true)
     try {
-      const prepared = await support.prepareImage(file)
-      const image = { id: generateId(), file: prepared }
+      const problem = validateHelpImage(file)
+      if (problem) throw new Error(problem)
+      const image = { id: generateId(), file: await compressHelpImage(file) }
       setImages((previous) => [...previous, image])
     } catch (error) {
       setImageError(getErrorMessage(error, 'That image could not be attached.'))
@@ -59,19 +67,22 @@ export function SupportModal({ support, onClose }: SupportModalProps) {
         const message = readFormText(values, 'message')
         if (!subject) throw new Error('Subject is required')
         if (!message) throw new Error('Message is required')
-        await support.submit({
-          type: readFormText(values, 'type'),
-          subject,
-          message,
+        const type = HELP_REQUEST_TYPE_OPTIONS.find(
+          (option) => option.value === readFormText(values, 'type')
+        )
+        if (!type) throw new Error('Select a request type')
+        await submitHelpRequest({
+          data: { type: type.value, subject, message },
           images: images.map((image) => image.file),
         })
+        toast.success('Request sent')
       }}
     >
       <SelectField
         label='Request'
         name='type'
-        defaultValue={support.requestTypes[0]?.value}
-        options={support.requestTypes}
+        defaultValue={DEFAULT_HELP_REQUEST_TYPE}
+        options={HELP_REQUEST_TYPE_OPTIONS}
       />
       <TextField
         label='Subject'
@@ -88,7 +99,7 @@ export function SupportModal({ support, onClose }: SupportModalProps) {
       <FileField
         label='Images'
         optional
-        accept={support.imageAccept}
+        accept={ACCEPTED_HELP_IMAGE_TYPES.join(',')}
         disabled={processing}
         error={imageError}
         onFileChange={(file) => void attach(file)}

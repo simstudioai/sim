@@ -1,30 +1,25 @@
 'use client'
 
 import { useState } from 'react'
-import type { ShellHelp } from '@/platform/app/(shell)/_components/model'
 import { openLinkInNewTab } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import { SupportModal } from '@/platform/app/(shell)/_components/sidebar/support-modal'
 import { ActionMenu, type MenuAction } from '@/platform/design-system/components/menu/action-menu'
+import { useHelp } from '@/platform/lib/data/shell-actions'
 
-interface HelpMenuProps {
-  help: ShellHelp
-}
-
-export function HelpMenu({ help }: HelpMenuProps) {
+export function HelpMenu() {
+  const help = useHelp()
   const [contacting, setContacting] = useState(false)
   const { desktopUpdate, downloadUrl, changelogUrl } = help
-  const actions: MenuAction[] = [
-    ...(desktopUpdate
-      ? [
-          {
-            id: 'desktop-update',
-            label: desktopUpdate.label,
-            icon: 'I049',
-            disabled: desktopUpdate.disabled,
-            onSelect: desktopUpdate.run,
-          } satisfies MenuAction,
-        ]
-      : []),
+  const actions: MenuAction[] = []
+  if (desktopUpdate)
+    actions.push({
+      id: 'desktop-update',
+      label: desktopUpdate.label,
+      icon: 'I049',
+      disabled: desktopUpdate.disabled,
+      onSelect: desktopUpdate.run,
+    })
+  actions.push(
     {
       id: 'documentation',
       label: 'Docs',
@@ -45,38 +40,32 @@ export function HelpMenu({ help }: HelpMenuProps) {
       label: 'Contact support',
       icon: 'I047',
       onSelect: () => setContacting(true),
-    },
-    ...(downloadUrl
-      ? [
-          {
-            id: 'downloads',
-            label: 'Download apps',
-            icon: 'I102',
-            separatorBefore: true,
-            children: [
-              {
-                id: 'macos',
-                label: 'Sim for macOS',
-                icon: 'I041',
-                trailingIcon: 'I030',
-                onSelect: () => openLinkInNewTab(downloadUrl),
-              },
-            ],
-          } satisfies MenuAction,
-        ]
-      : []),
-    ...(changelogUrl
-      ? [
-          {
-            id: 'changelog',
-            label: 'Changelog',
-            icon: 'I046',
-            separatorBefore: !downloadUrl,
-            onSelect: () => openLinkInNewTab(changelogUrl),
-          } satisfies MenuAction,
-        ]
-      : []),
-  ]
+    }
+  )
+  if (downloadUrl)
+    actions.push({
+      id: 'downloads',
+      label: 'Download apps',
+      icon: 'I102',
+      separatorBefore: true,
+      children: [
+        {
+          id: 'macos',
+          label: 'Sim for macOS',
+          icon: 'I041',
+          trailingIcon: 'I030',
+          onSelect: () => openLinkInNewTab(downloadUrl),
+        },
+      ],
+    })
+  if (changelogUrl)
+    actions.push({
+      id: 'changelog',
+      label: 'Changelog',
+      icon: 'I046',
+      separatorBefore: !downloadUrl,
+      onSelect: () => openLinkInNewTab(changelogUrl),
+    })
   return (
     <>
       <ActionMenu
@@ -85,7 +74,7 @@ export function HelpMenu({ help }: HelpMenuProps) {
         icon={desktopUpdate ? 'I049' : 'I047'}
         actions={actions}
       />
-      {contacting && <SupportModal support={help.support} onClose={() => setContacting(false)} />}
+      {contacting && <SupportModal onClose={() => setContacting(false)} />}
     </>
   )
 }

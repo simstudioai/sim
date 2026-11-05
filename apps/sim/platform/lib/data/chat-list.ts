@@ -11,10 +11,15 @@ import {
   useRenameMothershipChat,
   useSetMothershipChatPinned,
 } from '@/hooks/queries/mothership-chats'
-import type { ShellChatActions } from '@/platform/app/(shell)/_components/model'
 
-/** One organization's chat mutations. Failures of a fire-and-forget action report through a toast. */
-export function useChatListActions(organizationId: string): Omit<ShellChatActions, 'retry'> {
+/** A partial bulk failure still reports which chats went, so the view can narrow what is left. */
+interface ChatRemoval {
+  removedIds: readonly string[]
+  failure?: string
+}
+
+/** Failures of a fire-and-forget action report through a toast. */
+export function useChatListActions(organizationId: string) {
   const owner = { organizationId }
   const { mutateAsync: deleteChat } = useDeleteMothershipChat(owner)
   const { mutateAsync: deleteChats } = useDeleteMothershipChats(owner)
@@ -24,10 +29,10 @@ export function useChatListActions(organizationId: string): Omit<ShellChatAction
   const { mutate: unreadChat } = useMarkMothershipChatUnread(owner)
   const reportFailure = { onError: (error: Error) => void toast.error(error.message) }
   return {
-    rename: async (chatId, title) => {
+    rename: async (chatId: string, title: string) => {
       await renameChat({ chatId, title })
     },
-    async remove(ids) {
+    async remove(ids: readonly string[]): Promise<ChatRemoval> {
       try {
         if (ids.length === 1) await deleteChat(ids[0])
         else await deleteChats([...ids])
@@ -39,8 +44,8 @@ export function useChatListActions(organizationId: string): Omit<ShellChatAction
         }
       }
     },
-    setPinned: (chatId, pinned) => pinChat({ chatId, pinned }, reportFailure),
-    setRead: (chatId, read) =>
+    setPinned: (chatId: string, pinned: boolean) => pinChat({ chatId, pinned }, reportFailure),
+    setRead: (chatId: string, read: boolean) =>
       read ? readChat(chatId, reportFailure) : unreadChat(chatId, reportFailure),
   }
 }

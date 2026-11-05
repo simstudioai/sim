@@ -22,7 +22,6 @@ import { useRouter } from 'next/navigation'
 import { SlackIcon } from '@/components/icons'
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { signOutAndRedirect } from '@/lib/auth/sign-out'
-import { getDesktopUpdates } from '@/lib/desktop'
 import { rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip'
@@ -34,6 +33,7 @@ import { useUserProfile } from '@/hooks/queries/user-profile'
 import {
   desktopUpdateActionLabel,
   hasAvailableDesktopUpdate,
+  runDesktopUpdateAction,
   useDesktopUpdateState,
 } from '@/hooks/use-desktop-update-state'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
@@ -120,14 +120,7 @@ export function SidebarFooter({
   const updateAvailable = hasAvailableDesktopUpdate(updateState)
   const canSignOut = Boolean(profile && profile.id !== ANONYMOUS_USER_ID)
 
-  const handleUpdateSelect = () => {
-    const updates = getDesktopUpdates()
-    if (updateState.status === 'ready') {
-      updates?.install()
-    } else if (updateState.status === 'available') {
-      updates?.check()
-    }
-  }
+  const handleUpdateSelect = () => runDesktopUpdateAction(updateState)
 
   /**
    * Built from plain `img`/`div` rather than the emcn `Avatar`, whose Radix root

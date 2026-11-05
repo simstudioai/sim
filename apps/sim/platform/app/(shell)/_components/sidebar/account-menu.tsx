@@ -2,9 +2,11 @@
 
 import { type RefObject, useState } from 'react'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar.module.css'
-import { Avatar, MenuItem, Tooltip } from '@/platform/design-system/components'
+import { Avatar } from '@/platform/design-system/components/avatar/avatar'
 import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
+import { MenuItem } from '@/platform/design-system/components/menu/action-menu'
 import { AnchoredPopover } from '@/platform/design-system/components/menu/anchored-popover'
+import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
 
 interface AccountMenuProps {
   anchor: RefObject<HTMLElement | null>

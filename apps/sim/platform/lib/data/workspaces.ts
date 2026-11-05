@@ -1,29 +1,29 @@
 'use client'
 
 import { toast } from '@sim/emcn'
+import { WORKSPACES_PATH } from '@/lib/navigation/paths'
 import {
   useCreateWorkspace,
   useToggleWorkspacePin,
   useUpdateWorkspace,
 } from '@/hooks/queries/workspace'
-import type { ShellWorkspaceActions } from '@/platform/app/(shell)/_components/model'
 
-/** The workspace mutations the sidebar offers. `hrefFor` names where a workspace opens. */
-export function useWorkspaceActions(
-  hrefFor: (workspaceId: string) => string
-): Omit<ShellWorkspaceActions, 'retry'> {
+export const workspaceHref = (workspaceId: string) => `${WORKSPACES_PATH}/${workspaceId}`
+
+export function useWorkspaceActions() {
   const { mutateAsync: createWorkspace } = useCreateWorkspace()
   const { mutateAsync: updateWorkspace } = useUpdateWorkspace()
   const { mutate: togglePin } = useToggleWorkspacePin()
   return {
-    async create(name) {
+    /** Resolves with where the new workspace opens. */
+    async create(name: string) {
       const workspace = await createWorkspace({ name })
-      return hrefFor(workspace.id)
+      return workspaceHref(workspace.id)
     },
-    async rename(workspaceId, name) {
+    async rename(workspaceId: string, name: string) {
       await updateWorkspace({ workspaceId, name })
     },
-    setPinned: (workspaceId, pinned) =>
+    setPinned: (workspaceId: string, pinned: boolean) =>
       togglePin({ workspaceId, pinned }, { onError: (error) => void toast.error(error.message) }),
   }
 }

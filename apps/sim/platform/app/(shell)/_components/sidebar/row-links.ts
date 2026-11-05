@@ -30,7 +30,6 @@ export function copyLinkAction(href: string): MenuAction {
   return { id: 'copy-link', label: 'Copy link', icon: 'I006', onSelect: () => void copyLink(href) }
 }
 
-/** A form dialog's text field, trimmed. */
 export function readFormText(values: FormData, name: string): string {
   const value = values.get(name)
   return typeof value === 'string' ? value.trim() : ''
