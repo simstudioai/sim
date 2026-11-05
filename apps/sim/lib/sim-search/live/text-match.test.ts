@@ -66,7 +66,7 @@ describe('text match clauses', () => {
     expect(confluenceTextClause(String.raw`C:\builds\out`, 'any')).toBe(
       'siteSearch ~ "C  builds out"'
     )
-    expect(confluenceTextClause(String.raw` :\ `, 'all')).toBe('')
+    expect(confluenceTextClause(String.raw` :\ `, 'all')).toBeUndefined()
   })
 
   it('falls back to the all-terms clause when fewer than two terms are distinctive', () => {
