@@ -2877,6 +2877,15 @@ async function linksChecks() {
         await expect(row.getByText(/^Restricted · /)).toBeVisible()
         const columns = await page.getByRole('columnheader').allInnerTexts()
         assert(!columns.join().includes('Created by'), `Columns ${columns}`)
+        const [nameCell, list] = [
+          await row.getByRole('cell').first().boundingBox(),
+          await page.getByRole('region', { name: 'Links' }).boundingBox(),
+        ]
+        assert(nameCell && list, 'The row and the list are on screen')
+        assert(
+          nameCell.width > list.width / 2,
+          `With 183 links windowed, Name is ${nameCell.width} of ${list.width}`
+        )
       },
       { viewport: PHONE }
     )

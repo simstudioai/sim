@@ -274,7 +274,6 @@ function VirtualTable({
   const items = virtualizer.getVirtualItems()
   const before = items[0]?.start ?? 0
   const after = virtualizer.getTotalSize() - (items[items.length - 1]?.end ?? 0)
-  const columnCount = fields.length + (actionColumn ? 1 : 0)
   return (
     <div
       ref={scrollRef}
@@ -291,7 +290,7 @@ function VirtualTable({
           onSortChange={onSortChange}
         />
         <tbody>
-          <VirtualSpacer blockSize={before} columnCount={columnCount} />
+          <VirtualSpacer blockSize={before} fields={fields} actionColumn={actionColumn} />
           {items.map((item) => (
             <TableRowView
               key={item.key}
@@ -302,7 +301,7 @@ function VirtualTable({
               rowRef={virtualizer.measureElement}
             />
           ))}
-          <VirtualSpacer blockSize={after} columnCount={columnCount} />
+          <VirtualSpacer blockSize={after} fields={fields} actionColumn={actionColumn} />
         </tbody>
       </table>
       {loadMore && <LoadMoreFooter state={loadMore} />}
@@ -312,11 +311,16 @@ function VirtualTable({
 
 interface VirtualSpacerProps {
   blockSize: number
-  columnCount: number
+  fields: readonly TableField[]
+  actionColumn: boolean
 }
 
-/** Stands in for rows outside the window, keeping the native table's scroll height. */
-function VirtualSpacer({ blockSize, columnCount }: VirtualSpacerProps) {
+/**
+ * Stands in for rows outside the window, keeping the native table's scroll height. One cell per
+ * column, hidden with its column: a spanning cell would make a fixed table lay out every hidden
+ * column as an empty one, squeezing the visible ones.
+ */
+function VirtualSpacer({ blockSize, fields, actionColumn }: VirtualSpacerProps) {
   if (blockSize <= 0) return null
   return (
     <tr
@@ -325,7 +329,10 @@ function VirtualSpacer({ blockSize, columnCount }: VirtualSpacerProps) {
         row?.style.setProperty('block-size', `${blockSize}px`)
       }}
     >
-      <td colSpan={columnCount} />
+      {fields.map((column) => (
+        <td key={column.key} data-from={column.showFrom} />
+      ))}
+      {actionColumn && <td />}
     </tr>
   )
 }
