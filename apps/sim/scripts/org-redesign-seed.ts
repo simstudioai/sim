@@ -248,7 +248,7 @@ await db.transaction(async (tx) => {
       name: 'Standard Access',
       config: STANDARD_GROUP_CONFIG,
       createdBy: OWNER.userId,
-      isDefault: true,
+      membershipMode: 'explicit',
     },
     {
       id: NARROW_GROUP_ID,
@@ -430,6 +430,7 @@ await db.transaction(async (tx) => {
       authorizationAppId: policy.authorizationAppId,
       encryptedOauthTokenSet: await encryptManagedOAuthTokenSet({
         accessToken: `org-redesign-token-${option}`,
+        refreshToken: `org-redesign-refresh-${option}`,
       }),
       accessTokenExpiresAt: new Date(now.getTime() + 3_600_000),
       grantedAt: now,

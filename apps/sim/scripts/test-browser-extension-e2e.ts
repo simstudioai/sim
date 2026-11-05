@@ -2117,6 +2117,7 @@ try {
         .toBe(`/extension/o/${organizationId}`)
       await expect(frame().getByRole('textbox', { name: 'Ask Sim', exact: true })).toBeVisible()
       await expect(frame().getByRole('button', { name: 'Voice input', exact: true })).toBeVisible()
+      await expect(frame().locator('[data-platform-ui]')).toHaveCount(0)
       await screenshot('organization-new-chat')
       await setPanelViewport(320, 844)
       await screenshot('organization-microphone-320')

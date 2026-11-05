@@ -305,6 +305,7 @@ case "$group" in
     export CONFLUENCE_CLIENT_ID=org-redesign-confluence-client CONFLUENCE_CLIENT_SECRET=org-redesign-confluence-secret
     export STRIPE_SECRET_KEY=sk_test_org_redesign STRIPE_WEBHOOK_SECRET=whsec_org_redesign
     export DB_TX_TRIPWIRE=throw
+    export BROWSER_EXTENSION_IDS=abcdefghijklmnopabcdefghijklmnop
     bun --no-env-file scripts/org-redesign-seed.ts
     start_browser_install org-redesign --only-shell chromium
     bun --no-env-file scripts/org-redesign-e2e/scripted-agent.ts 3031 \
