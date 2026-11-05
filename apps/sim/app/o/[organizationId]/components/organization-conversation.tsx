@@ -34,7 +34,11 @@ import {
   organizationSearchParsers,
   organizationSearchUrlKeys,
 } from '@/app/o/[organizationId]/search/search-params'
-import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
+import {
+  type ChatPanelAppearance,
+  ChatResourcePanel,
+} from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
+import type { ChatAppearance } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ComposerScrollArea } from '@/app/workspace/[workspaceId]/home/components/composer-scroll-area'
 import { useSearchHistoryActions } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
@@ -90,7 +94,19 @@ const serializeSearchConversation = createSerializer({
   [resourceParam.key]: resourceParam.parser,
 })
 
-interface OrganizationConversationProps {
+/**
+ * Another design language's look for a whole conversation, supplied by its host so this module
+ * (which the extension also bundles) imports none of it. Absent, the conversation renders as it
+ * does in the extension's panel. The surface's behavior is the same either way.
+ */
+export interface OrganizationConversationAppearance {
+  composerChrome: ComposerChrome
+  threadClassName: string
+  chat: ChatAppearance
+  panel: ChatPanelAppearance
+}
+
+export interface OrganizationConversationProps {
   active?: boolean
   summaryRequest?: OrganizationSummaryRequest
   onSummaryConsumed?: (id: string) => void
@@ -100,13 +116,13 @@ interface OrganizationConversationProps {
   header?: ReactNode
   /** Names this surface's new-chat draft, for a surface that must not share another's. */
   draftId?: string
-  /** Replaces the landing, and the blank frame before it, until the first turn takes over. */
+  appearance?: OrganizationConversationAppearance
+  /** Replaces the blank frame shown until the conversation can mount. */
+  fallback?: ReactNode
+  /** Replaces the default landing until the first turn takes over. */
   landing?: {
     /** Shown over the conversation once the first turn has replaced the landing. */
     chatHeader?: ReactNode
-    /** The composer's look on this landing; the conversation that follows keeps the default one. */
-    composerChrome?: ComposerChrome
-    fallback: ReactNode
     render: (slot: OrganizationLandingSlot) => ReactNode
   }
   panelOptions?: {
@@ -136,7 +152,7 @@ export function OrganizationConversation(props: OrganizationConversationProps) {
     return null
   if (isRestoredChatEntry) return <HomeFallback header={props.header} />
   if (!isClient || !session?.user?.id)
-    return props.landing?.fallback ?? <HomeFallback header={props.header} />
+    return props.fallback ?? <HomeFallback header={props.header} />
   return (
     <OrganizationConversationContent
       key={`${session.user.id}:${organization.id}:${props.chatId ?? 'new'}:${props.panelOptions ? 'panel' : props.requestMode}`}
@@ -154,6 +170,7 @@ function OrganizationConversationContent({
   summaryRequest,
   onSummaryConsumed,
   draftId,
+  appearance,
   landing,
   panelOptions,
 }: OrganizationConversationProps) {
@@ -481,7 +498,7 @@ function OrganizationConversationContent({
 
   const composer = (
     <Composer
-      chrome={hasChat ? undefined : landing?.composerChrome}
+      chrome={appearance?.composerChrome}
       requestMode={requestMode}
       submission={submission}
       compact={Boolean(panelOptions)}
@@ -541,6 +558,8 @@ function OrganizationConversationContent({
           enabled={requestMode === 'assistant'}
         >
           <MothershipChat
+            className={appearance?.threadClassName}
+            appearance={appearance?.chat}
             reserveResourceHeader={!header && chat.resources.length > 0}
             onNavigateToChat={panelOptions?.onNavigateToChat}
             layout={panelOptions ? 'copilot-view' : undefined}
@@ -633,6 +652,7 @@ function OrganizationConversationContent({
   }
   return (
     <ChatResourcePanel
+      appearance={appearance?.panel}
       header={header}
       hideToggleUntilResource
       allowBuildControls={requestMode !== 'assistant' && canBuild}

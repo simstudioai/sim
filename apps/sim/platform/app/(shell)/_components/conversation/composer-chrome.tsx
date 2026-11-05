@@ -3,7 +3,8 @@
 import type { ReactNode } from 'react'
 import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import type { ComposerChrome } from '@/app/o/[organizationId]/home/components/composer'
-import styles from '@/platform/app/(shell)/home/_components/home-composer-chrome/home-composer-chrome.module.css'
+import styles from '@/platform/app/(shell)/_components/conversation/composer-chrome.module.css'
+import conversationStyles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
 import { IconButton, SegmentedControl } from '@/platform/design-system/components'
 
 const PLAN_OPTIONS = [
@@ -23,12 +24,12 @@ function ControlIsland({ children }: { children: ReactNode }) {
 }
 
 /**
- * The design's composer on Home. The field and the model selector are legacy components, so the
+ * The design's composer, on every organization destination. The field and the model selector are legacy components, so the
  * frame cannot be a surface: its material comes from a surface painted behind it, and each group of
  * design-system controls sits in a surface of its own beside them.
  */
-export const HOME_COMPOSER_CHROME: ComposerChrome = {
-  frameClassName: styles.frame,
+export const COMPOSER_CHROME: ComposerChrome = {
+  frameClassName: `${conversationStyles.palette} ${styles.frame}`,
   fieldClassName: styles.field,
   backdrop: (
     <div className={styles.backdrop} aria-hidden='true'>

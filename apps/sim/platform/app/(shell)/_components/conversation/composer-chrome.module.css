@@ -1,23 +1,16 @@
 /*
  * The frame holds legacy components, so it sits outside any surface and cannot read design-system
- * tokens. Its literal values are those of `--ui-ink`, `--ui-muted`, `--radius-composer`, and the
- * `T048` type role, set on the host tokens the legacy field reads; the host's own theme class
- * switches them, as it switches a `system` surface.
+ * tokens. Its literal values are those of `--radius-composer` and the `T048` type role; its text
+ * colors come from `conversation.module.css`'s palette, which it shares with the thread.
  *
  * The toolbar row holds 30px legacy controls around 28px design-system ones. The gap and the bottom
  * inset each give back that row's 1px of centering, so the controls land where the design puts them.
  */
 .frame {
-  --text-primary: rgb(10 10 10 / 80%);
-  --text-muted: rgb(10 10 10 / 60%);
   padding: 1.0625rem 0.8125rem 0.75rem;
   font-family: "Geist", sans-serif;
   letter-spacing: normal;
   -webkit-font-smoothing: antialiased;
-}
-html[class~="dark"] .frame {
-  --text-primary: #e6e6e6;
-  --text-muted: #a8a8a8;
 }
 .frame div:has(> textarea) > * {
   padding-block: 0;

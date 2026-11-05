@@ -16,6 +16,21 @@ import type { WorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/ty
 import type { ChatContext } from '@/stores/panel'
 
 /**
+ * Another design language's look for a chat's own chrome, supplied by its host so these components
+ * import none of it. Absent, the chat renders exactly as it does by default.
+ */
+export interface ChatAppearance {
+  userBubbleClassName?: string
+  /** The reply's action row: copy, votes, fork, and sources. */
+  responseActionsClassName?: string
+  sourcesPopoverClassName?: string
+  /** Replaces the transcript's skeleton while its history loads. */
+  loadingTranscript?: ReactNode
+  /** Holds the composer's place while the history loads. */
+  loadingComposer?: ReactNode
+}
+
+/**
  * Identity and interaction callbacks shared across a Mothership chat surface
  * (home conversation view, home initial view, copilot panel). Carried via
  * context so leaf components (UserInput, MessageContent, MessageActions) can
@@ -40,6 +55,7 @@ interface ChatSurfaceContextValue {
   onNavigateToChat?: (chatId: string) => void
   /** Opens a workspace resource referenced from rendered message content. */
   onWorkspaceResourceSelect: (resource: WorkspaceResourceRef) => void
+  appearance?: ChatAppearance
 }
 
 const ChatSurfaceContext = createContext<ChatSurfaceContextValue>({
@@ -57,6 +73,7 @@ interface ChatSurfaceProviderProps {
   onViewSources?: (messageId: string, requestId?: string) => void
   onNavigateToChat?: (chatId: string) => void
   onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
+  appearance?: ChatAppearance
   children: ReactNode
 }
 
@@ -74,6 +91,7 @@ export function ChatSurfaceProvider({
   onWorkspaceResourceSelect,
   onViewSources,
   onNavigateToChat,
+  appearance,
   children,
 }: ChatSurfaceProviderProps) {
   const onViewSourcesRef = useRef(onViewSources)
@@ -119,6 +137,7 @@ export function ChatSurfaceProvider({
       onContextAdd: stableOnContextAdd,
       onContextRemove: stableOnContextRemove,
       onWorkspaceResourceSelect: stableOnWorkspaceResourceSelect,
+      appearance,
     }),
     [
       hasSourcePanel,
@@ -131,6 +150,7 @@ export function ChatSurfaceProvider({
       stableOnContextAdd,
       stableOnContextRemove,
       stableOnWorkspaceResourceSelect,
+      appearance,
     ]
   )
 

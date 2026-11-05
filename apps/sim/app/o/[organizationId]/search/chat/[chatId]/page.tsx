@@ -5,7 +5,7 @@ import { getSession } from '@/lib/auth'
 import { getAccessibleCopilotChatAuth } from '@/lib/mothership/chat/lifecycle'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
-import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
+import { ConversationSkeleton } from '@/platform/app/(shell)/_components/conversation/skeletons'
 import { OrganizationSearchSurface } from '@/platform/app/(shell)/search/_components/search-surface/search-surface'
 
 export const metadata: Metadata = { title: 'Assistant Search' }
@@ -28,7 +28,7 @@ export default async function OrganizationSearchChatPage({
   if (!chat || chat.type !== 'mothership' || chat.organizationId !== organizationId) notFound()
   if (chat.mode !== 'assistant') redirect(organizationRoutes(organizationId).chat(chatId))
   return (
-    <Suspense fallback={<HomeFallback />}>
+    <Suspense fallback={<ConversationSkeleton header={null} />}>
       <OrganizationSearchSurface userId={session.user.id} chatId={chatId} />
     </Suspense>
   )

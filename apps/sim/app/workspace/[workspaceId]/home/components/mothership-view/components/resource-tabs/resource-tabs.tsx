@@ -220,6 +220,7 @@ function useResourceNameLookup(
 }
 
 interface ResourceTabsProps {
+  className?: string
   organizationId?: string
   allowBuildControls?: boolean
   workspaceId?: string
@@ -245,6 +246,7 @@ interface ResourceTabsProps {
  * component the browser and terminal panels nested inside this one use.
  */
 export function ResourceTabs({
+  className,
   organizationId,
   allowBuildControls = !organizationId,
   workspaceId,
@@ -612,7 +614,7 @@ export function ResourceTabs({
         onReorder={handleReorder}
         onTabDragStart={handleTabDragStart}
         variant='floating'
-        className={RESOURCE_HEADER_CLASSES.stripGeometry}
+        className={cn(RESOURCE_HEADER_CLASSES.stripGeometry, className)}
         newTabControl={
           // Offered before the chat exists too: a resource opened while composing
           // the first prompt is context for that prompt, and gating on a chat id

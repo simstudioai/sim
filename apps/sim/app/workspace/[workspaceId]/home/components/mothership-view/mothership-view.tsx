@@ -104,6 +104,8 @@ interface MothershipViewProps {
   activityResourceIds?: ReadonlySet<string>
   isCollapsed: boolean
   className?: string
+  tabsClassName?: string
+  sourcesClassName?: string
   previewSession?: FilePreviewSession | null
   isAgentResponding?: boolean
   onSummarize: (message: string, filters: WorkspaceSearchFilters) => void
@@ -125,6 +127,8 @@ export const MothershipView = memo(
       activityResourceIds,
       isCollapsed,
       className,
+      tabsClassName,
+      sourcesClassName,
       previewSession,
       isAgentResponding,
       onSummarize,
@@ -235,6 +239,7 @@ export const MothershipView = memo(
       >
         <div className='flex min-h-0 flex-1 flex-col'>
           <ResourceTabs
+            className={tabsClassName}
             organizationId={organizationId}
             allowBuildControls={allowBuildControls}
             workspaceId={workspaceId}
@@ -303,7 +308,11 @@ export const MothershipView = memo(
               )
             })}
             {active?.type === 'sources' && (
-              <SourcesResourceContent resource={active} chatId={chatId} />
+              <SourcesResourceContent
+                resource={active}
+                chatId={chatId}
+                className={sourcesClassName}
+              />
             )}
             {active && active.type !== 'sources' && !isPersistentPanel(active) && (
               <ScopedResourceContent

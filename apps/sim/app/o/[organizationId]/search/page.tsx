@@ -7,6 +7,7 @@ import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { Hydrated } from '@/app/o/[organizationId]/_redesign/hydrated'
 import { loadOrganizationSearchView } from '@/app/o/[organizationId]/search/search-params'
 import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
+import { LandingSkeleton } from '@/platform/app/(shell)/_components/conversation/skeletons'
 import { OrganizationSearchSurface } from '@/platform/app/(shell)/search/_components/search-surface/search-surface'
 import { prefetchSearch } from '@/platform/lib/data/prefetch'
 
@@ -27,8 +28,16 @@ export default async function OrganizationSearchPage({
   if (!context.searchAccess.memberScoped) redirect(WORKSPACE_SETTINGS_PATH)
   const surface = <OrganizationSearchSurface userId={session.user.id} />
   const { q, mode } = loadOrganizationSearchView(query)
+  const fallback =
+    mode === 'assistant' ? (
+      <LandingSkeleton field='composer' />
+    ) : q.trim() ? (
+      <HomeFallback />
+    ) : (
+      <LandingSkeleton field='search' />
+    )
   return (
-    <Suspense fallback={<HomeFallback />}>
+    <Suspense fallback={fallback}>
       {q.trim() || mode === 'assistant' ? (
         surface
       ) : (
