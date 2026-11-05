@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, type Locator, test } from '@playwright/test'
 
 const base = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
 
@@ -98,4 +98,36 @@ test('cancelled profile edits reset and saved name and picture survive Settings 
   await page.reload()
   await expect(page.getByRole('button', { name: 'Emir Karabeg', exact: true })).toBeVisible()
   await expect(picture).toHaveCount(0)
+})
+
+test('form titles start at their content edge and Cancel is consistent across routes', async ({
+  page,
+}) => {
+  function cancelPaint(dialog: Locator) {
+    return dialog.getByRole('button', { name: 'Cancel', exact: true }).evaluate((button) => {
+      const css = getComputedStyle(button)
+      return [css.borderWidth, css.backgroundColor, css.borderRadius, css.paddingInline]
+    })
+  }
+  async function expectTitleAtStart(dialog: Locator) {
+    const offset = await dialog.getByRole('heading').evaluate((heading) => {
+      const ink = new Range()
+      ink.selectNodeContents(heading)
+      return ink.getBoundingClientRect().left - heading.getBoundingClientRect().left
+    })
+    expect(Math.abs(offset)).toBeLessThan(1)
+  }
+  await page.goto(`${base}/home?state=full`)
+  await page.getByRole('button', { name: 'Organization menu', exact: true }).click()
+  await page.getByRole('button', { name: 'Invite', exact: true }).click()
+  const invite = page.getByRole('dialog', { name: 'Invite people' })
+  await expectTitleAtStart(invite)
+  const cancel = await cancelPaint(invite)
+  await page.goto(`${base}/settings?state=full`)
+  await page.getByRole('button', { name: 'Emir Karabeg', exact: true }).last().click()
+  const edit = page.getByRole('dialog', { name: 'Edit display name' })
+  await expectTitleAtStart(edit)
+  expect(await cancelPaint(edit)).toEqual(cancel)
+  await edit.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(edit).toBeHidden()
 })

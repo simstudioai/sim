@@ -581,12 +581,7 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
         </ModalBody>
       )
     case 'ModalFooter':
-      return (
-        <ModalFooter>
-          <Button variant='quiet'>Cancel</Button>
-          <Button variant='primary'>Send feedback</Button>
-        </ModalFooter>
-      )
+      return <ModalFooter confirmLabel='Send feedback' />
     case 'Modal': {
       if (family.includes('ResponseFeedback'))
         return (

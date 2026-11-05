@@ -5,6 +5,9 @@
 }
 
 .surface {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-list-gap);
   container: settings-rows / inline-size;
   padding: var(--spacing-4) var(--spacing-20);
   border: var(--spacing-stroke-default) solid var(--ui-divider);

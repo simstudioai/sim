@@ -39,6 +39,10 @@ Shared and Platform still own different recipes; `catalog/evidence.json` preserv
 
 Workspace lists, sidebar items, recents and attachment batches accept typed arrays with stable item IDs. Use the named components for these collection masters: a Paper specimen's item count is sample data. An empty array renders zero items, and adding items preserves their registered row/card appearance. Each scroll viewport determines fades and controls from its actual contents. Chart labels, marks, inspected values and legends come from the same series. Supply raw numeric values and their units to data tables. The column schema determines alignment and which columns remain visible as the table narrows.
 
+The full scenario includes long email descriptions, twenty workspaces and sixteen linked conversations. Open Home at normal or narrow width to see clipping, scrolling and the list rhythm. Sidebar groups, command results and other scrollable owners share a directional fade that clears at the boundary. The same rules apply in Electron.
+
+Form dialogs receive their title and actions as data. EMCN owns title alignment and the quiet Cancel button, including multi-step forms. The [design contract](AGENTS.md) defines the shared button sizes, switch shapes, row alignment, icon ink and gaps.
+
 ### Keyboard and dropdown behavior
 
 Focus places the caret or keyboard target without changing the control’s border, outline, background or shadow. Selection, validation and the highlighted list item retain their Paper treatments. Use the same EMCN value picker and floating surface on the workbench and in a modal. Select handles a fixed set of values, a searchable combobox supports longer lists, and an action menu supports commands and nested menus. The Help menu in the workbench exercises the cascade.

@@ -12,7 +12,7 @@
   min-block-size: var(--spacing-app-control-sm);
   padding: 0;
   border: 0;
-  border-radius: var(--ui-control-radius);
+  border-radius: var(--radius-full);
   gap: var(--spacing-1);
   background: var(--choice-track);
 }
@@ -38,7 +38,7 @@
   gap: var(--spacing-6);
   justify-content: center;
   border: var(--spacing-stroke-default) solid transparent;
-  border-radius: var(--ui-control-radius);
+  border-radius: var(--radius-full);
   color: var(--ui-secondary);
   overflow-wrap: anywhere;
 }

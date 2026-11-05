@@ -1,31 +1,60 @@
 import type { ReactNode } from 'react'
+import { Collapsible } from '@base-ui/react/collapsible'
 import styles from '@/platform/design-system/components/disclosure/disclosure.module.css'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 
-interface DisclosureProps {
+type DisclosureProps = {
   label: string
   initiallyOpen?: boolean
   open?: boolean
   onOpenChange?: (open: boolean) => void
-  variant?: 'section' | 'activity'
-  actions?: ReactNode
   children: ReactNode
-}
+} & (
+  | { variant?: 'section'; actions?: ReactNode; introduction?: never }
+  | { variant: 'activity'; introduction?: ReactNode; actions?: never }
+)
 
 export function Disclosure({
   label,
   initiallyOpen,
-  open = initiallyOpen,
+  open,
   onOpenChange,
   variant = 'section',
   actions,
+  introduction,
   children,
 }: DisclosureProps) {
+  const title = (
+    <>
+      {label}
+      <span className={styles.collapsed}>
+        <Icon name='I090' />
+      </span>
+      <span className={styles.expanded}>
+        <Icon name='I051' />
+      </span>
+    </>
+  )
+  if (variant === 'activity')
+    return (
+      <Collapsible.Root
+        className={styles.activity}
+        defaultOpen={initiallyOpen}
+        open={open}
+        onOpenChange={onOpenChange}
+      >
+        <Collapsible.Trigger className={styles.summary} data-type='T060'>
+          {title}
+        </Collapsible.Trigger>
+        {introduction}
+        <Collapsible.Panel>{children}</Collapsible.Panel>
+      </Collapsible.Root>
+    )
   const disclosure = (
-    <details className={styles.disclosure} data-variant={variant} open={open}>
+    <details className={styles.disclosure} open={open ?? initiallyOpen}>
       <summary
         className={styles.summary}
-        data-type={variant === 'section' ? 'T052' : 'T060'}
+        data-type='T052'
         onClick={
           onOpenChange &&
           ((event) => {
@@ -34,13 +63,7 @@ export function Disclosure({
           })
         }
       >
-        {label}
-        <span className={styles.collapsed}>
-          <Icon name='I090' />
-        </span>
-        <span className={styles.expanded}>
-          <Icon name='I051' />
-        </span>
+        {title}
       </summary>
       {children}
     </details>

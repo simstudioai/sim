@@ -14,6 +14,7 @@ interface ModalStep {
 interface ModalActions {
   title: string
   confirmLabel: string
+  confirmDisabled?: boolean
   onConfirm?: (values: FormData) => void
 }
 type ModalTrigger =
@@ -46,6 +47,7 @@ function ModalSurface({
   triggerIcon,
   title,
   confirmLabel,
+  confirmDisabled,
   steps,
   destructive,
   presentation = 'form',
@@ -73,13 +75,13 @@ function ModalSurface({
       )}
       <OverlayDialog
         open={open}
-        label={title}
         title={title}
         description={step.description}
         presentation={presentation}
         onClose={close}
         onSubmit={(event) => {
           event.preventDefault()
+          if (last && confirmDisabled) return
           if (!last) {
             setIndex(index + 1)
             return
@@ -95,15 +97,13 @@ function ModalSurface({
           </ModalBody>
         ))}
         <ModalFooter
+          confirmLabel={last ? confirmLabel : 'Continue'}
+          onPrevious={() => (index === 0 ? close() : setIndex(index - 1))}
+          previousStep={index > 0}
+          disabled={last && confirmDisabled}
+          destructive={destructive}
           progress={steps.length > 1 ? `Step ${index + 1} of ${steps.length}` : undefined}
-        >
-          <Button variant='quiet' onClick={() => (index === 0 ? close() : setIndex(index - 1))}>
-            {index === 0 ? 'Cancel' : 'Back'}
-          </Button>
-          <Button variant={destructive ? 'destructive' : 'primary'} submit>
-            {last ? confirmLabel : 'Continue'}
-          </Button>
-        </ModalFooter>
+        />
       </OverlayDialog>
     </>
   )
@@ -124,6 +124,7 @@ export function Modal({
   onOpenChange,
   title,
   confirmLabel,
+  confirmDisabled,
   onConfirm,
   children,
   variant = 'form',
@@ -138,6 +139,7 @@ export function Modal({
       onOpenChange={onOpenChange}
       title={title}
       confirmLabel={confirmLabel}
+      confirmDisabled={confirmDisabled}
       onConfirm={onConfirm}
       steps={[{ description, content: children }]}
       destructive={destructive}
@@ -150,6 +152,7 @@ export function MultiStepModal({
   triggerLabel,
   title,
   confirmLabel,
+  confirmDisabled,
   steps,
   onConfirm,
 }: MultiStepModalProps) {
@@ -158,6 +161,7 @@ export function MultiStepModal({
       triggerLabel={triggerLabel}
       title={title}
       confirmLabel={confirmLabel}
+      confirmDisabled={confirmDisabled}
       steps={steps}
       onConfirm={onConfirm}
     />

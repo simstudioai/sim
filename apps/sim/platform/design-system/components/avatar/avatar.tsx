@@ -1,6 +1,9 @@
+'use client'
+
 import styles from '@/platform/design-system/components/avatar/avatar.module.css'
 import { avatarInitials } from '@/platform/design-system/components/avatar/avatar-initials'
 import { IconButton } from '@/platform/design-system/components/button/button'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
 
 interface AvatarImageProps {
@@ -60,8 +63,14 @@ interface PeoplePopoverProps {
 }
 
 export function PeoplePopover({ title, people }: PeoplePopoverProps) {
+  const scrollRef = useScrollEdges<HTMLSpanElement>()
   return (
-    <span className={styles.peoplePopover} data-material='floating' data-elevation='menu'>
+    <span
+      ref={scrollRef}
+      className={styles.peoplePopover}
+      data-material='floating'
+      data-elevation='menu'
+    >
       <span className={styles.peopleHeading} data-type='T052'>
         {title}
       </span>

@@ -4,6 +4,7 @@ import { Autocomplete } from '@base-ui/react/autocomplete'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import styles from '@/platform/design-system/components/command-palette/command-palette.module.css'
 import { Icon } from '@/platform/design-system/components/icon/icon'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 interface Command {
   id: string
@@ -24,6 +25,8 @@ interface CommandPaletteProps {
 }
 
 export function CommandPalette({ groups, label, onSelect }: CommandPaletteProps) {
+  const scrollEdges = useScrollEdges<HTMLDivElement>()
+  const queryEdges = useScrollEdges<HTMLInputElement>('horizontal')
   return (
     <Autocomplete.Root
       items={groups.filter((group) => group.items.length > 0)}
@@ -32,14 +35,14 @@ export function CommandPalette({ groups, label, onSelect }: CommandPaletteProps)
       autoHighlight='always'
       itemToStringValue={(item) => item.label}
     >
-      <div className={styles.field}>
+      <div className={styles.field} data-type='T094'>
         <Icon name='I089' />
-        <Autocomplete.Input aria-label={label} placeholder={`${label}…`} data-type='T094' />
+        <Autocomplete.Input ref={queryEdges} aria-label={label} placeholder={`${label}…`} />
       </div>
       <Autocomplete.Empty className={styles.empty} data-type='T052'>
         No results found
       </Autocomplete.Empty>
-      <Autocomplete.List aria-label='Search results' className={styles.results}>
+      <Autocomplete.List ref={scrollEdges} aria-label='Search results' className={styles.results}>
         {(group: CommandGroup) => (
           <Autocomplete.Group key={group.label ?? ''} items={group.items} className={styles.group}>
             {group.label && (

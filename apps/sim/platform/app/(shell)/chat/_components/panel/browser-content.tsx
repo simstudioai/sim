@@ -9,6 +9,7 @@ import {
   Input,
   SearchField,
 } from '@/platform/design-system/components'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 interface BrowserContentProps {
   children: ReactNode
@@ -28,6 +29,8 @@ export function BrowserContent({
   const [zoom, setZoom] = useState(100)
   const [tool, setTool] = useState<'find' | 'downloads' | null>(null)
   const [query, setQuery] = useState('')
+  const pageViewport = useScrollEdges<HTMLDivElement>()
+  const zoomViewport = useScrollEdges<HTMLDivElement>('horizontal')
   const address = history[index]
   const sample =
     website && address.replace(/^https?:\/\//i, '').replace(/\/$/, '') === website.address
@@ -105,9 +108,11 @@ export function BrowserContent({
         </div>
       )}
       {address ? (
-        <div className={styles.website} data-zoom={zoom}>
+        <div ref={pageViewport} className={styles.website} data-zoom={zoom}>
           {sample ? (
-            <img src={website.image} alt={`${website.name} homepage`} />
+            <div ref={zoomViewport} className={styles.zoomViewport}>
+              <img src={website.image} alt={`${website.name} homepage`} />
+            </div>
           ) : (
             <p data-type='T067'>Page unavailable.</p>
           )}

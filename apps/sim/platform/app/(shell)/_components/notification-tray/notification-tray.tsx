@@ -5,6 +5,7 @@ import type { ShellNotice } from '@/platform/app/(shell)/_components/model'
 import styles from '@/platform/app/(shell)/_components/notification-tray/notification-tray.module.css'
 import { Button, IconButton } from '@/platform/design-system/components/button/button'
 import { Icon } from '@/platform/design-system/components/icon/icon'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 type Notice = Omit<ShellNotice, 'href'> & { onAction: () => void }
 function useNoticeState() {
@@ -43,6 +44,7 @@ interface NotificationTrayProps {
   navigate: (href: string) => void
 }
 export function NotificationTray({ history, navigate }: NotificationTrayProps) {
+  const scrollEdges = useScrollEdges<HTMLElement>()
   const { edits, display, setDisplay, dismiss } = usePlatformNotices()
   const items = [
     ...history.filter((item) => !edits.has(item.id)),
@@ -52,7 +54,12 @@ export function NotificationTray({ history, navigate }: NotificationTrayProps) {
   const shown = display === 'expanded' ? items : display === 'latest' && latest ? [latest] : []
   if (display === 'hidden' || !items.length) return null
   return (
-    <section aria-label='Notification stack' className={styles.stack} aria-live='polite'>
+    <section
+      ref={scrollEdges}
+      aria-label='Notification stack'
+      className={styles.stack}
+      aria-live='polite'
+    >
       {display !== 'latest' && (
         <button
           type='button'

@@ -1,8 +1,11 @@
+'use client'
+
 import { useId } from 'react'
 import { IconButton } from '@/platform/design-system/components/button/button'
 import { FieldFrame } from '@/platform/design-system/components/field/fields'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { ScrollArea } from '@/platform/design-system/components/scroll-area/scroll-area'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import styles from '@/platform/design-system/components/workspace-fields/workspace-fields.module.css'
 
 interface LogoUploadFieldProps {
@@ -31,6 +34,7 @@ interface RecipientTagProps {
 }
 
 export function RecipientTag({ address, invalid, selected, onRemove }: RecipientTagProps) {
+  const labelEdges = useScrollEdges<HTMLSpanElement>('horizontal')
   return (
     <span
       className={styles.recipient}
@@ -38,7 +42,9 @@ export function RecipientTag({ address, invalid, selected, onRemove }: Recipient
       data-selected={selected || undefined}
       data-type='T060'
     >
-      <span className={styles.address}>{address}</span>
+      <span ref={labelEdges} className={styles.address}>
+        {address}
+      </span>
       {onRemove && (
         <span className={styles.removeRecipient}>
           <IconButton
@@ -71,6 +77,7 @@ export function RecipientField({
   placeholder,
 }: RecipientFieldProps) {
   const id = useId()
+  const addressEdges = useScrollEdges<HTMLInputElement>('horizontal')
   return (
     <FieldFrame id={id} label={label} error={error}>
       <div className={styles.recipients} data-invalid={error ? true : undefined}>
@@ -86,6 +93,7 @@ export function RecipientField({
               />
             ))}
             <input
+              ref={addressEdges}
               id={id}
               type='email'
               multiple

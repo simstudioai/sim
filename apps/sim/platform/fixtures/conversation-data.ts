@@ -42,7 +42,7 @@ const fullHome: HomeData = {
   ],
   workspaces: [
     {
-      id: 'customer',
+      id: 'operations',
       title: 'Customer operations',
       detail: 'Handling onboarding and support',
       meta: 'Running',
@@ -63,6 +63,35 @@ const fullHome: HomeData = {
       meta: 'Up to date',
       icon: 'I025',
     },
+    ...[
+      ['marketing', 'Marketing', 'Campaign calendar and content approvals'],
+      ['people', 'People operations', 'Hiring plans, benefits, and team updates'],
+      ['onboarding', 'Customer onboarding', 'Implementation timelines and kickoff notes'],
+      ['sales', 'Sales development', 'Lead routing and territory assignments'],
+      ['product', 'Product operations', 'Prioritization, feedback, and release notes'],
+      ['engineering', 'Engineering', 'Service ownership and deployment history'],
+      ['legal', 'Legal & compliance', 'Contract review and open policy changes'],
+      ['it', 'IT operations', 'Provisioning, access reviews, and equipment'],
+      ['analytics', 'Data & analytics', 'Reporting models and source quality'],
+      ['procurement', 'Procurement', 'Purchase requests and vendor evaluations'],
+      [
+        'partners',
+        'International partnerships & channel operations',
+        'Partner enablement and joint launches',
+      ],
+      ['success', 'Customer success', 'Account plans and customer health signals'],
+      ['security', 'Security', 'Incident review and security questionnaires'],
+      ['business', 'Business operations', 'Quarterly plans and cross-functional projects'],
+      ['executive', 'Executive office', 'Board materials and operating updates'],
+      ['intelligence', 'Revenue intelligence', 'Pipeline coverage and forecast accuracy'],
+      ['tools', 'Internal tools', 'Team requests and internal automation'],
+    ].map(([id, title, detail]) => ({
+      id,
+      title,
+      detail,
+      meta: 'Up to date',
+      icon: 'I025' as const,
+    })),
   ],
   email: [
     {
@@ -71,7 +100,8 @@ const fullHome: HomeData = {
       avatar: nina.src,
       count: 3,
       subject: 'Updated onboarding checklist',
-      excerpt: 'I’ve added the new handoff steps.',
+      excerpt:
+        'I’ve added the new handoff steps, linked the implementation brief, and marked the owners for each checkpoint. Could you review the customer-facing notes before the kickoff on Thursday?',
       received: '12m ago',
     },
     {
@@ -80,7 +110,8 @@ const fullHome: HomeData = {
       avatar: alex.src,
       count: 2,
       subject: 'Q4 customer review',
-      excerpt: 'Can you review the agenda before Friday?',
+      excerpt:
+        'Can you review the agenda before Friday? I’ve included the latest pipeline report, the decisions from our last review, and the accounts that still need an owner.',
       received: '38m ago',
     },
     {
@@ -88,7 +119,8 @@ const fullHome: HomeData = {
       sender: 'Maya Ross',
       avatar: maya.src,
       subject: 'Invoice approval for October',
-      excerpt: 'Thanks, everything is ready to go.',
+      excerpt:
+        'The final invoices are ready for approval. I reconciled the vendor totals against the October ledger and added notes about the two adjustments we discussed.',
       received: '1d ago',
     },
   ],
@@ -247,53 +279,139 @@ function thread(
             state === 'failed'
               ? 'I couldn’t read the renewal brief because the file is no longer available. Upload it again, or retry if access has been restored.'
               : undefined,
-          paragraphs:
+          progress:
             state === 'running'
+              ? 'I’m comparing the renewal terms with the latest account notes and checking for unresolved requests.'
+              : undefined,
+          paragraphs:
+            state === 'stopped'
               ? [
+                  { text: 'I found an ownership mismatch in the renewal brief.' },
                   {
-                    text: 'I’m comparing the renewal terms with the latest account notes and checking for unresolved requests.',
+                    text: 'The brief lists Maya Ross, while the latest notes name Alex Chen as the owner for the next phase.',
                   },
                 ]
-              : state === 'stopped'
-                ? [
-                    { text: 'I found an ownership mismatch in the renewal brief.' },
-                    {
-                      text: 'The brief lists Maya Ross, while the latest notes name Alex Chen as the owner for the next phase.',
-                    },
-                  ]
-                : [],
+              : [],
         },
       },
     ],
   }
 }
+const threads: ConversationData['threads'] = [
+  { id: 'weekly-review', title: 'Review the renewal brief', turns: [renewal] },
+  thread(
+    'customer-onboarding',
+    'Customer onboarding',
+    'Compare these files and summarize the handoff.',
+    'running',
+    files
+  ),
+  thread(
+    'october-close',
+    'Prepare October close',
+    'Review the reconciliation report and highlight any missing records.',
+    'failed',
+    [files[1]]
+  ),
+  thread('q4-planning', 'Q4 planning', 'Prepare the operating plan for next quarter.', 'stopped', [
+    files[2],
+  ]),
+  ...[
+    [
+      'handoff',
+      'Plan the implementation handoff',
+      'What should I send to the implementation lead?',
+      'Send the kickoff notes, the customer’s target date, and the list of outstanding access requests. Maya owns the first check-in.',
+    ],
+    [
+      'forecast',
+      'Explain the variance between the quarterly pipeline forecast and the operating plan',
+      'What changed in the pipeline forecast this week?',
+      'Two opportunities moved to December. The change affects timing, while their combined contract value is unchanged.',
+    ],
+    [
+      'support',
+      'Summarize the support queue',
+      'Which issues should support review first?',
+      'Start with the account lockouts. Billing questions are next, followed by the lower-priority connector requests.',
+    ],
+    [
+      'access',
+      'Review access requests',
+      'Which teams are waiting on access?',
+      'Design needs access to the research archive. The finance group is waiting for a reporting role in the billing workspace.',
+    ],
+    [
+      'launch',
+      'Check the launch calendar',
+      'Which launch milestones are coming up?',
+      'The release candidate is due on Thursday. Documentation review follows on Friday, ahead of the customer announcement.',
+    ],
+    [
+      'vendors',
+      'Compare vendor proposals',
+      'How do the two support proposals differ?',
+      'Both include weekday support. The second also includes weekend coverage and a named implementation contact.',
+    ],
+    [
+      'planning',
+      'Collect planning inputs',
+      'What is missing from the quarterly planning packet?',
+      'The hiring plan and security review are complete. Product still needs to add the infrastructure estimate.',
+    ],
+    [
+      'research',
+      'Synthesize customer research interviews across the international onboarding program',
+      'What came up most often in the customer interviews?',
+      'Most participants asked for quicker search and clearer ownership when a request moves between teams.',
+    ],
+    [
+      'invoices',
+      'Find overdue invoices',
+      'Which invoices need a follow-up?',
+      'Two invoices are awaiting purchase-order numbers. The account owners have the billing contacts and can follow up this week.',
+    ],
+    [
+      'incident',
+      'Prepare the incident recap',
+      'Summarize what happened during the service interruption.',
+      'A delayed queue slowed new jobs. The team drained the queue, restored normal processing, and added an alert for the same condition.',
+    ],
+    [
+      'knowledge',
+      'Organize the knowledge base',
+      'Which documents should be consolidated?',
+      'The onboarding checklist and setup guide repeat the same access instructions. Keep the instructions in the setup guide and link to them from the checklist.',
+    ],
+    [
+      'board',
+      'Draft the board update',
+      'What belongs in the operations section?',
+      'Include the hiring milestone, the support response trend, and the two upcoming customer launches. Each has a named owner and a reporting date.',
+    ],
+  ].map(([id, title, prompt, answer]) => ({
+    id,
+    title,
+    turns: [
+      {
+        id,
+        time: '9:15 AM',
+        prompt: { text: prompt, attachments: [] },
+        response: {
+          state: 'complete' as const,
+          duration: '6s',
+          paragraphs: [{ text: answer }],
+          steps: [],
+          time: '9:15 AM',
+        },
+      },
+    ],
+  })),
+]
 const chat: ConversationData = {
-  threads: [
-    { id: 'weekly-review', title: 'Review the renewal brief', turns: [renewal] },
-    thread(
-      'customer-onboarding',
-      'Customer onboarding',
-      'Compare these files and summarize the handoff.',
-      'running',
-      files
-    ),
-    thread(
-      'october-close',
-      'Prepare October close',
-      'Review the reconciliation report and highlight any missing records.',
-      'failed',
-      [files[1]]
-    ),
-    thread(
-      'q4-planning',
-      'Q4 planning',
-      'Prepare the operating plan for next quarter.',
-      'stopped',
-      [files[2]]
-    ),
-  ],
+  threads,
   references: [
-    { group: 'Chats', items: [{ id: 'weekly-review', name: 'Review the renewal brief' }] },
+    { group: 'Chats', items: threads.map(({ id, title }) => ({ id, name: title })) },
     { group: 'Dashboards', items: [{ id: 'activity', name: 'Workspace activity' }] },
     { group: 'Tables', items: [{ id: 'requests', name: 'Customer requests' }] },
     { group: 'Files', items: files.map(({ id, name }) => ({ id, name })) },
@@ -327,6 +445,11 @@ export const conversationScenarios: Record<Scenario, { home: HomeData; chat: Con
     home: {
       ...fullHome,
       references: chat.references,
+      workspaces: Array.from({ length: 36 }, (_, i) => ({
+        ...fullHome.workspaces[i % fullHome.workspaces.length],
+        id: `workspace-${i}`,
+        title: `International customer operations and onboarding ${i + 1}`,
+      })),
       attention: Array.from({ length: 12 }, (_, i) => ({
         ...fullHome.attention[i % 2],
         id: `review-${i}`,
@@ -340,6 +463,7 @@ export const conversationScenarios: Record<Scenario, { home: HomeData; chat: Con
         i === 0
           ? {
               ...item,
+              title: 'Review the international customer renewal briefing',
               turns: Array.from({ length: 8 }, (_, j) => ({
                 ...renewal,
                 id: `history-${j}`,

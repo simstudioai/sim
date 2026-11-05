@@ -38,8 +38,8 @@ export function OverflowText({ text, fullValue = text, children }: OverflowTextP
         <span
           ref={viewport}
           className={styles.overflowText}
-          data-axis='horizontal'
-          data-clipped={clipped || undefined}
+          data-scroll-axis='horizontal'
+          data-edges={clipped ? 'end' : undefined}
           tabIndex={showFullValue && !insideControl ? 0 : undefined}
         >
           <span

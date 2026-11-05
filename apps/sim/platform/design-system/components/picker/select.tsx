@@ -6,6 +6,7 @@ import { Icon } from '@/platform/design-system/components/icon/icon'
 import popup from '@/platform/design-system/components/menu/popup.shared.module.css'
 import picker from '@/platform/design-system/components/picker/picker.module.css'
 import { usePickerValue } from '@/platform/design-system/components/picker/use-picker-value'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 const optionValue = (option: { value: string }) => option.value
 
@@ -29,6 +30,8 @@ export function Select({
   invalid,
   describedBy,
 }: SelectProps) {
+  const valueEdges = useScrollEdges<HTMLSpanElement>('horizontal')
+  const scrollRef = useScrollEdges<HTMLDivElement>()
   const selection = usePickerValue(options, optionValue, defaultValue)
   return (
     <BaseSelect.Root
@@ -52,7 +55,7 @@ export function Select({
         data-variant={variant}
         data-type={variant === 'quiet' ? 'T057' : 'T043'}
       >
-        <BaseSelect.Value className={picker.value} />
+        <BaseSelect.Value ref={valueEdges} className={picker.value} />
         <Icon name='I051' />
       </BaseSelect.Trigger>
       {selection.container && (
@@ -70,7 +73,7 @@ export function Select({
               data-material='floating'
               data-elevation='menu'
             >
-              <BaseSelect.List className={popup.list}>
+              <BaseSelect.List ref={scrollRef} className={popup.list}>
                 {options.map(({ value, label: text }) => (
                   <BaseSelect.Item
                     key={value}

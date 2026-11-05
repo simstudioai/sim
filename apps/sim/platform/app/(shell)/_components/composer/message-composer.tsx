@@ -167,7 +167,7 @@ export function MessageComposer({
           updateDraft((draft) => ({ ...draft, attachments: [...draft.attachments, pasted] }))
         }}
       />
-      <div className={styles.toolbar}>
+      <div className={styles.toolbar} data-type='T060'>
         <div className={styles.actions}>
           <ActionMenu
             label='Add attachment'

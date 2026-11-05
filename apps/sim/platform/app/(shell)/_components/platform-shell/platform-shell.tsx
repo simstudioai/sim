@@ -12,8 +12,9 @@ import { useChatChanges } from '@/platform/app/(shell)/_components/session/chat-
 import { Sidebar } from '@/platform/app/(shell)/_components/sidebar/sidebar'
 import { useSidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
 import { SidebarToolbar } from '@/platform/app/(shell)/_components/sidebar/sidebar-toolbar'
-import { IconButton, Tooltip } from '@/platform/design-system/components'
+import { IconButton, OverflowText, Tooltip } from '@/platform/design-system/components'
 import { useCompactViewport } from '@/platform/design-system/components/layout/use-compact-viewport'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { platformHref } from '@/platform/design-system/navigation'
 
 interface PlatformShellProps {
@@ -24,6 +25,7 @@ interface PlatformShellProps {
 }
 
 export function PlatformShell({ data, children, navigation, desktopTitle }: PlatformShellProps) {
+  const scrollEdges = useScrollEdges<HTMLDivElement>()
   const pathname = usePathname()
   const search = useSearchParams()
   const router = useRouter()
@@ -129,13 +131,14 @@ export function PlatformShell({ data, children, navigation, desktopTitle }: Plat
             </div>
             {!conversation && (
               <span className={styles.desktopTitle} data-type='T067'>
-                {pageTitle}
+                <OverflowText text={pageTitle}>{pageTitle}</OverflowText>
               </span>
             )}
           </header>
         )}
         {!compact && !collapsed && sidebar}
         <div
+          ref={scrollEdges}
           className={styles.content}
           onScroll={(event) => {
             if (home && compact)
@@ -145,9 +148,9 @@ export function PlatformShell({ data, children, navigation, desktopTitle }: Plat
               )
           }}
         >
-          {home && !desktop && (
+          {home && !desktop && compact && (
             <header className={styles.homeHeader} data-material='shell'>
-              {compact && <span data-type='T042'>Home</span>}
+              <span data-type='T042'>Home</span>
             </header>
           )}
           {!desktop && (compact || collapsed) && (

@@ -10,7 +10,7 @@
 
 .group {
   display: grid;
-  gap: var(--spacing-2);
+  gap: var(--ui-list-gap);
   min-inline-size: 0;
 }
 

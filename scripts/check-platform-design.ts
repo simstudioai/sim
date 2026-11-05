@@ -398,6 +398,88 @@ const program = ts.createProgram(
 )
 const checker = program.getTypeChecker()
 
+type ElementTag = ts.JsxOpeningElement | ts.JsxSelfClosingElement
+
+function jsxAttribute(node: ElementTag, name: string) {
+  return node.attributes.properties.find(
+    (attr): attr is ts.JsxAttribute => ts.isJsxAttribute(attr) && attr.name.getText() === name
+  )
+}
+
+function jsxValue(node: ts.Node | undefined): string | undefined {
+  if (!node) return
+  if (ts.isJsxText(node) || ts.isStringLiteralLike(node)) return node.text.trim()
+  if (ts.isJsxExpression(node) && node.expression) {
+    const type = checker.getTypeAtLocation(node.expression)
+    return type.isStringLiteral() ? type.value.trim() : `{${node.expression.getText()}}`
+  }
+}
+
+function componentName(node: ElementTag) {
+  const tag = node.tagName.getText()
+  if (/^[a-z][\w-]*$/.test(tag)) return tag
+  let symbol = checker.getSymbolAtLocation(node.tagName)
+  if (symbol && symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol)
+  const file = symbol?.valueDeclaration?.getSourceFile().fileName
+  if (file?.startsWith(path.join(app, system, 'components/'))) return symbol?.name
+}
+
+function checkDialog(node: ElementTag, location: (node: ts.Node) => string) {
+  const name = componentName(node)
+  const reject = (part: ts.Node) =>
+    report(
+      'dialog-owner',
+      location(part),
+      'Use Modal or MultiStepModal for form titles, actions and cancellation'
+    )
+  if (name === 'ModalHeader' || name === 'ModalFooter') return reject(node)
+  const role = jsxValue(jsxAttribute(node, 'role')?.initializer)
+  const formModal = name === 'Modal' || name === 'MultiStepModal'
+  if (
+    !formModal &&
+    name !== 'dialog' &&
+    name !== 'OverlayDialog' &&
+    role !== 'dialog' &&
+    role !== 'alertdialog'
+  )
+    return
+  const title = jsxValue(jsxAttribute(node, 'title')?.initializer)
+  if (name === 'OverlayDialog') {
+    const presentation = jsxAttribute(node, 'presentation')
+    const command = jsxValue(presentation?.initializer) === 'command'
+    if ((presentation && !command) || jsxAttribute(node, 'onSubmit')) reject(node)
+    if (!(command ? jsxValue(jsxAttribute(node, 'label')?.initializer) : title))
+      report(
+        'dialog-name',
+        location(node),
+        'Give the dialog a title or the command palette an accessible label'
+      )
+    if (command) return
+  }
+  function inspect(child: ts.Node) {
+    if (ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child)) {
+      const tag = ts.isJsxElement(child) ? child.openingElement : child
+      const part = componentName(tag)
+      const label =
+        ts.isJsxElement(child) && child.children.length === 1
+          ? jsxValue(child.children[0])
+          : undefined
+      if (
+        part === 'form' ||
+        ((part === 'Button' || part === 'button') &&
+          ((formModal && label === 'Cancel') ||
+            jsxValue(jsxAttribute(tag, 'type')?.initializer) === 'submit')) ||
+        (formModal && title && label === title && /^h[1-6]$/.test(part ?? ''))
+      )
+        reject(tag)
+    }
+    ts.forEachChild(child, inspect)
+  }
+  if (ts.isJsxOpeningElement(node)) node.parent.children.forEach(inspect)
+  const steps = jsxAttribute(node, 'steps')?.initializer
+  if (name === 'MultiStepModal' && steps) inspect(steps)
+}
+
 function checkProps(name: string, node: ts.Node, file: string, owner: boolean) {
   const choices = new Map<string, Set<string | null>>()
   const type = checker.getTypeAtLocation(node)
@@ -521,6 +603,7 @@ function checkJs(file: string, content: string) {
       report('prop-spread', location(node), 'Pass named props explicitly')
     if (inPlatform && (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))) {
       const tag = node.tagName.getText(sf)
+      if (programSource && file.startsWith('platform/app/')) checkDialog(node, location)
       if (
         tag === 'svg' &&
         file !== `${system}components/icon/icon.tsx` &&

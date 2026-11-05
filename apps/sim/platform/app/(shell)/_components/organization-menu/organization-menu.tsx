@@ -7,12 +7,11 @@ import {
   Avatar,
   Button,
   MenuItem,
-  ModalFooter,
+  Modal,
   RecipientField,
 } from '@/platform/design-system/components'
 import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
 import { AnchoredPopover } from '@/platform/design-system/components/menu/anchored-popover'
-import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
 
 interface OrganizationMenuProps {
   anchor: RefObject<HTMLElement | null>
@@ -75,20 +74,15 @@ export function OrganizationMenu({ anchor, organization, onSettings }: Organizat
           />
         </div>
       </AnchoredPopover>
-      <OverlayDialog
-        open={invite}
-        onClose={() => setInvite(false)}
-        label='Invite people'
+      <Modal
         title='Invite people'
+        open={invite}
+        onOpenChange={setInvite}
+        confirmLabel='Invite'
+        confirmDisabled
       >
         <RecipientField label='Email addresses' recipients={[]} placeholder='name@company.com' />
-        <ModalFooter>
-          <Button onClick={() => setInvite(false)}>Cancel</Button>
-          <Button variant='primary' disabled>
-            Invite
-          </Button>
-        </ModalFooter>
-      </OverlayDialog>
+      </Modal>
     </>
   )
 }

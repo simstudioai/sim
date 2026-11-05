@@ -8,15 +8,8 @@
 .field {
   flex: none;
   gap: var(--spacing-12);
-  min-block-size: var(--spacing-56);
+  min-block-size: var(--spacing-44);
   padding-inline: var(--spacing-20);
-}
-.field svg,
-.result svg {
-  flex: none;
-  inline-size: var(--ui-icon-size);
-  block-size: var(--ui-icon-size);
-  color: var(--ui-secondary);
 }
 .field input {
   flex: 1;
@@ -26,12 +19,16 @@
 .results {
   min-block-size: 0;
   max-block-size: 50dvh;
-  padding: var(--ui-row-inset);
+  padding-inline: var(--ui-row-inset);
   overflow: auto;
   overscroll-behavior: contain;
 }
 .results:empty {
   display: none;
+}
+.group {
+  display: grid;
+  gap: var(--ui-list-gap);
 }
 .group + .group {
   padding-block-start: var(--ui-popup-padding);
@@ -64,7 +61,6 @@
   padding: var(--ui-row-block) var(--spacing-16);
   color: var(--ui-secondary);
   gap: var(--spacing-16);
-  border-block-start: var(--spacing-stroke-default) solid var(--ui-divider);
 }
 .footer > span {
   gap: var(--ui-popup-padding);

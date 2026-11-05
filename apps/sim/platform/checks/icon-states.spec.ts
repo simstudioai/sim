@@ -9,7 +9,12 @@ function paint(control: Locator) {
     if (!mark || !matrix) throw new Error('Missing visible interface glyph')
     const css = getComputedStyle(mark)
     const scale = css.vectorEffect === 'non-scaling-stroke' ? 1 : Math.hypot(matrix.a, matrix.b)
+    const brush = document.createElement('canvas').getContext('2d')
+    if (!brush) throw new Error('Cannot measure glyph ink')
+    brush.fillStyle = css.stroke
+    brush.fillRect(0, 0, 1, 1)
     return {
+      alpha: brush.getImageData(0, 0, 1, 1).data[3],
       stroke: css.stroke,
       width: Number.parseFloat(css.strokeWidth) * scale,
       surface: getComputedStyle(element).backgroundColor,
@@ -33,6 +38,8 @@ test('quiet actions and menu rows preserve optical weight and distinguish their 
     const docs = page.getByRole('menuitem', { name: 'Documentation' })
     const row = await paint(docs)
     expect(row.stroke).toBe(quiet.stroke)
+    expect(quiet.alpha).toBe(255)
+    expect(row.alpha).toBe(255)
     await docs.hover()
     const active = await paint(docs)
     expect(active.stroke).not.toBe(row.stroke)

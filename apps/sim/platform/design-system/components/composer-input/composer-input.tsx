@@ -1,8 +1,11 @@
-import type { Ref } from 'react'
+'use client'
+
+import type { RefObject } from 'react'
 import styles from '@/platform/design-system/components/composer-input/composer-input.module.css'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 interface ComposerInputProps {
-  inputRef?: Ref<HTMLTextAreaElement>
+  inputRef?: RefObject<HTMLTextAreaElement | null>
   value?: string
   onValueChange?: (text: string) => void
   onSubmit?: () => void
@@ -26,9 +29,10 @@ export function ComposerInput({
   defaultValue,
   density = 'standard',
 }: ComposerInputProps) {
+  const scrollRef = useScrollEdges<HTMLTextAreaElement>('vertical', { viewport: inputRef })
   return (
     <textarea
-      ref={inputRef}
+      ref={scrollRef}
       value={value}
       onChange={onValueChange && ((e) => onValueChange(e.currentTarget.value))}
       onKeyDown={

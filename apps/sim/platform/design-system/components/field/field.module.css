@@ -1,4 +1,4 @@
-.input:disabled {
+.inputFrame:has(.input:disabled) {
   opacity: var(--opacity-disabled);
   cursor: default;
 }
@@ -18,16 +18,23 @@
   color: var(--ui-ink);
 }
 
-.input {
-  display: block;
-  width: 100%;
+.inputFrame {
+  display: grid;
   min-width: 0;
-  height: var(--spacing-app-chip);
-  padding-inline: var(--spacing-8);
   border: var(--spacing-stroke-default) solid var(--ui-border);
   border-radius: var(--radius-control);
   background: var(--ui-reading);
   color: var(--ui-ink);
+}
+
+.input {
+  display: block;
+  min-width: 0;
+  width: 100%;
+  height: calc(var(--spacing-app-chip) - 2 * var(--spacing-stroke-default));
+  padding-inline: var(--spacing-8);
+  background: transparent;
+  color: inherit;
 }
 
 .input::placeholder {
@@ -35,11 +42,11 @@
   opacity: 1;
 }
 
-.input:enabled:hover {
+.inputFrame:has(.input:enabled:hover) {
   border-color: var(--control-hover-border);
 }
 
-.input[aria-invalid="true"] {
+.inputFrame:has(.input[aria-invalid="true"]) {
   border-color: var(--control-danger);
 }
 
@@ -48,12 +55,12 @@
 }
 
 textarea.input {
-  height: var(--spacing-76);
-  min-height: var(--spacing-76);
+  height: calc(var(--spacing-76) - 2 * var(--spacing-stroke-default));
+  min-height: calc(var(--spacing-76) - 2 * var(--spacing-stroke-default));
   padding-block: var(--spacing-8);
   resize: vertical;
 }
 
 textarea.input[data-density="expanded"] {
-  height: calc(2 * var(--spacing-56));
+  height: calc(2 * (var(--spacing-56) - var(--spacing-stroke-default)));
 }

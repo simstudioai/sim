@@ -38,10 +38,7 @@
   gap: var(--spacing-2);
 }
 .separator {
-  margin: var(--spacing-4) var(--spacing-8);
-  height: var(--spacing-stroke-default);
-  border: 0;
-  background: var(--ui-divider);
+  composes: separator from "./popup.shared.module.css";
 }
 .menuTitle {
   display: flex;

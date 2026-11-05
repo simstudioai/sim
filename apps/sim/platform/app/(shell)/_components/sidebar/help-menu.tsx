@@ -13,6 +13,7 @@ export function HelpMenu({ iconOnly }: HelpMenuProps) {
   return (
     <ActionMenu
       label='Help'
+      triggerSize='row'
       icon={iconOnly ? 'I047' : undefined}
       actions={[
         {

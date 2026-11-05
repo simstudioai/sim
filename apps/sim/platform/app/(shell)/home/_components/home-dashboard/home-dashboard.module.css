@@ -1,14 +1,14 @@
 .viewport {
   container-type: inline-size;
   min-inline-size: 0;
-  overflow: auto;
-  block-size: 100%;
+  min-block-size: 0;
+  flex: 1;
 }
 .dashboard {
   display: grid;
   max-inline-size: calc(var(--container-app-dashboard) + 2 * var(--spacing-48));
   margin-inline: auto;
-  padding: var(--spacing-16) clamp(var(--spacing-16), 4cqi, var(--spacing-48)) var(--spacing-48);
+  padding-inline: clamp(var(--spacing-16), 4cqi, var(--spacing-48));
   gap: clamp(var(--spacing-20), 3cqi, var(--spacing-28));
 }
 .greeting {
@@ -39,4 +39,13 @@
 }
 .column:empty {
   display: none;
+}
+
+@media (width > 48rem) {
+  .dashboard {
+    padding-inline-start: max(
+      var(--ui-navigation-inset),
+      clamp(var(--spacing-16), 4cqi, var(--spacing-48))
+    );
+  }
 }

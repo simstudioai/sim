@@ -25,6 +25,7 @@ export function ResponseMessage({ response, onRetry }: ResponseMessageProps) {
         initiallyOpen={state === 'running' || state === 'failed'}
         steps={response.steps}
         thinking={response.thinking}
+        progress={response.progress}
       />
       {paragraphs.map(({ lead, text }) => (
         <p key={text} data-type='T048'>

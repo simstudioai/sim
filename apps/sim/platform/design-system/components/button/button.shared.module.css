@@ -8,11 +8,6 @@
   background: transparent;
   color: var(--ui-ink);
   cursor: pointer;
-}
-
-.button,
-.iconButton,
-.chip {
   border-radius: var(--ui-control-radius);
 }
 
@@ -42,6 +37,11 @@
   width: var(--spacing-app-control-sm);
   height: var(--spacing-app-control-sm);
   padding: 0;
+}
+
+.iconButton[data-size="row"] {
+  width: calc(var(--ui-icon-size) + 2 * var(--ui-row-inset));
+  height: calc(var(--ui-icon-size) + 2 * var(--ui-row-inset));
 }
 
 .iconButton[data-size="compact"] {
@@ -113,7 +113,7 @@
 }
 
 @media (pointer: coarse) {
-  .iconButton[data-size="small"] {
+  .iconButton:is([data-size="small"], [data-size="row"]) {
     inline-size: var(--spacing-app-touch-target);
     block-size: var(--spacing-app-touch-target);
   }
@@ -126,9 +126,35 @@ a.chip {
 a.chip:not([aria-current="page"]):hover {
   background: var(--ui-hover);
 }
-.controlLabel {
+
+.chipRow {
+  display: grid;
+  grid-template-areas: "row";
   min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  align-items: center;
+}
+.chipRow > .chip,
+.chipAction {
+  grid-area: row;
+}
+.chipRow > .chip {
+  padding-inline-end: var(--spacing-36);
+}
+.chipAction {
+  display: flex;
+  justify-self: end;
+  opacity: 0;
+}
+.chipRow:hover > .chip:not([aria-current="page"]),
+.chipRow:has([aria-expanded="true"]) > .chip:not([aria-current="page"]) {
+  background: var(--ui-hover);
+}
+.chipRow:hover .chipAction,
+.chipAction:has([aria-expanded="true"]) {
+  opacity: 1;
+}
+@media (hover: none) {
+  .chipAction {
+    opacity: 1;
+  }
 }

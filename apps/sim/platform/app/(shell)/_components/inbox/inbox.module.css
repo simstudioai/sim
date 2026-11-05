@@ -16,20 +16,11 @@
   justify-content: space-between;
 }
 .list {
+  display: grid;
+  gap: var(--ui-list-gap);
   list-style: none;
   padding: 0;
   margin: 0;
-}
-.list > li {
-  position: relative;
-  padding-block: var(--ui-popup-padding);
-}
-.list > li + li::before {
-  content: "";
-  position: absolute;
-  inset-block-start: 0;
-  inset-inline: var(--ui-row-inset);
-  border-block-start: var(--spacing-stroke-default) solid var(--ui-divider);
 }
 .inboxRow {
   inline-size: 100%;
@@ -39,11 +30,6 @@
 }
 .inboxRow:hover {
   background: var(--ui-hover);
-}
-.inboxRow > svg {
-  flex: none;
-  inline-size: var(--ui-icon-size);
-  block-size: var(--ui-icon-size);
 }
 .inboxRow > svg:first-child {
   align-self: flex-start;

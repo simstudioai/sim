@@ -3,10 +3,11 @@ import Link from 'next/link'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import styles from '@/platform/design-system/components/button/button.shared.module.css'
 import { Icon } from '@/platform/design-system/components/icon/icon'
+import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
 
 interface ButtonProps {
-  children: ReactNode
+  children: string
   variant?: 'primary' | 'secondary' | 'quiet' | 'destructive' | 'muted'
   size?: 'regular' | 'compact'
   submit?: boolean
@@ -38,7 +39,7 @@ export function Button({
       onClick={onClick}
     >
       {icon && <Icon name={icon} />}
-      <span className={styles.controlLabel}>{children}</span>
+      <OverflowText text={children}>{children}</OverflowText>
       {trailingIcon && <Icon name={trailingIcon} />}
     </button>
   )
@@ -47,7 +48,7 @@ export function Button({
 interface IconButtonProps {
   label: string
   icon: IconName
-  size?: 'small' | 'compact' | 'touch'
+  size?: 'small' | 'row' | 'compact' | 'touch'
   variant?: 'quiet' | 'solid' | 'floating'
   disabled?: boolean
   onClick?: MouseEventHandler<HTMLButtonElement>
@@ -70,6 +71,7 @@ export function IconButton({
       type='button'
       className={styles.iconButton}
       aria-label={label}
+      data-type='T060'
       aria-describedby={describedBy}
       data-size={size}
       data-variant={variant}
@@ -85,23 +87,23 @@ export function IconButton({
 }
 
 type ChipProps = {
-  children: ReactNode
+  children: string
   icon?: IconName
   selected?: boolean
 } & (
-  | { href: string; onClick?: never }
-  | { href?: never; onClick?: MouseEventHandler<HTMLButtonElement> }
+  | { href: string; onClick?: never; action?: ReactNode }
+  | { href?: never; onClick?: MouseEventHandler<HTMLButtonElement>; action?: never }
 )
 
-export function Chip({ children, icon, selected = false, onClick, href }: ChipProps) {
+export function Chip({ children, icon, selected = false, onClick, href, action }: ChipProps) {
   const content = (
     <>
       {icon && <Icon name={icon} />}
-      <span className={styles.controlLabel}>{children}</span>
+      <OverflowText text={children}>{children}</OverflowText>
     </>
   )
   if (href) {
-    return (
+    const link = (
       <Link
         href={href}
         className={styles.chip}
@@ -110,6 +112,13 @@ export function Chip({ children, icon, selected = false, onClick, href }: ChipPr
       >
         {content}
       </Link>
+    )
+    if (!action) return link
+    return (
+      <div className={styles.chipRow}>
+        {link}
+        <span className={styles.chipAction}>{action}</span>
+      </div>
     )
   }
   return (

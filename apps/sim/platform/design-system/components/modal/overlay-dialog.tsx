@@ -3,17 +3,21 @@
 import { type FormEventHandler, type ReactNode, useEffect, useId, useRef } from 'react'
 import styles from '@/platform/design-system/components/modal/modal.module.css'
 import { ModalHeader } from '@/platform/design-system/components/modal/modal-parts'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
-interface OverlayDialogProps {
-  label: string
+interface DialogSurfaceProps {
   open: boolean
   onClose: () => void
-  title?: string
   description?: string
-  presentation?: 'form' | 'confirm' | 'feedback' | 'command'
   onSubmit?: FormEventHandler<HTMLFormElement>
   children: ReactNode
 }
+
+type OverlayDialogProps = DialogSurfaceProps &
+  (
+    | { title: string; label?: never; presentation?: 'form' | 'confirm' | 'feedback' }
+    | { title?: never; label: string; presentation: 'command' }
+  )
 
 export function OverlayDialog({
   label,
@@ -27,6 +31,7 @@ export function OverlayDialog({
 }: OverlayDialogProps) {
   const ref = useRef<HTMLDialogElement>(null)
   const id = useId()
+  const layout = useScrollEdges<HTMLElement>()
   useEffect(() => {
     const dialog = ref.current
     if (!dialog) return
@@ -67,11 +72,13 @@ export function OverlayDialog({
     >
       {open &&
         (onSubmit ? (
-          <form className={styles.modalLayout} onSubmit={onSubmit}>
+          <form ref={layout} className={styles.modalLayout} onSubmit={onSubmit}>
             {content}
           </form>
         ) : (
-          <div className={styles.modalLayout}>{content}</div>
+          <div ref={layout} className={styles.modalLayout}>
+            {content}
+          </div>
         ))}
     </dialog>
   )

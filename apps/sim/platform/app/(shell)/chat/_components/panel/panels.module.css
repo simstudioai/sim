@@ -18,7 +18,6 @@
   min-inline-size: 0;
   min-block-size: 0;
   flex-direction: column;
-  border-inline-start: var(--spacing-stroke-default) solid var(--ui-divider);
   background: var(--ui-canvas);
 }
 .frame[data-panel-open="true"] > .conversation {
@@ -51,12 +50,12 @@
 .workspaceList {
   display: flex;
   align-items: start;
-  gap: var(--spacing-4);
+  gap: var(--ui-row-gap);
   min-width: 0;
 }
 .launcher {
   display: grid;
-  gap: var(--spacing-4);
+  gap: var(--ui-list-gap);
   max-width: var(--container-app-panel-start);
 }
 .launcher button {
@@ -83,10 +82,13 @@
   color: var(--ui-secondary);
 }
 .document {
-  padding: var(--spacing-24) var(--spacing-22);
   flex: 1;
   min-height: 0;
   display: grid;
+}
+.article,
+.transcript {
+  padding-inline: var(--spacing-22);
 }
 .article {
   margin-inline: auto;
@@ -101,7 +103,7 @@
 }
 .article section {
   display: grid;
-  gap: var(--spacing-4);
+  gap: var(--ui-stack-gap);
 }
 .transcript {
   white-space: pre-wrap;
@@ -111,10 +113,9 @@
 .tool {
   display: flex;
   align-items: center;
-  gap: var(--spacing-4);
+  gap: var(--ui-action-gap);
   min-height: var(--spacing-48);
   padding-inline: var(--spacing-12);
-  border-block-end: var(--spacing-stroke-default) solid var(--ui-divider);
 }
 .browserTools form {
   flex: 1;
@@ -124,8 +125,10 @@
   transform: scaleX(-1);
 }
 .website {
-  overflow: auto;
-  padding: 0;
+  overflow-y: auto;
+}
+.zoomViewport {
+  overflow-x: auto;
 }
 .website img {
   width: 100%;
@@ -145,14 +148,11 @@
   width: 200%;
 }
 .website p {
-  padding: var(--spacing-24);
+  padding-inline: var(--spacing-22);
   color: var(--ui-secondary);
 }
 @container panel-frame (max-width: 48rem) {
   .frame[data-panel-open="true"] > .conversation {
     display: none;
-  }
-  .panel {
-    border: 0;
   }
 }

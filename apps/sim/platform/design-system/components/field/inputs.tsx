@@ -1,4 +1,7 @@
+'use client'
+
 import styles from '@/platform/design-system/components/field/field.module.css'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 export interface ControlProps {
   id?: string
@@ -28,21 +31,25 @@ export function Input({
   required,
   pattern,
 }: InputProps) {
+  const scrollRef = useScrollEdges<HTMLInputElement>('horizontal')
   return (
-    <input
-      id={id}
-      required={required}
-      pattern={pattern}
-      aria-label={label}
-      className={styles.input}
-      data-type='T043'
-      name={name}
-      defaultValue={defaultValue}
-      placeholder={placeholder}
-      disabled={disabled}
-      aria-invalid={invalid || undefined}
-      aria-describedby={describedBy}
-    />
+    <span className={styles.inputFrame}>
+      <input
+        ref={scrollRef}
+        id={id}
+        required={required}
+        pattern={pattern}
+        aria-label={label}
+        className={styles.input}
+        data-type='T043'
+        name={name}
+        defaultValue={defaultValue}
+        placeholder={placeholder}
+        disabled={disabled}
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
+      />
+    </span>
   )
 }
 
@@ -62,20 +69,24 @@ export function TextArea({
   density,
   required,
 }: TextAreaProps) {
+  const scrollRef = useScrollEdges<HTMLTextAreaElement>()
   return (
-    <textarea
-      id={id}
-      required={required}
-      aria-label={label}
-      className={styles.input}
-      data-type='T043'
-      name={name}
-      data-density={density}
-      defaultValue={defaultValue}
-      placeholder={placeholder}
-      disabled={disabled}
-      aria-invalid={invalid || undefined}
-      aria-describedby={describedBy}
-    />
+    <span className={styles.inputFrame}>
+      <textarea
+        ref={scrollRef}
+        id={id}
+        required={required}
+        aria-label={label}
+        className={styles.input}
+        data-type='T043'
+        name={name}
+        data-density={density}
+        defaultValue={defaultValue}
+        placeholder={placeholder}
+        disabled={disabled}
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
+      />
+    </span>
   )
 }

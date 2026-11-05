@@ -1,6 +1,7 @@
 .target {
   display: inline-grid;
   place-items: center;
+  border-radius: var(--radius-full);
   flex: none;
   min-inline-size: var(--spacing-36);
   min-block-size: var(--spacing-20);

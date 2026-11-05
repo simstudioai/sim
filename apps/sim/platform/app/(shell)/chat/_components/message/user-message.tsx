@@ -15,7 +15,7 @@ export function UserMessage({ turn }: UserMessageProps) {
           {turn.prompt.text}
         </p>
       )}
-      <div className={styles.userActions}>
+      <div className={styles.userActions} data-type='T060'>
         <time data-type='T052'>{turn.time}</time>
         <CopyAction label='Copy message' text={turn.prompt.text} />
       </div>

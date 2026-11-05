@@ -1,5 +1,4 @@
 .answer,
-.activity,
 .activityBody,
 .result,
 .user {
@@ -36,6 +35,10 @@
   display: flex;
   align-items: center;
   gap: var(--ui-row-gap);
+}
+.responseActions,
+.userActions {
+  gap: var(--ui-action-gap);
 }
 .responseActions {
   justify-self: start;
@@ -76,22 +79,19 @@
     opacity: 1;
   }
 }
-.activity,
+.status,
 .result dt,
 .responseActions,
 .userActions,
 .step time {
   color: var(--ui-secondary);
 }
-.activity hr {
-  border: 0;
-  border-block-start: var(--spacing-stroke-default) solid var(--ui-divider);
-  margin: 0;
-}
-.activityBody {
-  margin-block-start: var(--ui-section-gap);
+.steps {
+  display: grid;
+  gap: var(--ui-list-gap);
 }
 .step summary {
+  color: var(--ui-secondary);
   justify-content: space-between;
   min-block-size: var(--spacing-app-control-sm);
   padding-inline: var(--ui-row-inset);
@@ -122,7 +122,6 @@
 .result {
   margin-block-start: var(--ui-section-gap);
   padding-inline-start: var(--spacing-16);
-  border-inline-start: var(--spacing-stroke-default) solid var(--ui-divider);
   color: var(--ui-ink);
 }
 .result div {

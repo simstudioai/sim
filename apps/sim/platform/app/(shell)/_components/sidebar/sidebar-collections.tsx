@@ -50,12 +50,14 @@ export function SidebarCollections({ data, activeChat, navigate }: SidebarCollec
           <>
             <IconButton
               tooltip
+              size='compact'
               label='Sort workspaces'
               icon='I050'
               onClick={() => navigate('/home')}
             />
             <IconButton
               tooltip
+              size='compact'
               label='Add workspace'
               icon='I074'
               onClick={() => navigate('/home')}
@@ -64,13 +66,11 @@ export function SidebarCollections({ data, activeChat, navigate }: SidebarCollec
         }
       >
         <div className={styles.group}>
-          {(data?.workspaces ?? [])
-            .filter((workspace) => workspace.sidebar !== false)
-            .map((item) => (
-              <Chip key={item.id} href={platformHref('/home', query)}>
-                {item.name}
-              </Chip>
-            ))}
+          {(data?.workspaces ?? []).map((item) => (
+            <Chip key={item.id} href={platformHref('/home', query)}>
+              {item.name}
+            </Chip>
+          ))}
         </div>
       </Disclosure>
       <Disclosure
@@ -81,6 +81,7 @@ export function SidebarCollections({ data, activeChat, navigate }: SidebarCollec
         actions={
           <ActionMenu
             label='Sort chats'
+            triggerSize='compact'
             icon='I050'
             actions={['Recent activity', 'Name (A–Z)', 'Name (Z–A)'].map((label) => ({
               id: label,
@@ -93,21 +94,15 @@ export function SidebarCollections({ data, activeChat, navigate }: SidebarCollec
       >
         <div className={styles.group}>
           {chats.map((item) => (
-            <div
+            <Chip
               key={item.id}
-              className={styles.chatRow}
-              data-current={activeChat === item.id || undefined}
-            >
-              <Chip
-                href={platformHref(`/chat/${item.id}`, query)}
-                selected={activeChat === item.id}
-              >
-                {item.title}
-              </Chip>
-              <span className={styles.rowActions}>
+              href={platformHref(`/chat/${item.id}`, query)}
+              selected={activeChat === item.id}
+              action={
                 <ActionMenu
                   label={`Actions for ${item.title}`}
                   icon='I108'
+                  triggerSize='compact'
                   align='end'
                   actions={[
                     {
@@ -124,8 +119,10 @@ export function SidebarCollections({ data, activeChat, navigate }: SidebarCollec
                     },
                   ]}
                 />
-              </span>
-            </div>
+              }
+            >
+              {item.title}
+            </Chip>
           ))}
         </div>
       </Disclosure>

@@ -24,7 +24,7 @@ export interface ShellNotice extends ShellItem {
 export interface ShellData {
   organization: { name: string; memberCount: number }
   user: { name: string }
-  workspaces: { id: string; name: string; sidebar?: boolean }[]
+  workspaces: { id: string; name: string }[]
   chats: ShellItem[]
   inbox: InboxItem[]
   notifications: ShellNotice[]

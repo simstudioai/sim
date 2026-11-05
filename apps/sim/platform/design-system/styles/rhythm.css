@@ -1,16 +1,31 @@
 [data-platform-ui] {
   --ui-control-radius: var(--radius-control);
   --ui-stack-gap: var(--spacing-2);
+  --ui-list-gap: var(--spacing-2);
+  --ui-action-gap: var(--spacing-2);
   --ui-row-gap: var(--spacing-8);
   --ui-row-inset: var(--spacing-8);
   --ui-row-block: var(--spacing-6);
-  --ui-icon-stroke: 1.25px;
-  --ui-action-overhang: calc((var(--spacing-app-control-sm) - var(--ui-icon-size)) / 2);
-  --ui-icon-ink: var(--ui-secondary);
+  --ui-icon-stroke: 1.125px;
+  --ui-action-overhang: calc((var(--spacing-app-control-sm) - var(--ui-glyph-size)) / 2);
+  --ui-icon-muted: color-mix(in srgb, var(--color-light-text-strong) 60%, var(--color-light-canvas));
+  --ui-icon-active: color-mix(
+    in srgb,
+    var(--color-light-text-strong) 80%,
+    var(--color-light-canvas)
+  );
+  --ui-icon-ink: var(--ui-icon-muted);
+  --ui-icon-ratio: 1.15em;
   --ui-icon-size: var(--spacing-app-icon);
+  --ui-glyph-size: min(var(--ui-icon-ratio), var(--ui-icon-size));
   --ui-popup-padding: var(--spacing-menu-inset);
   --ui-dialog-inset: var(--spacing-16);
   --ui-section-gap: var(--spacing-12);
+}
+
+[data-platform-ui][data-theme="dark"] {
+  --ui-icon-muted: var(--color-dark-muted);
+  --ui-icon-active: var(--color-dark-text);
 }
 
 [data-platform-ui]
@@ -26,7 +41,7 @@
     [data-popup-open]
   ),
 [data-platform-ui] [aria-current="page"] {
-  --ui-icon-ink: var(--ui-ink);
+  --ui-icon-ink: var(--ui-icon-active);
 }
 [data-platform-ui]
   :is([data-variant="primary"], [data-variant="solid"], [data-variant="destructive"]) {
@@ -35,6 +50,6 @@
 
 @media (pointer: coarse) {
   [data-platform-ui] {
-    --ui-action-overhang: calc((var(--spacing-app-touch-target) - var(--ui-icon-size)) / 2);
+    --ui-action-overhang: calc((var(--spacing-app-touch-target) - var(--ui-glyph-size)) / 2);
   }
 }

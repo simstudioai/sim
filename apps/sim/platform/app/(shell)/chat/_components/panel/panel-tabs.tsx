@@ -1,7 +1,13 @@
 'use client'
 
 import styles from '@/platform/app/(shell)/chat/_components/panel/panel-tabs.module.css'
-import { ActionMenu, IconButton, type TabItem, Tabs } from '@/platform/design-system/components'
+import {
+  ActionMenu,
+  IconButton,
+  OverflowText,
+  type TabItem,
+  Tabs,
+} from '@/platform/design-system/components'
 
 interface PanelTabsProps {
   tabs: readonly TabItem[]
@@ -36,7 +42,7 @@ export function PanelTabs({
         <header className={styles.header} data-expanded={expanded || undefined}>
           <div className={styles.tabList}>{tabList}</div>
           <span className={styles.title} data-type='T046'>
-            {active?.label}
+            {active && <OverflowText text={active.label}>{active.label}</OverflowText>}
           </span>
           <IconButton icon='I074' label='New panel tab' onClick={onAdd} />
           <div className={styles.actions}>

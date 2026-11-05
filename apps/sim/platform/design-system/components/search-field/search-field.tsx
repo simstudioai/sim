@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { IconButton } from '@/platform/design-system/components/button/button'
 import { Icon } from '@/platform/design-system/components/icon/icon'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import styles from '@/platform/design-system/components/search-field/search-field.module.css'
 
 interface SearchFieldProps {
@@ -23,6 +24,7 @@ export function SearchField({
   onValueChange,
 }: SearchFieldProps) {
   const input = useRef<HTMLInputElement>(null)
+  const queryEdges = useScrollEdges('horizontal', { viewport: input })
   const [query, setQuery] = useState(defaultValue)
   useEffect(() => {
     if (!shortcut) return
@@ -63,7 +65,7 @@ export function SearchField({
     <div className={styles.search} data-variant={variant}>
       <Icon name='I089' />
       <input
-        ref={input}
+        ref={queryEdges}
         type='search'
         aria-label={label}
         placeholder={placeholder}

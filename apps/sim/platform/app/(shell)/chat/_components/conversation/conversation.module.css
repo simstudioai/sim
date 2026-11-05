@@ -16,20 +16,13 @@
   padding-inline: max(var(--ui-navigation-inset), var(--spacing-24)) var(--spacing-16);
 }
 .header h1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.reading,
-.dock {
-  padding-inline: clamp(var(--spacing-16), 5cqi, var(--spacing-48));
+  min-inline-size: 0;
 }
 .reading {
   flex: 1;
   min-block-size: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  padding-block: var(--spacing-24) var(--spacing-16);
 }
 .thread,
 .turn {
@@ -40,14 +33,17 @@
 }
 .thread,
 .dockInner {
-  max-inline-size: var(--container-chat-thread);
+  inline-size: min(
+    var(--container-chat-thread),
+    calc(100% - clamp(var(--spacing-32), 10cqi, var(--spacing-96)))
+  );
   margin-inline: auto;
 }
 .dock {
   flex: none;
   position: relative;
   min-inline-size: 0;
-  padding-block: var(--spacing-8) clamp(var(--spacing-16), 3cqi, var(--spacing-28));
+  padding-block-end: clamp(var(--spacing-16), 3cqi, var(--spacing-28));
 }
 .jump {
   position: absolute;

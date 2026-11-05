@@ -73,6 +73,34 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       export function Panel(){return <section className={classes.panel}/>}`
     )
     write('platform/app/settings/_components/panel.module.css', '.panel{padding:0}')
+    const modal = 'platform/design-system/components/modal'
+    write(
+      `${modal}/modal.tsx`,
+      'export function Modal(){return null}; export function MultiStepModal(){return null}'
+    )
+    write(`${modal}/overlay-dialog.tsx`, 'export function OverlayDialog(){return null}')
+    write(
+      `${modal}/modal-parts.tsx`,
+      'export function ModalHeader(){return null}; export function ModalFooter(){return null}'
+    )
+    write(
+      `${modal}/index.ts`,
+      "export * from './modal'; export * from './overlay-dialog'; export * from './modal-parts'"
+    )
+    const dialogImports = `import * as Dialogs from '@/${modal}';
+      import { OverlayDialog as Surface, ModalFooter as Actions } from '@/${modal}';
+      import { Button as Action } from '@/${component}/button';`
+    write(
+      'platform/app/settings/_components/inspector.tsx',
+      `${dialogImports}
+      function ModalFooter(){return <span>Document information</span>}
+      export function Inspect({title}:{title:string}) {return <>
+        <Surface title={title}><article><h2>{title}</h2><footer><button>View author</button></footer></article></Surface>
+        <Dialogs.OverlayDialog label="Search" presentation="command"><form role="search"><input type="search"/></form></Dialogs.OverlayDialog>
+        <Dialogs.Modal title="Rename" confirmLabel="Save"><input/></Dialogs.Modal>
+        <dialog aria-label="Navigation drawer"><nav/></dialog>
+        <form><button>Cancel</button></form><ModalFooter/></>}`
+    )
     expect(audit()).toEqual({ status: 0, output: expect.stringContaining('passed') })
 
     writeCatalog('evidence', [
@@ -219,6 +247,39 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       'export const Banner = () => <p>Email delivery is disabled in this preview.</p>'
     )
     const feature = 'platform/app/settings/_components'
+    const handBuiltDialogs = [
+      ['header-part', '<Dialogs.ModalHeader title="Invite"/>'],
+      ['footer-part', '<Actions confirmLabel="Invite"/>'],
+      ['form-overlay', '<Surface title="Invite" onSubmit={save}><input/></Surface>'],
+      [
+        'cancel',
+        '<Dialogs.Modal title="Invite"><div><Action>Cancel</Action></div></Dialogs.Modal>',
+      ],
+      ['native-form', '<dialog aria-label="Invite"><form><input/></form></dialog>'],
+      [
+        'step',
+        '<Dialogs.MultiStepModal title="Invite" steps={[{content:<Action>Cancel</Action>}]}/>',
+      ],
+      [
+        'footer',
+        '<Surface title="Invite"><footer><button type="submit">Save</button></footer></Surface>',
+      ],
+      ['title', '<Dialogs.Modal title={title}><h2>{title}</h2></Dialogs.Modal>'],
+      [
+        'aria-form',
+        '<section role="dialog" aria-label="Invite"><button type="submit">Save</button></section>',
+      ],
+    ]
+    for (const [name, jsx] of handBuiltDialogs) {
+      write(
+        `${feature}/${name}.tsx`,
+        `${dialogImports}\nexport const Broken = (title:string) => ${jsx}`
+      )
+    }
+    write(
+      `${feature}/unnamed.tsx`,
+      `${dialogImports}\nexport const Unnamed = () => <Surface label=" " presentation="command"/>`
+    )
     write(
       `${feature}/icon.tsx`,
       'export const Glyph = () => <svg aria-hidden="true"><path d="M0 0h8" /></svg>'
@@ -287,6 +348,10 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     writeCatalog('variants', { Button: { variant: { primary: ['C0092'], ghost: ['C0093'] } } })
     const result = audit()
     expect(result.status).toBe(1)
+    for (const [file] of handBuiltDialogs) {
+      expect(result.output).toContain(`${feature}/${file}.tsx:4 [dialog-owner]`)
+    }
+    expect(result.output).toContain(`${feature}/unnamed.tsx:4 [dialog-name]`)
     expect(result.output).toContain(`${feature}/trigger.tsx [private-recipe]`)
     expect(result.output).toContain(`${feature}/actions.module.css [private-recipe]`)
     expect(result.output).toContain('platform/app/chats/other.ts [private-composition]')

@@ -1,8 +1,9 @@
 'use client'
 
-import { type ReactNode, useEffect, useRef } from 'react'
+import { type ReactNode, useRef } from 'react'
 import { IconButton } from '@/platform/design-system/components/button/button'
 import styles from '@/platform/design-system/components/scroll-area/scroll-area.module.css'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 interface ScrollAreaProps {
   label: string
@@ -20,47 +21,10 @@ export function ScrollArea({
   children,
 }: ScrollAreaProps) {
   const viewport = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const el = viewport.current
-    const content = el?.firstElementChild
-    if (!el || !content) return
-    let positionAtEnd = startAtEnd
-    function measure() {
-      if (!el || !content) return
-      const vertical = axis === 'vertical'
-      if (positionAtEnd && el.clientHeight && el.clientWidth) {
-        if (vertical) el.scrollTop = el.scrollHeight
-        else el.scrollLeft = el.scrollWidth
-        positionAtEnd = false
-      }
-      const offset = vertical ? el.scrollTop : Math.abs(el.scrollLeft)
-      const limit = vertical ? el.scrollHeight - el.clientHeight : el.scrollWidth - el.clientWidth
-      el.tabIndex = limit > 1 ? 0 : -1
-      const start = offset > 1
-      const fitsLane =
-        arrows && el.parentElement && content.scrollWidth <= el.parentElement.clientWidth + 1
-      if (fitsLane) {
-        el.dataset.edges = 'none'
-        el.tabIndex = -1
-        return
-      }
-      const end = offset < limit - 1
-      el.dataset.edges = start ? (end ? 'both' : 'start') : end ? 'end' : 'none'
-    }
-    const observer = new ResizeObserver(measure)
-    observer.observe(el)
-    observer.observe(content)
-    if (arrows && el.parentElement) observer.observe(el.parentElement)
-    measure()
-    el.addEventListener('scroll', measure, { passive: true })
-    return () => {
-      observer.disconnect()
-      el.removeEventListener('scroll', measure)
-    }
-  }, [axis, arrows, startAtEnd])
+  const scrollRef = useScrollEdges(axis, { viewport, arrows, startAtEnd, tabStop: true })
   const region = (
     <div
-      ref={viewport}
+      ref={scrollRef}
       className={styles.viewport}
       data-axis={axis}
       role='region'

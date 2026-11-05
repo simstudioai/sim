@@ -5,6 +5,8 @@ import { Tabs as BaseTabs } from '@base-ui/react/tabs'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import { IconButton } from '@/platform/design-system/components/button/button'
 import { Icon } from '@/platform/design-system/components/icon/icon'
+import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import styles from '@/platform/design-system/components/tabs/tabs.module.css'
 
 export interface TabItem {
@@ -24,6 +26,7 @@ interface TabsProps {
 }
 
 export function Tabs({ label, tabs, current, onSelect, onRemove, renderHeader }: TabsProps) {
+  const scrollRef = useScrollEdges<HTMLDivElement>('horizontal')
   const selected = useRef<HTMLButtonElement>(null)
   function closeTab(id: string) {
     onRemove(id)
@@ -38,7 +41,7 @@ export function Tabs({ label, tabs, current, onSelect, onRemove, renderHeader }:
       }}
     >
       {renderHeader(
-        <div className={styles.strip}>
+        <div ref={scrollRef} className={styles.strip}>
           <BaseTabs.List className={styles.tabs} aria-label={label} activateOnFocus>
             {tabs.map((tab) => (
               <BaseTabs.Tab
@@ -55,7 +58,7 @@ export function Tabs({ label, tabs, current, onSelect, onRemove, renderHeader }:
                 }}
               >
                 <Icon name={tab.icon} />
-                <span>{tab.label}</span>
+                <OverflowText text={tab.label}>{tab.label}</OverflowText>
               </BaseTabs.Tab>
             ))}
           </BaseTabs.List>

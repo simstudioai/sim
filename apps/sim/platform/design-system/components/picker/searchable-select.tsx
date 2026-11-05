@@ -7,6 +7,7 @@ import { Icon } from '@/platform/design-system/components/icon/icon'
 import popup from '@/platform/design-system/components/menu/popup.shared.module.css'
 import picker from '@/platform/design-system/components/picker/picker.module.css'
 import { usePickerValue } from '@/platform/design-system/components/picker/use-picker-value'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { MenuSearchField } from '@/platform/design-system/components/search-field/menu-search-field'
 
 type Option = string | { value: string; label: string }
@@ -40,6 +41,9 @@ export function SearchableSelect({
   const id = useId()
   const actions = useRef<Combobox.Root.Actions>(null)
   const input = useRef<HTMLInputElement>(null)
+  const queryEdges = useScrollEdges('horizontal', { viewport: input })
+  const valueEdges = useScrollEdges<HTMLSpanElement>('horizontal')
+  const scrollRef = useScrollEdges<HTMLDivElement>()
   const selection = usePickerValue(options, collectionKeys.getValue, defaultValue)
   const items = useMemo(() => Combobox.createItems(options, collectionKeys), [options])
   return (
@@ -61,7 +65,7 @@ export function SearchableSelect({
           className={picker.trigger}
           data-type='T043'
         >
-          <span className={picker.value}>
+          <span ref={valueEdges} className={picker.value}>
             <Combobox.Value />
           </span>
           <Icon name='I051' />
@@ -84,7 +88,7 @@ export function SearchableSelect({
                 <MenuSearchField
                   input={
                     <Combobox.Input
-                      ref={input}
+                      ref={queryEdges}
                       aria-label={searchLabel}
                       placeholder={searchLabel}
                     />
@@ -93,7 +97,7 @@ export function SearchableSelect({
                 <Combobox.Empty className={picker.empty} data-type='T060'>
                   No matches
                 </Combobox.Empty>
-                <Combobox.List aria-label={label} className={popup.list}>
+                <Combobox.List ref={scrollRef} aria-label={label} className={popup.list}>
                   {(option: Option) => (
                     <Combobox.Item
                       key={collectionKeys.getValue(option)}

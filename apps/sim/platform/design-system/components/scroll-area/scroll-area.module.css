@@ -15,16 +15,6 @@
 .viewport[data-axis="vertical"] {
   overflow-x: hidden;
 }
-.viewport[data-edges="start"] {
-  mask-image: var(--fade-start);
-}
-.viewport[data-edges="end"] {
-  mask-image: var(--fade-end);
-}
-.viewport[data-edges="both"] {
-  mask-image: var(--fade-both);
-}
-
 .shell {
   display: flex;
   align-items: center;
@@ -41,8 +31,8 @@
   flex: none;
   justify-content: center;
 }
-.shell:has([data-edges="start"], [data-edges="both"]) > .previous,
-.shell:has([data-edges="end"], [data-edges="both"]) > .next {
+.shell:has(> .viewport:is([data-edges="start"], [data-edges="both"])) > .previous,
+.shell:has(> .viewport:is([data-edges="end"], [data-edges="both"])) > .next {
   display: flex;
 }
 @media (pointer: coarse) {

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, type Locator, test } from '@playwright/test'
 
 const populated = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
 
@@ -7,6 +7,10 @@ test('Home can hide, undo, disconnect and reconnect widgets without losing the r
 }) => {
   await page.goto(`${populated}/home?state=full`)
   const email = page.getByRole('region', { name: 'Email', exact: true })
+  await expect(page.getByRole('region', { name: 'Home dashboard' })).toHaveAttribute(
+    'data-edges',
+    'end'
+  )
   const customize = page.getByRole('button', { name: 'Customize Home' })
   await customize.hover()
   await expect(page.getByRole('tooltip', { name: 'Customize Home' })).toBeVisible()
@@ -68,6 +72,33 @@ test('Home fills the available chart column and keeps calendar day controls on t
   }
 })
 
+test('clipped mail fades sideways inside the scrolling Home dashboard', async ({ page }) => {
+  await page.setViewportSize({ width: 1050, height: 760 })
+  await page.goto(`${populated}/home?state=full`)
+  const home = page.getByRole('region', { name: 'Home dashboard' })
+  const row = home.getByRole('button', { name: /Nina Patel.*Updated onboarding checklist/ })
+  await expect(home).toHaveAttribute('data-edges', 'end')
+  await row.getByText('Updated onboarding checklist', { exact: true }).hover()
+  await expect(page.locator('[role=tooltip]:visible')).toContainText('kickoff on Thursday')
+  await expect
+    .poll(() =>
+      row.evaluate((el) =>
+        Array.from(el.querySelectorAll('*'))
+          .map((child) => getComputedStyle(child).maskImage)
+          .filter((mask) => mask !== 'none')
+      )
+    )
+    .toContainEqual(expect.stringMatching(/to right/))
+  await home.evaluate((el) => {
+    el.scrollTop = el.scrollHeight
+  })
+  await expect(home).toHaveAttribute('data-edges', 'start')
+  await home.evaluate((el) => {
+    el.scrollTop /= 2
+  })
+  await expect(home).toHaveAttribute('data-edges', 'both')
+})
+
 test('a new chat carries its local draft and attachments through navigation without putting the message in the URL', async ({
   page,
 }) => {
@@ -118,7 +149,20 @@ test('chat activity, recovery, and feedback controls work at intermediate and na
 }) => {
   await page.setViewportSize({ width: 647, height: 790 })
   await page.goto(`${populated}/chat/weekly-review?state=full`)
+  async function linePlacement(line: Locator) {
+    await expect(line).toBeVisible()
+    return line.evaluate((element) => {
+      const turn = element.closest('article')
+      if (!turn) throw new Error('A response belongs to a chat turn')
+      const start = turn.getBoundingClientRect()
+      const bounds = element.getBoundingClientRect()
+      const css = getComputedStyle(element)
+      return [bounds.x - start.x, bounds.y - start.y, css.font, css.color]
+    })
+  }
+  const regular = await linePlacement(page.getByText(/^The renewal is in good shape/))
   await page.getByText('Worked for 38s', { exact: true }).click()
+  expect(await linePlacement(page.getByText(/^Compared the renewal terms/))).toEqual(regular)
   await page.locator('summary').filter({ hasText: 'Read renewal-brief.pdf' }).click()
   const input = page.locator('dd code').filter({ hasText: '"pages"' })
   await expect(input).toBeVisible()
@@ -134,7 +178,20 @@ test('chat activity, recovery, and feedback controls work at intermediate and na
   await page.getByRole('button', { name: 'Rate response' }).click()
   await page.getByRole('menuitem', { name: 'Bad response' }).click()
   const dialog = page.getByRole('dialog', { name: 'Share feedback' })
-  await dialog.getByRole('textbox', { name: 'Details' }).fill('The ownership change was missing.')
+  const feedback = dialog.getByRole('textbox', { name: 'Details' })
+  await feedback.fill('The ownership change was missing.\n'.repeat(40))
+  await feedback.evaluate((field) => {
+    field.scrollTop = 0
+  })
+  await expect(feedback).toHaveAttribute('data-edges', 'end')
+  await feedback.evaluate((field) => {
+    if (!(field instanceof HTMLTextAreaElement) || !field.form)
+      throw new Error('Missing feedback form')
+    field.form.reset()
+  })
+  await expect(feedback).toHaveValue('')
+  await expect(feedback).toHaveCSS('mask-image', 'none')
+  await feedback.fill('The ownership change was missing.')
   await dialog.getByRole('button', { name: 'Send feedback' }).click()
   await expect(dialog).not.toBeVisible()
   await page.setViewportSize({ width: 356, height: 740 })
@@ -170,6 +227,13 @@ test('collapsing work preserves prose and a long follow-up leaves the active run
   const editor = page.getByRole('textbox', { name: 'Add a follow-up…' })
   const progress = page.getByText(/checking for unresolved/)
   await expect(progress).toBeVisible()
+  const prose = await progress.boundingBox()
+  const step = await page
+    .locator('summary')
+    .filter({ hasText: 'Read renewal-brief.pdf' })
+    .boundingBox()
+  if (!prose || !step) throw new Error('The running update and its tool must both be visible')
+  expect(prose.y + prose.height).toBeLessThanOrEqual(step.y)
   await page.getByText(/^Working for /).click()
   await expect(progress).toBeVisible()
   const message = 'Include the handoff and its owner. '.repeat(25).trim()

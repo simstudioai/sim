@@ -6,8 +6,8 @@ import type { ChatAttachment } from '@/platform/app/(shell)/_components/composer
 import { usePlatformTheme } from '@/platform/app/(shell)/_components/session/product-surface'
 import { AttachmentGrid } from '@/platform/design-system/components/attachments/attachment-grid'
 import { useFileUrl } from '@/platform/design-system/components/attachments/use-file-url'
-import { ModalHeader } from '@/platform/design-system/components/modal/modal-parts'
 import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 interface MessageAttachmentsProps {
   items: readonly ChatAttachment[]
@@ -51,19 +51,11 @@ export function MessageAttachments({ items, onRemove }: MessageAttachmentsProps)
       />
       <OverlayDialog
         open={preview !== null}
-        label={preview?.name ?? 'Attachment'}
+        title={preview?.name ?? 'Attachment'}
+        description={preview?.metadata}
         onClose={() => setPreview(null)}
       >
-        {preview && (
-          <>
-            <ModalHeader
-              title={preview.name}
-              description={preview.metadata}
-              onClose={() => setPreview(null)}
-            />
-            <AttachmentPreview key={preview.id} item={preview} />
-          </>
-        )}
+        {preview && <AttachmentPreview key={preview.id} item={preview} />}
       </OverlayDialog>
     </div>
   )
@@ -73,6 +65,7 @@ interface AttachmentPreviewProps {
   item: ChatAttachment
 }
 function AttachmentPreview({ item }: AttachmentPreviewProps) {
+  const preview = useScrollEdges<HTMLDivElement>()
   const local = useFileUrl(item.file)
   const source = item.source ?? local
   const [text, setText] = useState(item.content)
@@ -95,7 +88,7 @@ function AttachmentPreview({ item }: AttachmentPreviewProps) {
     }
   }, [item])
   return (
-    <div className={styles.preview} data-type='T048'>
+    <div ref={preview} className={styles.preview} data-type='T048'>
       {item.kind === 'image' && source ? (
         <img src={source} alt={item.name} />
       ) : item.file?.type === 'application/pdf' && source ? (

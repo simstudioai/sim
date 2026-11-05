@@ -29,6 +29,7 @@
   },
   "IconButton": {
     "size": {
+      "row": [],
       "small": [
         "C0120",
         "C0121",

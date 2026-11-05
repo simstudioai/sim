@@ -19,7 +19,7 @@
 .closes {
   display: flex;
   align-items: center;
-  gap: var(--spacing-4);
+  gap: var(--ui-action-gap);
   grid-area: 1 / 1;
 }
 .closes {
@@ -48,11 +48,6 @@
   border-radius: var(--ui-control-radius);
   text-align: start;
   cursor: pointer;
-}
-.tab > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .tab[data-active] {
   background: var(--ui-selected);

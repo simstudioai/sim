@@ -18,6 +18,7 @@ import { Icon } from '@/platform/design-system/components/icon/icon'
 import styles from '@/platform/design-system/components/menu/menu.module.css'
 import popup from '@/platform/design-system/components/menu/popup.shared.module.css'
 import { usePopoverContainer } from '@/platform/design-system/components/menu/use-popover-container'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
 
 interface InlineSelection {
@@ -61,6 +62,7 @@ interface TriggeredMenuProps {
   onOpenChange?: (open: boolean) => void
   align?: 'start' | 'end'
   heading?: string
+  triggerSize?: 'small' | 'row' | 'compact'
   children?: never
   defaultValue?: never
 }
@@ -76,6 +78,7 @@ export function ActionMenu(props: ActionMenuProps | TriggeredMenuProps) {
         onOpenChange={props.onOpenChange}
         align={props.align}
         heading={props.heading}
+        triggerSize={props.triggerSize}
       />
     )
   return (
@@ -116,6 +119,7 @@ function TriggeredMenu({
   onOpenChange,
   align,
   heading,
+  triggerSize = 'small',
 }: TriggeredMenuProps) {
   const { trigger, container } = usePopoverContainer()
   return (
@@ -125,10 +129,11 @@ function TriggeredMenu({
           <Menu.Trigger
             ref={trigger}
             className={controls.iconButton}
+            data-type='T060'
             disabled={!actions.length}
             aria-label={label}
             data-variant='quiet'
-            data-size='small'
+            data-size={triggerSize}
           >
             <Icon name={icon} />
           </Menu.Trigger>
@@ -185,6 +190,7 @@ export function ActionMenuPopup({
   align = 'start',
   children,
 }: ActionMenuPopupProps) {
+  const scrollEdges = useScrollEdges<HTMLDivElement>()
   const parent = useContext(FloatingMenu)
   const browserRows = useContext(BrowserRows) || Boolean(browser)
   const panel = useRef<HTMLDivElement>(null)
@@ -217,7 +223,7 @@ export function ActionMenuPopup({
             data-elevation='menu'
           >
             <BrowserRows.Provider value={browserRows}>
-              <Menu.List className={popup.list} aria-label={label}>
+              <Menu.List ref={scrollEdges} className={popup.list} aria-label={label}>
                 {children}
               </Menu.List>
             </BrowserRows.Provider>

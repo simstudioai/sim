@@ -17,11 +17,11 @@ export function SidebarToolbar({ items, navigate, onSearch, onCollapse }: Sideba
   return (
     <div ref={toolbar} className={styles.actions}>
       <Tooltip label='Search (⌘K)'>
-        <IconButton label='Search' icon='I089' onClick={onSearch} />
+        <IconButton size='row' label='Search' icon='I089' onClick={onSearch} />
       </Tooltip>
       <Inbox anchor={toolbar} items={items} navigate={navigate} />
       <Tooltip label='Collapse sidebar'>
-        <IconButton label='Collapse sidebar' icon='I066' onClick={onCollapse} />
+        <IconButton size='row' label='Collapse sidebar' icon='I066' onClick={onCollapse} />
       </Tooltip>
     </div>
   )

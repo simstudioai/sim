@@ -51,9 +51,18 @@ function fixture<T>(read: (scenario: Scenario) => Promise<T>) {
 export const loadPreviewData = fixture(
   async (scenario) => (await import('@/platform/fixtures/data')).scenarios[scenario]
 )
-export const loadShellData = fixture(
-  async (scenario) => (await import('@/platform/fixtures/shell-data')).shellScenarios[scenario]
-)
+export const loadShellData = fixture(async (scenario) => {
+  const [{ shellScenarios }, { conversationScenarios }] = await Promise.all([
+    import('@/platform/fixtures/shell-data'),
+    import('@/platform/fixtures/conversation-data'),
+  ])
+  const { home, chat } = conversationScenarios[scenario]
+  return {
+    ...shellScenarios[scenario],
+    workspaces: home.workspaces.map(({ id, title }) => ({ id, name: title })),
+    chats: chat.threads.map(({ id, title }) => ({ id, title })),
+  }
+})
 export const loadSettingsData = fixture(
   async (scenario) =>
     (await import('@/platform/fixtures/settings-data')).settingsScenarios[scenario]

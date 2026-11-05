@@ -11,7 +11,8 @@ import type { ConversationData } from '@/platform/app/(shell)/chat/_components/c
 import { ResponseMessage } from '@/platform/app/(shell)/chat/_components/message/response-message'
 import { UserMessage } from '@/platform/app/(shell)/chat/_components/message/user-message'
 import { ChatPanelTrigger } from '@/platform/app/(shell)/chat/_components/panel/chat-panels'
-import { IconButton, Tooltip } from '@/platform/design-system/components'
+import { IconButton, OverflowText, Tooltip } from '@/platform/design-system/components'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { platformHref } from '@/platform/design-system/navigation'
 
 interface ConversationProps {
@@ -23,6 +24,7 @@ export function Conversation({ data, chatId }: ConversationProps) {
   const router = useRouter()
   const search = useSearchParams()
   const viewport = useRef<HTMLDivElement>(null)
+  const reading = useScrollEdges('vertical', { viewport, tabStop: true })
   const [earlier, setEarlier] = useState(false)
   const thread = data?.threads.find((item) => item.id === chatId)
   const id = chatId ?? ''
@@ -55,13 +57,17 @@ export function Conversation({ data, chatId }: ConversationProps) {
   }, [id, last?.id])
   return (
     <div className={styles.chat}>
-      <header className={styles.header}>
-        <h1 data-type='T039'>{title}</h1>
+      <header className={styles.header} data-desktop-drag=''>
+        <h1 data-type='T039'>
+          <OverflowText text={title}>{title}</OverflowText>
+        </h1>
         <ChatPanelTrigger />
       </header>
       <div
         className={styles.reading}
-        ref={viewport}
+        role='region'
+        aria-label='Conversation'
+        ref={reading}
         onScroll={(event) => {
           const el = event.currentTarget
           setEarlier(el.scrollHeight - el.clientHeight - el.scrollTop > 32)

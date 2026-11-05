@@ -1,15 +1,11 @@
 .entries {
+  display: grid;
+  gap: var(--ui-list-gap);
   min-inline-size: 0;
-}
-.entries li {
-  padding-block: var(--ui-popup-padding);
-}
-.entries li + li {
-  border-block-start: var(--spacing-stroke-default) solid var(--ui-divider);
 }
 .row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--ui-row-gap);
   inline-size: calc(100% + 2 * var(--ui-row-inset));
   margin-inline: calc(-1 * var(--ui-row-inset));
@@ -21,6 +17,7 @@
   background: var(--ui-hover);
 }
 .leading {
+  align-self: start;
   display: grid;
   place-items: center;
   flex: none;

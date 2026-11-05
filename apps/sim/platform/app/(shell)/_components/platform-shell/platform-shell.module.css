@@ -27,7 +27,6 @@
   flex: none;
 }
 .homeHeader {
-  min-block-size: var(--spacing-52);
   background: transparent;
   backdrop-filter: none;
 }
@@ -62,9 +61,6 @@
 }
 .desktopTitle {
   min-inline-size: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
   padding-inline: var(--spacing-20);
   color: var(--ui-secondary);
 }

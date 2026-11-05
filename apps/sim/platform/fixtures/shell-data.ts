@@ -2,43 +2,11 @@ import 'server-only'
 import type { ShellData } from '@/platform/app/(shell)/_components/model'
 import type { Scenario } from '@/platform/fixtures'
 
-const full: ShellData = {
+type ShellDetails = Omit<ShellData, 'chats' | 'workspaces'>
+
+const full: ShellDetails = {
   organization: { name: 'Sim Enterprise', memberCount: 5 },
   user: { name: 'Emir Karabeg' },
-  workspaces: [
-    { id: 'operations', name: 'Customer operations' },
-    { id: 'revenue', name: 'Revenue operations' },
-    { id: 'finance', name: 'Finance' },
-    { id: 'marketing', name: 'Marketing' },
-    { id: 'people', name: 'People operations' },
-    ...[
-      'Customer onboarding',
-      'Sales development',
-      'Product operations',
-      'Engineering',
-      'Legal & compliance',
-      'IT operations',
-      'Data & analytics',
-      'Procurement',
-      'Partner operations',
-      'Customer success',
-      'Security',
-      'Business operations',
-      'Executive office',
-      'Revenue intelligence',
-      'Internal tools',
-    ].map((name) => ({
-      id: name.toLowerCase().replaceAll(' & ', '-').replaceAll(' ', '-'),
-      name,
-      sidebar: false,
-    })),
-  ],
-  chats: [
-    { id: 'weekly-review', title: 'Review the renewal brief' },
-    { id: 'customer-onboarding', title: 'Customer onboarding' },
-    { id: 'october-close', title: 'Prepare October close' },
-    { id: 'q4-planning', title: 'Q4 planning' },
-  ],
   inbox: [
     {
       id: 'approval',
@@ -85,12 +53,10 @@ const full: ShellData = {
   ],
 }
 
-export const shellScenarios: Record<Scenario, ShellData> = {
+export const shellScenarios: Record<Scenario, ShellDetails> = {
   empty: {
     ...full,
     organization: { name: 'Sim Enterprise', memberCount: 1 },
-    workspaces: [],
-    chats: [],
     inbox: [],
     notifications: [],
   },
@@ -98,16 +64,5 @@ export const shellScenarios: Record<Scenario, ShellData> = {
   stress: {
     ...full,
     organization: { name: 'International customer operations and research', memberCount: 178 },
-    workspaces: Array.from({ length: 36 }, (_, i) => ({
-      id: `workspace-${i}`,
-      name: `International customer operations and onboarding ${i + 1}`,
-    })),
-    chats: full.chats.map((chat) => ({
-      ...chat,
-      title:
-        chat.id === 'weekly-review'
-          ? 'Review the international customer renewal briefing'
-          : chat.title,
-    })),
   },
 }

@@ -75,7 +75,7 @@
   box-shadow: var(--ui-elevation-shell);
 }
 
-[data-platform-ui] [data-axis] {
+[data-platform-ui] [data-scroll-axis] {
   --fade-direction: to bottom;
   --fade-start: linear-gradient(
     var(--fade-direction),
@@ -95,10 +95,10 @@
     transparent
   );
 }
-[data-platform-ui] [data-axis="horizontal"] {
+[data-platform-ui] [data-scroll-axis="horizontal"] {
   --fade-direction: to right;
 }
-[data-platform-ui] [data-axis="horizontal"]:dir(rtl) {
+[data-platform-ui] [data-scroll-axis="horizontal"]:dir(rtl) {
   --fade-direction: to left;
 }
 
@@ -115,4 +115,14 @@
   --plot-gradient-ink: var(--ui-plot-primary);
   --plot-stroke-width: var(--spacing-2);
   --ui-plot-area-opacity: 0.16;
+}
+
+[data-platform-ui] [data-scroll-axis][data-edges="start"] {
+  mask-image: var(--fade-start);
+}
+[data-platform-ui] [data-scroll-axis][data-edges="end"] {
+  mask-image: var(--fade-end);
+}
+[data-platform-ui] [data-scroll-axis][data-edges="both"] {
+  mask-image: var(--fade-both);
 }

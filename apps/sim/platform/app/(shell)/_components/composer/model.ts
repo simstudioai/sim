@@ -21,6 +21,7 @@ export interface ChatTurn {
     state: 'complete' | 'running' | 'failed' | 'stopped'
     duration: string
     thinking?: string
+    progress?: string
     failure?: string
     paragraphs: { lead?: string; text: string }[]
     steps: {

@@ -25,7 +25,7 @@
   justify-content: space-between;
 }
 .actions {
-  gap: var(--ui-row-gap);
+  gap: var(--ui-action-gap);
 }
 .actions button {
   border-radius: var(--radius-full);
@@ -38,10 +38,12 @@
   padding-block: var(--spacing-6);
 }
 .preview {
-  padding: var(--spacing-16) var(--spacing-24);
   white-space: pre-wrap;
   overflow: auto;
   max-height: 60dvh;
+}
+.preview > :is(p, a) {
+  margin-inline: var(--ui-dialog-inset);
 }
 .preview :is(img, object) {
   width: 100%;

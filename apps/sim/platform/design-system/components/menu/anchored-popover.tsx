@@ -7,6 +7,7 @@ import controls from '@/platform/design-system/components/button/button.shared.m
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import popup from '@/platform/design-system/components/menu/popup.shared.module.css'
 import { usePopoverContainer } from '@/platform/design-system/components/menu/use-popover-container'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
 
 type AnchoredPopoverProps = {
@@ -31,6 +32,7 @@ export function AnchoredPopover({
   open,
   onOpenChange,
 }: AnchoredPopoverProps) {
+  const scrollEdges = useScrollEdges<HTMLDivElement>()
   const portal = usePopoverContainer()
   return (
     <Popover.Root open={open} onOpenChange={onOpenChange}>
@@ -39,8 +41,9 @@ export function AnchoredPopover({
           <Popover.Trigger
             ref={portal.trigger}
             className={controls.iconButton}
+            data-type='T060'
             aria-label={label}
-            data-size='small'
+            data-size='row'
           >
             <Icon name={icon} />
           </Popover.Trigger>
@@ -59,6 +62,7 @@ export function AnchoredPopover({
             positionMethod='fixed'
           >
             <Popover.Popup
+              ref={scrollEdges}
               className={popup.panel}
               data-presentation={presentation}
               aria-label={label}

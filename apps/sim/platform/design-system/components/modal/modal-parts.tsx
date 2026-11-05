@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { IconButton } from '@/platform/design-system/components/button/button'
+import { Button, IconButton } from '@/platform/design-system/components/button/button'
 import styles from '@/platform/design-system/components/modal/modal.module.css'
 
 interface ModalHeaderProps {
@@ -49,11 +49,22 @@ export function ModalBody({ children, label, inactive }: ModalBodyProps) {
 }
 
 interface ModalFooterProps {
+  confirmLabel: string
+  onPrevious?: () => void
+  previousStep?: boolean
+  destructive?: boolean
+  disabled?: boolean
   progress?: string
-  children: ReactNode
 }
 
-export function ModalFooter({ progress, children }: ModalFooterProps) {
+export function ModalFooter({
+  confirmLabel,
+  onPrevious,
+  previousStep,
+  destructive,
+  disabled,
+  progress,
+}: ModalFooterProps) {
   return (
     <footer className={styles.modalFooter}>
       {progress && (
@@ -61,7 +72,12 @@ export function ModalFooter({ progress, children }: ModalFooterProps) {
           {progress}
         </span>
       )}
-      {children}
+      <Button variant='quiet' onClick={onPrevious}>
+        {previousStep ? 'Back' : 'Cancel'}
+      </Button>
+      <Button variant={destructive ? 'destructive' : 'primary'} submit disabled={disabled}>
+        {confirmLabel}
+      </Button>
     </footer>
   )
 }

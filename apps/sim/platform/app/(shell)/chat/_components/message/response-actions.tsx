@@ -16,7 +16,7 @@ export function ResponseActions({ text, time }: ResponseActionsProps) {
   const [rating, setRating] = useState<'Good response' | 'Bad response' | null>(null)
   return (
     <>
-      <div className={styles.responseActions}>
+      <div className={styles.responseActions} data-type='T060'>
         <CopyAction label='Copy response' text={text} />
         <ActionMenu
           icon={rating ? (rating === 'Good response' ? 'I017' : 'I008') : 'I069'}

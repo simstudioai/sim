@@ -2,11 +2,10 @@
   display: flex;
   align-items: center;
   flex: none;
-  gap: var(--spacing-4);
+  gap: var(--ui-action-gap);
   padding-inline: max(var(--ui-navigation-inset), var(--spacing-12)) var(--spacing-12);
   min-inline-size: 0;
   height: var(--height-nav);
-  border-block-end: var(--spacing-stroke-default) solid var(--ui-divider);
 }
 :global([data-sim-desktop-title-bar]) .header {
   height: var(--spacing-48);
@@ -26,7 +25,7 @@
 .actions {
   display: flex;
   align-items: center;
-  gap: var(--spacing-4);
+  gap: var(--ui-action-gap);
   margin-inline-start: auto;
 }
 .title,
@@ -41,10 +40,10 @@
   .title {
     order: 1;
     flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    text-align: center;
+    min-inline-size: 0;
+    display: grid;
+    grid-template-columns: fit-content(100%);
+    justify-content: center;
   }
   .actions {
     order: 2;

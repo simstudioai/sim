@@ -98,7 +98,9 @@ export function Sidebar({
             {accountName}
           </IdentityButton>
         )}
-        <HelpMenu iconOnly />
+        <div className={styles.help}>
+          <HelpMenu iconOnly />
+        </div>
       </footer>
     </aside>
   )

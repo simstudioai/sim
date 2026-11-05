@@ -5,6 +5,7 @@ import { useRender } from '@base-ui/react/use-render'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import styles from '@/platform/design-system/components/identity-button/identity-button.module.css'
+import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 
 interface IdentityButtonProps {
   label: string
@@ -35,7 +36,11 @@ export function IdentityButton({
       children: (
         <>
           {leading}
-          {children && <span className={styles.name}>{children}</span>}
+          {children && (
+            <span className={styles.name}>
+              <OverflowText text={children}>{children}</OverflowText>
+            </span>
+          )}
           {trailingIcon && <Icon name={trailingIcon} />}
         </>
       ),

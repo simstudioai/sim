@@ -1,8 +1,8 @@
 .icon {
   display: inline-block;
   flex: none;
-  width: var(--ui-icon-size);
-  height: var(--ui-icon-size);
+  width: var(--ui-glyph-size);
+  height: var(--ui-glyph-size);
 }
 
 .icon[data-interface-icon] {

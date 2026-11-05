@@ -6,6 +6,7 @@ import { chartNumber, chartTick } from '@/platform/design-system/components/char
 import { ChartTooltip } from '@/platform/design-system/components/chart/chart-tooltip'
 import styles from '@/platform/design-system/components/chart/charts.module.css'
 import { usePlotInspection } from '@/platform/design-system/components/chart/use-plot-inspection'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 interface ChartFrameProps {
   title: string
@@ -53,6 +54,7 @@ function SeriesFrame({
   detail,
   legend,
 }: SeriesFrameProps) {
+  const tickEdges = useScrollEdges<HTMLLIElement>('horizontal')
   const inspection = usePlotInspection(labels.length, { band })
   const { active, tooltipId } = inspection
   const ticks = band
@@ -94,7 +96,7 @@ function SeriesFrame({
           data-type='T050'
         >
           {ticks.map((tick, i) => (
-            <li key={i} title={tick}>
+            <li ref={tickEdges} key={i} title={tick}>
               {tick}
             </li>
           ))}

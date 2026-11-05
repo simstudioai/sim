@@ -13,6 +13,7 @@
 
 .modal {
   position: fixed;
+  text-align: start;
   inset: 0;
   width: min(var(--container-app-modal-md), calc(100% - var(--spacing-32)));
   max-width: none;

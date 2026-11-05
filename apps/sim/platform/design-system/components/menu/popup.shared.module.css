@@ -65,11 +65,9 @@
 }
 
 .separator {
-  display: block;
   flex: none;
-  block-size: var(--spacing-stroke-default);
-  margin: var(--spacing-4);
-  background: var(--ui-divider);
+  block-size: var(--ui-list-gap);
+  border: 0;
 }
 
 .panel {

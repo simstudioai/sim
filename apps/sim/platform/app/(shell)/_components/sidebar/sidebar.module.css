@@ -22,7 +22,8 @@
   min-block-size: var(--spacing-app-chip);
   margin-block-start: auto;
 }
-.sidebarFooter > :last-child {
+.help {
+  display: flex;
   margin-inline-start: auto;
 }
 .accountPhoto {
@@ -48,5 +49,5 @@
   gap: var(--spacing-20);
 }
 .group {
-  gap: var(--ui-stack-gap);
+  gap: var(--ui-list-gap);
 }

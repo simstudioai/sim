@@ -7,6 +7,7 @@ import { chartNumber, chartTick } from '@/platform/design-system/components/char
 import { ChartTooltip } from '@/platform/design-system/components/chart/chart-tooltip'
 import { usePlotInspection } from '@/platform/design-system/components/chart/use-plot-inspection'
 import { RangePicker } from '@/platform/design-system/components/menu/range-picker'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 interface TaskPoint {
   label: string
@@ -27,6 +28,7 @@ interface TaskSeriesProps {
 }
 
 function TaskSeries({ title, points, initialPoint }: TaskSeriesProps) {
+  const tickEdges = useScrollEdges<HTMLLIElement>('horizontal')
   const inspection = usePlotInspection(points.length, { initialIndex: initialPoint })
   const active = inspection.active
   const point = active === undefined ? undefined : points[active]
@@ -75,7 +77,9 @@ function TaskSeries({ title, points, initialPoint }: TaskSeriesProps) {
       </div>
       <ul className={styles.ticks} aria-label='Chart periods' data-type='T034'>
         {labels.map((label) => (
-          <li key={label.label}>{label.label}</li>
+          <li ref={tickEdges} key={label.label}>
+            {label.label}
+          </li>
         ))}
       </ul>
     </div>

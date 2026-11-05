@@ -10,10 +10,6 @@
   overflow: clip;
 }
 
-.overflowText[data-clipped] {
-  mask-image: var(--fade-end);
-}
-
 .overflowLabel {
   flex: none;
   inline-size: max-content;

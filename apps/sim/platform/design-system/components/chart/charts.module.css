@@ -49,7 +49,6 @@
 .ticks li {
   overflow: hidden;
   white-space: nowrap;
-  text-overflow: ellipsis;
 }
 .ticks[data-band] li {
   flex: 1;

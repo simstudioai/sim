@@ -4,7 +4,6 @@
   gap: var(--spacing-24);
   margin-inline: auto;
   inline-size: min(calc(100% - 2 * var(--spacing-24)), var(--container-app-settings));
-  padding-block: var(--spacing-32);
 }
 
 .heading {
@@ -19,7 +18,6 @@
 @media (max-width: 40rem) {
   .content {
     inline-size: calc(100% - 2 * var(--spacing-16));
-    padding-block-start: var(--spacing-24);
   }
 }
 
@@ -32,7 +30,6 @@
   gap: var(--spacing-12);
   min-block-size: var(--spacing-48);
   padding-inline: max(var(--ui-navigation-inset), var(--spacing-24)) var(--spacing-24);
-  border-block-end: var(--spacing-stroke-default) solid var(--ui-divider);
   background: var(--ui-canvas);
 }
 
@@ -53,13 +50,9 @@
   margin-block-end: calc(-1 * var(--spacing-stroke-default));
 }
 :global([data-desktop]) .content {
-  padding-block-start: var(--spacing-24);
   gap: var(--spacing-20);
 }
 @media (max-width: 48rem) {
-  .content {
-    padding-block-start: var(--spacing-24);
-  }
   .breadcrumb {
     min-block-size: var(--spacing-56);
     padding-inline-start: calc(var(--ui-navigation-inset) + var(--spacing-8));
