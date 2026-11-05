@@ -22,7 +22,6 @@ import {
   type CredentialGroupProvider,
   findCredentialGroupProviderFromProviderId,
 } from '@/lib/credential-groups/providers'
-import { getOrganizationAccountsGroup } from '@/lib/credential-groups/service'
 import { listViewerOrganizationAccounts } from '@/lib/credential-groups/viewer-accounts'
 import {
   ManagedOAuthCredentialError,
@@ -30,6 +29,7 @@ import {
   resolveManagedOAuthToken,
 } from '@/lib/credentials/managed-oauth'
 import { getOwnOrganizationManagedOAuthCredentials } from '@/lib/credentials/organization-managed'
+import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { recordCredentialAccess } from '@/lib/oauth/token-resolution'
 import {
   HOME_CALENDAR_EVENT_LIMIT,
@@ -46,7 +46,7 @@ import {
   readOutlookCalendarDay,
   readOutlookMessages,
 } from '@/lib/organizations/home/provider-reads'
-import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { canConnectSearchIntegrations } from '@/lib/organizations/surface'
 
 const logger = createLogger('OrganizationHomeWidgets')
 
@@ -70,16 +70,6 @@ export const organizationHomeOperations = {
     capability: 'integrations.manage',
   }),
 } as const
-
-/** The rule behind the member Integrations page; it has no inventory for anyone else to read. */
-async function requireIntegrationsSurface({
-  organizationId,
-  userId,
-}: OrganizationMembershipContext) {
-  const surface = await getOrganizationSurfaceContext(organizationId, userId)
-  if (!surface || !canReadMemberIntegrations(surface))
-    throw new OrchestrationError('forbidden', 'Integrations are not available to you here')
-}
 
 /** The boundary the assistant's direct tools answer to, which a widget must not sidestep. */
 async function isProviderContentReadable(organizationId: string, providerId: string) {
@@ -207,15 +197,28 @@ async function readViewerAccounts<T>(
   context: OrganizationMembershipContext,
   readers: Partial<Record<CredentialGroupProvider, (accessToken: string) => Promise<T[]>>>
 ): Promise<WidgetReadResult<T>> {
-  await requireIntegrationsSurface(context)
   const { organizationId, userId } = context
-  const group = await getOrganizationAccountsGroup(organizationId)
-  if (!group) return { accounts: [], rows: [] }
+  const { providers: allowed, config } = await loadAssistantIntegrationTools({
+    organizationId,
+    userId,
+  })
+  /**
+   * The rule behind the member Integrations page, from what this request has already established:
+   * the use case checked membership and connected accounts before it ran this.
+   */
+  if (
+    !canReadMemberIntegrations({
+      searchAccess: { memberScoped: await isKnowledgeMemberAccessAvailable({ organizationId }) },
+      viewer: { canConnectSearchIntegrations: canConnectSearchIntegrations(config) },
+      connectedAccountsAvailable: true,
+    })
+  )
+    throw new OrchestrationError('forbidden', 'Integrations are not available to you here')
   const candidates = (
     await listViewerOrganizationAccounts({
       organizationId,
       userId,
-      matching: eq(credentialGroupTable.id, group.id),
+      matching: eq(credentialGroupTable.organizationId, organizationId),
     })
   )
     .flatMap((account) => {
@@ -225,10 +228,7 @@ async function readViewerAccounts<T>(
     })
     .sort((left, right) => compareStrings(left.credentialId, right.credentialId))
   if (candidates.length === 0) return { accounts: [], rows: [] }
-  const [{ providers: allowed }, owned] = await Promise.all([
-    loadAssistantIntegrationTools({ organizationId, userId }),
-    getOwnOrganizationManagedOAuthCredentials({ organizationId, userId }),
-  ])
+  const owned = await getOwnOrganizationManagedOAuthCredentials({ organizationId, userId })
   const ownedIds = new Set(owned.map((credential) => credential.id))
   const readable = new Map(
     await Promise.all(

@@ -20,6 +20,7 @@ import {
 } from '@/lib/organizations/chat-access'
 import { getOrganizationSettingsAccess } from '@/lib/organizations/settings-access'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import {
   getUserPermissionConfigForOrganization,
   isOrganizationPermissionRegimeActive,
@@ -55,6 +56,14 @@ export interface OrganizationSurfaceContext extends OrganizationChatAccess {
   connectedAccountsAvailable: boolean
   settingsFeatures: OrganizationSettingsFeatures
   deployment: DeploymentShape
+}
+
+/** Whether the viewer's permission group lets them connect accounts for Search. */
+export function canConnectSearchIntegrations(config: PermissionGroupConfig | null): boolean {
+  return (
+    !capabilityDeniedBy('integrations.manage', config) &&
+    !capabilityDeniedBy('knowledge.use', config)
+  )
 }
 
 /**
@@ -125,9 +134,7 @@ async function resolveOrganizationSurfaceContext(
       isAdmin: access.isAdmin,
       canInviteMembers:
         access.isAdmin && !isInvitationsDisabled && !capabilityDeniedBy('invitations.send', config),
-      canConnectSearchIntegrations:
-        !capabilityDeniedBy('integrations.manage', config) &&
-        !capabilityDeniedBy('knowledge.use', config),
+      canConnectSearchIntegrations: canConnectSearchIntegrations(config),
       canUsePersonalApiKeys:
         !capabilityDeniedBy('personal_api_key.use', config) &&
         !capabilityDeniedBy('api_keys.manage', config),
