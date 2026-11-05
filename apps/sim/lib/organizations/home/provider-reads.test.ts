@@ -150,8 +150,8 @@ describe('reading mail', () => {
     const [message] = await readOutlookMessages({ accessToken: 'token', signal })
     expect(JSON.stringify(message)).not.toContain('confidential')
     expect(
-      new URL(providerFetch.mock.calls[0][0] as string).searchParams.get('$select')
-    ).not.toContain('body,')
+      new URL(providerFetch.mock.calls[0][0] as string).searchParams.get('$select')?.split(',')
+    ).not.toContain('body')
     expect(message).toMatchObject({ sender: 'Grace', excerpt: 'Short preview' })
     expect(message.url).toBe('https://outlook.office.com/mail/inbox/id/AAM%2Fk%2B1%3D')
   })

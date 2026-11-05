@@ -19,7 +19,8 @@
   padding-block: 4rem 1.5rem;
 }
 /* The host page's canvas shows through, so the composer's row does not read as a band. */
-.dashboard > [data-platform-ui] {
+.dashboard > [data-platform-ui],
+.composer > [data-platform-ui] {
   background: transparent;
 }
 /* Customize Home's menu opens over the composer, whose own stacking stays within its row. */
@@ -64,8 +65,8 @@
   min-inline-size: 0;
   margin-block-end: 1.5rem;
 }
-/* The composer caps itself at the chat column everywhere else; here it spans Home's column. */
-.composer > :first-child {
+/* The composer and its shortcuts cap at the chat column elsewhere; here they span Home's column. */
+.composer > * {
   max-width: none;
 }
 .sections {
@@ -93,7 +94,8 @@
 .placeholderGreeting,
 .placeholderWordmark,
 .placeholderComposer,
-.placeholderGetStarted {
+.placeholderGetStarted,
+.placeholderSuggestedActions {
   border-radius: var(--ui-control-radius);
   background: var(--control-muted-fill);
 }
@@ -108,10 +110,14 @@
 .placeholderGetStarted {
   block-size: var(--spacing-132);
 }
+.placeholderSuggestedActions {
+  block-size: var(--spacing-132);
+  margin-block-start: var(--ui-product-section-gap);
+}
 /* The real composer's first-paint heights: the Assistant's pill, the agent's field and toolbar. */
 .placeholderComposer {
   block-size: 2.875rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-full);
 }
 .placeholderComposer[data-mode="agent"] {
   block-size: 6.5rem;

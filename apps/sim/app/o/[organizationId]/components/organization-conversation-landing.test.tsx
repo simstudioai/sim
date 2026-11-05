@@ -134,7 +134,7 @@ afterEach(async () => {
 })
 
 describe('an Assistant conversation on a surface with its own landing', () => {
-  it('arranges the real composer and the mode’s shortcuts in the surface’s landing', async () => {
+  it('hands its composer and the Assistant shortcuts to the surface’s landing, in place of the default heading', async () => {
     await render(
       <OrganizationConversation
         requestMode='assistant'

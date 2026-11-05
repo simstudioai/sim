@@ -32,7 +32,7 @@ export function useOrganizationHomeEmail(
     queryKey: organizationHomeKeys.email(organizationId),
     queryFn: ({ signal }) =>
       requestJson(getOrganizationHomeEmailContract, { params: { id: organizationId }, signal }),
-    enabled,
+    enabled: Boolean(organizationId) && enabled,
     staleTime: EMAIL_STALE_TIME,
     refetchOnWindowFocus: true,
   })
@@ -52,7 +52,7 @@ export function useOrganizationHomeCalendar(
         query: { date, timeZone },
         signal,
       }),
-    enabled,
+    enabled: Boolean(organizationId && date) && enabled,
     staleTime: CALENDAR_STALE_TIME,
     refetchOnWindowFocus: true,
   })

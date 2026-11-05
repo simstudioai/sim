@@ -4,7 +4,7 @@ import { OrganizationConversation } from '@/app/o/[organizationId]/components/or
 import { HomeDashboardSkeleton } from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton'
 import { LiveHome } from '@/platform/app/(shell)/home/_components/live-home/live-home'
 
-/** Search's Assistant keeps its own unsent question; the agent composer keeps today's `home` key. */
+/** Search's Assistant keeps its own unsent question; the agent composer keeps the default `home` key. */
 const HOME_ASSISTANT_DRAFT_ID = 'home-assistant'
 
 interface HomeConversationProps {

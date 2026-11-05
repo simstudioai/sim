@@ -7,8 +7,8 @@
  */
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { searchHistoryKeys } from '@/hooks/queries/search-history'
 import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
+import { searchHistoryKeys } from '@/hooks/queries/utils/search-history-keys'
 import { searchIntegrationKeys } from '@/hooks/queries/utils/search-integration-keys'
 
 const mocks = vi.hoisted(() => ({
@@ -71,9 +71,13 @@ describe('prefetching Home', () => {
   })
 
   it('reads nothing the routes would refuse this viewer', async () => {
-    expect(seeded(await prefetchHome(surface(false, false), principal))).toEqual([])
+    expect(seeded(await prefetchHome(surface(false), principal))).toEqual([])
     expect(mocks.accounts).not.toHaveBeenCalled()
     expect(mocks.history).not.toHaveBeenCalled()
+    expect(seeded(await prefetchHome(surface(true, false), principal))).toEqual([
+      [...searchHistoryKeys.list('org-1', 'viewer')],
+    ])
+    expect(mocks.accounts).not.toHaveBeenCalled()
   })
 
   it('leaves a failed read for the client and keeps the rest', async () => {

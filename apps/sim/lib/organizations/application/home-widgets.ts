@@ -50,7 +50,6 @@ import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 
 const logger = createLogger('OrganizationHomeWidgets')
 
-/** A widget gives up on a slow provider rather than holding its request open. */
 const READ_TIMEOUT_MS = 20_000
 
 /**

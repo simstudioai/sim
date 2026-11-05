@@ -71,8 +71,8 @@ import type { ResourceScope } from '@/lib/core/resource-scope'
 import { SearchLandingHistory } from '@/app/o/[organizationId]/components/search-landing-history'
 import { OrganizationSearch } from '@/app/o/[organizationId]/search/search'
 import { KnowledgeSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/knowledge-search-results'
-import { searchHistoryKeys } from '@/hooks/queries/search-history'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+import { searchHistoryKeys } from '@/hooks/queries/utils/search-history-keys'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 
 nextNavigationMockFns.mockUsePathname.mockReturnValue('/o/organization/search')

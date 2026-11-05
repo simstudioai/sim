@@ -10,11 +10,14 @@ import { canReadMemberIntegrations } from '@/lib/credential-groups/member-integr
 import { listSearchHistory } from '@/lib/knowledge/application/search-history'
 import { listSearchIntegrations } from '@/lib/knowledge/application/search-integrations'
 import { makeQueryClient } from '@/app/_shell/providers/get-query-client'
-import { SEARCH_HISTORY_STALE_TIME, searchHistoryKeys } from '@/hooks/queries/search-history'
 import {
   ORGANIZATION_ACCOUNTS_STALE_TIME,
   organizationAccountsKeys,
 } from '@/hooks/queries/utils/organization-accounts-keys'
+import {
+  SEARCH_HISTORY_STALE_TIME,
+  searchHistoryKeys,
+} from '@/hooks/queries/utils/search-history-keys'
 import {
   SEARCH_INTEGRATIONS_STALE_TIME,
   searchIntegrationKeys,

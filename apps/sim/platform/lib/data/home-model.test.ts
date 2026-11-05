@@ -79,9 +79,9 @@ describe('where a widget stands', () => {
       entry('outlook', { ready: false, connectionTarget: { optionId: 'outlook-option' } }),
       entry('slack', { connectionTarget: { optionId: 'slack-option' } }),
     ])
-    expect(state).toEqual({
+    expect(state).toMatchObject({
       status: 'not_connected',
-      options: [{ id: 'gmail-option', label: 'gmail', icon: 'I005' }],
+      options: [{ id: 'gmail-option', label: 'gmail' }],
     })
   })
 

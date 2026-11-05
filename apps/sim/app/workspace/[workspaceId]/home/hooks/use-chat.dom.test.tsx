@@ -323,7 +323,8 @@ let queryClient: QueryClient
 
 function renderUseChat(
   owner: string | { organizationId: string } = 'ws-1',
-  requestMode?: 'agent' | 'assistant'
+  requestMode?: 'agent' | 'assistant',
+  getChatUrl?: (chatId: string) => string
 ): {
   getResult: () => ReturnType<typeof useChat>
   unmount: () => void
@@ -337,7 +338,7 @@ function renderUseChat(
   let result: ReturnType<typeof useChat> | undefined
 
   function Probe() {
-    result = useChat(owner, undefined, { requestMode })
+    result = useChat(owner, undefined, { requestMode, getChatUrl })
     return null
   }
 
@@ -1165,7 +1166,11 @@ describe('useChat remount send recovery', () => {
     mockUsePathname.mockReturnValue('/o/org-1/home')
     state.postBehavior = 'task'
     const replace = vi.spyOn(window.history, 'replaceState')
-    const { getResult, selectMode } = renderUseChat({ organizationId: 'org-1' }, 'assistant')
+    const { getResult, selectMode } = renderUseChat(
+      { organizationId: 'org-1' },
+      'assistant',
+      (id) => `/o/org-1/search/chat/${id}?mode=assistant`
+    )
     await act(async () => {
       void getResult().sendMessage('What changed in the renewal policy?', undefined, undefined, {
         requestMode: 'assistant',
@@ -1174,7 +1179,7 @@ describe('useChat remount send recovery', () => {
     await waitFor(() => getResult().resolvedChatId === DEDUPED_CHAT_ID)
     expect(state.postBodies[0]).toMatchObject({ mode: 'assistant' })
     const chatPath = `/o/org-1/search/chat/${DEDUPED_CHAT_ID}`
-    expect(replace).toHaveBeenCalledWith(null, '', chatPath)
+    expect(replace).toHaveBeenCalledWith(null, '', `${chatPath}?mode=assistant`)
 
     mockUsePathname.mockReturnValue(chatPath)
     selectMode('assistant')

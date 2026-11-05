@@ -9,14 +9,10 @@ import {
   type SearchHistoryResponse,
 } from '@/lib/api/contracts/knowledge/search-history'
 import { useSession } from '@/lib/auth/client'
-
-export const SEARCH_HISTORY_STALE_TIME = 30_000
-export const searchHistoryKeys = {
-  all: ['search-history'] as const,
-  lists: () => [...searchHistoryKeys.all, 'list'] as const,
-  list: (organizationId: string | undefined, userId: string | undefined) =>
-    [...searchHistoryKeys.lists(), organizationId ?? '', userId ?? ''] as const,
-}
+import {
+  SEARCH_HISTORY_STALE_TIME,
+  searchHistoryKeys,
+} from '@/hooks/queries/utils/search-history-keys'
 
 export function useSearchHistory(organizationId: string | undefined) {
   const { data: session } = useSession()

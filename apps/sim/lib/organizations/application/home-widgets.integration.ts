@@ -337,8 +337,10 @@ describe('whose mail a widget reads', () => {
 describe('what a widget reports', () => {
   it('refuses a member with no integrations surface, before any provider', async () => {
     serveProviders()
+    const real = await organizationSurface.getOrganizationSurfaceContext(organizationId, memberId)
+    if (!real) throw new Error('Fixture member has no organization surface')
     const surface = vi.spyOn(organizationSurface, 'getOrganizationSurfaceContext')
-    surface.mockResolvedValueOnce(null)
+    surface.mockResolvedValueOnce({ ...real, connectedAccountsAvailable: false })
     await expect(
       readOrganizationHomeEmail.execute({ principal: session(memberId), input })
     ).rejects.toMatchObject({ code: 'forbidden' })
@@ -346,7 +348,7 @@ describe('what a widget reports', () => {
     surface.mockRestore()
   })
 
-  it('asks the provider once more with a fresh token when two reads race a rejection', async () => {
+  it('settles both reads on reconnect when they race a token the provider refuses', async () => {
     provider.mockImplementation(async () => providerResponse({ error: 'provider text' }, 401))
     const [email, calendar] = await Promise.all([
       readOrganizationHomeEmail.execute({ principal: session(memberId), input }),

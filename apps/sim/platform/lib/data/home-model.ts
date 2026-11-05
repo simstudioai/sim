@@ -1,4 +1,3 @@
-import { createParser } from 'nuqs/server'
 import type { AccessRequestRecord } from '@/lib/api/contracts/access-requests'
 import type { SearchHistoryResponse } from '@/lib/api/contracts/knowledge/search-history'
 import type { OrganizationActivitySummary } from '@/lib/api/contracts/organization-activity'
@@ -224,16 +223,6 @@ export function greetingAt(nowMs: number | null, timeZone: string): string {
   if (hour < 12) return 'Good morning'
   return hour < 18 ? 'Good afternoon' : 'Good evening'
 }
-
-/** Nullable: a clean URL means today, which moves at midnight while a chosen day does not. */
-export const homeDayParam = createParser({
-  parse: (value) =>
-    /^\d{4}-\d{2}-\d{2}$/.test(value) &&
-    new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value
-      ? value
-      : null,
-  serialize: (value: string) => value,
-})
 
 /** A chat row: its link depends on its mode, so the caller, which knows the mode, supplies it. */
 interface AttentionChat {

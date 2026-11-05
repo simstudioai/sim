@@ -151,7 +151,6 @@ function isoOrNull(value: string | null | undefined) {
   return Number.isFinite(time) ? new Date(time).toISOString() : null
 }
 
-/** Latest inbox threads. */
 export async function readGmailThreads({
   accessToken,
   signal,

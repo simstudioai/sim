@@ -24,19 +24,16 @@ interface HomeActivityChartProps {
   state: HomeActivityState
   onRetry?: () => void
   hidden?: boolean
-  initialPoint?: number
-  initiallyOpen?: boolean
 }
 
 interface ActivitySeriesProps {
   title: string
   points: readonly ActivityPoint[]
-  initialPoint?: number
 }
 
-function ActivitySeries({ title, points, initialPoint }: ActivitySeriesProps) {
+function ActivitySeries({ title, points }: ActivitySeriesProps) {
   const tickEdges = useScrollEdges<HTMLLIElement>('horizontal')
-  const inspection = usePlotInspection(points.length, { initialIndex: initialPoint })
+  const inspection = usePlotInspection(points.length)
   const active = inspection.active
   const point = active === undefined ? undefined : points[active]
   const values = points.map((item) => item.value)
@@ -115,8 +112,6 @@ export function HomeActivityChart({
   state,
   onRetry,
   hidden = false,
-  initialPoint,
-  initiallyOpen,
 }: HomeActivityChartProps) {
   const [range, setRange] = useState(RANGE_LABELS[0])
   const scrollEdges = useScrollEdges<HTMLElement>('vertical', { tabStop: true })
@@ -142,7 +137,6 @@ export function HomeActivityChart({
             label='Range'
             options={history ? RANGE_LABELS : []}
             value={range}
-            defaultOpen={initiallyOpen}
             onValueChange={setRange}
           />
         )}
@@ -155,9 +149,7 @@ export function HomeActivityChart({
           action={<RetryButton retrying={state.retrying} onRetry={onRetry} />}
         />
       )}
-      {ready && (
-        <ActivitySeries key={range} title={title} points={points} initialPoint={initialPoint} />
-      )}
+      {ready && <ActivitySeries key={range} title={title} points={points} />}
     </section>
   )
 }

@@ -22,7 +22,6 @@ import type { OrganizationHomeWidget } from '@/stores/organization-home/store'
 const WIDGETS: readonly OrganizationHomeWidget[] = ['Activity', 'Email', 'Calendar']
 const ACTIVITY_TITLE = 'Tasks run'
 
-/** What the composer below is for, which the mode decides. */
 const COMPOSER_PROMPTS: Record<ChatRequestMode, string> = {
   agent: 'What should we get done?',
   plan: 'What should we understand and plan?',

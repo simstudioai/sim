@@ -100,10 +100,20 @@ describe('organization Search page gates', () => {
     await expect(OrganizationPage({ params })).rejects.toThrow('NEXT_REDIRECT:/o/org-1/home')
   })
 
-  it('gives a builder Home with the agent', async () => {
-    expect(renderToStaticMarkup(await OrganizationHomePage({ params }))).toContain('Home for agent')
-    await expect(OrganizationPage({ params })).rejects.toThrow('NEXT_REDIRECT:/o/org-1/home')
-  })
+  it.each([true, false])(
+    'gives a builder Home with the agent (Search access: %s)',
+    async (memberScoped) => {
+      mocks.context.mockResolvedValue({
+        mothershipAvailable: true,
+        canBuild: true,
+        searchAccess: { memberScoped },
+      })
+      expect(renderToStaticMarkup(await OrganizationHomePage({ params }))).toContain(
+        'Home for agent'
+      )
+      await expect(OrganizationPage({ params })).rejects.toThrow('NEXT_REDIRECT:/o/org-1/home')
+    }
+  )
 
   it('sends a member without the Assistant to Search, where Home has no conversation to hold', async () => {
     mocks.context.mockResolvedValue({ ...searchOnlyMember, mothershipAvailable: false })
@@ -116,7 +126,7 @@ describe('organization Search page gates', () => {
     await expect(OrganizationChatPage({ params })).rejects.toThrow('NEXT_REDIRECT:/o/org-1/search')
   })
 
-  it('routes chat URLs exactly where Home routes the same viewer, before loading the chat', async () => {
+  it('sends a viewer with no conversation here away from chat URLs, before loading the chat', async () => {
     mocks.context.mockResolvedValue({
       mothershipAvailable: true,
       canBuild: false,

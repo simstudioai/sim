@@ -19,7 +19,6 @@ export interface EmailItem {
   excerpt: string
   receivedAt: number
   count?: number
-  /** Where this message opens in its provider. */
   url?: string
 }
 

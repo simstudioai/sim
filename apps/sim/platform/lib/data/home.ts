@@ -3,7 +3,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useQueryClient } from '@tanstack/react-query'
 import { useQueryState } from 'nuqs'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/client'
@@ -29,7 +28,6 @@ import {
 } from '@/hooks/queries/organization-accounts'
 import { useOrganizationActivitySummary } from '@/hooks/queries/organization-activity'
 import {
-  organizationHomeKeys,
   useOrganizationHomeCalendar,
   useOrganizationHomeEmail,
 } from '@/hooks/queries/organization-home'
@@ -48,13 +46,13 @@ import type {
   HomeWidgetActions,
   HomeWidgetState,
 } from '@/platform/app/(shell)/home/_components/model'
+import { homeDayParam } from '@/platform/app/(shell)/home/search-params'
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
 import {
   greetingAt,
   HOME_CALENDAR_SOURCES,
   HOME_EMAIL_SOURCES,
   type HomeConnection,
-  homeDayParam,
   localDate,
   settleReadAccounts,
   toAttentionItems,
@@ -138,30 +136,21 @@ function useHomeIntegrations(organization: OrganizationSurfaceContext) {
 }
 
 function useConnectionActions(organizationId: string): Omit<HomeWidgetActions, 'retry'> {
-  const queryClient = useQueryClient()
   const connect = useConnectOrganizationAccount()
   const reconnect = useReconnectPersonalOrganizationAccount()
   const disconnect = useDisconnectPersonalOrganizationAccount()
-  const refreshWidgets = () =>
-    queryClient.invalidateQueries({ queryKey: organizationHomeKeys.organization(organizationId) })
   const reportFailure = (error: unknown) =>
     toast.error(getErrorMessage(error, 'The account could not be connected.'))
   const connecting = connect.isPending || reconnect.isPending
   return {
     connect: connecting
       ? undefined
-      : (optionId) =>
-          connect.mutate(
-            { organizationId, optionId },
-            { onError: reportFailure, onSettled: refreshWidgets }
-          ),
+      : (optionId) => connect.mutate({ organizationId, optionId }, { onError: reportFailure }),
     reconnect: connecting
       ? undefined
-      : (credentialId) =>
-          reconnect.mutate(credentialId, { onError: reportFailure, onSettled: refreshWidgets }),
+      : (credentialId) => reconnect.mutate(credentialId, { onError: reportFailure }),
     disconnect: async (credentialId) => {
       await disconnect.mutateAsync({ credentialId, organizationId })
-      await refreshWidgets()
     },
     disconnectNotice:
       'Sim will stop reading this account everywhere it is used, including Integrations. You can reconnect anytime.',
@@ -340,7 +329,10 @@ function useHomeAttention(
     items.length === 0 && pending
       ? { status: 'loading' }
       : items.length === 0 && failed
-        ? { status: 'error', retrying: integrations.retrying || requests.isFetching }
+        ? {
+            status: 'error',
+            retrying: integrations.retrying || chats.isFetching || requests.isFetching,
+          }
         : { status: 'ready', items, partial: failed }
   return {
     state,
@@ -415,7 +407,7 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
   const setWidgetHidden = useOrganizationHomeStore((state) => state.setWidgetHidden)
   const nowMs = useMinuteClock()
   const [timeZone] = useState(getBrowserTimezone)
-  const [selectedDay, setSelectedDay] = useQueryState('day', homeDayParam)
+  const [selectedDay, setSelectedDay] = useQueryState(homeDayParam.key, homeDayParam.parser)
   const today = nowMs === null ? null : localDate(new Date(nowMs), timeZone)
   const clock = nowMs === null || today === null ? null : { nowMs, today }
 
