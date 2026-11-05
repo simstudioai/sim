@@ -264,6 +264,15 @@ interface DirectorySyncModalProps {
 
 type SyncMode = 'details' | 'update' | 'disconnect'
 
+const EMPTY_DRAFT: SyncDraft = {
+  source: 'okta',
+  domain: '',
+  token: '',
+  tenantId: '',
+  clientId: '',
+  clientSecret: '',
+}
+
 /**
  * Status, connect, update and disconnect in one dialog. A sync can outlast this dialog, so nothing
  * here holds it open as pending: the actions report through the hook's state, and the viewer can
@@ -276,21 +285,16 @@ export function DirectorySyncModal({ organization, onClose }: DirectorySyncModal
   const { sync } = directory
   const [mode, setMode] = useState<SyncMode>('details')
   const [connectSource, setConnectSource] = useState<SyncSource>('okta')
-  const [draft, setDraft] = useState<SyncDraft>({
-    source: 'okta',
-    domain: '',
-    token: '',
-    tenantId: '',
-    clientId: '',
-    clientSecret: '',
-  })
+  const [draft, setDraft] = useState<SyncDraft>(EMPTY_DRAFT)
   const [fieldErrors, setFieldErrors] = useState<SyncFieldErrors>({})
   const source = mode === 'update' && sync ? sync.source : connectSource
   const connecting = !sync || mode === 'update'
   const provisioning = useProvisioningConnection(organizationId, connecting && source === 'scim')
   const change = (next: Partial<SyncDraft>) => setDraft((current) => ({ ...current, ...next }))
+  /** Every way out of the form forgets what it held, so a secret never outlives its form. */
   const backToDetails = () => {
     setMode('details')
+    setDraft(EMPTY_DRAFT)
     setFieldErrors({})
     directory.reset()
   }
@@ -326,7 +330,7 @@ export function DirectorySyncModal({ organization, onClose }: DirectorySyncModal
     if (mode === 'disconnect' && sync)
       return {
         title: 'Disconnect directory',
-        label: 'Disconnect',
+        label: directory.pending ? 'Disconnecting…' : 'Disconnect',
         disabled: directory.pending,
         destructive: true,
         confirm: () => directory.disconnect(backToDetails),

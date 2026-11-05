@@ -809,6 +809,47 @@ async function run() {
     })
 
   if (screenshotDir)
+    await check('disconnecting a directory forgets the credentials typed before it', async () => {
+      const { chromium, expect } = await import('@playwright/test')
+      const browser = await chromium.launch()
+      try {
+        await sql`insert into people_directory_sync (organization_id, source, source_target, next_sync_at)
+          values (${teamOrg}, 'okta', 'forget.okta.com', now() + interval '1 hour')`
+        const page = await browser.newPage()
+        page.setDefaultTimeout(60_000)
+        await page
+          .context()
+          .addCookies([
+            { name: 'better-auth.session_token', value: lead.cookie, url: baseUrl.origin },
+          ])
+        await page.goto(new URL(`/o/${teamOrg}/people?panel=sync`, baseUrl).href)
+        await page.getByRole('button', { name: 'Update credentials' }).click()
+        const updating = page.getByRole('dialog', { name: 'Update Okta credentials' })
+        await updating.getByLabel('API token', { exact: true }).fill(`typed-${generateId()}`)
+        await updating.getByRole('button', { name: 'Back', exact: true }).click()
+        await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
+        const confirming = page.getByRole('dialog', { name: 'Disconnect directory' })
+        let release = () => {}
+        const held = new Promise<void>((resolve) => {
+          release = resolve
+        })
+        await page.route(`**/api/organizations/${teamOrg}/people/sync`, async (route) => {
+          if (route.request().method() === 'DELETE') await held
+          await route.continue()
+        })
+        await confirming.getByRole('button', { name: 'Disconnect', exact: true }).click()
+        await expect(confirming.getByRole('button', { name: 'Disconnecting…' })).toBeVisible()
+        release()
+        const connect = page.getByRole('dialog', { name: 'Connect Okta' })
+        await expect(connect.getByLabel('API token', { exact: true })).toHaveValue('')
+        await expect(connect.getByLabel('Okta domain', { exact: true })).toHaveValue('')
+        await expect(connect.getByRole('button', { name: 'Connect and sync' })).toBeDisabled()
+      } finally {
+        await browser.close()
+        await sql`delete from people_directory_sync where organization_id=${teamOrg}`
+      }
+    })
+  if (screenshotDir)
     await check(
       'a transient status poll preserves a credential draft until administrator access is revoked',
       async () => {
