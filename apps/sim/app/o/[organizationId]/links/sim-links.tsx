@@ -8,7 +8,7 @@ import { useQueryStates } from 'nuqs'
 import type { SimLink } from '@/lib/api/contracts/sim-links'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { simLinkPath, simLinkUrl } from '@/lib/navigation/paths'
-import { toSimLinkName } from '@/lib/sim-links/validation'
+import { SIM_LINK_SEARCH_MAX_LENGTH, toSimLinkName } from '@/lib/sim-links/validation'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
   INSTALL_EXTENSION_ACTION,
@@ -132,6 +132,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
 
   const searchConfig: SearchConfig = {
     value: search,
+    maxLength: SIM_LINK_SEARCH_MAX_LENGTH,
     onChange: setSearch,
     onClearAll: () => setSearch(''),
     placeholder: SIM_LINKS_SEARCH_PLACEHOLDER,
