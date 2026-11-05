@@ -1,3 +1,5 @@
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
 import { expect, type Page } from '@playwright/test'
 
 export function requireEnv(name: string): string {
@@ -14,7 +16,19 @@ export const organizationName = () => requireEnv('PLATFORM_LIVE_ORGANIZATION_NAM
 
 type Cookies = Awaited<ReturnType<ReturnType<Page['context']>['cookies']>>
 
-const sessions = new Map<string, Cookies>()
+/** On disk, because Playwright starts a new worker process after every failed test. */
+const SESSIONS_FILE = path.join(
+  path.dirname(process.env.PLATFORM_LIVE_REPORT_PATH ?? 'test-results/platform-live/report.json'),
+  'sessions.local.json'
+)
+
+function readSessions(): Record<string, Cookies> {
+  try {
+    return JSON.parse(readFileSync(SESSIONS_FILE, 'utf8'))
+  } catch {
+    return {}
+  }
+}
 
 /** Types the credentials into the login page `target` redirected to, as a person would. */
 export async function signInThroughForm(page: Page, email: string, target: string) {
@@ -32,14 +46,18 @@ export async function signInThroughForm(page: Page, email: string, target: strin
  * a suite this size needs.
  */
 export async function signIn(page: Page, email: string, target: string) {
-  const known = sessions.get(email)
+  const known = readSessions()[email]
   if (known) {
     await page.context().addCookies(known)
     await page.goto(target)
     return
   }
   await signInThroughForm(page, email, target)
-  sessions.set(email, await page.context().cookies())
+  mkdirSync(path.dirname(SESSIONS_FILE), { recursive: true })
+  writeFileSync(
+    SESSIONS_FILE,
+    JSON.stringify({ ...readSessions(), [email]: await page.context().cookies() })
+  )
 }
 
 export const signInAsAdmin = (page: Page, target: string) => signIn(page, adminEmail(), target)

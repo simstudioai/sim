@@ -1,11 +1,13 @@
 import { expect, test } from '@playwright/test'
-import { adminEmail, requireEnv, signIn, signInAsAdmin } from '@/platform/checks/live/session'
+import {
+  adminEmail,
+  memberEmail,
+  organizationId,
+  signIn,
+  signInAsAdmin,
+} from '@/platform/checks/live/session'
 
-/**
- * `PLATFORM_LIVE_EMAIL` is an administrator in an organization with the `people` flag on.
- * `PLATFORM_LIVE_NO_DIRECTORY_EMAIL` belongs to a permission group withholding
- * `organization.member_directory`.
- */
+/** `PLATFORM_LIVE_EMAIL` is an administrator in an organization with the `people` flag on. */
 
 test('the directory filters, pages and opens a profile that returns to the same view', async ({
   page,
@@ -36,10 +38,26 @@ test('the chart reads without a canvas and an unknown focus says so', async ({ p
 
 test('a member withheld the directory gets no People, from the sidebar or a saved link', async ({
   page,
+  browser,
+  baseURL,
 }) => {
-  await signIn(page, requireEnv('PLATFORM_LIVE_NO_DIRECTORY_EMAIL'), '/org')
-  await expect(page.getByRole('button', { name: 'Organization menu' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'People', exact: true })).toHaveCount(0)
-  const response = await page.goto('/org/people')
-  expect(response?.status()).toBe(404)
+  await signInAsAdmin(page, '/org/home')
+  const groups = `/api/organizations/${organizationId()}/permission-groups`
+  const created = await page.request.post(groups, {
+    data: { name: 'Withhold directory', isDefault: true, config: { hideOrgMemberDirectory: true } },
+  })
+  expect(created.status(), await created.text()).toBeLessThan(300)
+  const { id } = (await created.json()) as { id: string }
+  const context = await browser.newContext({ baseURL })
+  try {
+    const member = await context.newPage()
+    await signIn(member, memberEmail(), '/org')
+    await expect(member.getByRole('button', { name: 'Organization menu' })).toBeVisible()
+    await expect(member.getByRole('link', { name: 'People', exact: true })).toHaveCount(0)
+    await member.goto('/org/people')
+    await expect(member.getByRole('heading', { name: 'Page not found' })).toBeVisible()
+  } finally {
+    await context.close()
+    expect((await page.request.delete(`${groups}/${id}`)).ok()).toBe(true)
+  }
 })

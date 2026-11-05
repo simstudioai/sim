@@ -22,6 +22,7 @@ async function signInAsAdmin(page: Page) {
 function memberRow(page: Page, email: string) {
   return page
     .getByText(email)
+    .first()
     .locator('xpath=ancestor::div[.//button[starts-with(@aria-label, "Actions for")]][1]')
 }
 
@@ -49,26 +50,38 @@ test('a partial invite failure keeps only the refused address, with its reason',
 test('a role change persists and a failed one is reported', async ({ page }) => {
   await signInAsAdmin(page)
   const target = requireEnv('PLATFORM_LIVE_ROLE_TARGET_EMAIL')
-  await memberRow(page, target).getByRole('combobox').click()
+  await memberRow(page, target)
+    .getByRole('combobox', { name: /^Role for/ })
+    .click()
   await page.getByRole('option', { name: 'Admin' }).click()
   await page.reload()
-  await expect(memberRow(page, target).getByRole('combobox')).toHaveText(/Admin/)
+  await expect(memberRow(page, target).getByRole('combobox', { name: /^Role for/ })).toHaveText(
+    /Admin/
+  )
 
   await page.route('**/api/organizations/*/members/*', (route) =>
     route.request().method() === 'PUT'
       ? route.fulfill({ status: 500, json: { error: 'Refused by the live check' } })
       : route.continue()
   )
-  await memberRow(page, target).getByRole('combobox').click()
+  await memberRow(page, target)
+    .getByRole('combobox', { name: /^Role for/ })
+    .click()
   await page.getByRole('option', { name: 'Member' }).click()
   await expect(page.getByText("Couldn't change the role")).toBeVisible()
-  await expect(memberRow(page, target).getByRole('combobox')).toHaveText(/Admin/)
+  await expect(memberRow(page, target).getByRole('combobox', { name: /^Role for/ })).toHaveText(
+    /Admin/
+  )
   await page.unroute('**/api/organizations/*/members/*')
 
-  await memberRow(page, target).getByRole('combobox').click()
+  await memberRow(page, target)
+    .getByRole('combobox', { name: /^Role for/ })
+    .click()
   await page.getByRole('option', { name: 'Member' }).click()
   await page.reload()
-  await expect(memberRow(page, target).getByRole('combobox')).toHaveText(/Member/)
+  await expect(memberRow(page, target).getByRole('combobox', { name: /^Role for/ })).toHaveText(
+    /Member/
+  )
 })
 
 test('removal holds on its disclosure, keeps the dialog on failure, then removes', async ({

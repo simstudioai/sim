@@ -19,6 +19,7 @@ export default defineConfig({
   outputDir: path.join(path.dirname(report), 'artifacts'),
   use: {
     baseURL: process.env.PLATFORM_LIVE_ORIGIN ?? 'http://localhost:3000',
+    actionTimeout: 20_000,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },

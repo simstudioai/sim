@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { expect, type Page, test } from '@playwright/test'
-import { adminEmail, memberEmail, signIn } from '@/platform/checks/live/session'
+import { adminEmail, memberEmail, organizationId, signIn } from '@/platform/checks/live/session'
 
 /**
  * Opens every route the way a member would, in both themes at desktop and narrow widths, and leaves
@@ -19,7 +19,6 @@ const ADMIN_ROUTES = [
   ['search', '/org/search'],
   ['people-directory', '/org/people?view=directory'],
   ['people-chart', '/org/people?view=chart'],
-  ['people-profile', '/org/people/platform-live-directory-admin'],
   ['integrations', '/org/integrations'],
   ['settings-preferences', '/org/settings'],
   ['settings-notifications', '/org/settings/notifications'],
@@ -46,6 +45,8 @@ const MEMBER_ROUTES = [
   ['member-home', '/org/home'],
   ['member-settings-members', '/org/settings/members'],
 ] as const
+
+const PROFILE_SCREENSHOT = 'people-profile'
 
 const VIEWPORTS = [
   { name: 'desktop', width: 1440, height: 900 },
@@ -81,30 +82,45 @@ async function settle(page: Page) {
   await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {})
 }
 
+async function visitEverywhere(page: Page, name: string, route: string) {
+  for (const viewport of VIEWPORTS) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height })
+    for (const colorScheme of THEMES) {
+      await page.emulateMedia({ colorScheme })
+      const response = await page.goto(route)
+      expect(response?.status(), `${route} status`).toBeLessThan(400)
+      await settle(page)
+      await page.screenshot({
+        path: path.join(SCREENSHOTS, `${name}-${viewport.name}-${colorScheme}.png`),
+        fullPage: true,
+      })
+      const unstyled = await page.evaluate(() =>
+        getComputedStyle(document.body).fontFamily.includes('Times')
+      )
+      expect(unstyled, `${route} rendered with no stylesheet`).toBe(false)
+      const text = (await page.locator('main, [data-platform-ui]').first().innerText()).trim()
+      expect(text.length, `${route} rendered an empty shell`).toBeGreaterThan(0)
+    }
+  }
+}
+
 for (const [name, route] of [...ADMIN_ROUTES, ...MEMBER_ROUTES]) {
   test(`${name} renders healthy in both themes at both widths`, async ({ page }) => {
     const email = name.startsWith('member-') ? memberEmail() : adminEmail()
     const problems = watchForBreakage(page)
     await signIn(page, email, route)
-    for (const viewport of VIEWPORTS) {
-      await page.setViewportSize({ width: viewport.width, height: viewport.height })
-      for (const colorScheme of THEMES) {
-        await page.emulateMedia({ colorScheme })
-        const response = await page.goto(route)
-        expect(response?.status(), `${route} status`).toBeLessThan(400)
-        await settle(page)
-        await page.screenshot({
-          path: path.join(SCREENSHOTS, `${name}-${viewport.name}-${colorScheme}.png`),
-          fullPage: true,
-        })
-        const unstyled = await page.evaluate(() =>
-          getComputedStyle(document.body).fontFamily.includes('Times')
-        )
-        expect(unstyled, `${route} rendered with no stylesheet`).toBe(false)
-        const text = (await page.locator('main, [data-platform-ui]').first().innerText()).trim()
-        expect(text.length, `${route} rendered an empty shell`).toBeGreaterThan(0)
-      }
-    }
+    await visitEverywhere(page, name, route)
     expect(problems).toEqual([])
   })
 }
+
+test(`${PROFILE_SCREENSHOT} renders healthy in both themes at both widths`, async ({ page }) => {
+  const problems = watchForBreakage(page)
+  await signIn(page, adminEmail(), '/org/people')
+  const people = await page.request.get(`/api/organizations/${organizationId()}/people`)
+  const { people: rows } = (await people.json()) as { people: { memberId: string }[] }
+  const first = rows[0]
+  if (!first) throw new Error('The seeded directory is empty')
+  await visitEverywhere(page, PROFILE_SCREENSHOT, `/org/people/${first.memberId}`)
+  expect(problems).toEqual([])
+})

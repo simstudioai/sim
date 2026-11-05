@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { adminEmail, signInAsAdmin } from '@/platform/checks/live/session'
+import { organizationName, signInAsAdmin } from '@/platform/checks/live/session'
 
 const settings = (path = '') => `/org/settings${path}`
 
@@ -24,8 +24,8 @@ test('a theme chosen here persists across a reload and repaints the shell', asyn
 test('a display name saves through the profile read', async ({ page }) => {
   await page.goto(settings())
   const name = `Live ${Date.now()}`
-  await page.getByRole('region', { name: 'Profile' }).getByRole('button').nth(1).click()
-  await page.getByLabel('Display name').fill(name)
+  await page.getByRole('button', { name: /^Edit display name/ }).click()
+  await page.getByRole('dialog').getByLabel('Display name').fill(name)
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   await page.reload()
   await expect(page.getByRole('region', { name: 'Profile' })).toContainText(name)
@@ -53,32 +53,25 @@ test('privacy and shortcuts render their real rows', async ({ page }) => {
   await expect(page.getByText('Search settings')).toBeVisible()
 })
 
-test('account deletion holds confirm until the retyped email matches', async ({ page }) => {
+test('account deletion is refused, with the reasons, while the member still belongs here', async ({
+  page,
+}) => {
   await page.goto(settings('/account'))
   await expect(page.getByText('Reset password', { exact: true }).first()).toBeVisible()
   await page.getByRole('button', { name: 'Delete account', exact: true }).click()
   const dialog = page.getByRole('dialog')
-  const confirm = dialog.getByRole('button', { name: 'Delete account', exact: true })
-  await expect(confirm).toBeDisabled()
-  const field = dialog.getByLabel('Confirm your email')
-  if (await field.count()) {
-    await field.fill('not-the-account@example.com')
-    await expect(confirm).toBeDisabled()
-    await field.fill(adminEmail().toUpperCase())
-    await expect(confirm).toBeEnabled()
-  }
+  await expect(dialog.getByText('Your account can’t be deleted yet:')).toBeVisible()
+  await expect(dialog.getByRole('listitem').first()).toContainText(organizationName())
+  await expect(dialog.getByRole('button', { name: 'Delete account', exact: true })).toBeDisabled()
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(dialog).toHaveCount(0)
 })
 
-test('a billing read that fails shows a retry, not a plan', async ({ page }) => {
+test('a plan read on the server stands when the browser’s own read fails', async ({ page }) => {
   await page.route('**/billing-summary', (route) => route.abort())
-  const response = await page.goto(settings('/billing'))
-  test.skip(response?.status() === 404, 'This organization has no Subscription section')
-  await expect(page.getByRole('button', { name: 'Retry', exact: true })).toBeVisible({
-    timeout: 30_000,
-  })
-  await expect(page.getByRole('region', { name: 'Plan' })).toHaveCount(0)
+  await page.goto(settings('/billing'))
+  await expect(page.getByRole('region', { name: 'Plan' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0)
 })
 
 test('Insights keeps its window in the URL and carries it to the events ledger', async ({
@@ -119,9 +112,18 @@ test('links: create, find, open, edit and delete on the Platform', async ({ page
   await expect(page).toHaveURL(new RegExp(`search=${name}`))
   await expect(page.getByRole('button', { name, exact: true })).toBeVisible()
 
+  await context.route('https://example.com/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'text/html', body: 'Destination stand-in' })
+  )
+  const resolved = context.waitForEvent(
+    'request',
+    (request) => new URL(request.url()).pathname === `/sim/${name}`
+  )
   const opened = context.waitForEvent('page')
   await page.getByRole('button', { name, exact: true }).click()
-  await expect.poll(async () => new URL((await opened).url()).pathname).toBe(`/sim/${name}`)
+  await resolved
+  await expect(await opened).toHaveURL('https://example.com/')
+  await (await opened).close()
 
   await page.getByRole('button', { name: `${name} actions` }).click()
   await page.getByRole('menuitem', { name: 'Edit', exact: true }).click()

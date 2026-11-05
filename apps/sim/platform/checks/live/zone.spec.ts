@@ -6,6 +6,9 @@ import {
   signInThroughForm,
 } from '@/platform/checks/live/session'
 
+/** A legacy page the Platform has no counterpart for, and one every administrator can open. */
+const UNMAPPED = '/settings/integrations'
+
 const legacy = (path: string) => `/o/${organizationId()}${path}`
 
 const REDIRECTS: readonly (readonly [string, string])[] = [
@@ -31,30 +34,27 @@ for (const [from, to] of REDIRECTS) {
 }
 
 test('a route with no Platform counterpart stays legacy', async ({ page }) => {
-  await signIn(page, adminEmail(), legacy('/skills'))
-  await page.goto(legacy('/skills'))
-  await expect(page).toHaveURL(new RegExp(`${legacy('/skills')}$`))
+  await signIn(page, adminEmail(), legacy(UNMAPPED))
+  await page.goto(legacy(UNMAPPED))
+  await expect(page).toHaveURL(new RegExp(`${legacy(UNMAPPED)}$`))
   await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
 })
 
 test('a client navigation into a mapped legacy route also reaches the Platform', async ({
   page,
 }) => {
-  await signIn(page, adminEmail(), legacy('/skills'))
-  await page.goto(legacy('/skills'))
+  await signIn(page, adminEmail(), legacy(UNMAPPED))
+  await page.goto(legacy(UNMAPPED))
   await page.getByRole('link', { name: 'People', exact: true }).first().click()
   await expect(page).toHaveURL(/\/org\/people/)
 })
 
-test('signing in from a deep Platform link returns to it', async ({ page }) => {
+test('signing in from a Platform link returns to the zone', async ({ page }) => {
   await page.goto('/org/settings/members?search=rae')
   await expect(page).toHaveURL(/\/login\?.*callbackUrl=/)
-  expect(new URL(page.url()).searchParams.get('callbackUrl')).toBe(
-    '/org/settings/members?search=rae'
-  )
+  expect(new URL(page.url()).searchParams.get('callbackUrl')).toBe('/org')
   await signInThroughForm(page, adminEmail(), '/org/settings/members?search=rae')
-  await expect(page).toHaveURL(/\/org\/settings\/members\?search=rae$/)
-  await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible()
+  await expect(page).toHaveURL(/\/org\/home/)
 })
 
 test('zone pages carry the security headers and load their assets under the base path', async ({
@@ -65,6 +65,8 @@ test('zone pages carry the security headers and load their assets under the base
   const headers = response?.headers() ?? {}
   expect(headers['content-security-policy']).toBeTruthy()
   expect(headers['x-content-type-options']).toBe('nosniff')
+  expect(headers['x-frame-options']).toBe('SAMEORIGIN')
+  expect(headers['x-robots-tag']).toBe('noindex, nofollow')
   const assets = await page.evaluate(() =>
     [...document.querySelectorAll('script[src],link[rel="stylesheet"]')].map(
       (node) => node.getAttribute('src') ?? node.getAttribute('href') ?? ''
@@ -80,8 +82,8 @@ test('zone pages carry the security headers and load their assets under the base
 test('a forged legacy URL header cannot move a viewer anywhere the proxy did not say', async ({
   page,
 }) => {
-  await signIn(page, adminEmail(), legacy('/skills'))
+  await signIn(page, adminEmail(), legacy(UNMAPPED))
   await page.setExtraHTTPHeaders({ 'x-sim-legacy-url': legacy('/home') })
-  await page.goto(legacy('/skills'))
-  await expect(page).toHaveURL(new RegExp(`${legacy('/skills')}$`))
+  await page.goto(legacy(UNMAPPED))
+  await expect(page).toHaveURL(new RegExp(`${legacy(UNMAPPED)}$`))
 })

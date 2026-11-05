@@ -24,8 +24,9 @@ test('A chat outside the viewer’s access is not found rather than an empty cha
   page,
 }) => {
   await signInAsAdmin(page, '/org/home')
-  const response = await page.goto('/org/chat/00000000-0000-4000-8000-000000000000')
-  expect(response?.status()).toBe(404)
+  await page.goto('/org/chat/00000000-0000-4000-8000-000000000000')
+  await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Conversation' })).toHaveCount(0)
 })
 
 test('A resource in the URL survives a reload of the chat route', async ({ page }) => {

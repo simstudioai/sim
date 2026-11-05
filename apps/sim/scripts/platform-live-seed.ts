@@ -2,14 +2,14 @@ import { db } from '@sim/db'
 import {
   account,
   copilotChats,
+  copilotMessages,
   credential,
   credentialGroup,
   credentialGroupEnrollment,
   member,
   organization,
+  organizationSearchHistory,
   organizationSearchIntegration,
-  permissionGroup,
-  permissionGroupMember,
   permissions,
   project,
   resourcePolicy,
@@ -61,7 +61,7 @@ const PEOPLE = [
     key: 'connected',
     email: required('PLATFORM_LIVE_CONNECTED_EMAIL'),
     name: 'Cory Connected',
-    role: 'member',
+    role: 'admin',
   },
   {
     key: 'role-target',
@@ -75,12 +75,6 @@ const PEOPLE = [
     name: 'Remy Removable',
     role: 'member',
   },
-  {
-    key: 'no-directory',
-    email: required('PLATFORM_LIVE_NO_DIRECTORY_EMAIL'),
-    name: 'Noor Nodirectory',
-    role: 'member',
-  },
 ] as const
 
 const userId = (key: string) => `platform-live-user-${key}`
@@ -92,9 +86,27 @@ const WORKSPACES = [
   { id: 'platform-live-workspace-second', name: 'Marketing' },
 ] as const
 const CHATS = [
-  { id: '11111111-1111-4111-8111-111111111111', title: 'Quarterly review', deleted: false },
-  { id: '22222222-2222-4222-8222-222222222222', title: 'Vendor renewals', deleted: false },
-  { id: '33333333-3333-4333-8333-333333333333', title: 'Retired plan', deleted: true },
+  {
+    id: '11111111-1111-4111-8111-111111111111',
+    title: 'Quarterly review',
+    mode: 'agent',
+    seen: true,
+    deleted: false,
+  },
+  {
+    id: '22222222-2222-4222-8222-222222222222',
+    title: 'Vendor renewals',
+    mode: 'assistant',
+    seen: false,
+    deleted: false,
+  },
+  {
+    id: '33333333-3333-4333-8333-333333333333',
+    title: 'Retired plan',
+    mode: 'agent',
+    seen: true,
+    deleted: true,
+  },
 ] as const
 const GROUP_ID = 'platform-live-credential-group'
 const GRANTS = [
@@ -146,6 +158,7 @@ await db.transaction(async (tx) => {
       id: ORGANIZATION_ID,
       name: required('PLATFORM_LIVE_ORGANIZATION_NAME'),
       slug: 'platform-live',
+      orgUsageLimit: '1000',
       createdAt: now,
     },
     { id: OUTSIDE_ORGANIZATION_ID, name: 'Outside', slug: 'platform-live-outside', createdAt: now },
@@ -198,31 +211,63 @@ await db.transaction(async (tx) => {
   }
 
   await tx.insert(copilotChats).values(
-    CHATS.map(({ id, title, deleted }) => ({
+    CHATS.map(({ id, title, deleted, mode, seen }) => ({
       id,
       userId: userId('admin'),
       organizationId: ORGANIZATION_ID,
       type: 'mothership' as const,
       title,
+      config: { conversationMode: mode },
+      lastSeenAt: seen ? new Date(now.getTime() + 60_000) : null,
       deletedAt: deleted ? now : null,
     }))
   )
 
-  await tx.insert(permissionGroup).values({
-    id: 'platform-live-no-directory',
+  await tx.insert(copilotMessages).values(
+    CHATS.flatMap(({ id, title }) => [
+      {
+        chatId: id,
+        messageId: `${id}-user`,
+        role: 'user',
+        seq: 1,
+        content: {
+          id: `${id}-user`,
+          role: 'user',
+          content: `About ${title}`,
+          timestamp: now.toISOString(),
+        },
+      },
+      {
+        chatId: id,
+        messageId: `${id}-assistant`,
+        role: 'assistant',
+        seq: 2,
+        content: {
+          id: `${id}-assistant`,
+          role: 'assistant',
+          content: `Here is what I found about ${title}.`,
+          timestamp: now.toISOString(),
+        },
+      },
+    ])
+  )
+
+  await tx.insert(organizationSearchHistory).values({
     organizationId: ORGANIZATION_ID,
-    name: 'No directory',
-    config: { hideOrgMemberDirectory: true },
-    createdBy: ownerId,
-    createdAt: now,
-    updatedAt: now,
-  })
-  await tx.insert(permissionGroupMember).values({
-    id: 'platform-live-no-directory-member',
-    permissionGroupId: 'platform-live-no-directory',
-    organizationId: ORGANIZATION_ID,
-    userId: userId('no-directory'),
-    assignedBy: ownerId,
+    userId: userId('admin'),
+    sources: [
+      {
+        url: 'https://example.com/onboarding-guide',
+        title: 'Onboarding guide',
+        viewedAt: now.toISOString(),
+      },
+      {
+        url: 'https://example.com/renewal-terms',
+        title: 'Renewal terms',
+        viewedAt: now.toISOString(),
+      },
+    ],
+    queries: [{ query: 'renewal terms', searchedAt: now.toISOString() }],
   })
 
   await tx.insert(simLink).values({

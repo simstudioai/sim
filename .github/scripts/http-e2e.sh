@@ -202,7 +202,6 @@ platform_live_environment() {
   export PLATFORM_LIVE_CONNECTED_EMAIL=cory@platform-live.test
   export PLATFORM_LIVE_ROLE_TARGET_EMAIL=rae@platform-live.test
   export PLATFORM_LIVE_REMOVABLE_EMAIL=remy@platform-live.test
-  export PLATFORM_LIVE_NO_DIRECTORY_EMAIL=noor@platform-live.test
   export PLATFORM_LIVE_REFUSED_INVITE_EMAIL=otto@platform-live.test
   export PLATFORM_LIVE_ORCHESTRATOR=1
   bun --no-env-file scripts/platform-live-seed.ts
