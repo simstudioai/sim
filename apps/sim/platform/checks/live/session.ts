@@ -8,6 +8,11 @@ export function requireEnv(name: string): string {
   return value
 }
 
+/** Where the run's report sits. Sessions and screenshots go beside it. */
+export const reportDir = path.dirname(
+  process.env.PLATFORM_LIVE_REPORT_PATH ?? 'test-results/platform-live/report.json'
+)
+
 /** The administrator most specs act as. */
 export const adminEmail = () => requireEnv('PLATFORM_LIVE_EMAIL')
 export const memberEmail = () => requireEnv('PLATFORM_LIVE_MEMBER_EMAIL')
@@ -17,10 +22,7 @@ export const organizationName = () => requireEnv('PLATFORM_LIVE_ORGANIZATION_NAM
 type Cookies = Awaited<ReturnType<ReturnType<Page['context']>['cookies']>>
 
 /** On disk, because Playwright starts a new worker process after every failed test. */
-const SESSIONS_FILE = path.join(
-  path.dirname(process.env.PLATFORM_LIVE_REPORT_PATH ?? 'test-results/platform-live/report.json'),
-  'sessions.local.json'
-)
+const SESSIONS_FILE = path.join(reportDir, 'sessions.local.json')
 
 function readSessions(): Record<string, Cookies> {
   try {
@@ -53,6 +55,8 @@ export async function signIn(page: Page, email: string, target: string) {
     return
   }
   await signInThroughForm(page, email, target)
+  // The login page returns to the zone root, not to the deep link it was sent from.
+  await page.goto(target)
   mkdirSync(path.dirname(SESSIONS_FILE), { recursive: true })
   writeFileSync(
     SESSIONS_FILE,

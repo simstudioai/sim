@@ -26,14 +26,14 @@ async function open(page: Page, email: string) {
   await expect(page.getByRole('button', { name: 'Organization menu' })).toBeVisible()
 }
 
-const signInAsAdmin = (page: Page) => open(page, adminEmail())
+const openAsAdmin = (page: Page) => open(page, adminEmail())
 
 test('an organization admin can rename the organization inline, and the name survives a reload', async ({
   page,
 }) => {
   const original = organizationName()
   const renamed = `${original} renamed`
-  await signInAsAdmin(page)
+  await openAsAdmin(page)
   const menu = page.getByRole('button', { name: 'Organization menu' })
 
   async function rename(name: string) {
@@ -72,7 +72,7 @@ test('a member sees no identity controls, and the server refuses the rename anyw
 test('navigation lists what the surface grants, and leaves for legacy routes in a full navigation', async ({
   page,
 }) => {
-  await signInAsAdmin(page)
+  await openAsAdmin(page)
   const surfaceResponse = await page.request.get('/api/organizations/surface')
   const surface = (await surfaceResponse.json()) as {
     mothershipAvailable: boolean
@@ -99,7 +99,7 @@ test('navigation lists what the surface grants, and leaves for legacy routes in 
 })
 
 test('creating a workspace opens it on the legacy surface', async ({ page }) => {
-  await signInAsAdmin(page)
+  await openAsAdmin(page)
   const name = `Live check ${Date.now()}`
   await page
     .getByRole('region', { name: 'Workspaces', exact: true })
@@ -111,7 +111,7 @@ test('creating a workspace opens it on the legacy surface', async ({ page }) => 
 })
 
 test('a chat renames and deletes through the real API', async ({ page }) => {
-  await signInAsAdmin(page)
+  await openAsAdmin(page)
   const created = await page.request.post('/api/mothership/chats', {
     data: { organizationId: organizationId() },
   })

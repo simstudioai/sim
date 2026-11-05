@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test'
+import { escapeRegExp } from '@sim/utils/string'
 import {
   adminEmail,
   organizationId,
-  signIn,
+  signInAsAdmin,
   signInThroughForm,
 } from '@/platform/checks/live/session'
 
@@ -26,25 +27,22 @@ const REDIRECTS: readonly (readonly [string, string])[] = [
 
 for (const [from, to] of REDIRECTS) {
   test(`legacy /o/[id]${from} lands on ${to}`, async ({ page }) => {
-    await signIn(page, adminEmail(), legacy(from))
-    await page.goto(legacy(from))
-    await expect(page).toHaveURL(new RegExp(`${to.replace(/[?]/g, '\\?')}$`))
+    await signInAsAdmin(page, legacy(from))
+    await expect(page).toHaveURL(new RegExp(`${escapeRegExp(to)}$`))
     await expect(page.locator('[data-platform-ui]').first()).toBeVisible()
   })
 }
 
 test('a route with no Platform counterpart stays legacy', async ({ page }) => {
-  await signIn(page, adminEmail(), legacy(UNMAPPED))
-  await page.goto(legacy(UNMAPPED))
-  await expect(page).toHaveURL(new RegExp(`${legacy(UNMAPPED)}$`))
+  await signInAsAdmin(page, legacy(UNMAPPED))
+  await expect(page).toHaveURL(new RegExp(`${escapeRegExp(legacy(UNMAPPED))}$`))
   await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
 })
 
 test('a client navigation into a mapped legacy route also reaches the Platform', async ({
   page,
 }) => {
-  await signIn(page, adminEmail(), legacy(UNMAPPED))
-  await page.goto(legacy(UNMAPPED))
+  await signInAsAdmin(page, legacy(UNMAPPED))
   await page.getByRole('link', { name: 'Members', exact: true }).first().click()
   await expect(page).toHaveURL(/\/org\/settings\/members/)
 })
@@ -60,7 +58,7 @@ test('signing in from a Platform link returns to the zone', async ({ page }) => 
 test('zone pages carry the security headers and load their assets under the base path', async ({
   page,
 }) => {
-  await signIn(page, adminEmail(), '/org/home')
+  await signInAsAdmin(page, '/org/home')
   const response = await page.goto('/org/home')
   const headers = response?.headers() ?? {}
   expect(headers['content-security-policy']).toBeTruthy()
@@ -82,8 +80,8 @@ test('zone pages carry the security headers and load their assets under the base
 test('a forged legacy URL header cannot move a viewer anywhere the proxy did not say', async ({
   page,
 }) => {
-  await signIn(page, adminEmail(), legacy(UNMAPPED))
+  await signInAsAdmin(page, legacy(UNMAPPED))
   await page.setExtraHTTPHeaders({ 'x-sim-legacy-url': legacy('/home') })
   await page.goto(legacy(UNMAPPED))
-  await expect(page).toHaveURL(new RegExp(`${legacy(UNMAPPED)}$`))
+  await expect(page).toHaveURL(new RegExp(`${escapeRegExp(legacy(UNMAPPED))}$`))
 })

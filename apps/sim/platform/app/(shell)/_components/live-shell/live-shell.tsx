@@ -27,7 +27,7 @@ export async function LiveShell({ children }: { children: ReactNode }) {
 
   const { organization } = surface
   // Deployed, the zone exists only for an organization the rollout has reached.
-  if (process.env.NEXT_PUBLIC_SIM_PLATFORM_BASE_PATH && !organization.navFlags.platformOrgUi) {
+  if (process.env.NEXT_PUBLIC_SIM_PLATFORM_BASE_PATH && !organization.platformOrgUi) {
     notFound()
   }
   const cookieStore = await cookies()

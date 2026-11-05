@@ -1,16 +1,19 @@
 import path from 'node:path'
 import { expect, type Page, test } from '@playwright/test'
-import { adminEmail, memberEmail, organizationId, signIn } from '@/platform/checks/live/session'
+import {
+  adminEmail,
+  memberEmail,
+  organizationId,
+  reportDir,
+  signIn,
+} from '@/platform/checks/live/session'
 
 /**
  * Opens every route the way a member would, in both themes at desktop and narrow widths, and leaves
  * a screenshot of each. A route fails on what a person would call broken even when the page looks
  * rendered: an uncaught error, a hydration mismatch, a CSP block, or a server error behind it.
  */
-const SCREENSHOTS = path.join(
-  path.dirname(process.env.PLATFORM_LIVE_REPORT_PATH ?? 'test-results/platform-live/report.json'),
-  'screenshots'
-)
+const SCREENSHOTS = path.join(reportDir, 'screenshots')
 
 const ADMIN_ROUTES = [
   ['home', '/org/home'],
@@ -45,8 +48,6 @@ const MEMBER_ROUTES = [
   ['member-home', '/org/home'],
   ['member-settings-members', '/org/settings/members'],
 ] as const
-
-const PROFILE_SCREENSHOT = 'people-profile'
 
 const VIEWPORTS = [
   { name: 'desktop', width: 1440, height: 900 },
@@ -104,23 +105,27 @@ async function visitEverywhere(page: Page, name: string, route: string) {
   }
 }
 
-for (const [name, route] of [...ADMIN_ROUTES, ...MEMBER_ROUTES]) {
-  test(`${name} renders healthy in both themes at both widths`, async ({ page }) => {
-    const email = name.startsWith('member-') ? memberEmail() : adminEmail()
-    const problems = watchForBreakage(page)
-    await signIn(page, email, route)
-    await visitEverywhere(page, name, route)
-    expect(problems).toEqual([])
-  })
+for (const [routes, email] of [
+  [ADMIN_ROUTES, adminEmail],
+  [MEMBER_ROUTES, memberEmail],
+] as const) {
+  for (const [name, route] of routes) {
+    test(`${name} renders healthy in both themes at both widths`, async ({ page }) => {
+      const problems = watchForBreakage(page)
+      await signIn(page, email(), route)
+      await visitEverywhere(page, name, route)
+      expect(problems).toEqual([])
+    })
+  }
 }
 
-test(`${PROFILE_SCREENSHOT} renders healthy in both themes at both widths`, async ({ page }) => {
+test('people-profile renders healthy in both themes at both widths', async ({ page }) => {
   const problems = watchForBreakage(page)
   await signIn(page, adminEmail(), '/org/people')
   const people = await page.request.get(`/api/organizations/${organizationId()}/people`)
   const { people: rows } = (await people.json()) as { people: { memberId: string }[] }
   const first = rows[0]
   if (!first) throw new Error('The seeded directory is empty')
-  await visitEverywhere(page, PROFILE_SCREENSHOT, `/org/people/${first.memberId}`)
+  await visitEverywhere(page, 'people-profile', `/org/people/${first.memberId}`)
   expect(problems).toEqual([])
 })

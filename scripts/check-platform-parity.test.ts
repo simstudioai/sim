@@ -9,7 +9,7 @@ function audit(rows: string, run?: Map<string, string>) {
     ledger: `${HEADER}${rows}`,
     testFiles: new Set(['home.spec.ts', 'home-model.test.ts']),
     liveTitles: ['a role change persists and a failed one is reported'],
-    run: run && { titles: run },
+    run,
   })
 }
 

@@ -89,7 +89,7 @@ export function HelpMenu({ iconOnly, help = SESSION_HELP }: HelpMenuProps) {
       <ActionMenu
         label='Help'
         triggerSize='row'
-        icon={iconOnly ? 'I047' : undefined}
+        icon={iconOnly ? 'I047' : null}
         actions={actions}
       />
       {support.submit && contacting && (

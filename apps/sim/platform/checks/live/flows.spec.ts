@@ -1,13 +1,13 @@
 import { expect, type Page, test } from '@playwright/test'
-import { adminEmail, signIn, signInAsAdmin } from '@/platform/checks/live/session'
+import { escapeRegExp } from '@sim/utils/string'
+import { adminEmail, requireEnv, signInAsAdmin } from '@/platform/checks/live/session'
 
 /** What a member does day to day beyond each section's own spec, against the real API. */
 const chats = (page: Page) => page.getByRole('region', { name: 'Chats', exact: true })
 const workspaces = (page: Page) => page.getByRole('region', { name: 'Workspaces', exact: true })
 
 test('a chat pins and marks unread, and both survive a reload', async ({ page }) => {
-  await signInAsAdmin(page, '/org/settings/members')
-  await page.goto('/org/home')
+  await signInAsAdmin(page, '/org/home')
   const list = chats(page)
   await list.getByRole('button', { name: 'Actions for Quarterly review' }).click()
   await page.getByRole('menuitem', { name: 'Pin', exact: true }).click()
@@ -112,10 +112,10 @@ test('member search lives in the URL and narrows the roster', async ({ page }) =
   await page.getByRole('searchbox', { name: /Search members/ }).fill(adminEmail())
   await expect(page).toHaveURL(/search=/)
   await expect(page.getByText(adminEmail()).first()).toBeVisible()
-  await expect(page.getByText(process.env.PLATFORM_LIVE_OWNER_EMAIL as string)).toHaveCount(0)
+  await expect(page.getByText(requireEnv('PLATFORM_LIVE_OWNER_EMAIL'))).toHaveCount(0)
   await page.reload()
   await expect(page.getByRole('searchbox', { name: /Search members/ })).toHaveValue(adminEmail())
-  await expect(page.getByText(process.env.PLATFORM_LIVE_OWNER_EMAIL as string)).toHaveCount(0)
+  await expect(page.getByText(requireEnv('PLATFORM_LIVE_OWNER_EMAIL'))).toHaveCount(0)
 })
 
 test('a notification preference writes and survives a reload', async ({ page }) => {
@@ -152,7 +152,7 @@ test('a permission group created in the form opens, saves its name and deletes',
   await dialog.getByText('Make this the organization default group').click()
   await dialog.getByRole('button', { name: 'Create', exact: true }).click()
   await expect(dialog).toBeHidden()
-  await page.getByRole('button', { name: new RegExp(`^${name}`) }).click()
+  await page.getByRole('button', { name: new RegExp(`^${escapeRegExp(name)}`) }).click()
   await expect(page).toHaveURL(/group-id=/)
   await page.reload()
   await expect(page.getByRole('textbox', { name: 'Name' })).toHaveValue(name)
@@ -172,6 +172,6 @@ test('Requests opens for an administrator and switches views in the URL', async 
 })
 
 test('an unknown settings section is not found, inside the shell', async ({ page }) => {
-  await signIn(page, adminEmail(), '/org/settings/not-a-section')
+  await signInAsAdmin(page, '/org/settings/not-a-section')
   await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
 })

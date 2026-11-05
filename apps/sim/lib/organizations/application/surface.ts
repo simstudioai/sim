@@ -73,8 +73,8 @@ export const readOrganizationSurface: OperationUseCase<
       connectedAccountsAvailable: context.connectedAccountsAvailable,
       settingsFeatures: context.settingsFeatures,
       deployment: context.deployment,
+      platformOrgUi,
       navFlags: {
-        platformOrgUi,
         people,
         simLinks,
         benchmark: benchmarkEnabled,

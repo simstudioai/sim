@@ -40,14 +40,9 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      // next.config bakes the Platform rewrite from this, and the main app imports nothing from
-      // its separate `platform/` zone or the seed of its live checks.
-      "env": ["SIM_PLATFORM_ORIGIN"],
       "inputs": [
         "$TURBO_DEFAULT$",
         ".env*",
-        "!platform/**",
-        "!scripts/platform-live-*",
         "!**/*.test.*",
         "!**/*.spec.*",
         "!**/*.integration.ts",

@@ -7,8 +7,6 @@ import {
   signInAsAdmin,
 } from '@/platform/checks/live/session'
 
-/** `PLATFORM_LIVE_EMAIL` is an administrator in an organization with the `people` flag on. */
-
 test('the directory filters, pages and opens a profile that returns to the same view', async ({
   page,
 }) => {

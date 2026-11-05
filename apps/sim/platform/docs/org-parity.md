@@ -55,7 +55,7 @@ One row per capability of the legacy organization surface. Every capability is e
 | Preferences | Time zone with Auto and invalid-value rows | General | Unverified | "the time zone offers Auto" reads the row; no check writes it |
 | Preferences | Auto-connect, auto-focus, snap to grid, canvas controls | General | Unverified | No live check yet. The legacy explainer videos are not ported: they are static assets of the main app |
 | Preferences | Interface font, Code font | None; Platform only | Hidden | No font preference exists. Needs a settings column |
-| Notifications | Canvas error notifications | General | Done | "unbacked preferences stay out" |
+| Notifications | Canvas error notifications | General | Done | "a notification preference writes", "unbacked preferences stay out" |
 | Notifications | In-app notifications, Play sound | None; Platform only | Hidden | No user setting. Sound exists only on the Electron bridge |
 | Notifications | Billing usage email | Billing, account scope | Legacy | Legacy shows it on personal billing only, which is not on the organization surface |
 | Keyboard shortcuts | Static list | None; Platform only | Done | "privacy and shortcuts render" |
@@ -69,7 +69,7 @@ One row per capability of the legacy organization surface. Every capability is e
 | Account | Organization accounts: grouped, status, disconnect | Organization accounts | Unverified | No live check yet. Covers the list; disconnect needs a seeded grant |
 | Account | Delete account: fresh plan on open, blockers, retyped email, bounded sign-out | Delete account modal | Unverified | Blockers and the disabled action are proved by "account deletion is refused". The retyped email cannot be reached by anyone on this surface: every member has a blocker |
 | Knowledge graphs | List, make active, create | Knowledge graphs | Unverified | No live check yet. Gate is `settingsSections`; needs `mothership-memory-spaces` on, so not in |
-| Recently deleted | Deleted chats: search, sort, restore | Recently deleted | Unverified | "recently deleted separates" shows the seeded list; search, sort and restore have no live check |
+| Recently deleted | Deleted chats: search, sort, restore | Recently deleted | Done | "a deleted chat restores", "recently deleted separates". Search and sort have no live check |
 
 ## Settings: billing and usage
 
@@ -121,9 +121,9 @@ Every API behind these sections keeps its own server gate; the navigation entry 
 | Domain | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- | --- |
 | Permission groups | List, search, count, Default tag, member and workspace summary, Review requests link | `ee/access-control/components/access-control.tsx` | Unverified | No live check yet |
-| Permission groups | Create: name, description, default, workspaces, inline error; non-default needs a workspace | `access-control.tsx` | Unverified | "the permission editor reads" proves the create form's guard; a created group has only been made through the API |
+| Permission groups | Create: name, description, default, workspaces, inline error; non-default needs a workspace | `access-control.tsx` | Done | "a permission group created in the form opens", "the permission editor reads". The inline error has no live check |
 | Permission groups | Deep-linked detail, tab, search and status on the legacy URL keys, reset together | `group-detail.tsx`, `ee/access-control/search-params.ts` | Unverified | No live check yet |
-| Permission groups | Name, description (100/500, required), save, discard, set-based dirty check, delete | `group-detail.tsx`, `ee/access-control/lib/editor.ts` | Unverified | No live check yet |
+| Permission groups | Name, description (100/500, required), save, discard, set-based dirty check, delete | `group-detail.tsx`, `ee/access-control/lib/editor.ts` | Unverified | "a permission group created in the form opens" reloads the detail and deletes it. Save, discard and limits have no live check |
 | Permission groups | Default switch and workspace scope, optimistic with sequence guard and revert | `group-detail.tsx` | Unverified | No live check yet |
 | Permission groups | Members: list, remove, add modal with search and select all, external excluded | `group-detail.tsx` | Unverified | No live check yet |
 | Permission groups | Allowlist universe: includes viewer-gated blocks, excludes superseded blocks | `ee/access-control/lib/editor-registry.ts`, `lib/permission-groups/block-access.ts` | Done | "the permission editor reads the whole allowlist universe"; `group-detail.test.tsx` for the shared module |
@@ -345,7 +345,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Home | Needs your attention | None; Platform only | Done | "an unread chat needs attention", "an account Google stopped honoring". A failed source has no live check |
 | Home | Cross-chat approvals in Needs your attention | None; Platform only | Hidden | Pending tool permissions and assistant reviews are listed per chat. Needs a member-scoped list across chats |
 | Home | Customize Home | None; Platform only | Hidden | Session scope, as `hiddenWidgets` already was: `settings` has no column for it and a new one needs a migration. Hide and Undo work; a reload restores every widget |
-| Home | Get started checklist | `app/o/[id]/home/components/get-started/get-started.tsx` | Unverified | No live check yet. Same steps and gates, in Search mode as legacy shows it on the Search landing. The completion rule moved to `hasSearchIntegrationReady`, read by both surfaces. Admin integration step and Sim Search MCP link to their legacy settings sections |
+| Home | Get started checklist | `app/o/[id]/home/components/get-started/get-started.tsx` | Done | "Search mode on Home offers Get started". Completing each step has no live check |
 | Home | Suggested action rows and Connect from a suggestion | `suggested-actions.tsx` | Open | Chat lane. Needs the block template catalog (337-file closure, banned by the seam) behind a route, and a way to hand a prompt to the composer draft. Recents hold that slot on Platform |
 | Home | Plan toggle, composer handoff and server chat id | `organization-conversation.tsx` | Open | Chat lane owns `home-composer` |
 

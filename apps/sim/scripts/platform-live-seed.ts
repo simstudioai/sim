@@ -42,6 +42,7 @@ if (!/test/i.test(databaseName)) throw new Error('Seed only a dedicated test dat
 const ORGANIZATION_ID = required('PLATFORM_LIVE_ORGANIZATION_ID')
 const OUTSIDE_ORGANIZATION_ID = `${ORGANIZATION_ID}-outside`
 const PASSWORD = required('PLATFORM_LIVE_PASSWORD')
+const CONNECTED_EMAIL = required('PLATFORM_LIVE_CONNECTED_EMAIL')
 
 const PEOPLE = [
   {
@@ -59,7 +60,7 @@ const PEOPLE = [
   },
   {
     key: 'connected',
-    email: required('PLATFORM_LIVE_CONNECTED_EMAIL'),
+    email: CONNECTED_EMAIL,
     name: 'Cory Connected',
     role: 'admin',
   },
@@ -80,7 +81,11 @@ const PEOPLE = [
 const userId = (key: string) => `platform-live-user-${key}`
 const OUTSIDER_ID = userId('outsider')
 const OUTSIDER_EMAIL = required('PLATFORM_LIVE_REFUSED_INVITE_EMAIL')
-const allUserIds = [...PEOPLE.map(({ key }) => userId(key)), OUTSIDER_ID]
+const EVERYONE = [
+  ...PEOPLE.map(({ key, email, name }) => ({ id: userId(key), email, name })),
+  { id: OUTSIDER_ID, email: OUTSIDER_EMAIL, name: 'Otto Outsider' },
+]
+const allUserIds = EVERYONE.map(({ id }) => id)
 const WORKSPACES = [
   { id: 'platform-live-workspace-main', name: 'Operations' },
   { id: 'platform-live-workspace-second', name: 'Marketing' },
@@ -109,6 +114,7 @@ const CHATS = [
   },
 ] as const
 const GROUP_ID = 'platform-live-credential-group'
+const PROVIDERS = ['gmail', 'google-calendar', 'outlook'] as const
 const GRANTS = [
   { option: 'gmail', providerId: 'google-email' },
   { option: 'google-calendar', providerId: 'google-calendar' },
@@ -125,12 +131,8 @@ await db.transaction(async (tx) => {
     .where(inArray(organization.id, [ORGANIZATION_ID, OUTSIDE_ORGANIZATION_ID]))
   await tx.delete(user).where(inArray(user.id, allUserIds))
 
-  const everyone = [
-    ...PEOPLE.map(({ key, email, name }) => ({ id: userId(key), email, name })),
-    { id: OUTSIDER_ID, email: OUTSIDER_EMAIL, name: 'Otto Outsider' },
-  ]
   await tx.insert(user).values(
-    everyone.map(({ id, email, name }) => ({
+    EVERYONE.map(({ id, email, name }) => ({
       id,
       email,
       name,
@@ -140,9 +142,9 @@ await db.transaction(async (tx) => {
       updatedAt: now,
     }))
   )
-  await tx.insert(userStats).values(everyone.map(({ id }) => ({ id: `${id}-stats`, userId: id })))
+  await tx.insert(userStats).values(EVERYONE.map(({ id }) => ({ id: `${id}-stats`, userId: id })))
   await tx.insert(account).values(
-    everyone.map(({ id }) => ({
+    EVERYONE.map(({ id }) => ({
       id: `${id}-credential`,
       accountId: id,
       providerId: 'credential',
@@ -223,34 +225,21 @@ await db.transaction(async (tx) => {
     }))
   )
 
-  await tx.insert(copilotMessages).values(
-    CHATS.flatMap(({ id, title }) => [
-      {
-        chatId: id,
-        messageId: `${id}-user`,
-        role: 'user',
-        seq: 1,
-        content: {
-          id: `${id}-user`,
-          role: 'user',
-          content: `About ${title}`,
-          timestamp: now.toISOString(),
-        },
-      },
-      {
-        chatId: id,
-        messageId: `${id}-assistant`,
-        role: 'assistant',
-        seq: 2,
-        content: {
-          id: `${id}-assistant`,
-          role: 'assistant',
-          content: `Here is what I found about ${title}.`,
-          timestamp: now.toISOString(),
-        },
-      },
-    ])
-  )
+  const message = (chatId: string, role: 'user' | 'assistant', seq: number, content: string) => ({
+    chatId,
+    messageId: `${chatId}-${role}`,
+    role,
+    seq,
+    content: { id: `${chatId}-${role}`, role, content, timestamp: now.toISOString() },
+  })
+  await tx
+    .insert(copilotMessages)
+    .values(
+      CHATS.flatMap(({ id, title }) => [
+        message(id, 'user', 1, `About ${title}`),
+        message(id, 'assistant', 2, `Here is what I found about ${title}.`),
+      ])
+    )
 
   await tx.insert(organizationSearchHistory).values({
     organizationId: ORGANIZATION_ID,
@@ -282,20 +271,26 @@ await db.transaction(async (tx) => {
     updatedAt: now,
   })
 
-  const policies = {
-    gmail: await getCredentialGroupProviderAdapter('gmail').getPolicy(undefined, {}),
-    'google-calendar': await getCredentialGroupProviderAdapter('google-calendar').getPolicy(
-      undefined,
-      {}
-    ),
-    outlook: await getCredentialGroupProviderAdapter('outlook').getPolicy(undefined, {}),
-  }
+  const policies = Object.fromEntries(
+    await Promise.all(
+      PROVIDERS.map(
+        async (provider) =>
+          [
+            provider,
+            await getCredentialGroupProviderAdapter(provider).getPolicy(undefined, {}),
+          ] as const
+      )
+    )
+  ) as Record<
+    (typeof PROVIDERS)[number],
+    Awaited<ReturnType<ReturnType<typeof getCredentialGroupProviderAdapter>['getPolicy']>>
+  >
   await tx.insert(credentialGroup).values({
     id: GROUP_ID,
     organizationId: ORGANIZATION_ID,
     publicId: generateId(),
     name: 'Connected accounts',
-    options: (['gmail', 'google-calendar', 'outlook'] as const).map((provider) => ({
+    options: PROVIDERS.map((provider) => ({
       id: provider,
       provider,
       label: provider,
@@ -327,7 +322,7 @@ await db.transaction(async (tx) => {
     id: enrollmentId,
     userId: connected,
     credentialGroupId: GROUP_ID,
-    email: required('PLATFORM_LIVE_CONNECTED_EMAIL'),
+    email: CONNECTED_EMAIL,
     status: 'completed',
     invitationTokenHash: generateId().replaceAll('-', '').repeat(2),
     invitationExpiresAt: new Date(now.getTime() + 86_400_000),
@@ -342,7 +337,7 @@ await db.transaction(async (tx) => {
       credentialGroupOptionId: option,
       organizationId: ORGANIZATION_ID,
       type: 'managed_oauth',
-      displayName: required('PLATFORM_LIVE_CONNECTED_EMAIL'),
+      displayName: CONNECTED_EMAIL,
       providerId,
       managedOauthStatus: 'active',
       managedOauthScopeVersion: policy.scopeVersion,

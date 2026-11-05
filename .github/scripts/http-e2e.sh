@@ -207,12 +207,11 @@ platform_live_environment() {
   bun --no-env-file scripts/platform-live-seed.ts
 }
 
-# run_platform_live <project> <report-name> [playwright args...]
+# run_platform_live <project> <report-name>
 run_platform_live() {
   local project=$1 name=$2
-  shift 2
   PLATFORM_LIVE_REPORT_PATH="$report_dir/$name/report.json" \
-    bun run test:platform:live --project="$project" ${PLATFORM_LIVE_GREP:+--grep "$PLATFORM_LIVE_GREP"} "$@"
+    bun run test:platform:live --project="$project" ${PLATFORM_LIVE_GREP:+--grep "$PLATFORM_LIVE_GREP"}
 }
 
 # wait_ready <pid> <health-url> <label>

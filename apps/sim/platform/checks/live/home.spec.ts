@@ -200,10 +200,13 @@ test.describe('Home with connected accounts', () => {
     }
   }
 
-  async function serveWidgets(page: Page) {
-    await page.route('**/home/email', (route) =>
-      route.fulfill({ json: { accounts: [account(GRANT, 'ready')], threads: THREADS } })
-    )
+  const READY_MAIL = { accounts: [account(GRANT, 'ready')], threads: THREADS }
+
+  async function serveWidgets(
+    page: Page,
+    mail: { status?: number; json: unknown } = { json: READY_MAIL }
+  ) {
+    await page.route('**/home/email', (route) => route.fulfill(mail))
     await page.route('**/home/calendar?*', (route) => {
       const date = new URL(route.request().url()).searchParams.get('date') as string
       return route.fulfill({ json: calendarFor(date) })
@@ -248,7 +251,7 @@ test.describe('Home with connected accounts', () => {
     await page.route('**/home/email', (route) =>
       failing
         ? route.fulfill({ status: 500, json: { error: 'Provider down' } })
-        : route.fulfill({ json: { accounts: [account(GRANT, 'ready')], threads: THREADS } })
+        : route.fulfill({ json: READY_MAIL })
     )
     await open(page)
     const email = page.getByRole('region', { name: 'Email', exact: true })
@@ -264,10 +267,7 @@ test.describe('Home with connected accounts', () => {
   test('an account Google stopped honoring asks to reconnect, here and in attention', async ({
     page,
   }) => {
-    await serveWidgets(page)
-    await page.route('**/home/email', (route) =>
-      route.fulfill({ json: { accounts: [account(GRANT, 'needs_reauth')], threads: [] } })
-    )
+    await serveWidgets(page, { json: { accounts: [account(GRANT, 'needs_reauth')], threads: [] } })
     await open(page)
     await expect(
       page
@@ -282,10 +282,7 @@ test.describe('Home with connected accounts', () => {
   test('a connected member with an empty mailbox sees that, not a prompt to connect', async ({
     page,
   }) => {
-    await serveWidgets(page)
-    await page.route('**/home/email', (route) =>
-      route.fulfill({ json: { accounts: [account(GRANT, 'ready')], threads: [] } })
-    )
+    await serveWidgets(page, { json: { accounts: [account(GRANT, 'ready')], threads: [] } })
     await open(page)
     const email = page.getByRole('region', { name: 'Email', exact: true })
     await expect(email.getByText('No email yet', { exact: true })).toBeVisible()

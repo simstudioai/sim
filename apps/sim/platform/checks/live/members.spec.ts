@@ -1,10 +1,5 @@
 import { expect, type Page, test } from '@playwright/test'
-import {
-  memberEmail,
-  signInAsAdmin as openAsAdmin,
-  requireEnv,
-  signIn,
-} from '@/platform/checks/live/session'
+import { memberEmail, requireEnv, signIn, signInAsAdmin } from '@/platform/checks/live/session'
 
 /**
  * Mutates the seeded organization. `PLATFORM_LIVE_EMAIL` is an administrator,
@@ -14,8 +9,8 @@ import {
  */
 const MEMBERS = '/org/settings/members'
 
-async function signInAsAdmin(page: Page) {
-  await openAsAdmin(page, MEMBERS)
+async function openMembers(page: Page) {
+  await signInAsAdmin(page, MEMBERS)
   await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible()
 }
 
@@ -29,7 +24,7 @@ function memberRow(page: Page, email: string) {
 test('a partial invite failure keeps only the refused address, with its reason', async ({
   page,
 }) => {
-  await signInAsAdmin(page)
+  await openMembers(page)
   const refused = requireEnv('PLATFORM_LIVE_REFUSED_INVITE_EMAIL')
   const accepted = `platform-live-${Date.now()}@example.test`
 
@@ -48,46 +43,35 @@ test('a partial invite failure keeps only the refused address, with its reason',
 })
 
 test('a role change persists and a failed one is reported', async ({ page }) => {
-  await signInAsAdmin(page)
+  await openMembers(page)
   const target = requireEnv('PLATFORM_LIVE_ROLE_TARGET_EMAIL')
-  await memberRow(page, target)
-    .getByRole('combobox', { name: /^Role for/ })
-    .click()
+  const roleSelect = () => memberRow(page, target).getByRole('combobox', { name: /^Role for/ })
+  await roleSelect().click()
   await page.getByRole('option', { name: 'Admin' }).click()
   await page.reload()
-  await expect(memberRow(page, target).getByRole('combobox', { name: /^Role for/ })).toHaveText(
-    /Admin/
-  )
+  await expect(roleSelect()).toHaveText(/Admin/)
 
   await page.route('**/api/organizations/*/members/*', (route) =>
     route.request().method() === 'PUT'
       ? route.fulfill({ status: 500, json: { error: 'Refused by the live check' } })
       : route.continue()
   )
-  await memberRow(page, target)
-    .getByRole('combobox', { name: /^Role for/ })
-    .click()
+  await roleSelect().click()
   await page.getByRole('option', { name: 'Member' }).click()
   await expect(page.getByText("Couldn't change the role")).toBeVisible()
-  await expect(memberRow(page, target).getByRole('combobox', { name: /^Role for/ })).toHaveText(
-    /Admin/
-  )
+  await expect(roleSelect()).toHaveText(/Admin/)
   await page.unroute('**/api/organizations/*/members/*')
 
-  await memberRow(page, target)
-    .getByRole('combobox', { name: /^Role for/ })
-    .click()
+  await roleSelect().click()
   await page.getByRole('option', { name: 'Member' }).click()
   await page.reload()
-  await expect(memberRow(page, target).getByRole('combobox', { name: /^Role for/ })).toHaveText(
-    /Member/
-  )
+  await expect(roleSelect()).toHaveText(/Member/)
 })
 
 test('removal holds on its disclosure, keeps the dialog on failure, then removes', async ({
   page,
 }) => {
-  await signInAsAdmin(page)
+  await openMembers(page)
   const target = requireEnv('PLATFORM_LIVE_REMOVABLE_EMAIL')
   await memberRow(page, target)
     .getByRole('button', { name: /^Actions for/ })
