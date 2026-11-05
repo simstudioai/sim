@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import styles from '@/platform/app/(shell)/people/_components/directory/directory.module.css'
 import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
@@ -9,7 +9,6 @@ import {
   DataTable,
   EmptyState,
   FailureNotice,
-  InlineNotice,
   PersonRow,
   RecipientTag,
   SearchableSelect,

@@ -168,6 +168,7 @@ export function GroupProviders({
                   </Button>
                 )}
                 <ActionMenu
+                  icon='I108'
                   label={`${item.name} actions`}
                   actions={[
                     {

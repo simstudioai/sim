@@ -11,7 +11,6 @@ import {
   FailureNotice,
   Icon,
   IconButton,
-  InlineNotice,
   SearchableSelect,
 } from '@/platform/design-system/components'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'

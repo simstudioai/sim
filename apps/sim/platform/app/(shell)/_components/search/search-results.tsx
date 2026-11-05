@@ -6,7 +6,6 @@ import type { SearchResultsData } from '@/platform/app/(shell)/_components/searc
 import styles from '@/platform/app/(shell)/_components/search/search.module.css'
 import { SourceRow } from '@/platform/app/(shell)/_components/search/source-row'
 import {
-  Button,
   DateRangePicker,
   EmptyState,
   FailureNotice,

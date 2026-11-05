@@ -138,6 +138,7 @@ export function SlackConnections({
                 </Button>
                 {prospective ? (
                   <ActionMenu
+                    icon='I108'
                     label={`${botName(bot)} actions`}
                     tooltip={false}
                     actions={[

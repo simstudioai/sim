@@ -201,6 +201,7 @@ export function SourcesView({ initial, subpath }: SourcesViewProps) {
                 </Button>
               )}
               <ActionMenu
+                icon='I108'
                 label={`${source.name} source actions`}
                 actions={[
                   {
@@ -230,6 +231,7 @@ export function SourcesView({ initial, subpath }: SourcesViewProps) {
                 Configure
               </Button>
               <ActionMenu
+                icon='I108'
                 label='Generic Secrets source actions'
                 actions={[
                   {

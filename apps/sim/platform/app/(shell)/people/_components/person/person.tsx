@@ -10,7 +10,6 @@ import {
   Button,
   EmptyState,
   FailureNotice,
-  InlineNotice,
   PropertyList,
 } from '@/platform/design-system/components'
 import type { PropertyItem } from '@/platform/design-system/components/property-list/property-list'

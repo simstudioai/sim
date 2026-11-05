@@ -8,7 +8,6 @@ import {
   Button,
   EmptyState,
   FailureNotice,
-  InlineNotice,
   RecentItems,
   SegmentedControl,
 } from '@/platform/design-system/components'

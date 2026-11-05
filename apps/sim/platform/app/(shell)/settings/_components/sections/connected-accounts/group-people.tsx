@@ -63,6 +63,7 @@ export function GroupPeople({ people, nextCursor, editable, onChange }: GroupPeo
           >
             {editable && (
               <ActionMenu
+                icon='I108'
                 label={`${person.email} actions`}
                 actions={[
                   {
