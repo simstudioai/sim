@@ -1,6 +1,6 @@
 .entries {
+  --ui-row-block: var(--spacing-8);
   display: grid;
-  gap: var(--ui-list-gap);
   min-inline-size: 0;
 }
 .viewport {
@@ -11,4 +11,7 @@
 }
 .viewport > .entries {
   inline-size: 100%;
+}
+.entries > * + * {
+  border-block-start: var(--spacing-stroke-default) solid var(--ui-divider);
 }

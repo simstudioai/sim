@@ -1,7 +1,11 @@
 .chart {
+  /* The range control's padding and its glyph's bearing, so the glyph ends on the column's edge. */
+  --range-overhang: calc(var(--spacing-8) + var(--spacing-3));
   display: grid;
   gap: var(--spacing-16);
-  inline-size: 100%;
+  margin-inline-end: calc(-1 * var(--range-overhang));
+  padding-inline-end: var(--range-overhang);
+  inline-size: calc(100% + var(--range-overhang));
   min-inline-size: 0;
   max-block-size: var(--ui-widget-max-size);
   overflow: auto;
@@ -18,11 +22,19 @@
 .header {
   align-items: flex-start;
   flex-wrap: wrap;
+  margin-inline-end: calc(-1 * var(--range-overhang));
 }
 
 .heading {
   display: grid;
   gap: var(--ui-stack-gap);
+}
+
+/* The height of a section heading's row, so Tasks run levels with Email across the columns. */
+.heading h2 {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--spacing-28);
 }
 
 .total,

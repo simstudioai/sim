@@ -1,14 +1,13 @@
 /*
  * The composer between the surfaces cannot read design-system tokens, so the frame that shares a
- * column with it uses the values behind `--ui-page-max-size` and `--ui-page-inline-gutter`.
+ * column with it repeats the values of `--ui-page-max-size` and `--ui-page-inline-gutter`.
  */
 .scroller {
   flex: 1;
   block-size: 100%;
   min-block-size: 0;
   overflow-y: auto;
-  scrollbar-gutter: stable;
-  padding-inline: clamp(1rem, 4%, 3rem);
+  padding-inline: clamp(1rem, 4cqi, 3rem);
 }
 .dashboard {
   display: grid;
