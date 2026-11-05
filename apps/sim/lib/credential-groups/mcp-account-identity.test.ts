@@ -60,6 +60,12 @@ describe('reading the connected account from a provider response', () => {
     ).toMatchObject({ subject: 'pat@example.test' })
   })
 
+  it('leaves sentence punctuation out of an email in text', () => {
+    expect(
+      readManagedMcpAccountIdentity('granola', text('Signed in as pat@example.test.'))
+    ).toMatchObject({ subject: 'pat@example.test' })
+  })
+
   it.each<[string, string, McpToolResult]>([
     [
       'a tool error',

@@ -89,6 +89,6 @@ export function isConnectable(integration: OrganizationIntegration) {
 }
 
 export function accountStatus(integration: OrganizationIntegration, account: IntegrationAccount) {
-  if (account.status === 'needs_reauth' && account.canReconnect) return 'Reconnect needed'
-  return integration.availability === 'blocked' ? integration.status : 'Connected'
+  if (integration.availability === 'blocked') return integration.status
+  return account.status === 'needs_reauth' ? 'Reconnect needed' : 'Connected'
 }

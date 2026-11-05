@@ -395,7 +395,13 @@ export async function completeCredentialGroupOAuth(
     sha256Hex(attempt.invitationToken),
     attempt.connectionIntent
   )
-  if (attempt.connectionIntent && attempt.completionId && attempt.organizationId) {
+  /** Only Search cards and GitHub setup read a receipt; Integrations refreshes its inventory. */
+  if (
+    attempt.connectionIntent &&
+    attempt.completionId &&
+    attempt.organizationId &&
+    attempt.returnTo !== 'integrations'
+  ) {
     await recordSearchConnectionCompletion({
       organizationId: attempt.organizationId,
       userId: attempt.userId,

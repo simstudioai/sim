@@ -313,7 +313,7 @@ export default async function CredentialGroupEnrollmentPage({
                     ) ? undefined : (
                       <OAuthConnectLink
                         href={`/api/credential-groups/enroll/${encodeURIComponent(token)}/oauth/${encodeURIComponent(option.id)}${focused ? `?returnTo=${returnToSearch ? 'search' : 'accounts'}` : ''}`}
-                        reconnect={option.connections.length > 0}
+                        reconnect={visibleConnections.length > 0}
                         variant={focused ? 'primary' : undefined}
                       />
                     )

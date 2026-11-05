@@ -566,6 +566,19 @@ describe('managed MCP accounts', () => {
       expect(await mcpRows()).toHaveLength(2)
     })
 
+    it('refuses to adopt an identity another connection already holds', async () => {
+      const held = await connectMcp(identityOf('one'), { kind: 'create' })
+      await disconnect(held.connectionId)
+      const legacy = await connectMcp(null, { kind: 'create' })
+
+      expect(
+        await failureOf(
+          connectMcp(identityOf('one'), { kind: 'reconnect', credentialId: legacy.connectionId })
+        )
+      ).toBe('account_mismatch')
+      expect(await failureOf(connectMcp(identityOf('one')))).toBe('account_mismatch')
+    })
+
     it('fills in the identity through an invitation link', async () => {
       const legacy = await connectMcp(null)
       await expect(connectMcp(identityOf('one'))).resolves.toMatchObject({

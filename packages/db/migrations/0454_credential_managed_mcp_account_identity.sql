@@ -1,6 +1,7 @@
 -- migration-safe: only removes the requirement that managed MCP identity columns stay NULL; every row the deployed app writes still satisfies the relaxed check.
-ALTER TABLE "credential" DROP CONSTRAINT "credential_managed_mcp_source_check";--> statement-breakpoint
-ALTER TABLE "credential" ADD CONSTRAINT "credential_managed_mcp_source_check" CHECK ((type::text <> 'managed_mcp') OR (
+ALTER TABLE "credential"
+  DROP CONSTRAINT IF EXISTS "credential_managed_mcp_source_check",
+  ADD CONSTRAINT "credential_managed_mcp_source_check" CHECK ((type::text <> 'managed_mcp') OR (
         id LIKE 'mcp-cg-%'
         AND account_id IS NULL
         AND provider_id IS NULL

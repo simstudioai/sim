@@ -8,7 +8,7 @@ export interface ManagedMcpAccountIdentity {
   label: string
 }
 
-const EMAIL_IN_TEXT = /[^\s"'<>(),:;]+@[^\s"'<>(),:;]+\.[^\s"'<>(),:;]+/g
+const EMAIL_IN_TEXT = /[^\s"'<>(),:;]+@[^\s"'<>(),:;]+\.[a-z0-9]+/gi
 
 function responseText(result: McpToolResult) {
   return (result.content ?? [])

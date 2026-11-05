@@ -56,10 +56,9 @@ export function resolveAccountWrite<Account extends ConnectedAccount>({
         'The account changed during authorization. Refresh your connections and try again.',
         409
       )
-    if (target.providerSubjectId !== null) {
-      if (!identity) throw accountConflict('account_unverified')
-      if (existing?.id !== target.id) throw accountConflict('account_mismatch')
-    }
+    if (target.providerSubjectId !== null && !identity) throw accountConflict('account_unverified')
+    if (existing ? existing.id !== target.id : target.providerSubjectId !== null)
+      throw accountConflict('account_mismatch')
     if (target.revokedAt && live.length >= limit) throw accountConflict('account_limit_reached')
     return target
   }
@@ -81,7 +80,7 @@ export function resolveAccountWrite<Account extends ConnectedAccount>({
       existing ??
       (identity ? undefined : accounts.find((account) => account.providerSubjectId === null))
     )
-  if (live.length === 1 && hasUnidentifiedLive) return live[0]
+  if (live.length === 1 && hasUnidentifiedLive && !existing) return live[0]
   throw accountConflict(identity ? 'account_mismatch' : 'account_unverified')
 }
 

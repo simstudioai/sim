@@ -152,6 +152,7 @@ export function useDisconnectPersonalOrganizationAccount() {
       await Promise.all([
         resetOrganizationSearchAccess(queryClient, organizationId),
         queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: personalSearchIntegrationKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
         invalidateSelectorQueries(queryClient),
         queryClient.invalidateQueries({
