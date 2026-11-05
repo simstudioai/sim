@@ -5,14 +5,16 @@ import { PEOPLE_SEARCH_MAX_LENGTH } from '@/lib/people/validation'
 import styles from '@/platform/app/(shell)/people/_components/directory/directory.module.css'
 import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
 import {
+  Avatar,
   Button,
   DataTable,
   EmptyState,
   FailureNotice,
-  PersonRow,
+  OverflowText,
   RecipientTag,
   SearchableSelect,
   SearchField,
+  TableLabel,
 } from '@/platform/design-system/components'
 import {
   personHref,
@@ -28,6 +30,18 @@ const COLUMNS = [
   { key: 'location', label: 'Location', kind: 'text', showFrom: 'wide' },
   { key: 'manager', label: 'Manager', kind: 'text', showFrom: 'wide' },
 ] as const
+
+function PersonLabel({ person }: { person: { name: string; image: string | null } }) {
+  return (
+    <TableLabel
+      leading={
+        <Avatar size='inline' name={person.name} src={person.image ?? undefined} decorative />
+      }
+    >
+      <OverflowText text={person.name}>{person.name}</OverflowText>
+    </TableLabel>
+  )
+}
 
 interface PeopleDirectoryProps {
   organizationId: string
@@ -49,10 +63,8 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
           location: person.location,
         },
         cells: {
-          name: <PersonRow name={person.name} src={person.image ?? undefined} />,
-          manager: person.manager ? (
-            <PersonRow name={person.manager.name} src={person.manager.image ?? undefined} />
-          ) : undefined,
+          name: <PersonLabel person={person} />,
+          manager: person.manager ? <PersonLabel person={person.manager} /> : undefined,
         },
         href: personHref(organizationId, person.memberId, originQuery),
         prefetch: false,

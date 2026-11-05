@@ -153,12 +153,14 @@ const TableRowView = memo(function TableRowView({
         const custom = row.cells?.[column.key]
         const content =
           custom === undefined ? cellText(row.values[column.key], column.format) : custom
+        const empty = content === '—'
         return (
           <td
             key={column.key}
             data-kind={column.kind}
             data-from={column.showFrom}
             data-numeric={Boolean(column.format)}
+            data-empty={empty || undefined}
             data-type={column.kind === 'text' ? 'T059' : 'T060'}
           >
             {position === 0 && row.href ? (

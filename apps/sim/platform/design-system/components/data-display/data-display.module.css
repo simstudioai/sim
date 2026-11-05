@@ -59,6 +59,9 @@
   color: var(--ui-secondary);
   overflow-wrap: anywhere;
 }
+.table td[data-empty] {
+  color: var(--ui-muted);
+}
 .table [data-numeric="true"] {
   inline-size: calc(var(--ui-table-compact) + var(--spacing-16));
   text-align: end;
