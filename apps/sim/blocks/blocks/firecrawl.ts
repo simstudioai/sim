@@ -86,7 +86,7 @@ export const FirecrawlBlock: BlockConfig = {
       type: 'dropdown',
       options: [
         { label: 'Work Email', id: 'work_email' },
-        { label: 'Mobile Number', id: 'phone' },
+        { label: 'Phone Number', id: 'phone' },
         { label: 'LinkedIn Profile', id: 'linkedin' },
         { label: 'Company Information', id: 'company' },
         { label: 'Company Domain', id: 'company_domain' },
@@ -111,6 +111,11 @@ export const FirecrawlBlock: BlockConfig = {
       title: 'Company Domain',
       type: 'short-input',
       placeholder: 'example.com',
+      required: {
+        field: 'operation',
+        value: 'enrich',
+        and: { field: 'enrichmentType', value: 'company' },
+      },
       condition: {
         field: 'operation',
         value: 'enrich',
@@ -122,6 +127,11 @@ export const FirecrawlBlock: BlockConfig = {
       title: 'Company Name',
       type: 'short-input',
       placeholder: 'Company name',
+      required: {
+        field: 'operation',
+        value: 'enrich',
+        and: { field: 'enrichmentType', value: 'company_domain' },
+      },
       condition: {
         field: 'operation',
         value: 'enrich',
@@ -870,11 +880,12 @@ Example 2 - Product Data:
   outputs: {
     email: { type: 'string', description: 'Work email, when found' },
     emailVerified: { type: 'boolean', description: 'Whether the work email is mailbox-verified' },
-    phone: { type: 'string', description: 'Mobile number, when found' },
+    phone: { type: 'string', description: 'Phone number, preferring mobile when available' },
     linkedinUrl: { type: 'string', description: 'LinkedIn profile URL, when found' },
     domain: { type: 'string', description: 'Company website domain, when found' },
     employeeCount: { type: 'string', description: 'Company headcount or size range' },
     description: { type: 'string', description: 'Company description' },
+    statusCode: { type: 'number', description: 'Enrichment provider or HTTP response status code' },
     // Scrape output
     markdown: { type: 'string', description: 'Page content markdown' },
     html: { type: 'string', description: 'Raw HTML content' },

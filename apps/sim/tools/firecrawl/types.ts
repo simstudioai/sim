@@ -20,7 +20,7 @@ export interface FirecrawlEnrichResponse extends ToolResponse {
     employeeCount: string | null
     description: string | null
     creditsUsed: number
-    status: number
+    statusCode: number
   }
 }
 

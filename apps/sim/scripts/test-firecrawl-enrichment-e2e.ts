@@ -28,15 +28,38 @@ const person = {
   linkedinUrl: requiredEnv('FIRECRAWL_TEST_LINKEDIN_URL'),
   email: requiredEnv('FIRECRAWL_TEST_EMAIL'),
 }
+const profileUrl = new URL(
+  /^https?:\/\//i.test(person.linkedinUrl)
+    ? person.linkedinUrl
+    : `https://${person.linkedinUrl.replace(/^\/+/, '')}`
+)
+const [profileKind, profileSlug] = profileUrl.pathname.split('/').filter(Boolean)
+assert.match(profileUrl.hostname, /(^|\.)linkedin\.com$/i)
+assert.equal(profileKind?.toLowerCase(), 'in')
+assert.ok(profileSlug)
+const expectedLinkedinUrl = `https://www.linkedin.com/in/${profileSlug}`
 
 interface LiveCheck {
   name: string
   config: EnrichmentConfig
   inputs: Record<string, string>
-  verify: (output: Record<string, unknown>) => void
+  verify?: (output: Record<string, unknown>) => void
+  expectNoMatch?: boolean
 }
 
 const checks: LiveCheck[] = [
+  {
+    name: 'single-part-name email lookup returns a clean miss',
+    config: workEmailEnrichment,
+    inputs: { fullName: 'AlexandriaNoMatchFixture', companyDomain: 'example.com' },
+    expectNoMatch: true,
+  },
+  {
+    name: 'single-part-name phone lookup returns a clean miss',
+    config: phoneNumberEnrichment,
+    inputs: { fullName: 'AlexandriaNoMatchFixture', companyDomain: 'example.com' },
+    expectNoMatch: true,
+  },
   {
     name: 'work email from name and company',
     config: workEmailEnrichment,
@@ -54,13 +77,13 @@ const checks: LiveCheck[] = [
     name: 'LinkedIn from email',
     config: linkedinProfileEnrichment,
     inputs: { fullName: person.fullName, email: person.email },
-    verify: (output) => assert.equal(output.linkedinUrl, person.linkedinUrl),
+    verify: (output) => assert.equal(output.linkedinUrl, expectedLinkedinUrl),
   },
   {
     name: 'LinkedIn from name and company',
     config: linkedinProfileEnrichment,
     inputs: { fullName: person.fullName, companyDomain: person.companyDomain },
-    verify: (output) => assert.equal(output.linkedinUrl, person.linkedinUrl),
+    verify: (output) => assert.equal(output.linkedinUrl, expectedLinkedinUrl),
   },
   {
     name: 'company information',
@@ -112,10 +135,21 @@ try {
         signal: AbortSignal.timeout(180_000),
       })
       const result = await transform(response, params)
-      assert.ok(result.success, result.error)
-      const mapped = provider.mapOutput(result.output)
-      assert.ok(mapped, 'Expected a matching record')
-      check.verify(mapped)
+      if (check.expectNoMatch) {
+        assert.equal(result.success, false)
+        const failure = provider.projectFailure({
+          error: result.error ?? 'Lookup failed',
+          output: result.output,
+        })
+        assert.equal(failure.status, 'no_match')
+        assert.equal(result.output.creditsUsed, 0)
+      } else {
+        assert.ok(result.success, result.error)
+        const mapped = provider.mapOutput(result.output)
+        assert.ok(mapped, 'Expected a matching record')
+        assert.ok(check.verify)
+        check.verify(mapped)
+      }
       assert.ok(Number.isFinite(result.output.creditsUsed))
       assert.equal(pricing?.type, 'custom')
       const cost = pricing?.type === 'custom' ? pricing.getCost(params, result.output) : undefined

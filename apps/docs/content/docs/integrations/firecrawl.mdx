@@ -456,7 +456,7 @@ Retrieve the remaining and allocated Firecrawl credits for the team.
 
 ### Firecrawl Enrich
 
-Find work emails, mobile numbers, LinkedIn profiles, company domains, and company information through Firecrawl Alexandria. Uses FullEnrich for contact lookups and People Data Labs for company and name-based profile lookups. Provider terms must be enabled in Firecrawl. People Data Labs has a 50,000-record annual team limit.
+Find work emails, phone numbers, LinkedIn profiles, company domains, and company information through Firecrawl Alexandria. Uses FullEnrich for contact lookups and People Data Labs for company, name-based profile, and single-part-name contact lookups. Provider terms must be enabled in Firecrawl. People Data Labs has a 50,000-record annual team limit.
 
 <ReferenceDetails>
 
@@ -478,13 +478,13 @@ Find work emails, mobile numbers, LinkedIn profiles, company domains, and compan
 | --------- | ---- | ----------- |
 | `email` | string | Work email, when found |
 | `emailVerified` | boolean | True only when FullEnrich reports DELIVERABLE; catch-all and high-probability addresses remain unverified |
-| `phone` | string | Mobile number, when found |
+| `phone` | string | Phone number, preferring mobile when available |
 | `linkedinUrl` | string | LinkedIn profile URL, when found |
 | `domain` | string | Company website domain, when found |
 | `employeeCount` | string | Company headcount or size range |
 | `description` | string | Company description |
 | `creditsUsed` | number | Firecrawl credits charged for this lookup |
-| `status` | number | Provider or HTTP response status |
+| `statusCode` | number | Provider or HTTP response status code |
 
 </ReferenceDetails>
 

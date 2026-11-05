@@ -52,7 +52,10 @@ export function splitName(fullName: unknown): { firstName: string; lastName: str
 export function projectEnrichmentProviderFailure(
   failure: EnrichmentProviderFailure
 ): EnrichmentProviderFailureProjection {
-  if (isRecordLike(failure.output) && failure.output.status === 404) {
+  if (
+    isRecordLike(failure.output) &&
+    (failure.output.statusCode ?? failure.output.status) === 404
+  ) {
     return { status: 'no_match' }
   }
   return { status: 'error', error: failure.error }

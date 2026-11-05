@@ -26,7 +26,7 @@ describe('Alexandria enrichment wire contract', () => {
     })
     expect(result.success).toBe(false)
     expect(result.error).toContain('Accept provider terms')
-    expect(result.output.status).toBe(403)
+    expect(result.output.statusCode).toBe(403)
   })
 
   it('preserves a provider 404 for the enrichment runner to classify as no match', async () => {
@@ -35,7 +35,7 @@ describe('Alexandria enrichment wire contract', () => {
       data: { creditsCost: 0, alexandria: [{ error: { message: 'No match', status: 404 } }] },
     })
     expect(result.success).toBe(false)
-    expect(result.output.status).toBe(404)
+    expect(result.output.statusCode).toBe(404)
   })
 
   it('rejects malformed success envelopes instead of reporting a clean miss', async () => {
@@ -125,5 +125,28 @@ describe('Alexandria enrichment wire contract', () => {
     expect(result.success).toBe(true)
     expect(result.output.email).toBeNull()
     expect(result.output.creditsUsed).toBe(0)
+  })
+
+  it('maps PDL contact records without claiming mailbox verification', async () => {
+    const result = await transform({
+      success: true,
+      data: {
+        creditsCost: 60,
+        alexandria: [
+          {
+            provider: 'people-data-labs',
+            capability: 'person/enrich',
+            data: {
+              data: { work_email: 'person@example.com', mobile_phone: '+12025550123' },
+            },
+          },
+        ],
+      },
+    })
+    expect(result.output).toMatchObject({
+      email: 'person@example.com',
+      emailVerified: false,
+      phone: '+12025550123',
+    })
   })
 })

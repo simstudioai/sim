@@ -9448,7 +9448,7 @@
         },
         {
           "name": "Enrich Contact or Company",
-          "description": "Find work emails, mobile numbers, LinkedIn profiles, company domains, and company information through Firecrawl Alexandria. Uses FullEnrich for contact lookups and People Data Labs for company and name-based profile lookups. Provider terms must be enabled in Firecrawl. People Data Labs has a 50,000-record annual team limit."
+          "description": "Find work emails, phone numbers, LinkedIn profiles, company domains, and company information through Firecrawl Alexandria. Uses FullEnrich for contact lookups and People Data Labs for company, name-based profile, and single-part-name contact lookups. Provider terms must be enabled in Firecrawl. People Data Labs has a 50,000-record annual team limit."
         }
       ],
       "operationCount": 14,

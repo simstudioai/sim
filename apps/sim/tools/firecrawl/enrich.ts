@@ -16,8 +16,24 @@ function enrichmentCall(params: FirecrawlEnrichParams) {
     case 'work_email':
     case 'phone': {
       const name = splitName(fullName)
-      if (!linkedinUrl && !(name && (companyDomain || companyName))) {
+      const company = companyDomain || companyName
+      if (!linkedinUrl && !(fullName && company)) {
         throw new Error('Provide a LinkedIn URL or a full name and company for contact enrichment')
+      }
+      if (!linkedinUrl && !name) {
+        const fields =
+          params.enrichmentType === 'phone' ? ['mobile_phone', 'phone_numbers'] : ['work_email']
+        return {
+          provider: 'people-data-labs',
+          capability: 'person/enrich',
+          options: {
+            name: fullName,
+            company,
+            min_likelihood: 6,
+            required: fields.join(' OR '),
+            data_include: fields.join(','),
+          },
+        }
       }
       return {
         provider: 'fullenrich',
@@ -82,7 +98,7 @@ export const firecrawlEnrichTool: ToolConfig<FirecrawlEnrichParams, FirecrawlEnr
   id: 'firecrawl_enrich',
   name: 'Firecrawl Enrich',
   description:
-    'Find work emails, mobile numbers, LinkedIn profiles, company domains, and company information through Firecrawl Alexandria. Uses FullEnrich for contact lookups and People Data Labs for company and name-based profile lookups. Provider terms must be enabled in Firecrawl. People Data Labs has a 50,000-record annual team limit.',
+    'Find work emails, phone numbers, LinkedIn profiles, company domains, and company information through Firecrawl Alexandria. Uses FullEnrich for contact lookups and People Data Labs for company, name-based profile, and single-part-name contact lookups. Provider terms must be enabled in Firecrawl. People Data Labs has a 50,000-record annual team limit.',
   version: '1.0.0',
   hosting: firecrawlHosting<FirecrawlEnrichParams>(),
   params: {
@@ -153,7 +169,7 @@ export const firecrawlEnrichTool: ToolConfig<FirecrawlEnrichParams, FirecrawlEnr
       employeeCount: null,
       description: null,
       creditsUsed: 0,
-      status: typeof error.status === 'number' ? error.status : response.status,
+      statusCode: typeof error.status === 'number' ? error.status : response.status,
     }
     if (!response.ok || envelope.success !== true || result.error) {
       return {
@@ -161,7 +177,7 @@ export const firecrawlEnrichTool: ToolConfig<FirecrawlEnrichParams, FirecrawlEnr
         error:
           toStringOrNull(error.message) ??
           toStringOrNull(envelope.error) ??
-          `Firecrawl enrichment failed (${output.status})`,
+          `Firecrawl enrichment failed (${output.statusCode})`,
         output,
       }
     }
@@ -190,6 +206,13 @@ export const firecrawlEnrichTool: ToolConfig<FirecrawlEnrichParams, FirecrawlEnr
       output.linkedinUrl = toStringOrNull(social.url)
     } else if (result.provider === 'people-data-labs') {
       const person = toRecord(record.data)
+      output.email = toStringOrNull(person.work_email)
+      output.phone =
+        toStringOrNull(person.mobile_phone) ||
+        toArray(person.phone_numbers)
+          .map(toStringOrNull)
+          .find((phone) => phone?.trim()) ||
+        null
       output.linkedinUrl = toStringOrNull(person.linkedin_url)
       output.domain = toStringOrNull(record.website)
       output.employeeCount =
@@ -209,7 +232,11 @@ export const firecrawlEnrichTool: ToolConfig<FirecrawlEnrichParams, FirecrawlEnr
       description:
         'True only when FullEnrich reports DELIVERABLE; catch-all and high-probability addresses remain unverified',
     },
-    phone: { type: 'string', description: 'Mobile number, when found', optional: true },
+    phone: {
+      type: 'string',
+      description: 'Phone number, preferring mobile when available',
+      optional: true,
+    },
     linkedinUrl: {
       type: 'string',
       description: 'LinkedIn profile URL, when found',
@@ -223,6 +250,6 @@ export const firecrawlEnrichTool: ToolConfig<FirecrawlEnrichParams, FirecrawlEnr
     },
     description: { type: 'string', description: 'Company description', optional: true },
     creditsUsed: { type: 'number', description: 'Firecrawl credits charged for this lookup' },
-    status: { type: 'number', description: 'Provider or HTTP response status' },
+    statusCode: { type: 'number', description: 'Provider or HTTP response status code' },
   },
 }

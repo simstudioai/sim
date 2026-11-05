@@ -1,5 +1,5 @@
 import { Mail } from '@sim/emcn/icons'
-import { normalizeDomain, splitName, str, toolProvider } from '@/enrichments/providers'
+import { normalizeDomain, str, toolProvider } from '@/enrichments/providers'
 import type { EnrichmentConfig } from '@/enrichments/types'
 
 export const workEmailEnrichment: EnrichmentConfig = {
@@ -22,7 +22,7 @@ export const workEmailEnrichment: EnrichmentConfig = {
         const fullName = str(inputs.fullName)
         const companyDomain = normalizeDomain(inputs.companyDomain)
         const linkedinUrl = str(inputs.linkedinUrl)
-        if (!linkedinUrl && !(splitName(fullName) && companyDomain)) return null
+        if (!linkedinUrl && !(fullName && companyDomain)) return null
         return { enrichmentType: 'work_email', fullName, companyDomain, linkedinUrl }
       },
       mapOutput: (output) => {
