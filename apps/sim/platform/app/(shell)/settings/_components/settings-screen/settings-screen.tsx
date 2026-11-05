@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
 import { SETTINGS_DESTINATIONS } from '@/platform/app/(shell)/_components/settings-navigation/destinations'
 import { AppearanceSettings } from '@/platform/app/(shell)/settings/_components/appearance-settings/appearance-settings'
@@ -18,14 +18,22 @@ interface SettingsScreenProps {
   section?: string
   data: SettingsData | null
   profileName?: string
+  /** A live section's title and body, in place of the fixture sections below. */
+  title?: string
+  children?: ReactNode
 }
 
 export function SettingsScreen({
   section = 'preferences',
   data,
   profileName,
+  title: liveTitle,
+  children,
 }: SettingsScreenProps) {
-  const title = SETTINGS_DESTINATIONS.find((entry) => entry.key === section)?.title ?? 'Preferences'
+  const title =
+    liveTitle ??
+    SETTINGS_DESTINATIONS.find((entry) => entry.key === section)?.title ??
+    'Preferences'
   const preferences = useInterfacePreferences()
   const start = useRef<HTMLDivElement>(null)
   const [scrolled, setScrolled] = useState(false)
@@ -62,14 +70,17 @@ export function SettingsScreen({
           <h1 data-type='T076'>{title}</h1>
           {section === 'preferences' && <p data-type='T067'>Manage your personal preferences</p>}
         </header>
-        {section === 'preferences' && (
+        {children}
+        {!children && section === 'preferences' && (
           <>
             <ProfileSettings name={profileName} email={data?.email} />
             <AppearanceSettings />
           </>
         )}
-        {(section === 'preferences' || section === 'notifications') && <NotificationSettings />}
-        {section === 'keyboard-shortcuts' && (
+        {!children && (section === 'preferences' || section === 'notifications') && (
+          <NotificationSettings />
+        )}
+        {!children && section === 'keyboard-shortcuts' && (
           <SettingsSection title='Navigation'>
             <SettingsRow label='Search'>
               <kbd data-type='T005'>⌘ / Ctrl + K</kbd>
@@ -82,7 +93,8 @@ export function SettingsScreen({
             </SettingsRow>
           </SettingsSection>
         )}
-        {section === 'connections' &&
+        {!children &&
+          section === 'connections' &&
           (data?.connections.length ? (
             <SettingsSection title='Connected accounts'>
               {data.connections.map((name) => (
@@ -92,7 +104,8 @@ export function SettingsScreen({
           ) : (
             <EmptyState title='No connected accounts' />
           ))}
-        {section === 'members' &&
+        {!children &&
+          section === 'members' &&
           (data?.members.length ? (
             <SettingsSection title='Organization members'>
               {data.members.map((member) => (

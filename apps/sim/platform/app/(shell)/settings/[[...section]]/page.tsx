@@ -3,12 +3,19 @@ import { SETTINGS_DESTINATIONS } from '@/platform/app/(shell)/_components/settin
 import { SettingsScreen } from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen'
 import { readScenario } from '@/platform/design-system/navigation'
 import { loadSettingsData, loadShellData } from '@/platform/fixtures'
+import { resolvePlatformMode } from '@/platform/lib/data/mode'
 
 export default async function Page({
   searchParams,
   params,
 }: PageProps<'/settings/[[...section]]'>) {
   const [query, { section: path }] = await Promise.all([searchParams, params])
+  if (resolvePlatformMode() === 'live') {
+    const { LiveSettings } = await import(
+      '@/platform/app/(shell)/settings/_components/live-settings/live-settings'
+    )
+    return <LiveSettings path={path ?? []} query={query} />
+  }
   const section = path?.[0] ?? 'preferences'
   const destination = SETTINGS_DESTINATIONS.find((item) => item.key === section)
   if ((path && path.length !== 1) || !destination) notFound()
