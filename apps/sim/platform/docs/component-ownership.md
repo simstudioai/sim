@@ -16,6 +16,8 @@ Start with the interaction. A different label, icon, data source, theme or scree
 
 Routes compose these owners. The shell owns navigation, window chrome, session state and the shared message composer. Home owns the arrangement of widgets, calendar and chart. Chat owns turns, tool payloads, panel contents and resources. Settings owns profile, appearance, notification preferences and their section layout. Product code uses no fixture fallback. The workbench and its Paper specimens are engineering tools; gallery examples do not justify product variants.
 
+Organization integrations uses ActivityRow links for apps and the shared Icon for provider marks. The same SettingsSection and SettingsRow serve both Settings and integration details. The route owns app setup, member accounts, Search sources, and workspace grant editing. Its [operation map](organization-integrations.md) records the separate permission owners and the external handoffs.
+
 The [Platform time library](../lib/time.ts) formats raw instants, calendar days and elapsed metadata for every feature. Home owns its Build/Search metric and a single selected time window.
 
 For a proposed addition, trace its second consumer before copying a hit area, hover, menu, timer or modal part. Promote the original when semantics match, and verify both callers with a pointer and keyboard. For different semantics, share the visual recipe and preserve the proper native element.

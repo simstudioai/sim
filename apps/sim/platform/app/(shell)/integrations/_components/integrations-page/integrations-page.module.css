@@ -1,0 +1,36 @@
+.page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  inline-size: min(var(--ui-page-max-size), calc(100% - 2 * var(--ui-page-inline-gutter)));
+  margin-inline: auto;
+  padding-block: var(--shell-home-row-start) var(--ui-page-inset-block);
+  gap: var(--ui-product-section-gap);
+}
+.headline,
+.providerHeading {
+  display: flex;
+  align-items: start;
+  gap: var(--ui-row-gap);
+}
+.headline {
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+.heading {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-stack-gap);
+}
+.heading p {
+  color: var(--ui-secondary);
+}
+.mark {
+  display: grid;
+  place-items: center;
+  block-size: var(--leading-32);
+}
+.tabs,
+.back {
+  margin-inline: calc(-1 * var(--ui-row-inset));
+}

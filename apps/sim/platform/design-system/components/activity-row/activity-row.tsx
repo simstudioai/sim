@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import Link from 'next/link'
 import { ActivityBody } from '@/platform/design-system/components/activity-row/activity-body'
 import styles from '@/platform/design-system/components/activity-row/activity-row.module.css'
 import { Icon } from '@/platform/design-system/components/icon/icon'
@@ -13,8 +14,9 @@ interface ActivityRowProps {
   detailLead?: string
   metadata?: string
   showChevron?: boolean
-  onOpen: () => void
 }
+
+type ActivityTarget = { href: string; onOpen?: never } | { href?: never; onOpen: () => void }
 
 export function ActivityRow({
   leading,
@@ -25,32 +27,44 @@ export function ActivityRow({
   metadata,
   showChevron = true,
   onOpen,
-}: ActivityRowProps) {
+  href,
+}: ActivityRowProps & ActivityTarget) {
+  const content = (
+    <>
+      <ActivityBody leading={leading} decorativeLeading>
+        <span data-type='T059'>
+          <CountedLabel label={title} count={count} />
+        </span>
+        <span className={styles.detail} data-type='T050'>
+          <OverflowText text={detailLead ? `${detailLead} ${detail}` : detail}>
+            {detailLead && (
+              <>
+                <strong data-type='T051'>{detailLead}</strong>{' '}
+              </>
+            )}
+            {detail}
+          </OverflowText>
+        </span>
+      </ActivityBody>
+      {(metadata || showChevron) && (
+        <span className={styles.meta} data-type='T052'>
+          {metadata}
+          {showChevron && <Icon name='I032' />}
+        </span>
+      )}
+    </>
+  )
   return (
     <li>
-      <button type='button' className={styles.row} onClick={onOpen}>
-        <ActivityBody leading={leading} decorativeLeading>
-          <span data-type='T059'>
-            <CountedLabel label={title} count={count} />
-          </span>
-          <span className={styles.detail} data-type='T050'>
-            <OverflowText text={detailLead ? `${detailLead} ${detail}` : detail}>
-              {detailLead && (
-                <>
-                  <strong data-type='T051'>{detailLead}</strong>{' '}
-                </>
-              )}
-              {detail}
-            </OverflowText>
-          </span>
-        </ActivityBody>
-        {(metadata || showChevron) && (
-          <span className={styles.meta} data-type='T052'>
-            {metadata}
-            {showChevron && <Icon name='I032' />}
-          </span>
-        )}
-      </button>
+      {href !== undefined ? (
+        <Link href={href} className={styles.row}>
+          {content}
+        </Link>
+      ) : (
+        <button type='button' className={styles.row} onClick={onOpen}>
+          {content}
+        </button>
+      )}
     </li>
   )
 }

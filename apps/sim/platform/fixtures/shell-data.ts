@@ -44,7 +44,7 @@ const full: ShellDetails = {
       description: 'Connection expired',
       icon: 'I084',
       unread: true,
-      href: '/home',
+      href: '/integrations/salesforce',
     },
     {
       id: 'renewal',

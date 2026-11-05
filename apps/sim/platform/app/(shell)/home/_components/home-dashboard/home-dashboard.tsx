@@ -127,7 +127,7 @@ export function HomeDashboard({ data, recentLinks }: HomeDashboardProps) {
           {connectedWidget('Email')}
         </div>
         <div className={styles.column}>
-          <AttentionList data={data} onOpen={goHome} />
+          <AttentionList data={data} />
           {connectedWidget('Calendar')}
         </div>
       </div>

@@ -8,6 +8,7 @@ import { NotificationSession } from '@/platform/app/(shell)/_components/notifica
 import { PlatformShell } from '@/platform/app/(shell)/_components/platform-shell/platform-shell'
 import { ChatChangesProvider } from '@/platform/app/(shell)/_components/session/chat-changes'
 import { ComposerDrafts } from '@/platform/app/(shell)/_components/session/composer-drafts'
+import { IntegrationChanges } from '@/platform/app/(shell)/_components/session/integration-changes'
 import { InterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
 import { ProductSurface } from '@/platform/app/(shell)/_components/session/product-surface'
 import { SidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
@@ -30,7 +31,9 @@ export function ProductSession({ children, fixtures }: ProductSessionProps) {
           <ChatChangesProvider>
             <ComposerDrafts>
               <ProductSurface preference={readAppearance(search.get('theme'))}>
-                <PlatformShell data={fixtures?.[scenario] ?? null}>{children}</PlatformShell>
+                <IntegrationChanges key={search.get('role') === 'member' ? 'member' : 'admin'}>
+                  <PlatformShell data={fixtures?.[scenario] ?? null}>{children}</PlatformShell>
+                </IntegrationChanges>
               </ProductSurface>
             </ComposerDrafts>
           </ChatChangesProvider>

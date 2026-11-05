@@ -41,7 +41,9 @@ export function PlatformShell({ data, children }: PlatformShellProps) {
     : undefined
   const conversation = pathname.startsWith('/chat')
   const activeChat = conversation ? pathname.split('/')[2] : undefined
-  const home = !settings && !conversation
+  const home = pathname === '/home'
+  const integrations = pathname === '/integrations' || pathname.startsWith('/integrations/')
+  const scrollingPage = home || integrations
   const chats = [...chat.created, ...(data?.chats ?? [])]
     .filter((item) => !chat.isRemoved(item.id))
     .map((item) => ({ ...item, title: chat.titleFor(item.id, item.title) }))
@@ -54,7 +56,9 @@ export function PlatformShell({ data, children }: PlatformShellProps) {
       : 'Settings'
     : conversation
       ? chatTitle || 'New chat'
-      : 'Home'
+      : integrations
+        ? 'Integrations'
+        : 'Home'
   const drawerOpen = compact && drawer
 
   useEffect(() => {
@@ -105,7 +109,7 @@ export function PlatformShell({ data, children }: PlatformShellProps) {
       data={data}
       chats={chats}
       activeChat={activeChat}
-      home={home}
+      pathname={pathname}
       settingsSection={section?.key}
       actions={(!desktop || compact) && actions}
       navigate={navigate}
@@ -135,7 +139,7 @@ export function PlatformShell({ data, children }: PlatformShellProps) {
               <WindowHistoryButtons />
               {!compact && !collapsed ? actions : openControl}
             </div>
-            {!conversation && !(home && compact) && (
+            {!conversation && !(scrollingPage && compact) && (
               <span className={styles.desktopTitle} data-type='T067'>
                 <OverflowText text={pageTitle}>{pageTitle}</OverflowText>
               </span>
@@ -143,11 +147,14 @@ export function PlatformShell({ data, children }: PlatformShellProps) {
           </header>
         )}
         {!compact && sidebar}
-        {!home && webOpener}
+        {!scrollingPage && webOpener}
         <div ref={scrollEdges} className={styles.content}>
-          {home ? (
-            <ScrollArea label='Home dashboard'>
-              <div className={styles.homeContent}>
+          {scrollingPage ? (
+            <ScrollArea
+              key={pathname}
+              label={home ? 'Home dashboard' : 'Organization integrations'}
+            >
+              <div className={styles.pageContent}>
                 {webOpener}
                 {children}
               </div>

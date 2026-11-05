@@ -18,7 +18,7 @@ interface SidebarProps {
   data: ShellData | null
   chats: readonly ShellItem[]
   activeChat?: string
-  home: boolean
+  pathname: string
   settingsSection?: string
   actions?: ReactNode
   navigate: (href: string) => void
@@ -28,7 +28,7 @@ export function Sidebar({
   data,
   chats,
   activeChat,
-  home,
+  pathname,
   settingsSection,
   actions,
   navigate,
@@ -73,7 +73,7 @@ export function Sidebar({
                   <Chip
                     key={item.id}
                     href={platformHref(item.value, search)}
-                    selected={home && item.id === 'home'}
+                    selected={pathname === item.value || pathname.startsWith(`${item.value}/`)}
                     icon={item.icon}
                   >
                     {item.label}

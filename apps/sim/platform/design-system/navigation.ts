@@ -16,6 +16,7 @@ export function platformHref(path: string, search: SearchValues) {
   const theme = search.get('theme')
   if (state === 'empty' || state === 'full' || state === 'stress') query.set('state', state)
   if (theme === 'system' || theme === 'light' || theme === 'dark') query.set('theme', theme)
+  if (search.get('role') === 'member') query.set('role', 'member')
   return query.size ? `${path}?${query}` : path
 }
 

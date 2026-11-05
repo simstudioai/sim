@@ -45,5 +45,6 @@
   align-items: center;
   gap: var(--ui-popup-padding);
   min-block-size: var(--leading-app-control);
-  white-space: nowrap;
+  max-inline-size: 45%;
+  overflow-wrap: anywhere;
 }

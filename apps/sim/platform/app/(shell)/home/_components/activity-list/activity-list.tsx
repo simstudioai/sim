@@ -1,3 +1,4 @@
+import { useSearchParams } from 'next/navigation'
 import styles from '@/platform/app/(shell)/home/_components/activity-list/activity-list.module.css'
 import { HomeSection } from '@/platform/app/(shell)/home/_components/home-section/home-section'
 import type { HomeData } from '@/platform/app/(shell)/home/_components/model'
@@ -8,6 +9,7 @@ import {
   Icon,
   ScrollArea,
 } from '@/platform/design-system/components'
+import { platformHref } from '@/platform/design-system/navigation'
 import { formatRelativeTime } from '@/platform/lib/time'
 
 interface ActivityListProps {
@@ -39,7 +41,8 @@ export function EmailList({ data, onOpen }: ActivityListProps) {
   )
 }
 
-export function AttentionList({ data, onOpen }: ActivityListProps) {
+export function AttentionList({ data }: Pick<ActivityListProps, 'data'>) {
+  const search = useSearchParams()
   return (
     <HomeSection title='Needs your attention'>
       {data?.attention.length ? (
@@ -53,7 +56,7 @@ export function AttentionList({ data, onOpen }: ActivityListProps) {
                   title={row.title}
                   detail={row.detail}
                   metadata={formatRelativeTime(row.occurredAt, data.asOf)}
-                  onOpen={onOpen}
+                  href={platformHref(row.href ?? '/home', search)}
                 />
               ))}
             </ul>

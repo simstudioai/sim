@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import styles from '@/platform/app/(shell)/settings/_components/settings-section/settings-section.module.css'
+import styles from '@/platform/design-system/components/settings-section/settings-section.module.css'
 
 interface SettingsSectionProps {
   title: string

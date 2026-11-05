@@ -7,6 +7,7 @@ interface AttentionItem {
   detail: string
   occurredAt: number
   icon: IconName
+  href?: string
 }
 
 export interface HomeData {

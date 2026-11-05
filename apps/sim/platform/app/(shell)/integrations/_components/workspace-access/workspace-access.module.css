@@ -1,0 +1,25 @@
+.section,
+.workspaces,
+.rows,
+.choices {
+  display: grid;
+  min-inline-size: 0;
+}
+.section {
+  gap: var(--ui-section-gap);
+}
+.search {
+  inline-size: min(100%, var(--spacing-320));
+}
+.workspaces,
+.rows {
+  gap: var(--ui-list-gap);
+}
+.workspaces,
+.choices {
+  margin-inline: calc(-1 * var(--ui-row-inset));
+}
+.choices {
+  grid-template-rows: minmax(0, 1fr);
+  max-block-size: min(var(--spacing-192), 40dvh);
+}

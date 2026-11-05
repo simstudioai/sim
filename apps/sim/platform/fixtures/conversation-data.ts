@@ -44,6 +44,7 @@ const fullHome: HomeData = {
     {
       id: 'salesforce',
       title: 'Reconnect Salesforce',
+      href: '/integrations/salesforce',
       detail: 'Connection expired',
       occurredAt: FIXTURE_NOW - 12 * 60_000,
       icon: 'I084',

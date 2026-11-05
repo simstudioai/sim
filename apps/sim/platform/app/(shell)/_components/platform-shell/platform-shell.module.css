@@ -30,7 +30,7 @@
   inset-block-start: var(--shell-edge-inset);
   inset-inline-start: var(--ui-row-inset);
 }
-.homeContent {
+.pageContent {
   position: relative;
   container-type: inline-size;
 }

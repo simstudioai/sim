@@ -8,11 +8,11 @@ import type { SettingsData } from '@/platform/app/(shell)/settings/_components/m
 import { NotificationSettings } from '@/platform/app/(shell)/settings/_components/notification-settings/notification-settings'
 import { ProfileSettings } from '@/platform/app/(shell)/settings/_components/profile/profile-settings'
 import styles from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen.module.css'
+import { EmptyState } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
-} from '@/platform/app/(shell)/settings/_components/settings-section/settings-section'
-import { EmptyState } from '@/platform/design-system/components'
+} from '@/platform/design-system/components/settings-section/settings-section'
 
 interface SettingsScreenProps {
   section?: string

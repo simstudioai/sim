@@ -2,11 +2,11 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
+import { Select } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
-} from '@/platform/app/(shell)/settings/_components/settings-section/settings-section'
-import { Select } from '@/platform/design-system/components'
+} from '@/platform/design-system/components/settings-section/settings-section'
 import { readAppearance } from '@/platform/design-system/navigation'
 
 const THEMES = [

@@ -3,12 +3,12 @@
 import { useRef, useState } from 'react'
 import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
 import styles from '@/platform/app/(shell)/settings/_components/profile/profile-settings.module.css'
+import { Avatar, AvatarImage, Icon, Modal, TextField } from '@/platform/design-system/components'
+import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
 import {
   SettingsRow,
   SettingsSection,
-} from '@/platform/app/(shell)/settings/_components/settings-section/settings-section'
-import { Avatar, AvatarImage, Icon, Modal, TextField } from '@/platform/design-system/components'
-import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
+} from '@/platform/design-system/components/settings-section/settings-section'
 
 interface ProfileSettingsProps {
   name?: string

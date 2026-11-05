@@ -1,0 +1,29 @@
+.list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-product-section-gap);
+  min-inline-size: 0;
+}
+.filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ui-row-gap);
+}
+.filters > :first-child {
+  flex: 1 1 var(--spacing-192);
+  max-inline-size: var(--spacing-320);
+}
+.filterChoice {
+  inline-size: min(100%, var(--spacing-128));
+}
+.group,
+.rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
+  gap: var(--ui-list-gap);
+}
+.rows {
+  margin-inline: calc(-1 * var(--ui-row-inset));
+}

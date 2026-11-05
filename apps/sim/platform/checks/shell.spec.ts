@@ -53,7 +53,7 @@ test('the sidebar keeps its reading position across route changes and a Settings
   await expect(groups.nth(2)).toHaveAccessibleName('Chats')
   await search.fill('Integrations')
   await search.press('Enter')
-  await expect(page).toHaveURL(/\/home\?state=full/)
+  await expect(page).toHaveURL(/\/integrations\?state=full/)
   await expect.poll(() => nav.evaluate((element) => element.scrollTop)).toBe(offset)
   await sidebar.getByRole('button', { name: 'Emir Karabeg' }).click()
   await expect(sidebar.getByRole('region', { name: 'Settings navigation' })).toBeVisible()

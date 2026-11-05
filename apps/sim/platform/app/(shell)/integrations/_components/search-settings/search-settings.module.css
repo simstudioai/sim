@@ -1,0 +1,5 @@
+.filters {
+  display: grid;
+  gap: var(--ui-section-gap);
+  margin-block-start: var(--ui-section-gap);
+}

@@ -2,6 +2,7 @@ import 'server-only'
 import type { AttachmentItem } from '@/platform/design-system/components/attachments/attachment-tile'
 import type { PropertyItem } from '@/platform/design-system/components/property-list/property-list'
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
+import type { IntegrationsData } from '@/platform/lib/integrations/model'
 
 export type Scenario = 'empty' | 'full' | 'stress'
 
@@ -80,6 +81,48 @@ export const loadConversationData = fixture(
   async (scenario) =>
     (await import('@/platform/fixtures/conversation-data')).conversationScenarios[scenario]
 )
+const loadIntegrationScenario = fixture(async (scenario) => {
+  const [{ integrationScenario }, { integrationProviders }, { shellScenarios }] = await Promise.all(
+    [
+      import('@/platform/fixtures/integration-data'),
+      import('@/platform/fixtures/integration-providers'),
+      import('@/platform/fixtures/shell-data'),
+    ]
+  )
+  return integrationScenario(scenario, integrationProviders, shellScenarios[scenario].workspaces)
+})
+
+export async function loadIntegrationsData(
+  scenario: Scenario,
+  member: boolean
+): Promise<IntegrationsData | null> {
+  const data = await loadIntegrationScenario(scenario)
+  if (!data || !member) return data
+  const integrations = data.integrations
+    .filter((item) => item.searchApproved || item.accountMethods.length)
+    .map((item) => ({
+      ...item,
+      people: [],
+      sources: [],
+      sourceId: null,
+      endpoint: undefined,
+      clientId: undefined,
+      accounts: item.accounts.map((entry) =>
+        entry.permissions
+          ? { ...entry, permissions: { ...entry.permissions, canAutoApprove: false } }
+          : entry
+      ),
+    }))
+  const permitted = new Set(integrations.map((item) => item.providerId))
+  return {
+    canManage: false,
+    providers: data.providers.filter((provider) => permitted.has(provider.id)),
+    integrations,
+    workspaces: [],
+    credentialTypes: [],
+    workspaceGrants: {},
+  }
+}
 export const loadPanelData = fixture(
   async (scenario) => (await import('@/platform/fixtures/panel-data')).panelScenarios[scenario]
 )

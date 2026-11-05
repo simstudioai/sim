@@ -1,10 +1,5 @@
 import { Fragment, type ReactNode, useId } from 'react'
 import { HelpMenu } from '@/platform/app/(shell)/_components/sidebar/help-menu'
-import {
-  SettingsRow,
-  SettingsSection,
-  SettingsSurface,
-} from '@/platform/app/(shell)/settings/_components/settings-section/settings-section'
 import type evidence from '@/platform/design-system/catalog/evidence.json'
 import { glyphs, type IconName } from '@/platform/design-system/catalog/icon-geometry'
 import {
@@ -62,6 +57,11 @@ import {
   VisibilityMenu,
   WorkspaceList,
 } from '@/platform/design-system/components'
+import {
+  SettingsRow,
+  SettingsSection,
+  SettingsSurface,
+} from '@/platform/design-system/components/settings-section/settings-section'
 import type { PreviewData } from '@/platform/fixtures'
 import { formatCalendarDate } from '@/platform/lib/time'
 import { HomeChartSpecimen } from '@/platform/preview/home-chart-specimen'

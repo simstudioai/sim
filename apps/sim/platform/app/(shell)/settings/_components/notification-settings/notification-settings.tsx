@@ -1,11 +1,11 @@
 'use client'
 
 import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
+import { Switch } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
-} from '@/platform/app/(shell)/settings/_components/settings-section/settings-section'
-import { Switch } from '@/platform/design-system/components'
+} from '@/platform/design-system/components/settings-section/settings-section'
 
 export function NotificationSettings() {
   const settings = useInterfacePreferences()
