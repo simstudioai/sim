@@ -22,8 +22,7 @@ const PREFETCH_TIMEOUT_MS = 2_000
 export function resolveHomeRedirect(organization: PlatformOrganization): string | null {
   const { mothershipAvailable, canBuild, searchAccess } = organization
   if (mothershipAvailable && canBuild) return null
-  const routes = legacyRoutes(organization)
-  return searchAccess.memberScoped ? routes.search : routes.workspaceSettings
+  return searchAccess.memberScoped ? '/search' : legacyRoutes(organization).workspaceSettings
 }
 
 /**
