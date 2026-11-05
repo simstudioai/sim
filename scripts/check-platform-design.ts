@@ -777,10 +777,13 @@ function resolveSource(file: string, specifier: string): string | null {
  * modules at build time, so the walk stops at them the same way.
  */
 function checkSeamClosure() {
+  const config = 'platform/next.config.ts'
   const replaced = new Set(
-    [...read('platform/next.config.ts').matchAll(/\['(@\/[^']+)', 'lib\/data\/shims\//g)].map(
-      ([, request]) => request
-    )
+    existsSync(path.join(app, config))
+      ? [...read(config).matchAll(/\['(@\/[^']+)', 'lib\/data\/shims\//g)].map(
+          ([, request]) => request
+        )
+      : []
   )
   const visited = new Set<string>()
   const queue: string[] = []
