@@ -15,7 +15,7 @@ import {
 } from '@/lib/credentials/oauth-chat-attempt'
 import { getDesktopBridge } from '@/lib/desktop'
 import { resolveOAuthServiceForSlug } from '@/lib/integrations/oauth-service'
-import { useCredentialWorkspaceId } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/credential-workspace'
+import { useCredentialWorkspaceId } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/credential-workspace-context'
 import {
   usePersonalCredentials,
   useStartPersonalCredentialConnection,

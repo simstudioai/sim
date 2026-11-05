@@ -6,6 +6,8 @@ const CHAT_PATH = /^\/(?:workspace|o)\/[^/]+\/(?:search\/)?chat\/[^/]+$/
 interface UseRestoredChatEntryProps {
   /** The chat the surface was opened for; the new-chat surface has none. */
   chatId: string | undefined
+  /** The URLs a chat lives at, for a host outside the `/workspace` and `/o` routes. */
+  chatPath?: RegExp
 }
 
 /**
@@ -21,12 +23,15 @@ interface UseRestoredChatEntryProps {
  * @returns Whether this mount is a restored entry; the caller renders its fallback until
  *   the chat route replaces it.
  */
-export function useRestoredChatEntry({ chatId }: UseRestoredChatEntryProps): boolean {
+export function useRestoredChatEntry({
+  chatId,
+  chatPath = CHAT_PATH,
+}: UseRestoredChatEntryProps): boolean {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [restoredChatUrl] = useState(() => {
-    if (chatId || !CHAT_PATH.test(pathname)) return null
+    if (chatId || !chatPath.test(pathname)) return null
     const search = searchParams.toString()
     return search ? `${pathname}?${search}` : pathname
   })

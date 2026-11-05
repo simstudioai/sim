@@ -20,7 +20,7 @@ import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 
 nextNavigationMockFns.mockUsePathname.mockReturnValue('/workspace/workspace-1/home')
 
-vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => ({
+vi.mock('@/lib/core/config/feature-flags-context', () => ({
   useFeatureFlag: () => false,
 }))
 

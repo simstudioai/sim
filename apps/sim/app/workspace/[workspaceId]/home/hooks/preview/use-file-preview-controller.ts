@@ -11,7 +11,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
 import type { SyntheticFilePreviewPayload } from '@/lib/mothership/request/session'
 import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
-import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry/resource-invalidation'
 import {
   deriveFilePreviewSession,
   previewHoldsFinalContent,

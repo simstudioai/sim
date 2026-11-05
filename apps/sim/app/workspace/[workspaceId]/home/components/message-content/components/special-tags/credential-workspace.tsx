@@ -1,17 +1,10 @@
 'use client'
 
-import { createContext, type ReactNode, useContext } from 'react'
-import { useParams } from 'next/navigation'
+import type { ReactNode } from 'react'
+import { CredentialWorkspaceContext } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/credential-workspace-context'
 import { ResourceWorkspaceHost } from '@/app/workspace/[workspaceId]/home/components/resource-workspace-host'
 
-const CredentialWorkspaceContext = createContext<string | undefined>(undefined)
-
-/** Only an authorized card host may override the workspace route. */
-export function useCredentialWorkspaceId(): string {
-  const explicit = useContext(CredentialWorkspaceContext)
-  const params = useParams<{ workspaceId?: string; organizationId?: string }>()
-  return explicit ?? (params.organizationId ? '' : (params.workspaceId ?? ''))
-}
+export { useCredentialWorkspaceId } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/credential-workspace-context'
 
 export function CredentialWorkspaceHost({
   workspaceId,

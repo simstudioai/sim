@@ -24,7 +24,7 @@ import {
   isBackgroundDesktopToolCall,
   isDesktopToolCall,
 } from '@/lib/mothership/tools/desktop-tools'
-import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry/resource-invalidation'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import {
   DEPLOY_TOOL_NAMES,
@@ -38,11 +38,11 @@ import {
   type ToolNode,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
 import { resolveFileResourceSelectionId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
-import { deploymentKeys } from '@/hooks/queries/deployments'
-import { oauthCredentialKeys } from '@/hooks/queries/oauth/credentials'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
+import { deploymentKeys } from '@/hooks/queries/utils/deployment-keys'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { oauthCredentialKeys } from '@/hooks/queries/utils/oauth-credential-keys'
 import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
 
 type ToolEvent = Extract<PersistedStreamEventEnvelope, { type: 'tool' }>
