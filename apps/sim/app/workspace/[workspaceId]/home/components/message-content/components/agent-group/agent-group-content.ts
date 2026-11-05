@@ -2,7 +2,7 @@ import type {
   AgentGroupItem,
   NestedAgentGroup,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
-import { isToolDone } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
+import { isToolDone } from '@/app/workspace/[workspaceId]/home/components/message-content/tool-status'
 import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
 
 /**

@@ -42,13 +42,13 @@ function toShellWorkspace(
   }
 }
 
-/** Assistant chats live under Search, which stays on the legacy surface. */
-function toShellChat(chat: MothershipChatMetadata, routes: LegacyRoutes): ShellChat {
+/** Assistant chats live under Search. */
+function toShellChat(chat: MothershipChatMetadata): ShellChat {
   return {
     id: chat.id,
     title: chat.name,
     mode: chat.mode,
-    href: chat.mode === 'assistant' ? routes.searchChat(chat.id) : `/chat/${chat.id}`,
+    href: chat.mode === 'assistant' ? `/search/chat/${chat.id}` : `/chat/${chat.id}`,
     isActive: chat.isActive,
     isUnread: chat.isUnread,
     isPinned: chat.isPinned,
@@ -110,7 +110,7 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
       workspaces: (workspaces.data ?? [])
         .filter((workspace) => workspace.organizationId === organizationId)
         .map((workspace) => toShellWorkspace(workspace, pinnedIds.data, routes)),
-      chats: (chats.data ?? []).map((chat) => toShellChat(chat, routes)),
+      chats: (chats.data ?? []).map(toShellChat),
       inbox: [],
       notifications: [],
       unbacked: ['inbox', 'sortWorkspaces'],

@@ -1,0 +1,66 @@
+.markdown {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-section-gap);
+  overflow-wrap: anywhere;
+}
+.markdown ul,
+.markdown ol {
+  display: grid;
+  gap: var(--ui-row-gap);
+  margin: 0;
+  padding-inline-start: var(--spacing-16);
+}
+.markdown ul {
+  list-style: disc;
+}
+.markdown ol {
+  list-style: decimal;
+}
+.markdown strong {
+  font-weight: var(--font-weight-medium);
+}
+.markdown blockquote {
+  margin: 0;
+  padding-inline-start: var(--spacing-16);
+  border-inline-start: var(--ui-conversation-rule);
+  color: var(--ui-secondary);
+}
+.markdown hr {
+  border: 0;
+  border-block-start: var(--ui-conversation-rule);
+  margin: 0;
+}
+.link {
+  text-decoration: underline;
+}
+.code {
+  position: relative;
+  min-inline-size: 0;
+  border-radius: var(--radius-dialog);
+  background: var(--control-avatar);
+}
+.code pre {
+  overflow-x: auto;
+  margin: 0;
+  padding: var(--spacing-12) var(--spacing-16);
+}
+.copy {
+  position: absolute;
+  inset-block-start: var(--spacing-6);
+  inset-inline-end: var(--spacing-6);
+}
+.table {
+  min-inline-size: 0;
+  overflow-x: auto;
+}
+.table table {
+  border-collapse: collapse;
+  min-inline-size: 100%;
+}
+.table th,
+.table td {
+  padding: var(--spacing-6) var(--spacing-12);
+  text-align: start;
+  border-block-end: var(--ui-conversation-rule);
+}

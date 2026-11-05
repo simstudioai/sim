@@ -10,7 +10,7 @@ import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import {
   isHttpUrl,
   type SourceTagData,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/parse'
 
 /**
  * One card per document, keeping the best-ranked chunk of each: the list is

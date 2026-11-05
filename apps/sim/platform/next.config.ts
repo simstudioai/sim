@@ -13,6 +13,13 @@ function readBasePath(value: string | undefined): string | undefined {
 const basePath = readBasePath(process.env.SIM_PLATFORM_BASE_PATH)
 const apiOrigin = process.env.SIM_PLATFORM_API_ORIGIN
 const emcnShim = path.join(import.meta.dirname, 'lib/data/emcn-shim.ts')
+/** Modules the chat hook reaches for a canvas this app does not have. Each shim says what it drops. */
+const canvasShims = [
+  ['@/lib/mothership/tools/client/block-name', 'lib/data/shims/block-name.ts'],
+  ['@/lib/mothership/tools/client/read-block', 'lib/data/shims/read-block.ts'],
+  ['@/stores/workflows/registry/store', 'lib/data/shims/workflow-registry-store.ts'],
+  ['@/stores/workflows/workflow/store', 'lib/data/shims/workflow-store.ts'],
+] as const
 
 const config: NextConfig = {
   devIndicators: false,
@@ -42,6 +49,15 @@ const config: NextConfig = {
     }
     // No `$`, so `@sim/emcn/icons` resolves beneath the shim file and fails the build as missing.
     webpackConfig.resolve.alias['@sim/emcn'] = emcnShim
+    // A replacement, because tsconfig paths resolve `@/` before any alias is consulted.
+    for (const [request, shim] of canvasShims) {
+      webpackConfig.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(
+          new RegExp(`^${request}$`),
+          path.join(import.meta.dirname, shim)
+        )
+      )
+    }
     // A named import the shim lacks is an error in our sources, not webpack's default warning.
     webpackConfig.module.rules.push({
       test: /\.tsx?$/,

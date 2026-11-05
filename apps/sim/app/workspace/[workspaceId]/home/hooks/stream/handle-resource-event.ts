@@ -14,7 +14,7 @@ import {
   mergeChatResource,
 } from '@/lib/mothership/resources/types'
 import { notifyWorkflowExternalUpdate } from '@/lib/workflows/external-update'
-import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry/resource-invalidation'
 import {
   hasRenderableFilePreviewContent,
   shouldReplaceSession,

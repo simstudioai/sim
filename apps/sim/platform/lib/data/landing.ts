@@ -16,7 +16,7 @@ export async function resolveLiveLanding(): Promise<string> {
   const { mothershipAvailable, canBuild, searchAccess, navFlags } = organization
   const routes = legacyRoutes(organization)
   if (mothershipAvailable && canBuild) return HOME
-  if (searchAccess.memberScoped) return routes.search
+  if (searchAccess.memberScoped) return '/search'
   if (navFlags.people) return '/people'
   return navFlags.simLinks ? '/settings/links' : routes.workspaceSettings
 }

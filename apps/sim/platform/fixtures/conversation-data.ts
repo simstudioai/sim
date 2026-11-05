@@ -1,6 +1,6 @@
 import 'server-only'
+import type { ConversationData } from '@/platform/app/(shell)/_components/chat/conversation/model'
 import type { ChatAttachment, ChatTurn } from '@/platform/app/(shell)/_components/composer/model'
-import type { ConversationData } from '@/platform/app/(shell)/chat/_components/conversation/model'
 import type { HomeData } from '@/platform/app/(shell)/home/_components/model'
 import type { Scenario } from '@/platform/fixtures'
 import { FIXTURE_NOW } from '@/platform/fixtures/clock'

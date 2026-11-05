@@ -1,0 +1,113 @@
+'use client'
+
+import { useState } from 'react'
+import styles from '@/platform/app/(shell)/_components/chat/message/message.module.css'
+import { MessageTime } from '@/platform/app/(shell)/_components/chat/message/message-time'
+import type { PlatformTurn } from '@/platform/app/(shell)/_components/chat/model'
+import { useChatRuntime } from '@/platform/app/(shell)/_components/session/chat-runtime'
+import {
+  ActionMenu,
+  CopyButton,
+  CopyField,
+  FieldFrame,
+  IconButton,
+  SegmentedControl,
+} from '@/platform/design-system/components'
+import { TextArea } from '@/platform/design-system/components/field/inputs'
+import { Modal } from '@/platform/design-system/components/modal/modal'
+
+type Rating = 'Good response' | 'Bad response'
+
+interface ResponseActionsProps {
+  turn: Extract<PlatformTurn, { role: 'assistant' }>
+}
+
+export function ResponseActions({ turn }: ResponseActionsProps) {
+  const { copyText: text, sentAt } = turn
+  const { rate, fork } = useChatRuntime()
+  const [feedback, setFeedback] = useState<Rating | null>(null)
+  const [rating, setRating] = useState<Rating | null>(null)
+  const [details, setDetails] = useState('')
+  return (
+    <>
+      <div className={styles.responseActions} data-type='T060'>
+        <CopyButton label='Copy response' text={text} />
+        <ActionMenu
+          icon={rating ? (rating === 'Good response' ? 'I017' : 'I008') : 'I069'}
+          label='Rate response'
+          actions={(['Good response', 'Bad response'] as const).map((label, i) => ({
+            id: label,
+            label,
+            icon: i ? 'I008' : 'I017',
+            onSelect: () => setFeedback(label),
+          }))}
+        />
+        {fork && turn.forkable && (
+          <IconButton
+            tooltip
+            label='Fork in new chat'
+            icon='I118'
+            onClick={() => void fork(turn.id)}
+          />
+        )}
+        {sentAt !== undefined && <MessageTime sentAt={sentAt} />}
+      </div>
+      <Modal
+        variant='feedback'
+        open={feedback !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setFeedback(null)
+            setDetails('')
+          }
+        }}
+        title='Share feedback'
+        description='What could Sim have done better?'
+        confirmLabel='Send feedback'
+        onConfirm={async () => {
+          const written = details.trim()
+          // An empty details field sends nothing, as the rating alone means little to read.
+          if (rate && written && turn.userQuery && feedback) {
+            await rate({
+              query: turn.userQuery,
+              response: text,
+              positive: feedback === 'Good response',
+              details: written,
+            })
+          }
+          setRating(feedback)
+          setFeedback(null)
+          setDetails('')
+        }}
+      >
+        {feedback && (
+          <>
+            <FieldFrame label='Response quality'>
+              <SegmentedControl
+                label='Response quality'
+                defaultValue={feedback}
+                options={[
+                  { value: 'Good response', label: 'Good response', icon: 'I017' },
+                  { value: 'Bad response', label: 'Bad response', icon: 'I008' },
+                ]}
+                onSelect={(value) =>
+                  setFeedback(value === 'Good response' ? 'Good response' : 'Bad response')
+                }
+              />
+            </FieldFrame>
+            <FieldFrame label='Details' optional>
+              <TextArea
+                label='Details'
+                placeholder='Tell us what was missing or how the response could improve.'
+                density='expanded'
+                value={details}
+                onChange={setDetails}
+              />
+            </FieldFrame>
+            {turn.requestId && <CopyField label='Request ID' value={turn.requestId} />}
+          </>
+        )}
+      </Modal>
+    </>
+  )
+}

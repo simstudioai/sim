@@ -67,17 +67,19 @@ function mapRoute(rest: readonly string[], query: URLSearchParams): string | nul
   if (head === undefined) return '/'
   if (head === 'settings') return mapSettingsRoute(rest.slice(1), query)
   if (rest.length === 1) {
-    if (head === 'home' || head === 'people' || head === 'integrations') return `/${head}`
+    if (head === 'home' || head === 'people' || head === 'integrations' || head === 'search')
+      return `/${head}`
     if (head === 'links') return '/settings/links'
     return null
   }
   if (rest.length === 2 && (head === 'chat' || head === 'people')) return `/${head}/${detail}`
+  if (rest.length === 3 && head === 'search' && detail === 'chat') return `/search/chat/${rest[2]}`
   return null
 }
 
 /**
  * The Platform URL for a legacy URL under `/o/{organizationId}`, keeping its query, or `null` for a
- * route that stays legacy: Search, Benchmark, Skills, platform administration, and the Search and
+ * route that stays legacy: Benchmark, Skills, platform administration, and the Search and
  * credential pages the Integrations owner has not mapped. Null also covers another organization's
  * URL. The Platform must never link back to a mapped route, or the two surfaces would redirect to
  * each other.

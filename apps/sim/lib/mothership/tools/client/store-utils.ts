@@ -1,6 +1,3 @@
-import type { ComponentType } from 'react'
-import { Loader } from '@sim/emcn'
-import { FileText } from '@sim/emcn/icons'
 import { Read as ReadTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/mothership/resources/types'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
@@ -15,7 +12,6 @@ const INTERNAL_RESPOND_TOOL = 'respond'
 
 interface ClientToolDisplay {
   text: string
-  icon: ComponentType<{ className?: string }>
 }
 
 export function resolveToolDisplay(
@@ -38,10 +34,7 @@ function specialToolDisplay(
   params?: Record<string, unknown>
 ): ClientToolDisplay | undefined {
   if (toolName === INTERNAL_RESPOND_TOOL || toolName.endsWith(HIDDEN_TOOL_SUFFIX)) {
-    return {
-      text: formatRespondLabel(state),
-      icon: Loader,
-    }
+    return { text: formatRespondLabel(state) }
   }
 
   if (toolName === ReadTool.id) {
@@ -51,13 +44,10 @@ function specialToolDisplay(
     // describe the mechanism.
     const validated = describeValidationReadTarget(path)
     if (validated) {
-      return { text: formatValidatingLabel(validated, state), icon: FileText }
+      return { text: formatValidatingLabel(validated, state) }
     }
     const target = describeReadTarget(path)
-    return {
-      text: formatReadingLabel(target, state),
-      icon: FileText,
-    }
+    return { text: formatReadingLabel(target, state) }
   }
 
   return undefined
@@ -242,7 +232,7 @@ function humanizedFallback(
   const titleCaseName = humanizeToolName(toolName)
   if (state === ClientToolCallState.error) {
     const lowerCaseName = humanizeDisplayIdentifier(toolName, 'sentence')
-    return { text: `Attempted to ${lowerCaseName}`, icon: Loader }
+    return { text: `Attempted to ${lowerCaseName}` }
   }
   const stateVerb =
     state === ClientToolCallState.success
@@ -250,5 +240,5 @@ function humanizedFallback(
       : state === ClientToolCallState.rejected || state === ClientToolCallState.aborted
         ? 'Skipped'
         : 'Executing'
-  return { text: `${stateVerb} ${titleCaseName}`, icon: Loader }
+  return { text: `${stateVerb} ${titleCaseName}` }
 }

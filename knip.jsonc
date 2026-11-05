@@ -29,6 +29,8 @@
         "platform/checks/**/*.spec.ts",
         // Only webpack reaches this, through the `@sim/emcn` alias in platform/next.config.ts.
         "platform/lib/data/emcn-shim.ts",
+        // Same, through `canvasShims` in platform/next.config.ts.
+        "platform/lib/data/shims/*.ts",
         "background/**/*.ts",
         "scripts/**/*.{ts,tsx}",
         "**/*.integration.ts",

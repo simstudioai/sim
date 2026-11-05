@@ -1,0 +1,44 @@
+.card,
+.review,
+.fields,
+.options {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-row-gap);
+}
+.review {
+  gap: var(--ui-section-gap);
+}
+.card {
+  padding: var(--spacing-12) var(--spacing-16);
+  border-radius: var(--radius-dialog);
+  background: var(--control-avatar);
+}
+.row,
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+  min-inline-size: 0;
+  flex-wrap: wrap;
+}
+.row {
+  justify-content: space-between;
+}
+.title {
+  flex: 1;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.quiet,
+.fields dt {
+  color: var(--ui-secondary);
+}
+.fields div {
+  display: grid;
+  gap: var(--ui-stack-gap);
+}
+.fields dd {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

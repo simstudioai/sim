@@ -31,6 +31,7 @@ import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-
 import { useSession } from '@/lib/auth/client'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
 import { cancelActiveBrowserTools, initBrowserAgentTransport } from '@/lib/browser-agent/transport'
+import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { withinDeadline } from '@/lib/core/utils/deadline'
 import { readSSELines } from '@/lib/core/utils/sse'
@@ -123,7 +124,6 @@ import { useChatPlanRequired } from '@/app/workspace/[workspaceId]/home/hooks/us
 import { useNativeActiveTabIds } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
 import { useMothershipChatOlderMessages } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-chat-older-messages'
 import { resolveEffectiveResourceId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
-import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import {
   fetchMothershipChatActiveStreamId,
   fetchMothershipChatHistory,
@@ -138,8 +138,8 @@ import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { invalidateWorkflowSelectors } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
+import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
-import { workflowKeys } from '@/hooks/queries/workflows'
 import { snapAllSmoothText } from '@/hooks/use-smooth-text'
 import { useChatPanelStore } from '@/stores/chat-panel/store'
 import { useChatPlanModalStore } from '@/stores/modals/chat-plan/store'
@@ -711,6 +711,11 @@ export interface UseChatOptions {
   projectsDesktopTabs?: boolean
   /** Fired when the server's `traceparent` response header arrives, before any stream content. */
   onRequestStarted?: (info: { requestId: string; userMessageId: string }) => void
+  /**
+   * Whether a pathname is the surface's new-chat route, where a chat this mount admitted resets.
+   * Defaults to the `/home` routes; a host with its own URLs names its route here.
+   */
+  isNewChatRoute?: (pathname: string) => boolean
 }
 
 interface ActiveStreamRecovery {
@@ -735,6 +740,7 @@ export function getMothershipUseChatOptions(
     | 'onRequestStarted'
     | 'requestMode'
     | 'getChatUrl'
+    | 'isNewChatRoute'
   > = {}
 ): UseChatOptions {
   return {
@@ -1134,7 +1140,9 @@ export function useChat(
     new Set())
   const recoveringClientWorkflowToolIdsRef = useRef<Set<string> | null>(null)
   const recoveringClientWorkflowToolIds = (recoveringClientWorkflowToolIdsRef.current ??= new Set())
-  const isHomePage = pathname.endsWith('/home')
+  const isHomePage = options?.isNewChatRoute
+    ? options.isNewChatRoute(pathname)
+    : pathname.endsWith('/home')
 
   const setTransportIdle = useCallback(() => {
     sendingRef.current = false
