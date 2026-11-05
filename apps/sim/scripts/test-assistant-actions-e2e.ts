@@ -738,7 +738,9 @@ try {
       const detailUrl = page.url()
       const connect = page.getByRole('button', { name: 'Coda', exact: true })
       await expect(connect).toBeEnabled()
-      await expect(page.getByText('Connect your Coda account', { exact: true })).toBeVisible()
+      await expect(
+        page.getByRole('main').getByText('Connect your Coda account', { exact: true })
+      ).toBeVisible()
       await expect(page.getByText('meetings@acme.example', { exact: true })).toHaveCount(0)
       await capture('integration-enabled-empty')
       const forgedUrl = new URL(detailUrl)
@@ -757,7 +759,9 @@ try {
         await expect(integrationRow('Coda')).toBeVisible()
         await integrationRow('Coda').click()
         await expect(page).toHaveURL((url) => url.pathname === `${root}/integrations/coda`)
-        await expect(page.getByText('Disabled by your organization', { exact: true })).toBeVisible()
+        await expect(
+          page.getByRole('main').getByText('Disabled by your organization', { exact: true })
+        ).toBeVisible()
         await expect(connect).toBeDisabled()
         await capture('integration-disabled-empty')
       } finally {
@@ -767,7 +771,9 @@ try {
       try {
         await page.reload()
         await expect(
-          page.getByText('Connections are paused by your organization', { exact: true })
+          page
+            .getByRole('main')
+            .getByText('Connections are paused by your organization', { exact: true })
         ).toBeVisible()
         await expect(connect).toBeDisabled()
         await capture('integration-paused-empty')
@@ -782,7 +788,9 @@ try {
         await expect(salesforce).toBeVisible()
         await salesforce.click()
         await expect(page).toHaveURL((url) => url.pathname === `${root}/integrations/salesforce`)
-        await expect(page.getByText('Connections unavailable', { exact: true })).toBeVisible()
+        await expect(
+          page.getByRole('main').getByText('Connections unavailable', { exact: true })
+        ).toBeVisible()
         await expect(page.getByRole('region', { name: 'Connected credential' })).toHaveCount(0)
         await expect(page.getByRole('button', { name: 'Salesforce', exact: true })).toBeDisabled()
         await capture('integration-disabled-app-empty')
