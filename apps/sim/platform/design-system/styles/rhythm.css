@@ -44,7 +44,7 @@
     [role="menuitemcheckbox"],
     [role="option"]
   ):not(:disabled, [data-disabled], [aria-disabled="true"]):is(
-    :hover,
+    :hover:not([role="option"]),
     [data-highlighted],
     [data-popup-open]
   ),

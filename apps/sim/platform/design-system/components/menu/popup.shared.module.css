@@ -27,6 +27,14 @@
   overscroll-behavior: contain;
 }
 
+.heading {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--spacing-28);
+  padding-inline: var(--ui-row-inset);
+  color: var(--ui-secondary);
+}
+
 .item {
   display: flex;
   align-items: center;
@@ -40,7 +48,10 @@
   text-align: start;
 }
 
-.item:not(:disabled, [data-disabled], [aria-disabled="true"]):is(:hover, [data-highlighted]) {
+.item:not(:disabled, [data-disabled], [aria-disabled="true"]):is(
+    [data-highlighted],
+    :hover:not([role="option"])
+  ) {
   background: var(--ui-hover);
 }
 

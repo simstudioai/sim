@@ -1,5 +1,4 @@
 .field,
-.result,
 .footer,
 .footer > span {
   display: flex;
@@ -7,9 +6,9 @@
 }
 .field {
   flex: none;
-  gap: var(--spacing-12);
+  gap: var(--ui-row-gap);
   min-block-size: var(--spacing-44);
-  padding-inline: var(--spacing-20);
+  padding-inline: var(--ui-dialog-inset);
 }
 .field input {
   flex: 1;
@@ -31,39 +30,22 @@
   gap: var(--ui-list-gap);
 }
 .group + .group {
-  padding-block-start: var(--ui-popup-padding);
-}
-.heading {
-  display: flex;
-  align-items: flex-end;
-  min-block-size: var(--spacing-32);
-  padding: var(--ui-popup-padding) var(--spacing-12);
-  color: var(--ui-secondary);
-}
-.result {
-  min-block-size: var(--spacing-36);
-  padding: var(--ui-row-block) var(--spacing-12);
-  gap: var(--spacing-12);
-  border-radius: var(--ui-control-radius);
-  cursor: pointer;
-  overflow-wrap: anywhere;
-}
-.result[data-highlighted] {
-  background: var(--ui-hover);
+  padding-block-start: var(--ui-section-gap);
 }
 .empty:not(:empty) {
-  padding: var(--spacing-12) var(--spacing-20);
+  padding: var(--ui-section-gap) var(--ui-dialog-inset);
   color: var(--ui-secondary);
 }
 .footer {
   flex: none;
+  flex-wrap: wrap;
   min-block-size: var(--spacing-40);
-  padding: var(--ui-row-block) var(--spacing-16);
+  padding: var(--ui-row-block) var(--ui-dialog-inset);
   color: var(--ui-secondary);
-  gap: var(--spacing-16);
+  gap: var(--ui-list-gap) var(--ui-section-gap);
 }
 .footer > span {
-  gap: var(--ui-popup-padding);
+  gap: var(--spacing-4);
 }
 .footer > span:last-child {
   margin-inline-start: auto;

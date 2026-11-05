@@ -101,6 +101,20 @@ test('a keyboard search navigates to the matching chat and shell edits survive t
   const search = page.getByRole('combobox', { name: 'Search the platform' })
   await expect(search).toBeFocused()
   const list = page.getByRole('listbox', { name: 'Search results' })
+  const settings = list.getByRole('option', { name: 'Settings', exact: true })
+  const resting = await settings.evaluate((option) => getComputedStyle(option).backgroundColor)
+  const icon = settings.locator('svg')
+  const restingInk = await icon.evaluate((glyph) => getComputedStyle(glyph).color)
+  await settings.hover()
+  await expect(settings).not.toHaveCSS('background-color', resting)
+  await expect(icon).not.toHaveCSS('color', restingInk)
+  await search.press('ArrowDown')
+  await expect(settings).toHaveCSS('background-color', resting)
+  await expect(icon).toHaveCSS('color', restingInk)
+  await expect(list.getByRole('option', { name: 'Integrations', exact: true })).not.toHaveCSS(
+    'background-color',
+    resting
+  )
   await expect(list).not.toHaveCSS('mask-image', 'none')
   const initialFade = await list.evaluate((element) => getComputedStyle(element).maskImage)
   await list.evaluate((element) => {

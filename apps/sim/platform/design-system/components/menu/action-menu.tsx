@@ -152,7 +152,7 @@ function TriggeredMenu({
       )}
       <ActionMenuPopup label={label} container={container} align={align}>
         {heading && (
-          <div className={styles.menuTitle} data-type='T052'>
+          <div className={popup.heading} data-type='T052'>
             {heading}
           </div>
         )}
@@ -557,7 +557,7 @@ export function VisibilityMenu({ label, options, onChange }: VisibilityMenuProps
   const [choices, setChoices] = useState<Readonly<Record<string, boolean>>>({})
   return (
     <MenuSurface label={label} layout='visibility'>
-      <div className={styles.menuTitle} data-type='T052'>
+      <div className={popup.heading} data-type='T052'>
         {label}
       </div>
       {options.map((option) => {

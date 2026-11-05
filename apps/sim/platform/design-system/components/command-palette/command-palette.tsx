@@ -4,6 +4,7 @@ import { Autocomplete } from '@base-ui/react/autocomplete'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import styles from '@/platform/design-system/components/command-palette/command-palette.module.css'
 import { Icon } from '@/platform/design-system/components/icon/icon'
+import popup from '@/platform/design-system/components/menu/popup.shared.module.css'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 interface Command {
@@ -46,7 +47,7 @@ export function CommandPalette({ groups, label, onSelect }: CommandPaletteProps)
         {(group: CommandGroup) => (
           <Autocomplete.Group key={group.label ?? ''} items={group.items} className={styles.group}>
             {group.label && (
-              <Autocomplete.GroupLabel className={styles.heading} data-type='T052'>
+              <Autocomplete.GroupLabel className={popup.heading} data-type='T052'>
                 {group.label}
               </Autocomplete.GroupLabel>
             )}
@@ -55,12 +56,12 @@ export function CommandPalette({ groups, label, onSelect }: CommandPaletteProps)
                 <Autocomplete.Item
                   key={item.id}
                   value={item}
-                  className={styles.result}
-                  data-type='T043'
+                  className={popup.item}
+                  data-type='T060'
                   onClick={() => onSelect(item.value)}
                 >
                   {item.icon && <Icon name={item.icon} />}
-                  <span>{item.label}</span>
+                  <span className={popup.label}>{item.label}</span>
                 </Autocomplete.Item>
               )}
             </Autocomplete.Collection>

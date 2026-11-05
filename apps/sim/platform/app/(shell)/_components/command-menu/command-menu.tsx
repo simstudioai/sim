@@ -32,7 +32,6 @@ export function CommandMenu({ open, onClose, navigate, chats, workspaces }: Comm
             items: chats.map((item) => ({
               id: item.id,
               label: item.title,
-              icon: 'I073',
               value: `/chat/${item.id}`,
             })),
           },
