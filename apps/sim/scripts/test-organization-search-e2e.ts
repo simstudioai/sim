@@ -447,7 +447,7 @@ try {
       assert.equal(body.query, 'Launch notes')
       // The seeded member has connected no account, so nothing was searched.
       await expect(
-        page.getByText('Connect your apps to search them.', { exact: true })
+        page.getByText('No connected apps are available for this search.', { exact: true })
       ).toBeVisible()
       await expect(page.getByText('Search found no results.', { exact: true })).toHaveCount(0)
       await expect(page.getByRole('link', { name: 'Connect apps' })).toHaveAttribute(
