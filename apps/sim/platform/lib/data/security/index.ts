@@ -1,5 +1,3 @@
-'use client'
-
 export { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
 export {
   useOrganizationSessionPolicy,

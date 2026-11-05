@@ -28,7 +28,7 @@ const SNAP_TO_GRID_OPTIONS = SNAP_TO_GRID_VALUES.map((size) => ({
 const noSubscription = () => () => {}
 
 /** Stable across the server and first client render, then the viewer's real zone. */
-function useBrowserTimezone(): string {
+export function useBrowserTimezone(): string {
   return useSyncExternalStore(noSubscription, getBrowserTimezone, () => 'UTC')
 }
 

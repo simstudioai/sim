@@ -13,7 +13,7 @@ import {
   searchIntegrationKeys,
 } from '@/hooks/queries/utils/search-integration-keys'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
-import { prefetchSignal, serverRequestJson } from '@/platform/lib/data/server-request'
+import { prefetchRequestJson } from '@/platform/lib/data/server-request'
 
 /**
  * What decides each widget's state, so a viewer with no connection paints their prompt at once. The
@@ -27,9 +27,8 @@ export async function prefetchHome(organization: PlatformOrganization): Promise<
       queryClient.prefetchQuery({
         queryKey: organizationAccountsKeys.detail(organizationId),
         queryFn: () =>
-          serverRequestJson(getOrganizationAccountsContract, {
+          prefetchRequestJson(getOrganizationAccountsContract, {
             params: { id: organizationId },
-            signal: prefetchSignal(),
           }),
         staleTime: ORGANIZATION_ACCOUNTS_STALE_TIME,
       }),
@@ -37,9 +36,8 @@ export async function prefetchHome(organization: PlatformOrganization): Promise<
         queryKey: searchIntegrationKeys.list(organizationId),
         queryFn: async () =>
           (
-            await serverRequestJson(listSearchIntegrationsContract, {
+            await prefetchRequestJson(listSearchIntegrationsContract, {
               query: { organizationId },
-              signal: prefetchSignal(),
             })
           ).data,
         staleTime: SEARCH_INTEGRATIONS_STALE_TIME,

@@ -4,7 +4,7 @@ import { getOrganizationBillingSummaryContract } from '@/lib/api/contracts/organ
 import { ORGANIZATION_BILLING_SUMMARY_STALE_TIME } from '@/hooks/queries/organization-billing-summary'
 import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
 import { makeQueryClient } from '@/hooks/queries/utils/query-client'
-import { prefetchSignal, serverRequestJson } from '@/platform/lib/data/server-request'
+import { prefetchRequestJson } from '@/platform/lib/data/server-request'
 
 /** The billing summary, for the section's first paint. */
 export async function prefetchBillingSummary(organizationId: string): Promise<DehydratedState> {
@@ -12,9 +12,8 @@ export async function prefetchBillingSummary(organizationId: string): Promise<De
   await queryClient.prefetchQuery({
     queryKey: organizationKeys.billingSummary(organizationId),
     queryFn: () =>
-      serverRequestJson(getOrganizationBillingSummaryContract, {
+      prefetchRequestJson(getOrganizationBillingSummaryContract, {
         params: { id: organizationId },
-        signal: prefetchSignal(),
       }),
     staleTime: ORGANIZATION_BILLING_SUMMARY_STALE_TIME,
   })

@@ -361,10 +361,6 @@ export const bulkAddPermissionGroupMembersContract = defineRouteContract({
   },
 })
 
-/**
- * List the workspaces belonging to an organization, used to populate the
- * workspace multi-select when scoping a permission group to specific workspaces.
- */
 const permissionGroupEditorCatalogSchema = z.object({
   /** The allowlist universe. `hidden` decides drawing only; a hidden row stays part of every save. */
   blocks: z.array(
@@ -409,6 +405,10 @@ export const getPermissionGroupEditorCatalogContract = defineRouteContract({
   response: { mode: 'json', schema: permissionGroupEditorCatalogSchema },
 })
 
+/**
+ * List the workspaces belonging to an organization, used to populate the
+ * workspace multi-select when scoping a permission group to specific workspaces.
+ */
 export const listOrganizationWorkspacesContract = defineRouteContract({
   method: 'GET',
   path: '/api/organizations/[id]/workspaces',

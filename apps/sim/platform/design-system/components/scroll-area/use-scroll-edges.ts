@@ -62,7 +62,11 @@ export function useScrollEdges<T extends HTMLElement>(
         measure()
       }
       syncChildren()
-      const content = new MutationObserver(syncChildren)
+      const content = new MutationObserver((records) => {
+        if (records.some(({ type, target }) => type === 'childList' && target === element))
+          syncChildren()
+        else measure()
+      })
       content.observe(element, { childList: true, subtree: true, characterData: true })
       const form =
         element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement

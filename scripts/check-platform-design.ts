@@ -722,21 +722,25 @@ function checkProps(name: string, node: ts.Node, file: string, owner: boolean) {
   }
 }
 
+function isTypesOnly(node: ts.ImportDeclaration | ts.ExportDeclaration): boolean {
+  if (ts.isExportDeclaration(node)) return node.isTypeOnly
+  const bindings = node.importClause?.namedBindings
+  return Boolean(
+    node.importClause?.isTypeOnly ||
+      (bindings &&
+        ts.isNamedImports(bindings) &&
+        bindings.elements.length &&
+        bindings.elements.every((binding) => binding.isTypeOnly) &&
+        !node.importClause?.name)
+  )
+}
+
 function runtimeImports(file: string): string[] {
   const source = ts.createSourceFile(file, read(file), ts.ScriptTarget.Latest)
   const found: string[] = []
   function visit(node: ts.Node) {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
-      const clause = node.importClause
-      const named = clause?.namedBindings
-      const typesOnly =
-        clause?.isTypeOnly ||
-        (!clause?.name &&
-          named &&
-          ts.isNamedImports(named) &&
-          named.elements.length > 0 &&
-          named.elements.every((element) => element.isTypeOnly))
-      if (!typesOnly) found.push(node.moduleSpecifier.text)
+      if (!isTypesOnly(node)) found.push(node.moduleSpecifier.text)
     } else if (
       ts.isExportDeclaration(node) &&
       !node.isTypeOnly &&
@@ -779,21 +783,21 @@ function checkSeamClosure() {
       ([, request]) => request
     )
   )
-  const importer = new Map<string, string>()
+  const visited = new Set<string>()
   const queue: string[] = []
   for (const file of files(dataSeam)) {
     if (!/\.tsx?$/.test(file) || /\.test\.tsx?$/.test(file)) continue
-    importer.set(file, '')
+    visited.add(file)
     queue.push(file)
   }
   for (let file = queue.pop(); file; file = queue.pop()) {
     for (const specifier of runtimeImports(file)) {
       if (replaced.has(specifier)) continue
       const target = resolveSource(file, specifier)
-      if (!target || importer.has(target)) continue
-      importer.set(target, file)
+      if (!target || visited.has(target)) continue
+      visited.add(target)
       queue.push(target)
-      const view = /^(?:app|components)\//.test(target) && target.endsWith('.tsx')
+      const view = /^(?:app|components|ee\/[^/]+\/components)\/.*\.tsx$/.test(target)
       if (seamClosureBanned.test(target) || (view && !seamClosureViews.has(target)))
         report(
           'seam-closure',
@@ -870,18 +874,7 @@ function checkJs(file: string, content: string) {
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
       const specifier = node.moduleSpecifier
       if (specifier && ts.isStringLiteral(specifier)) {
-        const bindings = ts.isImportDeclaration(node) ? node.importClause?.namedBindings : undefined
-        const typesOnly = ts.isExportDeclaration(node)
-          ? node.isTypeOnly
-          : Boolean(
-              node.importClause?.isTypeOnly ||
-                (bindings &&
-                  ts.isNamedImports(bindings) &&
-                  bindings.elements.length &&
-                  bindings.elements.every((binding) => binding.isTypeOnly) &&
-                  !node.importClause?.name)
-            )
-        checkImport(file, specifier.text, false, typesOnly)
+        checkImport(file, specifier.text, false, isTypesOnly(node))
         if (
           specifier.text === 'next/link' &&
           ts.isImportDeclaration(node) &&

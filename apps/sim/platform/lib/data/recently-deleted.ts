@@ -31,9 +31,7 @@ export function useDeletedChats(organizationId: string) {
       .map((chat) => ({
         id: chat.id,
         name: chat.name,
-        deleted: chat.deletedAt
-          ? `Deleted ${formatInstantDate(new Date(chat.deletedAt).getTime())}`
-          : undefined,
+        deleted: chat.deletedAt ? `Deleted ${formatInstantDate(chat.deletedAt)}` : undefined,
       })),
   }
 }

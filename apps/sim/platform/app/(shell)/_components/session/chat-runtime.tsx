@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, type ReactNode, useContext, useMemo, useRef } from 'react'
+import { createContext, type ReactNode, useContext, useMemo, useRef, useState } from 'react'
 import type { ChatRuntime } from '@/platform/app/(shell)/_components/chat/model'
 
 type ChatHandlers = Pick<
@@ -22,7 +22,8 @@ const InteractionsContext = createContext<ChatInteractions | null>(null)
 /**
  * A runtime is rebuilt on every stream chunk, while a settled turn reads only handlers and what is
  * awaiting a decision. Handlers keep one identity and call the latest runtime, so a chunk reaches
- * the turn it changed rather than the whole transcript.
+ * the turn it changed rather than the whole transcript. Which handlers a runtime offers is fixed
+ * when it is built.
  */
 export function ChatRuntimeProvider({
   runtime,
@@ -33,26 +34,18 @@ export function ChatRuntimeProvider({
 }) {
   const latest = useRef(runtime)
   latest.current = runtime
-  const canRetry = Boolean(runtime.retry)
-  const canRate = Boolean(runtime.rate)
-  const canFork = Boolean(runtime.fork)
-  const canOpenResource = Boolean(runtime.openResource)
-  const canFinishHandoff = Boolean(runtime.finishTerminalHandoff)
-  const handlers = useMemo<ChatHandlers>(
-    () => ({
-      sendText: (text) => latest.current.sendText(text),
-      registerApproval: (toolCallId) => latest.current.registerApproval(toolCallId),
-      decideTools: (ids, decision) => latest.current.decideTools(ids, decision),
-      retry: canRetry ? (turnId) => latest.current.retry?.(turnId) : undefined,
-      rate: canRate ? async (input) => latest.current.rate?.(input) : undefined,
-      fork: canFork ? async (turnId) => latest.current.fork?.(turnId) : undefined,
-      openResource: canOpenResource ? (ref) => latest.current.openResource?.(ref) : undefined,
-      finishTerminalHandoff: canFinishHandoff
-        ? (terminalId) => latest.current.finishTerminalHandoff?.(terminalId)
-        : undefined,
-    }),
-    [canRetry, canRate, canFork, canOpenResource, canFinishHandoff]
-  )
+  const [handlers] = useState<ChatHandlers>(() => ({
+    sendText: (text) => latest.current.sendText(text),
+    registerApproval: (toolCallId) => latest.current.registerApproval(toolCallId),
+    decideTools: (ids, decision) => latest.current.decideTools(ids, decision),
+    retry: runtime.retry && ((turnId) => latest.current.retry?.(turnId)),
+    rate: runtime.rate && (async (input) => latest.current.rate?.(input)),
+    fork: runtime.fork && (async (turnId) => latest.current.fork?.(turnId)),
+    openResource: runtime.openResource && ((ref) => latest.current.openResource?.(ref)),
+    finishTerminalHandoff:
+      runtime.finishTerminalHandoff &&
+      ((terminalId) => latest.current.finishTerminalHandoff?.(terminalId)),
+  }))
   const { approvals, review } = runtime
   const interactions = useMemo(() => ({ approvals, review }), [approvals, review])
   return (

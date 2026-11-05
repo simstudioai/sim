@@ -30,11 +30,11 @@ export function productUsage(app: string, program: ts.Program): Usage {
     if (ts.isFunctionDeclaration(decl) || ts.isArrowFunction(decl) || ts.isFunctionExpression(decl))
       return decl
     if (ts.isVariableDeclaration(decl) && decl.initializer) {
-      const memoized =
-        ts.isCallExpression(decl.initializer) && decl.initializer.expression.getText() === 'memo'
-      const inner = memoized
-        ? (decl.initializer as ts.CallExpression).arguments[0]
-        : decl.initializer
+      const inner =
+        ts.isCallExpression(decl.initializer) &&
+        /^(?:React\.)?memo$/.test(decl.initializer.expression.getText())
+          ? decl.initializer.arguments[0]
+          : decl.initializer
       if (inner && (ts.isArrowFunction(inner) || ts.isFunctionExpression(inner))) return inner
     }
   }

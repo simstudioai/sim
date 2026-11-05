@@ -22,11 +22,16 @@ export function formatCalendarDate(dateKey: string, style: keyof typeof DATE = '
 }
 
 /**
- * An instant's date, in UTC. It may render on the server, and a viewer's zone would not hydrate; a
- * date worth comparing to the minute uses `formatTimestamp`.
+ * An instant's date. Defaults to the viewer's zone; one that renders on the server passes the zone
+ * `useBrowserTimezone` settles on, since the server cannot know the viewer's.
  */
-export function formatInstantDate(timestampMs: number) {
-  return DATE.full.format(new Date(timestampMs))
+export function formatInstantDate(instant: string | number | Date, timeZone?: string) {
+  return new Intl.DateTimeFormat(LOCALE, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone,
+  }).format(new Date(instant))
 }
 
 /** Use the same reference instant for a surface's server and client renders. */

@@ -1,31 +1,13 @@
 import { vi } from 'vitest'
 import { createMutationResultMock, createQueryResultMock } from './react-query.mock'
 
-const organizationAccountsKeys = {
-  all: ['organization-accounts'] as const,
-  workspaces: () => [...organizationAccountsKeys.all, 'workspace'] as const,
-  workspace: (workspaceId?: string) =>
-    [...organizationAccountsKeys.workspaces(), workspaceId ?? ''] as const,
-  access: (id?: string) => [...organizationAccountsKeys.detail(id), 'access'] as const,
-  people: (id?: string) => [...organizationAccountsKeys.detail(id), 'people'] as const,
-  peopleList: (id: string, search?: string, optionId?: string) =>
-    [
-      ...organizationAccountsKeys.people(id),
-      { search: search ?? '', optionId: optionId ?? '' },
-    ] as const,
-  databricks: (id?: string) => [...organizationAccountsKeys.detail(id), 'databricks'] as const,
-  details: () => [...organizationAccountsKeys.all, 'detail'] as const,
-  detail: (organizationId?: string) =>
-    [...organizationAccountsKeys.details(), organizationId ?? ''] as const,
-}
-
 const queryHook = () => vi.fn((..._args: unknown[]): unknown => createQueryResultMock())
 const mutationHook = () => vi.fn((..._args: unknown[]): unknown => createMutationResultMock())
 
 /**
  * Controllable mock functions for `@/hooks/queries/organization-accounts`.
  *
- * Query hooks (`useOrganizationAccounts`, `useOrganizationDatabricksSetup`,
+ * Query hooks (`usePersonalOrganizationAccounts`, `useOrganizationAccounts`, `useOrganizationDatabricksSetup`,
  * `useWorkspaceOrganizationAccounts`, `useOrganizationAccountWorkspaceAccess`,
  * `useOrganizationAccountPeople`) return a fresh {@link createQueryResultMock} (not-yet-fetched:
  * `data: undefined`, `isPending: true`). Every mutation hook returns a fresh
@@ -43,6 +25,7 @@ const mutationHook = () => vi.fn((..._args: unknown[]): unknown => createMutatio
 export const organizationAccountsQueriesMockFns = {
   mockUseReconnectPersonalOrganizationAccount: mutationHook(),
   mockUseDisconnectPersonalOrganizationAccount: mutationHook(),
+  mockUsePersonalOrganizationAccounts: queryHook(),
   mockUseOrganizationAccounts: queryHook(),
   mockUseEnsureOrganizationAccounts: mutationHook(),
   mockUseOrganizationDatabricksSetup: queryHook(),
@@ -61,8 +44,7 @@ export const organizationAccountsQueriesMockFns = {
 }
 
 /**
- * Static mock module for `@/hooks/queries/organization-accounts`. Covers every runtime export;
- * `ORGANIZATION_ACCOUNTS_STALE_TIME` and the `organizationAccountsKeys` factory are the real values.
+ * Static mock module for `@/hooks/queries/organization-accounts`. Covers every runtime export.
  *
  * @example
  * ```ts
@@ -70,12 +52,12 @@ export const organizationAccountsQueriesMockFns = {
  * ```
  */
 export const organizationAccountsQueriesMock = {
-  ORGANIZATION_ACCOUNTS_STALE_TIME: 30_000,
-  organizationAccountsKeys,
   useReconnectPersonalOrganizationAccount:
     organizationAccountsQueriesMockFns.mockUseReconnectPersonalOrganizationAccount,
   useDisconnectPersonalOrganizationAccount:
     organizationAccountsQueriesMockFns.mockUseDisconnectPersonalOrganizationAccount,
+  usePersonalOrganizationAccounts:
+    organizationAccountsQueriesMockFns.mockUsePersonalOrganizationAccounts,
   useOrganizationAccounts: organizationAccountsQueriesMockFns.mockUseOrganizationAccounts,
   useEnsureOrganizationAccounts:
     organizationAccountsQueriesMockFns.mockUseEnsureOrganizationAccounts,

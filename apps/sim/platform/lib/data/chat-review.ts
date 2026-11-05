@@ -57,21 +57,18 @@ export function useAssistantReview({
   for (let index = messages.length - 1; index >= 0 && !turnId; index--) {
     if (messages[index].role === 'assistant') turnId = messages[index].id
   }
-  const reviewData = review.data
-  const refetchReview = review.refetch
-  const reviewFailed = review.isError
-  const reviewPending = review.isPending
+  const { data: reviewData, refetch, isError, isPending } = review
   const receiptPages = receipts.data?.pages
-  const decideAction = decide.mutateAsync
+  const { mutateAsync: decideAction } = decide
   // Rebuilt only when a read changes, so a stream chunk leaves settled turns alone.
   return useMemo(() => {
     if (!enabled) return undefined
     const actions = reviewData?.actions ?? []
     return {
       turnId,
-      status: reviewFailed ? 'error' : reviewPending ? 'loading' : 'ready',
+      status: isError ? 'error' : isPending ? 'loading' : 'ready',
       pending,
-      retry: () => void refetchReview(),
+      retry: () => void refetch(),
       actions: actions.map((action) => ({
         id: action.toolCallId,
         title: assistantActionPresentation(action).title,
@@ -130,9 +127,9 @@ export function useAssistantReview({
     enabled,
     turnId,
     reviewData,
-    refetchReview,
-    reviewFailed,
-    reviewPending,
+    refetch,
+    isError,
+    isPending,
     receiptPages,
     decideAction,
     pending,

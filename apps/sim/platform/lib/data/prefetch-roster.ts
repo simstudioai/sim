@@ -6,7 +6,7 @@ import {
   organizationKeys,
 } from '@/hooks/queries/utils/organization-keys'
 import { makeQueryClient } from '@/hooks/queries/utils/query-client'
-import { prefetchSignal, serverRequestJson } from '@/platform/lib/data/server-request'
+import { prefetchRequestJson } from '@/platform/lib/data/server-request'
 
 /** The roster the legacy settings warmer loads on intent, under the client hook's key. */
 export async function prefetchRoster(organizationId: string): Promise<DehydratedState> {
@@ -14,9 +14,8 @@ export async function prefetchRoster(organizationId: string): Promise<Dehydrated
   await queryClient.prefetchQuery({
     queryKey: organizationKeys.roster(organizationId),
     queryFn: async () => {
-      const { data } = await serverRequestJson(getOrganizationRosterContract, {
+      const { data } = await prefetchRequestJson(getOrganizationRosterContract, {
         params: { id: organizationId },
-        signal: prefetchSignal(),
       })
       return data
     },

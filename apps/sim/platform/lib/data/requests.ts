@@ -61,7 +61,7 @@ function statusTag(status: AccessRequestRecord['status']) {
 }
 
 function requestDate(request: AccessRequestRecord): string {
-  return formatInstantDate(new Date(request.createdAt).getTime())
+  return formatInstantDate(request.createdAt)
 }
 
 function requesterName(request: AccessRequestRecord): string {

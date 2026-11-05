@@ -1,5 +1,3 @@
-'use client'
-
 export { customPatternError, MAX_CUSTOM_PII_PATTERNS } from '@/lib/guardrails/custom-patterns'
 export {
   getEntityGroupsForLanguage,

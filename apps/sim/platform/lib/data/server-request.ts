@@ -12,10 +12,6 @@ const SERVER_READ_TIMEOUT_MS = 10_000
 /** A slow read gives up its first-paint seat rather than hold the document; the client fetches it. */
 const PREFETCH_TIMEOUT_MS = 2_000
 
-export function prefetchSignal(): AbortSignal {
-  return AbortSignal.timeout(PREFETCH_TIMEOUT_MS)
-}
-
 /**
  * `requestJson` for this app's server: the same contract and response validation, sent to the main
  * app with the viewer's credentials. The Platform has no database, so this is its only server read,
@@ -40,4 +36,12 @@ export async function serverRequestJson<C extends AnyApiRouteContract>(
     signal: input.signal ?? AbortSignal.timeout(SERVER_READ_TIMEOUT_MS),
   })
   return readContractResponse(contract, response)
+}
+
+/** A first-paint read, which gives up its seat quickly because the client can always fetch it. */
+export function prefetchRequestJson<C extends AnyApiRouteContract>(
+  contract: C,
+  input: ApiClientRequest<C>
+): Promise<ContractJsonResponse<C>> {
+  return serverRequestJson(contract, { ...input, signal: AbortSignal.timeout(PREFETCH_TIMEOUT_MS) })
 }

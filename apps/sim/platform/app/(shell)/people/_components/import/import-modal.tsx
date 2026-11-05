@@ -142,8 +142,7 @@ export function ImportModal({ organization, onClose }: ImportModalProps) {
       title={title}
       confirmLabel={done ? 'Done' : preview ? 'Import' : 'Preview import'}
       confirmDisabled={pending || (!preview && !ready)}
-      cancelLabel={preview ? 'Back' : undefined}
-      onCancel={preview && !pending ? () => setPreview(null) : undefined}
+      onBack={preview ? () => setPreview(null) : undefined}
       onConfirm={
         done
           ? undefined

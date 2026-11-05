@@ -317,7 +317,7 @@ export function DirectorySyncModal({ organization, onClose }: DirectorySyncModal
     label: string
     disabled: boolean
     destructive?: boolean
-    confirm: () => false
+    confirm: () => void
   } => {
     if (mode === 'disconnect' && sync)
       return {
@@ -325,10 +325,7 @@ export function DirectorySyncModal({ organization, onClose }: DirectorySyncModal
         label: 'Disconnect',
         disabled: directory.pending,
         destructive: true,
-        confirm: () => {
-          directory.disconnect(backToDetails)
-          return false
-        },
+        confirm: () => directory.disconnect(backToDetails),
       }
     if (connecting)
       return {
@@ -342,17 +339,13 @@ export function DirectorySyncModal({ organization, onClose }: DirectorySyncModal
         confirm: () => {
           const errors = directory.connect({ ...draft, source }, backToDetails)
           setFieldErrors(errors ?? {})
-          return false
         },
       }
     return {
       title: 'Directory sync',
       label: syncLabel(sync, syncing),
       disabled: sync.state === 'paused' || syncing || sync.retryBlocked,
-      confirm: () => {
-        directory.run()
-        return false
-      },
+      confirm: directory.run,
     }
   })()
 
@@ -364,9 +357,11 @@ export function DirectorySyncModal({ organization, onClose }: DirectorySyncModal
       confirmLabel={label}
       confirmDisabled={disabled}
       destructive={destructive}
-      cancelLabel={steppedBack ? 'Back' : undefined}
-      onCancel={steppedBack ? backToDetails : undefined}
-      onConfirm={confirm}
+      onBack={steppedBack ? backToDetails : undefined}
+      onConfirm={() => {
+        confirm()
+        return false
+      }}
     >
       {directory.loading ? (
         <p role='status' data-type='T060'>

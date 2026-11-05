@@ -50,7 +50,7 @@ type ModalSurfaceProps = ModalActions & {
   destructive?: boolean
   presentation?: ModalProps['variant']
   cancelLabel?: string
-  onCancel?: () => void
+  onBack?: () => void
 }
 
 function ModalSurface({
@@ -63,7 +63,7 @@ function ModalSurface({
   destructive,
   presentation = 'form',
   cancelLabel,
-  onCancel,
+  onBack,
   onConfirm,
   open: controlled,
   onOpenChange,
@@ -144,10 +144,10 @@ function ModalSurface({
           onPrevious={() => {
             setError(null)
             if (index > 0) setIndex(index - 1)
-            else if (onCancel) onCancel()
+            else if (onBack) onBack()
             else dismiss()
           }}
-          cancelLabel={index > 0 ? 'Back' : cancelLabel}
+          cancelLabel={index > 0 || onBack ? 'Back' : cancelLabel}
           disabled={pending || (last && confirmDisabled)}
           cancelDisabled={pending}
           destructive={destructive}
@@ -166,8 +166,8 @@ type ModalProps = ModalActions &
     destructive?: boolean
     /** Names the quiet footer action, "Cancel" by default. */
     cancelLabel?: string
-    /** Runs the quiet footer action in place of closing, such as a step back. Close still closes. */
-    onCancel?: () => void
+    /** Turns the quiet footer action into Back, within the dialog. Close still closes. */
+    onBack?: () => void
   }
 
 export function Modal({
@@ -184,7 +184,7 @@ export function Modal({
   description,
   destructive,
   cancelLabel,
-  onCancel,
+  onBack,
 }: ModalProps) {
   return (
     <ModalSurface
@@ -200,7 +200,7 @@ export function Modal({
       destructive={destructive}
       presentation={variant}
       cancelLabel={cancelLabel}
-      onCancel={onCancel}
+      onBack={onBack}
     />
   )
 }

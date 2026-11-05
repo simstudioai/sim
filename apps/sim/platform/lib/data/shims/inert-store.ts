@@ -4,11 +4,16 @@
  * throws, so a new read fails where it happens rather than quietly receiving nothing.
  */
 export function inertStore<State extends object>(source: string, state: State) {
+  const refuse = (read: string) =>
+    new Error(`${source} has no canvas in the Platform, yet ${read} was read from it`)
   const guarded = new Proxy(state, {
     get(target, key, receiver) {
       if (typeof key === 'symbol' || key in target) return Reflect.get(target, key, receiver)
-      throw new Error(`${source} has no canvas in the Platform, yet "${key}" was read from it`)
+      throw refuse(`"${key}"`)
     },
   })
-  return { getState: () => guarded }
+  const subscribe = (): never => {
+    throw refuse('a subscription')
+  }
+  return Object.assign(subscribe, { getState: () => guarded })
 }

@@ -44,7 +44,6 @@ import {
 } from '@/ee/organization-usage/format'
 import { useUsageWindow } from '@/ee/organization-usage/hooks/use-usage-window'
 import { serializeOrganizationUsageParams } from '@/ee/organization-usage/search-params'
-import {} from '@/hooks/queries/organization'
 import {
   useOrganizationActivityBreakdown,
   useOrganizationActivitySummary,
@@ -291,11 +290,16 @@ export function useActivityBreakdown(
   const query = useOrganizationActivityBreakdown(organizationId, window, dimension, sort, page, {
     workspaceId,
   })
+  const rows = useMemo(
+    () =>
+      query.data?.rows.map((row) => ({
+        ...row,
+        failureRateLabel: formatFailureRate(row.failureRate),
+      })),
+    [query.data]
+  )
   return {
-    rows: query.data?.rows.map((row) => ({
-      ...row,
-      failureRateLabel: formatFailureRate(row.failureRate),
-    })),
+    rows,
     hasMore: Boolean(query.data?.hasMore),
     failed: query.isError,
     loading: query.isLoading,

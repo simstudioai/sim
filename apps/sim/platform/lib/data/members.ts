@@ -39,6 +39,7 @@ import { useOpenBillingPortal } from '@/hooks/queries/subscription'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useOrganization } from '@/platform/lib/data/organization'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
+import { useBrowserTimezone } from '@/platform/lib/data/preferences'
 import { toast } from '@/platform/lib/data/toast'
 import { plural } from '@/platform/lib/plural'
 import { formatInstantDate } from '@/platform/lib/time'
@@ -118,11 +119,13 @@ interface RosterViewer {
   userId: string | undefined
   canManage: boolean
   hosted: boolean
+  /** The roster renders on the server, so its dates wait for the zone both renders agree on. */
+  timeZone: string
 }
 
-function joinedLabel(member: RosterMember): string {
+function joinedLabel(member: RosterMember, timeZone: string): string {
   if (member.suspendedAt) return 'Deactivated by your directory'
-  return `Joined ${formatInstantDate(new Date(member.createdAt).getTime())}`
+  return `Joined ${formatInstantDate(member.createdAt, timeZone)}`
 }
 
 /**
@@ -140,7 +143,7 @@ function toMemberRow(member: RosterMember, viewer: RosterViewer): MemberRowModel
     email: member.email,
     image: member.image ?? undefined,
     role: member.role,
-    status: joinedLabel(member),
+    status: joinedLabel(member, viewer.timeZone),
     isSelf,
     canEditRole: viewer.canManage && !isSelf && !isOwner && !isExternal,
     canRemove: viewer.canManage && !isSelf && !isOwner,
@@ -289,6 +292,7 @@ export function useMembers(organization: PlatformOrganization) {
   const { data: session } = useSession()
   const viewerId = session?.user?.id
   const roster = useOrganizationRoster(organizationId)
+  const timeZone = useBrowserTimezone()
   const role =
     roster.data?.members.find((member) => member.userId === viewerId)?.role ??
     organization.viewer.role
@@ -309,7 +313,7 @@ export function useMembers(organization: PlatformOrganization) {
     roster: {
       status: roster.status,
       model: roster.data
-        ? toRosterModel(roster.data, { userId: viewerId, canManage, hosted })
+        ? toRosterModel(roster.data, { userId: viewerId, canManage, hosted, timeZone })
         : undefined,
       error: roster.error,
       retrying: roster.isFetching,
@@ -493,7 +497,7 @@ export function useOwnershipTransfer() {
 /** A member's credit cap. Hosted only: only hosted deployments enforce it. */
 export function useMemberCredits(userId: string) {
   const organizationId = useOrganization().organization.id
-  const limit = useOrganizationMemberUsageLimit(organizationId, userId, true)
+  const limit = useOrganizationMemberUsageLimit(organizationId, userId)
   const update = useUpdateOrganizationMemberUsageLimit()
   return {
     loading: limit.isLoading,

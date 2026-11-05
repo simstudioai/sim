@@ -24,7 +24,7 @@ import {
   canListOrganizationChats,
   type PlatformOrganization,
 } from '@/platform/lib/data/organization-model'
-import { prefetchSignal, serverRequestJson } from '@/platform/lib/data/server-request'
+import { prefetchRequestJson } from '@/platform/lib/data/server-request'
 
 const logger = createLogger('PlatformShellPrefetch')
 
@@ -40,17 +40,15 @@ export async function prefetchShell(organization: PlatformOrganization): Promise
       queryClient.prefetchQuery({
         queryKey: mothershipChatKeys.organizationList(organization.organization.id, 'active'),
         queryFn: async () => {
-          const { data } = await serverRequestJson(listMothershipChatsContract, {
+          const { data } = await prefetchRequestJson(listMothershipChatsContract, {
             query: { organizationId: organization.organization.id, scope: 'active' },
-            signal: prefetchSignal(),
           })
           return data.map(mapChat)
         },
         staleTime: MOTHERSHIP_CHAT_LIST_STALE_TIME,
       }),
-    serverRequestJson(listWorkspacesContract, {
+    prefetchRequestJson(listWorkspacesContract, {
       query: { scope: 'active' },
-      signal: prefetchSignal(),
     }).then(
       (payload) => {
         if (payload.workspaces.length === 0) return
@@ -62,9 +60,7 @@ export async function prefetchShell(organization: PlatformOrganization): Promise
     queryClient.prefetchQuery({
       queryKey: userProfileKeys.profile(),
       queryFn: async () => {
-        const { user } = await serverRequestJson(getUserProfileContract, {
-          signal: prefetchSignal(),
-        })
+        const { user } = await prefetchRequestJson(getUserProfileContract, {})
         return mapUserProfileResponse(user)
       },
       staleTime: USER_PROFILE_STALE_TIME,
@@ -72,9 +68,7 @@ export async function prefetchShell(organization: PlatformOrganization): Promise
     queryClient.prefetchQuery({
       queryKey: generalSettingsKeys.settings(),
       queryFn: async () => {
-        const { data } = await serverRequestJson(getUserSettingsContract, {
-          signal: prefetchSignal(),
-        })
+        const { data } = await prefetchRequestJson(getUserSettingsContract, {})
         return mapGeneralSettingsResponse(data)
       },
       staleTime: GENERAL_SETTINGS_STALE_TIME,

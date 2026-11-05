@@ -70,7 +70,7 @@ export function useAuthorizedAppsList() {
       id: app.clientId,
       name: app.name,
       access: summarizeOAuthAccess(app.scopes),
-      authorized: `Authorized ${formatInstantDate(new Date(app.authorizedAt).getTime())}`,
+      authorized: `Authorized ${formatInstantDate(app.authorizedAt)}`,
     })),
     loadMore: loadMoreOf(apps, 'Failed to load more authorized apps'),
     revoke: async (id: string, name: string) => {
