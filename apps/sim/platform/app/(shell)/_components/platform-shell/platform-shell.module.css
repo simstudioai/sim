@@ -6,6 +6,16 @@
   block-size: 100dvh;
   isolation: isolate;
 }
+.frame {
+  display: flex;
+  flex-direction: column;
+  block-size: 100dvh;
+}
+.frame > .shell {
+  flex: 1;
+  block-size: auto;
+  min-block-size: 0;
+}
 .shell[data-sidebar-collapsed] {
   grid-template-columns: minmax(0, 1fr);
 }

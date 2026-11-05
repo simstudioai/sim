@@ -18,9 +18,27 @@ import { useCompactViewport } from '@/platform/design-system/components/layout/u
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { platformHref } from '@/platform/design-system/navigation'
 
+/** Live navigation names a route on the legacy surface by its absolute URL. */
+const LEGACY_DESTINATION = /^https?:\/\//
+
 interface PlatformShellProps {
   data: ShellData | null
   children: ReactNode
+}
+
+interface PlatformShellFrameProps {
+  banner: ReactNode
+  children: ReactNode
+}
+
+/** Gives a banner its own row above the shell, which otherwise fills the window. */
+export function PlatformShellFrame({ banner, children }: PlatformShellFrameProps) {
+  return (
+    <div className={styles.frame}>
+      {banner}
+      {children}
+    </div>
+  )
 }
 
 export function PlatformShell({ data, children }: PlatformShellProps) {
@@ -36,8 +54,10 @@ export function PlatformShell({ data, children }: PlatformShellProps) {
   const drawerRef = useRef<HTMLDialogElement>(null)
   const chat = useChatChanges()
   const settings = pathname.startsWith('/settings')
+  const settingsDestinations: readonly { key: string; title: string }[] =
+    data?.settingsNavigation?.flatMap((group) => group.items) ?? SETTINGS_DESTINATIONS
   const section = settings
-    ? SETTINGS_DESTINATIONS.find((item) => item.key === (pathname.split('/')[2] || 'preferences'))
+    ? settingsDestinations.find((item) => item.key === (pathname.split('/')[2] || 'preferences'))
     : undefined
   const conversation = pathname.startsWith('/chat')
   const activeChat = conversation ? pathname.split('/')[2] : undefined
@@ -90,7 +110,8 @@ export function PlatformShell({ data, children }: PlatformShellProps) {
   function navigate(path: string) {
     setCommand(false)
     setDrawer(false)
-    router.push(platformHref(path, search))
+    if (LEGACY_DESTINATION.test(path)) window.location.assign(path)
+    else router.push(platformHref(path, search))
   }
   function toggle() {
     if (compact) setDrawer((previous) => !previous)
@@ -99,6 +120,7 @@ export function PlatformShell({ data, children }: PlatformShellProps) {
   const actions = (
     <SidebarToolbar
       items={data?.inbox ?? []}
+      showInbox={!data?.unbacked?.includes('inbox')}
       navigate={navigate}
       onSearch={() => setCommand(true)}
       onCollapse={toggle}
@@ -183,6 +205,7 @@ export function PlatformShell({ data, children }: PlatformShellProps) {
           navigate={navigate}
           chats={chats}
           workspaces={data?.workspaces ?? []}
+          destinations={data?.destinations}
         />
       </div>
       <NotificationTray history={data?.notifications ?? []} navigate={navigate} />

@@ -1,0 +1,11 @@
+.gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: var(--spacing-24);
+}
+
+.gate[data-full-page] {
+  min-block-size: 100dvh;
+}

@@ -1,0 +1,23 @@
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-12);
+  flex-wrap: wrap;
+  padding: var(--spacing-8) var(--spacing-16);
+  background: var(--control-danger-soft);
+}
+
+.takeover {
+  position: fixed;
+  z-index: 3;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-12);
+  padding: var(--spacing-24);
+  text-align: center;
+  background: var(--ui-canvas);
+}
