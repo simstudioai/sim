@@ -3,11 +3,13 @@
 import { useQueryStates } from 'nuqs'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { useOrganizationPageFilters } from '@/app/o/[organizationId]/components/organization-page/use-organization-page-filters'
 import {
+  integrationSearchParsers,
+  integrationSearchUrlKeys,
   integrationViewParsers,
   serializeIntegrationView,
 } from '@/app/o/[organizationId]/integrations/search-params'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useDesktopOAuthConnectListener, useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import { IntegrationDetails } from '@/platform/app/(shell)/integrations/_components/integration-details/integration-details'
 import { IntegrationList } from '@/platform/app/(shell)/integrations/_components/integration-list/integration-list'
@@ -68,7 +70,13 @@ export function IntegrationsRoute({
   const { integrations, genericSecrets, inventory, policies, secrets } =
     useMemberIntegrations(organizationId)
   const actions = useIntegrationActions(organizationId)
-  const { search, setSearch } = useOrganizationPageFilters()
+  const [{ q: search }, setSearchParams] = useQueryStates(
+    integrationSearchParsers,
+    integrationSearchUrlKeys
+  )
+  const setSearch = useDebouncedSearchSetter((value, options) =>
+    setSearchParams({ q: value }, options)
+  )
   const [{ account }, setParams] = useQueryStates(integrationViewParsers)
   const routes = organizationRoutes(organizationId)
   const integrationHref = (id: string) =>

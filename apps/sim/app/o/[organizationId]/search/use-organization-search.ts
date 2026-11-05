@@ -33,6 +33,15 @@ interface UseOrganizationSearchProps {
   chatId?: string
 }
 
+function searchDraftKeys(userId: string | undefined, organizationId: string) {
+  const latest = `${userId}:organization:${organizationId}:search`
+  return {
+    latest,
+    assistant: `${latest}-assistant`,
+    query: (query: string) => `${latest}:query:${encodeURIComponent(query)}`,
+  }
+}
+
 /**
  * Everything Organization Search does, independent of how it looks: the mode pinned in the URL, the
  * Summarize hand-off to Assistant, New chat or search, and committing a query.
@@ -80,12 +89,12 @@ export function useOrganizationSearch({ userId, chatId }: UseOrganizationSearchP
   const startNew = () => {
     setSummaries([])
     const { clearDraft } = useMothershipDraftsStore.getState()
-    const scope = `${userId}:organization:${organization.id}`
+    const drafts = searchDraftKeys(userId, organization.id)
     if (activeMode === 'assistant') {
-      clearDraft(`${scope}:search-assistant`)
+      clearDraft(drafts.assistant)
     } else {
-      clearDraft(`${scope}:search`)
-      clearDraft(`${scope}:search:query:`)
+      clearDraft(drafts.latest)
+      clearDraft(drafts.query(''))
     }
     startNewTransition(() => {
       setConversationInstance((current) => current + 1)
@@ -153,10 +162,11 @@ export function useSearchFieldDraft({ userId, initialValue, onSubmit }: UseSearc
     userId
   )
   const isSearching = useIsFetching({ queryKey }) > 0
-  const latestDraftKey = `${userId}:organization:${organization.id}:search`
+  const drafts = searchDraftKeys(userId, organization.id)
+  const latestDraftKey = drafts.latest
   const latestDraft = useMothershipDraftsStore((state) => state.drafts[latestDraftKey])
   const ownerQuery = initialValue || latestDraft?.searchQuery || ''
-  const draftKey = `${latestDraftKey}:query:${encodeURIComponent(ownerQuery)}`
+  const draftKey = drafts.query(ownerQuery)
   const draft = useMothershipDraftsStore((state) => state.drafts[draftKey])
   const value =
     draft?.text ?? (latestDraft?.searchQuery === ownerQuery ? latestDraft.text : initialValue)
@@ -173,7 +183,7 @@ export function useSearchFieldDraft({ userId, initialValue, onSubmit }: UseSearc
       clearDraft(draftKey)
       if (latestDraft?.searchQuery === ownerQuery) clearDraft(latestDraftKey)
     }
-    clearDraft(`${latestDraftKey}:query:${encodeURIComponent(text.trim())}`)
+    clearDraft(drafts.query(text.trim()))
     onSubmit(text)
   }
   const voice = useVoiceInput({

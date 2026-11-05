@@ -19,7 +19,7 @@ const person = (key: string, name: string, role: 'owner' | 'admin' | 'member') =
 
 export const OWNER = person('owner', 'Olive Owner', 'owner')
 export const ADMIN = person('admin', 'Ada Admin', 'admin')
-/** Connected to nothing, the most common member today. */
+/** Connected to nothing. */
 export const MEMBER = person('member', 'Mia Member', 'member')
 /** A member of the same group with managed Google accounts. */
 export const CONNECTED = person('connected', 'Cory Connected', 'member')
@@ -42,7 +42,7 @@ export const STANDARD_GROUP_ID = 'org-redesign-group-standard'
 export const NARROW_GROUP_ID = 'org-redesign-group-narrow'
 export const FULL_GROUP_ID = 'org-redesign-group-full'
 
-/** The shape of the group most members belong to. */
+/** A restrictive group for ordinary members. */
 export const STANDARD_GROUP_CONFIG = {
   disableInvitations: true,
   disableToolAutoApproval: true,

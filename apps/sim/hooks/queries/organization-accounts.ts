@@ -48,7 +48,6 @@ import { connectCredentialGroupInPopup } from '@/lib/credential-groups/oauth-pop
 import { isDesktopApp } from '@/lib/desktop'
 import { connectDesktopSource } from '@/lib/desktop/source-connect'
 import { assistantActionKeys } from '@/hooks/queries/assistant-actions'
-import { organizationHomeKeys } from '@/hooks/queries/organization-home'
 import { personalCredentialKeys } from '@/hooks/queries/personal-credentials'
 import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 import {
@@ -156,9 +155,6 @@ export function useDisconnectPersonalOrganizationAccount() {
           queryKey: organizationAccountsKeys.detail(organizationId),
         }),
         queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.personal() }),
-        queryClient.invalidateQueries({
-          queryKey: organizationHomeKeys.organization(organizationId),
-        }),
       ])
       router.refresh()
     },
@@ -263,7 +259,7 @@ export function useUpdateOrganizationAccounts() {
         }),
         queryClient.invalidateQueries({ queryKey: slackSearchKeys.list(organizationId) }),
         queryClient.invalidateQueries({
-          queryKey: organizationHomeKeys.organization(organizationId),
+          queryKey: organizationAccountsKeys.detail(organizationId),
         }),
       ]),
   })
@@ -272,7 +268,6 @@ export function useUpdateOrganizationAccounts() {
 async function refreshAccounts(client: ReturnType<typeof useQueryClient>) {
   await Promise.all([
     client.invalidateQueries({ queryKey: organizationAccountsKeys.all }),
-    client.invalidateQueries({ queryKey: organizationHomeKeys.all }),
     client.invalidateQueries({ queryKey: assistantActionKeys.permissions() }),
     client.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
     client.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),

@@ -78,7 +78,6 @@ export function findEntryEscapes(css: string, hostGlobals: string): Finding[] {
   return findings
 }
 
-/** Checks one compiled CSS Module. */
 export function findModuleEscapes(css: string, file: string): Finding[] {
   const findings: Finding[] = []
   const root = postcss.parse(css)

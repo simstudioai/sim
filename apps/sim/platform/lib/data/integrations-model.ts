@@ -7,7 +7,6 @@ import {
   memberIntegrationEntries,
 } from '@/lib/credential-groups/member-integrations'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
-import { memberIntegrationStatus } from '@/app/o/[organizationId]/integrations/utils'
 import {
   memberSecretMetadata,
   providerMetadata,
@@ -24,6 +23,22 @@ const CONNECT_ACCOUNT_GUIDE = `${SIM_DOCS_URL}/search/connect-your-account`
 function availabilityOf(entry: MemberIntegration): OrganizationIntegration['availability'] {
   if (entry.managed) return 'managed'
   return entry.ready ? 'ready' : 'blocked'
+}
+
+function memberIntegrationStatus(entry: MemberIntegration) {
+  if (entry.managed) return 'Organization managed'
+  if (!entry.ready) return entry.description ?? 'Checking availability'
+  if (
+    entry.accounts.some(
+      (account) =>
+        account.status === 'needs_reauth' &&
+        entry.reconnectAccountIds.includes(account.credentialId)
+    )
+  )
+    return 'Reconnect needed'
+  if (entry.accounts.length)
+    return entry.accounts.length === 1 ? '1 account' : `${entry.accounts.length} accounts`
+  return 'Not connected'
 }
 
 function toOrganizationIntegration(entry: MemberIntegration): OrganizationIntegration {

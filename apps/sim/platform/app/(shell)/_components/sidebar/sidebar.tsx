@@ -82,7 +82,11 @@ export function Sidebar(flags: OrganizationNavFlags) {
       data-settings={isSettings || undefined}
       aria-label='Organization sidebar'
       onClick={(event) => {
-        if (isSidebarBackgroundClick(event)) useFolderStore.getState().clearChatSelection()
+        const onFlyout =
+          event.target instanceof Element && event.target.closest('[data-material="floating"]')
+        if (isSidebarBackgroundClick(event) && !onFlyout) {
+          useFolderStore.getState().clearChatSelection()
+        }
       }}
     >
       <div className={styles.column}>

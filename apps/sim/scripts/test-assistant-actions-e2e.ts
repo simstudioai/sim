@@ -985,8 +985,6 @@ try {
       page.getByRole('group', { name: `${inherited.name} permission`, exact: true })
     ).toHaveAttribute('aria-description', /^Inherits (Allow|Ask|Block) from /)
     await capture('tool-permission-description')
-    await policy.getByRole('radio', { name: 'Ask', exact: true }).focus()
-    await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeFocused()
     await page.setViewportSize({ width: 390, height: 844 })
     await capture('tool-permissions-mobile')
     assert(

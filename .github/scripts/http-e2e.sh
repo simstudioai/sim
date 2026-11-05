@@ -280,8 +280,8 @@ case "$group" in
     esac
     ;;
 
-  # One hosted Enterprise organization shaped like a real customer, a scripted worker in place of the
-  # model, and the app twice: as that customer has it, then with People on. Hosted is decided by the
+  # One hosted Enterprise organization, a scripted worker in place of the
+  # model, and the app twice: with People off, then on. Hosted is decided by the
   # app's hostname, which the job maps to loopback. Both phases report, whichever fails.
   org-redesign)
     app_server=start

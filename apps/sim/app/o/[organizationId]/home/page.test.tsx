@@ -22,9 +22,6 @@ vi.mock('@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard-s
     <div>Home for {requestMode}</div>
   ),
 }))
-vi.mock('@/app/o/[organizationId]/integrations/integrations', () => ({
-  OrganizationIntegrations: () => <div>Integrations</div>,
-}))
 vi.mock('@/platform/app/(shell)/search/_components/search-surface/search-surface', () => ({
   OrganizationSearchSurface: () => <div>Standalone Search</div>,
 }))

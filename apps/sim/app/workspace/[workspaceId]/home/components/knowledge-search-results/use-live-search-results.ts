@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useQueryStates } from 'nuqs'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import {
@@ -31,10 +31,7 @@ export function useLiveSearchResults({
   const [hasShownFilters, setHasShownFilters] = useState(false)
   const [searchedAt] = useState(() => Date.now())
   const [params] = useQueryStates(searchFilterParsers, resourceUrlKeys)
-  const filters = useMemo(
-    () => suppliedFilters ?? searchFiltersFromParams(params, searchedAt),
-    [suppliedFilters, params.source, params.updated, params.from, params.to, searchedAt]
-  )
+  const filters = suppliedFilters ?? searchFiltersFromParams(params, searchedAt)
   const awaitingRange =
     !suppliedFilters && params.updated === 'custom' && !(params.from && params.to)
   const { data, isPending, isFetching, isError, refetch } = useWorkspaceKnowledgeSearch(

@@ -1461,7 +1461,7 @@ async function homeChecks() {
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(orgUrl('/home'))
       const response = await page.request.get(
-        url(`/api/organizations/${OUTSIDER.key}-org/home/email`)
+        url(`/api/organizations/${OUTSIDE_ORGANIZATION_ID}/home/email`)
       )
       assert.equal(response.status(), 404)
     })
@@ -2823,7 +2823,7 @@ async function blastRadiusChecks() {
         )
       })
     },
-    // The workspace shell reads its inbox whatever the group's hideInboxTab says, as it does today.
+    // The workspace shell reads its inbox whatever the group's hideInboxTab says.
     { allow: [/403 GET .*\/inbox/] }
   )
   await check('the extension panel has no platform surface and reads no Home data', async () => {

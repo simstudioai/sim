@@ -14,7 +14,6 @@ import {
 
 interface IntegrationDetailsProps {
   integration: OrganizationIntegration
-  /** The `?account=` the URL names, or null. */
   accountId: string | null
   integrationHref: string
   accountHref: (accountId: string) => string

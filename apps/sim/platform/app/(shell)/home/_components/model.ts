@@ -90,7 +90,6 @@ export interface HomeGetStartedStep {
 }
 
 export interface HomeView {
-  /** The reference instant for relative times. */
   asOf: number
   greeting: string
   firstName?: string

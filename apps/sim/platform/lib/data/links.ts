@@ -31,6 +31,7 @@ import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
 import { usePlatformNotices } from '@/platform/app/(shell)/_components/notification-tray/notification-tray'
+import { openLinkInNewTab } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 
 const logger = createLogger('SimLinks')
@@ -47,20 +48,16 @@ const SORT_OPTIONS = [
 
 type LinkField = 'name' | 'url' | 'defaultUrl' | 'description'
 
-function openInNewTab(url: string) {
-  window.open(url, '_blank', 'noopener,noreferrer')
-}
-
 export function openChromeStore() {
-  openInNewTab(SIM_FOR_CHROME_URL)
+  openLinkInNewTab(SIM_FOR_CHROME_URL)
 }
 
 export function openLinkDocs() {
-  openInNewTab(SIM_LINKS_DOCS_URL)
+  openLinkInNewTab(SIM_LINKS_DOCS_URL)
 }
 
 export function openLink(name: string) {
-  openInNewTab(simLinkPath(name))
+  openLinkInNewTab(simLinkPath(name))
 }
 
 /** Every Sim link the viewer may browse, driven by the page's URL state. */

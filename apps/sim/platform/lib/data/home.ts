@@ -148,6 +148,14 @@ interface HomeWidgetRead<T> {
   retry: () => void
 }
 
+/** A read with nothing to show yet: failed and maybe retrying, or still on its way. */
+function withoutResult(read: {
+  isError: boolean
+  isFetching: boolean
+}): { status: 'error'; retrying: boolean } | { status: 'loading' } {
+  return read.isError ? { status: 'error', retrying: read.isFetching } : { status: 'loading' }
+}
+
 function useHomeEmail(
   organizationId: string,
   connection: HomeConnection,
@@ -159,12 +167,7 @@ function useHomeEmail(
   })
   const retry = () => void read.refetch()
   if (connection.status !== 'connected') return { state: connection, retry: retryConnection }
-  if (!read.data) {
-    return {
-      state: read.isError ? { status: 'error', retrying: read.isFetching } : { status: 'loading' },
-      retry,
-    }
-  }
+  if (!read.data) return { state: withoutResult(read), retry }
   const accounts = toReadAccounts(read.data.accounts, connection.accounts)
   const settled = settleReadAccounts(accounts)
   if (settled?.status === 'error')
@@ -238,12 +241,7 @@ function useHomeActivity(
   if (!allowed || (summary.error && isRefusal(summary.error)))
     return { state: { status: 'hidden' }, retry }
   if (summary.data) return { state: { status: 'ready', points: toTaskPoints(summary.data) }, retry }
-  return {
-    state: summary.isError
-      ? { status: 'error', retrying: summary.isFetching }
-      : { status: 'loading' },
-    retry,
-  }
+  return { state: withoutResult(summary), retry }
 }
 
 function useHomeRecents(organization: OrganizationSurfaceContext, userId: string | undefined) {
@@ -255,9 +253,7 @@ function useHomeRecents(organization: OrganizationSurfaceContext, userId: string
     ? { status: 'ready', items: [] }
     : history.data
       ? { status: 'ready', items: toRecentItems(history.data) }
-      : history.isError
-        ? { status: 'error', retrying: history.isFetching }
-        : { status: 'loading' }
+      : withoutResult(history)
   return {
     state,
     retry: () => void history.refetch(),

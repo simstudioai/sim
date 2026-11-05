@@ -51,7 +51,6 @@ export function useMemberIntegrations(organizationId: string) {
   }
 }
 
-/** A failure reports itself. */
 export function useIntegrationActions(organizationId: string) {
   const connect = useConnectOrganizationAccount()
   const reconnect = useReconnectPersonalOrganizationAccount()
