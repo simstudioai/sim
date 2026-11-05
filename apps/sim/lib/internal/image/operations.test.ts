@@ -6,6 +6,7 @@ import {
   inputValidationMock,
   inputValidationMockFns,
 } from '@sim/testing/mocks/input-validation.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { uploadsCopilotMock, uploadsCopilotMockFns } from '@sim/testing/mocks/uploads-copilot.mock'
 import { uploadsExecutionMock } from '@sim/testing/mocks/uploads-execution.mock'
 import { utilsHelpersMock, utilsHelpersMockFns } from '@sim/testing/mocks/utils-helpers.mock'
@@ -14,6 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
   getFalAICostMetadata: vi.fn(),
+  getFalAIBillingReceipt: vi.fn(),
 }))
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
@@ -24,6 +26,7 @@ vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
 
 vi.mock('@/lib/tools/falai-pricing', () => ({
   getFalAICostMetadata: mocks.getFalAICostMetadata,
+  getFalAIBillingReceipt: mocks.getFalAIBillingReceipt,
 }))
 
 vi.mock('@/lib/uploads/contexts/copilot', () => uploadsCopilotMock)
@@ -33,6 +36,7 @@ vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 const { mockSecureFetchWithPinnedIP, mockValidateUrlWithDNS } = inputValidationMockFns
 
 import { executeImageGeneration } from '@/lib/internal/image/operations'
+import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
 
 const { mockInterruptibleSleep } = utilsHelpersMockFns
 
@@ -50,6 +54,7 @@ const falInput = {
 describe('image operations', () => {
   beforeEach(() => {
     mocks.fetch.mockReset()
+    mocks.getFalAICostMetadata.mockReset()
     mockSecureFetchWithPinnedIP.mockReset()
     vi.stubGlobal('fetch', mocks.fetch)
     mockInterruptibleSleep.mockResolvedValue(undefined)
@@ -212,4 +217,96 @@ describe('image operations', () => {
     )
     expect(mocks.getFalAICostMetadata.mock.calls[0][0].signal).toBeUndefined()
   })
+  it.each([422, 500])(
+    'reports HTTP %i generation failures without speculative delivery receipts',
+    async (status) => {
+      mocks.fetch.mockResolvedValueOnce(Response.json({ request_id: 'rejected-job' }))
+      mockSecureFetchWithPinnedIP
+        .mockResolvedValueOnce(Response.json({ status: 'COMPLETED' }))
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              detail: [
+                { type: 'no_media_generated', msg: 'secret-prompt', input: 'secret-prompt' },
+              ],
+            },
+            { status }
+          )
+        )
+      mocks.getFalAICostMetadata.mockResolvedValue({
+        requestId: 'rejected-job',
+        source: 'fallback_floor',
+        costDollars: 0.05,
+      })
+      const receipts: string[] = []
+      const response = await observeServiceCosts(
+        async () => {},
+        () =>
+          executeImageGeneration(
+            { ...falInput, useHostedCostTracking: true },
+            { userId: 'user', requestId: 'rejected' }
+          ),
+        async (receipt) => {
+          receipts.push(receipt)
+        }
+      )
+      expect(response.status).toBe(status === 422 ? 422 : 502)
+      const body = await response.json()
+      expect(body.error).toContain('no_media_generated')
+      expect(JSON.stringify(body)).not.toContain('secret-prompt')
+      expect(JSON.stringify(getMockLogger('ImageOperations').error.mock.calls)).not.toContain(
+        'secret-prompt'
+      )
+      expect(receipts).toEqual([])
+      expect(mocks.getFalAICostMetadata).not.toHaveBeenCalled()
+      expect(mockUploadCopilotFile).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    { bytes: 32 * 1024 * 1024, declared: true, expected: 200 },
+    { bytes: 101 * 1024 * 1024, declared: true, expected: 413 },
+    { bytes: 101 * 1024 * 1024, declared: false, expected: 413 },
+  ])(
+    'bounds remote generated images ($bytes bytes, declared=$declared)',
+    async ({ bytes, declared, expected }) => {
+      mocks.fetch.mockResolvedValueOnce(Response.json({ request_id: 'large-image' }))
+      let remaining = bytes
+      const chunk = new Uint8Array(1024 * 1024)
+      const binary = new Response(
+        new ReadableStream({
+          pull(controller) {
+            if (remaining <= 0) {
+              controller.close()
+              return
+            }
+            controller.enqueue(chunk)
+            remaining -= chunk.length
+          },
+        }),
+        {
+          headers: {
+            'Content-Type': 'image/png',
+            ...(declared ? { 'Content-Length': String(bytes) } : {}),
+          },
+        }
+      )
+      mockSecureFetchWithPinnedIP
+        .mockResolvedValueOnce(Response.json({ status: 'COMPLETED' }))
+        .mockResolvedValueOnce(
+          Response.json({ images: [{ url: 'https://cdn.example/image.png' }] })
+        )
+        .mockResolvedValueOnce(binary)
+      const response = await executeImageGeneration(falInput, {
+        userId: 'user',
+        requestId: 'large',
+      })
+      expect(response.status).toBe(expected)
+      if (expected === 200) {
+        expect(mockUploadCopilotFile.mock.calls[0][0].buffer.byteLength).toBe(bytes)
+      } else {
+        expect(mockUploadCopilotFile).not.toHaveBeenCalled()
+      }
+    }
+  )
 })

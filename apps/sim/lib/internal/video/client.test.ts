@@ -517,6 +517,97 @@ describe('Video provider client', () => {
     )
   })
 
+  it.each([422, 500])(
+    'does not reconcile a failed fal result (HTTP %i) as delivered media',
+    async (status) => {
+      const paths: string[] = []
+      vi.stubGlobal('fetch', async (url: string | URL) => {
+        const path = new URL(url).pathname
+        paths.push(path)
+        if (path.endsWith('/status')) return jsonResponse({ status: 'COMPLETED' })
+        if (path.includes('/requests/'))
+          return jsonResponse(
+            {
+              detail: [
+                { type: 'no_media_generated', msg: 'secret-prompt', input: 'secret-prompt' },
+              ],
+            },
+            status
+          )
+        if (path.endsWith('/billing-events')) return jsonResponse({ billing_events: [] })
+        if (path.endsWith('/estimate')) return jsonResponse({ total_cost: 0.25 })
+        return jsonResponse({ request_id: 'failed-result' })
+      })
+      const pending: string[] = []
+      const result = observeServiceCosts(
+        async () => {},
+        () =>
+          executeVideoOperation(
+            {
+              provider: 'falai',
+              model: 'veo-3.1',
+              prompt: 'A sunrise',
+              apiKey: 'key',
+              useHostedCostTracking: true,
+            },
+            { requestId: 'trace', userId: 'user', headers: new Headers() }
+          ),
+        async (receipt) => {
+          pending.push(receipt)
+        }
+      )
+      const rejection = expect(result).rejects.toMatchObject({
+        status: status === 422 ? 422 : 502,
+        message: expect.stringContaining('no_media_generated'),
+      })
+      await Promise.all([rejection, vi.advanceTimersByTimeAsync(6000)])
+      expect(pending).toEqual([])
+      expect(paths.some((path) => path.endsWith('/estimate'))).toBe(false)
+    }
+  )
+
+  it('preserves an exact charge even when the provider returns a failed result', async () => {
+    vi.stubGlobal('fetch', async (url: string | URL) => {
+      const path = new URL(url).pathname
+      if (path.endsWith('/status')) return jsonResponse({ status: 'COMPLETED' })
+      if (path.includes('/requests/'))
+        return jsonResponse({ detail: [{ type: 'no_media_generated' }] }, 422)
+      if (path.endsWith('/billing-events'))
+        return jsonResponse({
+          billing_events: [
+            {
+              request_id: 'charged-failure',
+              endpoint_id: 'fal-ai/veo3.1',
+              cost_estimate_nano_usd: 400000000,
+            },
+          ],
+        })
+      return jsonResponse({ request_id: 'charged-failure' })
+    })
+    const receipts: string[] = []
+    const result = observeServiceCosts(
+      async () => {},
+      () =>
+        executeVideoOperation(
+          {
+            provider: 'falai',
+            model: 'veo-3.1',
+            prompt: 'A sunrise',
+            apiKey: 'key',
+            useHostedCostTracking: true,
+          },
+          { requestId: 'trace', userId: 'user', headers: new Headers() }
+        ),
+      async (receipt) => {
+        receipts.push(receipt)
+      }
+    )
+    const rejection = expect(result).rejects.toMatchObject({ status: 422 })
+    await Promise.all([rejection, vi.advanceTimersByTimeAsync(6000)])
+    expect(receipts).toHaveLength(1)
+    expect(receipts[0]).toContain('0.4 (billing_events)')
+  })
+
   it('preserves the completed hosted receipt for reconciliation when Stop interrupts delivery', async () => {
     const controller = new AbortController()
     const requestId = 'completed-video'
