@@ -309,11 +309,13 @@ export class LoggingSession {
 
   private async projectRawTraceSpans(
     traceSpans: TraceSpan[],
-    registry = this.resolvedSecretTraceRegistry
+    registry = this.resolvedSecretTraceRegistry,
+    phase?: 'live'
   ): Promise<TraceSpan[]> {
     return projectTraceSpansForSecrets(traceSpans, {
       registry,
       store: this.getSecretProjectionStore(),
+      phase,
     })
   }
 
@@ -365,7 +367,8 @@ export class LoggingSession {
             output: envelope,
           },
         ],
-        registry
+        registry,
+        'live'
       )
       const projected = this.readProjectedDisplayContent(projectedSpan?.output)
       return this.shouldClearLiveDisplay(registry)
@@ -426,7 +429,8 @@ export class LoggingSession {
               ...(log.childTraceSpans ? { children: log.childTraceSpans } : {}),
             },
           ],
-          registry
+          registry,
+          'live'
         )
         const display = this.readProjectedDisplayContent(projectedLog?.output)
         displayLogs.push({
@@ -1503,7 +1507,7 @@ export class LoggingSession {
    * structure with no content rather than unprojected values.
    */
   async projectTraceSpansForLiveDisplay(traceSpans: TraceSpan[]): Promise<TraceSpan[]> {
-    return this.projectRawTraceSpans(traceSpans)
+    return this.projectRawTraceSpans(traceSpans, undefined, 'live')
   }
 
   async safeComplete(params: SessionCompleteParams = {}): Promise<void> {

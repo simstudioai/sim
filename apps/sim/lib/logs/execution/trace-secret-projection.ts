@@ -86,6 +86,8 @@ interface ProjectionContext {
   omittedContentFields: number
   logDetails: ProjectionLogDetails
   displayFieldsBySpanId?: ReadonlyMap<string, string>
+  /** Set once the content walk runs out of budget; every span after that keeps only its structure. */
+  contentBudgetFailure?: TraceContentBudgetError
 }
 
 interface OversizedHydrationGate {
@@ -125,6 +127,8 @@ export interface ProjectTraceSpansForSecretsOptions {
   store: LargeValueStoreContext
   /** Read-only display projections omit ref-backed content instead of writing another ref. */
   allowLargeValueWrites?: boolean
+  /** Labels warnings; defaults to `write`, or `read` when large-value writes are disabled. */
+  phase?: ProjectionPhase
   /**
    * Synthetic spans that each carry one display-envelope value, keyed by span id. Warnings name
    * the envelope field instead of the synthetic span and count it apart from real spans.
@@ -146,19 +150,22 @@ class TraceSecretProjectionError extends Error {
 class TraceContentBudgetError extends TraceSecretProjectionError {}
 
 /**
- * Identifies the run behind a projection warning. `phase` says whether the run was being written
- * to the log or a stored log was being read for display.
+ * Why a projection ran: `write` prepares the run's stored log, `read` displays a stored log, and
+ * `live` streams a running execution to a viewer.
  */
+type ProjectionPhase = 'write' | 'read' | 'live'
+
+/** Identifies the run behind a projection warning. */
 interface ProjectionLogDetails {
   executionId?: string
   workflowId?: string
   workspaceId?: string
-  phase: 'read' | 'write'
+  phase: ProjectionPhase
 }
 
 function projectionLogDetails(
   store: LargeValueStoreContext,
-  phase: ProjectionLogDetails['phase']
+  phase: ProjectionPhase
 ): ProjectionLogDetails {
   return {
     ...filterUndefined({
@@ -1046,14 +1053,50 @@ async function sanitizeTraceSpan(
 
   if (span.children !== undefined) {
     assertTraceStructureArrayFits(span.children, state)
-    const children: TraceSpan[] = []
-    for (const child of span.children) {
-      children.push(await sanitizeTraceSpan(child, context, depth + 1, state, assertContentIsSafe))
-    }
-    projected.children = children
+    projected.children = await sanitizeSiblingSpans(
+      span.children,
+      context,
+      depth + 1,
+      state,
+      assertContentIsSafe
+    )
   }
 
   return projected
+}
+
+/**
+ * A budget failure stops at the span that crossed it, so the spans checked before it keep their
+ * content at any depth, ancestors included: each span's own content passed the whole-trace check
+ * before its children were walked. The span that crossed and every span after it fall back to
+ * structure, which resumes the budget where the retained spans left it.
+ */
+async function sanitizeSiblingSpans(
+  spans: readonly TraceSpan[],
+  context: ProjectionContext,
+  depth: number,
+  state: BoundedTraceStructureState,
+  assertContentIsSafe: SpanContentAssertion
+): Promise<TraceSpan[]> {
+  const projected: TraceSpan[] = []
+  let index = 0
+  for (; index < spans.length && !context.contentBudgetFailure; index += 1) {
+    const retainedStructureNodes = state.nodes
+    try {
+      projected.push(
+        await sanitizeTraceSpan(spans[index], context, depth, state, assertContentIsSafe)
+      )
+    } catch (error) {
+      if (!(error instanceof TraceContentBudgetError)) throw error
+      context.contentBudgetFailure = error
+      state.nodes = retainedStructureNodes
+      break
+    }
+  }
+  const withheld = projectBoundedArray(spans.slice(index), (span) =>
+    structuralOnlySpan(span, state, depth)
+  )
+  return projected.concat(withheld)
 }
 
 function stripLegacyToolCallContent(call: ToolCall): ToolCall {
@@ -1279,9 +1322,9 @@ function projectBoundedTraceSpans(
     state: BoundedTraceStructureState,
     depth: number
   ) => TraceSpan | undefined,
-  logDetails: ProjectionLogDetails,
-  state: BoundedTraceStructureState = { nodes: 0, truncated: false }
+  logDetails: ProjectionLogDetails
 ): TraceSpan[] {
+  const state: BoundedTraceStructureState = { nodes: 0, truncated: false }
   const projected = projectBoundedArray(traceSpans, (span) => project(span, state, 0))
   if (state.truncated) {
     logger.warn(
@@ -1292,14 +1335,12 @@ function projectBoundedTraceSpans(
   return projected
 }
 
-/** Pass `state` to continue a structure budget that earlier spans of the same trace already spent. */
 function structuralOnlyTraceSpans(
   traceSpans: TraceSpan[],
-  logDetails: ProjectionLogDetails,
-  state?: BoundedTraceStructureState
+  logDetails: ProjectionLogDetails
 ): TraceSpan[] {
   try {
-    return projectBoundedTraceSpans(traceSpans, structuralOnlySpan, logDetails, state)
+    return projectBoundedTraceSpans(traceSpans, structuralOnlySpan, logDetails)
   } catch (error) {
     logger.warn('Trace structure could not be safely traversed; omitting projected spans', {
       ...logDetails,
@@ -1643,28 +1684,30 @@ async function assertPostTransformTraceSpansAreSafe(
   await verifyPostTransformLargeValues(refs, context, new Set<string>())
 }
 
-/**
- * Counts the real spans kept before `withheldFrom` and withheld from it on, naming the withheld
- * display-envelope fields apart from them.
- */
+/** Counts the real spans that kept or lost content, naming the withheld display-envelope fields apart. */
 function describeWithheldContent(
-  traceSpans: readonly TraceSpan[],
-  withheldFrom: number,
+  projected: readonly TraceSpan[],
   displayFieldsBySpanId: ReadonlyMap<string, string> | undefined
 ): { retainedSpanCount: number; withheldSpanCount: number; withheldDisplayFields?: string[] } {
-  let retainedDisplayFieldCount = 0
+  let retainedSpanCount = 0
+  let withheldSpanCount = 0
   const withheldDisplayFields: string[] = []
-  if (displayFieldsBySpanId?.size) {
-    for (let index = 0; index < traceSpans.length; index += 1) {
-      const displayField = displayFieldsBySpanId.get(traceSpans[index].id)
-      if (displayField === undefined) continue
-      if (index < withheldFrom) retainedDisplayFieldCount += 1
-      else withheldDisplayFields.push(displayField)
+  const visit = (spans: readonly TraceSpan[]) => {
+    for (const span of spans) {
+      const displayField = displayFieldsBySpanId?.get(span.id)
+      if (displayField === undefined) {
+        if (span.contentWithheld) withheldSpanCount += 1
+        else retainedSpanCount += 1
+      } else if (span.contentWithheld) {
+        withheldDisplayFields.push(displayField)
+      }
+      if (span.children) visit(span.children)
     }
   }
+  visit(projected)
   return {
-    retainedSpanCount: withheldFrom - retainedDisplayFieldCount,
-    withheldSpanCount: traceSpans.length - withheldFrom - withheldDisplayFields.length,
+    retainedSpanCount,
+    withheldSpanCount,
     ...(withheldDisplayFields.length > 0 ? { withheldDisplayFields } : {}),
   }
 }
@@ -1713,7 +1756,10 @@ export async function projectTraceSpansForSecrets(
   options: ProjectTraceSpansForSecretsOptions
 ): Promise<TraceSpan[]> {
   const allowLargeValueWrites = options.allowLargeValueWrites !== false
-  const logDetails = projectionLogDetails(options.store, allowLargeValueWrites ? 'write' : 'read')
+  const logDetails = projectionLogDetails(
+    options.store,
+    options.phase ?? (allowLargeValueWrites ? 'write' : 'read')
+  )
   if (!options.registry?.isComplete()) {
     return structuralOnlyTraceSpans(traceSpans, logDetails)
   }
@@ -1732,40 +1778,30 @@ export async function projectTraceSpansForSecrets(
       options.displayFieldsBySpanId
     )
 
-    const projected: TraceSpan[] = []
     const state: BoundedTraceStructureState = { nodes: 0, truncated: false }
     assertTraceStructureArrayFits(traceSpans, state)
-    const assertContentIsSafe = createSpanContentAssertion(traceSpans, context)
-    for (let index = 0; index < traceSpans.length; index += 1) {
-      const retainedStructureNodes = state.nodes
-      try {
-        projected.push(
-          await sanitizeTraceSpan(traceSpans[index], context, 0, state, assertContentIsSafe)
-        )
-      } catch (error) {
-        if (!(error instanceof TraceContentBudgetError)) throw error
-        /**
-         * Every span already returned was sanitized and then passed the whole-trace check,
-         * descendants included, so only the span that crossed the budget and those after it
-         * lose their content. The fallback resumes the structure budget where the retained
-         * spans left it, so the trace keeps exactly the structure a whole-trace fallback would.
-         */
-        logger.warn(
-          'Trace content exceeded the projection budget; withholding the remaining content',
-          {
-            ...logDetails,
-            ...describeWithheldContent(traceSpans, index, options.displayFieldsBySpanId),
-            failure: describeProjectionFailure(error),
-          }
-        )
-        return [
-          ...projected,
-          ...structuralOnlyTraceSpans(traceSpans.slice(index), logDetails, {
-            nodes: retainedStructureNodes,
-            truncated: false,
-          }),
-        ]
-      }
+    const projected = await sanitizeSiblingSpans(
+      traceSpans,
+      context,
+      0,
+      state,
+      createSpanContentAssertion(traceSpans, context)
+    )
+    if (context.contentBudgetFailure) {
+      logger.warn(
+        'Trace content exceeded the projection budget; withholding the remaining content',
+        {
+          ...logDetails,
+          ...describeWithheldContent(projected, options.displayFieldsBySpanId),
+          failure: describeProjectionFailure(context.contentBudgetFailure),
+        }
+      )
+    }
+    if (state.truncated) {
+      logger.warn(
+        'Trace structure exceeded projection limits; truncating projected structure',
+        logDetails
+      )
     }
     return projected
   } catch (error) {
