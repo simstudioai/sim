@@ -3,11 +3,34 @@ import { isPlainRecord } from '@sim/utils/object'
 import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
 import { getBlock } from '@/blocks'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
+import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowSubblockSanitization')
 
+/** Controls whose stored values accept an explicitly empty string. */
+const EMPTY_STRING_TYPES = new Set([
+  'short-input',
+  'long-input',
+  'code',
+  'combobox',
+  'response-format',
+  'time-input',
+  'oauth-input',
+  'text',
+])
+
+function acceptsEmptyString(type: string, config?: SubBlockConfig): boolean {
+  if (config?.multiSelect) return false
+  if (EMPTY_STRING_TYPES.has(type) || type.endsWith('-selector')) return true
+  if (type !== 'dropdown') return false
+
+  const options = typeof config?.options === 'function' ? config.options() : config?.options
+  return options?.some((option) => option.id === '') ?? false
+}
+
 interface SanitizeMalformedSubBlocksOptions {
+  /** Repairs legacy empty values only when the field does not accept empty strings. */
   convertEmptyStringToNull?: boolean
 }
 
@@ -57,7 +80,8 @@ export function sanitizeMalformedSubBlocks(
       continue
     }
 
-    const configuredType = blockConfig?.subBlocks?.find((config) => config.id === subBlockId)?.type
+    const fieldConfig = blockConfig?.subBlocks?.find((config) => config.id === subBlockId)
+    const configuredType = fieldConfig?.type
 
     if (!isPlainRecord(subBlock)) {
       if (!configuredType && !schemaAgnostic) {
@@ -70,10 +94,16 @@ export function sanitizeMalformedSubBlocks(
       }
 
       logger.warn('Repairing malformed subBlock value', { blockId: block.id, subBlockId })
+      const type = configuredType || DEFAULT_SUBBLOCK_TYPE
       result[subBlockId] = {
         id: subBlockId,
-        type: configuredType || DEFAULT_SUBBLOCK_TYPE,
-        value: options.convertEmptyStringToNull && subBlock === '' ? null : subBlock,
+        type,
+        value:
+          options.convertEmptyStringToNull &&
+          subBlock === '' &&
+          !acceptsEmptyString(type, fieldConfig)
+            ? null
+            : subBlock,
       } as BlockState['subBlocks'][string]
       changed = true
       continue
@@ -89,8 +119,8 @@ export function sanitizeMalformedSubBlocks(
     }
 
     const id = typeof subBlock.id === 'string' && subBlock.id.length > 0 ? subBlock.id : subBlockId
-    const typeFromConfig =
-      configuredType || blockConfig?.subBlocks?.find((config) => config.id === id)?.type
+    const resolvedConfig = fieldConfig ?? blockConfig?.subBlocks?.find((config) => config.id === id)
+    const typeFromConfig = resolvedConfig?.type
     const missingMetadata =
       typeof subBlock.id !== 'string' ||
       subBlock.id.length === 0 ||
@@ -113,7 +143,9 @@ export function sanitizeMalformedSubBlocks(
     const type = typeFromConfig ?? storedType ?? DEFAULT_SUBBLOCK_TYPE
     const hasValue = Object.hasOwn(subBlock, 'value')
     const value =
-      options.convertEmptyStringToNull && subBlock.value === ''
+      options.convertEmptyStringToNull &&
+      subBlock.value === '' &&
+      !acceptsEmptyString(type, resolvedConfig)
         ? null
         : hasValue
           ? subBlock.value
