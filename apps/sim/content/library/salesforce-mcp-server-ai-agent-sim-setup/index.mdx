@@ -138,9 +138,9 @@ A hosted remote endpoint should not be configured as a local stdio process. Conf
 
 ### How do you authenticate Salesforce MCP in Sim?
 
-Salesforce hosted MCP uses OAuth 2.0, and its setup requires an [External Client App](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/create-external-client-app.html). In Sim, open **Settings → MCP tools**, add the Salesforce server URL, and use Advanced settings to enter the External Client App’s client ID and secret when automatic registration is unavailable. Save the server, select **Authorize**, and complete browser sign-in with the intended Salesforce user.
+Salesforce hosted MCP uses OAuth 2.0, and its setup requires an [External Client App](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/create-external-client-app.html). In Sim, open **Settings → MCP tools**, add the Salesforce server URL, and use Advanced settings to enter the External Client App’s client ID and secret when automatic registration is unavailable. Save the server, but register the exact Sim deployment callback URL in Salesforce before selecting **Authorize**: `https://<your-sim-deployment>/api/mcp/oauth/callback`. Then complete browser sign-in with the intended Salesforce user.
 
-The redirect URI, client configuration, Salesforce environment, and authorizing identity must belong to the same intended connection. If authorization fails, compare the callback exactly with the value registered in Salesforce because its [authentication troubleshooting guide](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/authentication-issues.html) identifies redirect mismatch as a common failure point.
+The callback URL must use the same Sim deployment origin as the connection. The client configuration, Salesforce environment, and authorizing identity must also belong to that intended connection. If authorization fails, compare the callback exactly with the value registered in Salesforce because its [authentication troubleshooting guide](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/authentication-issues.html) identifies redirect mismatch as a common failure point.
 
 Do not paste a long-lived Salesforce access token into an agent prompt or ordinary workflow field. Credentials should remain in the platform’s credential handling path rather than becoming model-visible context.
 
@@ -162,6 +162,8 @@ Actual tool names are defined by the Salesforce-hosted server and may differ by 
 ### How do you run a read-only Salesforce MCP test in Sim?
 
 Sim should make the first Salesforce MCP call with a bounded request that retrieves a few non-sensitive records and makes no changes.
+
+After authorizing the server, add an **Agent** block and choose a model that supports tool calling. Open the Agent block’s **Tools** input, select **Add tool...**, open **MCP Servers**, choose the Salesforce server, and add only the read tools needed for this test. Authorizing a server makes the connection available to the workspace, but the Agent can call only the tools added to its **Tools** input.
 
 Use a prompt such as:
 
