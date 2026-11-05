@@ -73,7 +73,6 @@ export function ConnectModal({ organizationId, source, onClose, onConnected }: C
       title={current ? `Update ${name} credentials` : `Connect ${name}`}
       confirmLabel={disabled ? 'Syncing…' : current ? 'Save and sync' : 'Connect and sync'}
       confirmDisabled={disabled || !canConnect}
-      pending={directory.pending}
       onConfirm={() => {
         setErrors(directory.connect(source, draft, onConnected) ?? {})
         return false
@@ -173,6 +172,11 @@ export function ConnectModal({ organizationId, source, onClose, onConnected }: C
       <InlineNotice
         message={`Profiles and managers will be managed by ${name}. People without Sim accounts are included without granting them access.${source === 'scim' ? '' : ' Sim stores these credentials encrypted for scheduled syncs.'}`}
       />
+      {disabled && (
+        <p className={styles.secondary} data-type='T060'>
+          Sync is running. You can close this window and return for the result.
+        </p>
+      )}
       {directory.actionError && (
         <InlineNotice intent='danger' message={directory.actionError.message} />
       )}
