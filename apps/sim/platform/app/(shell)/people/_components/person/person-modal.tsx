@@ -27,9 +27,6 @@ interface PersonModalProps {
   onClose: () => void
 }
 
-/** A validation problem keeps the dialog open like a refused save, with its message on the field. */
-class FieldProblems extends Error {}
-
 export function PersonModal({ organizationId, person, onClose }: PersonModalProps) {
   const edit = useEditPerson(organizationId, person.memberId)
   const picker = usePeoplePicker(organizationId, 'members', person.memberId)
@@ -55,10 +52,11 @@ export function PersonModal({ organizationId, person, onClose }: PersonModalProp
       title={`Edit ${person.name}`}
       confirmLabel='Save'
       onConfirm={async () => {
+        // A validation problem keeps the dialog open, with its message on the field.
         const problems = await edit.save(draft)
         if (problems) {
           setErrors(problems)
-          throw new FieldProblems('Check the highlighted fields.')
+          return false
         }
       }}
     >

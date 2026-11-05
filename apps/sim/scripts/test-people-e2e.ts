@@ -809,6 +809,66 @@ async function run() {
     })
 
   if (screenshotDir)
+    await check('import holds a spreadsheet preview and clears a stale error', async () => {
+      const { chromium, expect } = await import('@playwright/test')
+      const browser = await chromium.launch()
+      try {
+        const page = await browser.newPage()
+        page.setDefaultTimeout(60_000)
+        await page
+          .context()
+          .addCookies([
+            { name: 'better-auth.session_token', value: lead.cookie, url: baseUrl.origin },
+          ])
+        await page.goto(new URL(`/o/${teamOrg}/people`, baseUrl).href)
+        await page.route(/\/people\?.*scope=roots/, (route) =>
+          route.fulfill({ json: { people: [], nextCursor: null, selectedDepartment: null } })
+        )
+        await page.getByLabel('Browse top-level teams').click()
+        await expect(page.getByText('No top-level teams with reporting lines yet')).toBeVisible()
+        await page.keyboard.press('Escape')
+
+        await page.getByRole('button', { name: 'Import', exact: true }).click()
+        const picker = page.getByRole('dialog', { name: 'Import people data' })
+        await picker.getByRole('button', { name: 'Okta', exact: true }).click()
+        const okta = page.getByRole('dialog', { name: 'Import from Okta' })
+        await page.route(`**/api/organizations/${teamOrg}/people/import`, (route) =>
+          route.fulfill({ status: 500, json: { error: 'Import refused' } })
+        )
+        await okta.getByLabel('Okta domain', { exact: true }).fill('stale.okta.com')
+        await okta.getByLabel('API token', { exact: true }).fill('token')
+        await okta.getByRole('button', { name: 'Preview import' }).click()
+        await expect(okta.getByRole('alert')).toContainText('Import refused')
+        await okta.getByLabel('API token', { exact: true }).fill('token-2')
+        await expect(okta.getByRole('alert')).toHaveCount(0)
+        await okta.getByRole('button', { name: 'Back', exact: true }).click()
+
+        await picker.getByRole('button', { name: 'Spreadsheet', exact: true }).click()
+        const sheet = page.getByRole('dialog', { name: 'Import a spreadsheet' })
+        let release = () => {}
+        const held = new Promise<void>((resolve) => {
+          release = resolve
+        })
+        await page.unroute(`**/api/organizations/${teamOrg}/people/import`)
+        await page.route(`**/api/organizations/${teamOrg}/people/import`, async (route) => {
+          await held
+          await route.fulfill({ status: 500, json: { error: 'Import refused' } })
+        })
+        const requested = page.waitForRequest(`**/api/organizations/${teamOrg}/people/import`)
+        await sheet.locator('input[type="file"]').setInputFiles({
+          name: 'people.csv',
+          mimeType: 'text/csv',
+          buffer: Buffer.from('email,title\nheld@example.test,Engineer\n'),
+        })
+        await requested
+        await page.keyboard.press('Escape')
+        await expect(sheet).toBeVisible()
+        release()
+      } finally {
+        await browser.close()
+      }
+    })
+  if (screenshotDir)
     await check('disconnecting a directory forgets the credentials typed before it', async () => {
       const { chromium, expect } = await import('@playwright/test')
       const browser = await chromium.launch()

@@ -231,6 +231,10 @@ export function usePeoplePicker(
       error: query.error?.message,
       onLoadMore: () => void query.fetchNextPage(),
       onRetry: () => void query.refetch(),
+      emptyMessage:
+        scope === 'roots' && !term.trim()
+          ? 'No top-level teams with reporting lines yet'
+          : 'No matching people',
     },
   }
 }

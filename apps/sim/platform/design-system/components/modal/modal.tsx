@@ -142,6 +142,7 @@ function ModalSurface({
           <ModalBody
             key={i}
             inactive={i !== index}
+            onInput={() => setError(null)}
             label={entry.description || entry.title || title}
           >
             {entry.content}

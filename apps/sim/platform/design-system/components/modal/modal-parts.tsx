@@ -37,12 +37,19 @@ export function ModalHeader({
 interface ModalBodyProps {
   label?: string
   inactive?: boolean
+  onInput?: () => void
   children: ReactNode
 }
 
-export function ModalBody({ children, label, inactive }: ModalBodyProps) {
+export function ModalBody({ children, label, inactive, onInput }: ModalBodyProps) {
   return (
-    <fieldset className={styles.modalBody} hidden={inactive} disabled={inactive} aria-label={label}>
+    <fieldset
+      className={styles.modalBody}
+      hidden={inactive}
+      disabled={inactive}
+      aria-label={label}
+      onInput={onInput}
+    >
       {children}
     </fieldset>
   )

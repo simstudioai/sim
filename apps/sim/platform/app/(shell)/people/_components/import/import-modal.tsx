@@ -186,11 +186,18 @@ function SourceImportModal({ organization, source, onBack, onClose }: SourceImpo
   return (
     <Modal
       open
-      onOpenChange={onClose}
+      onOpenChange={() => {
+        // A spreadsheet previews as soon as it is chosen, outside the dialog's own confirm.
+        if (!pending) onClose()
+      }}
       title={title}
       confirmLabel={done ? 'Done' : preview ? 'Import' : 'Preview import'}
       confirmDisabled={pending || (!preview && !ready)}
-      onBack={preview ? () => setPreview(null) : onBack}
+      onBack={() => {
+        if (pending) return
+        if (preview) setPreview(null)
+        else onBack()
+      }}
       onConfirm={
         done
           ? undefined
