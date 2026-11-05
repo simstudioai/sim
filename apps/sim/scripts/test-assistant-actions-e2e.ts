@@ -576,7 +576,7 @@ try {
       timeout: 180_000,
     })
     await integrationRow('Salesforce').click()
-    await expect(page.getByRole('button', { name: 'Add account', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Add account', exact: true })).toHaveCount(0)
     const policy = page.getByRole('group', { name: 'Create Task in Salesforce permission' })
     await expect(policy).toBeVisible({ timeout: 180_000 })
     await page.getByRole('button', { name: /^Manage / }).click()
