@@ -806,7 +806,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'Versions 0.1.4 and later support voice input. When You click the microphone and grant browser permission, Sim streams microphone audio to ElevenLabs for transcription into Your editable message draft. Opening the panel does not start recording, and this feature does not capture tab audio. Stopping voice input ends microphone capture; sending a message or changing conversations cancels unfinished transcription. Submitted transcripts become conversation content under the retention and processing rules below.'
+            'When You click the microphone and grant browser permission, Sim streams microphone audio to ElevenLabs for transcription into Your editable message draft. Opening the panel does not start recording, and this feature does not capture tab audio. Stopping voice input ends microphone capture; sending a message or changing conversations cancels unfinished transcription. Submitted transcripts become conversation content under the retention and processing rules below.'
           ),
         },
         {
@@ -818,7 +818,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'Reference current page is an optional setting stored in Your Chrome profile. When it is on, sending a message from the sidebar includes a snapshot of the active tab unless You have attached a page or selection Yourself. Opening the panel or switching tabs does not trigger this capture. If Chrome has not granted access, Your draft stays in the composer. You can grant browser access and send again, or turn the setting off. Versions 0.1.4 and later offer one approval for HTTP and HTTPS websites; earlier versions offer individual site grants. You can revoke or restrict access in Chrome settings. Incognito capture is disabled.'
+            'Reference current page is an optional setting stored in Your Chrome profile. When it is on, sending a message from the sidebar includes a snapshot of the active tab unless You have attached a page or selection Yourself. Opening the panel or switching tabs does not trigger this capture. If Chrome has not granted access, Your draft stays in the composer. You can grant browser access and send again, or turn the setting off. Page access can be granted across HTTP and HTTPS websites. You can revoke or restrict access in Chrome settings. Incognito capture is disabled.'
           ),
         },
         {

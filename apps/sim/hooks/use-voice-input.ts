@@ -93,7 +93,7 @@ export function useVoiceInput({
   function handleSpeechError(error: SpeechToTextError) {
     if (error === 'microphone-blocked') {
       if (openPermissionSettings) {
-        toast.error('Microphone access is blocked. Allow Sim in your browser settings.', {
+        toast.error('Allow microphone access in your browser settings.', {
           action: { label: 'Open settings', onClick: openPermissionSettings },
         })
         return

@@ -20,18 +20,8 @@ export function BrowserShortcutsModal({ onClose }: BrowserShortcutsModalProps) {
       <ChipModalHeader onClose={onClose}>Browser shortcuts</ChipModalHeader>
       <ChipModalBody>
         <ChipModalDescription>
-          With Sim for Chrome installed, type <strong>sim</strong> in the address bar, press{' '}
-          <strong>Space</strong>, and start typing a link name. For suggestions outside this
-          shortcut,{' '}
-          <a
-            href='https://docs.sim.ai/search/sim-links#show-favorites-in-regular-chrome-suggestions'
-            target='_blank'
-            rel='noopener noreferrer'
-            className='underline underline-offset-2'
-          >
-            bookmark a favorite
-          </a>
-          .
+          With Sim for Chrome installed, type <strong>go/handbook</strong> or{' '}
+          <strong>sim/handbook</strong> in the address bar.
         </ChipModalDescription>
         <div className='flex flex-wrap gap-2'>
           <ChipLink href='http://go/' target='_blank' rel='noopener noreferrer' variant='primary'>

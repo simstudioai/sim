@@ -75,7 +75,7 @@ export function SearchRecoveryDialog({ onClose }: SearchRecoveryDialogProps) {
       if (enabled && !(await chrome.permissions.request({ origins: [...provider.origins] }))) {
         setNotices((previous) => ({
           ...previous,
-          [provider.id]: 'Site access was not granted. This shortcut is still off.',
+          [provider.id]: 'Allow site access to turn on shortcuts.',
         }))
         return
       }
@@ -112,8 +112,7 @@ export function SearchRecoveryDialog({ onClose }: SearchRecoveryDialogProps) {
         </ChipModalHeader>
         <ChipModalBody>
           <ChipModalDescription id='search-recovery-description'>
-            Send explicit go/ and sim/ searches to your links in Sim. Ordinary searches stay with
-            your search engine.
+            Open go/ and sim/ links from search. Other searches stay unchanged.
           </ChipModalDescription>
           {SEARCH_RECOVERY_PROVIDERS.map((provider) => (
             <ChipModalField
@@ -129,7 +128,6 @@ export function SearchRecoveryDialog({ onClose }: SearchRecoveryDialogProps) {
                   onCheckedChange={(enabled) => void changeProvider(provider, enabled)}
                 />
               }
-              hint={provider.origins.map((origin) => new URL(origin).origin).join(', ')}
               submitOnEnter={false}
             >
               {notices[provider.id] && (

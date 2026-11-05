@@ -451,7 +451,7 @@ try {
 
   await check('Capture stays local until the trusted hosted frame is ready', async () => {
     await capture()
-    await panel.getByRole('status').filter({ hasText: 'Waiting for Sim' }).waitFor()
+    await panel.getByRole('status').filter({ hasText: 'Attaching the page…' }).waitFor()
     assert((await snapshots()).length === 0, 'Capture crossed before readiness')
     await panel.evaluate(
       (sessionId) =>
@@ -512,7 +512,7 @@ try {
         await chrome.storage.session.set({ [`captureIntent:${pending.windowId}:expired`]: pending })
       }, intent)
       await expect(panel.getByRole('status')).toHaveText(
-        'The capture expired. Attach the page again.'
+        'The page attachment expired. Attach it again.'
       )
       assert((await snapshots()).length === before, 'Expired toolbar intent delivered content')
     }
@@ -691,7 +691,7 @@ try {
     }, intent)
     await panel
       .getByRole('status')
-      .filter({ hasText: /document|frame|changed|cannot/i })
+      .filter({ hasText: /document|frame|changed|cannot|unavailable/i })
       .waitFor()
     assert((await snapshots()).length === 3, 'Stale document handoff captured a new document')
   })
@@ -708,7 +708,7 @@ try {
     }, intent)
     await panel
       .getByRole('status')
-      .filter({ hasText: /changed before reading/i })
+      .filter({ hasText: /The page changed/ })
       .waitFor()
     assert((await snapshots()).length === 3, 'Stale URL handoff captured a different SPA route')
   })
@@ -729,7 +729,7 @@ try {
       document.body.dataset.ignoreCaptures = 'true'
     })
     await capture()
-    await panel.getByRole('status').filter({ hasText: 'Waiting for Sim' }).waitFor()
+    await panel.getByRole('status').filter({ hasText: 'Attaching the page…' }).waitFor()
     const queuedIntent = await pendingIntent()
     await worker.evaluate(async (intent) => {
       await chrome.storage.session.set({ [`captureIntent:${intent.windowId}:queued`]: intent })
@@ -739,14 +739,16 @@ try {
       delete document.body.dataset.ignoreCaptures
     })
     await ready()
-    await panel
-      .getByRole('status')
-      .filter({ hasText: /conversation changed|previous conversation was discarded/ })
-      .waitFor()
-    await panel
-      .getByRole('status')
-      .filter({ hasText: /previous conversation was discarded/ })
-      .waitFor()
+    await expect(panel.getByRole('status')).toHaveText('The chat changed. Attach the page again.')
+    await expect
+      .poll(() =>
+        worker.evaluate(
+          async (key) => (await chrome.storage.session.get(key))[key],
+          `captureIntent:${queuedIntent.windowId}:queued`
+        )
+      )
+      .toBeUndefined()
+    await settleMessages()
     assert((await snapshots()).length === 3, 'A capture crossed into another conversation')
     await capture()
     await app.waitForFunction(
@@ -780,7 +782,10 @@ try {
       )
     await receipt(generateId())
     await capture()
-    await panel.getByRole('status').filter({ hasText: 'previous capture' }).waitFor()
+    await panel
+      .getByRole('status')
+      .filter({ hasText: 'Wait for the page attachment, then try again.' })
+      .waitFor()
     assert((await snapshots()).length === 5, 'A stale receipt released the pending capture')
     await receipt(receiverSessionId)
     await panel.waitForFunction(() => document.querySelector('[role="status"]')?.textContent === '')

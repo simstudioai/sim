@@ -18,7 +18,7 @@ function LinkDraftSignIn() {
       <h1 className='text-lg'>Sign in to create a link</h1>
       {needsSeparateTab ? (
         <>
-          <p>Sign in in another tab, then reload this draft.</p>
+          <p>Sign in, then return here and reload the draft.</p>
           <ChipLink href='/login' target='_blank' rel='noopener noreferrer'>
             Sign in
           </ChipLink>
