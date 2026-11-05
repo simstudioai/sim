@@ -77,7 +77,7 @@ export function GetStarted() {
       animationsEnabled={animationsEnabled}
       onToggle={handleToggleExpanded}
     >
-      {steps.map(({ id, label, href, complete }, i) => {
+      {steps.map(({ id, title, href, complete }, i) => {
         return (
           <SettingsGuardedLink key={id} href={href} className={cn(ROW_CLASS, i > 0 && 'border-t')}>
             <StepMark complete={complete} />
@@ -87,7 +87,7 @@ export function GetStarted() {
                 complete ? 'text-[var(--brand-blue)]' : 'text-[var(--text-body)]'
               )}
             >
-              {label}
+              {title}
             </span>
             <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
           </SettingsGuardedLink>

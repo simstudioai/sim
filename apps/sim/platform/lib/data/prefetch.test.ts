@@ -6,7 +6,7 @@
  * for a viewer the routes would refuse, an entry the client hook would not find, and a list whose
  * cached shape differs from what the route sends.
  */
-import type { SessionPrincipal } from '@sim/auth/principal'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import type { DehydratedState } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { searchIntegrationsQueryOptions } from '@/hooks/queries/search-integrations'
@@ -46,7 +46,7 @@ import {
   prefetchSimLinks,
 } from '@/platform/lib/data/prefetch'
 
-const principal: SessionPrincipal = { kind: 'session', userId: 'viewer', sessionId: 'session' }
+const principal = createSessionPrincipal({ userId: 'viewer' })
 const surface = (memberScoped: boolean, canConnect = true) => ({
   organization: { id: 'org-1' },
   searchAccess: { memberScoped },

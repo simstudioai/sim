@@ -5,13 +5,6 @@ interface ShellItem {
   title: string
 }
 
-export interface ShellNotice extends ShellItem {
-  description?: string
-  icon: IconName
-  action?: string
-  href?: string
-}
-
 export interface ShellWorkspace {
   id: string
   name: string

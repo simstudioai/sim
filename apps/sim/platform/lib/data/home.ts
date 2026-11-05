@@ -17,10 +17,7 @@ import {
 } from '@/lib/credential-groups/member-integrations'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
-import {
-  type GetStartedStepId,
-  useGetStartedSteps,
-} from '@/app/o/[organizationId]/home/components/get-started/use-get-started-steps'
+import { useGetStartedSteps } from '@/app/o/[organizationId]/home/components/get-started/use-get-started-steps'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { useOrganizationAccessRequests } from '@/hooks/queries/access-requests'
 import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
@@ -39,7 +36,6 @@ import type {
   HomeActions,
   HomeActivityState,
   HomeCalendarDay,
-  HomeGetStartedStep,
   HomeListState,
   HomeView,
   HomeWidgetActions,
@@ -253,7 +249,7 @@ function useHomeActivity(
 function useHomeRecents(organization: OrganizationSurfaceContext, userId: string | undefined) {
   const organizationId = organization.organization.id
   const allowed = organization.searchAccess.memberScoped
-  const history = useSearchHistory(allowed ? organizationId : undefined)
+  const history = useSearchHistory(allowed ? organizationId : undefined, userId)
   const remove = useRemoveSearchHistorySource(organizationId, userId)
   const state: HomeListState<RecentItem> = !allowed
     ? { status: 'ready', items: [] }
@@ -323,26 +319,6 @@ function useHomeAttention(
   }
 }
 
-const GET_STARTED_DETAILS: Record<GetStartedStepId, string> = {
-  'connect-integration': 'Choose what Sim can search for you',
-  'connect-sim-search': 'Use your company’s knowledge from your other AI tools',
-}
-
-/** Search-only members start here, so their onboarding comes with the Assistant composer. */
-function useHomeGetStarted(
-  organization: OrganizationSurfaceContext,
-  assistant: boolean
-): HomeGetStartedStep[] {
-  const steps = useGetStartedSteps(assistant && organization.searchAccess.memberScoped)
-  return steps.map(({ id, label, href, complete }) => ({
-    id,
-    title: label,
-    detail: GET_STARTED_DETAILS[id],
-    href,
-    complete,
-  }))
-}
-
 function firstNameOf(user: { name?: string | null; email?: string | null } | null | undefined) {
   return user?.name && user.name !== user.email ? user.name.split(/\s/u)[0] : undefined
 }
@@ -399,7 +375,8 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
     connectionActions.reconnect,
     [email.state, calendar.state].flatMap((state) => ('accounts' in state ? state.accounts : []))
   )
-  const getStarted = useHomeGetStarted(organization, assistant)
+  // Search-only members start here, so their onboarding comes with the Assistant composer.
+  const getStarted = useGetStartedSteps(assistant && organization.searchAccess.memberScoped)
 
   const showDay = (day: string | null) =>
     void setSelectedDay(day === today ? null : day, { history: 'replace', scroll: false })

@@ -5,8 +5,6 @@ import { useHasSearchAuthorization } from '@/hooks/queries/oauth-provider'
 import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 
-export type GetStartedStepId = 'connect-integration' | 'connect-sim-search'
-
 /**
  * The onboarding steps this viewer has, in the order a new organization works through them, each
  * done or not from the organization's real state: a configured integration and an OAuth app
@@ -29,8 +27,9 @@ export function useGetStartedSteps(enabled = true) {
     ...(canConnectIntegrations
       ? [
           {
-            id: 'connect-integration' as const,
-            label: 'Connect an integration',
+            id: 'connect-integration',
+            title: 'Connect an integration',
+            detail: 'Choose what Sim can search for you',
             href: viewer.isAdmin ? routes.settingsSection('integrations') : routes.integrations,
             complete: hasSearchIntegrationReady(accounts, integrations),
           },
@@ -39,8 +38,9 @@ export function useGetStartedSteps(enabled = true) {
     ...(canUseSearchMcp
       ? [
           {
-            id: 'connect-sim-search' as const,
-            label: 'Connect Sim Search MCP',
+            id: 'connect-sim-search',
+            title: 'Connect Sim Search MCP',
+            detail: 'Use your company’s knowledge from your other AI tools',
             href: routes.settingsSection('search-mcp'),
             complete: hasSearchAuthorization,
           },

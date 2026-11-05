@@ -1,8 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { credentialGroup as credentialGroupTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { compareStrings } from '@sim/utils/string'
-import { eq } from 'drizzle-orm'
 import type {
   HomeWidgetAccount,
   OrganizationHomeCalendar,
@@ -17,7 +15,6 @@ import { defineOrganizationOperation } from '@/lib/core/application/organization
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { addCalendarDays, zonedWallClockToUtc } from '@/lib/core/utils/timezone'
 import { defineOrganizationAccountsUseCase } from '@/lib/credential-groups/application/organization-accounts'
-import { canReadMemberIntegrations } from '@/lib/credential-groups/member-integrations'
 import {
   type CredentialGroupProvider,
   findCredentialGroupProviderFromProviderId,
@@ -198,29 +195,18 @@ async function readViewerAccounts<T>(
   readers: Partial<Record<CredentialGroupProvider, (accessToken: string) => Promise<T[]>>>
 ): Promise<WidgetReadResult<T>> {
   const { organizationId, userId } = context
-  const { providers: allowed, config } = await loadAssistantIntegrationTools({
-    organizationId,
-    userId,
-  })
-  /**
-   * The rule behind the member Integrations page, from what this request has already established:
-   * the use case checked membership and connected accounts before it ran this.
-   */
-  if (
-    !canReadMemberIntegrations({
-      searchAccess: { memberScoped: await isKnowledgeMemberAccessAvailable({ organizationId }) },
-      viewer: { canConnectSearchIntegrations: canConnectSearchIntegrations(config) },
-      connectedAccountsAvailable: true,
-    })
-  )
+  const [{ providers: allowed, config }, memberScoped] = await Promise.all([
+    loadAssistantIntegrationTools({ organizationId, userId }),
+    isKnowledgeMemberAccessAvailable({ organizationId }),
+  ])
+  // The member Integrations page's rule, less what the use case established before running this.
+  if (!memberScoped || !canConnectSearchIntegrations(config))
     throw new OrchestrationError('forbidden', 'Integrations are not available to you here')
-  const candidates = (
-    await listViewerOrganizationAccounts({
-      organizationId,
-      userId,
-      matching: eq(credentialGroupTable.organizationId, organizationId),
-    })
-  )
+  const [accounts, owned] = await Promise.all([
+    listViewerOrganizationAccounts({ organizationId, userId }),
+    getOwnOrganizationManagedOAuthCredentials({ organizationId, userId }),
+  ])
+  const candidates = accounts
     .flatMap((account) => {
       const provider = findCredentialGroupProviderFromProviderId(account.providerId)
       const read = provider && readers[provider]
@@ -228,7 +214,6 @@ async function readViewerAccounts<T>(
     })
     .sort((left, right) => compareStrings(left.credentialId, right.credentialId))
   if (candidates.length === 0) return { accounts: [], rows: [] }
-  const owned = await getOwnOrganizationManagedOAuthCredentials({ organizationId, userId })
   const ownedIds = new Set(owned.map((credential) => credential.id))
   const readable = new Map(
     await Promise.all(

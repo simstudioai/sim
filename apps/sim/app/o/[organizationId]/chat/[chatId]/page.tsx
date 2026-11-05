@@ -7,7 +7,10 @@ import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/pa
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import OrganizationChatLoading from '@/app/o/[organizationId]/chat/[chatId]/loading'
 import { OrganizationConversation } from '@/app/o/[organizationId]/components/organization-conversation'
-import { getOrganizationBuildRedirect } from '@/app/o/[organizationId]/home/home-redirect'
+import {
+  canUseOrganizationChat,
+  getOrganizationBuildRedirect,
+} from '@/app/o/[organizationId]/home/home-redirect'
 
 export const metadata: Metadata = { title: 'Chat' }
 
@@ -21,7 +24,7 @@ export default async function OrganizationChatPage({
   if (!session?.user?.id) notFound()
   const context = await getOrganizationSurfaceContext(organizationId, session.user.id)
   if (!context) notFound()
-  if (!context.mothershipAvailable || (!context.canBuild && !context.searchAccess.memberScoped)) {
+  if (!canUseOrganizationChat(context)) {
     const unavailableRedirect = getOrganizationBuildRedirect(context, organizationId)
     if (unavailableRedirect) redirect(unavailableRedirect)
   }

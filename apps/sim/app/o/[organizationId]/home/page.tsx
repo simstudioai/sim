@@ -1,13 +1,9 @@
 import { Suspense } from 'react'
-import type { SessionPrincipal } from '@sim/auth/principal'
-import { HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import {
-  getOrganizationSurfaceContext,
-  type OrganizationSurfaceContext,
-} from '@/lib/organizations/surface'
+import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { Hydrated } from '@/app/o/[organizationId]/_redesign/hydrated'
 import { getOrganizationHomeRedirect } from '@/app/o/[organizationId]/home/home-redirect'
 import { HomeConversation } from '@/platform/app/(shell)/home/_components/home-conversation/home-conversation'
 import { HomeDashboardSkeleton } from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton'
@@ -15,21 +11,6 @@ import { prefetchHome } from '@/platform/lib/data/prefetch'
 
 export const metadata: Metadata = {
   title: 'Home',
-}
-
-interface PrefetchedHomeProps {
-  surface: OrganizationSurfaceContext
-  principal: SessionPrincipal
-  requestMode: 'agent' | 'assistant'
-}
-
-/** Holds only its own boundary, so the page's arrangement paints before these reads settle. */
-async function PrefetchedHome({ surface, principal, requestMode }: PrefetchedHomeProps) {
-  return (
-    <HydrationBoundary state={await prefetchHome(surface, principal)}>
-      <HomeConversation requestMode={requestMode} />
-    </HydrationBoundary>
-  )
 }
 
 export default async function OrganizationHomePage({
@@ -48,11 +29,15 @@ export default async function OrganizationHomePage({
   const requestMode = context.canBuild ? 'agent' : 'assistant'
   return (
     <Suspense fallback={<HomeDashboardSkeleton requestMode={requestMode} />}>
-      <PrefetchedHome
-        surface={context}
-        principal={{ kind: 'session', userId: session.user.id, sessionId: session.session.id }}
-        requestMode={requestMode}
-      />
+      <Hydrated
+        state={prefetchHome(context, {
+          kind: 'session',
+          userId: session.user.id,
+          sessionId: session.session.id,
+        })}
+      >
+        <HomeConversation requestMode={requestMode} />
+      </Hydrated>
     </Suspense>
   )
 }

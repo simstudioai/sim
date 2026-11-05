@@ -8,10 +8,7 @@ import {
   InteractionCardActionRow,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/interaction-card'
 import { BrandIcon } from '@/blocks/brand-icon'
-import {
-  searchConnectionControl,
-  useSearchIntegrationConnection,
-} from '@/hooks/use-search-integration-connection'
+import { useSearchIntegrationConnection } from '@/hooks/use-search-integration-connection'
 
 export interface SearchIntegrationConnectionProps {
   organizationId: string
@@ -49,8 +46,7 @@ function SearchIntegrationConnectionControl({
     controlId,
     onConnected,
   })
-  const { icon, label, disabled } = searchConnectionControl(target, connection)
-  const connected = connection.connected
+  const { icon, label, disabled, connected } = connection
   const handleConnect = () => void connection.connect()
   const content = (
     <>

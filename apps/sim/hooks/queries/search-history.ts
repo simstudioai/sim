@@ -8,21 +8,17 @@ import {
   removeSearchHistorySourceContract,
   type SearchHistoryResponse,
 } from '@/lib/api/contracts/knowledge/search-history'
-import { useSession } from '@/lib/auth/client'
 import {
   SEARCH_HISTORY_STALE_TIME,
   searchHistoryKeys,
 } from '@/hooks/queries/utils/search-history-keys'
 
-/** `userId` spares a caller that already knows the viewer the wait for the session to load. */
-export function useSearchHistory(organizationId: string | undefined, userId?: string) {
-  const { data: session } = useSession()
-  const viewerId = userId ?? session?.user?.id
+export function useSearchHistory(organizationId: string | undefined, userId: string | undefined) {
   return useQuery({
-    queryKey: searchHistoryKeys.list(organizationId, viewerId),
+    queryKey: searchHistoryKeys.list(organizationId, userId),
     queryFn: ({ signal }) =>
       requestJson(listSearchHistoryContract, { params: { id: organizationId! }, signal }),
-    enabled: Boolean(organizationId && viewerId),
+    enabled: Boolean(organizationId && userId),
     staleTime: SEARCH_HISTORY_STALE_TIME,
   })
 }

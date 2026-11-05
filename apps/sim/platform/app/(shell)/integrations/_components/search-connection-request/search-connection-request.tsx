@@ -1,10 +1,7 @@
 'use client'
 
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
-import {
-  searchConnectionControl,
-  useSearchIntegrationConnection,
-} from '@/hooks/use-search-integration-connection'
+import { useSearchIntegrationConnection } from '@/hooks/use-search-integration-connection'
 import { Button, FailureNotice } from '@/platform/design-system/components'
 import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
 
@@ -26,7 +23,7 @@ export function SearchConnectionRequest({
     target,
     controlId: 'integrations-link',
   })
-  const { action, label, disabled } = searchConnectionControl(target, connection)
+  const { action, label, disabled } = connection
   return (
     <>
       <ConnectionPrompt

@@ -222,7 +222,25 @@ export function useSearchIntegrationConnection({
         error: 'Connection canceled. You can try again.',
       })
   }, [attempt, key])
+  const connector = SEARCH_CONNECTORS.find((entry) => entry.type === target.connectorType)
+  const service = isCredentialGroupProvider(target.provider)
+    ? getCredentialGroupProviderService(target.provider)
+    : undefined
+  const name = connector?.meta.name ?? service?.name ?? target.provider
+  const action = target.credentialId ? 'Reconnect' : 'Connect'
   return {
+    action,
+    icon: connector?.serviceIcon ?? service?.icon,
+    label: connected
+      ? `Connected ${name}`
+      : query.isPending
+        ? `Checking ${name} connections`
+        : pending
+          ? `Waiting for ${name} connection`
+          : !available
+            ? `${name} connection is no longer available`
+            : `${action} ${name}`,
+    disabled: query.isPending || isPending || connected || (!available && !pending),
     connect,
     cancel,
     inventoryError: query.error?.message,
@@ -233,36 +251,5 @@ export function useSearchIntegrationConnection({
     isLoading: query.isPending,
     error: localError ?? query.error?.message ?? attempt?.error,
     retry: query.refetch,
-  }
-}
-
-/** What a connection control names, says, and whether it can act, whichever surface draws it. */
-export function searchConnectionControl(
-  target: SearchConnectionTarget,
-  connection: ReturnType<typeof useSearchIntegrationConnection>
-) {
-  const connector = SEARCH_CONNECTORS.find((entry) => entry.type === target.connectorType)
-  const service = isCredentialGroupProvider(target.provider)
-    ? getCredentialGroupProviderService(target.provider)
-    : undefined
-  const name = connector?.meta.name ?? service?.name ?? target.provider
-  const action = target.credentialId ? 'Reconnect' : 'Connect'
-  return {
-    action,
-    icon: connector?.serviceIcon ?? service?.icon,
-    label: connection.connected
-      ? `Connected ${name}`
-      : connection.isLoading
-        ? `Checking ${name} connections`
-        : connection.pending
-          ? `Waiting for ${name} connection`
-          : !connection.available
-            ? `${name} connection is no longer available`
-            : `${action} ${name}`,
-    disabled:
-      connection.isLoading ||
-      connection.isStarting ||
-      connection.connected ||
-      (!connection.available && !connection.pending),
   }
 }

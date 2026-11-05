@@ -1,6 +1,5 @@
 import 'server-only'
 import type { SessionPrincipal } from '@sim/auth/principal'
-import { sleep } from '@sim/utils/helpers'
 import { type DehydratedState, dehydrate } from '@tanstack/react-query'
 import { listSearchHistoryContract } from '@/lib/api/contracts/knowledge/search-history'
 import { listSearchIntegrationsContract } from '@/lib/api/contracts/knowledge/search-integrations'
@@ -8,6 +7,7 @@ import { getOrganizationAccountsContract } from '@/lib/api/contracts/organizatio
 import { getSecretSourceContract } from '@/lib/api/contracts/organization-secrets'
 import { listSimLinksContract } from '@/lib/api/contracts/sim-links'
 import { presentSimLinkPage } from '@/lib/api/server/sim-link-presenters'
+import { withinDeadline } from '@/lib/core/utils/deadline'
 import { getOrganizationAccountsSettings } from '@/lib/credential-groups/application/organization-accounts'
 import { canReadMemberIntegrations } from '@/lib/credential-groups/member-integrations'
 import { listSearchHistory } from '@/lib/knowledge/application/search-history'
@@ -38,17 +38,18 @@ import { SIM_LINKS_STALE_TIME, simLinkKeys } from '@/hooks/queries/utils/sim-lin
 /** A slow read gives up its first-paint seat rather than hold the document; the client fetches it. */
 const PREFETCH_TIMEOUT_MS = 2_000
 
-function withinBudget<T>(read: Promise<T>): Promise<T> {
-  return Promise.race([
-    read,
-    sleep(PREFETCH_TIMEOUT_MS).then(() => {
-      throw new Error('Prefetch exceeded its budget')
-    }),
-  ])
+function withinBudget<T>(read: () => Promise<T>) {
+  return () => withinDeadline(read, Date.now() + PREFETCH_TIMEOUT_MS)
 }
 
 type PrefetchSurface = Parameters<typeof canReadMemberIntegrations>[0] & {
   organization: { id: string }
+}
+
+interface SimLinksListView {
+  search: string
+  sort: SimLinkSort
+  dir: SortDirection
 }
 
 /**
@@ -60,34 +61,37 @@ function createSeeds(organizationId: string, principal: SessionPrincipal) {
   const queryClient = makeQueryClient()
   const input = { organizationId }
   const seed = <T>(queryKey: readonly unknown[], staleTime: number, read: () => Promise<T>) =>
-    queryClient.prefetchQuery({ queryKey, staleTime, queryFn: read })
+    queryClient.prefetchQuery({ queryKey, staleTime, queryFn: withinBudget(read) })
   return {
-    memberInventory: () => [
-      seed(
-        organizationAccountsKeys.detail(organizationId),
-        ORGANIZATION_ACCOUNTS_STALE_TIME,
-        async () =>
-          getOrganizationAccountsContract.response.schema.parse(
-            await withinBudget(getOrganizationAccountsSettings.execute({ principal, input }))
-          )
-      ),
-      seed(
-        searchIntegrationKeys.list(organizationId),
-        SEARCH_INTEGRATIONS_STALE_TIME,
-        async () =>
-          listSearchIntegrationsContract.response.schema.parse({
-            success: true,
-            data: await withinBudget(listSearchIntegrations.execute({ principal, input })),
-          }).data
-      ),
-    ],
+    memberInventory: (surface: PrefetchSurface) =>
+      canReadMemberIntegrations(surface)
+        ? [
+            seed(
+              organizationAccountsKeys.detail(organizationId),
+              ORGANIZATION_ACCOUNTS_STALE_TIME,
+              async () =>
+                getOrganizationAccountsContract.response.schema.parse(
+                  await getOrganizationAccountsSettings.execute({ principal, input })
+                )
+            ),
+            seed(
+              searchIntegrationKeys.list(organizationId),
+              SEARCH_INTEGRATIONS_STALE_TIME,
+              async () =>
+                listSearchIntegrationsContract.response.schema.parse({
+                  success: true,
+                  data: await listSearchIntegrations.execute({ principal, input }),
+                }).data
+            ),
+          ]
+        : [],
     searchHistory: () =>
       seed(
         searchHistoryKeys.list(organizationId, principal.userId),
         SEARCH_HISTORY_STALE_TIME,
         async () =>
           listSearchHistoryContract.response.schema.parse(
-            await withinBudget(listSearchHistory.execute({ principal, input }))
+            await listSearchHistory.execute({ principal, input })
           )
       ),
     secretSource: () =>
@@ -96,26 +100,27 @@ function createSeeds(organizationId: string, principal: SessionPrincipal) {
         ORGANIZATION_SECRET_STALE_TIME,
         async () =>
           getSecretSourceContract.response.schema.parse(
-            await withinBudget(readOrganizationSecretSource.execute({ principal, input }))
+            await readOrganizationSecretSource.execute({ principal, input })
           )
       ),
-    simLinks: ({ search, sort, dir }: SimLinksListView) =>
-      queryClient.prefetchInfiniteQuery({
-        queryKey: simLinkKeys.list(organizationId, search.trim(), sort, dir),
+    simLinks: ({ search, sort, dir }: SimLinksListView) => {
+      const term = search.trim()
+      return queryClient.prefetchInfiniteQuery({
+        queryKey: simLinkKeys.list(organizationId, term, sort, dir),
         staleTime: SIM_LINKS_STALE_TIME,
         initialPageParam: undefined as string | undefined,
-        queryFn: async () =>
+        queryFn: withinBudget(async () =>
           listSimLinksContract.response.schema.parse(
             presentSimLinkPage(
-              await withinBudget(
-                listSimLinks.execute({
-                  principal,
-                  input: { organizationId, search: search.trim() || undefined, sort, dir },
-                })
-              )
+              await listSimLinks.execute({
+                principal,
+                input: { organizationId, search: term || undefined, sort, dir },
+              })
             )
-          ),
-      }),
+          )
+        ),
+      })
+    },
     settle: async (reads: readonly Promise<void>[]): Promise<DehydratedState> => {
       await Promise.all(reads)
       return dehydrate(queryClient)
@@ -133,7 +138,7 @@ export function prefetchHome(
 ): Promise<DehydratedState> {
   const seeds = createSeeds(surface.organization.id, principal)
   return seeds.settle([
-    ...(canReadMemberIntegrations(surface) ? seeds.memberInventory() : []),
+    ...seeds.memberInventory(surface),
     ...(surface.searchAccess.memberScoped ? [seeds.searchHistory()] : []),
   ])
 }
@@ -153,16 +158,7 @@ export function prefetchIntegrations(
   principal: SessionPrincipal
 ): Promise<DehydratedState> {
   const seeds = createSeeds(surface.organization.id, principal)
-  return seeds.settle([
-    ...(canReadMemberIntegrations(surface) ? seeds.memberInventory() : []),
-    seeds.secretSource(),
-  ])
-}
-
-export interface SimLinksListView {
-  search: string
-  sort: SimLinkSort
-  dir: SortDirection
+  return seeds.settle([...seeds.memberInventory(surface), seeds.secretSource()])
 }
 
 /** The first page of the list the URL asks for. Later pages load as the table scrolls. */

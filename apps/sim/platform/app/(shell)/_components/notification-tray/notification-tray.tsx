@@ -1,12 +1,13 @@
 import { toast } from '@sim/emcn'
-import type { ShellNotice } from '@/platform/app/(shell)/_components/model'
 
-type Notice = Omit<ShellNotice, 'href' | 'icon'> & {
-  /** The tray's glyph, which the toast stack draws from `variant` instead. */
-  icon?: ShellNotice['icon']
+interface Notice {
+  id: string
+  title: string
+  description?: string
+  action?: string
+  onAction?: () => void
   /** How the toast reads. Unset is a plain status, such as an undo offer. */
   variant?: 'success' | 'error'
-  onAction?: () => void
 }
 
 /** The notices a toast is showing, so re-raising or dismissing a notice id reaches its toast. */
