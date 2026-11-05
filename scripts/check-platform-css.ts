@@ -33,12 +33,12 @@ const SCOPED = /^(?::where\(html\.dark\) )?(?:\[data-platform-ui\]|:where\(\[dat
 const GLOBAL_TARGET = /(?:^|[\s>+~(,])(?::root|:host|html|body)(?![\w-])/
 const ENTRY_AT_RULES = new Set(['media', 'container', 'supports', 'font-face'])
 const MODULE_AT_RULES = new Set(['media', 'container', 'supports', 'keyframes'])
-const KEYFRAMES = /keyframes$/
 const ORGANIZATION_ROUTES = path.join('app', 'o', '[organizationId]') + path.sep
 const NEXT_ENTRY =
   /^(?:page|layout|template|loading|error|global-error|not-found|default|route)\.[jt]sx?$/
 const ROOT_ENTRIES = ['proxy.ts', 'instrumentation.ts', 'instrumentation-node.ts', 'bootstrap.ts']
-const SOURCE = /\.(?:[jt]sx?|css)$/
+const CODE_FILE = /\.[jt]sx?$/
+const CSS_MODULE = /\.module\.css$/
 const TEST_FILE = /\.(?:test|spec)\.[jt]sx?$|\.integration\.ts$/
 const SKIPPED_FOLDERS = new Set(['node_modules', '.next', 'dist', 'public'])
 const RESOLVE_SUFFIXES = ['', '.ts', '.tsx', '.js', '.jsx', '.cjs', '/index.ts', '/index.tsx']
@@ -46,11 +46,6 @@ const RESOLVE_SUFFIXES = ['', '.ts', '.tsx', '.js', '.jsx', '.cjs', '/index.ts',
 export interface Finding {
   rule: 'entry-escape' | 'module-escape' | 'route-reach'
   detail: string
-}
-
-function isInsideKeyframes(node: { parent?: unknown }): boolean {
-  const parent = node.parent as AtRule | undefined
-  return parent?.type === 'atrule' && KEYFRAMES.test(parent.name)
 }
 
 /** Checks compiled entry CSS. `hostGlobals` is the host stylesheet a new font face must not alter. */
@@ -93,8 +88,8 @@ export function findModuleEscapes(css: string, file: string): Finding[] {
     }
   })
   root.walkRules((rule) => {
-    if (isInsideKeyframes(rule)) return
-    if (rule.parent?.type === 'rule') return
+    const { parent } = rule
+    if (parent?.type === 'rule' || (parent as AtRule | undefined)?.name === 'keyframes') return
     for (const selector of rule.selectors) {
       if (selector.includes(':global') || !/\.-?[_a-zA-Z]/.test(selector)) {
         findings.push({ rule: 'module-escape', detail: `${file}: ${selector}` })
@@ -104,12 +99,12 @@ export function findModuleEscapes(css: string, file: string): Finding[] {
   return findings
 }
 
-function walk(directory: string, files: string[] = []): string[] {
-  for (const name of readdirSync(directory)) {
-    if (SKIPPED_FOLDERS.has(name)) continue
-    const full = path.join(directory, name)
-    if (statSync(full).isDirectory()) walk(full, files)
-    else if (SOURCE.test(name) && !TEST_FILE.test(name)) files.push(full)
+function walk(directory: string, pattern: RegExp, files: string[] = []): string[] {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if (SKIPPED_FOLDERS.has(entry.name)) continue
+    const full = path.join(directory, entry.name)
+    if (entry.isDirectory()) walk(full, pattern, files)
+    else if (pattern.test(entry.name) && !TEST_FILE.test(entry.name)) files.push(full)
   }
   return files
 }
@@ -123,35 +118,33 @@ function resolveSpecifier(specifier: string, from: string): string | null {
   if (!base) return null
   for (const suffix of RESOLVE_SUFFIXES) {
     const candidate = `${base}${suffix}`
-    try {
-      if (statSync(candidate).isFile()) return candidate
-    } catch {}
+    if (statSync(candidate, { throwIfNoEntry: false })?.isFile()) return candidate
   }
   return null
-}
-
-function readImports(file: string): string[] {
-  if (file.endsWith('.css')) return []
-  return new Bun.Transpiler({ loader: file.endsWith('x') ? 'tsx' : 'ts' })
-    .scan(readFileSync(file, 'utf8'))
-    .imports.flatMap(({ path: specifier }) => resolveSpecifier(specifier, file) ?? [])
 }
 
 /** Walks importers back from `platform/`, so each module is visited once however the graph cycles. */
 function findRouteReach(): Finding[] {
   const insidePlatform = (file: string) => file.startsWith(`${PLATFORM}${path.sep}`)
-  const files = walk(APP).filter((file) => !insidePlatform(file))
+  const files = walk(APP, CODE_FILE).filter((file) => !insidePlatform(file))
+  const tsTranspiler = new Bun.Transpiler({ loader: 'ts' })
+  const tsxTranspiler = new Bun.Transpiler({ loader: 'tsx' })
   const importers = new Map<string, string[]>()
   const queue: string[] = []
   /** Maps a module that reaches `platform/` to its next step on the way there. */
   const nextStep = new Map<string, string>()
   for (const file of files) {
-    for (const target of readImports(file)) {
+    const transpiler = file.endsWith('x') ? tsxTranspiler : tsTranspiler
+    for (const { path: specifier } of transpiler.scan(readFileSync(file, 'utf8')).imports) {
+      const target = resolveSpecifier(specifier, file)
+      if (!target) continue
       if (insidePlatform(target)) {
         if (!nextStep.has(file)) queue.push(file)
         nextStep.set(file, target)
+      } else if (importers.has(target)) {
+        importers.get(target)?.push(file)
       } else {
-        importers.set(target, [...(importers.get(target) ?? []), file])
+        importers.set(target, [file])
       }
     }
   }
@@ -200,7 +193,7 @@ if (import.meta.main) {
   })
   const findings = findEntryEscapes(entryCss, readFileSync(HOST_GLOBALS, 'utf8'))
 
-  const modules = walk(PLATFORM).filter((file) => file.endsWith('.module.css'))
+  const modules = walk(PLATFORM, CSS_MODULE)
   for (const file of modules) {
     findings.push(...findModuleEscapes(await compile(file), path.relative(APP, file)))
   }

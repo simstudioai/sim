@@ -13,15 +13,15 @@ const scoped = async (css: string, from = ENTRY) =>
 
 describe('findEntryEscapes', () => {
   it.each([
-    [':root { --spacing: 1px; }'],
-    ['html { color: red; }'],
-    ['[data-platform-ui] html { color: red; }'],
-    ['.flex { display: flex; }'],
-    ['[data-material="shell"] { color: red; }'],
-    ['@layer utilities { [data-platform-ui] .flex { display: flex; } }'],
-    ['@property --tw-shadow { syntax: "*"; inherits: false; }'],
-    ['@keyframes spin { to { rotate: 1turn; } }'],
-    ['@media (width > 1px) { .flex { display: flex; } }'],
+    ':root { --spacing: 1px; }',
+    'html { color: red; }',
+    '[data-platform-ui] html { color: red; }',
+    '.flex { display: flex; }',
+    '[data-material="shell"] { color: red; }',
+    '@layer utilities { [data-platform-ui] .flex { display: flex; } }',
+    '@property --tw-shadow { syntax: "*"; inherits: false; }',
+    '@keyframes spin { to { rotate: 1turn; } }',
+    '@media (width > 1px) { .flex { display: flex; } }',
   ])('flags %s', (css) => {
     expect(findEntryEscapes(css, '')).not.toEqual([])
   })
@@ -50,13 +50,13 @@ describe('findEntryEscapes', () => {
 
 describe('findModuleEscapes', () => {
   it.each([
-    ['button { color: red; }'],
-    ['[data-platform-ui] { color: red; }'],
-    [':global(.flex) { display: flex; }'],
-    ['.local, body { color: red; }'],
-    ['@layer base { .local { color: red; } }'],
-    ['@font-face { font-family: "X"; }'],
-    ['@property --x { syntax: "*"; inherits: false; }'],
+    'button { color: red; }',
+    '[data-platform-ui] { color: red; }',
+    ':global(.flex) { display: flex; }',
+    '.local, body { color: red; }',
+    '@layer base { .local { color: red; } }',
+    '@font-face { font-family: "X"; }',
+    '@property --x { syntax: "*"; inherits: false; }',
   ])('flags %s', (css) => {
     expect(findModuleEscapes(css, 'x.module.css')).not.toEqual([])
   })

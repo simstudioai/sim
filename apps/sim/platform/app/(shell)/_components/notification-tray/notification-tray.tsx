@@ -3,8 +3,6 @@ import type { ShellNotice } from '@/platform/app/(shell)/_components/model'
 
 type Notice = Omit<ShellNotice, 'href'> & { onAction?: () => void }
 
-const ERROR_ICON = 'I047'
-
 /** The notices a toast is showing, so re-raising or dismissing a notice id reaches its toast. */
 const toastIdByNotice = new Map<string, string>()
 
@@ -13,12 +11,11 @@ function dismiss(id: string) {
   if (toastId) toast.dismiss(toastId)
 }
 
-function notify({ id, title, description, icon, action, onAction }: Notice) {
+function notify({ id, title, description, action, onAction }: Notice) {
   dismiss(id)
   const toastId = toast({
     message: title,
     description,
-    variant: icon === ERROR_ICON ? 'error' : 'default',
     action: action && onAction ? { label: action, onClick: onAction } : undefined,
     onDismiss: () => {
       if (toastIdByNotice.get(id) === toastId) toastIdByNotice.delete(id)
