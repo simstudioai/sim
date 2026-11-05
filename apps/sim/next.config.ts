@@ -11,6 +11,7 @@ import {
 } from './lib/core/security/csp'
 import { LANDING_ROUTES } from './lib/landing/routes'
 import { LIBRARY_MERGED_SLUGS, LIBRARY_MOVED_BLOG_SLUGS } from './lib/library/retired-slugs'
+import { PLATFORM_BASE_PATH } from './lib/platform/routes'
 
 /**
  * `Accept` header patterns for Markdown negotiation. `text/markdown` must be one of the listed
@@ -24,6 +25,12 @@ const MARKDOWN_REQUEST = {
   has: [{ type: 'header' as const, key: 'accept', value: ACCEPTS_MARKDOWN }],
   missing: [{ type: 'header' as const, key: 'accept', value: REFUSES_MARKDOWN }],
 }
+
+/**
+ * The Platform zone, proxied under one origin so its pages share the session cookie and `/api`.
+ * Next bakes rewrites into the build, so the value must be present when the image is built.
+ */
+const PLATFORM_ORIGIN = env.SIM_PLATFORM_ORIGIN ? new URL(env.SIM_PLATFORM_ORIGIN).origin : null
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -719,6 +726,14 @@ const nextConfig: NextConfig = {
           source: '/r/:shortCode',
           destination: 'https://go.trybeluga.ai/:shortCode',
         },
+        ...(PLATFORM_ORIGIN
+          ? [
+              {
+                source: `${PLATFORM_BASE_PATH}/:path*`,
+                destination: `${PLATFORM_ORIGIN}${PLATFORM_BASE_PATH}/:path*`,
+              },
+            ]
+          : []),
       ],
       /**
        * Fallback rewrites run only after every page and dynamic route has failed to match, so

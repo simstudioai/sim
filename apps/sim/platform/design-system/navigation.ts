@@ -20,6 +20,11 @@ export function platformHref(path: string, search: SearchValues) {
   return query.size ? `${path}?${query}` : path
 }
 
+/** A file under `public/`: unlike `next/link` and the router, the browser adds no base path to it. */
+export function publicAssetPath(path: string) {
+  return `${process.env.NEXT_PUBLIC_SIM_PLATFORM_BASE_PATH ?? ''}${path}`
+}
+
 export function readScenario(value: string | string[] | null | undefined) {
   return value === 'empty' || value === 'stress' ? value : 'full'
 }

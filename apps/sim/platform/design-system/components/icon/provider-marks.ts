@@ -1,4 +1,5 @@
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
+import { publicAssetPath } from '@/platform/design-system/navigation'
 
 const SHARED_MARKS = new Map<string, IconName>([
   ['gmail', 'I005'],
@@ -51,5 +52,5 @@ export function providerMark(providerId: string): IconName | { href: string } {
   const shared = SHARED_MARKS.get(providerId)
   if (shared) return shared
   if (!ASSET_MARKS.has(providerId)) return 'I070'
-  return { href: `/provider-marks/${providerId.replaceAll('_', '-')}.svg#mark` }
+  return { href: publicAssetPath(`/provider-marks/${providerId.replaceAll('_', '-')}.svg#mark`) }
 }
