@@ -29,6 +29,10 @@ interface SearchInputBarProps {
   voiceControl?: ReactNode
   submitControl: ReactNode
   floating?: boolean
+  /** The host draws the frame: the bar adds none and always stacks its field above its controls. */
+  frameless?: boolean
+  /** Replaces the field's attachment-height class. */
+  fieldClassName?: string
 }
 
 /** Canonical Search bar shared by raw search and conversational Search. */
@@ -48,6 +52,8 @@ export function SearchInputBar({
   voiceControl,
   submitControl,
   floating = false,
+  frameless = false,
+  fieldClassName,
 }: SearchInputBarProps) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const leadingRef = useRef<HTMLDivElement>(null)
@@ -55,6 +61,7 @@ export function SearchInputBar({
   const textMeasureRef = useRef<HTMLSpanElement>(null)
   const [expanded, setExpanded] = useState(value.includes('\n'))
   const hasAttachments = Boolean(attachments)
+  const stacked = frameless || hasAttachments || expanded
 
   /** Measure against the compact width so expanding the field cannot cause a wrap/collapse loop. */
   useLayoutEffect(() => {
@@ -86,9 +93,12 @@ export function SearchInputBar({
     <div
       ref={scrollerRef}
       className={cn(
-        'relative min-h-[46px] w-full rounded-full border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
-        (hasAttachments || expanded) && 'rounded-2xl',
-        floating && 'shadow-ambient'
+        'relative w-full',
+        !frameless && [
+          'min-h-[46px] rounded-full border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
+          (hasAttachments || expanded) && 'rounded-2xl',
+          floating && 'shadow-ambient',
+        ]
       )}
     >
       {attachments}
@@ -102,15 +112,15 @@ export function SearchInputBar({
         selectionControl={selectionControl}
         voiceControl={voiceControl}
         submitControl={submitControl}
-        expanded={hasAttachments || expanded}
+        expanded={stacked}
         editor={
           <GrowingTextarea
             inputRef={inputRef}
             scrollerRef={scrollerRef}
             value={value}
             disabled={disabled}
-            compact={!hasAttachments && !expanded}
-            className={hasAttachments ? 'min-h-[56px]' : undefined}
+            compact={!stacked}
+            className={fieldClassName ?? (hasAttachments ? 'min-h-[56px]' : undefined)}
             maxHeight={200}
             onChange={(event) => onChange(event.target.value)}
             onKeyDown={(event) => {

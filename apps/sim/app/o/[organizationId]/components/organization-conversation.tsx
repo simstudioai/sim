@@ -27,7 +27,7 @@ import {
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
 import { OrganizationLanding } from '@/app/o/[organizationId]/components/organization-landing'
-import { Composer } from '@/app/o/[organizationId]/home/components/composer'
+import { Composer, type ComposerChrome } from '@/app/o/[organizationId]/home/components/composer'
 import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
@@ -104,6 +104,8 @@ interface OrganizationConversationProps {
   landing?: {
     /** Shown over the conversation once the first turn has replaced the landing. */
     chatHeader?: ReactNode
+    /** The composer's look on this landing; the conversation that follows keeps the default one. */
+    composerChrome?: ComposerChrome
     fallback: ReactNode
     render: (slot: OrganizationLandingSlot) => ReactNode
   }
@@ -479,6 +481,7 @@ function OrganizationConversationContent({
 
   const composer = (
     <Composer
+      chrome={hasChat ? undefined : landing?.composerChrome}
       requestMode={requestMode}
       submission={submission}
       compact={Boolean(panelOptions)}
