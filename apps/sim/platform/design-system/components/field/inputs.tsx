@@ -13,7 +13,13 @@ export interface ControlProps {
   describedBy?: string
 }
 
-interface InputProps extends ControlProps {
+interface TextControlProps extends ControlProps {
+  /** Controlled text. Leave it out and `defaultValue` keeps the draft in the DOM. */
+  value?: string
+  onChange?: (value: string) => void
+}
+
+interface InputProps extends TextControlProps {
   required?: boolean
   pattern?: string
   placeholder?: string
@@ -24,6 +30,8 @@ export function Input({
   label,
   name,
   defaultValue,
+  value,
+  onChange,
   disabled,
   invalid,
   describedBy,
@@ -44,6 +52,8 @@ export function Input({
         data-type='T043'
         name={name}
         defaultValue={defaultValue}
+        value={value}
+        onChange={onChange && ((event) => onChange(event.target.value))}
         placeholder={placeholder}
         disabled={disabled}
         aria-invalid={invalid || undefined}
@@ -62,6 +72,8 @@ export function TextArea({
   label,
   name,
   defaultValue,
+  value,
+  onChange,
   disabled,
   invalid,
   describedBy,
@@ -82,6 +94,8 @@ export function TextArea({
         name={name}
         data-density={density}
         defaultValue={defaultValue}
+        value={value}
+        onChange={onChange && ((event) => onChange(event.target.value))}
         placeholder={placeholder}
         disabled={disabled}
         aria-invalid={invalid || undefined}

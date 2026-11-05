@@ -111,3 +111,7 @@
   padding: 0;
   gap: 0;
 }
+
+.error {
+  color: var(--control-danger);
+}

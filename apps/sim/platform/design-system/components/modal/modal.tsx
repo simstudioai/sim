@@ -1,8 +1,10 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import { Button } from '@/platform/design-system/components/button/button'
+import styles from '@/platform/design-system/components/modal/modal.module.css'
 import { ModalBody, ModalFooter } from '@/platform/design-system/components/modal/modal-parts'
 import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
 
@@ -11,11 +13,19 @@ interface ModalStep {
   content: ReactNode
 }
 
+/**
+ * A synchronous confirm closes the dialog in the same update. A returned promise holds it open as
+ * pending, closes it on success, and on rejection keeps the draft and shows the error's message.
+ */
+type ConfirmHandler<Args extends unknown[]> =
+  | ((...args: Args) => void)
+  | ((...args: Args) => Promise<void>)
+
 interface ModalActions {
   title: string
   confirmLabel: string
   confirmDisabled?: boolean
-  onConfirm?: (values: FormData) => void
+  onConfirm?: ConfirmHandler<[values: FormData]>
 }
 type ModalTrigger =
   | { triggerLabel: string; triggerIcon?: IconName; open?: never; onOpenChange?: never }
@@ -27,7 +37,7 @@ type ModalTrigger =
     }
 
 interface MultiStepModalProps extends Omit<ModalActions, 'onConfirm'> {
-  onConfirm?: () => void
+  onConfirm?: ConfirmHandler<[]>
   triggerLabel: string
   steps: readonly [ModalStep, ...ModalStep[]]
 }
@@ -57,14 +67,41 @@ function ModalSurface({
 }: ModalSurfaceProps) {
   const [internal, setInternal] = useState(false)
   const [index, setIndex] = useState(0)
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const open = controlled ?? internal
   const step = steps[index]
   const last = index === steps.length - 1
+
+  if (!open && error) setError(null)
 
   function close() {
     setIndex(0)
     if (onOpenChange) onOpenChange(false)
     else setInternal(false)
+  }
+
+  async function confirm(values: FormData) {
+    setError(null)
+    try {
+      const result = onConfirm?.(values)
+      if (!(result instanceof Promise)) {
+        close()
+        return
+      }
+      setPending(true)
+      await result
+      close()
+    } catch (failure) {
+      setError(getErrorMessage(failure, 'Something went wrong. Please try again.'))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  /** The work is already underway and its outcome belongs here, so nothing dismisses it mid-flight. */
+  function dismiss() {
+    if (!pending) close()
   }
   return (
     <>
@@ -79,17 +116,16 @@ function ModalSurface({
         description={step.description}
         step={index}
         presentation={presentation}
-        onClose={close}
+        busy={pending}
+        onClose={dismiss}
         onSubmit={(event) => {
           event.preventDefault()
-          if (last && confirmDisabled) return
+          if (pending || (last && confirmDisabled)) return
           if (!last) {
             setIndex(index + 1)
             return
           }
-          const values = new FormData(event.currentTarget)
-          close()
-          onConfirm?.(values)
+          void confirm(new FormData(event.currentTarget))
         }}
       >
         {steps.map((entry, i) => (
@@ -97,11 +133,17 @@ function ModalSurface({
             {entry.content}
           </ModalBody>
         ))}
+        {error && (
+          <p className={styles.error} data-type='T052' role='alert'>
+            {error}
+          </p>
+        )}
         <ModalFooter
           confirmLabel={last ? confirmLabel : 'Continue'}
-          onPrevious={() => (index === 0 ? close() : setIndex(index - 1))}
+          onPrevious={() => (index === 0 ? dismiss() : setIndex(index - 1))}
           previousStep={index > 0}
-          disabled={last && confirmDisabled}
+          disabled={pending || (last && confirmDisabled)}
+          cancelDisabled={pending}
           destructive={destructive}
           progress={steps.length > 1 ? `Step ${index + 1} of ${steps.length}` : undefined}
         />

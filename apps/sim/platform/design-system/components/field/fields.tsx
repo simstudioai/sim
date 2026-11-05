@@ -51,7 +51,12 @@ export function FieldFrame({ id, label, optional, error, children }: FieldFrameP
   )
 }
 
-interface TextFieldProps extends FieldProps {
+interface TextValueProps {
+  value?: string
+  onChange?: (value: string) => void
+}
+
+interface TextFieldProps extends FieldProps, TextValueProps {
   required?: boolean
   pattern?: string
   placeholder?: string
@@ -64,6 +69,8 @@ export function TextField({
   disabled,
   name,
   defaultValue,
+  value,
+  onChange,
   placeholder,
   required,
   pattern,
@@ -78,6 +85,8 @@ export function TextField({
         label={label}
         name={name}
         defaultValue={defaultValue}
+        value={value}
+        onChange={onChange}
         placeholder={placeholder}
         disabled={disabled}
         invalid={Boolean(error)}
@@ -87,7 +96,7 @@ export function TextField({
   )
 }
 
-interface TextAreaFieldProps extends FieldProps {
+interface TextAreaFieldProps extends FieldProps, TextValueProps {
   placeholder?: string
 }
 
@@ -98,6 +107,8 @@ export function TextAreaField({
   disabled,
   name,
   defaultValue,
+  value,
+  onChange,
   placeholder,
 }: TextAreaFieldProps) {
   const id = useId()
@@ -108,6 +119,8 @@ export function TextAreaField({
         label={label}
         name={name}
         defaultValue={defaultValue}
+        value={value}
+        onChange={onChange}
         placeholder={placeholder}
         disabled={disabled}
         invalid={Boolean(error)}

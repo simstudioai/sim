@@ -10,6 +10,7 @@ interface DialogSurfaceProps {
   onClose: () => void
   description?: string
   step?: number
+  busy?: boolean
   onSubmit?: FormEventHandler<HTMLFormElement>
   children: ReactNode
 }
@@ -28,6 +29,7 @@ export function OverlayDialog({
   description,
   presentation,
   step,
+  busy,
   onSubmit,
   children,
 }: OverlayDialogProps) {
@@ -101,7 +103,12 @@ export function OverlayDialog({
     >
       {open &&
         (onSubmit ? (
-          <form ref={layout} className={styles.modalLayout} onSubmit={onSubmit}>
+          <form
+            ref={layout}
+            className={styles.modalLayout}
+            aria-busy={busy || undefined}
+            onSubmit={onSubmit}
+          >
             {content}
           </form>
         ) : (

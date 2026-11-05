@@ -54,6 +54,7 @@ interface ModalFooterProps {
   previousStep?: boolean
   destructive?: boolean
   disabled?: boolean
+  cancelDisabled?: boolean
   progress?: string
 }
 
@@ -63,6 +64,7 @@ export function ModalFooter({
   previousStep,
   destructive,
   disabled,
+  cancelDisabled,
   progress,
 }: ModalFooterProps) {
   return (
@@ -72,7 +74,7 @@ export function ModalFooter({
           {progress}
         </span>
       )}
-      <Button variant='quiet' onClick={onPrevious}>
+      <Button variant='quiet' disabled={cancelDisabled} onClick={onPrevious}>
         {previousStep ? 'Back' : 'Cancel'}
       </Button>
       <Button variant={destructive ? 'destructive' : 'primary'} submit disabled={disabled}>
