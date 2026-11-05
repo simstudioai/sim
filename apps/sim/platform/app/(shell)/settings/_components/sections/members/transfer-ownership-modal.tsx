@@ -74,7 +74,7 @@ export function TransferOwnershipModal({
               action={
                 <Button
                   size='compact'
-                  disabled={transfer.portalPending}
+                  disabled={transfer.portalDisabled}
                   onClick={transfer.openBillingPortal}
                 >
                   {transfer.portalPending ? 'Opening…' : 'Open billing portal'}

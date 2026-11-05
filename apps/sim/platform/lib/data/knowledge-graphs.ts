@@ -28,6 +28,7 @@ export function useKnowledgeGraphs(organizationId: string) {
     })),
     nameMaxLength: MEMORY_SPACE_NAME_MAX_LENGTH,
     selecting: select.isPending,
+    creating: create.isPending,
     makeActive: (spaceId: string | null) =>
       select.mutate({ spaceId }, { onError: (error) => toast.error(error.message) }),
     create: async (name: string) => {

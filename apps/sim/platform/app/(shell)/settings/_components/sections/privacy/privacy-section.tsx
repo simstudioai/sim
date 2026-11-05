@@ -16,8 +16,8 @@ const CookiePreferences = dynamic(
 
 const TELEMETRY_LABEL = 'Allow browser telemetry'
 
-export default function PrivacySection({ organization }: SettingsSectionProps) {
-  const telemetry = useTelemetrySetting()
+export default function PrivacySection({ organization, fixture }: SettingsSectionProps) {
+  const telemetry = useTelemetrySetting(fixture)
   return (
     <>
       <SavedSettingsSection title='Telemetry' rows={1}>
@@ -34,7 +34,10 @@ export default function PrivacySection({ organization }: SettingsSectionProps) {
         </SettingsRow>
       </SavedSettingsSection>
       {organization.deployment.hosted && (
-        <CookiePreferences policyHref={`${organization.legacyOrigin}/cookie-policy`} />
+        <CookiePreferences
+          fixture={fixture}
+          policyHref={`${organization.legacyOrigin}/cookie-policy`}
+        />
       )}
     </>
   )

@@ -1,3 +1,4 @@
+export type { EnterpriseAuditLogEntry } from '@/lib/api/contracts/audit-logs'
 export { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
 export {
   AUDIT_TIME_RANGE_OPTIONS,

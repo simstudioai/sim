@@ -1,17 +1,12 @@
-.actions {
-  display: flex;
-  justify-content: end;
-  gap: var(--ui-action-gap);
-}
-.fields {
-  display: grid;
-  gap: var(--spacing-16);
-  padding-block: var(--spacing-16);
-}
 .pair {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(var(--spacing-128), 100%), 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--spacing-16);
+}
+@container settings-rows (max-width: 30rem) {
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .swatch {
   display: block;

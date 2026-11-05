@@ -16,6 +16,8 @@ export const LEGACY_URL_HEADER = 'x-sim-legacy-url'
 /** Legacy settings paths that keep their name on the Platform. */
 const SETTINGS_SECTIONS: ReadonlySet<string> = new Set([
   'knowledge-graphs',
+  'mothership',
+  'search-mcp',
   'recently-deleted',
   'members',
   'billing',
@@ -37,14 +39,6 @@ const SETTINGS_ALIASES: Readonly<Record<string, string>> = {
   subscription: 'billing',
   domains: 'sso',
   sessions: 'security',
-  'authorized-apps': 'account',
-}
-
-/** Legacy General sub-views, each its own section on the Platform. */
-const GENERAL_VIEWS: Readonly<Record<string, string>> = {
-  privacy: 'privacy',
-  'authorized-apps': 'account',
-  'organization-accounts': 'account',
 }
 
 function mapSettingsRoute(rest: readonly string[], query: URLSearchParams): string | null {
@@ -53,12 +47,16 @@ function mapSettingsRoute(rest: readonly string[], query: URLSearchParams): stri
   if (section === 'usage' && detail === 'events' && rest.length === 2)
     return '/settings/usage/events'
   if (rest.length !== 1) return null
-  if (section === 'general') {
-    const view = GENERAL_VIEWS[query.get('view') ?? '']
-    query.delete('view')
-    return view ? `/settings/${view}` : '/settings'
+  if (section === 'general') return '/settings/general'
+  if (section === 'authorized-apps') {
+    query.set('view', 'authorized-apps')
+    return '/settings/general'
   }
-  const target = SETTINGS_ALIASES[section] ?? (SETTINGS_SECTIONS.has(section) ? section : null)
+  const target = Object.hasOwn(SETTINGS_ALIASES, section)
+    ? SETTINGS_ALIASES[section]
+    : SETTINGS_SECTIONS.has(section)
+      ? section
+      : null
   return target && `/settings/${target}`
 }
 
@@ -79,10 +77,9 @@ function mapRoute(rest: readonly string[], query: URLSearchParams): string | nul
 
 /**
  * The Platform URL for a legacy URL under `/o/{organizationId}`, keeping its query, or `null` for a
- * route that stays legacy: Benchmark, Skills, platform administration, and the Search and
- * credential pages the Integrations owner has not mapped. Null also covers another organization's
- * URL. The Platform must never link back to a mapped route, or the two surfaces would redirect to
- * each other.
+ * route that stays legacy: Benchmark, Skills, Admin, and the Search and credential pages with
+ * legacy management links. Null also covers another organization's URL. A fallback must lead to
+ * an unmapped route so the two surfaces cannot redirect to each other.
  */
 export function mapLegacyOrganizationUrl(url: string, organizationId: string): string | null {
   const queryStart = url.indexOf('?')

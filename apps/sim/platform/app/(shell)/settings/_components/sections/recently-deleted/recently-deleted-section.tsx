@@ -2,7 +2,13 @@
 
 import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
-import { Button, EmptyState, FailureNotice, SearchField } from '@/platform/design-system/components'
+import {
+  Button,
+  EmptyState,
+  FailureNotice,
+  Icon,
+  SearchField,
+} from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
@@ -11,16 +17,15 @@ import { useDeletedChats, useRestoreChat } from '@/platform/lib/data/recently-de
 
 const TITLE = 'Deleted chats'
 
-function DeletedChatRow({
-  organizationId,
-  chat,
-}: {
+interface DeletedChatRowProps {
   organizationId: string
   chat: ReturnType<typeof useDeletedChats>['chats'][number]
-}) {
+}
+
+function DeletedChatRow({ organizationId, chat }: DeletedChatRowProps) {
   const restore = useRestoreChat(organizationId)
   return (
-    <SettingsRow label={chat.name} description={chat.deleted}>
+    <SettingsRow label={chat.name} description={chat.deleted} leading={<Icon name='I073' />}>
       <Button size='compact' disabled={restore.pending} onClick={() => restore.run(chat.id)}>
         {restore.pending ? 'Restoring' : 'Restore'}
       </Button>

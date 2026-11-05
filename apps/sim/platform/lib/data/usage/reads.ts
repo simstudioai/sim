@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { formatDateTime, formatDuration } from '@sim/utils/formatting'
+import { useSearchParams } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
   MAX_CUSTOM_RANGE_DAYS,
@@ -55,6 +56,7 @@ import {
   useOrganizationUsageOverview,
 } from '@/hooks/queries/organization-usage'
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
+import { platformHref } from '@/platform/design-system/navigation'
 import { toast } from '@/platform/lib/data/toast'
 import { DAY_MS, formatCalendarDate } from '@/platform/lib/time'
 
@@ -87,10 +89,17 @@ export function formatDurationMs(ms: number | null): string {
 /** The window, tab and drill-down the URL holds, in the legacy page's keys. */
 export function useUsageView() {
   const view = useUsageWindow()
+  const search = useSearchParams()
   const { setState } = view
   return {
     ...view,
     periodOptions: PERIOD_OPTIONS,
+    eventsHref: usageWindowHref(platformHref('/settings/usage/events', search), view.window),
+    backHref: usageWindowHref(platformHref('/settings/usage', search), view.window),
+    auditLogsHref: (workspaceId: string) =>
+      serializeOrganizationUsageParams(platformHref('/settings/audit-logs', search), {
+        workspace: workspaceId,
+      }),
     selectTab: (tab: UsageTab) =>
       void setState({ tab, workspace: null, expanded: null, activityPage: 0 }),
     /** Whether the viewer chose a custom range, which has no dates until they pick some. */
@@ -327,17 +336,12 @@ export function useUsageEvents(organizationId: string, window: OrganizationUsage
 }
 
 /** The link to the events ledger, keeping the current window. */
-export function usageEventsHref(window: OrganizationUsageWindowKey): string {
-  return serializeOrganizationUsageParams('/settings/usage/events', {
+function usageWindowHref(path: string, window: OrganizationUsageWindowKey): string {
+  return serializeOrganizationUsageParams(path, {
     preset: window.preset,
     startDate: window.startDate ?? null,
     endDate: window.endDate ?? null,
   })
-}
-
-/** The audit log for one workspace; the same key `ee/audit-logs/search-params` parses. */
-export function workspaceAuditLogsHref(workspaceId: string): string {
-  return `/settings/audit-logs?${new URLSearchParams({ workspace: workspaceId })}`
 }
 
 /**

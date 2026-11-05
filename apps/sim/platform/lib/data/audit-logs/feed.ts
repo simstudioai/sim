@@ -6,7 +6,6 @@ import { downloadCsvExport } from '@/lib/core/utils/csv-download'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/time-range'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state/constants'
 import { useOrganizationWorkspaces } from '@/ee/access-control/hooks/permission-groups'
-import { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
 import { type AuditLogFilters, useAuditLogs } from '@/ee/audit-logs/hooks/audit-logs'
 import { auditLogExportUrl } from '@/ee/audit-logs/lib/format'
 import {
@@ -22,6 +21,7 @@ import {
 } from '@/ee/audit-logs/search-params'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
+import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
 /**
@@ -35,6 +35,7 @@ export function useAuditLogFeed(organizationId: string) {
     urlFilters,
     DEFAULT_AUDIT_TIME_RANGE
   )
+  const referenceTime = useFixtureSettingsActions()?.referenceTime
   const workspaceScope = urlFilters.workspace
   const workspaces = useOrganizationWorkspaces(organizationId, Boolean(workspaceScope))
   const scope = resolveAuditWorkspaceScope(workspaceScope, workspaces)
@@ -43,8 +44,8 @@ export function useAuditLogFeed(organizationId: string) {
 
   /** A preset's start reads the clock, so it is pinned per range or every render would be a new key. */
   const startDate = useMemo(
-    () => getStartDateFromTimeRange(timeRange, customStart)?.toISOString(),
-    [timeRange, customStart]
+    () => getStartDateFromTimeRange(timeRange, customStart, referenceTime)?.toISOString(),
+    [timeRange, customStart, referenceTime]
   )
   const filters: AuditLogFilters = {
     search: debouncedSearch || undefined,
@@ -74,6 +75,9 @@ export function useAuditLogFeed(organizationId: string) {
     isPlaceholderData: feed.isPlaceholderData,
     hasNextPage: feed.hasNextPage,
     isFetchingNextPage: feed.isFetchingNextPage,
+    nextPageError: feed.isFetchNextPageError
+      ? (feed.error?.message ?? 'Failed to load more audit logs')
+      : undefined,
     fetchNextPage: () => void feed.fetchNextPage(),
     setTypes: (types: string[]) => void setUrlFilters({ types }),
     clearWorkspaceScope: () => void setUrlFilters({ workspace: null }),
@@ -93,7 +97,7 @@ export function useAuditLogFeed(organizationId: string) {
     exportCsv: () =>
       downloadCsvExport(
         auditLogExportUrl(organizationId, filters),
-        `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`
+        `audit-logs-${new Date(referenceTime ?? Date.now()).toISOString().slice(0, 10)}.csv`
       ),
   }
 }

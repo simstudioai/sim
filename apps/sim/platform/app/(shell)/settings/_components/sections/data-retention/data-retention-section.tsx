@@ -6,12 +6,14 @@ import {
   LoadingState,
   ResourceList,
   SectionStack,
-  SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { PolicyDetail } from '@/platform/app/(shell)/settings/_components/sections/data-retention/policy-detail'
 import { ActivityRow, Button, EmptyState, FailureNotice } from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
+import {
+  SettingsRow,
+  SettingsSection,
+} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   buildRetentionUpdate,
   type DataRetentionResponse,
@@ -89,8 +91,8 @@ function RetentionForm({ initialData, organizationId, workspaceOptions }: Retent
   const freeWorkspaces = workspaceOptions.filter((option) => !taken.has(option.value))
 
   /** Excludes workspaces held by OTHER overrides. */
-  function pickerOptions(draft: PolicyDraft) {
-    const others = new Set(withOverrides.filter((id) => !draft.workspaceIds.includes(id)))
+  function pickerOptions(original: PolicyDraft) {
+    const others = new Set(withOverrides.filter((id) => !original.workspaceIds.includes(id)))
     return workspaceOptions.filter((option) => !others.has(option.value))
   }
 
@@ -130,7 +132,7 @@ function RetentionForm({ initialData, organizationId, workspaceOptions }: Retent
           changed={changed}
           isSaving={update.isPending}
           canRemove={!editing.draft.isOrgDefault && !editing.isNew}
-          workspaceOptions={pickerOptions(editing.draft)}
+          workspaceOptions={pickerOptions(editing.original)}
           onChange={(draft) => {
             if (!update.isPending) setEditing({ ...editing, draft })
           }}
@@ -148,16 +150,6 @@ function RetentionForm({ initialData, organizationId, workspaceOptions }: Retent
 
   return (
     <SectionStack>
-      <SectionToolbar>
-        <Button
-          variant='primary'
-          icon='I074'
-          disabled={freeWorkspaces.length === 0}
-          onClick={() => open(newOverrideDraft(), true)}
-        >
-          Add override
-        </Button>
-      </SectionToolbar>
       <SettingsSection title='Retention policies'>
         <ResourceList>
           <ActivityRow
@@ -175,6 +167,16 @@ function RetentionForm({ initialData, organizationId, workspaceOptions }: Retent
             />
           ))}
         </ResourceList>
+        <SettingsRow label='Workspace override'>
+          <Button
+            variant='primary'
+            icon='I074'
+            disabled={freeWorkspaces.length === 0}
+            onClick={() => open(newOverrideDraft(), true)}
+          >
+            Add override
+          </Button>
+        </SettingsRow>
       </SettingsSection>
     </SectionStack>
   )

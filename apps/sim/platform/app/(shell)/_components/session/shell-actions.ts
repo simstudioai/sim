@@ -1,5 +1,6 @@
 import type { ShellActions, ShellHelp } from '@/platform/app/(shell)/_components/model'
 import { useChatChanges } from '@/platform/app/(shell)/_components/session/chat-changes'
+import { requestSettingsLeave } from '@/platform/lib/data/settings-guard'
 
 export const SESSION_HELP: ShellHelp = {
   documentationUrl: 'https://docs.sim.ai',
@@ -21,7 +22,7 @@ export function useSessionShellActions(): ShellActions {
       },
     },
     help: SESSION_HELP,
-    requestLeave: (leave) => leave(),
-    settingsReturn: () => '/home',
+    requestLeave: requestSettingsLeave,
+    settingsLanding: '/home',
   }
 }

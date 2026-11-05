@@ -173,6 +173,6 @@ export interface ShellActions {
   help: ShellHelp
   /** Runs `leave` now, or once the viewer agrees to discard unsaved settings. */
   requestLeave: (leave: () => void) => void
-  /** Where Back to app goes, given the last page seen outside Settings. */
-  settingsReturn: (entry: string | null) => string
+  /** The accessible destination for a viewer who opened Settings directly. */
+  settingsLanding: string
 }

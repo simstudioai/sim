@@ -1,11 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import Link from 'next/link'
 import {
   type CreditsTarget,
   ManageCreditsModal,
 } from '@/platform/app/(shell)/settings/_components/section-parts/manage-credits-modal'
+import {
+  ActionRow,
+  DetailHeader,
+} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import {
   ActivityOverview,
@@ -29,11 +33,9 @@ import {
   topRows,
   USAGE_TABS,
   type UsageBreakdownDimension,
-  usageEventsHref,
   useUsageBreakdown,
   useUsageOverview,
   useUsageView,
-  workspaceAuditLogsHref,
 } from '@/platform/lib/data/usage'
 
 export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'organization'>) {
@@ -41,6 +43,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
   const { hosted, features } = organization.deployment
   const view = useUsageView()
   const { window, tab, workspace, expanded, startDate, endDate, periodLabel, setState } = view
+  const periodId = useId()
   const [choosingRange, setChoosingRange] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [creditsTarget, setCreditsTarget] = useState<CreditsTarget | null>(null)
@@ -82,21 +85,15 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
   if (isWorkspaceDetail && workspace) {
     return (
       <>
-        <div className={styles.toolbar}>
-          <Button
-            variant='quiet'
-            icon='I093'
-            onClick={() => void setState({ workspace: null, expanded: null })}
-          >
-            Workspaces
-          </Button>
-          <div className={styles.actions}>
-            <span data-type='T067'>{workspaceName ?? 'Workspace usage'}</span>
-            {(hosted || features.auditLogs) && (
-              <Button render={<Link href={workspaceAuditLogsHref(workspace)} />}>Open logs</Button>
-            )}
-          </div>
-        </div>
+        <DetailHeader
+          backLabel='Workspaces'
+          title={workspaceName ?? 'Workspace usage'}
+          onBack={() => void setState({ workspace: null, expanded: null })}
+        >
+          {(hosted || features.auditLogs) && (
+            <Button render={<Link href={view.auditLogsHref(workspace)} />}>Open logs</Button>
+          )}
+        </DetailHeader>
         <UsageCredits label={periodLabel} overview={workspaceOverview} />
         <UsageCalendar
           organizationId={organizationId}
@@ -116,21 +113,6 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
 
   return (
     <>
-      <div className={styles.actions}>
-        <Button render={<Link href={usageEventsHref(window)} />} variant='quiet'>
-          All events
-        </Button>
-        <Button
-          disabled={exporting}
-          onClick={async () => {
-            setExporting(true)
-            await exportUsageCsv(organizationId, window)
-            setExporting(false)
-          }}
-        >
-          Export
-        </Button>
-      </div>
       <div className={styles.toolbar}>
         <ScrollArea label='Insights views' axis='horizontal'>
           <SegmentedControl
@@ -142,19 +124,23 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
         </ScrollArea>
         <div className={styles.actions}>
           <RangePicker
+            id={periodId}
             label='Period'
             options={view.periodOptions}
-            value={view.currentPeriod}
+            value={choosingRange ? 'Custom range' : view.currentPeriod}
             onValueChange={(label) => setChoosingRange(view.selectPeriod(label))}
           />
           {(choosingRange || view.preset === 'custom') && (
             <DateRangePicker
               label='Custom range'
               labelHidden
-              value={startDate && endDate ? { start: startDate, end: endDate } : null}
-              onValueChange={(range) => {
-                if (range && view.applyRange(range.start, range.end)) setChoosingRange(false)
+              open={choosingRange}
+              onOpenChange={(open) => {
+                setChoosingRange(open)
+                if (!open && view.preset !== 'custom') document.getElementById(periodId)?.focus()
               }}
+              value={startDate && endDate ? { start: startDate, end: endDate } : null}
+              onValueChange={(range) => range !== null && view.applyRange(range.start, range.end)}
             />
           )}
         </div>
@@ -207,6 +193,21 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
           }
         />
       )}
+      <ActionRow>
+        <Button render={<Link href={view.eventsHref} />} variant='quiet'>
+          All events
+        </Button>
+        <Button
+          disabled={exporting}
+          onClick={async () => {
+            setExporting(true)
+            await exportUsageCsv(organizationId, window)
+            setExporting(false)
+          }}
+        >
+          Export
+        </Button>
+      </ActionRow>
       {canManageCredits && creditsTarget && (
         <ManageCreditsModal
           key={creditsTarget.userId}

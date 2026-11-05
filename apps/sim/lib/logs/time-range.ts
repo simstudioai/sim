@@ -8,7 +8,11 @@ import type { TimeRange } from '@/stores/logs/filters/types'
  * @param startDate - Optional start date (YYYY-MM-DD) for custom range
  * @returns Date object for the start of the range, or null for 'All time'
  */
-export function getStartDateFromTimeRange(timeRange: TimeRange, startDate?: string): Date | null {
+export function getStartDateFromTimeRange(
+  timeRange: TimeRange,
+  startDate?: string,
+  referenceTime = Date.now()
+): Date | null {
   if (timeRange === 'All time') return null
 
   if (timeRange === 'Custom range') {
@@ -20,7 +24,7 @@ export function getStartDateFromTimeRange(timeRange: TimeRange, startDate?: stri
     return null
   }
 
-  const now = new Date()
+  const now = new Date(referenceTime)
 
   switch (timeRange) {
     case 'Past 30 minutes':

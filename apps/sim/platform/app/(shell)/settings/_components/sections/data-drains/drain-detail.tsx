@@ -115,35 +115,7 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
         onBack={onBack}
         title={drain.name}
         description={`${SOURCE_LABELS[drain.source]} → ${DESTINATION_LABELS[drain.destinationType]} · ${CADENCE_LABELS[drain.scheduleCadence]}`}
-      >
-        <Button
-          disabled={!drain.enabled || runDrain.isPending}
-          onClick={() =>
-            void report(runDrain.mutateAsync({ organizationId, drainId: drain.id }), 'Run queued')
-          }
-        >
-          Run now
-        </Button>
-        <Button
-          disabled={testDrain.isPending}
-          onClick={() =>
-            void report(
-              testDrain.mutateAsync({ organizationId, drainId: drain.id }),
-              'Connection test passed'
-            )
-          }
-        >
-          Test connection
-        </Button>
-        <Button
-          variant='destructive'
-          disabled={deleteDrain.isPending}
-          onClick={() => setConfirmingDelete(true)}
-        >
-          Delete
-        </Button>
-      </DetailHeader>
-      {!drain.enabled && <Muted>Enable the drain to run it.</Muted>}
+      />
       <SettingsSection title='Status'>
         <SettingsRow
           label='Enabled'
@@ -220,8 +192,34 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
             ]}
           />
         </FieldStack>
+        <SettingsRow label='Connection'>
+          <Button
+            disabled={testDrain.isPending}
+            onClick={() =>
+              void report(
+                testDrain.mutateAsync({ organizationId, drainId: drain.id }),
+                'Connection test passed'
+              )
+            }
+          >
+            Test connection
+          </Button>
+        </SettingsRow>
       </SettingsSection>
       <SettingsSection title='Recent runs'>
+        <SettingsRow
+          label='Manual export'
+          description={drain.enabled ? undefined : 'Enable the drain to run it.'}
+        >
+          <Button
+            disabled={!drain.enabled || runDrain.isPending}
+            onClick={() =>
+              void report(runDrain.mutateAsync({ organizationId, drainId: drain.id }), 'Run queued')
+            }
+          >
+            Run now
+          </Button>
+        </SettingsRow>
         {runsLoading ? (
           <FieldStack>
             <LoadingState label='Loading runs…' />
@@ -241,6 +239,17 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
             <Muted>No runs yet</Muted>
           </FieldStack>
         )}
+      </SettingsSection>
+      <SettingsSection title='Manage drain'>
+        <SettingsRow label='Delete drain'>
+          <Button
+            variant='destructive'
+            disabled={deleteDrain.isPending}
+            onClick={() => setConfirmingDelete(true)}
+          >
+            Delete
+          </Button>
+        </SettingsRow>
       </SettingsSection>
       <Modal
         variant='confirm'

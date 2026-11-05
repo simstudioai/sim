@@ -3,11 +3,11 @@
 import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import {
   LoadingState,
   ResourceList,
   SectionStack,
-  SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { GroupDetail } from '@/platform/app/(shell)/settings/_components/sections/access-control/group-detail'
@@ -22,7 +22,11 @@ import {
   SearchField,
   TextField,
 } from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
+import {
+  SettingsRow,
+  SettingsSection,
+} from '@/platform/design-system/components/settings-section/settings-section'
+import { platformHref } from '@/platform/design-system/navigation'
 import {
   type PermissionGroup,
   useAccessControlParams,
@@ -131,6 +135,7 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
   const groups = usePermissionGroups(organizationId)
   const workspaces = useOrganizationWorkspaces(organizationId)
   const params = useAccessControlParams()
+  const searchParams = useSearchParams()
   const [creating, setCreating] = useState(false)
   const permissionGroups = groups.data ?? []
   const organizationWorkspaces = workspaces.data ?? []
@@ -194,29 +199,18 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
     <SectionStack>
       {refreshError}
       {workspacesError}
-      <SectionToolbar
-        grow={
-          <SearchField
-            label='Search permission groups'
-            placeholder='Search permission groups...'
-            value={params.search}
-            onValueChange={params.setSearch}
-          />
-        }
-      >
-        <Button variant='quiet' render={<Link href='/settings/requests' />}>
-          Review requests
-        </Button>
-        <Button variant='primary' icon='I074' onClick={() => setCreating(true)}>
-          Create group
-        </Button>
-      </SectionToolbar>
+      <SearchField
+        label='Search permission groups'
+        placeholder='Search permission groups…'
+        value={params.search}
+        onValueChange={params.setSearch}
+      />
       {permissionGroups.length === 0 ? (
         <EmptyState title='No permission groups yet' description='Create a group to get started.' />
       ) : filtered.length === 0 ? (
         <EmptyState title={`No groups found matching "${params.search}"`} />
       ) : (
-        <SettingsSection title={`Permission groups (${permissionGroups.length})`}>
+        <SettingsSection title={`Permission groups ${permissionGroups.length}`}>
           <ResourceList>
             {filtered.map((group) => (
               <ActivityRow
@@ -230,6 +224,21 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
           </ResourceList>
         </SettingsSection>
       )}
+      <SettingsSection title='Manage'>
+        <SettingsRow label='New permission group'>
+          <Button size='compact' icon='I074' onClick={() => setCreating(true)}>
+            Create group
+          </Button>
+        </SettingsRow>
+        <SettingsRow label='Access requests'>
+          <Button
+            size='compact'
+            render={<Link href={platformHref('/settings/requests', searchParams)} />}
+          >
+            Review requests
+          </Button>
+        </SettingsRow>
+      </SettingsSection>
       <CreateGroupModal
         organizationId={organizationId}
         open={creating}

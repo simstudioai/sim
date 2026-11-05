@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import {
   ActionRow,
   LoadingState,
@@ -24,6 +24,10 @@ import {
   StatusTag,
 } from '@/platform/design-system/components'
 import { LoadMoreFooter } from '@/platform/design-system/components/scroll-area/load-more-footer'
+import {
+  SettingsRow,
+  SettingsSection,
+} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   AUDIT_TIME_RANGE_OPTIONS,
   canExportAuditLogs,
@@ -121,6 +125,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
   const [choosingCustomRange, setChoosingCustomRange] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const timeRangeId = useId()
   const { scope } = feed
 
   async function refresh() {
@@ -163,108 +168,133 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
             onValueChange={feed.setSearch}
           />
         }
-      >
-        <Button variant='quiet' disabled={refreshing} onClick={() => void refresh()}>
-          {refreshing ? 'Refreshing…' : 'Refresh'}
-        </Button>
-        <Button
-          disabled={
-            !canExportAuditLogs({
-              isScopeAnswerable: scope.isAnswerable,
-              entryCount: feed.entries.length,
-              isExporting: exporting,
-              isPlaceholderData: feed.isPlaceholderData,
-            })
-          }
-          onClick={() => void exportCsv()}
-        >
-          {exporting ? 'Exporting…' : 'Export'}
-        </Button>
-      </SectionToolbar>
-      <SectionToolbar>
-        <MultiSelect
-          label='Type'
-          labelHidden
-          options={RESOURCE_TYPE_OPTIONS}
-          value={feed.types}
-          onValueChange={feed.setTypes}
-          placeholder='All types'
-          searchLabel='Search types'
-        />
-        <Select
-          label='Time range'
-          options={AUDIT_TIME_RANGE_OPTIONS}
-          value={choosingCustomRange ? 'Custom range' : feed.timeRange}
-          onValueChange={(value) => {
-            if (value === 'Custom range') {
-              setChoosingCustomRange(true)
-              return
-            }
-            setChoosingCustomRange(false)
-            feed.selectPreset(value as Parameters<typeof feed.selectPreset>[0])
-          }}
-        />
-        {showCustomRange && (
-          <DateRangePicker
-            label='Custom time range'
+      />
+      <SettingsSection title='Filters'>
+        <SettingsRow label='Resource type' field>
+          <MultiSelect
+            label='Type'
             labelHidden
-            withTime
-            value={feed.customRange}
-            onValueChange={(range) => {
-              if (!range) return
+            options={RESOURCE_TYPE_OPTIONS}
+            value={feed.types}
+            onValueChange={feed.setTypes}
+            placeholder='All types'
+            searchLabel='Search types'
+          />
+        </SettingsRow>
+        <SettingsRow label='Time range' field>
+          <Select
+            id={timeRangeId}
+            label='Time range'
+            options={AUDIT_TIME_RANGE_OPTIONS}
+            value={choosingCustomRange ? 'Custom range' : feed.timeRange}
+            onValueChange={(value) => {
+              if (value === 'Custom range') {
+                setChoosingCustomRange(true)
+                return
+              }
               setChoosingCustomRange(false)
-              feed.applyCustomRange(range.start, range.end)
+              feed.selectPreset(value as Parameters<typeof feed.selectPreset>[0])
             }}
           />
+        </SettingsRow>
+        {showCustomRange && (
+          <SettingsRow label='Custom time range' field>
+            <DateRangePicker
+              label='Custom time range'
+              labelHidden
+              open={choosingCustomRange}
+              onOpenChange={(open) => {
+                setChoosingCustomRange(open)
+                if (!open && !feed.customRange) document.getElementById(timeRangeId)?.focus()
+              }}
+              withTime
+              value={feed.customRange}
+              onValueChange={(range) => {
+                if (!range) return
+                feed.applyCustomRange(range.start, range.end)
+              }}
+            />
+          </SettingsRow>
         )}
         {scope.chipLabel && (
-          <Button
-            variant='secondary'
-            size='compact'
-            onClick={feed.clearWorkspaceScope}
-            trailingIcon='I105'
-          >
-            {scope.chipLabel}
-          </Button>
+          <SettingsRow label='Workspace'>
+            <Button
+              variant='secondary'
+              size='compact'
+              onClick={feed.clearWorkspaceScope}
+              trailingIcon='I105'
+            >
+              {scope.chipLabel}
+            </Button>
+          </SettingsRow>
         )}
-      </SectionToolbar>
+      </SettingsSection>
 
-      {feed.entries.length > 0 ? (
-        <>
-          <RowStack>
-            {feed.entries.map((entry) => (
-              <AuditEntryRow key={entry.id} entry={entry} />
-            ))}
-          </RowStack>
-          <LoadMoreFooter
-            state={{
-              hasMore: feed.hasNextPage,
-              loading: feed.isFetchingNextPage,
-              onLoadMore: feed.fetchNextPage,
-            }}
+      <SettingsSection title='Audit events'>
+        <SettingsRow label='Filtered events'>
+          <ActionRow>
+            <Button
+              variant='quiet'
+              size='compact'
+              disabled={refreshing}
+              onClick={() => void refresh()}
+            >
+              {refreshing ? 'Refreshing…' : 'Refresh'}
+            </Button>
+            <Button
+              size='compact'
+              disabled={
+                !canExportAuditLogs({
+                  isScopeAnswerable: scope.isAnswerable,
+                  entryCount: feed.entries.length,
+                  isExporting: exporting,
+                  isPlaceholderData: feed.isPlaceholderData,
+                })
+              }
+              onClick={() => void exportCsv()}
+            >
+              {exporting ? 'Exporting…' : 'Export'}
+            </Button>
+          </ActionRow>
+        </SettingsRow>
+        {feed.entries.length > 0 ? (
+          <>
+            <RowStack>
+              {feed.entries.map((entry) => (
+                <AuditEntryRow key={entry.id} entry={entry} />
+              ))}
+            </RowStack>
+            <LoadMoreFooter
+              state={{
+                hasMore: feed.hasNextPage,
+                loading: feed.isFetchingNextPage,
+                error: feed.nextPageError,
+                onLoadMore: feed.fetchNextPage,
+              }}
+            />
+          </>
+        ) : feed.isLoading ? (
+          <LoadingState label='Loading audit logs…' />
+        ) : scope.isUnavailable ? (
+          <FailureNotice
+            message="Couldn't check that workspace."
+            retrying={refreshing}
+            onRetry={() => void refresh()}
           />
-        </>
-      ) : feed.isLoading ? (
-        <LoadingState label='Loading audit logs…' />
-      ) : scope.isUnavailable ? (
-        <FailureNotice
-          message="Couldn't check that workspace."
-          retrying={refreshing}
-          onRetry={() => void refresh()}
-        />
-      ) : scope.isUnresolved ? (
-        <EmptyState title='That workspace is not part of this organization.' />
-      ) : feed.isError ? (
-        <FailureNotice
-          message={feed.errorMessage ?? 'Failed to load audit logs'}
-          retrying={refreshing}
-          onRetry={() => void refresh()}
-        />
-      ) : feed.debouncedSearch ? (
-        <EmptyState title={`No results for "${feed.debouncedSearch}"`} />
-      ) : (
-        <EmptyState title='No audit logs found' />
-      )}
+        ) : scope.isUnresolved ? (
+          <EmptyState title='That workspace is not part of this organization.' />
+        ) : feed.isError ? (
+          <FailureNotice
+            message={feed.errorMessage ?? 'Failed to load audit logs'}
+            retrying={refreshing}
+            onRetry={() => void refresh()}
+          />
+        ) : feed.debouncedSearch ? (
+          <EmptyState title={`No results for "${feed.debouncedSearch}"`} />
+        ) : (
+          <EmptyState title='No audit logs found' />
+        )}
+      </SettingsSection>
     </SectionStack>
   )
 }

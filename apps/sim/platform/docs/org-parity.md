@@ -40,8 +40,28 @@ One row per capability of the legacy organization surface. Every capability is e
 | Home | Build enters a new chat through the handoff; Search goes to `/search?q=` | `organization-conversation.tsx` | Done | `home-composer.tsx`; `checks/live/chat.spec.ts` |
 | Navigation | Benchmark | `/o/[id]/benchmark` | Legacy | Unmapped |
 | Navigation | Skills | `/o/[id]/skills` | Legacy | Unmapped |
-| Settings | Platform administration | `/o/[id]/settings/admin`, `/mothership` | Legacy | Unmapped; linked out for platform admins |
-| Integrations | Credential pages, secrets, Search providers and sources | `/o/[id]/integrations/*`, `/settings/integrations/*`, `/settings/connected-accounts` | Legacy | Unmapped until the Integrations owner maps them |
+| Settings | Platform administration | Admin and Mothership | UI | Gated native tabs. Impersonation, privileged user management, license issuance and workspace key management have authenticated owners. The fixture uses only session-local examples. |
+| Settings | Organization source approvals, credentials and permissions | Sources, Credential Groups | UI | Native settings pages read the authorized inventories. Fixture sessions exercise source configuration, secrets, provider enrollment and workspace grants. Authenticated management links open the existing owners for writes. |
+
+## Organization Settings UI
+
+The Settings sidebar follows the organization surface’s Account, Organization, Governance, Sim Search and Platform groups. The shared organization layout supplies the viewer’s allowed sections. General contains Profile, Preferences, Privacy and Account. Its three detail views use the legacy view query. Settings actions belong in the section or row they affect.
+
+| Surface | UI flows exercised with local data |
+| --- | --- |
+| General | Edit the display name and picture, switch theme, edit workflow preferences, open privacy, inspect connected accounts and authorized apps. |
+| Subscription and Insights | Change a limit, cancel and restore a plan, filter dates and usage dimensions, open events, download CSV and return to the same period. |
+| Members and Requests | Invite, edit roles and credits, inspect removal impact, transfer ownership, submit, withdraw and review requests. |
+| White-labeling and Data retention | Edit organization overrides, preview branding assets, discard unsaved changes, save a policy and remove a workspace override. |
+| Permission groups and Security | Edit group membership, model and block permissions, change session limits, copy network addresses and confirm revocation. |
+| Single sign-on and Data drains | Inspect provider settings, verify domains, review directory provisioning, configure destinations, test and run a drain, inspect its history and confirm deletion. |
+| Audit logs, Knowledge graphs and Recently deleted | Filter and export events, select or create a graph, search archived chats and restore a single chat. |
+| Credential Groups, Sources, Search MCP and Sim Search in Slack | Configure providers, manage people and grants, inspect source connections, copy the six client setup formats and walk through shared and custom Slack setup. |
+| Admin and Mothership | Use a platform-admin session to review users, workflow imports, environment settings, usage details, licenses and workspace key sources. |
+
+Fixture verification covers the interaction and local result. The authenticated proof and any handoff for an external action are recorded at their owner below.
+
+Empty and full use an organization owner. Stress also grants platform-admin and effective superuser access with Benchmarks enabled. Open [Knowledge graphs](http://localhost:3100/settings/knowledge-graphs?state=stress) to inspect that gate. Each density defaults to Enterprise. [Team](http://localhost:3100/settings/billing?state=stress&plan=team) and [Free](http://localhost:3100/settings/billing?state=empty&plan=free) exercise the same plan and seat data in Billing and Members. The bookmarked section and sidebar both use the organization catalog’s eligibility rules.
 
 ## Settings: personal
 
@@ -52,7 +72,7 @@ One row per capability of the legacy organization surface. Every capability is e
 | Preferences | Avatar fallback to the whitelabel logo | General | Hidden | Legacy mounts no brand provider on `/o`, so the organization surface never showed it. Applying a brand to the Platform needs its token mapping |
 | Preferences | Theme persisted, optimistic, applied to the shell | General | Done | `settings-a.spec.ts` |
 | Preferences | Time zone with Auto and invalid-value rows | General | Done | `settings-a.spec.ts` |
-| Preferences | Auto-connect, auto-focus, snap to grid, canvas controls | General | Done | `settings-a.spec.ts`. The legacy explainer videos are not ported: they are static assets of the main app |
+| Preferences | Auto-connect, auto-focus, snap to grid, canvas controls | General | Done | `settings-a.spec.ts`. The controls share the legacy explainer videos through the Platform asset path |
 | Preferences | Interface font, Code font | None; Platform only | Hidden | No font preference exists. Needs a settings column |
 | Notifications | Canvas error notifications | General | Done | `settings-a.spec.ts` |
 | Notifications | In-app notifications, Play sound | None; Platform only | Hidden | No user setting. Sound exists only on the Electron bridge |
@@ -67,8 +87,8 @@ One row per capability of the legacy organization surface. Every capability is e
 | Account | Authorized apps: search, paging, revoke | Authorized apps | Done | `settings-a.spec.ts` covers the list; revoke needs a seeded OAuth grant |
 | Account | Organization accounts: grouped, status, disconnect | Organization accounts | Done | `settings-a.spec.ts` covers the list; disconnect needs a seeded grant |
 | Account | Delete account: fresh plan on open, blockers, retyped email, bounded sign-out | Delete account modal | Done | `settings-a.spec.ts` opens it and proves the guard; it does not delete |
-| Knowledge graphs | List, make active, create | Knowledge graphs | Done | Gate is `settingsSections`; needs `mothership-memory-spaces` on, so not in `settings-a.spec.ts` |
-| Recently deleted | Deleted chats: search, sort, restore | Recently deleted | Done | `settings-a.spec.ts` covers the list; restore needs a seeded deleted chat |
+| Knowledge graphs | List, make active, create | Knowledge graphs | Done | Fixture browser verified creation, switching back to Default, reserved-name recovery and the scrolling graph list. Both surfaces gate this on `mothership-memory-spaces`, which requires the benchmark deployment flag and effective super-user access. The live suite omits this gated section. |
+| Recently deleted | Search, sort and restore the member’s own deleted chats | Recently deleted | Done | Fixture browser verified search, ordering, direct per-row restore, retry after a refused restore, and session navigation in full, empty and stress scenarios. The live list and restore use the legacy hooks. The live list has a browser check in `settings-a.spec.ts`. Authenticated restore still needs a seeded deleted chat. |
 
 ## Settings: billing and usage
 
@@ -76,18 +96,18 @@ One row per capability of the legacy organization surface. Every capability is e
 | --- | --- | --- | --- | --- |
 | Billing | Section gate | `settingsSections` | Done | `settings-a.spec.ts` |
 | Billing | First-paint read, failure with retry | Billing | Done | Server prefetch under the hook's key; `settings-a.spec.ts` asserts the failure state on an aborted read |
-| Billing | Plan name, price, lapsed and free copy | Billing | Done | Same derivations; needs a seeded subscription for each state |
+| Billing | Plan name, price, lapsed and free copy | Billing | Done | Free, Enterprise and Team rendered in the preview. Lapsed copy follows the billing summary state |
 | Billing | Explore plans link | Billing | Done | Links out to the unmapped workspace upgrade route |
-| Billing | Usage limit: credits, autosave, minimum, unsaved guard | Billing | Done | Shared decision in `lib/billing/usage-limit-draft`; needs a paid subscription to prove |
-| Billing | On-demand switch and lock | Billing | Done | Lock explained in the row's description where legacy used a tooltip |
-| Billing | Stripe portal, cancel, restore | Billing | Done | Existing operations. Needs Stripe, so unproved live |
-| Billing | Invoices | Billing | Done | Needs Stripe, so unproved live |
+| Billing | Usage limit: credits, autosave, minimum, unsaved guard | Billing | Done | Team preview verified credit autosave, staying with an invalid draft, and discarding it on navigation |
+| Billing | On-demand switch and lock | Billing | Done | Team preview verified the toggle in both directions. Above covered usage, the disabled switch explains the lock in a tooltip |
+| Billing | Stripe portal, cancel, restore | Billing | Done | Team preview verified local cancellation and restoration. The portal requires a live Stripe customer and stays disabled in preview |
+| Billing | Invoices | Billing | Done | Verified zero, one and six preview invoices. Live rows link to the hosted invoice or its PDF when available |
 | Billing | Personal plan, personal credit usage | Billing, account scope | Legacy | Not on the organization surface |
 | Billing | Client plan refresh on focus | Organization sidebar | Open | Shell owner: it changes navigation, which this section does not own |
 | Usage | Tabs, period presets, custom range capped by the contract | Insights | Done | `settings-a.spec.ts` |
 | Usage | Export CSV with truncation notice | Insights | Done | `settings-a.spec.ts` |
 | Usage | All events, keeping the window | Insights | Done | `settings-a.spec.ts` |
-| Usage | Credits chart with six fixed layers, tooltip, legend | Insights | Done | `settings-a.spec.ts`. Legend hover isolation is not ported: the shared chart has no highlight state |
+| Usage | Credits chart with six fixed layers, tooltip, legend | Insights | Done | `settings-a.spec.ts`. The shared legend highlights sources on hover or focus, pins a series on click and clears it with Escape |
 | Usage | Year heatmap with keyboard movement | Insights | Done | `settings-a.spec.ts` |
 | Usage | Top models and members, View all | Insights | Done | `settings-a.spec.ts` |
 | Usage | Ranked lists: Other row expands, row select, row menu | Insights | Done | Share reads as a percent column where legacy drew a bar |
@@ -196,7 +216,7 @@ Every row runs on live data through `lib/data/requests.ts`, with the legacy quer
 | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- |
 | View switch, default review for administrators | `AR/access-requests-settings.tsx` | Done | Static reading |
-| Legacy query parameters, including `view=admin` and `request-id` | `AR/search-params.ts`, `ee/access-requests/lib/navigation.ts` | Done | Static reading; `requests-section.tsx` normalizes through the legacy function |
+| Legacy query parameters, including `view=admin` and `request-id` | `AR/search-params.ts`, `ee/access-requests/lib/navigation.ts` | Done | The Settings server route applies the original URL parsers before checking Requests access. Both saved permission-group review links and old email links keep their request selection and filters |
 | My requests, paging, status, empty and error states | `AR/access-requests-settings.tsx` | Done | Static reading |
 | Browse access, search, available and pending states, paused notice | `AR/access-requests-settings.tsx` | Done | Static reading |
 | Request access dialog: reason, already allowed, paused, retry, view pending | `AR/request-access-action.tsx` | Done | Static reading |
@@ -271,8 +291,8 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Nav right click: new tab, copy link | `organization-sidebar.tsx` | Done | `ContextActionMenu` in `sidebar.tsx`; `shell.spec` navigation |
 | Active item highlighting | `organization-sidebar.tsx` | Done | Existing `sidebar.tsx` |
 | Settings rail replaces app rail | `organization-sidebar.tsx` | Done | Existing `sidebar.tsx` |
-| Settings nav per role and plan | `organization-settings-sidebar.tsx` | Done | Foundation: `settings-navigation/destinations.ts` |
-| Leave settings, return to prior page | `settings-return.ts` | Done | `settingsReturn` in `lib/data/shell-actions.ts`. Unproved |
+| Settings nav per role and plan | `organization-settings-sidebar.tsx` | Done | `lib/data/settings-navigation.ts` |
+| Leave settings, return to prior page | `settings-return.ts` | Done | `platform-shell.tsx` remembers the entry URL. `checks/settings.spec.ts` verifies that Back holds an unsaved draft until confirmed, then returns to the same page and query. |
 | Org chip with logo or initial | `organization-header.tsx` | Done | `organization-menu.tsx`. Unproved |
 | Collapsed chip as expand control | `organization-header.tsx` | Hidden | Product decision: the opener control does this, with no rail to hold a chip |
 | Member count | `organization-header.tsx` | Done | Existing `organization-menu.tsx` |

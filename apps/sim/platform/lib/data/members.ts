@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import type {
   OrganizationRoster,
@@ -37,9 +38,11 @@ import {
 import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
 import { useOpenBillingPortal } from '@/hooks/queries/subscription'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
+import { platformHref } from '@/platform/design-system/navigation'
 import { useOrganization } from '@/platform/lib/data/organization'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { useBrowserTimezone } from '@/platform/lib/data/preferences'
+import { useFixtureSettings } from '@/platform/lib/data/settings-providers'
 import { toast } from '@/platform/lib/data/toast'
 import { plural } from '@/platform/lib/plural'
 import { formatInstantDate } from '@/platform/lib/time'
@@ -47,6 +50,7 @@ import { formatInstantDate } from '@/platform/lib/time'
 type OrganizationRole = RosterMember['role']
 export type WorkspacePermission = RosterWorkspaceAccess['permission']
 
+export type SettingsRoster = OrganizationRoster
 /** Assignable roles, the default first. */
 export const ORGANIZATION_ROLE_OPTIONS = [
   { value: 'member', label: 'Member' },
@@ -422,8 +426,14 @@ export function filterRoster(model: RosterModel, search: string): RosterModel {
   }
 }
 
-function leaveToAppEntry({ legacyOrigin }: PlatformOrganization) {
-  window.location.href = `${legacyOrigin}${APP_ENTRY_PATH}`
+function useLeaveOrganization(organization: PlatformOrganization) {
+  const fixture = useFixtureSettings()
+  const router = useRouter()
+  const search = useSearchParams()
+  return () => {
+    if (fixture) router.replace(platformHref('/home', search))
+    else window.location.assign(`${organization.legacyOrigin}${APP_ENTRY_PATH}`)
+  }
 }
 
 /**
@@ -432,6 +442,7 @@ function leaveToAppEntry({ legacyOrigin }: PlatformOrganization) {
  */
 export function useMemberRemoval(target: { userId: string; isSelf: boolean } | null) {
   const organization = useOrganization()
+  const leave = useLeaveOrganization(organization)
   const organizationId = organization.organization.id
   const impact = useMemberRemovalImpact(organizationId, target?.userId, {
     enabled: target !== null,
@@ -444,18 +455,21 @@ export function useMemberRemoval(target: { userId: string; isSelf: boolean } | n
     confirm: async () => {
       if (!target) return
       await remove.mutateAsync({ memberId: target.userId, orgId: organizationId })
-      if (target.isSelf) leaveToAppEntry(organization)
+      if (target.isSelf) leave()
     },
   }
 }
 
 export function useOwnershipTransfer() {
   const organization = useOrganization()
+  const leave = useLeaveOrganization(organization)
+  const fixture = useFixtureSettings()
   const organizationId = organization.organization.id
   const transfer = useTransferOwnership()
   const portal = useOpenBillingPortal()
   const [portalError, setPortalError] = useState<string | null>(null)
   return {
+    portalDisabled: fixture || portal.isPending,
     portalPending: portal.isPending,
     portalError,
     /** The hook's default stays on the organization; this surface only offers hand-off and leave. */
@@ -465,7 +479,7 @@ export function useOwnershipTransfer() {
         newOwnerUserId,
         alsoLeave: true,
       })
-      if (result.left) leaveToAppEntry(organization)
+      if (result.left) leave()
       else if (result.warning) toast.warning(`Ownership transferred. ${result.warning}`)
     },
     openBillingPortal: () => {

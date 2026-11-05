@@ -50,14 +50,6 @@
   outline: none;
 }
 
-[data-platform-ui][data-system-font] {
-  --font-sans: var(--font-native);
-}
-
-[data-platform-ui][data-system-mono] {
-  --font-mono: ui-monospace, monospace;
-}
-
 [data-sim-desktop-title-bar] [data-desktop-drag] {
   -webkit-app-region: drag;
 }

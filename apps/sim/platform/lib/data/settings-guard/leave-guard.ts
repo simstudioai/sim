@@ -9,6 +9,10 @@ import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const BASE_PATH = publicAssetPath('')
 
+export function requestSettingsLeave(leave: () => void) {
+  useSettingsDirtyStore.getState().requestLeave(leave)
+}
+
 /** Links are written against this zone and the router adds the base path itself. */
 function zoneRoute(url: URL): string | null {
   if (!BASE_PATH) return `${url.pathname}${url.search}${url.hash}`

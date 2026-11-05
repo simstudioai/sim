@@ -1,40 +1,48 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { type ChangeEventHandler, useRef, useState } from 'react'
 import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
-import styles from '@/platform/app/(shell)/settings/_components/profile/profile-settings.module.css'
-import { Avatar, AvatarImage, Icon, Modal, TextField } from '@/platform/design-system/components'
+import { Avatar, Icon, Modal, TextField } from '@/platform/design-system/components'
 import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
 import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
+import { toast } from '@/platform/lib/data/toast'
 
-interface ProfileSettingsProps {
-  name?: string
-  email?: string
+const NAME_MAX_LENGTH = 100
+const MAX_PICTURE_BYTES = 5 * 1024 * 1024
+const PICTURE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp']
+
+interface ProfileFormProps {
+  name: string
+  email: string
+  picture?: string | null
+  uploading?: boolean
+  onPictureChange: ChangeEventHandler<HTMLInputElement>
+  onSaveName: (name: string) => void | Promise<void>
 }
 
-export function ProfileSettings({ name, email }: ProfileSettingsProps) {
-  const [editing, setEditing] = useState(false)
+export function ProfileForm({
+  name,
+  email,
+  picture,
+  uploading,
+  onPictureChange,
+  onSaveName,
+}: ProfileFormProps) {
   const picker = useRef<HTMLInputElement>(null)
-  const preferences = useInterfacePreferences()
-  if (!preferences) throw new Error('Profile needs interface preferences')
-  const { profileName, picture, updatePicture, setProfileName } = preferences
-  const displayName = profileName ?? name ?? ''
+  const [editing, setEditing] = useState(false)
+  const displayName = name || email
   return (
     <SettingsSection title='Profile'>
-      <SettingsRow label='Picture' description='Set your profile picture'>
+      <SettingsRow label='Picture' description='PNG or JPEG, up to 5MB'>
         <IdentityButton
-          label='Change profile picture'
-          onClick={() => picker.current?.click()}
+          label={uploading ? 'Uploading profile picture' : 'Change profile picture'}
+          onClick={uploading ? undefined : () => picker.current?.click()}
           leading={
-            picture ? (
-              <span className={styles.photo}>
-                <AvatarImage src={picture} name={displayName} />
-              </span>
-            ) : displayName ? (
-              <Avatar name={displayName} />
+            displayName ? (
+              <Avatar name={displayName} src={picture ?? undefined} />
             ) : (
               <Icon name='I074' />
             )
@@ -45,17 +53,18 @@ export function ProfileSettings({ name, email }: ProfileSettingsProps) {
           hidden
           type='file'
           aria-label='Set your profile picture'
-          accept='image/*'
-          onChange={(event) => updatePicture(event.currentTarget.files?.[0])}
+          accept='image/png,image/jpeg,image/jpg'
+          disabled={uploading}
+          onChange={onPictureChange}
         />
       </SettingsRow>
       <SettingsRow label='Name' description='Set your display name'>
         <IdentityButton
-          label={displayName || 'Set name'}
+          label={name || 'Set name'}
           trailingIcon='I036'
           onClick={() => setEditing(true)}
         >
-          {displayName || 'Set name'}
+          {name || 'Set name'}
         </IdentityButton>
         <Modal
           open={editing}
@@ -63,23 +72,56 @@ export function ProfileSettings({ name, email }: ProfileSettingsProps) {
           variant='form'
           title='Edit display name'
           confirmLabel='Save'
-          onConfirm={(values) => {
+          onConfirm={async (values) => {
             const value = values.get('name')
-            if (typeof value === 'string') setProfileName(value.trim())
+            const nextName = typeof value === 'string' ? value.trim() : ''
+            if (nextName !== name) await onSaveName(nextName)
           }}
         >
           <TextField
             name='name'
             label='Display name'
-            defaultValue={displayName}
+            defaultValue={name}
+            maxLength={NAME_MAX_LENGTH}
             required
             pattern={'.*\\S.*'}
           />
         </Modal>
       </SettingsRow>
       <SettingsRow label='Email' description='Your account email'>
-        <span data-type='T067'>{email ?? '—'}</span>
+        <span data-type='T067'>{email || '—'}</span>
       </SettingsRow>
     </SettingsSection>
+  )
+}
+
+interface ProfileSettingsProps {
+  name?: string
+  email?: string
+  image?: string | null
+}
+
+export function ProfileSettings({ name, email, image }: ProfileSettingsProps) {
+  const preferences = useInterfacePreferences()
+  if (!preferences) throw new Error('Profile needs interface preferences')
+  return (
+    <ProfileForm
+      name={preferences.profileName ?? name ?? ''}
+      email={email ?? ''}
+      picture={preferences.picture ?? image}
+      onSaveName={preferences.setProfileName}
+      onPictureChange={({ currentTarget }) => {
+        const file = currentTarget.files?.[0]
+        if (!file) return
+        if (file.size > MAX_PICTURE_BYTES) {
+          toast.error(`File "${file.name}" is too large. Maximum size is 5MB.`)
+        } else if (!PICTURE_TYPES.includes(file.type)) {
+          toast.error(`File "${file.name}" is not a supported image format.`)
+        } else {
+          preferences.updatePicture(file)
+        }
+        currentTarget.value = ''
+      }}
+    />
   )
 }

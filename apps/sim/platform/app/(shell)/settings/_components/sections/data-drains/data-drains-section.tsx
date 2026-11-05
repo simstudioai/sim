@@ -18,7 +18,10 @@ import {
   FailureNotice,
   SearchField,
 } from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
+import {
+  SettingsRow,
+  SettingsSection,
+} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   CADENCE_LABELS,
   DESTINATION_LABELS,
@@ -87,27 +90,18 @@ export default function DataDrainsSection({ organization }: SettingsSectionProps
             onValueChange={setSearch}
           />
         }
-      >
-        <Button
-          variant='primary'
-          icon='I074'
-          disabled={isPending}
-          onClick={() => setCreating(true)}
-        >
-          Create drain
-        </Button>
-      </SectionToolbar>
-      {error ? (
-        <FailureNotice
-          message={getErrorMessage(error, "Couldn't load data drains")}
-          retrying={isFetching}
-          onRetry={() => void refetch()}
-        />
-      ) : isPending ? (
-        <LoadingState label='Loading data drains…' />
-      ) : drains && drains.length > 0 ? (
-        filtered.length > 0 ? (
-          <SettingsSection title='Data drains'>
+      />
+      <SettingsSection title='Data drains'>
+        {error ? (
+          <FailureNotice
+            message={getErrorMessage(error, "Couldn't load data drains")}
+            retrying={isFetching}
+            onRetry={() => void refetch()}
+          />
+        ) : isPending ? (
+          <LoadingState label='Loading data drains…' />
+        ) : drains && drains.length > 0 ? (
+          filtered.length > 0 ? (
             <ResourceList>
               {filtered.map((drain) => (
                 <ActivityRow
@@ -119,13 +113,18 @@ export default function DataDrainsSection({ organization }: SettingsSectionProps
                 />
               ))}
             </ResourceList>
-          </SettingsSection>
+          ) : (
+            <EmptyState title={`No drains found matching "${search}"`} />
+          )
         ) : (
-          <EmptyState title={`No drains found matching "${search}"`} />
-        )
-      ) : (
-        <EmptyState title='No data drains yet' description='Create a drain to get started.' />
-      )}
+          <EmptyState title='No data drains yet' description='Create a drain to get started.' />
+        )}
+        <SettingsRow label='New data drain'>
+          <Button size='compact' icon='I074' disabled={isPending} onClick={() => setCreating(true)}>
+            Create drain
+          </Button>
+        </SettingsRow>
+      </SettingsSection>
     </SectionStack>
   )
 }

@@ -121,11 +121,7 @@ export function Sidebar({
         </Activity>
         {settings && (
           <ScrollArea label='Settings navigation' hideScrollbar>
-            <SettingsNavigation
-              section={settingsSection}
-              organization={data?.organization.name}
-              groups={data?.settingsNavigation}
-            />
+            <SettingsNavigation section={settingsSection} groups={data?.settingsNavigation} />
           </ScrollArea>
         )}
       </div>

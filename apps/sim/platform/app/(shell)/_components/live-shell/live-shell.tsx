@@ -6,10 +6,10 @@ import { resolveLiveDestinations } from '@/platform/app/(shell)/_components/dest
 import { LiveComposerHost } from '@/platform/app/(shell)/_components/live-shell/live-composer-host'
 import { ProductSession } from '@/platform/app/(shell)/_components/product-session'
 import { SessionState } from '@/platform/app/(shell)/_components/session-state/session-state'
-import { resolveSettingsNavigation } from '@/platform/app/(shell)/_components/settings-navigation/destinations'
 import { hasOrganizationSurface, legacyRoutes } from '@/platform/lib/data/organization-model'
 import { prefetchShell } from '@/platform/lib/data/prefetch-shell'
 import { LiveProviders } from '@/platform/lib/data/providers'
+import { resolveSettingsNavigation } from '@/platform/lib/data/settings-navigation'
 import { legacyUrl, loginUrl, readOrganizationSurface } from '@/platform/lib/data/surface'
 
 /**

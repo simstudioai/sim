@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSubscription } from '@/lib/auth/client'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
@@ -37,6 +38,7 @@ import { useInvoices, useOpenBillingPortal } from '@/hooks/queries/subscription'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { queryView } from '@/platform/lib/data/query-view'
+import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
 import { toast } from '@/platform/lib/data/toast'
 import { formatCalendarDate, formatInstantDate } from '@/platform/lib/time'
 
@@ -68,6 +70,7 @@ export function useBillingSection(organization: PlatformOrganization) {
   const updateLimit = useUpdateOrganizationUsageLimit()
   const portal = useOpenBillingPortal()
   const subscriptionClient = useSubscription()
+  const fixture = useFixtureSettingsActions()
 
   const billing = summary.data?.data
   const plan = billing?.subscriptionPlan ?? 'free'
@@ -86,7 +89,7 @@ export function useBillingSection(organization: PlatformOrganization) {
       plan,
       status,
     },
-    { isTeamAdmin: organization.viewer.isAdmin, userRole: billing?.userRole ?? 'member' }
+    { isTeamAdmin: isOrgAdminRole(billing?.userRole), userRole: billing?.userRole ?? 'member' }
   )
   const canManage = permissions.canEditUsageLimit
 
@@ -112,11 +115,13 @@ export function useBillingSection(organization: PlatformOrganization) {
   const interval = billing?.billingInterval === 'year' ? 'billed annually' : 'billed monthly'
   const state = billing?.subscriptionState
   const weeklyRefresh = getPlanWeeklyRefreshDollars(plan) * (billing?.totalSeats || 1)
-  const upgradeHref = billing?.upgradeWorkspaceId
-    ? `${organization.legacyOrigin}${buildUpgradeHref(billing.upgradeWorkspaceId)}`
-    : null
+  const upgradeHref =
+    !fixture && billing?.upgradeWorkspaceId
+      ? `${organization.legacyOrigin}${buildUpgradeHref(billing.upgradeWorkspaceId)}`
+      : null
 
   function openPortal() {
+    if (fixture || !canManage) return
     // Opened before the request so a popup blocker still treats it as the viewer's click.
     const portalWindow = window.open('', '_blank')
     portal.mutate(
@@ -160,6 +165,7 @@ export function useBillingSection(organization: PlatformOrganization) {
       locked: onDemandLocked,
       disabled: onDemandLocked || updateLimit.isPending || !canManage,
       toggle: async () => {
+        if (!canManage || onDemandLocked || updateLimit.isPending) return
         try {
           await updateLimit.mutateAsync({
             organizationId,
@@ -178,11 +184,18 @@ export function useBillingSection(organization: PlatformOrganization) {
       : null,
     weeklyRefresh: paid && weeklyRefresh > 0 ? `+${formatCreditCost(weeklyRefresh)}` : null,
     canManage,
+    canOpenPortal: canManage && !fixture,
     portalPending: portal.isPending,
     openPortal,
     showCancellation: !enterprise,
     cancelled: billing?.cancelAtPeriodEnd === true,
     cancel: async () => {
+      if (!permissions.canCancelSubscription) return
+      if (fixture) {
+        fixture.setSubscriptionCancellation(true)
+        await summary.refetch()
+        return
+      }
       if (!subscriptionClient.cancel) return
       try {
         await subscriptionClient.cancel({
@@ -195,6 +208,12 @@ export function useBillingSection(organization: PlatformOrganization) {
       }
     },
     restore: async () => {
+      if (!permissions.canCancelSubscription) return
+      if (fixture) {
+        fixture.setSubscriptionCancellation(false)
+        await summary.refetch()
+        return
+      }
       if (!subscriptionClient.restore) return
       try {
         await subscriptionClient.restore({ referenceId: organizationId })
@@ -215,7 +234,7 @@ export function useBillingSection(organization: PlatformOrganization) {
             description: invoice.description,
             statusLabel: badge.label,
             statusIntent: INVOICE_INTENTS[badge.variant],
-            url: invoice.hostedInvoiceUrl ?? invoice.invoicePdf,
+            url: fixture ? null : (invoice.hostedInvoiceUrl ?? invoice.invoicePdf),
           }
         }),
     hasMoreInvoices: Boolean(invoiceList.data?.hasMore),

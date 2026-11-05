@@ -2,7 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { LoadingState } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/members/members.module.css'
-import { Button, FailureNotice, InlineNotice, StatusTag } from '@/platform/design-system/components'
+import { Button, FailureNotice, StatusTag } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,

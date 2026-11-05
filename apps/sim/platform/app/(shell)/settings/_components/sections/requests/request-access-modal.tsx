@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { RequestText } from '@/platform/app/(shell)/settings/_components/sections/requests/request-text'
 import {
-  Button,
   FailureNotice,
   InlineNotice,
   Modal,

@@ -38,6 +38,59 @@ export function productUsage(app: string, program: ts.Program): Usage {
       if (inner && (ts.isArrowFunction(inner) || ts.isFunctionExpression(inner))) return inner
     }
   }
+  /** Resolve the default component actually rendered from a literal import or indexed lazy registry. */
+  function lazyEntries(decl: ts.Node | undefined): ts.SourceFile[] {
+    if (!decl || !ts.isBindingElement(decl) || decl.propertyName?.getText() !== 'default') return []
+    const variable = decl.parent.parent
+    if (
+      !ts.isVariableDeclaration(variable) ||
+      !variable.initializer ||
+      !ts.isAwaitExpression(variable.initializer)
+    )
+      return []
+    const call = variable.initializer.expression
+    if (!ts.isCallExpression(call)) return []
+    function fromImport(node: ts.Expression): ts.SourceFile[] {
+      if (
+        !ts.isCallExpression(node) ||
+        node.expression.kind !== ts.SyntaxKind.ImportKeyword ||
+        !node.arguments[0]
+      )
+        return []
+      return (
+        checker.getSymbolAtLocation(node.arguments[0])?.declarations?.filter(ts.isSourceFile) ?? []
+      )
+    }
+    if (!ts.isPropertyAccessExpression(call.expression)) return fromImport(call)
+    const slot = declaration(call.expression.expression)
+    if (
+      !slot ||
+      !ts.isVariableDeclaration(slot) ||
+      !slot.initializer ||
+      !ts.isElementAccessExpression(slot.initializer)
+    )
+      return []
+    const table = declaration(slot.initializer.expression)
+    if (
+      !table ||
+      !ts.isVariableDeclaration(table) ||
+      !table.initializer ||
+      !ts.isObjectLiteralExpression(table.initializer)
+    )
+      return []
+    const method = call.expression.name.text
+    return table.initializer.properties.flatMap((member) => {
+      if (!ts.isPropertyAssignment(member) || !ts.isObjectLiteralExpression(member.initializer))
+        return []
+      const loader = member.initializer.properties.find((item) => item.name?.getText() === method)
+      return loader &&
+        ts.isPropertyAssignment(loader) &&
+        ts.isArrowFunction(loader.initializer) &&
+        ts.isExpression(loader.initializer.body)
+        ? fromImport(loader.initializer.body)
+        : []
+    })
+  }
   function literalCondition(node: ts.Expression) {
     const type = checker.getTypeAtLocation(node)
     return type.flags & ts.TypeFlags.BooleanLiteral
@@ -163,6 +216,7 @@ export function productUsage(app: string, program: ts.Program): Usage {
       if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
         const decl = declaration(node.tagName)
         const owner = decl && component(decl)
+        if (!owner) for (const module of lazyEntries(decl)) walkEntry(module.fileName)
         if (decl && owner) {
           const attrs: Props = {}
           for (const item of node.attributes.properties) {

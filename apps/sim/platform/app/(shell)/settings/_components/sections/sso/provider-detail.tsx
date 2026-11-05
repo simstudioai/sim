@@ -13,10 +13,10 @@ import {
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import {
-  getBaseUrl,
   type SsoProviderView,
   ssoFormFromProvider,
   ssoProviderCallbackUrl,
+  useSsoOrigin,
 } from '@/platform/lib/data/sso'
 import { toast } from '@/platform/lib/data/toast'
 
@@ -38,6 +38,7 @@ export function ProviderDetail({
   onDelete,
   onMakePrimary,
 }: ProviderDetailProps) {
+  const baseUrl = useSsoOrigin()
   const [editing, setEditing] = useState<EditForm | null>(null)
 
   if (editing) {
@@ -60,7 +61,6 @@ export function ProviderDetail({
     }
   }
 
-  const baseUrl = getBaseUrl()
   const isSaml = provider.providerType === 'saml'
   const isOidc = (provider.providerType ?? 'oidc') === 'oidc'
   const encodedProviderId = encodeURIComponent(provider.providerId ?? '')
@@ -72,15 +72,7 @@ export function ProviderDetail({
         backLabel='Identity providers'
         onBack={onBack}
         title={provider.providerId ?? 'Identity provider'}
-      >
-        <Button variant='primary' onClick={edit}>
-          Edit
-        </Button>
-        {onMakePrimary && <Button onClick={onMakePrimary}>Make primary</Button>}
-        <Button variant='destructive' onClick={onDelete}>
-          Delete
-        </Button>
-      </DetailHeader>
+      />
       <SettingsSection title='Identity provider'>
         <FieldStack>
           <PropertyList
@@ -134,6 +126,25 @@ export function ProviderDetail({
               : 'Invite or provision new members before they sign in. Existing members keep their access. An active SCIM connection can disable automatic membership in Provisioning rules.'
           }
         />
+      </SettingsSection>
+      <SettingsSection title='Manage provider'>
+        <SettingsRow label='Configuration'>
+          <Button size='compact' onClick={edit}>
+            Edit
+          </Button>
+        </SettingsRow>
+        {onMakePrimary && (
+          <SettingsRow label='Primary provider'>
+            <Button size='compact' onClick={onMakePrimary}>
+              Make primary
+            </Button>
+          </SettingsRow>
+        )}
+        <SettingsRow label='Delete identity provider'>
+          <Button size='compact' variant='destructive' onClick={onDelete}>
+            Delete
+          </Button>
+        </SettingsRow>
       </SettingsSection>
     </SectionStack>
   )

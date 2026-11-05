@@ -7,6 +7,7 @@ import {
   FieldStack,
   LoadingState,
   Muted,
+  SectionSkeleton,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
@@ -126,7 +127,7 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
       </FieldStack>
       <SettingsRow
         label='End all sessions'
-        description='Everyone signs in again on their next request.'
+        description='Members must sign in again. Your current session stays active.'
       >
         <Button variant='destructive' onClick={() => setConfirmingRevoke(true)}>
           Sign out all members
@@ -158,15 +159,7 @@ function SessionPolicySection({
 }) {
   const { data, error, isLoading, isFetching, refetch } =
     useOrganizationSessionPolicy(organizationId)
-  if (isLoading) {
-    return (
-      <SettingsSection title='Session policies'>
-        <FieldStack>
-          <LoadingState label='Loading session policy…' />
-        </FieldStack>
-      </SettingsSection>
-    )
-  }
+  if (isLoading) return <SectionSkeleton title='Session policies' rows={2} />
   if (!data) {
     return (
       <SettingsSection title='Session policies'>
@@ -181,7 +174,11 @@ function SessionPolicySection({
     )
   }
   if (billingEnabled && !data.isEnterprise) {
-    return <EmptyState title='Session policies are available on Enterprise plans only.' />
+    return (
+      <SettingsSection title='Session policies'>
+        <EmptyState title='Session policies are available on Enterprise plans only.' />
+      </SettingsSection>
+    )
   }
   return <SessionPolicyForm organizationId={organizationId} policy={data} />
 }
@@ -193,7 +190,7 @@ function NetworkSection({ organizationId }: { organizationId: string }) {
       <FieldStack>
         {isPending ? (
           <LoadingState label='Loading network settings…' />
-        ) : !data || data.mode === 'unavailable' ? (
+        ) : error || !data || data.mode === 'unavailable' ? (
           <FailureNotice
             message={getErrorMessage(error, 'Could not load network settings')}
             retrying={isFetching}

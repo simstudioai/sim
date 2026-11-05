@@ -49,7 +49,6 @@ test('unbacked preferences stay out of live settings', async ({ page }) => {
   await page.goto(settings())
   await expect(page.getByRole('combobox', { name: 'Interface font' })).toHaveCount(0)
   await expect(page.getByRole('combobox', { name: 'Code font' })).toHaveCount(0)
-  await page.goto(settings('/notifications'))
   await expect(page.getByRole('switch', { name: 'Canvas error notifications' })).toBeVisible()
   await expect(page.getByRole('switch', { name: 'In-app notifications' })).toHaveCount(0)
   await expect(page.getByRole('switch', { name: 'Play sound' })).toHaveCount(0)

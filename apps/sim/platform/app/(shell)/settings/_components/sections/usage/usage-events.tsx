@@ -1,8 +1,8 @@
 'use client'
 
-import Link from 'next/link'
+import { DetailHeader } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
-import { Button, DataTable, EmptyState, FailureNotice } from '@/platform/design-system/components'
+import { DataTable, EmptyState, FailureNotice } from '@/platform/design-system/components'
 import { useUsageEvents, useUsageView } from '@/platform/lib/data/usage'
 
 const COLUMNS = [
@@ -14,18 +14,16 @@ const COLUMNS = [
 
 /** The raw ledger: the panel says whether spend is healthy, this says what a charge was. */
 export function UsageEvents({ organizationId }: { organizationId: string }) {
-  const { window } = useUsageView()
+  const { window, backHref } = useUsageView()
   const events = useUsageEvents(organizationId, window)
   return (
     <>
-      <div>
-        <Button render={<Link href='/settings/usage' />} variant='quiet' icon='I093'>
-          Insights
-        </Button>
-      </div>
-      <p className={styles.quiet} data-type='T067'>
-        Every credit-consuming event across your organization’s workspaces.
-      </p>
+      <DetailHeader
+        backLabel='Insights'
+        backHref={backHref}
+        title='Usage events'
+        description='Every credit-consuming event across your organization’s workspaces.'
+      />
       {events.failed && events.rows.length === 0 ? (
         <FailureNotice message='Couldn’t load usage events.' onRetry={events.retry} />
       ) : events.pending ? (

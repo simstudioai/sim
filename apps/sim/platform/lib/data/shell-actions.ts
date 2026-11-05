@@ -27,8 +27,8 @@ import type {
 } from '@/platform/app/(shell)/_components/model'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { signOutAndLeave } from '@/platform/lib/data/session'
+import { requestSettingsLeave } from '@/platform/lib/data/settings-guard'
 import { toast } from '@/platform/lib/data/toast'
-import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 function useOrganizationActions(organization: PlatformOrganization): ShellOrganizationActions {
   const router = useRouter()
@@ -114,9 +114,7 @@ export function useLiveAccountActions(
               if (!left) toast.error('Failed to sign out. Please try again.')
             }
           ),
-    requestLeave: (leave: () => void) => {
-      useSettingsDirtyStore.getState().requestLeave(leave)
-    },
-    settingsReturn: (entry: string | null) => entry ?? landing,
+    requestLeave: requestSettingsLeave,
+    settingsLanding: landing,
   }
 }

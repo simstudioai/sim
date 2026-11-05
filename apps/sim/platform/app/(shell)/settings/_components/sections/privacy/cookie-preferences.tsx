@@ -1,15 +1,37 @@
 'use client'
 
+import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
 import styles from '@/platform/app/(shell)/settings/_components/sections/privacy/cookie-preferences.module.css'
 import { Switch } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { CookieConsentProvider, useCookieCategories } from '@/platform/lib/data/cookie-consent'
+import {
+  CookieConsentProvider,
+  cookieChoices,
+  useCookieCategories,
+} from '@/platform/lib/data/cookie-consent'
 
-function CookieCategories({ policyHref }: { policyHref: string }) {
-  const { categories, commit, saving } = useCookieCategories()
+interface CookieListProps<Name extends string> {
+  policyHref: string
+  categories: {
+    name: Name
+    title: string
+    description: string
+    locked: boolean
+    checked: boolean
+  }[]
+  saving?: boolean
+  commit: (name: Name, checked: boolean) => void
+}
+
+function CookieList<Name extends string>({
+  policyHref,
+  categories,
+  commit,
+  saving,
+}: CookieListProps<Name>) {
   return (
     <SettingsSection title='Cookies'>
       {categories.map((category) => (
@@ -33,7 +55,37 @@ function CookieCategories({ policyHref }: { policyHref: string }) {
   )
 }
 
-export default function CookiePreferences({ policyHref }: { policyHref: string }) {
+function CookieCategories({ policyHref }: { policyHref: string }) {
+  const { categories, commit, saving } = useCookieCategories()
+  return (
+    <CookieList categories={categories} commit={commit} saving={saving} policyHref={policyHref} />
+  )
+}
+
+function SessionCookieCategories({ policyHref }: { policyHref: string }) {
+  const session = useInterfacePreferences()
+  if (!session) throw new Error('Cookie choices need interface preferences')
+  return (
+    <CookieList
+      policyHref={policyHref}
+      categories={cookieChoices.map((choice) => ({
+        ...choice,
+        checked: choice.locked || Boolean(session.cookieChoices[choice.name]),
+      }))}
+      commit={(name, checked) =>
+        session.setCookieChoices((previous) => ({ ...previous, [name]: checked }))
+      }
+    />
+  )
+}
+
+interface CookiePreferencesProps {
+  policyHref: string
+  fixture?: true
+}
+
+export default function CookiePreferences({ policyHref, fixture }: CookiePreferencesProps) {
+  if (fixture) return <SessionCookieCategories policyHref={policyHref} />
   return (
     <CookieConsentProvider>
       <CookieCategories policyHref={policyHref} />

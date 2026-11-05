@@ -122,7 +122,8 @@
 
 .filePreview {
   flex: none;
-  inline-size: var(--spacing-48);
+  inline-size: auto;
+  max-inline-size: min(40%, var(--spacing-128));
   block-size: var(--spacing-48);
   border-radius: var(--radius-item);
   object-fit: contain;

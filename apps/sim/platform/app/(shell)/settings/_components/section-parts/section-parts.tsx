@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import Link from 'next/link'
 import styles from '@/platform/app/(shell)/settings/_components/section-parts/section-parts.module.css'
 import { Button } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
@@ -76,17 +77,20 @@ export function ResourceList({ children }: ChildrenProps) {
   return <ul className={styles.list}>{children}</ul>
 }
 
-interface DetailHeaderProps {
+interface DetailHeaderContent {
   backLabel: string
-  onBack: () => void
   title: string
   description?: string
   children?: ReactNode
 }
 
+type DetailHeaderProps = DetailHeaderContent &
+  ({ backHref: string; onBack?: never } | { onBack: () => void; backHref?: never })
+
 /** A sub-view's way back, title and actions. */
 export function DetailHeader({
   backLabel,
+  backHref,
   onBack,
   title,
   description,
@@ -95,7 +99,12 @@ export function DetailHeader({
   return (
     <header className={styles.detailHeader}>
       <div className={styles.back}>
-        <Button variant='quiet' size='compact' onClick={onBack}>
+        <Button
+          variant='quiet'
+          size='compact'
+          render={backHref ? <Link href={backHref} /> : undefined}
+          onClick={onBack}
+        >
           {backLabel}
         </Button>
       </div>

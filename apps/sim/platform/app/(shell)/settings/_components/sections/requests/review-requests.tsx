@@ -6,7 +6,6 @@ import {
   Button,
   EmptyState,
   FailureNotice,
-  InlineNotice,
   Pagination,
   SearchField,
   Select,
@@ -83,9 +82,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
         </SettingsSurface>
       )}
       <div className={styles.listHeading}>
-        <h2 data-type='T042'>
-          {list.count === undefined ? heading : `${heading} (${list.count})`}
-        </h2>
+        <h2 data-type='T042'>{list.count === undefined ? heading : `${heading} ${list.count}`}</h2>
         <span className={styles.filter}>
           <Select
             variant='quiet'

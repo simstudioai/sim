@@ -14,8 +14,9 @@ import {
 } from '@/ee/whitelabeling/hooks/whitelabel'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useProfilePictureUpload } from '@/hooks/use-profile-picture-upload'
-import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import { queryView } from '@/platform/lib/data/query-view'
+import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
+import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
 import { toast } from '@/platform/lib/data/toast'
 
 const TEXT_FIELDS = [
@@ -68,12 +69,14 @@ export function useWhitelabelRead(organizationId: string) {
 /** A logo or wordmark's draft: an unsaved upload or removal, over the image it started from. */
 function useBrandImage(initial: string | null, workspaceId: string | undefined) {
   const [url, setUrl] = useState(initial)
+  const fixture = useFixtureSettingsActions()
   const upload = useProfilePictureUpload({
     currentImage: url,
     onUpload: setUrl,
     onError: (message) => toast.error(message),
     context: 'workspace-logos',
     workspaceId,
+    uploadWorkspaceLogo: fixture?.uploadBrandImage,
   })
   return {
     url: upload.previewUrl || null,
@@ -81,7 +84,7 @@ function useBrandImage(initial: string | null, workspaceId: string | undefined) 
     upload: (file: File) => void upload.handleFile(file),
     remove: upload.handleRemove,
     resetTo: (saved: string | null) => {
-      upload.reset()
+      upload.reset(saved)
       setUrl(saved)
     },
   }
@@ -129,7 +132,7 @@ export function useWhitelabelForm(
     wordmark,
     discard,
     save: async () => {
-      if (saving) return
+      if (saving || !dirty) return
       const form = { ...text, logoUrl: logo.url, wordmarkUrl: wordmark.url }
       const invalid = findInvalidWhitelabelColor(form)
       if (invalid) {
@@ -137,11 +140,17 @@ export function useWhitelabelForm(
         return
       }
       try {
-        await update.mutateAsync({
+        const result = await update.mutateAsync({
           orgId: organizationId,
           settings: toWhitelabelPayload(form),
         })
-        setSaved({ text, logoUrl: logo.url, wordmarkUrl: wordmark.url })
+        const savedText = textOf(result)
+        setSaved({
+          text: savedText,
+          logoUrl: result.logoUrl ?? null,
+          wordmarkUrl: result.wordmarkUrl ?? null,
+        })
+        setText((current) => (current === text ? savedText : current))
         toast.success('Whitelabeling settings saved.')
       } catch (error) {
         toast.error(getErrorMessage(error, 'Could not save whitelabeling settings'))

@@ -16,7 +16,15 @@ import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/gen
 import { useUpdateUserProfile, useUserProfile } from '@/hooks/queries/user-profile'
 import { useProfilePictureUpload } from '@/hooks/use-profile-picture-upload'
 import { queryView } from '@/platform/lib/data/query-view'
+import { useFixtureSettings } from '@/platform/lib/data/settings-providers'
 import { toast } from '@/platform/lib/data/toast'
+
+function usePlatformSettings() {
+  return useGeneralSettings({ persistTheme: !useFixtureSettings() })
+}
+function useWritePlatformSetting() {
+  return useUpdateGeneralSetting({ persistTheme: !useFixtureSettings() })
+}
 
 const SNAP_TO_GRID_VALUES = [0, 10, 20, 30, 40, 50] as const
 
@@ -38,7 +46,7 @@ type BooleanSetting = {
 
 /** A saved setting's write, which reports its failure; the optimistic value rolls itself back. */
 function useSettingWriter() {
-  const update = useUpdateGeneralSetting()
+  const update = useWritePlatformSetting()
   return {
     pending: update.isPending,
     write: (variables: Parameters<typeof update.mutate>[0]) =>
@@ -67,8 +75,6 @@ export function useProfileSettings() {
     email: profile.data?.email ?? '',
     image: upload.previewUrl,
     uploading: upload.isUploading,
-    fileInputRef: upload.fileInputRef,
-    choosePicture: upload.handleThumbnailClick,
     onPictureChange: upload.handleFileChange,
     saveName: async (name: string) => {
       await updateProfile.mutateAsync({ name })
@@ -77,11 +83,11 @@ export function useProfileSettings() {
 }
 
 export function useSavedSettingsRead() {
-  return queryView(useGeneralSettings())
+  return queryView(usePlatformSettings())
 }
 
 export function useAppearanceSettings() {
-  const settings = useGeneralSettings()
+  const settings = usePlatformSettings()
   const { write } = useSettingWriter()
   const browserTimezone = useBrowserTimezone()
   const savedTimezone = settings.data?.timezone ?? null
@@ -105,7 +111,7 @@ export function useAppearanceSettings() {
 }
 
 export function useBooleanSetting(key: BooleanSetting) {
-  const settings = useGeneralSettings()
+  const settings = usePlatformSettings()
   const { write, pending } = useSettingWriter()
   const checked = settings.data?.[key]
   return {
@@ -118,7 +124,7 @@ export function useBooleanSetting(key: BooleanSetting) {
 }
 
 export function useSnapToGridSetting() {
-  const settings = useGeneralSettings()
+  const settings = usePlatformSettings()
   const { write, pending } = useSettingWriter()
   const size = settings.data?.snapToGridSize ?? 0
   return {
@@ -136,15 +142,19 @@ export function useSnapToGridSetting() {
  * Browser telemetry stops first and resumes only once the account says so, so a failed save can
  * never leave collection on after an opt-out.
  */
-export function useTelemetrySetting() {
-  const settings = useGeneralSettings()
-  const update = useUpdateGeneralSetting()
+export function useTelemetrySetting(fixture = false) {
+  const settings = usePlatformSettings()
+  const update = useWritePlatformSetting()
   const enabled = settings.data?.telemetryEnabled
   return {
     checked: enabled ?? true,
     disabled: !settings.data || update.isPending,
     set: async (value: boolean) => {
       if (value === enabled || update.isPending) return
+      if (fixture) {
+        update.mutate({ key: 'telemetryEnabled', value })
+        return
+      }
       const previous = getBrowserTelemetryPreference()
       setBrowserTelemetryPreference(false)
       try {

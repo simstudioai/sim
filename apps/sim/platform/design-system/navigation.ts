@@ -10,20 +10,30 @@ export function readAppearance(value: string | string[] | null | undefined): App
   return theme === 'light' || theme === 'dark' ? theme : 'system'
 }
 
+export type PreviewPlan = 'free' | 'team' | 'enterprise'
+
+export function readPreviewPlan(value: string | string[] | null | undefined): PreviewPlan {
+  return value === 'free' || value === 'team' ? value : 'enterprise'
+}
+
 interface SearchValues {
   get(key: string): string | null
 }
 
 /** Keep the selected fixture and appearance when moving between product routes. */
 export function platformHref(path: string, search: SearchValues) {
-  const query = new URLSearchParams()
+  if (isAbsoluteHref(path)) return path
+  const destination = new URL(path, 'https://platform.invalid')
+  const query = destination.searchParams
   const state = search.get('state')
   const theme = search.get('theme')
+  const plan = readPreviewPlan(search.get('plan'))
+  if (plan !== 'enterprise') query.set('plan', plan)
   if (state === 'empty' || state === 'full' || state === 'stress') query.set('state', state)
   if (theme === 'system' || theme === 'light' || theme === 'dark') query.set('theme', theme)
   if (state === 'stress' && search.get('secrets') === 'organization')
     query.set('secrets', 'organization')
-  return query.size ? `${path}?${query}` : path
+  return `${destination.pathname}${destination.search}${destination.hash}`
 }
 
 /** A file under `public/`: unlike `next/link` and the router, the browser adds no base path to it. */

@@ -4,6 +4,7 @@ import { createContext, type ReactNode, useContext, useEffect, useState } from '
 import type { HomeMode, HomeWidget } from '@/platform/app/(shell)/_components/model'
 
 function usePreferenceState() {
+  const [cookieChoices, setCookieChoices] = useState<Record<string, boolean>>({})
   const [profileName, setProfileName] = useState<string>()
   const [picture, setPicture] = useState<string>()
   useEffect(
@@ -20,11 +21,9 @@ function usePreferenceState() {
   const [removedRecents, setRemovedRecents] = useState<string[]>([])
   const [connections, setConnections] = useState<Partial<Record<'Email' | 'Calendar', boolean>>>({})
 
-  const [inApp, setInApp] = useState(true)
-  const [sound, setSound] = useState(false)
-  const [systemFont, setSystemFont] = useState(false)
-  const [systemMono, setSystemMono] = useState(false)
   return {
+    cookieChoices,
+    setCookieChoices,
     profileName,
     setProfileName,
     picture,
@@ -37,14 +36,6 @@ function usePreferenceState() {
     setRemovedRecents,
     connections,
     setConnections,
-    inApp,
-    setInApp,
-    sound,
-    setSound,
-    systemFont,
-    setSystemFont,
-    systemMono,
-    setSystemMono,
   }
 }
 

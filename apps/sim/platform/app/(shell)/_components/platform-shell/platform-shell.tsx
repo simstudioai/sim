@@ -13,7 +13,6 @@ import styles from '@/platform/app/(shell)/_components/platform-shell/platform-s
 import { WindowHistoryButtons } from '@/platform/app/(shell)/_components/platform-shell/window-history'
 import { useChatChanges } from '@/platform/app/(shell)/_components/session/chat-changes'
 import { useSessionShellActions } from '@/platform/app/(shell)/_components/session/shell-actions'
-import { SETTINGS_DESTINATIONS } from '@/platform/app/(shell)/_components/settings-navigation/destinations'
 import { Sidebar } from '@/platform/app/(shell)/_components/sidebar/sidebar'
 import { useSidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
 import { SidebarToolbar } from '@/platform/app/(shell)/_components/sidebar/sidebar-toolbar'
@@ -55,9 +54,9 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
   const settingsEntry = useRef<string | null>(null)
   const settings = pathname.startsWith('/settings')
   const settingsDestinations: readonly { key: string; title: string }[] =
-    data?.settingsNavigation?.flatMap((group) => group.items) ?? SETTINGS_DESTINATIONS
+    data?.settingsNavigation?.flatMap((group) => group.items) ?? []
   const section = settings
-    ? settingsDestinations.find((item) => item.key === (pathname.split('/')[2] || 'preferences'))
+    ? settingsDestinations.find((item) => item.key === (pathname.split('/')[2] || 'general'))
     : undefined
   const conversation = pathname.startsWith('/chat')
   const activeChat = conversation ? pathname.split('/')[2] : undefined
@@ -93,7 +92,8 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
   }, [drawerOpen])
 
   useEffect(() => {
-    if (!settings) settingsEntry.current = `${pathname}${search.size ? `?${search}` : ''}`
+    if (!settings)
+      settingsEntry.current = `${pathname}${search.size ? `?${search}` : ''}${window.location.hash}`
   }, [settings, pathname, search])
 
   const toggleOnShortcut = useEffectEvent(() => toggle())
@@ -157,9 +157,9 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
       chats={chats}
       activeChat={activeChat}
       pathname={pathname}
-      settingsSection={section?.key}
+      settingsSection={settings ? pathname.split('/')[2] || 'general' : undefined}
       toolbar={(!desktop || compact) && toolbar}
-      onBack={() => navigate(actions.settingsReturn(settingsEntry.current))}
+      onBack={() => navigate(settingsEntry.current ?? actions.settingsLanding)}
       navigate={navigate}
       onNavigate={() => setDrawer(false)}
     />

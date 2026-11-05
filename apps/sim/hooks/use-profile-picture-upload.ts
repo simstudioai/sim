@@ -13,6 +13,7 @@ interface UseProfilePictureUploadProps {
   currentImage?: string | null
   context?: 'profile-pictures' | 'workspace-logos'
   workspaceId?: string
+  uploadWorkspaceLogo?: (file: File) => Promise<string>
 }
 
 /**
@@ -25,6 +26,7 @@ export function useProfilePictureUpload({
   currentImage,
   context = 'profile-pictures',
   workspaceId,
+  uploadWorkspaceLogo,
 }: UseProfilePictureUploadProps = {}) {
   const previewRef = useRef<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -67,8 +69,9 @@ export function useProfilePictureUpload({
     async (file: File): Promise<string> => {
       if (context === 'workspace-logos') {
         if (!workspaceId) {
-          throw new Error('workspaceId is required for workspace logo upload')
+          throw new Error('A workspace in this organization is required to upload branding images.')
         }
+        if (uploadWorkspaceLogo) return uploadWorkspaceLogo(file)
         const result = await uploadInternalFileSession({
           purpose: 'workspace_logo',
           workspaceId,
@@ -85,7 +88,7 @@ export function useProfilePictureUpload({
       logger.info(`${context} uploaded successfully: ${result.path}`)
       return result.path
     },
-    [context, workspaceId]
+    [context, workspaceId, uploadWorkspaceLogo]
   )
 
   const processFile = useCallback(
@@ -154,16 +157,14 @@ export function useProfilePictureUpload({
   }, [])
 
   /**
-   * Restore the preview to the stored image (`currentImage`) — for a form discard
-   * that should revert an unsaved pick/removal without clearing the saved image.
-   * Unlike {@link handleRemove}, this does not emit `onUpload(null)`.
+   * Restore a saved preview after discarding a draft. Defaults to the current image.
    */
-  const reset = useCallback(() => {
+  const reset = useCallback((savedImage = currentImageRef.current) => {
     if (previewRef.current) {
       URL.revokeObjectURL(previewRef.current)
       previewRef.current = null
     }
-    setPreviewUrl(currentImageRef.current || null)
+    setPreviewUrl(savedImage || null)
     setFileName(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''

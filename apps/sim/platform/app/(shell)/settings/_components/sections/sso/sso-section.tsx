@@ -22,7 +22,10 @@ import {
   Modal,
   SegmentedControl,
 } from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
+import {
+  SettingsRow,
+  SettingsSection,
+} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   canMakeProviderPrimary,
   nextSignInProvider,
@@ -151,14 +154,6 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
             />
           ) : !creating && !selectedProvider ? (
             <>
-              <SectionToolbar>
-                <Button
-                  variant='primary'
-                  onClick={() => void setParams({ provider: null, createProvider: true })}
-                >
-                  Add identity provider
-                </Button>
-              </SectionToolbar>
               <SettingsSection title='Identity providers'>
                 <ResourceList>
                   {providerList.map((provider) => {
@@ -179,6 +174,14 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
                     )
                   })}
                 </ResourceList>
+                <SettingsRow label='New identity provider'>
+                  <Button
+                    size='compact'
+                    onClick={() => void setParams({ provider: null, createProvider: true })}
+                  >
+                    Add identity provider
+                  </Button>
+                </SettingsRow>
               </SettingsSection>
               <RequireSso organizationId={organizationId} />
             </>

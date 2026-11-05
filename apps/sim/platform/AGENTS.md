@@ -68,7 +68,9 @@ A server read goes through `serverRequestJson`, which gives every read a deadlin
 
 The legacy organization layout redirects flagged organizations here through `lib/platform/routes.ts`. Link out to a legacy route only with `legacyRoutes`, which builds an absolute URL, and only to a route that mapper leaves unmapped. Linking to a mapped route makes the two surfaces redirect to each other.
 
-Gates live on the server and arrive as data. Hiding an entry is navigation, not authorization: the API behind every page enforces the same rule. A Settings section plugs in by filling its folder under `settings/_components/sections/`, which `section-registry.ts` loads lazily; its navigation entry and gate are in `settings-navigation/destinations.ts`.
+Organization Settings follows the organization surface’s groups, labels, order and viewer gates. Keep General’s secondary views behind its own rows. Place setup, create, manage and destructive actions beside the setting they affect or at the end of that section; the page heading identifies the page. Platform-only tools retain their own entry points without displacing the organization’s tabs.
+
+Gates live on the server and arrive as data. Hiding an entry is navigation, not authorization: the API behind every page enforces the same rule. A Settings section plugs in by filling its folder under `settings/_components/sections/`, which `section-registry.ts` loads lazily; its navigation entry and gate are in `lib/data/settings-navigation.ts`.
 
 ## Product UI and desktop
 

@@ -20,11 +20,13 @@ import {
   Button,
   EmptyState,
   FailureNotice,
-  InlineNotice,
   SearchField,
   Tooltip,
 } from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
+import {
+  SettingsRow,
+  SettingsSection,
+} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   filterRoster,
   type MemberRowModel,
@@ -63,44 +65,12 @@ export function MembersPanel({ organization }: MembersPanelProps) {
 
   return (
     <div className={styles.panel}>
-      <div className={styles.toolbar}>
-        <div className={styles.search}>
-          <SearchField
-            label='Search members'
-            placeholder='Search members...'
-            value={search}
-            onValueChange={setSearch}
-          />
-        </div>
-        {members.canLeave && members.viewerId && (
-          <Button
-            variant='quiet'
-            onClick={() =>
-              setRemoval({
-                userId: members.viewerId ?? '',
-                name: 'yourself',
-                isSelf: true,
-                isExternal: false,
-              })
-            }
-          >
-            Leave organization
-          </Button>
-        )}
-        {members.canManage && (
-          <Tooltip label='Invitations are disabled' enabled={!members.canInvite}>
-            <span>
-              <Button
-                variant='primary'
-                disabled={!members.canInvite}
-                onClick={() => setInviting(true)}
-              >
-                Invite
-              </Button>
-            </span>
-          </Tooltip>
-        )}
-      </div>
+      <SearchField
+        label='Search members'
+        placeholder='Search members…'
+        value={search}
+        onValueChange={setSearch}
+      />
 
       {members.seats.visible && <SeatsOverview seats={members.seats} />}
 
@@ -122,7 +92,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
       ) : (
         <>
           {(!searching || visible.members.length + visible.invitations.length > 0) && (
-            <SettingsSection title={`Members (${visible.total})`}>
+            <SettingsSection title={`Members ${visible.total}`}>
               {visible.members.length + visible.invitations.length === 0 && (
                 <p className={styles.status} data-type='T060'>
                   No members yet
@@ -149,7 +119,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
             </SettingsSection>
           )}
           {visible.workspaces.map((workspace) => (
-            <SettingsSection key={workspace.id} title={`${workspace.name} (${workspace.total})`}>
+            <SettingsSection key={workspace.id} title={`${workspace.name} ${workspace.total}`}>
               {workspace.members.length + workspace.invitations.length === 0 && (
                 <p className={styles.status} data-type='T060'>
                   No members in this workspace
@@ -177,6 +147,43 @@ export function MembersPanel({ organization }: MembersPanelProps) {
         </>
       )}
 
+      {(members.canManage || members.canLeave) && (
+        <SettingsSection title='Membership'>
+          {members.canManage && (
+            <SettingsRow label='Invite people'>
+              <Tooltip label='Invitations are disabled' enabled={!members.canInvite}>
+                <span>
+                  <Button
+                    size='compact'
+                    disabled={!members.canInvite}
+                    onClick={() => setInviting(true)}
+                  >
+                    Invite
+                  </Button>
+                </span>
+              </Tooltip>
+            </SettingsRow>
+          )}
+          {members.canLeave && members.viewerId && (
+            <SettingsRow label='Organization membership'>
+              <Button
+                size='compact'
+                variant='destructive'
+                onClick={() =>
+                  setRemoval({
+                    userId: members.viewerId ?? '',
+                    name: 'yourself',
+                    isSelf: true,
+                    isExternal: false,
+                  })
+                }
+              >
+                Leave organization
+              </Button>
+            </SettingsRow>
+          )}
+        </SettingsSection>
+      )}
       {members.canManage && <InviteModal open={inviting} onOpenChange={setInviting} />}
       <RemoveMemberModal target={removal} onClose={() => setRemoval(null)} />
       <TransferOwnershipModal

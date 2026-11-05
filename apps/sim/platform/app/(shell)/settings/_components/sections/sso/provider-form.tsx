@@ -27,7 +27,6 @@ import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import {
   buildSsoRegistrationBody,
   DEFAULT_SSO_FORM,
-  getBaseUrl,
   hasSsoFormErrors,
   maskedClientSecret,
   OIDC_DEFAULT_MAPPING,
@@ -39,6 +38,7 @@ import {
   type SsoProviderView,
   ssoFormCallbackUrl,
   useConfigureSSO,
+  useSsoOrigin,
   validateSsoProviderForm,
 } from '@/platform/lib/data/sso'
 import { toast } from '@/platform/lib/data/toast'
@@ -137,6 +137,7 @@ export function ProviderForm({
   const configure = useConfigureSSO()
   const isEditing = Boolean(existingProvider)
   const original = initialForm ?? DEFAULT_SSO_FORM
+  const baseUrl = useSsoOrigin()
   const [form, setForm] = useState<SsoProviderForm>(original)
   const [showErrors, setShowErrors] = useState(false)
   const [isReplacing, setIsReplacing] = useState(false)
@@ -205,7 +206,6 @@ export function ProviderForm({
   }
 
   const isSaml = form.providerType === 'saml'
-  const baseUrl = getBaseUrl()
   const mappingDefaults = isSaml ? SAML_DEFAULT_MAPPING : OIDC_DEFAULT_MAPPING
   const query = providerIdQuery.trim()
   const providerIdOptions = [

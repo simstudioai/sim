@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { SettingsNavGroup } from '@/platform/app/(shell)/_components/model'
-import { SETTINGS_DESTINATIONS } from '@/platform/app/(shell)/_components/settings-navigation/destinations'
 import styles from '@/platform/app/(shell)/_components/settings-navigation/settings-navigation.module.css'
 import { Chip, SearchField } from '@/platform/design-system/components'
 import { platformHref } from '@/platform/design-system/navigation'
@@ -11,27 +10,11 @@ import { plural } from '@/platform/lib/plural'
 
 interface SettingsNavigationProps {
   section?: string
-  organization?: string
   /** The viewer's gated sections. Absent means the static fixture list. */
   groups?: readonly SettingsNavGroup[]
 }
 
-const FIXTURE_GROUPS: readonly SettingsNavGroup[] = [
-  {
-    label: 'Personal',
-    items: SETTINGS_DESTINATIONS.filter((item) => item.key !== 'members'),
-  },
-  {
-    label: 'Organization',
-    items: SETTINGS_DESTINATIONS.filter((item) => item.key === 'members'),
-  },
-]
-
-export function SettingsNavigation({
-  section = 'preferences',
-  organization,
-  groups = FIXTURE_GROUPS,
-}: SettingsNavigationProps) {
+export function SettingsNavigation({ section = 'general', groups = [] }: SettingsNavigationProps) {
   const params = useSearchParams()
   const [query, setQuery] = useState('')
   const filter = query.trim().toLowerCase()
@@ -39,7 +22,7 @@ export function SettingsNavigation({
     label: entry.label,
     items: entry.items.map((item) => ({
       ...item,
-      label: item.key === 'members' ? (organization ?? 'Members') : item.title,
+      label: item.title,
     })),
   }))
   const matches = labelled
@@ -58,13 +41,7 @@ export function SettingsNavigation({
           <Chip
             key={entry.key}
             selected={section === entry.key}
-            href={
-              entry.href ??
-              platformHref(
-                entry.key === 'preferences' ? '/settings' : `/settings/${entry.key}`,
-                params
-              )
-            }
+            href={entry.href ?? platformHref(`/settings/${entry.key}`, params)}
             icon={entry.icon}
           >
             {entry.label}

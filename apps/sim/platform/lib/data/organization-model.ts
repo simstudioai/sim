@@ -18,6 +18,8 @@ export type PlatformOrganization = OrganizationSurfaceResponse & { legacyOrigin:
 export function legacyRoutes({ legacyOrigin, organization }: PlatformOrganization) {
   const routes = organizationRoutes(organization.id)
   return {
+    mothershipLicenses: (env: string) =>
+      `${legacyOrigin}/account/settings/mothership?tab=licenses&env=${encodeURIComponent(env)}`,
     benchmark: `${legacyOrigin}${routes.benchmark}`,
     settingsSection: (section: string) => `${legacyOrigin}${routes.settingsSection(section)}`,
     workspace: (workspaceId: string) => `${legacyOrigin}${WORKSPACES_PATH}/${workspaceId}`,

@@ -9,6 +9,10 @@ import { toast } from '@/platform/lib/data/toast'
 
 export const CookieConsentProvider = ConsentStoreProvider
 
+export const cookieChoices = Object.entries(CONSENT_CATEGORY_COPY).flatMap(([name, copy]) =>
+  copy ? [{ name, ...copy, locked: name === 'necessary' }] : []
+)
+
 type ConsentCategoryName = Parameters<ReturnType<typeof useConsentManager>['setSelectedConsent']>[0]
 
 /**

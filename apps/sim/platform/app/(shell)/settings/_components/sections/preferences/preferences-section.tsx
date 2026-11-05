@@ -1,25 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import {
+  ProfileForm,
+  ProfileSettings,
+} from '@/platform/app/(shell)/settings/_components/profile/profile-settings'
 import {
   BooleanRow,
   SavedSettingsSection,
 } from '@/platform/app/(shell)/settings/_components/section-parts/saved-settings'
 import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import {
-  Avatar,
-  FailureNotice,
-  Icon,
-  Modal,
-  SearchableSelect,
-  Select,
-  TextField,
-} from '@/platform/design-system/components'
-import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
+import { FailureNotice, SearchableSelect, Select } from '@/platform/design-system/components'
+import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
+import { readAppearance } from '@/platform/design-system/navigation'
 import {
   useAppearanceSettings,
   useProfileSettings,
@@ -32,87 +25,49 @@ const THEMES = [
   { value: 'dark', label: 'Dark' },
 ]
 
-const NAME_MAX_LENGTH = 100
+interface PreferencesSectionProps {
+  fixture?: boolean
+}
 
-function Profile() {
+function Profile({ fixture }: PreferencesSectionProps) {
   const profile = useProfileSettings()
-  const [editing, setEditing] = useState(false)
   if (profile.status === 'pending') return <SectionSkeleton title='Profile' />
   if (profile.status === 'error')
     return <FailureNotice message='Failed to load your profile' onRetry={profile.retry} />
-  const displayName = profile.name || profile.email
-  return (
-    <SettingsSection title='Profile'>
-      <SettingsRow label='Picture' description='PNG or JPEG, up to 5MB'>
-        <IdentityButton
-          label={profile.uploading ? 'Uploading profile picture' : 'Change profile picture'}
-          onClick={profile.uploading ? undefined : profile.choosePicture}
-          leading={
-            displayName ? (
-              <Avatar name={displayName} src={profile.image ?? undefined} />
-            ) : (
-              <Icon name='I074' />
-            )
-          }
-        />
-        <input
-          ref={profile.fileInputRef}
-          hidden
-          type='file'
-          aria-label='Set your profile picture'
-          accept='image/png,image/jpeg,image/jpg'
-          disabled={profile.uploading}
-          onChange={profile.onPictureChange}
-        />
-      </SettingsRow>
-      <SettingsRow label='Name' description='Set your display name'>
-        <IdentityButton
-          label={profile.name ? `Edit display name, ${profile.name}` : 'Set name'}
-          trailingIcon='I036'
-          onClick={() => setEditing(true)}
-        >
-          {profile.name || 'Set name'}
-        </IdentityButton>
-        <Modal
-          open={editing}
-          onOpenChange={setEditing}
-          variant='form'
-          title='Edit display name'
-          confirmLabel='Save'
-          onConfirm={async (values) => {
-            const value = values.get('name')
-            const name = typeof value === 'string' ? value.trim() : ''
-            if (name !== profile.name) await profile.saveName(name)
-          }}
-        >
-          <TextField
-            name='name'
-            label='Display name'
-            defaultValue={profile.name}
-            maxLength={NAME_MAX_LENGTH}
-            required
-            pattern={'.*\\S.*'}
-          />
-        </Modal>
-      </SettingsRow>
-      <SettingsRow label='Email' description='Your account email'>
-        <span data-type='T067'>{profile.email}</span>
-      </SettingsRow>
-    </SettingsSection>
+  return fixture ? (
+    <ProfileSettings name={profile.name} email={profile.email} image={profile.image} />
+  ) : (
+    <ProfileForm
+      name={profile.name}
+      email={profile.email}
+      picture={profile.image}
+      uploading={profile.uploading}
+      onSaveName={profile.saveName}
+      onPictureChange={profile.onPictureChange}
+    />
   )
 }
 
-function Appearance() {
+function Preferences({ fixture }: PreferencesSectionProps) {
+  const router = useRouter()
+  const path = usePathname()
+  const search = useSearchParams()
   const appearance = useAppearanceSettings()
+  const snap = useSnapToGridSetting()
   return (
-    <SavedSettingsSection title='Appearance' rows={2}>
+    <SavedSettingsSection title='Preferences' rows={7}>
       <SettingsRow label='Theme' description='Select your preferred color theme' field>
         <Select
           label='Theme'
           variant='quiet'
           options={THEMES}
-          value={appearance.theme}
-          onValueChange={appearance.setTheme}
+          value={fixture ? readAppearance(search.get('theme')) : appearance.theme}
+          onValueChange={(value) => {
+            if (!fixture) return appearance.setTheme(value)
+            const query = new URLSearchParams(search.toString())
+            query.set('theme', value)
+            router.replace(`${path}?${query}`, { scroll: false })
+          }}
         />
       </SettingsRow>
       <SettingsRow label='Time zone' description='Used for dates and schedules you read' field>
@@ -125,23 +80,23 @@ function Appearance() {
           onValueChange={appearance.setTimezone}
         />
       </SettingsRow>
-    </SavedSettingsSection>
-  )
-}
-
-function WorkflowEditor() {
-  const snap = useSnapToGridSetting()
-  return (
-    <SavedSettingsSection title='Workflow editor' rows={3}>
       <BooleanRow
         setting='autoConnect'
         label='Auto-connect on drop'
         description='Connect a dropped block to the nearest block automatically'
+        preview='auto-connect-on-drop'
       />
       <BooleanRow
         setting='autoFocusOnClick'
         label='Auto-focus on click'
-        description='Open a block’s editor when you click it'
+        description='Center the canvas on a block when you click it'
+        preview='auto-focus-on-click'
+      />
+      <BooleanRow
+        setting='errorNotificationsEnabled'
+        label='Canvas error notifications'
+        description='Show error popups on blocks when a workflow run fails'
+        preview='canvas-error-notification'
       />
       <SettingsRow label='Snap to grid' description='Align blocks to a grid as you move them' field>
         <Select
@@ -162,12 +117,11 @@ function WorkflowEditor() {
   )
 }
 
-export default function PreferencesSection() {
+export default function PreferencesSection({ fixture }: PreferencesSectionProps) {
   return (
     <>
-      <Profile />
-      <Appearance />
-      <WorkflowEditor />
+      <Profile fixture={fixture} />
+      <Preferences fixture={fixture} />
     </>
   )
 }

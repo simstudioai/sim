@@ -2,6 +2,7 @@ import 'server-only'
 import type { AttachmentItem } from '@/platform/design-system/components/attachments/attachment-tile'
 import type { PropertyItem } from '@/platform/design-system/components/property-list/property-list'
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
+import type { PreviewPlan } from '@/platform/design-system/navigation'
 import type { IntegrationsData } from '@/platform/lib/integrations/model'
 
 export type Scenario = 'empty' | 'full' | 'stress'
@@ -60,8 +61,15 @@ export const loadShellData = fixture(async (scenario) => {
     import('@/platform/fixtures/conversation-data'),
   ])
   const { chat } = conversationScenarios[scenario]
+  const { settingsSurface } = await import('@/platform/fixtures/settings/surface')
+  const { resolveSettingsNavigation } = await import('@/platform/lib/data/settings-navigation')
   return {
     ...shellScenarios[scenario],
+    settingsByPlan: {
+      enterprise: resolveSettingsNavigation(settingsSurface(scenario, 'enterprise')),
+      team: resolveSettingsNavigation(settingsSurface(scenario, 'team')),
+      free: resolveSettingsNavigation(settingsSurface(scenario, 'free')),
+    },
     chats: chat.threads.map(({ id, title }) => ({ id, title })),
   }
 })
@@ -75,10 +83,26 @@ export async function loadShellScenarios() {
   return empty && full && stress ? { empty, full, stress } : null
 }
 
-export const loadSettingsData = fixture(
-  async (scenario) =>
-    (await import('@/platform/fixtures/settings-data')).settingsScenarios[scenario]
+export const loadSettingsFixture = fixture(async (scenario, plan: PreviewPlan) => {
+  const [{ settingsSurface, settingsProfile }, { BrowserSettings }, { FIXTURE_NOW }] =
+    await Promise.all([
+      import('@/platform/fixtures/settings/surface'),
+      import('@/platform/fixtures/settings/browser'),
+      import('@/platform/fixtures/clock'),
+    ])
+  return {
+    organization: settingsSurface(scenario, plan),
+    plan,
+    scenario,
+    profile: settingsProfile(scenario),
+    referenceTime: FIXTURE_NOW,
+    Provider: BrowserSettings,
+  }
+})
+export const loadCredentialGroupsData = fixture(async (scenario) =>
+  (await import('@/platform/fixtures/credential-groups-data')).credentialGroupsData(scenario)
 )
+
 export const loadConversationData = fixture(
   async (scenario) =>
     (await import('@/platform/fixtures/conversation-data')).conversationScenarios[scenario]
@@ -105,3 +129,14 @@ export async function loadHomeRecentLinks(scenario: Scenario): Promise<RecentIte
     destination === 'website' && address ? [{ id, label, icon, href: `https://${address}` }] : []
   )
 }
+
+export const loadSourceSettings = fixture(async (scenario) =>
+  (await import('@/platform/fixtures/settings-sources-data')).sourceSettings(scenario)
+)
+
+export const loadSlackSettings = fixture(async (scenario) =>
+  (await import('@/platform/fixtures/search-slack-data')).slackSettings(scenario)
+)
+export const loadAdminExample = fixture(async (scenario) =>
+  (await import('@/platform/fixtures/settings/admin')).adminExample(scenario)
+)

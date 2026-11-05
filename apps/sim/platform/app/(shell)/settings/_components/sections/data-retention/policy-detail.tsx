@@ -21,7 +21,10 @@ import {
   SegmentedControl,
   SelectField,
 } from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
+import {
+  SettingsRow,
+  SettingsSection,
+} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   customPatternError,
   getEntityGroupsForLanguage,
@@ -246,29 +249,7 @@ export function PolicyDetail({
             ? 'Applied to every workspace without its own override.'
             : 'Overrides the organization defaults for the selected workspaces.'
         }
-      >
-        {changed && (
-          <Button variant='quiet' disabled={isSaving} onClick={onDiscard}>
-            Discard
-          </Button>
-        )}
-        <Button
-          variant='primary'
-          disabled={!changed || isSaving || (!isOrg && draft.workspaceIds.length === 0)}
-          onClick={onSave}
-        >
-          {isSaving ? 'Saving…' : 'Save'}
-        </Button>
-        {canRemove && (
-          <Button
-            variant='destructive'
-            disabled={isSaving}
-            onClick={() => setConfirmingRemove(true)}
-          >
-            Remove override
-          </Button>
-        )}
-      </DetailHeader>
+      />
       <FormFieldset disabled={isSaving}>
         {!isOrg && (
           <SettingsSection title='Workspaces'>
@@ -355,6 +336,38 @@ export function PolicyDetail({
           </FieldStack>
         </SettingsSection>
       </FormFieldset>
+      <SettingsSection title='Policy changes'>
+        <SettingsRow label='Changes to this policy'>
+          <ActionRow>
+            {changed && (
+              <Button variant='quiet' disabled={isSaving} onClick={onDiscard}>
+                Discard
+              </Button>
+            )}
+            <Button
+              variant='primary'
+              disabled={!changed || isSaving || (!isOrg && draft.workspaceIds.length === 0)}
+              onClick={onSave}
+            >
+              {isSaving ? 'Saving…' : 'Save'}
+            </Button>
+          </ActionRow>
+        </SettingsRow>
+        {canRemove && (
+          <SettingsRow
+            label='Workspace override'
+            description='Use the organization defaults for these workspaces.'
+          >
+            <Button
+              variant='destructive'
+              disabled={isSaving}
+              onClick={() => setConfirmingRemove(true)}
+            >
+              Remove override
+            </Button>
+          </SettingsRow>
+        )}
+      </SettingsSection>
       <Modal
         variant='confirm'
         destructive

@@ -3,7 +3,8 @@ import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_comp
 import { BillingView } from '@/platform/app/(shell)/settings/_components/sections/billing/billing-view'
 import { prefetchBillingSummary } from '@/platform/lib/data/prefetch-billing'
 
-export default async function BillingSection({ organization }: SettingsSectionProps) {
+export default async function BillingSection({ organization, fixture }: SettingsSectionProps) {
+  if (fixture) return <BillingView organization={organization} />
   const state = await prefetchBillingSummary(organization.organization.id)
   return (
     <HydrationBoundary state={state}>

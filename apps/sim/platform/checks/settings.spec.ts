@@ -2,6 +2,29 @@ import { expect, type Locator, test } from '@playwright/test'
 
 const base = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
 
+test('Back to app holds an unsaved Settings draft and restores the full entry URL after discard', async ({
+  page,
+}) => {
+  const entry = `${base}/integrations?state=full&theme=dark&source=all`
+  await page.goto(entry)
+  await page.getByRole('button', { name: 'Emir Karabeg', exact: true }).click()
+  await page
+    .getByRole('navigation', { name: 'Settings', exact: true })
+    .getByRole('link', { name: 'Sources', exact: true })
+    .click()
+  await page.getByRole('link', { name: 'Secrets', exact: true }).click()
+  const name = page.getByRole('textbox', { name: 'Name', exact: true }).first()
+  await name.fill('UNSAVED_KEY')
+  const back = page.getByRole('button', { name: 'Back to app' })
+  await back.click()
+  const dialog = page.getByRole('dialog', { name: 'Unsaved changes' })
+  await dialog.getByRole('button', { name: 'Keep editing' }).click()
+  await expect(name).toHaveValue('UNSAVED_KEY')
+  await back.click()
+  await dialog.getByRole('button', { name: 'Discard changes' }).click()
+  await expect(page).toHaveURL(entry)
+})
+
 test('preferences apply to the interface and survive settings navigation in this session', async ({
   page,
 }) => {
@@ -11,26 +34,30 @@ test('preferences apply to the interface and survive settings navigation in this
   await theme.click()
   await page.getByRole('option', { name: 'Dark', exact: true }).click()
   await expect(page.locator('[data-platform-ui]')).toHaveAttribute('data-theme', 'dark')
-  await page.getByRole('combobox', { name: 'Interface font' }).click()
-  await page.getByRole('option', { name: 'System', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Preferences' })).toHaveCSS(
-    'font-family',
-    /system-ui/
-  )
-  await page.getByRole('switch', { name: 'In-app notifications' }).click()
-  await page.getByRole('switch', { name: 'Play sound' }).focus()
+  const canvasErrors = page.getByRole('switch', { name: 'Canvas error notifications' })
+  await expect(canvasErrors).toBeChecked()
+  await canvasErrors.focus()
   await page.keyboard.press('Space')
-  await page
-    .getByRole('navigation', { name: 'Settings', exact: true })
-    .getByRole('link', { name: 'Notifications' })
-    .click()
-  await expect(page).toHaveURL(/\/settings\/notifications\?.*state=full/)
-  await expect(page.getByRole('switch', { name: 'In-app notifications' })).not.toBeChecked()
-  await expect(page.getByRole('switch', { name: 'Play sound' })).toBeChecked()
-  await expect(page.getByRole('heading', { name: 'Notifications', level: 1 })).toHaveCSS(
-    'font-family',
-    /system-ui/
-  )
+  await expect(canvasErrors).not.toBeChecked()
+  const navigation = page.getByRole('navigation', { name: 'Settings', exact: true })
+  await navigation.getByRole('link', { name: 'Members', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible()
+  await navigation.getByRole('link', { name: 'General', exact: true }).click()
+  await expect(canvasErrors).not.toBeChecked()
+  await expect(page.locator('[data-platform-ui]')).toHaveAttribute('data-theme', 'dark')
+})
+
+test('a platform administration link is gated in the sidebar and at its bookmarked URL', async ({
+  page,
+}) => {
+  await page.goto(`${base}/settings?state=full`)
+  const nav = page.getByRole('navigation', { name: 'Settings', exact: true })
+  await expect(nav.getByRole('link', { name: 'Admin', exact: true })).toHaveCount(0)
+  await page.goto(`${base}/settings/admin?state=full`)
+  await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
+  await page.goto(`${base}/settings?state=stress`)
+  await nav.getByRole('link', { name: 'Admin', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Admin', exact: true, level: 1 })).toBeVisible()
 })
 
 test('the small Settings drawer filters destinations, restores navigation and closes on selection', async ({
@@ -43,14 +70,13 @@ test('the small Settings drawer filters destinations, restores navigation and cl
   const field = drawer.getByRole('searchbox', { name: 'Search settings' })
   await field.fill('nonexistent')
   await expect(drawer.getByText('No matching settings')).toBeVisible()
-  await expect(drawer.getByRole('link', { name: 'Preferences' })).toHaveCount(0)
+  await expect(drawer.getByRole('link', { name: 'General' })).toHaveCount(0)
   await drawer.getByRole('button', { name: 'Clear search' }).click()
   await expect(field).toBeFocused()
-  await field.fill('notifications')
-  await drawer.getByRole('link', { name: 'Notifications' }).click()
+  await field.fill('members')
+  await drawer.getByRole('link', { name: 'Members', exact: true }).click()
   await expect(drawer).toBeHidden()
-  await expect(page.getByRole('heading', { name: 'Notifications', level: 1 })).toBeVisible()
-  await expect(page.getByRole('switch', { name: 'Play sound' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(356)
 })
 
@@ -82,10 +108,10 @@ test('cancelled profile edits reset and saved name and picture survive Settings 
   const open = page.getByRole('button', { name: 'Expand sidebar' })
   const drawer = page.getByRole('dialog', { name: 'Navigation drawer' })
   await open.click()
-  await drawer.getByRole('link', { name: 'Notifications' }).click()
-  await expect(page.getByRole('heading', { name: 'Notifications', level: 1 })).toBeVisible()
+  await drawer.getByRole('link', { name: 'Members', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible()
   await open.click()
-  await drawer.getByRole('link', { name: 'Preferences' }).click()
+  await drawer.getByRole('link', { name: 'General', exact: true }).click()
   await expect(button).toBeInViewport({ ratio: 1 })
   await expect(picture).toHaveJSProperty('naturalWidth', 17)
   await open.click()

@@ -130,6 +130,8 @@ const seamRoots = ['hooks/queries', 'lib/api']
  * `@/app` or `@/components` is expected; `checkSeamClosure` proves none of them renders legacy UI.
  */
 const seamHelpers = new Set([
+  'lib/slack-search/manifest',
+  'lib/integrations/slack-manifest',
   'app/o/[organizationId]/search/search-params',
   'app/workspace/[workspaceId]/home/components/knowledge-search-results/utils',
   'app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view',
@@ -217,6 +219,7 @@ const seamHelpers = new Set([
   'lib/mothership/tools/display',
   'lib/permission-groups/block-successors.generated',
   'lib/resources',
+  'lib/settings/section-availability',
   'lib/sim-search/connectors',
   'lib/terminal/transport',
   'lib/uploads/client/admission',
@@ -236,6 +239,7 @@ const seamHelpers = new Set([
   'hooks/use-settings-unsaved-guard',
   'hooks/use-settings-search',
   'hooks/use-url-sort',
+  'lib/core/utils/csv',
   'lib/core/utils/csv-download',
   'lib/core/utils/in-app-link',
   'lib/data-drains/types',
@@ -378,6 +382,7 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
     target &&
     /^platform\/fixtures\/(?!index(?:\.|$)|types(?:\.|$))/.test(target) &&
     !(file === 'platform/fixtures/index.ts' && dynamic) &&
+    !(file.startsWith('platform/fixtures/settings/') && target.startsWith('platform/fixtures/')) &&
     !(file.startsWith('platform/fixtures/') && target === 'platform/fixtures/clock') &&
     !(
       /^platform\/fixtures\/[\w-]+-data\.ts$/.test(file) &&

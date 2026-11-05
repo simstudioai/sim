@@ -3,6 +3,7 @@
 import { useDeferredValue, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
+  ActionRow,
   DetailHeader,
   FieldStack,
   LoadingState,
@@ -529,27 +530,7 @@ export function GroupDetail({
         onBack={() => guard.guardBack(onBack)}
         title={viewing.name}
         description={viewing.description ?? undefined}
-      >
-        {hasChanges && (
-          <Button variant='quiet' disabled={updateGroup.isPending} onClick={discard}>
-            Discard
-          </Button>
-        )}
-        <Button
-          variant='primary'
-          disabled={!hasChanges || updateGroup.isPending || !trimmedName || !isAgentDefaultValid}
-          onClick={() => void save()}
-        >
-          {updateGroup.isPending ? 'Saving…' : 'Save'}
-        </Button>
-        <Button
-          variant='destructive'
-          disabled={deleteGroup.isPending}
-          onClick={() => setConfirmingDelete(true)}
-        >
-          {deleteGroup.isPending ? 'Deleting…' : 'Delete'}
-        </Button>
-      </DetailHeader>
+      />
       <SegmentedControl
         label='Permission group settings'
         options={TABS}
@@ -684,6 +665,35 @@ export function GroupDetail({
       ) : (
         catalogBody()
       )}
+      <SettingsSection title='Manage'>
+        <SettingsRow label='Group settings'>
+          <ActionRow>
+            {hasChanges && (
+              <Button variant='quiet' disabled={updateGroup.isPending} onClick={discard}>
+                Discard
+              </Button>
+            )}
+            <Button
+              variant='primary'
+              disabled={
+                !hasChanges || updateGroup.isPending || !trimmedName || !isAgentDefaultValid
+              }
+              onClick={() => void save()}
+            >
+              {updateGroup.isPending ? 'Saving…' : 'Save'}
+            </Button>
+          </ActionRow>
+        </SettingsRow>
+        <SettingsRow label='Delete permission group'>
+          <Button
+            variant='destructive'
+            disabled={deleteGroup.isPending}
+            onClick={() => setConfirmingDelete(true)}
+          >
+            {deleteGroup.isPending ? 'Deleting…' : 'Delete'}
+          </Button>
+        </SettingsRow>
+      </SettingsSection>
       {addingMembers && (
         <AddMembersModal
           organizationId={organizationId}

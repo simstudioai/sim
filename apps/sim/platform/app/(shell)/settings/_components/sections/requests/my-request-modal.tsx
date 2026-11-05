@@ -1,13 +1,7 @@
 'use client'
 
 import { RequestText } from '@/platform/app/(shell)/settings/_components/sections/requests/request-text'
-import {
-  Button,
-  FailureNotice,
-  InlineNotice,
-  Modal,
-  StatusTag,
-} from '@/platform/design-system/components'
+import { FailureNotice, Modal, StatusTag } from '@/platform/design-system/components'
 import { type RequestScope, useRequestDetails } from '@/platform/lib/data/requests'
 import { toast } from '@/platform/lib/data/toast'
 

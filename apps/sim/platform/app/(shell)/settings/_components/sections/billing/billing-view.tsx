@@ -1,32 +1,28 @@
 'use client'
 
-import Link from 'next/link'
 import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
+import styles from '@/platform/app/(shell)/settings/_components/sections/billing/billing.module.css'
 import {
   Button,
-  DataTable,
   FailureNotice,
+  Icon,
   Input,
   StatusTag,
   Switch,
+  Tooltip,
 } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
+  SettingsSurface,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import { useBillingSection, useUsageLimitField } from '@/platform/lib/data/billing'
 
 const ON_DEMAND_LABEL = 'Allow usage to go past included usage'
+const EXPLORE_PLANS_LABEL = 'Explore organization plans'
 const ON_DEMAND_LOCKED =
-  "Your usage is above your plan's included amount, so on-demand can't be turned off yet. It turns off once usage drops below it, at the latest when your billing period resets."
-
-const INVOICE_COLUMNS = [
-  { key: 'date', label: 'Date', kind: 'text' },
-  { key: 'status', label: 'Status', kind: 'status' },
-  { key: 'amount', label: 'Amount', kind: 'text' },
-  { key: 'description', label: 'Description', kind: 'text', showFrom: 'compact' },
-] as const
+  "Your usage is above your plan's included amount, so on-demand can't be turned off yet. It turns off once usage drops below it — at the latest when your billing period resets."
 
 function UsageLimit(props: Parameters<typeof useUsageLimitField>[0]) {
   const field = useUsageLimitField(props)
@@ -57,21 +53,27 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
     return <FailureNotice message={billing.error} onRetry={billing.retry} />
   return (
     <>
-      <SettingsSection title='Plan'>
-        <SettingsRow label={billing.planTitle} description={billing.priceText}>
+      <SettingsSurface>
+        <SettingsRow
+          label={billing.planTitle}
+          description={billing.priceText}
+          leading={<Icon name='I133' />}
+        >
           {billing.showExplorePlans && (
             <Button
               render={
-                billing.explorePlansHref ? <Link href={billing.explorePlansHref} /> : undefined
+                billing.explorePlansHref ? (
+                  <a href={billing.explorePlansHref}>{EXPLORE_PLANS_LABEL}</a>
+                ) : undefined
               }
               size='compact'
               disabled={!billing.explorePlansHref}
             >
-              Explore organization plans
+              {EXPLORE_PLANS_LABEL}
             </Button>
           )}
         </SettingsRow>
-      </SettingsSection>
+      </SettingsSurface>
       {billing.showUsageLimit && (
         <UsageLimit
           current={billing.usageLimit.current}
@@ -81,17 +83,18 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
         />
       )}
       {billing.showOnDemand && (
-        <SettingsSection title='On-demand usage'>
-          <SettingsRow
-            label={ON_DEMAND_LABEL}
-            description={billing.onDemand.locked ? ON_DEMAND_LOCKED : undefined}
-          >
-            <Switch
-              label={ON_DEMAND_LABEL}
-              checked={billing.onDemand.locked || billing.onDemand.active}
-              disabled={billing.onDemand.disabled}
-              onCheckedChange={() => void billing.onDemand.toggle()}
-            />
+        <SettingsSection title='Enable on-demand usage'>
+          <SettingsRow label={ON_DEMAND_LABEL}>
+            <Tooltip enabled={billing.onDemand.locked} label={ON_DEMAND_LOCKED}>
+              <span>
+                <Switch
+                  label={ON_DEMAND_LABEL}
+                  checked={billing.onDemand.locked || billing.onDemand.active}
+                  disabled={billing.onDemand.disabled}
+                  onCheckedChange={() => void billing.onDemand.toggle()}
+                />
+              </span>
+            </Tooltip>
           </SettingsRow>
         </SettingsSection>
       )}
@@ -110,7 +113,7 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
           <SettingsRow label='Payment method'>
             <Button
               size='compact'
-              disabled={!billing.canManage || billing.portalPending}
+              disabled={!billing.canOpenPortal || billing.portalPending}
               onClick={billing.openPortal}
             >
               Manage in Stripe
@@ -147,36 +150,48 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
         <FailureNotice message='Couldn’t load invoices.' onRetry={billing.retryInvoices} />
       )}
       {billing.invoices.length > 0 && (
-        <DataTable
-          title='Invoices'
-          control={
-            billing.hasMoreInvoices ? (
-              <Button
-                variant='quiet'
-                size='compact'
-                disabled={billing.portalPending || !billing.canManage}
-                onClick={billing.openPortal}
-              >
-                View all
-              </Button>
-            ) : undefined
-          }
-          columns={INVOICE_COLUMNS}
-          rows={billing.invoices.map((invoice) => ({
-            id: invoice.id,
-            values: {
-              date: invoice.date,
-              amount: invoice.amount,
-              description: invoice.description,
-            },
-            cells: {
-              status: <StatusTag label={invoice.statusLabel} intent={invoice.statusIntent} />,
-            },
-            onOpen: invoice.url
-              ? () => window.open(invoice.url ?? undefined, '_blank', 'noopener,noreferrer')
-              : undefined,
-          }))}
-        />
+        <SettingsSection title='Invoices'>
+          <ul className={styles.invoices}>
+            {billing.invoices.map((invoice) => {
+              const details = (
+                <>
+                  <span data-type='T059'>{invoice.date}</span>
+                  <StatusTag label={invoice.statusLabel} intent={invoice.statusIntent} />
+                  <span data-type='T060'>{invoice.amount}</span>
+                  <span className={styles.description} data-type='T060'>
+                    {invoice.description}
+                  </span>
+                  <Icon name='I032' />
+                </>
+              )
+              return (
+                <li key={invoice.id}>
+                  {invoice.url ? (
+                    <a
+                      className={styles.invoice}
+                      href={invoice.url}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                    >
+                      {details}
+                    </a>
+                  ) : (
+                    <div className={styles.invoice}>{details}</div>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+          {billing.hasMoreInvoices && (
+            <Button
+              size='compact'
+              disabled={!billing.canOpenPortal || billing.portalPending}
+              onClick={billing.openPortal}
+            >
+              View all invoices
+            </Button>
+          )}
+        </SettingsSection>
       )}
     </>
   )

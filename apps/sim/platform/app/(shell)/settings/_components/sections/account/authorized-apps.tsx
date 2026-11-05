@@ -54,6 +54,7 @@ export function AuthorizedApps() {
       ) : (
         <DataTable
           title={TITLE}
+          titleHidden
           columns={COLUMNS}
           loadMore={list.loadMore}
           rows={list.apps.map((app) => ({

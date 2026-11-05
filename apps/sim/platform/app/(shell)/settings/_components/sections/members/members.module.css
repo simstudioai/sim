@@ -4,18 +4,6 @@
   gap: var(--spacing-24);
 }
 
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-8);
-}
-
-.search {
-  flex: 1;
-  min-inline-size: var(--spacing-192);
-}
-
 .controls {
   display: inline-flex;
   align-items: center;
