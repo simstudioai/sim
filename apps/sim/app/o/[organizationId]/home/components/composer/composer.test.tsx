@@ -418,7 +418,13 @@ it('preserves mode-specific models and unsent effort across composer remounts', 
   expect(container.textContent).toContain('Extra High')
 })
 
-const settleQueries = () => act(async () => new Promise((resolve) => setTimeout(resolve, 20)))
+/** Flushes until the lists have landed and the editor has seen them, however busy the runner is. */
+async function settleQueries() {
+  const tick = () => act(async () => new Promise((resolve) => setTimeout(resolve, 20)))
+  await tick()
+  while (queryClient.isFetching() > 0) await tick()
+  await tick()
+}
 
 function typeInto(input: HTMLTextAreaElement, text: string) {
   const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
@@ -494,7 +500,7 @@ it('a skill typed to its boundary before the lists land chips when they do, care
   await act(async () => typeInto(input, '/review now'))
   expect(input.value).toBe('/review now')
   await act(async () => {
-    input.setSelectionRange(4, 4)
+    input.setSelectionRange(9, 9)
     resolveSkills([
       {
         id: 'skill-a',
@@ -511,5 +517,5 @@ it('a skill typed to its boundary before the lists land chips when they do, care
   })
   await settleQueries()
   expect(input.value).toBe(' review now')
-  expect(input.selectionStart).toBe(4)
+  expect(input.selectionStart).toBe(9)
 })
