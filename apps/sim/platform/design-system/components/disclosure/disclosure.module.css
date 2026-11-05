@@ -29,7 +29,10 @@
 .activity {
   display: grid;
   min-inline-size: 0;
-  gap: var(--ui-section-gap);
+  gap: var(--ui-stack-gap);
+}
+.activityPanel {
+  margin-block-start: var(--ui-section-gap);
 }
 .activity > .summary {
   color: var(--ui-secondary);
