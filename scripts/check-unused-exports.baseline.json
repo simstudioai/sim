@@ -5088,7 +5088,6 @@
   "apps/sim/lib/workflows/comparison/normalize.ts#normalizeBlockData",
   "apps/sim/lib/workflows/comparison/normalize.ts#normalizeSubBlockValue",
   "apps/sim/lib/workflows/comparison/redact.ts#ComparisonValue",
-  "apps/sim/lib/workflows/custom-blocks/operations.ts#getCustomBlockRowsForOrg",
   "apps/sim/lib/workflows/custom-blocks/operations.ts#getCustomBlockWithInputsByWorkflowId",
   "apps/sim/lib/workflows/custom-blocks/operations.ts#isCustomBlocksEligible",
   "apps/sim/lib/workflows/custom-blocks/operations.ts#listCustomBlockSummariesForWorkspace",

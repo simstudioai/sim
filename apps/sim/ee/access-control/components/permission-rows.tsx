@@ -45,7 +45,7 @@ import type { ProviderName } from '@/stores/providers'
 import { getToolMetadata } from '@/tools/metadata'
 
 /** Resolves draft policy and inheritance, checks request support, and stages edits without saving. */
-export interface PermissionEditorControls extends PermissionResolvers {
+interface PermissionEditorControls extends PermissionResolvers {
   onSet: (targets: AccessRequestTarget[], state: PermissionGroupAccessState) => void
 }
 

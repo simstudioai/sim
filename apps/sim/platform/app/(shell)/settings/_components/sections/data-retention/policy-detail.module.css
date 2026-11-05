@@ -1,0 +1,27 @@
+.patternBlock {
+  display: grid;
+  gap: var(--ui-stack-gap);
+  min-inline-size: 0;
+}
+
+.pattern {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+
+.error {
+  color: var(--control-danger);
+}
+
+.group {
+  display: grid;
+  gap: var(--spacing-8);
+}
+
+.entities {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--settings-control-width), 1fr));
+  gap: var(--spacing-4) var(--spacing-8);
+}

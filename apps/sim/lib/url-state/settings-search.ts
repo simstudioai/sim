@@ -7,9 +7,9 @@ import { parseAsString } from 'nuqs/server'
  * custom-blocks, data-drains, forks). Settings sections never co-render, so
  * they all share the `search` key without collisions.
  *
- * Consume via `useSettingsSearch` (`settings/components/use-settings-search`),
- * which owns the debounced-write wiring — the input is controlled directly by
- * the instant nuqs value; only the URL write is debounced.
+ * Consume via `useSettingsSearch` (`hooks/use-settings-search`), which owns the
+ * debounced-write wiring — the input is controlled directly by the instant nuqs
+ * value; only the URL write is debounced.
  */
 export const settingsSearchParam = {
   key: 'search',

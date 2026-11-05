@@ -16,7 +16,7 @@ import {
 } from '@/lib/guardrails/pii-entities'
 
 /** Sentinel `RetentionSelect` value meaning "inherit the org-level value". */
-export const INHERIT = 'inherit'
+const INHERIT = 'inherit'
 
 const DAY_OPTIONS = [
   { value: '1', label: '1 day' },
@@ -187,7 +187,7 @@ export function stageHasContent(policy: PiiStagePolicy): boolean {
   return policy.entityTypes.length > 0 || (policy.customPatterns?.length ?? 0) > 0
 }
 
-export function anyStageHasContent(stages: PiiStages): boolean {
+function anyStageHasContent(stages: PiiStages): boolean {
   return PII_STAGES.some((key) => stageHasContent(stages[key]))
 }
 

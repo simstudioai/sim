@@ -20,7 +20,7 @@ import {
  * the raw input value (consumers trim on read).
  */
 
-export { parseAsDateString, parseAsTimeRange }
+export { parseAsDateString }
 
 const DEFAULT_TIME_RANGE: TimeRange = 'All time'
 
