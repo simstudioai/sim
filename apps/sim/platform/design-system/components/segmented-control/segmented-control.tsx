@@ -66,6 +66,8 @@ type SegmentedControlProps<Value extends string> = {
   description?: string
   options: readonly Choice<Value>[]
   onSelect?: (value: Value) => void
+  /** Reselecting does nothing, for a two-way choice too consequential to flip by accident. */
+  holdOnReselect?: boolean
 } & ({ value: Value; defaultValue?: never } | { value?: never; defaultValue: Value })
 
 export function SegmentedControl<Value extends string>({
@@ -75,6 +77,7 @@ export function SegmentedControl<Value extends string>({
   value,
   defaultValue,
   onSelect,
+  holdOnReselect,
 }: SegmentedControlProps<Value>) {
   const group = useId()
   const [localValue, setLocalValue] = useState(defaultValue)
@@ -96,7 +99,10 @@ export function SegmentedControl<Value extends string>({
           checked={selected === option.value}
           onSelect={() => select(option.value)}
           onReselect={
-            options.length === 2 && selected === option.value && !options[1 - index].disabled
+            !holdOnReselect &&
+            options.length === 2 &&
+            selected === option.value &&
+            !options[1 - index].disabled
               ? () => select(options[1 - index].value)
               : undefined
           }

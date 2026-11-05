@@ -3,7 +3,6 @@
 import { useId, useState } from 'react'
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { generatePassword } from '@/lib/core/security/encryption'
-import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import {
   useOpenSimLinkForm,
   useSimLinkOrganizationId,
@@ -11,6 +10,7 @@ import {
 import { useExistingSimLink } from '@/app/o/[organizationId]/links/sim-link-shortcut'
 import type { ShareDialogModel } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import styles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
+import { BodyDialog } from '@/platform/app/(shell)/_components/conversation/dialogs'
 import {
   Button,
   CopyButton,
@@ -90,7 +90,7 @@ function entryProblem(entry: string, validator: AllowedEmailsFieldProps['validat
 
 /**
  * Only accepted entries reach the share, normalized as the legacy field does. A rejected entry stays
- * here as an invalid tag, which also holds the form until it is removed.
+ * here as an invalid tag with its reason on the field, and the share goes ahead without it.
  */
 function AllowedEmailsField({ value, onChange, validator, disabled }: AllowedEmailsFieldProps) {
   const [rejected, setRejected] = useState<string[]>([])
@@ -101,6 +101,7 @@ function AllowedEmailsField({ value, onChange, validator, disabled }: AllowedEma
       placeholder='Enter emails or domains'
       disabled={disabled}
       error={problem ?? undefined}
+      submitsWithInvalid
       recipients={[
         ...value.map((address) => ({ address })),
         ...rejected.map((address) => ({ address, invalid: true })),
@@ -159,102 +160,102 @@ export function ShareDialog(dialog: ShareDialogModel) {
   const url = saved?.isActive ? saved.url : undefined
   const failure = error && <InlineNotice intent='danger' message={error} />
   return (
-    <div className={styles.dialogHost}>
-      <RedesignSurface>
-        <Modal
-          open
-          onOpenChange={() => {
-            if (!pending) dialog.onClose()
-          }}
-          title='Share file'
-          confirmLabel={dialog.primaryLabel}
-          confirmDisabled={dialog.primaryDisabled}
-          destructive={dialog.isUnshareAction}
-          onConfirm={() => {
-            dialog.onPrimaryAction()
-            return false
+    <BodyDialog>
+      <Modal
+        open
+        onOpenChange={() => {
+          if (!pending) dialog.onClose()
+        }}
+        title='Share file'
+        accessibleName={`Share ${dialog.fileName}`}
+        confirmLabel={dialog.primaryLabel}
+        confirmDisabled={dialog.primaryDisabled}
+        destructive={dialog.isUnshareAction}
+        onConfirm={() => {
+          dialog.onPrimaryAction()
+          return false
+        }}
+      >
+        {/* Unsharing asks first, so Enter in a field does not start it, as in the legacy footer. */}
+        <div
+          className={styles.shareFields}
+          onKeyDown={(event) => {
+            if (
+              event.key === 'Enter' &&
+              dialog.isUnshareAction &&
+              event.target instanceof HTMLInputElement
+            )
+              event.preventDefault()
           }}
         >
-          {/* Unsharing asks first, so Enter in a field does not start it, as in the legacy footer. */}
-          <div
-            className={styles.shareFields}
-            onKeyDown={(event) => {
-              if (
-                event.key === 'Enter' &&
-                dialog.isUnshareAction &&
-                event.target instanceof HTMLInputElement
-              )
-                event.preventDefault()
-            }}
-          >
-            <FieldFrame label='Access' hint={dialog.accessHint}>
-              <SegmentedControl
-                label='File access'
-                value={mode}
-                options={dialog.accessModes.map((option) => ({
-                  ...option,
-                  disabled: pending,
-                }))}
-                onSelect={dialog.onModeChange}
-              />
-            </FieldFrame>
-            {mode === 'password' && (
-              <PasswordField
-                value={dialog.password}
-                onChange={dialog.onPasswordChange}
-                disabled={pending}
-                placeholder={saved?.hasPassword ? '••••••••' : 'Enter a password'}
-                hint={
-                  saved?.hasPassword
-                    ? 'Leave blank to keep the current password.'
-                    : 'Anyone with the link must enter this password.'
-                }
-              />
-            )}
-            {(mode === 'email' || mode === 'sso') && (
-              <AllowedEmailsField
-                value={dialog.emails}
-                onChange={dialog.onEmailsChange}
-                validator={dialog.emailValidator}
-                disabled={pending}
+          <FieldFrame label='Access' hint={dialog.accessHint}>
+            <SegmentedControl
+              label='File access'
+              value={mode}
+              holdOnReselect
+              options={dialog.accessModes.map((option) => ({
+                ...option,
+                disabled: pending,
+              }))}
+              onSelect={dialog.onModeChange}
+            />
+          </FieldFrame>
+          {mode === 'password' && (
+            <PasswordField
+              value={dialog.password}
+              onChange={dialog.onPasswordChange}
+              disabled={pending}
+              placeholder={saved?.hasPassword ? '••••••••' : 'Enter a password'}
+              hint={
+                saved?.hasPassword
+                  ? 'Leave blank to keep the current password.'
+                  : 'Anyone with the link must enter this password.'
+              }
+            />
+          )}
+          {(mode === 'email' || mode === 'sso') && (
+            <AllowedEmailsField
+              value={dialog.emails}
+              onChange={dialog.onEmailsChange}
+              validator={dialog.emailValidator}
+              disabled={pending}
+            />
+          )}
+        </div>
+        {url && (
+          <div className={styles.shareLinks}>
+            <Button variant='secondary' size='compact' onClick={() => dialog.onCopyLink(url)}>
+              {dialog.copied ? 'Copied!' : 'Copy link'}
+            </Button>
+            {organizationId && (
+              <SimLinkButton
+                organizationId={organizationId}
+                url={url}
+                title={dialog.fileName.replace(/\.[^.]+$/, '')}
               />
             )}
           </div>
-          {url && (
-            <div className={styles.shareLinks}>
-              <Button variant='secondary' size='compact' onClick={() => dialog.onCopyLink(url)}>
-                {dialog.copied ? 'Copied!' : 'Copy link'}
-              </Button>
-              {organizationId && (
-                <SimLinkButton
-                  organizationId={organizationId}
-                  url={url}
-                  title={dialog.fileName.replace(/\.[^.]+$/, '')}
-                />
-              )}
-            </div>
-          )}
-          {!dialog.unshareConfirmOpen && failure}
-        </Modal>
-        <Modal
-          variant='confirm'
-          destructive
-          open={dialog.unshareConfirmOpen}
-          onOpenChange={(open) => {
-            if (!pending) dialog.onUnshareConfirmOpenChange(open)
-          }}
-          title='Unshare file?'
-          description='Are you sure you want to unshare this file? Anyone with the link will lose access.'
-          confirmLabel={pending ? 'Unsharing...' : 'Unshare'}
-          confirmDisabled={pending}
-          onConfirm={() => {
-            dialog.onConfirmUnshare()
-            return false
-          }}
-        >
-          {failure}
-        </Modal>
-      </RedesignSurface>
-    </div>
+        )}
+        {!dialog.unshareConfirmOpen && failure}
+      </Modal>
+      <Modal
+        variant='confirm'
+        destructive
+        open={dialog.unshareConfirmOpen}
+        onOpenChange={(open) => {
+          if (!pending) dialog.onUnshareConfirmOpenChange(open)
+        }}
+        title='Unshare file?'
+        description='Are you sure you want to unshare this file? Anyone with the link will lose access.'
+        confirmLabel={pending ? 'Unsharing...' : 'Unshare'}
+        confirmDisabled={pending}
+        onConfirm={() => {
+          dialog.onConfirmUnshare()
+          return false
+        }}
+      >
+        {failure}
+      </Modal>
+    </BodyDialog>
   )
 }

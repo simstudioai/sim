@@ -11,6 +11,8 @@ interface DialogSurfaceProps {
   description?: string
   step?: number
   busy?: boolean
+  /** Names the dialog more specifically than its visible title. */
+  accessibleName?: string
   onSubmit?: FormEventHandler<HTMLFormElement>
   children: ReactNode
 }
@@ -30,6 +32,7 @@ export function OverlayDialog({
   presentation,
   step,
   busy,
+  accessibleName,
   onSubmit,
   children,
 }: OverlayDialogProps) {
@@ -75,8 +78,8 @@ export function OverlayDialog({
       data-material='floating'
       data-elevation='modal'
       data-presentation={presentation}
-      aria-label={label}
-      aria-labelledby={title ? `${id}-title` : undefined}
+      aria-label={label ?? accessibleName}
+      aria-labelledby={title && !accessibleName ? `${id}-title` : undefined}
       aria-describedby={description ? `${id}-description` : undefined}
       onKeyDown={(event) => {
         if (

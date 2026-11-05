@@ -3,6 +3,7 @@
 import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import type { MessageActionsModel } from '@/app/workspace/[workspaceId]/components/message-actions/message-actions'
 import styles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
+import { BodyDialog } from '@/platform/app/(shell)/_components/conversation/dialogs'
 import {
   ActionMenu,
   CopyField,
@@ -58,19 +59,19 @@ export function ResponseActions(actions: MessageActionsModel) {
           />
         )}
       </div>
-      <Modal
-        variant='feedback'
-        open={rating !== null}
-        onOpenChange={(open) => {
-          if (!open) actions.onDismissRating()
-        }}
-        title='Share feedback'
-        description='What could Sim have done better?'
-        confirmLabel='Send feedback'
-        onConfirm={(values) => actions.onSubmitRating(String(values.get('details') ?? ''))}
-      >
-        {rating && (
-          <>
+      {rating && (
+        <BodyDialog>
+          <Modal
+            variant='feedback'
+            open
+            onOpenChange={(open) => {
+              if (!open) actions.onDismissRating()
+            }}
+            title='Share feedback'
+            description='What could Sim have done better?'
+            confirmLabel='Send feedback'
+            onConfirm={(values) => actions.onSubmitRating(String(values.get('details') ?? ''))}
+          >
             <FieldFrame label='Response quality'>
               <SegmentedControl
                 label='Response quality'
@@ -90,9 +91,9 @@ export function ResponseActions(actions: MessageActionsModel) {
               />
             </FieldFrame>
             {rating === 'down' && requestId && <CopyField label='Request ID' value={requestId} />}
-          </>
-        )}
-      </Modal>
+          </Modal>
+        </BodyDialog>
+      )}
     </RedesignSurface>
   )
 }

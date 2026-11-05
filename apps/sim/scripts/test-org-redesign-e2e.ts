@@ -1937,7 +1937,7 @@ async function chatChecks() {
       await withSession(ADMIN, async ({ page }) => {
         await page.goto(orgUrl(`/chat/${ADMIN_CHATS.agent.id}?resource=${fileId}`))
         await page.getByRole('button', { name: 'Share file', exact: true }).click()
-        const share = dialog(page, 'Share file')
+        const share = dialog(page, 'Share share-check.md')
         await inSurface(share)
         await expect(share.getByRole('group', { name: 'File access' })).toBeVisible()
         await share.getByRole('button', { name: 'Cancel', exact: true }).click()
