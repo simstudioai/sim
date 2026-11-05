@@ -325,7 +325,20 @@ function checkCss(file: string, sheet: postcss.Root) {
       }
     })
   }
-  sheet.walkDecls(({ prop, value, source }) => {
+  sheet.walkDecls((declaration) => {
+    const { prop, value, source, parent } = declaration
+    if (
+      privateRoute(file) &&
+      /^(?:stroke(?:-width)?|fill)$/.test(prop) &&
+      parent?.type === 'rule' &&
+      parent.selectors.some((selector) => /\bsvg\s|\[data-interface-icon\]/.test(selector))
+    ) {
+      report(
+        'icon-owner',
+        `${file}:${source?.start?.line ?? 1}`,
+        'Use the shared glyph ink and stroke; put chart paint on its own marks'
+      )
+    }
     if (prop === 'composes') {
       const from = value.match(/\bfrom\s+['"]([^'"]+)['"]/u)?.[1]
       if (from) checkImport(file, from)
@@ -508,6 +521,23 @@ function checkJs(file: string, content: string) {
       report('prop-spread', location(node), 'Pass named props explicitly')
     if (inPlatform && (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))) {
       const tag = node.tagName.getText(sf)
+      if (
+        tag === 'svg' &&
+        file !== `${system}components/icon/icon.tsx` &&
+        !file.startsWith(catalog) &&
+        !preview &&
+        !node.attributes.properties.some(
+          (attr) =>
+            ts.isJsxAttribute(attr) &&
+            ['aria-label', 'aria-labelledby'].includes(attr.name.getText(sf))
+        )
+      ) {
+        report(
+          'icon-owner',
+          location(node),
+          'Use Icon for interface glyphs; give an original data graphic an accessible name'
+        )
+      }
       if (tag === 'select')
         report('native-picker', location(node), 'Use the shared Platform value picker')
       const native = /^[a-z][\w-]*$/.test(tag) || (owner && primitives.has(tag.split('.')[0]))

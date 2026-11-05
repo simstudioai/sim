@@ -22,7 +22,7 @@ Keep routes thin. Colocate each feature component, its CSS Module and private he
 
 Use `design-system/styles/rhythm.css` for the common 2px title/detail gap, 8px row inset and gap, 6px block inset, 16px interface icon and shared button radius. Align leading artwork to the first text line. Keep dividers outside row hovers with breathing room. Align the **ink** of actions with adjacent text, extending their hit areas into the margin. Only composer actions use circular button chrome. Custom calendar, chart and summary rows still use the same typography, geometry and tooltip as reusable controls.
 
-Interface strokes have one optical weight in CSS pixels and use semantic icon ink; branded artwork and chart marks retain their own geometry. Quiet controls gain the hover surface without changing ink. A selectable menu row gains the same surface and promotes its glyph from secondary to primary ink on hover or active keyboard navigation. Selection, disabled and inverse controls have distinct semantics. Never change stroke thickness, spacing or radius on hover. DOM focus alone adds no paint.
+Interface strokes have one optical weight in CSS pixels and use semantic icon ink; branded artwork and chart marks retain their own geometry. Quiet controls gain the hover surface without changing ink. A selectable menu row gains the same surface and promotes its glyph from secondary to primary ink on hover or active keyboard navigation. Selection, disabled and inverse controls have distinct semantics. Never change stroke thickness, spacing or radius on hover. Render interface glyphs through `Icon`. A unique data graphic may own accessible, labeled SVG and paint its own marks. DOM focus alone adds no paint.
 
 ## Public API
 

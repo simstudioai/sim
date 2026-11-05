@@ -220,6 +220,11 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     )
     const feature = 'platform/app/settings/_components'
     write(
+      `${feature}/icon.tsx`,
+      'export const Glyph = () => <svg aria-hidden="true"><path d="M0 0h8" /></svg>'
+    )
+    write(`${feature}/ink.module.css`, '.row svg path { stroke: currentColor; }')
+    write(
       `${feature}/trigger.tsx`,
       `import styles from '@/platform/design-system/components/button/button.module.css'; export const Trigger = () => <button className={styles.button}/>`
     )
@@ -292,6 +297,8 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     expect(result.output).toContain(
       'platform/design-system/components/menu/chrome.ts [private-recipe]'
     )
+    expect(result.output).toContain(`${feature}/icon.tsx:1 [icon-owner]`)
+    expect(result.output).toContain(`${feature}/ink.module.css:1 [icon-owner]`)
     for (const issue of [
       'legacy-import',
       'consumer-style',
