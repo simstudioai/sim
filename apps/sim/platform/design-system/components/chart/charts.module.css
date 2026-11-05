@@ -65,6 +65,10 @@
   min-block-size: var(--spacing-28);
   color: inherit;
 }
+.seriesTotal {
+  color: var(--ui-strong);
+  font-variant-numeric: tabular-nums;
+}
 .series button[aria-pressed="true"] {
   color: var(--ui-strong);
 }

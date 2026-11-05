@@ -3,6 +3,7 @@
 import { useDeferredValue, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { ProviderMark } from '@/platform/app/(shell)/_components/provider-mark/provider-mark'
 import {
   ActionRow,
   DetailHeader,
@@ -108,6 +109,11 @@ interface AgentDefaultProps {
   onChange: (value: string | null) => void
 }
 
+function modelMark(model: EditorModel, id: string) {
+  const provider = model.facts.findProvider(id)
+  return provider ? <ProviderMark providerId={provider} /> : undefined
+}
+
 /** An allowed default for new Agent blocks governed by this group. */
 function AgentDefault({ config, model, hosted, onChange }: AgentDefaultProps) {
   const dynamicModels = useProviderModelLists(
@@ -128,7 +134,7 @@ function AgentDefault({ config, model, hosted, onChange }: AgentDefaultProps) {
   const options = [
     { label: 'Platform default', value: PLATFORM_DEFAULT_MODEL },
     ...(autoAllowed ? [{ label: 'Auto', value: SIM_AUTO_MODEL_ID }] : []),
-    ...models.map((id) => ({ label: id, value: id })),
+    ...models.map((id) => ({ label: id, value: id, leading: modelMark(model, id) })),
   ]
   const usable = isAgentDefaultUsable(
     config,
@@ -143,6 +149,7 @@ function AgentDefault({ config, model, hosted, onChange }: AgentDefaultProps) {
       options={options}
       value={saved ?? PLATFORM_DEFAULT_MODEL}
       selectedLabel={saved === SIM_AUTO_MODEL_ID ? 'Auto' : (saved ?? 'Platform default')}
+      selectedLeading={saved ? modelMark(model, saved) : undefined}
       error={usable ? undefined : 'Agent default must be an available, allowed model'}
       onValueChange={(next) => {
         if (next) onChange(next === PLATFORM_DEFAULT_MODEL ? null : next)
@@ -321,17 +328,30 @@ export function GroupDetail({
   const query = deferredSearch.trim().toLowerCase()
 
   function catalogBody() {
-    if (editor.isLoading) return <LoadingState label='Loading permissions…' />
     if (!model || !controls) {
       return (
         <FailureNotice
-          message={getErrorMessage(editor.error, 'Could not load provider availability')}
-          retrying={editor.retrying}
-          onRetry={editor.retry}
+          message='Could not load the block catalog'
+          retrying={false}
+          onRetry={editor.retryCatalog}
         />
       )
     }
     if (params.tab === 'providers') {
+      /** Only this tab depends on what the deployment blacklists; it never lists providers unread. */
+      if (editor.providers.failed) {
+        return (
+          <FailureNotice
+            message={getErrorMessage(
+              editor.providers.error,
+              'Could not load provider availability'
+            )}
+            retrying={editor.providers.retrying}
+            onRetry={editor.providers.retry}
+          />
+        )
+      }
+      if (editor.providers.pending) return <LoadingState label='Loading providers' />
       const filtered = model.providerIds
         .filter((id) => !query || id.toLowerCase().includes(query))
         .filter((id) => matchesStatusFilter(status, controls.getState({ kind: 'provider', id })))

@@ -96,12 +96,13 @@ function ClientSecretField({
   }
   return (
     <div className='contents' onFocusCapture={() => setUnlocked(true)}>
-      {/* Decoys and read-only-until-focus keep password managers off the client secret. */}
+      {/* Offscreen rather than hidden: managers skip hidden fields, so they would fill the real one. */}
       <input
         type='text'
         name='fakeusernameremembered'
         autoComplete='username'
-        hidden
+        aria-hidden='true'
+        className='-left-[9999px] pointer-events-none absolute opacity-0'
         tabIndex={-1}
         readOnly
       />
@@ -109,7 +110,17 @@ function ClientSecretField({
         type='password'
         name='fakepasswordremembered'
         autoComplete='current-password'
-        hidden
+        aria-hidden='true'
+        className='-left-[9999px] pointer-events-none absolute opacity-0'
+        tabIndex={-1}
+        readOnly
+      />
+      <input
+        type='email'
+        name='fakeemailremembered'
+        autoComplete='email'
+        aria-hidden='true'
+        className='-left-[9999px] pointer-events-none absolute opacity-0'
         tabIndex={-1}
         readOnly
       />
@@ -117,8 +128,9 @@ function ClientSecretField({
         label='Client secret'
         name='sso_client_key'
         placeholder='Enter Client Secret'
-        autoComplete='new-password'
+        autoComplete='off'
         readOnly={!unlocked}
+        maskAsText
         hint={isReplacing ? 'Replaces the saved secret when you save.' : undefined}
         error={error}
         value={value}

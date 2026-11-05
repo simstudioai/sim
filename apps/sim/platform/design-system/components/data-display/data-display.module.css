@@ -23,6 +23,10 @@
 .table td[data-kind="text"] {
   color: var(--ui-strong);
 }
+.metric dd.metricDescription {
+  color: var(--ui-secondary);
+  font-variant-numeric: normal;
+}
 .metric dd,
 .table {
   font-variant-numeric: tabular-nums;

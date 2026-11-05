@@ -75,9 +75,12 @@ function catalogModelFacts(catalog: PermissionGroupEditorCatalog): ModelFacts {
   }
 }
 
-function toEditorModel(catalog: PermissionGroupEditorCatalog, blacklist: readonly string[]) {
+/** `blacklist` is null until it has been read, which lists no providers rather than all of them. */
+function toEditorModel(catalog: PermissionGroupEditorCatalog, blacklist: readonly string[] | null) {
   const definitions = new Map(catalog.providers.map((provider) => [provider.id, provider]))
-  const providerIds = catalog.providerIds.filter((id) => !blacklist.includes(id.toLowerCase()))
+  const providerIds = blacklist
+    ? catalog.providerIds.filter((id) => !blacklist.includes(id.toLowerCase()))
+    : []
   return {
     /** The whole allowlist universe. Only `visibleBlocks` is drawn. */
     blocks: catalog.blocks,
@@ -129,19 +132,23 @@ export function usePermissionEditorModel(organizationId: string) {
   const blacklist = useBlacklistedProviders()
   const model = useMemo(
     () =>
-      catalog.data && blacklist.data
-        ? toEditorModel(catalog.data, blacklist.data.blacklistedProviders)
+      catalog.data
+        ? toEditorModel(
+            catalog.data,
+            blacklist.isSuccess ? blacklist.data.blacklistedProviders : null
+          )
         : null,
-    [catalog.data, blacklist.data]
+    [catalog.data, blacklist.isSuccess, blacklist.data]
   )
   return {
     model,
-    isLoading: blacklist.isPending,
-    error: blacklist.error ?? (catalog.data ? null : new Error('Could not load the block catalog')),
-    retrying: blacklist.isFetching,
-    retry: () => {
-      router.refresh()
-      void blacklist.refetch()
+    retryCatalog: () => router.refresh(),
+    providers: {
+      pending: blacklist.isPending,
+      failed: blacklist.isError,
+      error: blacklist.error,
+      retrying: blacklist.isFetching,
+      retry: () => void blacklist.refetch(),
     },
   }
 }

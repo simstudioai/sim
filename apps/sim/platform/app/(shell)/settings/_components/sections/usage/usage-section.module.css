@@ -52,31 +52,116 @@
   gap: var(--spacing-24);
 }
 .heatmap {
-  display: block;
-  inline-size: 100%;
+  display: grid;
+  gap: var(--spacing-8);
   min-inline-size: calc(var(--spacing-128) * 5);
+  padding: var(--spacing-4);
 }
-.heatLabel {
-  fill: var(--ui-secondary);
+.heatMonths {
+  display: grid;
+  gap: var(--spacing-stroke-focus);
+  margin-inline-start: var(--spacing-32);
+  color: var(--ui-secondary);
+}
+.heatBody {
+  display: grid;
+  grid-template-columns: var(--spacing-24) minmax(0, 1fr);
+  gap: var(--spacing-8);
+}
+.heatWeekdays {
+  display: grid;
+  grid-template-rows: repeat(7, minmax(0, 1fr));
+  gap: var(--spacing-stroke-focus);
+  align-items: center;
+  color: var(--ui-secondary);
+}
+.heatGrid {
+  display: grid;
+  gap: var(--spacing-stroke-focus);
+}
+.heatCell > span {
+  display: block;
+}
+.heatDay,
+.heatSwatch {
+  display: block;
+  border-radius: var(--radius-4);
+  background: var(--ui-hover);
 }
 .heatDay {
-  fill: var(--ui-hover);
-  outline: none;
+  inline-size: 100%;
+  aspect-ratio: 1;
+  outline-offset: var(--spacing-stroke-focus);
 }
-.heatDay[data-level="1"] {
-  fill: var(--ui-plot-violet-4);
+.heatDay:hover {
+  outline: var(--spacing-stroke-default) solid var(--ui-secondary);
 }
-.heatDay[data-level="2"] {
-  fill: var(--ui-plot-violet-3);
+.heatDay:focus-visible,
+.heatDay[aria-pressed="true"] {
+  outline: var(--spacing-stroke-focus) solid var(--ui-strong);
 }
-.heatDay[data-level="3"] {
-  fill: var(--ui-plot-violet-2);
+.heatSwatch {
+  inline-size: var(--spacing-12);
+  block-size: var(--spacing-12);
 }
-.heatDay[data-level="4"] {
-  fill: var(--ui-plot-violet-1);
+.heatDay[data-level="1"],
+.heatSwatch[data-level="1"] {
+  background: var(--ui-plot-violet-4);
 }
-.heatDay[data-active] {
-  stroke: var(--ui-strong);
-  stroke-width: var(--ui-icon-stroke);
-  vector-effect: non-scaling-stroke;
+.heatDay[data-level="2"],
+.heatSwatch[data-level="2"] {
+  background: var(--ui-plot-violet-3);
+}
+.heatDay[data-level="3"],
+.heatSwatch[data-level="3"] {
+  background: var(--ui-plot-violet-2);
+}
+.heatDay[data-level="4"],
+.heatSwatch[data-level="4"] {
+  background: var(--ui-plot-violet-1);
+}
+.heatFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+  color: var(--ui-secondary);
+}
+.heatLegend {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+}
+.allowance {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+.meter {
+  flex: none;
+  inline-size: var(--spacing-128);
+  block-size: var(--spacing-4);
+  overflow: hidden;
+  border-radius: var(--radius-4);
+  background: var(--ui-divider);
+}
+.meterFill {
+  display: block;
+  block-size: 100%;
+  border-radius: inherit;
+  background: var(--ui-plot-primary);
+}
+.meterFill[data-over] {
+  background: var(--control-danger);
+}
+.tableHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+}
+.infoPanel {
+  max-inline-size: var(--spacing-192);
+  padding: var(--spacing-8) var(--spacing-12);
 }

@@ -27,16 +27,38 @@ export function UsageCredits({
         {chart.overLimit && <StatusTag label='Over limit' intent='danger' />}
       </div>
       {chart.limit !== null && (
-        <span className={styles.quiet} data-type='T060'>
-          {`${chart.limitPercent}% of ${chart.limit.toLocaleString()}`}
-        </span>
+        <div className={styles.allowance}>
+          <div
+            className={styles.meter}
+            role='meter'
+            aria-label='Share of the organization allowance used'
+            aria-valuemin={0}
+            aria-valuemax={chart.limit}
+            aria-valuenow={Math.min(chart.used, chart.limit)}
+          >
+            <span
+              className={styles.meterFill}
+              data-over={chart.overLimit || undefined}
+              style={{ inlineSize: `${Math.min(100, chart.limitPercent)}%` }}
+            />
+          </div>
+          <span className={styles.quiet} data-type='T060'>
+            {`${chart.limitPercent}% of ${chart.limit.toLocaleString()}`}
+          </span>
+        </div>
       )}
       {overview.failed ? (
         <FailureNotice message='Couldn’t load credits.' onRetry={overview.retry} />
       ) : !chart.loaded ? (
         <span className={styles.chartPlaceholder} role='status' aria-label='Loading credits' />
       ) : (
-        <BarChart title='Credits' bars={chart.bars} series={chart.series} hideEmptySeries />
+        <BarChart
+          title='Credits'
+          bars={chart.bars}
+          series={chart.series}
+          seriesTotals={chart.seriesTotals}
+          hideEmptySeries
+        />
       )}
     </section>
   )

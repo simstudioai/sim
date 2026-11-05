@@ -147,3 +147,7 @@ textarea.input {
 textarea.input[data-density="expanded"] {
   height: calc(2 * (var(--spacing-56) - var(--spacing-stroke-default)));
 }
+
+.input[data-masked] {
+  -webkit-text-security: disc;
+}

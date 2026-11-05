@@ -1,6 +1,7 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { type ReactNode, useRef, useState } from 'react'
+import { ProviderMark } from '@/platform/app/(shell)/_components/provider-mark/provider-mark'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
 import {
   ActionMenu,
@@ -8,10 +9,10 @@ import {
   DataTable,
   EmptyState,
   FailureNotice,
-  Icon,
   OverflowText,
   TableLabel,
 } from '@/platform/design-system/components'
+import { AnchoredPopover } from '@/platform/design-system/components/menu/anchored-popover'
 import {
   EMPTY_COPY,
   type OrganizationUsageBreakdown,
@@ -29,6 +30,28 @@ const COLUMNS = [
 
 const UNATTRIBUTED_INFO = 'Includes organization-wide activity and charges from deleted workspaces.'
 
+/** Opens on click or tap as well as on hover, so the explanation never depends on a pointer. */
+function UnattributedInfo({ label }: { label: string }) {
+  const anchor = useRef<HTMLSpanElement>(null)
+  const [open, setOpen] = useState(false)
+  return (
+    <span ref={anchor}>
+      <AnchoredPopover
+        label={label}
+        presentation='panel'
+        icon='I047'
+        anchor={anchor}
+        open={open}
+        onOpenChange={setOpen}
+      >
+        <p className={styles.infoPanel} data-type='T060'>
+          {UNATTRIBUTED_INFO}
+        </p>
+      </AnchoredPopover>
+    </span>
+  )
+}
+
 function ConsumerName({
   row,
   dimension,
@@ -43,16 +66,12 @@ function ConsumerName({
         dimension === 'member' ? (
           <Avatar size='inline' name={row.label} src={row.image ?? undefined} />
         ) : row.providerId ? (
-          <Icon providerId={row.providerId} />
+          <ProviderMark providerId={row.providerId} />
         ) : undefined
       }
     >
-      <OverflowText
-        text={row.label}
-        fullValue={unattributed ? `${row.label}. ${UNATTRIBUTED_INFO}` : row.label}
-      >
-        {row.label}
-      </OverflowText>
+      <OverflowText text={row.label}>{row.label}</OverflowText>
+      {unattributed && <UnattributedInfo label={`About ${row.label.toLowerCase()}`} />}
     </TableLabel>
   )
 }
@@ -84,11 +103,23 @@ export function UsageConsumers({
   onExpandOther,
 }: UsageConsumersProps) {
   const { data: breakdown, loading, failed, dimmed, retry: onRetry } = list
-  if (failed) return <FailureNotice message={`Couldn’t load ${title}.`} onRetry={onRetry} />
-  if (loading || !breakdown)
-    return <span className={styles.listPlaceholder} role='status' aria-label={`Loading ${title}`} />
-  if (breakdown.rows.length === 0)
-    return <EmptyState title={title} description={EMPTY_COPY[dimension]} />
+  const state = failed ? (
+    <FailureNotice message={`Couldn’t load ${title}.`} onRetry={onRetry} />
+  ) : loading || !breakdown ? (
+    <span className={styles.listPlaceholder} role='status' aria-label={`Loading ${title}`} />
+  ) : breakdown.rows.length === 0 ? (
+    <EmptyState title={EMPTY_COPY[dimension]} />
+  ) : null
+  if (state || !breakdown)
+    return (
+      <section className={styles.block} aria-label={title}>
+        <div className={styles.tableHeading}>
+          <h2 data-type='T042'>{title}</h2>
+          {control}
+        </div>
+        {state}
+      </section>
+    )
   return (
     <div className={styles.dimmable} data-dimmed={dimmed || undefined}>
       <DataTable
@@ -98,7 +129,11 @@ export function UsageConsumers({
         rows={[
           ...breakdown.rows.map((row) => ({
             id: `${dimension}-${row.id ?? row.label}`,
-            values: { name: row.label, share: row.share, credits: row.credits },
+            values: {
+              name: row.label,
+              share: row.share,
+              credits: dimension === 'byok' ? (row.tokens ?? 0) : row.credits,
+            },
             cells: { name: <ConsumerName row={row} dimension={dimension} /> },
             onOpen: onSelectRow && row.id ? () => onSelectRow(row) : undefined,
             action:
@@ -123,7 +158,8 @@ export function UsageConsumers({
                   id: `${dimension}-other`,
                   values: {
                     name: `Other (${breakdown.other.rowCount} more)`,
-                    credits: breakdown.other.credits,
+                    credits:
+                      dimension === 'byok' ? breakdown.other.tokens : breakdown.other.credits,
                   },
                   onOpen: onExpandOther,
                 },

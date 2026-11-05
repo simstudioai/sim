@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentType, useId, useState } from 'react'
+import { useId, useState } from 'react'
 import {
   Avatar,
   Button,
@@ -15,34 +15,7 @@ import {
   useFloatingTooltip,
 } from '@sim/emcn'
 import { ArrowRight, ChevronDown, CircleInfo } from '@sim/emcn/icons'
-import {
-  AnthropicIcon,
-  AzureIcon,
-  BasetenIcon,
-  BedrockIcon,
-  CerebrasIcon,
-  DeepseekIcon,
-  FireworksIcon,
-  GeminiIcon,
-  GroqIcon,
-  KieIcon,
-  KimiIcon,
-  LitellmIcon,
-  MetaIcon,
-  MistralIcon,
-  NvidiaIcon,
-  OllamaIcon,
-  OpenAIIcon,
-  OpenRouterIcon,
-  SakanaIcon,
-  TogetherIcon,
-  TypeSafeIcon,
-  VertexIcon,
-  VllmIcon,
-  xAIIcon,
-  ZaiIcon,
-} from '@/components/icons'
-import { NebiusIcon } from '@/components/icons/nebius'
+import { PROVIDER_ICONS } from '@/components/icons/providers'
 import type {
   OrganizationUsageBreakdown,
   OrganizationUsageBreakdownRow,
@@ -55,51 +28,6 @@ import {
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { RESOURCE_ROW_ARROW_CLASSES } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { USAGE_TAB_EMPTY_COPY } from '@/ee/organization-usage/constants'
-
-/**
- * Provider brand marks, keyed by the `providerId` the server resolves.
- *
- * Kept here rather than read from `PROVIDER_DEFINITIONS`: that module carries the
- * whole model registry and would land in this settings chunk for two dozen glyphs.
- * The icons themselves come from the same `@/components/icons` module the registry
- * imports, so this is a re-keying, never a second set of artwork.
- *
- * It must list every provider the registry defines, or a model resolving to a
- * missing one renders an unexplained blank where every neighbouring row has a mark
- * — which is how `zai` (GLM) shipped iconless. `usage-consumers.test.ts` fails when
- * the two drift, so the coverage is checked rather than remembered.
- */
-const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string }>>> = {
-  anthropic: AnthropicIcon,
-  baseten: BasetenIcon,
-  bedrock: BedrockIcon,
-  cerebras: CerebrasIcon,
-  deepseek: DeepseekIcon,
-  fireworks: FireworksIcon,
-  google: GeminiIcon,
-  groq: GroqIcon,
-  kie: KieIcon,
-  kimi: KimiIcon,
-  litellm: LitellmIcon,
-  meta: MetaIcon,
-  mistral: MistralIcon,
-  nebius: NebiusIcon,
-  nvidia: NvidiaIcon,
-  ollama: OllamaIcon,
-  'ollama-cloud': OllamaIcon,
-  openai: OpenAIIcon,
-  openrouter: OpenRouterIcon,
-  sakana: SakanaIcon,
-  together: TogetherIcon,
-  typesafe: TypeSafeIcon,
-  vertex: VertexIcon,
-  vllm: VllmIcon,
-  xai: xAIIcon,
-  zai: ZaiIcon,
-  'azure-anthropic': AzureIcon,
-  /** Not a registry provider — a BYOK credential kind the breakdown can also emit. */
-  'azure-openai': AzureIcon,
-}
 
 interface UsageConsumerRowProps {
   row: OrganizationUsageBreakdownRow

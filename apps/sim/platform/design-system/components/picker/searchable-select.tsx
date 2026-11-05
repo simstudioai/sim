@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useMemo, useRef } from 'react'
+import { type ReactNode, useId, useMemo, useRef } from 'react'
 import { Combobox } from '@base-ui/react/combobox'
 import { FieldFrame, fieldDescription } from '@/platform/design-system/components/field/fields'
 import { Icon } from '@/platform/design-system/components/icon/icon'
@@ -25,6 +25,8 @@ interface SearchableSelectProps {
   onValueChange?: (value: string | null) => void
   /** The trigger's text for a controlled `value` the current `options` may not contain. */
   selectedLabel?: string
+  /** A mark before the trigger's text. */
+  selectedLeading?: ReactNode
   placeholder?: string
   searchLabel: string
   /** Needs a controlled `value`: a selection may leave the current `options`. */
@@ -47,6 +49,7 @@ export function SearchableSelect({
   value,
   onValueChange,
   selectedLabel,
+  selectedLeading,
   placeholder,
   searchLabel,
   search,
@@ -93,6 +96,7 @@ export function SearchableSelect({
           data-empty={current === null && placeholder ? true : undefined}
           data-type='T043'
         >
+          {selectedLeading}
           <span ref={valueEdges} className={picker.value}>
             {current === null && placeholder ? placeholder : (selectedLabel ?? <Combobox.Value />)}
           </span>

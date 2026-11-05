@@ -10,7 +10,7 @@ import type { LoadMoreState } from '@/platform/design-system/components/scroll-a
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { MenuSearchField } from '@/platform/design-system/components/search-field/menu-search-field'
 
-export type PickerOption = string | { value: string; label: string }
+export type PickerOption = string | { value: string; label: string; leading?: ReactNode }
 
 /** Hand searching to the caller: `options` becomes the current server result, unfiltered. */
 export interface PickerServerSearch extends LoadMoreState {
@@ -68,6 +68,7 @@ export function SearchPopup({ label, searchLabel, container, search, children }:
                   className={popup.item}
                   data-type='T060'
                 >
+                  {typeof option !== 'string' && option.leading}
                   <span className={popup.label}>{optionKeys.getLabel(option)}</span>
                   <Combobox.ItemIndicator className={popup.indicator}>
                     <Icon name='I072' />

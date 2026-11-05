@@ -3025,12 +3025,72 @@ async function settingsChecks() {
     'Settings leave guard: dirty state',
     'Only White-labeling has a dirty form, covered by its own surface'
   )
+  await check('Insights: heatmap pinning, metric explanations, and View all', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(orgUrl('/settings/usage'))
+      await expect(page.getByText('Less', { exact: true })).toBeVisible()
+      await expect(page.getByText('More', { exact: true })).toBeVisible()
+      const day = page
+        .getByRole('group', { name: /^Daily credit usage/ })
+        .getByRole('button')
+        .last()
+      await day.hover()
+      await expect(page.getByRole('tooltip').first()).toBeVisible()
+      await expect(day).toHaveAttribute('aria-pressed', 'false')
+      await day.click()
+      await expect(day).toHaveAttribute('aria-pressed', 'true')
+      await day.press('Escape')
+      await expect(day).toHaveAttribute('aria-pressed', 'false')
+      await expect(page.getByText('Retained executions, grouped by start date.')).toBeVisible()
+      await expect(
+        page.getByText('Other includes cancelled, paused, and unfinished runs.')
+      ).toBeVisible()
+      await expect(page.getByRole('button', { name: 'View all', exact: true })).toHaveCount(2)
+    })
+  })
+  notProvable(
+    'Insights: allowance meter, legend totals, and the unattributed-workspace note',
+    'The fixture seeds no usage limit, ledger credits, or unattributed workspace row'
+  )
+  await check(
+    'Permission groups: a failed provider blacklist blocks Providers only',
+    async () => {
+      await withSession(ADMIN, async ({ page }) => {
+        await page.route('**/api/settings/allowed-providers**', (route) =>
+          route.fulfill({ status: 500, json: { error: 'unavailable' } })
+        )
+        const group = `/settings/access-control?group-id=${STANDARD_GROUP_ID}`
+        await page.goto(orgUrl(`${group}&group-tab=providers`))
+        await expect(page.getByText('Could not load provider availability')).toBeVisible()
+        await expect(page.getByRole('region', { name: 'Providers' })).toHaveCount(0)
+        await page.goto(orgUrl(`${group}&group-tab=blocks`))
+        await expect(page.getByRole('region', { name: 'Core Blocks' })).toBeVisible()
+      })
+    },
+    { allow: [/500 GET .*allowed-providers/] }
+  )
+  await check('Single sign-on: the client secret keeps its autofill guards', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(orgUrl('/settings/sso'))
+      const add = page.getByRole('button', { name: 'Add identity provider' })
+      if (await add.isVisible()) await add.click()
+      const decoy = page.locator('input[name="fakepasswordremembered"]')
+      await expect(decoy).toHaveJSProperty('hidden', false)
+      const secret = page.getByRole('textbox', { name: 'Client secret' })
+      await expect(secret).toHaveAttribute('type', 'text')
+      await expect(secret).toHaveAttribute('data-masked', 'true')
+      await expect(secret).toHaveJSProperty('readOnly', true)
+      await secret.focus()
+      await expect(secret).toHaveJSProperty('readOnly', false)
+    })
+  })
   await check('admin settings sections all open', async () => {
     await withSession(ADMIN, async ({ page }) => {
       for (const path of [...SETTINGS_FOR_ADMIN, 'search-mcp']) {
         const response = await page.goto(orgUrl(`/settings/${path}`))
         assert((response?.status() ?? 500) < 400, `settings/${path} ${response?.status()}`)
         await expect(sidebar(page)).toBeVisible()
+        await expect(page.getByText('Page not found')).toHaveCount(0)
       }
     })
   })
@@ -3434,7 +3494,7 @@ async function firstPaintChecks() {
 const SETTINGS_FOR_ALL = ['general', 'members', 'recently-deleted', 'requests', 'search-mcp']
 const SETTINGS_FOR_ADMIN = [
   'subscription',
-  'credential-groups',
+  'connected-accounts',
   'usage',
   'whitelabeling',
   'audit-logs',
@@ -3444,7 +3504,7 @@ const SETTINGS_FOR_ADMIN = [
   'data-retention',
   'data-drains',
   'integrations',
-  'slack-search',
+  'search-slack',
 ]
 
 const settingsRoutes = (sections: readonly string[]) =>

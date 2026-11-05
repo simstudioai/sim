@@ -141,6 +141,8 @@ interface BarChartProps extends Omit<ChartFrameProps, 'children'> {
   maximum?: number
   /** Leave a layer with no values out of the legend and the tooltip. */
   hideEmptySeries?: boolean
+  /** A figure beside a layer's legend entry, keyed by its name. */
+  seriesTotals?: Readonly<Record<string, string>>
 }
 
 export function BarChart({
@@ -150,6 +152,7 @@ export function BarChart({
   series,
   maximum = 0,
   hideEmptySeries,
+  seriesTotals,
 }: BarChartProps) {
   const data = bars.filter((bar) => bar.values.every((n) => Number.isFinite(n) && n >= 0))
   const values = data.map((bar) => bar.values)
@@ -207,6 +210,9 @@ export function BarChart({
               >
                 <i className={styles.swatch} data-bar={layer} />
                 {label}
+                {seriesTotals?.[label] && (
+                  <span className={styles.seriesTotal}>{seriesTotals[label]}</span>
+                )}
               </button>
             </li>
           ))}

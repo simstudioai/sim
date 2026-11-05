@@ -2,6 +2,7 @@
 
 import { type ReactNode, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
+import { ProviderMark } from '@/platform/app/(shell)/_components/provider-mark/provider-mark'
 import {
   ActionRow,
   LoadingState,
@@ -243,7 +244,12 @@ export function ProviderRow({ providerId, model, controls }: ProviderRowProps) {
     controls
   )
   return (
-    <PermissionRow target={{ kind: 'provider', id: providerId }} label={name} controls={controls}>
+    <PermissionRow
+      target={{ kind: 'provider', id: providerId }}
+      label={name}
+      leading={<ProviderMark providerId={providerId} />}
+      controls={controls}
+    >
       {model.dynamicProviderIds.includes(providerId) ? (
         <DynamicProviderModels provider={providerId} controls={childControls} />
       ) : (
