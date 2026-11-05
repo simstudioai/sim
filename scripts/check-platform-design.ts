@@ -124,6 +124,19 @@ for (const [owner, props] of Object.entries(variants)) {
 
 const dataSeam = 'platform/lib/data/'
 /** Everything under these may cross into the data seam; each wraps a contract or its hook. */
+/**
+ * The organization surface mounts Platform views directly (`_redesign/`, its pages). It is the one
+ * legacy route allowed across: `check:platform-css` holds every other entry out of `platform/`.
+ */
+const embeddedHost = 'app/o/[organizationId]/'
+/** Frames that hold a legacy composer between surfaces, where foundation tokens do not reach. */
+const FRAMES_OUTSIDE_SURFACE: ReadonlySet<string> = new Set([
+  'platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css',
+])
+/** A page that measures its own chrome for its table's scroller. */
+const LOCAL_TOKEN_OWNERS: ReadonlySet<string> = new Set([
+  'platform/app/(shell)/_components/links-page/links-page.module.css',
+])
 const seamRoots = ['hooks/queries', 'lib/api']
 /**
  * Named modules the seam needs. The chat hook's own pure modules are among them, so a name under
@@ -281,7 +294,19 @@ const seamHelpers = new Set([
   'lib/favicon/url',
   'lib/help-links',
   'lib/help/request',
-  'lib/invitations/failure-message',
+  'lib/invitations/error-messages',
+  'lib/sim-search/live/provider-catalog',
+  'lib/core/config/deployment-shape',
+  'app/workspace/[workspaceId]/home/components/message-content/components/source-link',
+  'app/o/[organizationId]/integrations/search-params',
+  'lib/sim-search/live/policy-schema',
+  'lib/organization-secrets/validation',
+  'lib/integrations/credential-display',
+  'lib/credential-groups/search-readiness',
+  'lib/credential-groups/providers',
+  'lib/assistant-actions/providers',
+  'hooks/use-oauth-return',
+  'hooks/use-hydrated',
   'lib/messaging/email/validation',
   'lib/navigation/paths',
   'lib/oauth/utils',
@@ -336,7 +361,9 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
       'Render an EMCN component; static Paper specimens belong in the workbench'
     )
   const targetOwner = target && privateRouteOwner(target)
+  const embedded = file.startsWith(embeddedHost)
   if (
+    !embedded &&
     target?.endsWith('.module.css') &&
     (targetOwner || target.startsWith(`${system}components/`))
   ) {
@@ -352,7 +379,7 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
     const gallery = file.startsWith('platform/preview/')
     const dataContract =
       typesOnly && (file.startsWith('platform/fixtures/') || file.startsWith(dataSeam))
-    if (!file.startsWith(targetOwner) && !gallery && !dataContract)
+    if (!file.startsWith(targetOwner) && !gallery && !dataContract && !embedded)
       report('private-composition', file, `Promote ${specifier} before using it outside its route`)
   }
   const workbenchDependency = target && /^platform\/(preview|app\/workbench)(?:\/|$)/.test(target)
@@ -368,7 +395,8 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
   if (
     (target &&
       (target === 'platform' || target.startsWith(platform)) !== inPlatform &&
-      !seamTarget) ||
+      !seamTarget &&
+      !embedded) ||
     (inPlatform &&
       /^@sim\/(?!utils(?:\/|$))/.test(specifier) &&
       !(inSeam && seamPackages.test(specifier)) &&
@@ -500,6 +528,16 @@ function checkCss(file: string, sheet: postcss.Root) {
       )
     )
       return
+    // Keyboard focus is visible, as review on the running app settled. Pointer focus stays unpainted.
+    if (/:focus-visible/.test(rule.selector) && !/:focus(?!-visible)/.test(rule.selector)) return
+    if (
+      file === `${foundation}embedded.css` &&
+      rule.selector === '[data-platform-ui] :focus' &&
+      rule.nodes.every(
+        (node) => node.type === 'decl' && node.prop === 'outline' && node.value === 'none'
+      )
+    )
+      return
     report(
       'focus-style',
       file,
@@ -572,7 +610,7 @@ function checkCss(file: string, sheet: postcss.Root) {
     ) {
       report('untokenized-style', location, `Use a foundation recipe: ${prop}: ${value}`)
     }
-    if (prop.startsWith('--'))
+    if (prop.startsWith('--') && !LOCAL_TOKEN_OWNERS.has(file))
       report('css-owner', location, 'Token definitions belong in foundations')
     const literal = value.replace(/url\([^)]*\)|--[\w-]+|"[^"]*"|'[^']*'/gi, '')
     if (
@@ -590,7 +628,8 @@ function checkCss(file: string, sheet: postcss.Root) {
         ([, length]) => Number(length) !== 0
       )
     )
-      report('raw-geometry', location, `Use a foundation token: ${value}`)
+      if (!FRAMES_OUTSIDE_SURFACE.has(file))
+        report('raw-geometry', location, `Use a foundation token: ${value}`)
   })
 }
 
@@ -1003,13 +1042,13 @@ function checkJs(file: string, content: string) {
             attr === 'style' &&
             expr &&
             ts.isObjectLiteralExpression(expr) &&
-            expr.properties.length === 1 &&
             expr.properties.every(
               (property) =>
                 ts.isPropertyAssignment(property) &&
-                property.name.getText(sf) === 'gridRow' &&
-                ts.isCallExpression(property.initializer) &&
-                property.initializer.expression.getText(sf) === 'timeSlot'
+                (property.name.getText(sf) === 'visibility' ||
+                  (property.name.getText(sf) === 'gridRow' &&
+                    ts.isCallExpression(property.initializer) &&
+                    property.initializer.expression.getText(sf) === 'timeSlot'))
             )
           if (
             !calendarPlacement &&

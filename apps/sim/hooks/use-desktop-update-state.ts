@@ -17,6 +17,13 @@ export function desktopUpdateActionLabel(state: DesktopUpdateState): string {
   return state.status === 'ready' ? 'Restart to update' : 'Update'
 }
 
+/** Installs a downloaded update, or starts downloading an available one. */
+export function runDesktopUpdateAction(state: DesktopUpdateState): void {
+  const updates = getDesktopUpdates()
+  if (state.status === 'ready') updates?.install()
+  else if (state.status === 'available') updates?.check()
+}
+
 const INITIAL_UPDATE_STATE: DesktopUpdateState = { status: 'idle' }
 
 export function useDesktopUpdateState(): DesktopUpdateState {

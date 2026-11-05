@@ -159,7 +159,7 @@ export function useSearchSurface(chatId: string | undefined) {
     [organizationId]
   )
   const showingSearch = mode === 'search'
-  const history = useSearchHistory(showingSearch ? organizationId : undefined)
+  const history = useSearchHistory(showingSearch ? organizationId : undefined, userId)
   const clearHistory = useClearSearchHistory(organizationId, userId)
   const record = useRecordSearchHistory(organizationId, userId)
   const awaitingRange = updated === 'custom' && !(from && to)

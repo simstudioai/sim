@@ -14,7 +14,7 @@ import type {
 import { useSession } from '@/lib/auth/client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
-import { buildInviteFailureMessage } from '@/lib/invitations/failure-message'
+import { buildInviteFailureMessage } from '@/lib/invitations/error-messages'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { workspaceRoleLockReason } from '@/lib/workspaces/permissions/role-lock'

@@ -22,7 +22,7 @@ export function HomeChartSpecimen({ recipe, data }: HomeChartSpecimenProps) {
   return (
     <HomeActivityChart
       title='Tasks run'
-      state={{ status: 'ready', points: recipe === 'C0165' ? [] : data?.charts.trend }}
+      state={{ status: 'ready', points: recipe === 'C0165' ? [] : (data?.charts.trend ?? []) }}
       initialPoint={
         recipe === 'C0169' ? Math.floor((Math.min(points.length, 7) - 1) / 2) : undefined
       }

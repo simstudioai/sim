@@ -54,7 +54,6 @@ const fullHome: HomeData = {
     {
       id: 'checklist',
       sender: 'Nina Patel',
-      avatar: nina.src,
       count: 3,
       subject: 'Updated onboarding checklist',
       excerpt:
@@ -64,7 +63,6 @@ const fullHome: HomeData = {
     {
       id: 'q4',
       sender: 'Alex Chen',
-      avatar: alex.src,
       count: 2,
       subject: 'Q4 customer review',
       excerpt:
@@ -74,7 +72,6 @@ const fullHome: HomeData = {
     {
       id: 'invoice',
       sender: 'Maya Ross',
-      avatar: maya.src,
       subject: 'Invoice approval for October',
       excerpt:
         'The final invoices are ready for approval. I reconciled the vendor totals against the October ledger and added notes about the two adjustments we discussed.',

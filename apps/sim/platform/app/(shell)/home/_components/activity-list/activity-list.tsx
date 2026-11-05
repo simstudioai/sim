@@ -21,12 +21,12 @@ import { formatRelativeTime } from '@/platform/lib/time'
 
 interface EmailListProps {
   items: readonly EmailItem[]
-  asOf: number | null
+  asOf: number
   onOpen: (mail: EmailItem) => void
 }
 
-function relativeTime(at: number | undefined, asOf: number | null) {
-  return at === undefined || asOf === null ? undefined : formatRelativeTime(at, asOf)
+function relativeTime(at: number | undefined, asOf: number) {
+  return at === undefined ? undefined : formatRelativeTime(at, asOf)
 }
 
 export function EmailList({ items, asOf, onOpen }: EmailListProps) {
@@ -38,7 +38,7 @@ export function EmailList({ items, asOf, onOpen }: EmailListProps) {
           {items.map((mail) => (
             <ActivityRow
               key={mail.id}
-              leading={<Avatar size='inline' name={mail.sender} src={mail.avatar} />}
+              leading={<Avatar size='inline' name={mail.sender} />}
               title={mail.sender}
               count={mail.count}
               detailLead={mail.subject}
@@ -53,10 +53,40 @@ export function EmailList({ items, asOf, onOpen }: EmailListProps) {
   )
 }
 
+function AttentionRow({
+  row,
+  asOf,
+  search,
+}: {
+  row: AttentionItem
+  asOf: number
+  search: ReturnType<typeof useSearchParams>
+}) {
+  const leading = <Icon name={row.icon} />
+  const metadata = relativeTime(row.occurredAt, asOf)
+  return row.onOpen ? (
+    <ActivityRow
+      leading={leading}
+      title={row.title}
+      detail={row.detail}
+      metadata={metadata}
+      onOpen={row.onOpen}
+    />
+  ) : (
+    <ActivityRow
+      leading={leading}
+      title={row.title}
+      detail={row.detail}
+      metadata={metadata}
+      href={platformHref(row.href ?? '/home', search)}
+    />
+  )
+}
+
 interface AttentionListProps {
   state: HomeListState<AttentionItem>
-  asOf: number | null
-  onRetry?: () => void
+  asOf: number
+  onRetry: () => void
 }
 
 export function AttentionList({ state, asOf, onRetry }: AttentionListProps) {
@@ -71,50 +101,35 @@ export function AttentionList({ state, asOf, onRetry }: AttentionListProps) {
           action={<RetryButton retrying={state.retrying} onRetry={onRetry} />}
         />
       )}
-      {state.status === 'ready' && state.partial && (
-        <InlineNotice
-          intent='warning'
-          message='Some items could not load.'
-          action={<RetryButton onRetry={onRetry} />}
-        />
-      )}
-      {state.status === 'ready' &&
-        (state.items.length ? (
-          <div className={styles.viewport}>
-            <ScrollArea label='Attention requests'>
-              <ul className={styles.entries}>
-                {state.items.map((row) =>
-                  row.onOpen ? (
-                    <ActivityRow
-                      key={row.id}
-                      leading={<Icon name={row.icon} />}
-                      title={row.title}
-                      detail={row.detail}
-                      metadata={relativeTime(row.occurredAt, asOf)}
-                      onOpen={row.onOpen}
-                    />
-                  ) : (
-                    <ActivityRow
-                      key={row.id}
-                      leading={<Icon name={row.icon} />}
-                      title={row.title}
-                      detail={row.detail}
-                      metadata={relativeTime(row.occurredAt, asOf)}
-                      href={platformHref(row.href ?? '/home', search)}
-                    />
-                  )
-                )}
-              </ul>
-            </ScrollArea>
-          </div>
-        ) : (
-          !state.partial && (
-            <EmptyState
-              title='You’re all caught up'
-              description='Reviews and requests will appear here.'
+      {state.status === 'ready' && (
+        <>
+          {state.partial && (
+            <InlineNotice
+              intent='warning'
+              message='Some items could not load.'
+              action={<RetryButton onRetry={onRetry} />}
             />
-          )
-        ))}
+          )}
+          {state.items.length > 0 ? (
+            <div className={styles.viewport}>
+              <ScrollArea label='Attention requests'>
+                <ul className={styles.entries}>
+                  {state.items.map((row) => (
+                    <AttentionRow key={row.id} row={row} asOf={asOf} search={search} />
+                  ))}
+                </ul>
+              </ScrollArea>
+            </div>
+          ) : (
+            !state.partial && (
+              <EmptyState
+                title='You’re all caught up'
+                description='Anything that needs you will appear here.'
+              />
+            )
+          )}
+        </>
+      )}
     </HomeSection>
   )
 }

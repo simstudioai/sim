@@ -1,8 +1,19 @@
-import { IntegrationsRoute } from '@/platform/app/(shell)/integrations/_components/integrations-page/integrations-route'
+import { resolvePlatformMode } from '@/platform/lib/data/mode'
 
 export default async function Page({
   params,
   searchParams,
 }: PageProps<'/integrations/[providerId]'>) {
-  return <IntegrationsRoute section={(await params).providerId} searchParams={searchParams} />
+  const section = (await params).providerId
+  // Loaded only behind its mode, so a fixture server never evaluates the data seam.
+  if (resolvePlatformMode() === 'live') {
+    const { LiveIntegrationsRoute } = await import(
+      '@/platform/app/(shell)/integrations/_components/integrations-page/live-integrations-route'
+    )
+    return <LiveIntegrationsRoute section={section} />
+  }
+  const { IntegrationsRoute } = await import(
+    '@/platform/app/(shell)/integrations/_components/fixtures/integrations-page/integrations-route'
+  )
+  return <IntegrationsRoute section={section} searchParams={searchParams} />
 }

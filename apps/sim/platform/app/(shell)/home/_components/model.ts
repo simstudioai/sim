@@ -16,13 +16,12 @@ export interface AttentionItem {
 
 export interface EmailItem {
   id: string
-  avatar?: string
   sender: string
   subject: string
   excerpt: string
   receivedAt: number
   count?: number
-  /** Where this message opens in its provider. */
+  /** Where this message opens in its provider. Fixture mail has none. */
   url?: string
 }
 
@@ -32,7 +31,7 @@ export interface CalendarMeeting {
   startMinute: number
   duration: number
   providerUrl?: string
-  people: { name: string; src?: string }[]
+  people: { name: string }[]
 }
 
 /** What fixtures supply. Live data fills `HomeView` directly. */
@@ -93,11 +92,16 @@ export type HomeListState<T> =
   | { status: 'error'; retrying: boolean }
   | { status: 'ready'; items: readonly T[]; partial?: boolean }
 
+export interface ActivityPoint {
+  date: string
+  value: number
+}
+
 export type HomeActivityState =
   | { status: 'hidden' }
   | { status: 'loading' }
   | { status: 'error'; retrying: boolean }
-  | { status: 'ready'; points?: readonly { date: string; value: number }[] }
+  | { status: 'ready'; points: readonly ActivityPoint[] }
 
 export interface HomeGetStartedStep {
   id: string
@@ -108,8 +112,7 @@ export interface HomeGetStartedStep {
 }
 
 export interface HomeView {
-  /** The reference instant for relative times. Null until the viewer's clock is known. */
-  asOf: number | null
+  asOf: number
   greeting: string
   firstName?: string
   attention: HomeListState<AttentionItem>
@@ -125,10 +128,8 @@ export interface HomeWidgetActions {
   /** Absent while the connection cannot be started, which disables its button. */
   connect?: (optionId: string) => void
   reconnect?: (accountId: string) => void
-  disconnect?: (accountId: string) => void | Promise<void>
-  retry?: () => void
-  /** What disconnecting does, for the confirmation dialog to say. */
-  disconnectNotice: string
+  disconnect: (accountId: string) => void | Promise<void>
+  retry: () => void
 }
 
 export interface HomeActions {
@@ -137,8 +138,8 @@ export interface HomeActions {
   openEmail: (mail: EmailItem) => void
   changeDay: (delta: number) => void
   returnToToday: () => void
-  retryAttention?: () => void
-  retryActivity?: () => void
-  retryRecents?: () => void
+  retryAttention: () => void
+  retryActivity: () => void
+  retryRecents: () => void
   removeRecent: (id: string) => void
 }

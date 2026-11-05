@@ -6,7 +6,7 @@ import {
   useInterfacePreferences,
   useRecentHistory,
 } from '@/platform/app/(shell)/_components/session/interface-preferences'
-import { HomeDashboard } from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard'
+import { ZoneHomeDashboard } from '@/platform/app/(shell)/home/_components/home-dashboard/zone-home-dashboard'
 import type {
   EmailItem,
   HomeActions,
@@ -20,7 +20,7 @@ import type {
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
 import { platformHref } from '@/platform/design-system/navigation'
 
-const NO_ACTIVITY = { status: 'ready' } as const
+const NO_ACTIVITY = { status: 'ready', points: [] } as const
 
 const CONNECT_OPTIONS = {
   Email: [
@@ -79,22 +79,22 @@ export function FixtureHome({ data, recentLinks }: FixtureHomeProps) {
   if (!preferences) throw new Error('Home needs interface preferences')
   const { connections, setConnections } = preferences
   const widgetActions = (widget: keyof typeof CONNECT_OPTIONS): HomeWidgetActions => ({
-    disconnectNotice: `Sim will stop syncing ${widget === 'Email' ? 'email' : 'calendar events'}${data?.address ? ` from ${data.address}` : ''}. You can reconnect anytime.`,
     connect: data ? () => setConnections((current) => ({ ...current, [widget]: true })) : undefined,
-    disconnect: data
-      ? () => setConnections((current) => ({ ...current, [widget]: false }))
-      : undefined,
+    disconnect: () => setConnections((current) => ({ ...current, [widget]: false })),
+    retry: () => {},
   })
   const connected = (widget: keyof typeof CONNECT_OPTIONS) =>
     Boolean(data && (connections[widget] ?? data.connected))
   const view: HomeView = {
-    asOf: data?.asOf ?? null,
+    asOf: data?.asOf ?? 0,
     greeting: 'Good morning',
     firstName: data?.firstName,
     attention: { status: 'ready', items: data?.attention ?? [] },
     activity: {
-      Build: data ? { status: 'ready', points: metricPoints(data, 'tasks') } : NO_ACTIVITY,
-      Search: data ? { status: 'ready', points: metricPoints(data, 'searches') } : NO_ACTIVITY,
+      Build: data ? { status: 'ready', points: metricPoints(data, 'tasks') ?? [] } : NO_ACTIVITY,
+      Search: data
+        ? { status: 'ready', points: metricPoints(data, 'searches') ?? [] }
+        : NO_ACTIVITY,
     },
     email: sessionWidget<readonly EmailItem[]>(
       'Email',
@@ -120,7 +120,10 @@ export function FixtureHome({ data, recentLinks }: FixtureHomeProps) {
     openEmail: () => router.push(platformHref('/home', search)),
     changeDay: (delta) => setDayOffset((offset) => offset + delta),
     returnToToday: () => setDayOffset(0),
+    retryAttention: () => {},
+    retryActivity: () => {},
+    retryRecents: () => {},
     removeRecent,
   }
-  return <HomeDashboard view={view} actions={actions} />
+  return <ZoneHomeDashboard view={view} actions={actions} />
 }

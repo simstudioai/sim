@@ -12,8 +12,14 @@
   box-shadow: var(--chart-tooltip-shadow);
 }
 
-.tooltip > span {
+.tooltip > span,
+.detail > span:first-child {
   color: var(--ui-secondary);
+}
+
+.detail > span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
 }
 
 .detail {

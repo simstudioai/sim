@@ -145,13 +145,13 @@ export async function executeVideoOperation(
   if (validationError) throw new VideoOperationError(validationError, 400)
   await authorizeVisualReference(input, context)
 
-  let completedFalCost: FalAICostMetadata | undefined
+  let undeliveredFalCost: FalAICostMetadata | undefined
   try {
     const generated = await generateVideo(input, {
       requestId: context.requestId,
       signal: context.signal,
       onFalCost: (cost) => {
-        completedFalCost = cost
+        undeliveredFalCost = cost
       },
     })
     context.signal?.throwIfAborted()
@@ -169,16 +169,16 @@ export async function executeVideoOperation(
       __falaiBilling: generated.falaiCost,
     }
   } catch (error) {
-    if (completedFalCost) {
-      logger.warn('Hosted fal video completed but delivery failed', {
+    if (undeliveredFalCost) {
+      logger.warn('Hosted fal video result delivery interrupted', {
         requestId: context.requestId,
-        falaiBilling: completedFalCost,
+        falaiBilling: undeliveredFalCost,
       })
-      const { requestId, endpointId, costDollars } = completedFalCost
+      const { requestId, endpointId, costDollars } = undeliveredFalCost
       await recordServiceMeteringFailure(
-        `Completed fal video ${requestId} (${endpointId}): USD ${costDollars}; delivery failed`
+        `Undelivered fal video ${requestId} (${endpointId}): USD ${costDollars} (${undeliveredFalCost.source}); reconciliation required`
       ).catch((meteringError) => {
-        logger.error('Failed to record completed fal video for reconciliation', {
+        logger.error('Failed to record undelivered fal video for reconciliation', {
           requestId: context.requestId,
           error: getErrorMessage(meteringError),
         })

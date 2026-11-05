@@ -10,18 +10,10 @@ import {
   saveOrganizationSecretsContract,
 } from '@/lib/api/contracts/organization-secrets'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
-
-export const ORGANIZATION_SECRET_STALE_TIME = 60 * 1000
-export const organizationSecretKeys = {
-  all: ['organization-secrets'] as const,
-  sources: () => [...organizationSecretKeys.all, 'source'] as const,
-  source: (organizationId: string) =>
-    [...organizationSecretKeys.sources(), organizationId] as const,
-  environments: (organizationId: string) =>
-    [...organizationSecretKeys.all, 'environment', organizationId] as const,
-  environment: (organizationId: string, mode: SecretSourceMode) =>
-    [...organizationSecretKeys.environments(organizationId), mode] as const,
-}
+import {
+  ORGANIZATION_SECRET_STALE_TIME,
+  organizationSecretKeys,
+} from '@/hooks/queries/utils/organization-secret-keys'
 
 export function useOrganizationSecretSource(organizationId: string) {
   return useQuery({

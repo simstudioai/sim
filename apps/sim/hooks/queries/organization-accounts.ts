@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import { generateId } from '@sim/utils/id'
 import {
   isServer,
+  queryOptions,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -160,10 +161,9 @@ export function useDisconnectPersonalOrganizationAccount() {
   })
 }
 
-export function useOrganizationAccounts(organizationId?: string) {
-  return useQuery({
+export function organizationAccountsQueryOptions(organizationId?: string) {
+  return queryOptions({
     queryKey: organizationAccountsKeys.detail(organizationId),
-    enabled: Boolean(organizationId),
     staleTime: ORGANIZATION_ACCOUNTS_STALE_TIME,
     queryFn: ({ signal }) => {
       if (!organizationId) throw new Error('Organization is required')
@@ -172,6 +172,13 @@ export function useOrganizationAccounts(organizationId?: string) {
         signal,
       })
     },
+  })
+}
+
+export function useOrganizationAccounts(organizationId?: string) {
+  return useQuery({
+    ...organizationAccountsQueryOptions(organizationId),
+    enabled: Boolean(organizationId),
   })
 }
 

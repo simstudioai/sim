@@ -1,7 +1,10 @@
 'use client'
 
 import { createContext, type ReactNode, useContext, useState } from 'react'
-import type { IntegrationsData, OrganizationIntegration } from '@/platform/lib/integrations/model'
+import type {
+  IntegrationsData,
+  OrganizationIntegration,
+} from '@/platform/lib/integrations/fixture-model'
 
 type AccountEdits = Pick<
   OrganizationIntegration,

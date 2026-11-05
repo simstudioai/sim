@@ -20,6 +20,7 @@ query ($base: String!, $head: String!) {
       "ci:e2e-desktop-inbox"
       "ci:e2e-assistant-actions"
       "ci:e2e-organization-search"
+      "ci:e2e-org-redesign"
       "ci:e2e-docs-platform"
       "ci:e2e-browser-extension"
       "ci:e2e-project-files"

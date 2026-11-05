@@ -4,7 +4,7 @@ import {
   scopeGroup,
 } from '@/platform/app/(shell)/integrations/_components/connection-access/scope-groups'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
-import type { OrganizationIntegration } from '@/platform/lib/integrations/model'
+import type { OrganizationIntegration } from '@/platform/lib/data/integrations-types'
 
 interface AccessGroupProps {
   title: string
@@ -38,17 +38,15 @@ export function ConnectionAccess({ integration }: ConnectionAccessProps) {
     integration
   return (
     <>
-      {searchResource &&
-        availability === 'ready' &&
-        (searchReads.length > 0 || !requestedScopes?.length) && (
-          <section className={styles.section} aria-label='Search access'>
-            <header className={styles.heading}>
-              <h2 data-type='T093'>Search access</h2>
-              <p data-type='T060'>{accessDescription}</p>
-            </header>
-            <AccessGroup title='Read-only tools' items={searchReads} />
-          </section>
-        )}
+      {searchResource && availability === 'ready' && (
+        <section className={styles.section} aria-label='Search access'>
+          <header className={styles.heading}>
+            <h2 data-type='T093'>Search access</h2>
+            <p data-type='T060'>{accessDescription}</p>
+          </header>
+          <AccessGroup title='Read-only tools' items={searchReads} />
+        </section>
+      )}
       {requestedScopes && requestedScopes.length > 0 && (
         <section className={styles.section} aria-label='Requested permissions'>
           <h2 data-type='T093'>Requested permissions</h2>

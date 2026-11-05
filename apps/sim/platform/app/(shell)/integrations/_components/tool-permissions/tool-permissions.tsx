@@ -1,75 +1,100 @@
-'use client'
-
-import { useState } from 'react'
 import styles from '@/platform/app/(shell)/integrations/_components/tool-permissions/tool-permissions.module.css'
 import { EmptyState, SearchField, SegmentedControl } from '@/platform/design-system/components'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
-import type { IntegrationAccount, ToolPolicy } from '@/platform/lib/integrations/model'
+import type {
+  ToolPermissionChange,
+  ToolPermissionsModel,
+  ToolPolicy,
+} from '@/platform/lib/data/integrations-types'
 
-type Permissions = NonNullable<IntegrationAccount['permissions']>
-
-const ACTIONS = [
-  { value: 'allow', label: 'Allow' },
-  { value: 'ask', label: 'Ask' },
-  { value: 'block', label: 'Block' },
-] as const
+const POLICY_LABELS: Record<ToolPolicy, string> = { allow: 'Allow', ask: 'Ask', block: 'Block' }
+const POLICIES = ['allow', 'ask', 'block'] as const
 const GROUPS = [
-  { kind: 'read', label: 'Read tools' },
+  { kind: 'read', label: 'Read-only tools' },
   { kind: 'write', label: 'Write tools' },
 ] as const
+const MIXED = 'mixed'
 
 interface ToolPermissionsProps {
-  account: IntegrationAccount
-  permissions: Permissions
-  onChange: (next: Permissions) => void
+  permissions: ToolPermissionsModel
+  query: string
+  onQueryChange: (query: string) => void
+  pending: boolean
+  onChange: (change: ToolPermissionChange) => void
 }
 
-export function ToolPermissions({ account, permissions, onChange }: ToolPermissionsProps) {
-  const [query, setQuery] = useState('')
-  const canAllow = permissions.canAutoApprove && account.status === 'active'
-  const choices = ACTIONS.map((option) => ({
-    ...option,
-    disabled: option.value === 'allow' && !canAllow,
+export function ToolPermissions({
+  permissions,
+  query,
+  onQueryChange,
+  pending,
+  onChange,
+}: ToolPermissionsProps) {
+  const canAllow = permissions.canAutoApprove && permissions.accountActive
+  const choices = POLICIES.map((value) => ({
+    value,
+    label: POLICY_LABELS[value],
+    disabled: pending || (value === 'allow' && !canAllow),
   }))
   const filter = query.trim().toLowerCase()
   const matches = permissions.tools.filter((tool) =>
-    `${tool.label} ${tool.description ?? ''}`.toLowerCase().includes(filter)
+    `${tool.label} ${tool.description}`.toLowerCase().includes(filter)
   )
-
-  function updateTool(id: string, value: ToolPolicy, defaultValue: ToolPolicy) {
-    onChange({
-      ...permissions,
-      tools: permissions.tools.map((tool) =>
-        tool.id === id ? { ...tool, override: value === defaultValue ? null : value } : tool
-      ),
-    })
-  }
 
   return (
     <section className={styles.section} aria-label='Tool permissions'>
       <div className={styles.intro}>
         <h2 data-type='T093'>Tool permissions</h2>
-        {!canAllow && (
+        {!permissions.canAutoApprove && (
           <p className={styles.detail} data-type='T060'>
-            {account.status === 'needs_reauth'
-              ? 'Reconnect this account to allow tools automatically.'
-              : 'Your organization requires approval before tools can run.'}
+            Your organization requires approval before tools run.
+          </p>
+        )}
+        {!permissions.accountActive && (
+          <p className={styles.detail} data-type='T060'>
+            This account is disconnected or paused. Reconnect it before allowing tools
+            automatically.
           </p>
         )}
       </div>
-      <SearchField label='Search tools' placeholder='Search tools…' onValueChange={setQuery} />
+      {permissions.tools.length > 0 && (
+        <SearchField
+          label='Search tools'
+          placeholder='Search tools…'
+          value={query}
+          onValueChange={onQueryChange}
+        />
+      )}
       {GROUPS.map(({ kind, label }) => {
         const matching = matches.filter((tool) => tool.kind === kind)
         if (!matching.length) return null
         const tools = permissions.tools.filter((item) => item.kind === kind)
-        const defaultValue = permissions[kind]
-        const defaultLabel =
-          ACTIONS.find((action) => action.value === defaultValue)?.label ?? defaultValue
+        const defaultLabel = POLICY_LABELS[permissions[kind]]
+        const groupValue = tools.every((tool) => tool.policy === tools[0].policy)
+          ? tools[0].policy
+          : MIXED
         return (
           <section key={kind} className={styles.group} aria-label={label}>
-            <h3 data-type='T059'>
-              <CountedLabel label={label} count={tools.length} />
-            </h3>
+            <div className={styles.tool}>
+              <h3 data-type='T059'>
+                <CountedLabel label={label} count={tools.length} />
+              </h3>
+              <div className={styles.actions}>
+                {groupValue === MIXED && (
+                  <span className={styles.detail} data-type='T060'>
+                    Mixed
+                  </span>
+                )}
+                <SegmentedControl<ToolPolicy | typeof MIXED>
+                  label={`${label} permission`}
+                  options={choices}
+                  value={groupValue}
+                  onSelect={(policy) => {
+                    if (policy !== MIXED) onChange({ kind: 'group', effect: kind, policy })
+                  }}
+                />
+              </div>
+            </div>
             <ul className={styles.list}>
               {matching.map((tool) => (
                 <li className={styles.tool} key={tool.id}>
@@ -82,16 +107,16 @@ export function ToolPermissions({ account, permissions, onChange }: ToolPermissi
                     )}
                   </div>
                   <div className={styles.actions}>
-                    <SegmentedControl
+                    <SegmentedControl<ToolPolicy>
                       label={`${tool.label} permission`}
                       description={
-                        tool.override
-                          ? `Choose ${defaultLabel} to inherit the default for ${label.toLowerCase()}.`
-                          : `Inherits ${defaultLabel} from ${label.toLowerCase()}.`
+                        tool.inherited
+                          ? `Inherits ${defaultLabel} from ${label.toLowerCase()}.`
+                          : undefined
                       }
                       options={choices}
-                      value={tool.override ?? defaultValue}
-                      onSelect={(change) => updateTool(tool.id, change, defaultValue)}
+                      value={tool.policy}
+                      onSelect={(policy) => onChange({ kind: 'tool', toolId: tool.id, policy })}
                     />
                   </div>
                 </li>
@@ -101,7 +126,9 @@ export function ToolPermissions({ account, permissions, onChange }: ToolPermissi
         )
       })}
       {!matches.length && (
-        <EmptyState title={filter ? 'No matching tools' : 'No tools available'} />
+        <EmptyState
+          title={filter ? 'No matching tools' : 'No Assistant tools are available for this account'}
+        />
       )}
     </section>
   )

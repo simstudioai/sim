@@ -7,7 +7,10 @@ import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/pa
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import OrganizationChatLoading from '@/app/o/[organizationId]/chat/[chatId]/loading'
 import { OrganizationConversation } from '@/app/o/[organizationId]/components/organization-conversation'
-import { getOrganizationHomeRedirect } from '@/app/o/[organizationId]/home/home-redirect'
+import {
+  canUseOrganizationChat,
+  getOrganizationBuildRedirect,
+} from '@/app/o/[organizationId]/home/home-redirect'
 
 export const metadata: Metadata = { title: 'Chat' }
 
@@ -21,8 +24,8 @@ export default async function OrganizationChatPage({
   if (!session?.user?.id) notFound()
   const context = await getOrganizationSurfaceContext(organizationId, session.user.id)
   if (!context) notFound()
-  if (!context.mothershipAvailable || (!context.canBuild && !context.searchAccess.memberScoped)) {
-    const unavailableRedirect = getOrganizationHomeRedirect(context, organizationId)
+  if (!canUseOrganizationChat(context)) {
+    const unavailableRedirect = getOrganizationBuildRedirect(context, organizationId)
     if (unavailableRedirect) redirect(unavailableRedirect)
   }
   const chat = await getAccessibleCopilotChatAuth(chatId, session.user.id, {
@@ -33,8 +36,8 @@ export default async function OrganizationChatPage({
     if (!context.searchAccess.memberScoped) redirect(WORKSPACE_SETTINGS_PATH)
     redirect(organizationRoutes(organizationId).searchChat(chatId))
   }
-  const homeRedirect = getOrganizationHomeRedirect(context, organizationId)
-  if (homeRedirect) redirect(homeRedirect)
+  const buildRedirect = getOrganizationBuildRedirect(context, organizationId)
+  if (buildRedirect) redirect(buildRedirect)
 
   return (
     <Suspense fallback={<OrganizationChatLoading />}>

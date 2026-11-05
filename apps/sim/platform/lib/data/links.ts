@@ -1,14 +1,23 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { SIM_LINK_NAME_MAX_LENGTH } from '@sim/browser-extension-protocol'
+import { createLogger } from '@sim/logger'
+import { SIM_DOCS_URL } from '@sim/utils/site'
 import { useQueryStates } from 'nuqs'
 import { isApiClientError } from '@/lib/api/client/errors'
+import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
 import type { SimLink, SimLinkBody } from '@/lib/api/contracts/sim-links'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { faviconSrc } from '@/lib/favicon/url'
 import { simLinkPath, simLinkUrl } from '@/lib/navigation/paths'
-import { simLinksParsers, simLinksSortParams, simLinksUrlKeys } from '@/lib/sim-links/search-params'
-import { SIM_FOR_CHROME_URL, SIM_LINKS_DOCS_URL } from '@/lib/sim-links/urls'
+import {
+  boundedSearch,
+  simLinksParsers,
+  simLinksSortParams,
+  simLinksUrlKeys,
+} from '@/lib/sim-links/search-params'
+import { SIM_FOR_CHROME_URL } from '@/lib/sim-links/urls'
 import {
   isVariableSimLinkUrl,
   SIM_LINK_DESCRIPTION_MAX_LENGTH,
@@ -27,106 +36,116 @@ import {
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
-import { loadMoreOf, queryView } from '@/platform/lib/data/query-view'
+import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { toast } from '@/platform/lib/data/toast'
 
+const logger = createLogger('SimLinks')
+
+const SIM_LINKS_DOCS_URL = `${SIM_DOCS_URL}/search/sim-links`
+
 const SORT_OPTIONS = [
-  { value: 'name:asc', label: 'Name (A–Z)' },
-  { value: 'name:desc', label: 'Name (Z–A)' },
-  { value: 'popular:desc', label: 'Most opened' },
-  { value: 'popular:asc', label: 'Least opened' },
-]
+  { id: 'name', label: 'Name' },
+  { id: 'popular', label: 'Opens' },
+] as const
 
 type LinkField = 'name' | 'url' | 'defaultUrl' | 'description'
 
-export interface LinkRow {
-  id: string
-  name: string
-  url: string
-  description: string | null
-  ownerName: string | null
-  ownerImage: string | null
-  access: string | null
-  updatedAt: string
-  faviconSrc: string | null
-  canEdit: boolean
-  source: SimLink
+function openLinkInNewTab(href: string) {
+  window.open(href, '_blank', 'noopener,noreferrer')
 }
 
-/** How the link is shared beyond the default: open to everyone and editable by any member. */
-function accessLabel(link: SimLink): string | null {
-  const limits = [link.unlisted && 'Unlisted', link.restrictEdit && 'Restricted'].filter(Boolean)
-  return limits.length ? limits.join(', ') : null
+export function openChromeStore() {
+  openLinkInNewTab(SIM_FOR_CHROME_URL)
 }
 
-function toLinkRow(link: SimLink): LinkRow {
-  const origin = simLinkOrigin(link.url)
-  return {
-    id: link.id,
-    name: link.name,
-    url: link.url,
-    description: link.description,
-    ownerName: link.createdBy?.name ?? null,
-    ownerImage: link.createdBy?.image ?? null,
-    access: accessLabel(link),
-    updatedAt: link.updatedAt,
-    faviconSrc: origin ? faviconSrc(new URL(origin).hostname) : null,
-    canEdit: link.canEdit,
-    source: link,
-  }
+export function openLinkDocs() {
+  openLinkInNewTab(SIM_LINKS_DOCS_URL)
 }
 
-function openInNewTab(url: string) {
-  window.open(url, '_blank', 'noopener,noreferrer')
+export function openLink(name: string) {
+  openLinkInNewTab(simLinkPath(name))
 }
 
-/** Every Sim link the viewer may browse. `sim/<name>` resolves on the main app, not in this zone. */
-export function useLinksSection(organizationId: string, legacyOrigin: string) {
+/** Every Sim link the viewer may browse, driven by the page's URL state. */
+export function useLinksPage(organizationId: string) {
   const [{ search, create }, setView] = useQueryStates(simLinksParsers, simLinksUrlKeys)
   const setSearch = useDebouncedSearchSetter((value, options) =>
-    setView({ search: value }, options)
+    setView({ search: value && boundedSearch(value) }, options)
   )
   const settled = useSearchFilterValue(search, SEARCH_DEBOUNCE_MS)
-  const { sort, dir, onSort } = useUrlSort(simLinksSortParams, simLinksUrlKeys)
+  const { sort, dir, activeSort, onSort, onClear } = useUrlSort(simLinksSortParams, simLinksUrlKeys)
   const term = settled.trim()
   const links = useSimLinks(organizationId, term, sort, dir)
   const remove = useDeleteSimLink(organizationId)
-  const rows = useMemo(
-    () => links.data?.pages.flatMap((page) => page.links).map(toLinkRow) ?? [],
-    [links.data]
+
+  const rows = useMemo(() => links.data?.pages.flatMap((page) => page.links) ?? [], [links.data])
+  // Placeholder rows belong to the previous search, and asking for a page cancels a running refetch.
+  const hasMore = links.hasNextPage && !links.isPlaceholderData && !links.isFetching
+  const { isFetchingNextPage, isFetchNextPageError, fetchNextPage } = links
+  const loadMore = useMemo(
+    () => ({
+      hasMore,
+      loading: isFetchingNextPage,
+      error: isFetchNextPageError ? 'Failed to load more links' : undefined,
+      onLoadMore: () => void fetchNextPage(),
+    }),
+    [hasMore, isFetchingNextPage, isFetchNextPageError, fetchNextPage]
   )
+  const copy = useCallback(async (name: string) => {
+    try {
+      await navigator.clipboard.writeText(simLinkUrl(window.location.origin, name))
+      toast.success('Link copied')
+    } catch (error) {
+      logger.error('Failed to copy Sim link', { error })
+      toast.error('Unable to copy link')
+    }
+  }, [])
+
+  const sortActions: MenuAction[] = [
+    ...(activeSort
+      ? [{ id: 'clear', label: 'Clear sort', icon: 'I105' as const, onSelect: onClear }]
+      : []),
+    ...SORT_OPTIONS.map(({ id, label }, index) => {
+      const direction = activeSort?.column === id ? activeSort.direction : null
+      return {
+        id,
+        label,
+        separatorBefore: Boolean(activeSort) && index === 0,
+        trailingIcon: direction ? (direction === 'asc' ? 'I023' : 'I102') : undefined,
+        onSelect: () => onSort(id, direction === 'desc' ? 'asc' : 'desc'),
+      } satisfies MenuAction
+    }),
+  ]
+  const activeSortLabel = SORT_OPTIONS.find(({ id }) => id === activeSort?.column)?.label
+
   return {
-    ...queryView(links),
+    /** A failed refresh keeps its rows; only a list that never loaded reports a failure. */
+    status: links.isLoadingError
+      ? ('error' as const)
+      : links.data
+        ? ('success' as const)
+        : ('pending' as const),
+    retry: () => void links.refetch(),
     error: links.error?.message,
     rows,
+    /** The rows still belong to the previous search, so an empty list says nothing yet. */
+    isPlaceholder: links.isPlaceholderData,
+    /** When the rows were read, which server and client agree on. Unset for placeholder rows. */
+    asOf: links.isPlaceholderData ? undefined : links.dataUpdatedAt,
     term,
     search,
     setSearch,
-    sortOptions: SORT_OPTIONS,
-    sortValue: `${sort}:${dir}`,
-    setSort: (value: string) => {
-      const [column, direction] = value.split(':')
-      if (direction === 'asc' || direction === 'desc') onSort(column, direction)
-    },
-    loadMore: loadMoreOf(links, 'Failed to load more links'),
+    sortLabel: activeSortLabel ? `Sort: ${activeSortLabel}` : 'Sort',
+    sortActions,
+    loadMore,
     /** The name to prefill when the URL asks for a new link; null when it does not. */
     createName: create === null ? null : toSimLinkName(create),
     startCreate: () => void setView({ create: '' }),
     closeCreate: () => void setView({ create: null }),
-    open: (name: string) => openInNewTab(`${legacyOrigin}${simLinkPath(name)}`),
-    copy: async (name: string) => {
-      try {
-        await navigator.clipboard.writeText(simLinkUrl(legacyOrigin, name))
-        toast.success('Link copied')
-      } catch {
-        toast.error('Unable to copy link')
-      }
-    },
+    copy,
     remove: async (id: string) => {
       await remove.mutateAsync(id)
     },
-    openChromeStore: () => openInNewTab(SIM_FOR_CHROME_URL),
-    openDocs: () => openInNewTab(SIM_LINKS_DOCS_URL),
   }
 }
 
@@ -156,33 +175,51 @@ export function useLinkEditor(organizationId: string, link?: SimLink, initialNam
     draft,
     errors,
     variable,
-    variableToken: SIM_LINK_VARIABLE,
-    nameMaxLength: SIM_LINK_NAME_MAX_LENGTH,
-    descriptionMaxLength: SIM_LINK_DESCRIPTION_MAX_LENGTH,
     canManage: link?.canManage ?? true,
+    pending: create.isPending || update.isPending,
     change,
     changeName: (value: string) => change('name', toSimLinkName(value)),
-    /** A rejection keeps the dialog open: a field's problem also shows on that field. */
+    /**
+     * Resolves `false` when the problem is shown on a field, which keeps the dialog open without a
+     * second message. Any other failure rejects, and the dialog shows it.
+     */
     save: async () => {
       const parsed = simLinkFieldsSchema.safeParse({
         ...draft,
         defaultUrl: variable ? draft.defaultUrl : null,
       })
       if (!parsed.success) {
-        const next: Partial<Record<LinkField, string>> = {}
-        for (const issue of parsed.error.issues) next[issue.path[0] as LinkField] = issue.message
-        setErrors(next)
-        throw new Error('Check the highlighted fields')
+        setErrors(flattenFieldErrors<LinkField>(parsed.error))
+        return false
       }
       try {
         if (link) await update.mutateAsync({ linkId: link.id, body: parsed.data })
         else await create.mutateAsync(parsed.data)
+        return true
       } catch (error) {
-        if (isApiClientError(error) && error.status === 409) {
-          setErrors((current) => ({ ...current, name: error.message }))
-        }
-        throw error
+        if (!isApiClientError(error) || error.status !== 409) throw error
+        setErrors((current) => ({ ...current, name: error.message }))
+        return false
       }
     },
   }
+}
+
+/** A link as this page reads it; its contract, named once for the views. */
+export type LinkRecord = SimLink
+
+export const LINK_LIMITS = {
+  name: SIM_LINK_NAME_MAX_LENGTH,
+  description: SIM_LINK_DESCRIPTION_MAX_LENGTH,
+  variable: SIM_LINK_VARIABLE,
+} as const
+
+/** The destination's favicon through Sim's own route; null when it has no host to ask about. */
+export function linkFaviconSrc(link: Pick<SimLink, 'url'>): string | null {
+  const origin = simLinkOrigin(link.url)
+  return origin ? faviconSrc(new URL(origin).hostname) : null
+}
+
+export function useLinksHosted(): boolean {
+  return useDeploymentShape().hosted
 }

@@ -20,7 +20,10 @@ type OrganizationSurfaceResult =
 export const readOrganizationSurface = cache(async (): Promise<OrganizationSurfaceResult> => {
   try {
     const surface = await serverRequestJson(getOrganizationSurfaceContract, {})
-    return { status: 'ok', organization: { ...surface, legacyOrigin: getBaseUrl() } }
+    return {
+      status: 'ok',
+      organization: { ...surface, legacyOrigin: getBaseUrl(), routePrefix: '' },
+    }
   } catch (error) {
     if (isApiClientError(error) && error.status === 401) return { status: 'unauthenticated' }
     if (isApiClientError(error) && error.status === 403) return { status: 'denied' }

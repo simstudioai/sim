@@ -3,7 +3,7 @@
 # CI groups, which reuse the production build from `e2e-build`.
 # The job extracts it into apps/sim/.next before running these suites.
 #
-# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo|platform-live-zone|platform-live-flag-off>   (run from apps/sim)
+# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|org-redesign|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo|platform-live-zone|platform-live-flag-off>   (run from apps/sim)
 #
 # The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
@@ -20,7 +20,7 @@
 # telemetry flush runs detached and still writes .next/dev).
 set -euo pipefail
 
-group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo|platform-live-zone|platform-live-flag-off>}
+group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|org-redesign|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo|platform-live-zone|platform-live-flag-off>}
 report_dir="$RUNNER_TEMP/e2e"
 ready_timeout_seconds=600
 mkdir -p "$report_dir"
@@ -347,6 +347,59 @@ case "$group" in
           bun --no-env-file scripts/test-organization-search-e2e.ts
         ;;
     esac
+    ;;
+
+  # One hosted Enterprise organization, a scripted worker in place of the
+  # model, and the app twice: with People off, then on. Hosted is decided by the
+  # app's hostname, which the job maps to loopback. Both phases report, whichever fails.
+  org-redesign)
+    app_server=start
+    export REDIS_URL=redis://127.0.0.1:6379
+    export E2E_APP_PUBLIC_URL=http://org-redesign.sim.ai:3029
+    export NEXT_PUBLIC_APP_URL="$E2E_APP_PUBLIC_URL"
+    export INTERNAL_API_BASE_URL=http://127.0.0.1:3029 TRUSTED_ORIGINS=http://127.0.0.1:3029
+    export NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:3030 SOCKET_SERVER_URL=http://127.0.0.1:3030
+    export BILLING_ENABLED=true NEXT_PUBLIC_BILLING_ENABLED=true
+    export ENTERPRISE_ENABLED=true NEXT_PUBLIC_ENTERPRISE_ENABLED=true
+    export ORGANIZATIONS_ENABLED=true NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
+    export SSO_ENABLED=true NEXT_PUBLIC_SSO_ENABLED=true
+    export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
+    export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true SIM_LINKS=true
+    export COPILOT_TOOL_PERMISSIONS_ENABLED=true
+    export INTERNAL_API_SECRET=org-redesign-ci-local-secret-at-least-32-characters
+    export COPILOT_API_KEY=org-redesign-ci-local-copilot-key MOTHERSHIP_SIM_TRANSPORT=direct
+    export SIM_AGENT_API_URL=http://127.0.0.1:3031
+    export GOOGLE_CLIENT_ID=org-redesign-google-client GOOGLE_CLIENT_SECRET=org-redesign-google-secret
+    export JIRA_CLIENT_ID=org-redesign-jira-client JIRA_CLIENT_SECRET=org-redesign-jira-secret
+    export CONFLUENCE_CLIENT_ID=org-redesign-confluence-client CONFLUENCE_CLIENT_SECRET=org-redesign-confluence-secret
+    export STRIPE_SECRET_KEY=sk_test_org_redesign STRIPE_WEBHOOK_SECRET=whsec_org_redesign
+    export DB_TX_TRIPWIRE=throw
+    export BROWSER_EXTENSION_IDS=abcdefghijklmnopabcdefghijklmnop
+    bun --no-env-file scripts/org-redesign-seed.ts
+    start_browser_install org-redesign --only-shell chromium
+    bun --no-env-file scripts/org-redesign-e2e/scripted-agent.ts 3031 \
+      > "$report_dir/org-redesign-agent.log" 2>&1 &
+    agent_pid=$!
+    wait_ready "$agent_pid" http://127.0.0.1:3031/health 'scripted agent'
+    start_app org-redesign 3029 'organization redesign' record-http-status
+    start_realtime org-redesign 3030
+    wait_for_browsers
+    run_status=0
+    ORG_REDESIGN_E2E_ORIGIN="$E2E_APP_PUBLIC_URL" \
+    ORG_REDESIGN_E2E_DATABASE_URL="$DATABASE_URL" \
+    ORG_REDESIGN_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    ORG_REDESIGN_E2E_REPORT_PATH="$report_dir/org-redesign-ui-report.json" \
+      bun --no-env-file scripts/test-org-redesign-e2e.ts || run_status=$?
+    stop_app
+    export PEOPLE=true
+    start_app org-redesign-people 3029 'organization redesign, People on'
+    ORG_REDESIGN_E2E_PHASE=people \
+    ORG_REDESIGN_E2E_ORIGIN="$E2E_APP_PUBLIC_URL" \
+    ORG_REDESIGN_E2E_DATABASE_URL="$DATABASE_URL" \
+    ORG_REDESIGN_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    ORG_REDESIGN_E2E_REPORT_PATH="$report_dir/org-redesign-people-ui-report.json" \
+      bun --no-env-file scripts/test-org-redesign-e2e.ts || run_status=$?
+    exit "$run_status"
     ;;
 
   browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access)

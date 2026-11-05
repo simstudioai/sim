@@ -1,19 +1,26 @@
-import type { Ref } from 'react'
+import type { ComponentType, Ref } from 'react'
+import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import styles from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading.module.css'
-import { Icon } from '@/platform/design-system/components'
 
 interface ProviderHeadingProps {
   name: string
   description: string
   providerId?: string
+  icon?: ComponentType<{ className?: string }>
   titleRef?: Ref<HTMLHeadingElement>
 }
 
-export function ProviderHeading({ name, description, providerId, titleRef }: ProviderHeadingProps) {
+export function ProviderHeading({
+  name,
+  description,
+  providerId,
+  icon,
+  titleRef,
+}: ProviderHeadingProps) {
   return (
     <header className={styles.header}>
       <span className={styles.mark}>
-        {providerId ? <Icon providerId={providerId} /> : <Icon name='I070' />}
+        <IntegrationMark providerId={providerId} icon={icon} />
       </span>
       <div className={styles.copy}>
         <h1 ref={titleRef} tabIndex={titleRef ? -1 : undefined} data-type='T076'>

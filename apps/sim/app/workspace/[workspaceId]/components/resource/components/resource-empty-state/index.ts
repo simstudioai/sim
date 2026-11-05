@@ -6,6 +6,5 @@ export { KnowledgeEmptyState } from '@/app/workspace/[workspaceId]/components/re
 export { LogsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/logs-empty-state'
 export { ResourceLoadError } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/resource-load-error'
 export { ResourceNoResults } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/resource-no-results'
-export { SimLinksEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/sim-links-empty-state'
 export { TablesEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/tables-empty-state'
 export { TestsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/tests-empty-state'

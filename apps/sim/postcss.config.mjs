@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 const hairlineBorderWidth = fileURLToPath(
   new URL('./lib/postcss/hairline-border-width.cjs', import.meta.url)
 )
+const platformEmbed = fileURLToPath(new URL('./lib/postcss/platform-embed.cjs', import.meta.url))
 
 /** @type {import('postcss-load-config').Config} */
 const config = {
@@ -15,6 +16,8 @@ const config = {
     '@tailwindcss/postcss': {},
     // Must run after Tailwind: it rewrites Tailwind's own border-width output.
     [hairlineBorderWidth]: {},
+    // Must run after Tailwind, which inlines the entry's imports.
+    [platformEmbed]: {},
   },
 }
 

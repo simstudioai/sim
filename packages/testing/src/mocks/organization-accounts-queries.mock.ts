@@ -44,7 +44,8 @@ export const organizationAccountsQueriesMockFns = {
 }
 
 /**
- * Static mock module for `@/hooks/queries/organization-accounts`. Covers every runtime export.
+ * Static mock module for `@/hooks/queries/organization-accounts`. Covers every runtime hook; its keys
+ * and stale time live in `@/hooks/queries/utils/organization-accounts-keys`, which stays real.
  *
  * @example
  * ```ts

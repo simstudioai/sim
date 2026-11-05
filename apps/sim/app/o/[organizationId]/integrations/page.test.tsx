@@ -4,8 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ context: vi.fn() }))
 vi.mock('@/lib/organizations/surface', () => ({ getOrganizationSurfaceContext: mocks.context }))
-vi.mock('@/app/o/[organizationId]/integrations/integrations', () => ({
-  OrganizationIntegrations: () => null,
+vi.mock('@/app/o/[organizationId]/integrations/hydrated-integrations', () => ({
+  HydratedIntegrations: () => null,
 }))
 vi.mock('next/navigation', () => nextNavigationMock)
 
@@ -20,7 +20,10 @@ const props = {
 }
 
 beforeEach(() => {
-  authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'viewer' } })
+  authMockFns.mockGetSession.mockResolvedValue({
+    user: { id: 'viewer' },
+    session: { id: 'session' },
+  })
   mocks.context.mockResolvedValue({ searchAccess: { memberScoped: true } })
 })
 

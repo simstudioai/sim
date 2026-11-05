@@ -1,0 +1,18 @@
+.page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  inline-size: min(var(--ui-page-max-size), calc(100% - 2 * var(--ui-page-inline-gutter)));
+  margin-inline: auto;
+  padding-block: var(--shell-home-row-start) var(--ui-page-inset-block);
+  gap: var(--ui-product-section-gap);
+}
+.heading {
+  display: grid;
+  gap: var(--ui-stack-gap);
+}
+.heading p {
+  color: var(--ui-secondary);
+}
+.back {
+  margin-inline: calc(-1 * var(--ui-row-inset));
+}

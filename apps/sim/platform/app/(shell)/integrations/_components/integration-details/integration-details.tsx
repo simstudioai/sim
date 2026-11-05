@@ -1,139 +1,106 @@
 'use client'
 
-import { useLayoutEffect, useRef } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { type ReactNode, useLayoutEffect, useRef } from 'react'
 import { ConnectedCredential } from '@/platform/app/(shell)/integrations/_components/connected-credential/connected-credential'
 import { ConnectionAccess } from '@/platform/app/(shell)/integrations/_components/connection-access/connection-access'
 import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
-import { ToolPermissions } from '@/platform/app/(shell)/integrations/_components/tool-permissions/tool-permissions'
 import { Chip, EmptyState } from '@/platform/design-system/components'
 import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
 import {
-  memberIntegrationHref,
-  memberStatus,
+  accountStatus,
+  isConnectable,
   type OrganizationIntegration,
-} from '@/platform/lib/integrations/model'
+} from '@/platform/lib/data/integrations-types'
 
 interface IntegrationDetailsProps {
   integration: OrganizationIntegration
-  onChange: (next: OrganizationIntegration) => void
+  accountId: string | null
+  integrationHref: string
+  accountHref: (accountId: string) => string
+  pending: boolean
+  onConnect: () => void
+  onReconnect: (accountId: string) => void
+  onDisconnect: (accountId: string) => Promise<unknown>
+  renderToolPermissions: (accountId: string) => ReactNode
 }
 
-export function IntegrationDetails({ integration, onChange }: IntegrationDetailsProps) {
-  const router = useRouter()
-  const search = useSearchParams()
-  const { account, providerId, connectableMethod, connectionCandidate } = integration
+export function IntegrationDetails({
+  integration,
+  accountId,
+  integrationHref,
+  accountHref,
+  pending,
+  onConnect,
+  onReconnect,
+  onDisconnect,
+  renderToolPermissions,
+}: IntegrationDetailsProps) {
+  const { accounts, availability, connectionTarget, providerId, name } = integration
   const titleRef = useRef<HTMLHeadingElement>(null)
-  const returnToTitle = useRef(false)
+  const accountCount = useRef(accounts.length)
   useLayoutEffect(() => {
-    if (returnToTitle.current) {
-      titleRef.current?.focus({ preventScroll: true })
-      returnToTitle.current = false
-    }
-  }, [account?.id])
-  const requested = search.get('account')
-  const staleCredential = Boolean(requested && requested !== account?.id)
-  const providerHref = memberIntegrationHref(
-    `/integrations/${encodeURIComponent(providerId)}`,
-    search
-  )
-  const canConnect = !account && integration.availability === 'ready' && connectableMethod !== null
-  const canAuthorize = Boolean(integration.fixtureAuthorization)
-  const canAttach = canAuthorize && canConnect && connectionCandidate?.method === connectableMethod
-  const accessMessage =
-    integration.availability === 'managed'
+    if (accounts.length < accountCount.current) titleRef.current?.focus({ preventScroll: true })
+    accountCount.current = accounts.length
+  }, [accounts.length])
+  const selected = accountId
+    ? accounts.find((account) => account.id === accountId)
+    : accounts.length === 1
+      ? accounts[0]
+      : undefined
+  const stale = Boolean(accountId && !selected)
+  const canConnect = isConnectable(integration)
+  const shown = selected ? [selected] : accounts
+  const reason =
+    availability === 'managed'
       ? `Managed by your organization. ${integration.accessDescription}`
-      : integration.accessDescription
-
-  function connect() {
-    if (!canAttach || !connectionCandidate) return
-    returnToTitle.current = true
-    onChange({
-      ...integration,
-      account: connectionCandidate,
-      connectableMethod: null,
-      connectionCandidate: undefined,
-    })
-  }
-
-  function disconnect() {
-    if (!account) return
-    returnToTitle.current = true
-    const restore = integration.availability === 'ready' && account.canReconnect
-    onChange({
-      ...integration,
-      account: null,
-      connectableMethod: restore ? account.method : null,
-      connectionCandidate:
-        restore && canAuthorize
-          ? {
-              ...account,
-              status: 'active',
-              permissions: account.permissions && {
-                ...account.permissions,
-                read: account.permissions.canAutoApprove ? 'allow' : 'ask',
-                write: 'ask',
-                tools: account.permissions.tools.map((tool) => ({ ...tool, override: null })),
-              },
-            }
-          : undefined,
-    })
-    if (requested) router.replace(providerHref, { scroll: false })
-  }
+      : integration.status
 
   return (
     <>
       <ProviderHeading
-        name={integration.name}
+        name={name}
         titleRef={titleRef}
         description={integration.description}
         providerId={providerId}
+        icon={integration.icon}
       />
-      {account && !staleCredential && (
-        <ConnectedCredential
-          account={account}
-          status={memberStatus(integration)}
-          canAuthorize={canAuthorize}
-          onReconnect={() => {
-            if (canAuthorize && account.canReconnect)
-              onChange({ ...integration, account: { ...account, status: 'active' } })
-          }}
-          onDisconnect={disconnect}
-        />
-      )}
-      {staleCredential ? (
+      {stale ? (
         <EmptyState
-          title='This credential is no longer connected'
-          action={<Chip href={providerHref}>View integration</Chip>}
+          title='This account is no longer connected.'
+          action={<Chip href={integrationHref}>View integration</Chip>}
         />
-      ) : !account ? (
+      ) : shown.length > 0 ? (
+        <ConnectedCredential
+          integrationName={name}
+          accounts={shown.map((account) => ({
+            ...account,
+            statusLabel: accountStatus(integration, account),
+            href: selected ? undefined : accountHref(account.id),
+          }))}
+          pending={pending}
+          addAccount={connectionTarget ? { disabled: !canConnect, onSelect: onConnect } : undefined}
+          onReconnect={onReconnect}
+          onDisconnect={onDisconnect}
+        />
+      ) : (
         <ConnectionPrompt
-          title={canConnect ? `Connect your ${integration.name} account` : accessMessage}
+          title={canConnect ? `Connect your ${name} account` : reason}
           setupGuideUrl={integration.setupGuideUrl}
           options={
-            canConnect
-              ? [
+            availability === 'managed'
+              ? []
+              : [
                   {
-                    label: integration.name,
+                    label: name,
                     icon: { providerId },
-                    onConnect: canAttach ? connect : undefined,
+                    onConnect: canConnect && !pending ? onConnect : undefined,
                   },
                 ]
-              : []
-          }
-        />
-      ) : null}
-      {!staleCredential && account?.permissions && (
-        <ToolPermissions
-          key={account.id}
-          account={account}
-          permissions={account.permissions}
-          onChange={(permissions) =>
-            onChange({ ...integration, account: { ...account, permissions } })
           }
         />
       )}
-      {!staleCredential && <ConnectionAccess integration={integration} />}
+      {selected?.hasToolPermissions && renderToolPermissions(selected.id)}
+      {!stale && <ConnectionAccess integration={integration} />}
     </>
   )
 }

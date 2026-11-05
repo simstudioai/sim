@@ -1,9 +1,36 @@
+/*
+ * The composer between the surfaces cannot read design-system tokens, so the frame that shares a
+ * column with it uses the values behind `--ui-page-max-size` and `--ui-page-inline-gutter`.
+ */
+.scroller {
+  flex: 1;
+  block-size: 100%;
+  min-block-size: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding-inline: clamp(1rem, 4%, 3rem);
+}
 .dashboard {
   display: grid;
-  inline-size: min(var(--ui-page-max-size), calc(100% - 2 * var(--ui-page-inline-gutter)));
+  grid-template-columns: minmax(0, 1fr);
+  inline-size: 100%;
+  max-inline-size: 81rem;
   margin-inline: auto;
-  padding-block: var(--shell-home-row-start) var(--ui-page-inset-block);
+  padding-block: 4rem 1.5rem;
+}
+/* The host page's canvas shows through, so the composer's row does not read as a band. */
+.dashboard > [data-platform-ui] {
+  background: transparent;
+}
+/* Customize Home's menu opens over the composer, whose own stacking stays within its row. */
+.dashboard > :first-child {
+  position: relative;
+  z-index: 2;
+}
+.lead {
+  display: grid;
   gap: var(--ui-product-section-gap);
+  margin-block-end: var(--ui-section-gap);
 }
 .greeting {
   display: flex;
@@ -19,6 +46,31 @@
 .greeting p {
   color: var(--ui-secondary);
   text-wrap: pretty;
+}
+.wordmark {
+  display: flex;
+  inline-size: var(--spacing-40);
+  block-size: var(--spacing-28);
+}
+.wordmark svg {
+  width: 100%;
+  height: 100%;
+}
+.composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  position: relative;
+  z-index: 1;
+  min-inline-size: 0;
+  margin-block-end: 1.5rem;
+}
+/* The composer and its shortcuts cap at the chat column elsewhere; here they span Home's column. */
+.composer > * {
+  max-width: none;
+}
+.sections {
+  display: grid;
+  gap: var(--ui-product-section-gap);
 }
 .recents {
   min-inline-size: 0;
@@ -39,7 +91,9 @@
   display: none;
 }
 .placeholderGreeting,
-.placeholderComposer {
+.placeholderWordmark,
+.placeholderComposer,
+.placeholderGetStarted {
   border-radius: var(--ui-control-radius);
   background: var(--control-muted-fill);
 }
@@ -47,6 +101,19 @@
   block-size: var(--spacing-56);
   inline-size: 60%;
 }
-.placeholderComposer {
+.placeholderWordmark {
+  block-size: var(--spacing-28);
+  inline-size: var(--spacing-40);
+}
+.placeholderGetStarted {
   block-size: var(--spacing-132);
+}
+/* The real composer's first-paint heights: the Assistant's pill, the agent's field and toolbar. */
+.placeholderComposer {
+  block-size: 2.875rem;
+  border-radius: var(--radius-full);
+}
+.placeholderComposer[data-mode="agent"] {
+  block-size: 6.5rem;
+  border-radius: var(--ui-control-radius);
 }

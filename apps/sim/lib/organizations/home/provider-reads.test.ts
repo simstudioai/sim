@@ -22,8 +22,15 @@ import {
   readOutlookCalendarDay,
   readOutlookMessages,
 } from '@/lib/organizations/home/provider-reads'
+import { gmailThreadUrl } from '@/connectors/gmail/mailbox'
+import { GoogleApiError } from '@/connectors/google-workspace/api-errors'
 
+const { mailboxEmail } = vi.hoisted(() => ({ mailboxEmail: vi.fn() }))
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+vi.mock('@/connectors/gmail/mailbox', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/connectors/gmail/mailbox')>()),
+  getGmailMailboxEmail: mailboxEmail,
+}))
 
 const { mockSecureFetchWithValidation: providerFetch } = inputValidationMockFns
 const signal = new AbortController().signal
@@ -65,10 +72,35 @@ function metadataMessage(from: string, subject: string, snippet: string) {
 }
 
 beforeEach(() => {
+  mailboxEmail.mockResolvedValue('reader@example.com')
   providerFetch.mockReset()
 })
 
 describe('provider status classification', () => {
+  it('does not ask for a reconnect when Google reports quota in a 403 body', async () => {
+    providerFetch.mockResolvedValue(
+      respond({ error: { errors: [{ reason: 'userRateLimitExceeded' }] } }, 403, {})
+    )
+    await expect(readOutlookMessages({ accessToken: 'token', signal })).rejects.toMatchObject({
+      failure: 'unavailable',
+    })
+  })
+
+  it.each([
+    [401, [], 'token_rejected'],
+    [403, ['insufficientPermissions'], 'needs_reauth'],
+    [403, ['userRateLimitExceeded'], 'unavailable'],
+    [500, [], 'unavailable'],
+  ])('maps a %i mailbox lookup %o to %s', async (status, reasons, failure) => {
+    providerFetch.mockResolvedValue(respond({ threads: [{ id: 'thread-1' }] }, 200, {}))
+    mailboxEmail.mockRejectedValueOnce(
+      new GoogleApiError('gmail.users.getProfile', status, reasons)
+    )
+    await expect(readGmailThreads({ accessToken: 'token', signal })).rejects.toMatchObject({
+      failure,
+    })
+  })
+
   it.each([
     [401, {}, 'token_rejected'],
     [403, {}, 'needs_reauth'],
@@ -112,7 +144,7 @@ describe('reading mail', () => {
         excerpt: 'Agreed',
         receivedAt: '2026-11-05T10:00:00.000Z',
         messageCount: 2,
-        url: 'https://mail.google.com/mail/u/0/#inbox/thread-1',
+        url: gmailThreadUrl('thread-1', 'reader@example.com'),
       },
     ])
   })
@@ -150,8 +182,8 @@ describe('reading mail', () => {
     const [message] = await readOutlookMessages({ accessToken: 'token', signal })
     expect(JSON.stringify(message)).not.toContain('confidential')
     expect(
-      new URL(providerFetch.mock.calls[0][0] as string).searchParams.get('$select')
-    ).not.toContain('body,')
+      new URL(providerFetch.mock.calls[0][0] as string).searchParams.get('$select')?.split(',')
+    ).not.toContain('body')
     expect(message).toMatchObject({ sender: 'Grace', excerpt: 'Short preview' })
     expect(message.url).toBe('https://outlook.office.com/mail/inbox/id/AAM%2Fk%2B1%3D')
   })

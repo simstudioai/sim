@@ -24,16 +24,20 @@ import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspac
 import * as providerTransport from '@/lib/core/security/input-validation.server'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import { encryptManagedOAuthTokenSet } from '@/lib/credentials/managed-oauth'
+import * as knowledgeAvailability from '@/lib/knowledge/access/availability'
 import {
   readOrganizationHomeCalendar,
   readOrganizationHomeEmail,
 } from '@/lib/organizations/application/home-widgets'
 import { HOME_EMAIL_THREAD_LIMIT } from '@/lib/organizations/home/limits'
-import * as organizationSurface from '@/lib/organizations/surface'
 import { GET as getCalendarRoute } from '@/app/api/organizations/[id]/home/calendar/route'
 import { GET as getEmailRoute } from '@/app/api/organizations/[id]/home/email/route'
 
 vi.mock('@/lib/auth', () => authMock)
+vi.mock('@/connectors/gmail/mailbox', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/connectors/gmail/mailbox')>()),
+  getGmailMailboxEmail: async () => 'reader@example.com',
+}))
 
 vi.hoisted(() => {
   Object.assign(process.env, {
@@ -337,16 +341,16 @@ describe('whose mail a widget reads', () => {
 describe('what a widget reports', () => {
   it('refuses a member with no integrations surface, before any provider', async () => {
     serveProviders()
-    const surface = vi.spyOn(organizationSurface, 'getOrganizationSurfaceContext')
-    surface.mockResolvedValueOnce(null)
+    const memberScoped = vi.spyOn(knowledgeAvailability, 'isKnowledgeMemberAccessAvailable')
+    memberScoped.mockResolvedValueOnce(false)
     await expect(
       readOrganizationHomeEmail.execute({ principal: session(memberId), input })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(provider).not.toHaveBeenCalled()
-    surface.mockRestore()
+    memberScoped.mockRestore()
   })
 
-  it('asks the provider once more with a fresh token when two reads race a rejection', async () => {
+  it('settles both reads on reconnect when they race a token the provider refuses', async () => {
     provider.mockImplementation(async () => providerResponse({ error: 'provider text' }, 401))
     const [email, calendar] = await Promise.all([
       readOrganizationHomeEmail.execute({ principal: session(memberId), input }),

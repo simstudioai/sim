@@ -27,6 +27,7 @@ export function settingsSurface(scenario: Scenario, plan: PreviewPlan): Platform
   const surface: Omit<PlatformOrganization, 'settingsSections'> = {
     organization: { ...organization, id: 'sim', slug: 'sim', logo: null },
     legacyOrigin: '',
+    routePrefix: '',
     platformOrgUi: true,
     viewer: {
       role: 'owner',

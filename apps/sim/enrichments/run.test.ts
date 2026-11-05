@@ -50,35 +50,36 @@ beforeEach(() => {
 })
 
 describe('runEnrichment cascade detail', () => {
-  it('records the first match and stops the cascade', async () => {
-    mockExecuteTool.mockImplementation((toolId: string) => {
-      if (toolId === 'tool_a') return { success: false, output: { status: 404 } }
-      if (toolId === 'tool_b')
-        return { success: true, output: { email: 'j@acme.com', cost: { total: 0.05 } } }
-      throw new Error('tool_c should never run after a match')
-    })
+  it.each(['status', 'statusCode'])(
+    'records a %s miss before the first match',
+    async (statusField) => {
+      mockExecuteTool.mockImplementation((toolId: string) => {
+        if (toolId === 'tool_a') return { success: false, output: { [statusField]: 404 } }
+        if (toolId === 'tool_b')
+          return { success: true, output: { email: 'j@acme.com', cost: { total: 0.05 } } }
+        throw new Error('tool_c should never run after a match')
+      })
 
-    const outcome = await runEnrichment(config([prov('a'), prov('b'), prov('c')]), {}, ctx)
+      const outcome = await runEnrichment(config([prov('a'), prov('b'), prov('c')]), {}, ctx)
 
-    expect(outcome.result).toEqual({ email: 'j@acme.com' })
-    expect(outcome.cost).toBe(0.05)
-    expect(outcome.error).toBeNull()
-    expect(outcome.provider).toBe('B')
+      expect(outcome.result).toEqual({ email: 'j@acme.com' })
+      expect(outcome.cost).toBe(0.05)
+      expect(outcome.error).toBeNull()
+      expect(outcome.provider).toBe('B')
 
-    expect(outcome.detail.matchedProvider).toBe('b')
-    expect(outcome.detail.totalCost).toBe(0.05)
-    // The full cascade is recorded; the provider after the match is `not_run`.
-    expect(outcome.detail.providers.map((p) => p.id)).toEqual(['a', 'b', 'c'])
-    expect(outcome.detail.providers.map((p) => p.status)).toEqual([
-      'no_match',
-      'matched',
-      'not_run',
-    ])
-    expect(outcome.detail.providers[1]?.cost).toBe(0.05)
-    expect(outcome.detail.providers.every((p) => typeof p.durationMs === 'number')).toBe(true)
-    // The tool is never called for the matched-past provider.
-    expect(mockExecuteTool).toHaveBeenCalledTimes(2)
-  })
+      expect(outcome.detail.matchedProvider).toBe('b')
+      expect(outcome.detail.totalCost).toBe(0.05)
+      expect(outcome.detail.providers.map((p) => p.id)).toEqual(['a', 'b', 'c'])
+      expect(outcome.detail.providers.map((p) => p.status)).toEqual([
+        'no_match',
+        'matched',
+        'not_run',
+      ])
+      expect(outcome.detail.providers[1]?.cost).toBe(0.05)
+      expect(outcome.detail.providers.every((p) => typeof p.durationMs === 'number')).toBe(true)
+      expect(mockExecuteTool).toHaveBeenCalledTimes(2)
+    }
+  )
 
   it('marks providers with insufficient inputs as skipped without calling the tool', async () => {
     mockExecuteTool.mockImplementation(() => ({

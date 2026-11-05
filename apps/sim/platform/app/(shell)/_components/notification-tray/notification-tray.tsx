@@ -12,10 +12,23 @@ import { useScrollEdges } from '@/platform/design-system/components/scroll-area/
 import { connectToastSink } from '@/platform/lib/data/toast'
 
 type Notice = Omit<ShellNotice, 'href'> & { onAction?: () => void }
+
+/** What a view raises. The icon follows from the variant unless the notice names its own. */
+export type NoticeInput = Omit<Notice, 'icon'> & {
+  icon?: Notice['icon']
+  variant?: 'success' | 'error'
+}
+
+/** Where a view's notices go: this shell's tray, or a host's own toast stack. */
+export interface PlatformNotices {
+  notify: (notice: NoticeInput) => void
+  dismiss: (id: string) => void
+}
 function useNoticeState() {
   const [edits, setEdits] = useState(() => new Map<string, Notice | null>())
   const [display, setDisplay] = useState<'hidden' | 'latest' | 'expanded' | 'minimized'>('hidden')
-  function notify(notice: Notice) {
+  function notify({ variant, ...input }: NoticeInput) {
+    const notice: Notice = { ...input, icon: input.icon ?? (variant === 'error' ? 'I047' : 'I106') }
     setEdits((previous) => {
       const next = new Map(previous)
       next.delete(notice.id)
@@ -31,11 +44,23 @@ function useNoticeState() {
 }
 
 const Notices = createContext<ReturnType<typeof useNoticeState> | null>(null)
+const HostNotices = createContext<PlatformNotices | null>(null)
 
-export function usePlatformNotices() {
-  const context = useContext(Notices)
-  if (!context) throw new Error('Notifications need a product shell')
-  return context
+/** Hands every view under it to a host's own notices, in place of the Platform shell's tray. */
+export const HostNoticesProvider = HostNotices.Provider
+
+export function usePlatformNotices(): PlatformNotices {
+  const host = useContext(HostNotices)
+  const shell = useContext(Notices)
+  const notices = host ?? shell
+  if (!notices) throw new Error('Notifications need a product shell')
+  return notices
+}
+
+function useTrayState() {
+  const state = useContext(Notices)
+  if (!state) throw new Error('The notification tray needs a product shell')
+  return state
 }
 
 export function NotificationSession({ children }: { children: ReactNode }) {
@@ -45,7 +70,7 @@ export function NotificationSession({ children }: { children: ReactNode }) {
 
 /** Delivers the toasts existing query hooks raise, as action-free notices unless they carry one. */
 function useToastNotices() {
-  const { notify, dismiss } = usePlatformNotices()
+  const { notify, dismiss } = useTrayState()
   useEffect(
     () =>
       connectToastSink({
@@ -75,7 +100,7 @@ interface NotificationTrayProps {
 export function NotificationTray({ history, navigate }: NotificationTrayProps) {
   useToastNotices()
   const scrollEdges = useScrollEdges<HTMLDivElement>()
-  const { edits, display, setDisplay, dismiss } = usePlatformNotices()
+  const { edits, display, setDisplay, dismiss } = useTrayState()
   const items = [
     ...history.filter((item) => !edits.has(item.id)),
     ...[...edits.values()].filter((item) => item !== null),

@@ -16,3 +16,9 @@
 .back {
   margin-inline: calc(-1 * var(--ui-row-inset));
 }
+.handoff {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}

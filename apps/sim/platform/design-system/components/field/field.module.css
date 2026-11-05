@@ -46,6 +46,10 @@
   border-color: var(--control-hover-border);
 }
 
+.inputFrame:has(.input:focus-visible) {
+  border-color: var(--ui-secondary);
+}
+
 .inputFrame:has(.input[aria-invalid="true"]) {
   border-color: var(--control-danger);
 }

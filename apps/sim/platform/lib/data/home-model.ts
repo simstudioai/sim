@@ -1,15 +1,21 @@
-import { createParser } from 'nuqs/server'
 import type { AccessRequestRecord } from '@/lib/api/contracts/access-requests'
 import type { SearchHistoryResponse } from '@/lib/api/contracts/knowledge/search-history'
+import type { SearchIntegrationStatus } from '@/lib/api/contracts/knowledge/search-integrations'
 import type { OrganizationActivitySummary } from '@/lib/api/contracts/organization-activity'
 import type {
   HomeWidgetAccount,
   OrganizationHomeCalendar,
   OrganizationHomeEmail,
 } from '@/lib/api/contracts/organization-home'
+import { assistantSearchSourceForProvider } from '@/lib/assistant-actions/providers'
 import { getWallClockParts, zonedWallClock } from '@/lib/core/utils/timezone'
 import type { MemberIntegration } from '@/lib/credential-groups/member-integrations'
-import type { ShellChat } from '@/platform/app/(shell)/_components/model'
+import {
+  type CredentialGroupProvider,
+  getCredentialGroupProviderId,
+} from '@/lib/credential-groups/providers'
+import { requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
+import { linkSiteName } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import type {
   AttentionItem,
   CalendarMeeting,
@@ -26,17 +32,19 @@ import type { RecentItem } from '@/platform/design-system/components/recent-item
 interface HomeWidgetSource {
   /** The member inventory provider this widget draws on, so both surfaces agree by construction. */
   provider: string
+  /** The credential provider the widget's read is allowed through. */
+  credentialProvider: CredentialGroupProvider
   icon: IconName
 }
 
 /** Outlook appears twice on purpose: one Microsoft account serves both mail and calendar. */
 export const HOME_EMAIL_SOURCES: readonly HomeWidgetSource[] = [
-  { provider: 'gmail', icon: 'I005' },
-  { provider: 'outlook', icon: 'I120' },
+  { provider: 'gmail', credentialProvider: 'gmail', icon: 'I005' },
+  { provider: 'outlook', credentialProvider: 'outlook', icon: 'I120' },
 ]
 export const HOME_CALENDAR_SOURCES: readonly HomeWidgetSource[] = [
-  { provider: 'google_calendar', icon: 'I088' },
-  { provider: 'outlook', icon: 'I120' },
+  { provider: 'google_calendar', credentialProvider: 'google-calendar', icon: 'I088' },
+  { provider: 'outlook', credentialProvider: 'outlook', icon: 'I120' },
 ]
 
 function accountView(
@@ -59,16 +67,34 @@ interface HomeConnectionInput {
   allowed: boolean
   /** Undefined until both the accounts and the policies have loaded. */
   entries: readonly MemberIntegration[] | undefined
+  /** The widget's read answers to this list, so nothing outside it is shown or offered. */
+  readableProviders: readonly CredentialGroupProvider[]
   /** A refusal means the viewer has no inventory; anything else can be retried. */
   failure: 'refused' | 'failed' | undefined
   retrying: boolean
   sources: readonly HomeWidgetSource[]
 }
 
+/**
+ * The two gates a widget's server read applies: the viewer's permission group, and a Search source's
+ * content boundary, which a direct read would sidestep.
+ */
+export function toReadableProviders(
+  assistantProviders: readonly CredentialGroupProvider[],
+  policies: readonly SearchIntegrationStatus[]
+): CredentialGroupProvider[] {
+  return assistantProviders.filter((provider) => {
+    const source = assistantSearchSourceForProvider(getCredentialGroupProviderId(provider))
+    const policy = policies.find((candidate) => candidate.connectorType === source)?.policy
+    return !(source && policy && requiresScopedRetrieval(source, policy))
+  })
+}
+
 /** Where a widget stands before any provider is asked, from the member inventory alone. */
 export function toHomeConnection({
   allowed,
   entries,
+  readableProviders,
   failure,
   retrying,
   sources,
@@ -76,7 +102,8 @@ export function toHomeConnection({
   if (!allowed || failure === 'refused') return { status: 'not_offered' }
   if (failure === 'failed') return { status: 'error', retrying }
   if (!entries) return { status: 'loading' }
-  const matched = sources.flatMap((source) => {
+  const readable = sources.filter((source) => readableProviders.includes(source.credentialProvider))
+  const matched = readable.flatMap((source) => {
     const entry = entries.find((candidate) => candidate.provider === source.provider)
     return entry ? [{ source, entry }] : []
   })
@@ -102,6 +129,7 @@ export function toReadAccounts(
   read: readonly HomeWidgetAccount[],
   connected: readonly HomeAccountView[]
 ): HomeAccountView[] {
+  if (read.length === 0) return [...connected]
   return read.map((account) => ({
     id: account.credentialId,
     label: account.displayName,
@@ -118,7 +146,7 @@ export function settleReadAccounts(
   | { status: 'needs_reauth'; accounts: readonly HomeAccountView[] }
   | { status: 'error' }
   | null {
-  if (accounts.length === 0 || accounts.some((account) => !account.problem)) return null
+  if (accounts.some((account) => !account.problem)) return null
   if (accounts.every((account) => account.problem === 'not_offered'))
     return { status: 'not_offered' }
   const reauth = accounts.filter((account) => account.problem === 'needs_reauth')
@@ -186,11 +214,11 @@ export function localDate(instant: Date, timeZone: string): string {
 
 /**
  * "Tasks run" counts both things Sim ran on the organization's behalf: workflow runs and chat runs.
- * Buckets arrive at the start of the viewer's calendar days, one for every day in the window.
+ * Buckets arrive as civil timestamps on the viewer's calendar days, one for every day in the window.
  */
-export function toTaskPoints(summary: OrganizationActivitySummary, timeZone: string) {
+export function toTaskPoints(summary: OrganizationActivitySummary) {
   return summary.series.map((point) => ({
-    date: localDate(new Date(point.timestamp), timeZone),
+    date: point.timestamp.slice(0, 10),
     value: point.workflowRuns + point.chatRuns,
   }))
 }
@@ -200,36 +228,35 @@ export function toRecentItems(history: SearchHistoryResponse): RecentItem[] {
     const mark = source.connectorType ? providerMark(source.connectorType) : undefined
     return {
       id: source.url,
-      label: source.title ?? source.siteName ?? new URL(source.url).hostname,
+      label: source.title ?? linkSiteName(source.url, source.siteName),
       href: source.url,
       icon: typeof mark === 'string' ? mark : undefined,
     }
   })
 }
 
-export function greetingAt(nowMs: number | null, timeZone: string): string {
-  if (nowMs === null) return 'Welcome'
+export function greetingAt(nowMs: number, timeZone: string): string {
   const { hour } = getWallClockParts(new Date(nowMs), timeZone)
   if (hour < 12) return 'Good morning'
   return hour < 18 ? 'Good afternoon' : 'Good evening'
 }
 
-/** Nullable: a clean URL means today, which moves at midnight while a chosen day does not. */
-export const homeDayParam = createParser({
-  parse: (value) =>
-    /^\d{4}-\d{2}-\d{2}$/.test(value) &&
-    new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value
-      ? value
-      : null,
-  serialize: (value: string) => value,
-})
+/** A chat row: its link depends on its mode, so the caller, which knows the mode, supplies it. */
+interface AttentionChat {
+  id: string
+  title: string
+  href: string
+  isUnread: boolean
+  updatedAt: number
+}
 
 interface AttentionInput {
   entries: readonly MemberIntegration[]
   readAccounts: readonly HomeAccountView[]
-  chats: readonly ShellChat[]
+  chats: readonly AttentionChat[]
   requests: readonly AccessRequestRecord[]
   reconnect: ((accountId: string) => void) | undefined
+  requestsHref: string
 }
 
 /** What is waiting on the viewer. Items with no moment of their own lead the list. */
@@ -239,6 +266,7 @@ export function toAttentionItems({
   chats,
   requests,
   reconnect,
+  requestsHref,
 }: AttentionInput): AttentionItem[] {
   const reconnects = new Map<string, Pick<AttentionItem, 'title' | 'detail'>>()
   for (const entry of entries) {
@@ -272,9 +300,9 @@ export function toAttentionItems({
       id: `chat-${chat.id}`,
       title: chat.title,
       detail: 'New reply in this chat',
-      occurredAt: chat.updatedAt ? Date.parse(chat.updatedAt) : undefined,
+      occurredAt: chat.updatedAt,
       icon: 'I050',
-      href: chat.href ?? `/chat/${chat.id}`,
+      href: chat.href,
     })
   }
   for (const request of requests) {
@@ -284,7 +312,7 @@ export function toAttentionItems({
       detail: request.reason ?? 'Waiting for your review',
       occurredAt: Date.parse(request.createdAt),
       icon: 'I015',
-      href: '/settings/requests',
+      href: requestsHref,
     })
   }
   return items.sort(

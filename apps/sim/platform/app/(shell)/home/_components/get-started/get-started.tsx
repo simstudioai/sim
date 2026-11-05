@@ -7,7 +7,6 @@ interface GetStartedProps {
   steps: readonly HomeGetStartedStep[]
 }
 
-/** The organization's onboarding, each step read as done from its real state. */
 export function GetStarted({ steps }: GetStartedProps) {
   return (
     <HomeSection title='Get started'>

@@ -1,0 +1,73 @@
+/**
+ * The design system's stylesheet for a surface embedded in the existing app.
+ *
+ * Next keeps route CSS loaded after client navigation, so nothing here may reach an element outside
+ * `[data-platform-ui]`. `lib/postcss/platform-embed.cjs` scopes every rule, and
+ * `scripts/check-platform-css.ts` compiles this file and fails on anything that escapes. No preflight
+ * (the host's is the same Tailwind reset) and no Tailwind utilities: components style through hashed
+ * CSS Modules.
+ */
+@import "./tokens.css";
+@import "./collection-roles.css";
+@import "./typography.css";
+@import "./materials.css";
+@import "./chart-roles.css";
+@import "./control-roles.css";
+@import "./choice-roles.css";
+@import "./rhythm.css";
+@import "./panel-roles.css";
+@import "./shell-roles.css";
+@import "./recipe-values.css";
+
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../fonts/geist.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../fonts/geist-mono.woff2") format("woff2");
+}
+
+[data-platform-ui] {
+  color-scheme: light;
+  color: var(--ui-ink);
+  background: var(--ui-canvas);
+  font-family: var(--font-sans);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  /* The host's body sets these for its own type; they inherit into the surface otherwise. */
+  letter-spacing: normal;
+  text-rendering: auto;
+  font-feature-settings: normal;
+  font-variation-settings: normal;
+}
+
+[data-platform-ui][data-theme="dark"] {
+  color-scheme: dark;
+}
+
+[data-platform-ui] textarea {
+  resize: none;
+}
+
+[data-platform-ui] :focus {
+  outline: none;
+}
+
+[data-platform-ui] :focus-visible:not(input, textarea, select, [tabindex="-1"]) {
+  outline: var(--spacing-stroke-focus) solid var(--ui-secondary);
+}
+
+[data-platform-ui][data-system-font] {
+  --font-sans: var(--font-native);
+}
+
+[data-platform-ui][data-system-mono] {
+  --font-mono: ui-monospace, monospace;
+}

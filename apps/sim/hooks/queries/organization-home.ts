@@ -4,15 +4,18 @@ import {
   getOrganizationHomeCalendarContract,
   getOrganizationHomeEmailContract,
 } from '@/lib/api/contracts/organization-home'
+import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
 
 /** Each read costs a request per thread at the member's mail provider, so focus re-reads are spaced. */
 const EMAIL_STALE_TIME = 2 * 60 * 1000
 /** A day's meetings change less often than a mailbox, and every day browsed is its own read. */
 const CALENDAR_STALE_TIME = 5 * 60 * 1000
 
-export const organizationHomeKeys = {
-  all: ['organization-home'] as const,
-  organization: (organizationId: string) => [...organizationHomeKeys.all, organizationId] as const,
+/** Nested under the organization's accounts, so anything that changes a connection refreshes Home. */
+const organizationHomeKeys = {
+  all: organizationAccountsKeys.details(),
+  organization: (organizationId: string) =>
+    [...organizationAccountsKeys.detail(organizationId), 'home'] as const,
   email: (organizationId: string) =>
     [...organizationHomeKeys.organization(organizationId), 'email'] as const,
   calendar: (organizationId: string, date: string, timeZone: string) =>

@@ -72,8 +72,8 @@ export function PeoplePopover({ title, people }: PeoplePopoverProps) {
       <span className={styles.peopleHeading} data-type='T052'>
         {title}
       </span>
-      {people.map((person) => (
-        <PersonRow key={person.name} name={person.name} src={person.src} />
+      {people.map((person, index) => (
+        <PersonRow key={`${person.name}-${index}`} name={person.name} src={person.src} />
       ))}
     </span>
   )
@@ -106,8 +106,8 @@ interface AvatarGroupProps {
 export function AvatarGroup({ people, label }: AvatarGroupProps) {
   return (
     <span className={styles.avatarGroup}>
-      {people.slice(0, 2).map((person) => (
-        <Tooltip key={person.name} label={person.name}>
+      {people.slice(0, 2).map((person, index) => (
+        <Tooltip key={`${person.name}-${index}`} label={person.name}>
           <Avatar name={person.name} src={person.src} />
         </Tooltip>
       ))}

@@ -22,13 +22,15 @@ interface CalendarDayProps {
   calendar: HomeCalendarDay
   onDayChange: (delta: number) => void
   onReturnToToday: () => void
-  onRetry?: () => void
+  onRetry: () => void
 }
 
 function externalUrl(url: string | undefined) {
   return url?.startsWith('https://') && URL.canParse(url) ? url : undefined
 }
 
+/** An hour label this close to the current time would sit under it. */
+const NOW_LABEL_CLEARANCE_MINUTES = 15
 const HOURS = Array.from({ length: 24 }, (_, hour) => formatClockTime(hour * 3_600_000))
 /** A short meeting still needs room for its name and time. */
 const MIN_MEETING_ROWS = 30
@@ -182,7 +184,14 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
                 key={time}
                 className={styles.hour}
                 data-type='T035'
-                style={{ gridRow: timeSlot(index * 60, 60) }}
+                style={{
+                  gridRow: timeSlot(index * 60, 60),
+                  visibility:
+                    calendar.nowMinute !== null &&
+                    Math.abs(index * 60 - calendar.nowMinute) < NOW_LABEL_CLEARANCE_MINUTES
+                      ? 'hidden'
+                      : undefined,
+                }}
               >
                 {time}
               </span>

@@ -37,7 +37,7 @@
   color: var(--ui-secondary);
 }
 
-:global([data-desktop]) .breadcrumb {
+[data-desktop] .breadcrumb {
   display: none;
 }
 
@@ -49,7 +49,7 @@
   block-size: var(--spacing-stroke-default);
   margin-block-end: calc(-1 * var(--spacing-stroke-default));
 }
-:global([data-desktop]) .content {
+[data-desktop] .content {
   gap: var(--spacing-20);
 }
 @media (max-width: 48rem) {

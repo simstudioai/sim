@@ -69,7 +69,7 @@
   border: 0;
   background: transparent;
 }
-:global([data-sim-desktop-title-bar="inset"]) .desktopSidebar {
+[data-sim-desktop-title-bar="inset"] .desktopSidebar {
   padding-inline-start: var(--spacing-80);
 }
 .desktopTitle {

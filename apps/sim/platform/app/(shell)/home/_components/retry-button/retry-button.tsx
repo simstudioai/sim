@@ -2,7 +2,7 @@ import { Button } from '@/platform/design-system/components'
 
 interface RetryButtonProps {
   retrying?: boolean
-  onRetry?: () => void
+  onRetry: () => void
 }
 
 export function RetryButton({ retrying, onRetry }: RetryButtonProps) {

@@ -7,7 +7,7 @@
   min-inline-size: 0;
   height: var(--height-nav);
 }
-:global([data-sim-desktop-title-bar]) .header {
+[data-sim-desktop-title-bar] .header {
   height: var(--spacing-48);
   -webkit-app-region: drag;
 }

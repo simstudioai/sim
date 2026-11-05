@@ -1,11 +1,11 @@
 import 'server-only'
 import type { Scenario } from '@/platform/fixtures'
-import { gmailToolMetadata, providerMetadata } from '@/platform/lib/integrations/metadata.generated'
 import type {
   AccountMethod,
   IntegrationAccount,
   OrganizationIntegration,
-} from '@/platform/lib/integrations/model'
+} from '@/platform/lib/integrations/fixture-model'
+import { gmailToolMetadata, providerMetadata } from '@/platform/lib/integrations/metadata.generated'
 
 type Connection = Pick<
   OrganizationIntegration,

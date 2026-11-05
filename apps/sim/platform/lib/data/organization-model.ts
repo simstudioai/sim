@@ -9,7 +9,16 @@ import {
  * The organization surface as Platform views read it. Plain data: it crosses from the server.
  * `legacyOrigin` is the main app's absolute origin, for the routes the Platform links out to.
  */
-export type PlatformOrganization = OrganizationSurfaceResponse & { legacyOrigin: string }
+export type PlatformOrganization = OrganizationSurfaceResponse & {
+  legacyOrigin: string
+  /** What a Platform route's path needs in front of it: nothing in the zone, `/o/<id>` embedded. */
+  routePrefix: string
+}
+
+/** A Platform route as this host serves it. */
+export function surfaceHref({ routePrefix }: PlatformOrganization, path: string): string {
+  return `${routePrefix}${path}`
+}
 
 /**
  * Absolute URLs of the legacy routes the Platform links out to. A full navigation, since `next/link`
@@ -21,6 +30,7 @@ export function legacyRoutes({ legacyOrigin, organization }: PlatformOrganizatio
     mothershipLicenses: (env: string) =>
       `${legacyOrigin}/account/settings/mothership?tab=licenses&env=${encodeURIComponent(env)}`,
     benchmark: `${legacyOrigin}${routes.benchmark}`,
+    memberSecrets: `${legacyOrigin}${routes.memberSecrets}`,
     settingsSection: (section: string) => `${legacyOrigin}${routes.settingsSection(section)}`,
     workspace: (workspaceId: string) => `${legacyOrigin}${WORKSPACES_PATH}/${workspaceId}`,
     workspaceSettings: `${legacyOrigin}${WORKSPACE_SETTINGS_PATH}`,

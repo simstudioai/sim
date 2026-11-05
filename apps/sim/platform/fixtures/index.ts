@@ -3,7 +3,7 @@ import type { AttachmentItem } from '@/platform/design-system/components/attachm
 import type { PropertyItem } from '@/platform/design-system/components/property-list/property-list'
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
 import type { PreviewPlan } from '@/platform/design-system/navigation'
-import type { IntegrationsData } from '@/platform/lib/integrations/model'
+import type { IntegrationsData } from '@/platform/lib/integrations/fixture-model'
 
 export type Scenario = 'empty' | 'full' | 'stress'
 

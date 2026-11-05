@@ -1,5 +1,14 @@
 import { createLoader, createSerializer, parseAsString } from 'nuqs/server'
-import { organizationPageParsers } from '@/app/o/[organizationId]/components/organization-page/search-params'
+
+/** The list's search text, written raw and debounced on the way to the URL. */
+export const integrationSearchParsers = {
+  q: parseAsString.withDefault(''),
+} as const
+
+export const integrationSearchUrlKeys = {
+  history: 'replace',
+  clearOnDefault: true,
+} as const
 
 export const integrationViewParsers = {
   integration: parseAsString,
@@ -8,7 +17,13 @@ export const integrationViewParsers = {
 } as const
 
 export const serializeIntegrationView = createSerializer({
-  ...organizationPageParsers,
+  ...integrationSearchParsers,
+  ...integrationViewParsers,
+})
+
+/** Reads a link from before providers had their own route, so it can be sent there. */
+export const loadIntegrationView = createLoader({
+  ...integrationSearchParsers,
   ...integrationViewParsers,
 })
 

@@ -11,6 +11,7 @@ import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspac
 import { organizationOperations } from '@/lib/organizations/application/operations'
 import {
   getOrganizationSurfaceContext,
+  type OrganizationSurfaceContext,
   resolveOrganizationLanding,
 } from '@/lib/organizations/surface'
 import { resolveOrganizationSurfaceFlags } from '@/lib/organizations/surface-flags'
@@ -21,6 +22,58 @@ import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { organizationSurfaceSettingsNavigation } from '@/app/o/[organizationId]/settings/navigation'
 
 const logger = createLogger('OrganizationSurfaceRead')
+
+/** What a member's navigation and pages read about their surface, given the resolved context. */
+export async function resolveOrganizationSurface(
+  context: OrganizationSurfaceContext,
+  userId: string
+): Promise<OrganizationSurfaceResponse> {
+  const organizationId = context.organization.id
+  const [{ flags, benchmarkEnabled }, people, simLinks, platformAdmin, platformOrgUi] =
+    await Promise.all([
+      resolveOrganizationSurfaceFlags(organizationId, userId),
+      canBrowsePeople(organizationId, context.viewer.role),
+      isSimLinksEnabled(organizationId),
+      // Decides which links are drawn; the pages behind them authorize for themselves.
+      isPlatformAdmin(userId).catch((error: unknown) => {
+        logger.warn('Could not resolve platform administration navigation', {
+          error: getErrorMessage(error),
+        })
+        return false
+      }),
+      isPlatformOrgUiEnabled(organizationId),
+    ])
+
+  return {
+    organization: context.organization,
+    viewer: context.viewer,
+    mothershipAvailable: context.mothershipAvailable,
+    canBuild: context.canBuild,
+    searchAccess: context.searchAccess,
+    connectedAccountsAvailable: context.connectedAccountsAvailable,
+    settingsFeatures: context.settingsFeatures,
+    deployment: context.deployment,
+    platformOrgUi,
+    navFlags: {
+      people,
+      simLinks,
+      benchmark: benchmarkEnabled,
+      platformAdmin,
+      anonymous: userId === ANONYMOUS_USER_ID,
+    },
+    featureFlags: flags,
+    settingsSections: organizationSurfaceSettingsNavigation(
+      context.viewer.isAdmin,
+      context.settingsFeatures,
+      {
+        connectedAccounts: context.connectedAccountsAvailable,
+        search: context.searchAccess.memberScoped,
+        knowledgeGraphs: flags['mothership-memory-spaces'],
+      },
+      platformAdmin
+    ).map((item) => item.id),
+  }
+}
 
 /**
  * The viewer's organization surface, resolved from their membership. A member belongs to one
@@ -49,49 +102,6 @@ export const readOrganizationSurface: OperationUseCase<
     const context = await getOrganizationSurfaceContext(organizationId, userId)
     if (!context) throw new OrganizationMembershipNotFoundError()
 
-    const [{ flags, benchmarkEnabled }, people, simLinks, platformAdmin, platformOrgUi] =
-      await Promise.all([
-        resolveOrganizationSurfaceFlags(organizationId, userId),
-        canBrowsePeople(organizationId, context.viewer.role),
-        isSimLinksEnabled(organizationId),
-        // Decides which links are drawn; the pages behind them authorize for themselves.
-        isPlatformAdmin(userId).catch((error: unknown) => {
-          logger.warn('Could not resolve platform administration navigation', {
-            error: getErrorMessage(error),
-          })
-          return false
-        }),
-        isPlatformOrgUiEnabled(organizationId),
-      ])
-
-    return {
-      organization: context.organization,
-      viewer: context.viewer,
-      mothershipAvailable: context.mothershipAvailable,
-      canBuild: context.canBuild,
-      searchAccess: context.searchAccess,
-      connectedAccountsAvailable: context.connectedAccountsAvailable,
-      settingsFeatures: context.settingsFeatures,
-      deployment: context.deployment,
-      platformOrgUi,
-      navFlags: {
-        people,
-        simLinks,
-        benchmark: benchmarkEnabled,
-        platformAdmin,
-        anonymous: userId === ANONYMOUS_USER_ID,
-      },
-      featureFlags: flags,
-      settingsSections: organizationSurfaceSettingsNavigation(
-        context.viewer.isAdmin,
-        context.settingsFeatures,
-        {
-          connectedAccounts: context.connectedAccountsAvailable,
-          search: context.searchAccess.memberScoped,
-          knowledgeGraphs: flags['mothership-memory-spaces'],
-        },
-        platformAdmin
-      ).map((item) => item.id),
-    }
+    return resolveOrganizationSurface(context, userId)
   },
 }
