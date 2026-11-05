@@ -33,34 +33,43 @@ function describeImpact(
   return `${subject} ${who} (${formatQuotedNameList([...credentials], MAX_LISTED_CREDENTIALS)}) will stop working in organization workspaces until another member reconnects ${pronoun}.`
 }
 
+function removalCopy(target: RemovalTarget | null) {
+  if (target?.isSelf)
+    return {
+      title: 'Leave organization',
+      confirmLabel: 'Leave organization',
+      body: 'Are you sure you want to leave this organization? You will lose access to all team resources. This action cannot be undone.',
+    }
+  if (target?.isExternal)
+    return {
+      title: 'Remove external member',
+      confirmLabel: 'Remove',
+      body: `Are you sure you want to remove ${target.name} from all organization workspaces? Their workspace access and workspace credential access will be revoked. This action cannot be undone.`,
+    }
+  return {
+    title: 'Remove team member',
+    confirmLabel: 'Remove',
+    body: `Are you sure you want to remove ${target?.name} from the team? This action cannot be undone.`,
+  }
+}
+
 /** Removal discloses what stops working first, holding the confirm until that check has answered. */
 export function RemoveMemberModal({ target, onClose }: RemoveMemberModalProps) {
   const removal = useMemberRemoval(target)
-  const isSelf = target?.isSelf ?? false
-  const title = isSelf
-    ? 'Leave organization'
-    : target?.isExternal
-      ? 'Remove external member'
-      : 'Remove team member'
-  const impact = describeImpact(isSelf, removal.credentials, removal.checkFailed)
+  const copy = removalCopy(target)
+  const impact = describeImpact(target?.isSelf ?? false, removal.credentials, removal.checkFailed)
   return (
     <Modal
       variant='confirm'
       destructive
       open={target !== null}
       onOpenChange={(open) => !open && onClose()}
-      title={title}
-      confirmLabel={isSelf ? 'Leave organization' : 'Remove'}
+      title={copy.title}
+      confirmLabel={copy.confirmLabel}
       confirmDisabled={removal.checking}
       onConfirm={removal.confirm}
     >
-      <p data-type='T060'>
-        {isSelf
-          ? 'Are you sure you want to leave this organization? You will lose access to all team resources. This action cannot be undone.'
-          : target?.isExternal
-            ? `Are you sure you want to remove ${target.name} from all organization workspaces? Their workspace access and workspace credential access will be revoked. This action cannot be undone.`
-            : `Are you sure you want to remove ${target?.name} from the team? This action cannot be undone.`}
-      </p>
+      <p data-type='T060'>{copy.body}</p>
       {removal.checking ? (
         <p className={styles.status} role='status' data-type='T060'>
           Checking which connected credentials this affects…
