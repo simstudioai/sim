@@ -3469,7 +3469,8 @@
         { "id": "firecrawl_extract_status", "label": "Firecrawl Extract Status" },
         { "id": "firecrawl_agent", "label": "Firecrawl Agent" },
         { "id": "firecrawl_parse", "label": "Firecrawl Document Parser" },
-        { "id": "firecrawl_credit_usage", "label": "Firecrawl Credit Usage" }
+        { "id": "firecrawl_credit_usage", "label": "Firecrawl Credit Usage" },
+        { "id": "firecrawl_enrich", "label": "Firecrawl Enrich" }
       ]
     },
     {
