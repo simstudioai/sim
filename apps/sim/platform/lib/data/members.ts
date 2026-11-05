@@ -316,7 +316,7 @@ export function useMembers(organization: PlatformOrganization) {
     },
     seats: {
       visible: billingEnabled && canManage,
-      status: seats.status,
+      status: seats.data ? ('success' as const) : seats.status,
       model: seats.data ? toSeatsModel(seats.data.data) : undefined,
       hasPaidSubscription: Boolean(seats.data?.data.subscriptionPlan),
       error: seats.error,

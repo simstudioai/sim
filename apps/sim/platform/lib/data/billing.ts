@@ -39,7 +39,7 @@ import { useOrganizationBillingSummary } from '@/hooks/queries/organization-bill
 import { useInvoices, useOpenBillingPortal } from '@/hooks/queries/subscription'
 import type { PlatformOrganization } from '@/platform/lib/data/organization'
 import { queryView } from '@/platform/lib/data/query-view'
-import { formatCalendarDate, formatInstantDate } from '@/platform/lib/time'
+import { formatInstantDate } from '@/platform/lib/time'
 
 const logger = createLogger('PlatformBilling')
 
@@ -176,9 +176,7 @@ export function useBillingSection(organization: PlatformOrganization) {
     },
     showSubscription: paid || enterprise,
     periodEndLabel: billing?.cancelAtPeriodEnd ? 'Access until' : 'Next billing date',
-    periodEnd: billing?.billingPeriodEnd
-      ? formatCalendarDate(billing.billingPeriodEnd.slice(0, 10), 'full')
-      : null,
+    periodEnd: billing?.billingPeriodEnd ? formatInstantDate(billing.billingPeriodEnd) : null,
     weeklyRefresh: paid && weeklyRefresh > 0 ? `+${formatCreditCost(weeklyRefresh)}` : null,
     canManage,
     canOpenPortal: canManage,

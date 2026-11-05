@@ -1,6 +1,7 @@
 'use client'
 
 import { toast } from '@sim/emcn'
+import { ACCESS_REQUEST_MAX_SEARCH_LENGTH } from '@/ee/access-requests/lib/constants'
 import styles from '@/platform/app/(shell)/settings/_components/sections/requests/requests.module.css'
 import { ReviewModal } from '@/platform/app/(shell)/settings/_components/sections/requests/review-modal'
 import {
@@ -48,6 +49,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
         placeholder='Search requests...'
         value={list.search}
         onValueChange={list.setSearch}
+        maxLength={ACCESS_REQUEST_MAX_SEARCH_LENGTH}
       />
       {settings.loading ? (
         <p className={styles.status} role='status' data-type='T060'>

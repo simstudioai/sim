@@ -11,6 +11,9 @@ import { LoadingState } from '@/platform/app/(shell)/settings/_components/sectio
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { SettingsScreen } from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen'
 
+/** Sections that link their docs from inside, per tab or as a row. */
+const OWN_DOCS_LINK: ReadonlySet<PlatformSettingsSection> = new Set(['sso', 'search-mcp'])
+
 const loading = () => <LoadingState label='Loading settings' />
 
 /** One chunk per section, so opening Settings loads only the section on screen. */
@@ -128,7 +131,7 @@ export function PlatformSettingsSectionHost({
         <SettingsScreen
           title={meta?.title ?? 'Settings'}
           description={meta?.description}
-          docsHref={meta?.docsLink}
+          docsHref={OWN_DOCS_LINK.has(section) ? undefined : meta?.docsLink}
         >
           <Section organization={organization} subpath={subpath} query={query} />
         </SettingsScreen>

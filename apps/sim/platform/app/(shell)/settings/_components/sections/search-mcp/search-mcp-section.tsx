@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { getSearchMcpUrl } from '@/lib/knowledge/mcp/urls'
 import {
   FieldStack,
   Muted,
@@ -86,8 +87,7 @@ function ConnectionInstructions({ endpoint, client }: ConnectionInstructionsProp
 
 export default function SearchMcpSection({ organization }: SettingsSectionProps) {
   const [client, setClient] = useState<(typeof CLIENTS)[number]>(CLIENTS[0])
-  const origin = typeof window === 'undefined' ? '' : window.location.origin
-  const endpoint = `${origin}/api/mcp/search/organizations/${encodeURIComponent(organization.organization.id)}`
+  const endpoint = getSearchMcpUrl(organization.organization.id)
   return (
     <SettingsSection title='Connection'>
       {organization.viewer.canUseSearchMcp ? (

@@ -72,6 +72,44 @@ export function MembersPanel({ organization }: MembersPanelProps) {
         onValueChange={setSearch}
       />
 
+      {(members.canManage || members.canLeave) && (
+        <SettingsSection title='Membership'>
+          {members.canManage && (
+            <SettingsRow label='Invite people'>
+              <Tooltip label='Invitations are disabled' enabled={!members.canInvite}>
+                <span>
+                  <Button
+                    size='compact'
+                    disabled={!members.canInvite}
+                    onClick={() => setInviting(true)}
+                  >
+                    Invite
+                  </Button>
+                </span>
+              </Tooltip>
+            </SettingsRow>
+          )}
+          {members.canLeave && members.viewerId && (
+            <SettingsRow label='Organization membership'>
+              <Button
+                size='compact'
+                variant='destructive'
+                onClick={() =>
+                  setRemoval({
+                    userId: members.viewerId ?? '',
+                    name: 'yourself',
+                    isSelf: true,
+                    isExternal: false,
+                  })
+                }
+              >
+                Leave organization
+              </Button>
+            </SettingsRow>
+          )}
+        </SettingsSection>
+      )}
+
       {members.seats.visible && <SeatsOverview seats={members.seats} />}
 
       {roster.status === 'pending' ? (
@@ -147,51 +185,16 @@ export function MembersPanel({ organization }: MembersPanelProps) {
         </>
       )}
 
-      {(members.canManage || members.canLeave) && (
-        <SettingsSection title='Membership'>
-          {members.canManage && (
-            <SettingsRow label='Invite people'>
-              <Tooltip label='Invitations are disabled' enabled={!members.canInvite}>
-                <span>
-                  <Button
-                    size='compact'
-                    disabled={!members.canInvite}
-                    onClick={() => setInviting(true)}
-                  >
-                    Invite
-                  </Button>
-                </span>
-              </Tooltip>
-            </SettingsRow>
-          )}
-          {members.canLeave && members.viewerId && (
-            <SettingsRow label='Organization membership'>
-              <Button
-                size='compact'
-                variant='destructive'
-                onClick={() =>
-                  setRemoval({
-                    userId: members.viewerId ?? '',
-                    name: 'yourself',
-                    isSelf: true,
-                    isExternal: false,
-                  })
-                }
-              >
-                Leave organization
-              </Button>
-            </SettingsRow>
-          )}
-        </SettingsSection>
-      )}
       {members.canManage && inviting && <InviteModal onClose={() => setInviting(false)} />}
       <RemoveMemberModal target={removal} onClose={() => setRemoval(null)} />
-      <TransferOwnershipModal
-        open={transferring}
-        onClose={() => setTransferring(false)}
-        roster={roster.model}
-        hasPaidSubscription={members.seats.hasPaidSubscription}
-      />
+      {transferring && (
+        <TransferOwnershipModal
+          open
+          onClose={() => setTransferring(false)}
+          roster={roster.model}
+          hasPaidSubscription={members.seats.hasPaidSubscription}
+        />
+      )}
       {credits && (
         <ManageCreditsModal
           key={credits.userId}

@@ -80,7 +80,7 @@ function ActivityList({ organizationId, active }: { organizationId: string; acti
             label={`${entry.method} ${entry.path}`}
             description={
               failed && entry.detail
-                ? `${entry.scimType ? `${entry.scimType}: ` : ''}${entry.detail}`
+                ? `${formatInstant(entry.createdAt, now)} · ${entry.scimType ? `${entry.scimType}: ` : ''}${entry.detail}`
                 : formatInstant(entry.createdAt, now)
             }
           >

@@ -75,6 +75,7 @@ function ClientSecretField({
   onChange,
   error,
 }: ClientSecretFieldProps) {
+  const [unlocked, setUnlocked] = useState(false)
   if (hasStoredSecret && !isReplacing) {
     return (
       <>
@@ -94,12 +95,30 @@ function ClientSecretField({
     )
   }
   return (
-    <>
+    <div className='contents' onFocusCapture={() => setUnlocked(true)}>
+      {/* Decoys and read-only-until-focus keep password managers off the client secret. */}
+      <input
+        type='text'
+        name='fakeusernameremembered'
+        autoComplete='username'
+        hidden
+        tabIndex={-1}
+        readOnly
+      />
+      <input
+        type='password'
+        name='fakepasswordremembered'
+        autoComplete='current-password'
+        hidden
+        tabIndex={-1}
+        readOnly
+      />
       <SecretField
         label='Client secret'
         name='sso_client_key'
         placeholder='Enter Client Secret'
         autoComplete='new-password'
+        readOnly={!unlocked}
         hint={isReplacing ? 'Replaces the saved secret when you save.' : undefined}
         error={error}
         value={value}
@@ -112,7 +131,7 @@ function ClientSecretField({
           </Button>
         </ActionRow>
       )}
-    </>
+    </div>
   )
 }
 
@@ -266,7 +285,13 @@ export function ProviderForm({
                   value={form.providerId || null}
                   selectedLabel={form.providerId || undefined}
                   onValueChange={(value) => set('providerId', value ?? '')}
-                  search={{ query: providerIdQuery, onQueryChange: setProviderIdQuery }}
+                  search={{
+                    query: providerIdQuery,
+                    onQueryChange: (query) => {
+                      setProviderIdQuery(query)
+                      if (query.trim()) set('providerId', query.trim())
+                    },
+                  }}
                 />
               )}
               <TextField

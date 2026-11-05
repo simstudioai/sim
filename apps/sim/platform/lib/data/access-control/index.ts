@@ -46,4 +46,9 @@ export { useProjectList } from '@/hooks/queries/project-list'
 export { useProviderModelLists, useProviderModels } from '@/hooks/queries/providers'
 export { SIM_AUTO_MODEL_ID } from '@/providers/model-lookup'
 export type { EditorBlock, EditorModel } from './editor'
-export { useAccessControlParams, useGroupDetailParams, usePermissionEditorModel } from './editor'
+export {
+  useAccessControlParams,
+  useGroupDetailParams,
+  usePermissionEditorCatalog,
+  usePermissionEditorModel,
+} from './editor'

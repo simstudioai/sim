@@ -31,6 +31,7 @@ import {
   useAccessControlParams,
   useCreatePermissionGroup,
   useOrganizationWorkspaces,
+  usePermissionEditorCatalog,
   usePermissionGroups,
 } from '@/platform/lib/data/access-control'
 import { useProjectsEnabled } from '@/platform/lib/data/organization'
@@ -133,6 +134,7 @@ function CreateGroupModal({
 export default function AccessControlSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id
   const projectsEnabled = useProjectsEnabled()
+  usePermissionEditorCatalog(organizationId)
   const groups = usePermissionGroups(organizationId)
   const workspaces = useOrganizationWorkspaces(organizationId)
   const params = useAccessControlParams()

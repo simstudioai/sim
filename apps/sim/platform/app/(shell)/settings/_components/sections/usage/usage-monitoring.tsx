@@ -6,10 +6,7 @@ import {
   type CreditsTarget,
   ManageCreditsModal,
 } from '@/platform/app/(shell)/settings/_components/section-parts/manage-credits-modal'
-import {
-  ActionRow,
-  DetailHeader,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { DetailHeader } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import {
   ActivityOverview,
@@ -143,6 +140,19 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
               onValueChange={(range) => range !== null && view.applyRange(range.start, range.end)}
             />
           )}
+          <Button render={<Link href={view.eventsHref} />} variant='quiet'>
+            All events
+          </Button>
+          <Button
+            disabled={exporting}
+            onClick={async () => {
+              setExporting(true)
+              await exportUsageCsv(organizationId, window)
+              setExporting(false)
+            }}
+          >
+            Export
+          </Button>
         </div>
       </div>
       {isOverview ? (
@@ -193,21 +203,6 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
           }
         />
       )}
-      <ActionRow>
-        <Button render={<Link href={view.eventsHref} />} variant='quiet'>
-          All events
-        </Button>
-        <Button
-          disabled={exporting}
-          onClick={async () => {
-            setExporting(true)
-            await exportUsageCsv(organizationId, window)
-            setExporting(false)
-          }}
-        >
-          Export
-        </Button>
-      </ActionRow>
       {canManageCredits && creditsTarget && (
         <ManageCreditsModal
           key={creditsTarget.userId}

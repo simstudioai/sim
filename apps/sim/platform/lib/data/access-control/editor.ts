@@ -110,15 +110,22 @@ function toEditorModel(catalog: PermissionGroupEditorCatalog, blacklist: readonl
 
 export type EditorModel = ReturnType<typeof toEditorModel>
 
-/** The block and provider catalog the editor resolves access against, or the read's failure. */
-export function usePermissionEditorModel(organizationId: string) {
-  const router = useRouter()
-  /** The route's server read seeds this; a failed read leaves it empty and a refresh repeats it. */
-  const catalog = useQuery<PermissionGroupEditorCatalog>({
+/**
+ * The route's server read seeds this; a failed read leaves it empty and a refresh repeats it. Nothing
+ * can refetch it, so the section holds an observer to keep it through time spent on the group list.
+ */
+export function usePermissionEditorCatalog(organizationId: string) {
+  return useQuery<PermissionGroupEditorCatalog>({
     queryKey: permissionGroupKeys.editorCatalog(organizationId),
     queryFn: skipToken,
     staleTime: Number.POSITIVE_INFINITY,
   })
+}
+
+/** The block and provider catalog the editor resolves access against, or the read's failure. */
+export function usePermissionEditorModel(organizationId: string) {
+  const router = useRouter()
+  const catalog = usePermissionEditorCatalog(organizationId)
   const blacklist = useBlacklistedProviders()
   const model = useMemo(
     () =>

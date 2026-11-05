@@ -198,26 +198,26 @@ export default function DataRetentionSection({ organization }: SettingsSectionPr
       />
     )
   }
-  if (!workspacesQuery.data) {
-    return (
-      <FailureNotice
-        message='Failed to load workspaces.'
-        retrying={workspacesQuery.isFetching}
-        onRetry={() => void workspacesQuery.refetch()}
-      />
-    )
-  }
   if (organization.deployment.billingEnabled && !data.isEnterprise) {
     return <EmptyState title='Data retention is available on Enterprise plans only.' />
   }
   return (
-    <RetentionForm
-      key={organizationId}
-      initialData={data}
-      organizationId={organizationId}
-      workspaceOptions={workspacesQuery.data
-        .filter((workspace) => workspace.organizationId === organizationId)
-        .map((workspace) => ({ value: workspace.id, label: workspace.name }))}
-    />
+    <>
+      {!workspacesQuery.data && (
+        <FailureNotice
+          message='Failed to load workspaces, so overrides cannot be added right now.'
+          retrying={workspacesQuery.isFetching}
+          onRetry={() => void workspacesQuery.refetch()}
+        />
+      )}
+      <RetentionForm
+        key={organizationId}
+        initialData={data}
+        organizationId={organizationId}
+        workspaceOptions={(workspacesQuery.data ?? [])
+          .filter((workspace) => workspace.organizationId === organizationId)
+          .map((workspace) => ({ value: workspace.id, label: workspace.name }))}
+      />
+    </>
   )
 }

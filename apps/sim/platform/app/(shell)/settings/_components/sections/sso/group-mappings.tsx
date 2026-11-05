@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isApiClientError } from '@/lib/api/client/errors'
 import {
   ActionRow,
   LoadingState,
@@ -191,27 +192,36 @@ export function GroupMappings({
   if (permissionGroupsQuery.isPending || workspacesQuery.isPending) {
     return <LoadingState label='Loading groups…' />
   }
-  // The pickers and the name-match warning both read these, so a failed read must not look empty.
-  if (!permissionGroupsQuery.data || !workspacesQuery.data) {
-    return (
-      <FailureNotice
-        message='Failed to load mapping targets'
-        retrying={permissionGroupsQuery.isFetching || workspacesQuery.isFetching}
-        onRetry={() => {
-          void permissionGroupsQuery.refetch()
-          void workspacesQuery.refetch()
-        }}
-      />
-    )
-  }
+  /**
+   * Mappings stay manageable when a target list is missing. Permission groups refuse outright where
+   * access control is off, which is not a failure to report; anything else may look empty, so it says so.
+   */
+  const refused = (queryError: unknown) =>
+    isApiClientError(queryError) && [401, 403, 404].includes(queryError.status)
+  const targetsFailed =
+    (!permissionGroupsQuery.data && !refused(permissionGroupsQuery.error)) || !workspacesQuery.data
+  const targetsNotice = targetsFailed ? (
+    <FailureNotice
+      message='Failed to load mapping targets'
+      retrying={permissionGroupsQuery.isFetching || workspacesQuery.isFetching}
+      onRetry={() => {
+        void permissionGroupsQuery.refetch()
+        void workspacesQuery.refetch()
+      }}
+    />
+  ) : null
   if (!groups || groups.length === 0) {
     return (
-      <Muted>No groups yet. Push a group from your identity provider and it appears here.</Muted>
+      <>
+        {targetsNotice}
+        <Muted>No groups yet. Push a group from your identity provider and it appears here.</Muted>
+      </>
     )
   }
 
   return (
     <>
+      {targetsNotice}
       {groups.map((group) => {
         const unassigned = group.mappings.filter(
           (mapping) => (mapping.unassignedMemberCount ?? 0) > 0

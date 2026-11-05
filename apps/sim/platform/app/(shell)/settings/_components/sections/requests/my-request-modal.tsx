@@ -21,6 +21,7 @@ export function MyRequestModal({ scope, requestId, onClose }: MyRequestModalProp
       open
       onOpenChange={(open) => !open && onClose()}
       title={request ? `${request.title} request` : 'Access request'}
+      cancelLabel='Close'
       confirmLabel={request?.pending ? 'Withdraw request' : 'Done'}
       destructive={request?.pending}
       confirmDisabled={request?.pending ? details.fetching : false}

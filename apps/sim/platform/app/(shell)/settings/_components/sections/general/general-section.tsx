@@ -23,7 +23,7 @@ type GeneralView = 'privacy' | 'authorized-apps' | 'organization-accounts'
 function generalHref(base: string, query: SettingsSectionProps['query'], view?: GeneralView) {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(query)) {
-    if (key === 'view' || value === undefined) continue
+    if (key === 'view' || key === 'search' || value === undefined) continue
     for (const item of Array.isArray(value) ? value : [value]) params.append(key, item)
   }
   if (view) params.set('view', view)

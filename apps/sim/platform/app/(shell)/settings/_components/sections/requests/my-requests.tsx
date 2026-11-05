@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { ACCESS_REQUEST_MAX_SEARCH_LENGTH } from '@/ee/access-requests/lib/constants'
 import { MyRequestModal } from '@/platform/app/(shell)/settings/_components/sections/requests/my-request-modal'
 import { RequestAccessModal } from '@/platform/app/(shell)/settings/_components/sections/requests/request-access-modal'
 import styles from '@/platform/app/(shell)/settings/_components/sections/requests/requests.module.css'
@@ -8,6 +9,7 @@ import {
   Button,
   EmptyState,
   FailureNotice,
+  Icon,
   InlineNotice,
   Pagination,
   SearchField,
@@ -38,6 +40,7 @@ export function MyRequests({ scope, view, mine }: MyRequestsProps) {
           placeholder='Search features, integrations, and models...'
           value={mine.search}
           onValueChange={mine.setSearch}
+          maxLength={ACCESS_REQUEST_MAX_SEARCH_LENGTH}
         />
       )}
       {mine.paused && (
@@ -98,7 +101,11 @@ export function MyRequests({ scope, view, mine }: MyRequestsProps) {
       ) : (
         <SettingsSurface>
           {mine.entries.map((entry) => (
-            <SettingsRow key={entry.key} label={entry.label}>
+            <SettingsRow
+              key={entry.key}
+              label={entry.label}
+              leading={entry.state === 'allowed' ? undefined : <Icon name='I137' />}
+            >
               <span className={styles.controls}>
                 {entry.state === 'allowed' && <StatusTag label='Available' />}
                 {entry.state === 'requestable' && entry.pendingRequestId ? (
