@@ -30,8 +30,8 @@ import { formatRelativeTime } from '@/platform/lib/time'
 
 const COLUMNS = [
   { key: 'name', label: 'Name', kind: 'text' },
-  { key: 'destination', label: 'Destination', kind: 'text', showFrom: 'compact' },
-  { key: 'description', label: 'Description', kind: 'text', showFrom: 'wide' },
+  { key: 'destination', label: 'Destination', kind: 'text', showFrom: 'compact', width: '27%' },
+  { key: 'description', label: 'Description', kind: 'text', showFrom: 'wide', width: '19%' },
   { key: 'owner', label: 'Created by', kind: 'text', showFrom: 'wide' },
   { key: 'access', label: 'Access', kind: 'text', showFrom: 'wide' },
   { key: 'updated', label: 'Updated', kind: 'text', showFrom: 'wide' },

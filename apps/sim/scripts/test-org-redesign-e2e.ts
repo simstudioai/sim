@@ -2638,6 +2638,12 @@ async function linksChecks() {
           headers.some((text) => text.includes(label)),
           `Missing column ${label}: ${headers}`
         )
+      const columnWidth = async (name: string) =>
+        (await page.getByRole('columnheader', { name, exact: true }).boundingBox())?.width ?? 0
+      assert(
+        (await columnWidth('Destination')) > 1.5 * (await columnWidth('Name')),
+        'Destination takes the most room'
+      )
       const store = context.waitForEvent('page')
       await page.getByRole('button', { name: 'Install Sim for Chrome' }).click()
       await expect(await store).toHaveURL(/chromewebstore\.google\.com/)

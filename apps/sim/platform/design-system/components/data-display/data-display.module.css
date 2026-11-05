@@ -72,6 +72,9 @@
 .table th {
   height: var(--ui-table-head);
 }
+.table th[data-width] {
+  inline-size: var(--column-width);
+}
 .table td {
   height: var(--spacing-40);
   padding-block: var(--spacing-8);
@@ -133,6 +136,9 @@
 @container (width < 48rem) {
   .table [data-from="wide"] {
     display: none;
+  }
+  .table th[data-width] {
+    inline-size: auto;
   }
   .table [data-kind="number"] {
     inline-size: calc(var(--ui-table-compact) + var(--spacing-16));
