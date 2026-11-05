@@ -4,7 +4,6 @@ import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
-import type { BookmarkLink } from '@/lib/api/contracts/sim-links'
 import {
   defineAuthorizedOrganizationUseCase,
   type OrganizationUseCaseContext,
@@ -24,9 +23,9 @@ import { requireSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import type { SimLinkAccess, SimLinkRecord, SimLinkViewer } from '@/lib/sim-links/repository'
 import * as repository from '@/lib/sim-links/repository'
 import {
-  MAX_MANAGED_BOOKMARKS,
   type SimLinkFields,
   type SimLinkSort,
+  stripSimLinkPrefix,
   typedSimLinkPrefix,
 } from '@/lib/sim-links/validation'
 import type { SortDirection } from '@/lib/url-state'
@@ -81,11 +80,11 @@ async function lockEditableSimLink(
   viewer: SimLinkViewer
 ): Promise<SimLinkAccess> {
   const access = await repository.lockSimLinkAccess(tx, organizationId, linkId)
-  if (!access) throw new OrchestrationError('not_found', 'Sim link not found')
+  if (!access) throw new OrchestrationError('not_found', 'Link not found')
   if (!canEdit(access.restrictEdit, access.createdBy, viewer)) {
     throw new OrchestrationError(
       'forbidden',
-      'Only the creator or an organization admin can edit this Sim link'
+      'Only the creator or an organization admin can edit this link'
     )
   }
   return access
@@ -102,7 +101,10 @@ async function withUniqueName<T>(
   } catch (error) {
     if (getPostgresErrorCode(error) !== '23505') throw error
     const existing = await repository.findSimLinkDestination(organizationId, name)
-    throw new OrchestrationError('conflict', `sim/${existing?.name ?? name} already exists`)
+    throw new OrchestrationError(
+      'conflict',
+      `A link named ${existing?.name ?? name} already exists`
+    )
   }
 }
 
@@ -141,30 +143,9 @@ async function readView(
   viewer: SimLinkViewer
 ) {
   const record = await repository.getSimLink(tx, organizationId, linkId)
-  if (!record) throw new OrchestrationError('not_found', 'Sim link not found')
+  if (!record) throw new OrchestrationError('not_found', 'Link not found')
   return toView(record, viewer)
 }
-
-export const exportSimBookmarks = defineAuthorizedOrganizationUseCase({
-  operation: simLinkOperations.exportBookmarks,
-  ...rollout,
-  async execute({
-    input,
-    context,
-  }: OrganizationUseCaseContext<OrganizationInput & { links: BookmarkLink[] }>) {
-    if (!input.links.length || input.links.length > MAX_MANAGED_BOOKMARKS)
-      throw new OrchestrationError(
-        'validation',
-        `Choose between 1 and ${MAX_MANAGED_BOOKMARKS} bookmarks.`
-      )
-    const selected = new Map(input.links.map((link) => [link.id, link]))
-    const listed = await repository.listBookmarkCandidates(context.organizationId, [
-      ...selected.keys(),
-    ])
-    const current = new Map(listed.map((link) => [link.id, link.name]))
-    return [...selected.values()].filter((link) => current.get(link.id) === link.name)
-  },
-})
 
 export const listSimLinks = defineAuthorizedOrganizationUseCase({
   operation: simLinkOperations.list,
@@ -205,10 +186,15 @@ export const getSimLinkView = defineAuthorizedOrganizationUseCase({
     const linkId =
       'linkId' in input
         ? input.linkId
-        : (await repository.findSimLinkDestination(input.organizationId, input.name))?.id
+        : (
+            await repository.findSimLinkDestination(
+              input.organizationId,
+              stripSimLinkPrefix(input.name)
+            )
+          )?.id
     const record = linkId ? await repository.getSimLink(db, input.organizationId, linkId) : null
     if (!record || (record.unlisted && !canManage(record.createdBy?.id ?? null, viewer)))
-      throw new OrchestrationError('not_found', 'Sim link not found')
+      throw new OrchestrationError('not_found', 'Link not found')
     return toView(record, viewer)
   },
 })
@@ -256,7 +242,7 @@ export const updateSimLink = defineAuthorizedOrganizationUseCase({
         ) {
           throw new OrchestrationError(
             'forbidden',
-            'Only the creator or an organization admin can change who finds or edits this Sim link'
+            'Only the creator or an organization admin can change who finds or edits this link'
           )
         }
         await repository.updateSimLink(tx, organizationId, linkId, fields)
@@ -323,8 +309,11 @@ export const suggestSimLinks = defineAuthorizedCredentialUserUseCase({
   operation: simLinkOperations.suggest,
   async execute({ principal, input }: { principal: SessionPrincipal; input: { query: string } }) {
     const organizationId = await resolveSimLinkOrganization(principal)
+    if (!organizationId) return { enabled: false, links: [] }
     const prefix = typedSimLinkPrefix(input.query)
-    if (!organizationId || prefix === null) return []
-    return repository.suggestSimLinks(organizationId, prefix)
+    return {
+      enabled: true,
+      links: prefix === null ? [] : await repository.suggestSimLinks(organizationId, prefix),
+    }
   },
 })

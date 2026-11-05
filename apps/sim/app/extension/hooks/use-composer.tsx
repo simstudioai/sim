@@ -26,7 +26,6 @@ export function useExtensionComposer(scopeKey: string) {
     clearSnapshots,
     removeSnapshot,
     connected,
-    shortcutsAvailable,
     requestAction,
     referenceEnabled,
     setReferenceEnabled,
@@ -68,17 +67,11 @@ export function useExtensionComposer(scopeKey: string) {
           )}
           <DropdownMenuItem onSelect={() => requestAction('site-access')}>
             <Settings className='size-[14px]' />
-            Site access
+            Page access
           </DropdownMenuItem>
-          {shortcutsAvailable && (
-            <DropdownMenuItem onSelect={() => requestAction('browser-shortcuts')}>
-              <Globe className='size-[14px]' />
-              Browser shortcuts
-            </DropdownMenuItem>
-          )}
         </>
       ) : undefined,
-    [connected, requestAction, referenceEnabled, setReferenceEnabled, shortcutsAvailable]
+    [connected, requestAction, referenceEnabled, setReferenceEnabled]
   )
   const prepareSubmission = useCallback<PrepareChatSubmission>(
     (text, contexts, send, reference = true) => {
@@ -110,7 +103,7 @@ export function useExtensionComposer(scopeKey: string) {
         snapshots.length > 0 || contexts?.some((context) => context.kind === 'browser_page')
       if (reference && !hasPage && referenceEnabled !== false) {
         if (!connected && window.parent !== window) {
-          toast.info('Connecting to the Sim extension. Try again in a moment.')
+          toast.info('Connecting to Sim. Try again in a moment.')
           return false
         }
         if (referenceEnabled) {
@@ -145,14 +138,19 @@ export function useExtensionComposer(scopeKey: string) {
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
             {referenceEnabled
-              ? 'Include the active tab when you send. Click to attach a fixed snapshot.'
+              ? 'Includes the active page when you send. Click to attach it now.'
               : 'Attach current page'}
           </Tooltip.Content>
         </Tooltip.Root>
       ) : undefined,
     [connected, requestAction, referenceEnabled]
   )
+  const openMicrophoneSettings = useCallback(
+    () => requestAction('microphone-settings'),
+    [requestAction]
+  )
   return {
+    openMicrophoneSettings: connected ? openMicrophoneSettings : null,
     attachments,
     resourceActions,
     toolbarActions,

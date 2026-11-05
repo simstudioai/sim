@@ -3,7 +3,7 @@
 import { Link } from '@sim/emcn/icons'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
-  BROWSER_SHORTCUTS_ACTION,
+  INSTALL_EXTENSION_ACTION,
   NEW_SIM_LINK_ACTION,
   SIM_LINK_COLUMNS,
   SIM_LINKS_SEARCH_PLACEHOLDER,
@@ -16,9 +16,9 @@ export default function SimLinksLoading() {
     <div inert aria-busy className='contents'>
       <ResourceChromeFallback
         icon={Link}
-        title='Sim Links'
+        title='Links'
         columns={SIM_LINK_COLUMNS}
-        actions={hosted ? [BROWSER_SHORTCUTS_ACTION, NEW_SIM_LINK_ACTION] : [NEW_SIM_LINK_ACTION]}
+        actions={hosted ? [INSTALL_EXTENSION_ACTION, NEW_SIM_LINK_ACTION] : [NEW_SIM_LINK_ACTION]}
         searchPlaceholder={SIM_LINKS_SEARCH_PLACEHOLDER}
         hasSort
       />

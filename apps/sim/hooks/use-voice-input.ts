@@ -1,10 +1,13 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { diffWordsWithSpace } from 'diff'
 import { getDesktopBridge } from '@/lib/desktop'
 import { type SpeechToTextError, useSpeechToText } from '@/hooks/use-speech-to-text'
+
+/** A host surface can open its own microphone permission controls. */
+export const VoiceInputPermissionContext = createContext<(() => void) | null>(null)
 
 interface UseVoiceInputProps {
   workspaceId?: string
@@ -80,6 +83,7 @@ export function useVoiceInput({
   onChange,
   onUsageLimitExceeded = (message) => toast.error(message || 'You are out of credits.'),
 }: UseVoiceInputProps) {
+  const openPermissionSettings = useContext(VoiceInputPermissionContext)
   const prefixRef = useRef('')
   const previousTranscriptValueRef = useRef('')
   const getValueRef = useRef(getValue)
@@ -88,6 +92,12 @@ export function useVoiceInput({
 
   function handleSpeechError(error: SpeechToTextError) {
     if (error === 'microphone-blocked') {
+      if (openPermissionSettings) {
+        toast.error('Allow microphone access in your browser settings.', {
+          action: { label: 'Open settings', onClick: openPermissionSettings },
+        })
+        return
+      }
       const desktopBridge = getDesktopBridge()
       if (desktopBridge) {
         const { openMicrophoneSettings } = desktopBridge

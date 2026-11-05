@@ -445,7 +445,15 @@ try {
       const body = toRecord(response.request().postDataJSON())
       assert.equal(body.organizationId, organizationId)
       assert.equal(body.query, 'Launch notes')
-      await expect(page.getByText('Search found no results.', { exact: true })).toBeVisible()
+      // The seeded member has connected no account, so nothing was searched.
+      await expect(
+        page.getByText('No connected apps are available for this search.', { exact: true })
+      ).toBeVisible()
+      await expect(page.getByText('Search found no results.', { exact: true })).toHaveCount(0)
+      await expect(page.getByRole('link', { name: 'Connect apps' })).toHaveAttribute(
+        'href',
+        `${root}/integrations`
+      )
       await expect(page).toHaveURL(
         (url) => url.pathname === `${root}/search` && url.searchParams.get('q') === 'Launch notes'
       )
@@ -708,7 +716,9 @@ try {
               await navigation.getByRole('button', { name: 'Search', exact: true }).click()
               await expect(page).toHaveURL((url) => url.searchParams.get('mode') === 'search')
             }
-            await page.clock.pauseAt(new Date(Date.now() + 100))
+            const pausedAt = new Date()
+            await page.clock.setFixedTime(pausedAt)
+            await page.clock.pauseAt(pausedAt)
             const selected = navigation.getByRole('button', {
               name: selectedMode === 'assistant' ? 'Assistant' : 'Search',
               exact: true,
@@ -726,6 +736,7 @@ try {
           } finally {
             admission.resolve()
             heldAdmission = undefined
+            await page.clock.setSystemTime(new Date())
             await page.clock.resume()
           }
         }
@@ -1025,7 +1036,18 @@ try {
     verifyLegacyDraft(undefined, 'assistant')
   )
   await check('The UI completes without unexpected browser runtime errors', async () => {
-    await expect.poll(() => browserErrorEventCount).toBe(browserErrorCount)
+    const handledRedirectCount = () =>
+      browserErrorEvents.reduce(
+        (count, event) =>
+          event.stage === 'Search URLs cannot change an agent conversation into an assistant' &&
+          event.url === `${baseUrl.origin}${root}/search/chat/${agentId}` &&
+          event.digest === `NEXT_REDIRECT;replace;${root}/chat/${agentId};307;` &&
+          event.message.startsWith('Minified React error #419;')
+            ? count + event.count
+            : count,
+        0
+      )
+    await expect.poll(() => browserErrorEventCount - handledRedirectCount()).toBe(browserErrorCount)
     const deniedRecoveries = browserErrorEvents.filter(
       (event) =>
         event.digest === 'NEXT_HTTP_ERROR_FALLBACK;404' &&
@@ -1036,7 +1058,11 @@ try {
         ].includes(event.stage)
     )
     const recoveryCount = deniedRecoveries.reduce((total, event) => total + event.count, 0)
-    assert.equal(browserErrorEventCount, recoveryCount, 'Unexpected browser error events')
+    assert.equal(
+      browserErrorEventCount,
+      recoveryCount + handledRedirectCount(),
+      'Unexpected browser error events'
+    )
     assert.equal(browserErrorCount, recoveryCount, 'Unexpected browser runtime errors')
     for (const sample of browserErrorSamples) {
       const matchedCount = deniedRecoveries

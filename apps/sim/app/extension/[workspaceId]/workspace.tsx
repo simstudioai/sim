@@ -4,7 +4,7 @@ import { Chip, ChipLink } from '@sim/emcn'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { ExtensionChat } from '@/app/extension/[workspaceId]/chat'
 import ExtensionLoading from '@/app/extension/loading'
-import { ExtensionSignIn } from '@/app/extension/sign-in'
+import { ExtensionSessionExpired } from '@/app/extension/providers'
 import { ChatPlanModal } from '@/app/workspace/[workspaceId]/home/components/chat-plan-modal'
 import { BlockVisibilityLoader } from '@/app/workspace/[workspaceId]/providers/block-visibility-loader'
 import { CustomBlocksLoader } from '@/app/workspace/[workspaceId]/providers/custom-blocks-loader'
@@ -29,7 +29,7 @@ export function ExtensionWorkspace({ workspaceId }: ExtensionWorkspaceProps) {
     refetchInterval: WORKSPACE_HOST_CONTEXT_STALE_TIME,
     refetchOnWindowFocus: true,
   })
-  if (isApiClientError(error) && error.status === 401) return <ExtensionSignIn />
+  if (isApiClientError(error) && error.status === 401) return <ExtensionSessionExpired />
   if (isPending) return <ExtensionLoading />
   const accessDenied = isApiClientError(error) && (error.status === 403 || error.status === 404)
   if (accessDenied || !data) {

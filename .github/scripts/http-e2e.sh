@@ -75,7 +75,7 @@ start_browser_install() {
   local name=$1
   shift
   browsers_log="$report_dir/$name-playwright-install.log"
-  setsid --wait bunx --no-install playwright install --with-deps "$@" > "$browsers_log" 2>&1 &
+  setsid --wait bash "$GITHUB_WORKSPACE/.github/scripts/install-playwright.sh" "$@" > "$browsers_log" 2>&1 &
   browsers_pid=$!
 }
 
@@ -279,6 +279,7 @@ case "$group" in
     export REDIS_URL=redis://127.0.0.1:6379
     export NEXT_PUBLIC_FORCE_HOSTED=false
     export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
+    export SIM_LINKS=true
     export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true
     export API_ENCRYPTION_KEY="$ENCRYPTION_KEY"
     start_browser_install "$group" --no-shell chromium

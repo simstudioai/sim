@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Chip } from '@sim/emcn'
+import { Chip, ChipLink } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
 import { ActivityStatus } from '@/components/ui/activity-status'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { useSession } from '@/lib/auth/client'
 import { type ResourceScope, resourceScopeKey } from '@/lib/core/resource-scope'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { SearchFilters } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/search-filters'
 import {
   groupResultsByDocument,
@@ -150,6 +151,23 @@ function LiveSearchResults({
             Search found no results.
           </p>
         )}
+      {!isFetching && data?.live && accounts.length === 0 && (
+        <div className='flex items-center gap-2 px-2 py-2'>
+          <p role='status' className='text-[var(--text-muted)] text-caption'>
+            No connected apps are available for this search.
+          </p>
+          <ChipLink
+            variant='border'
+            href={
+              scope.kind === 'organization'
+                ? organizationRoutes(scope.organizationId).integrations
+                : `/workspace/${scope.workspaceId}/integrations`
+            }
+          >
+            Connect apps
+          </ChipLink>
+        </div>
+      )}
       {accounts.some((account) =>
         ['unavailable', 'timeout', 'rate_limited', 'reconnect'].includes(account.status)
       ) && (

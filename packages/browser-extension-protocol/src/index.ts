@@ -47,12 +47,13 @@ const extensionActionSchema = z.enum([
   'capture-page',
   'capture-selection',
   'site-access',
-  'browser-shortcuts',
+  'microphone-settings',
 ])
 export type ExtensionAction = z.infer<typeof extensionActionSchema>
 
 export const appToExtensionMessageSchema = z.discriminatedUnion('type', [
   z.strictObject({ ...envelope, type: z.literal('theme'), theme: z.enum(['light', 'dark']) }),
+  z.strictObject({ ...envelope, type: z.literal('signed-in') }),
   z.strictObject({ ...envelope, type: z.literal('ready'), sessionId: z.uuid() }),
   z.strictObject({ ...envelope, type: z.literal('composer-focused'), sessionId: z.uuid() }),
   z.strictObject({ ...envelope, type: z.literal('unavailable'), sessionId: z.uuid() }),
@@ -86,7 +87,6 @@ export type AppToExtensionMessage = z.infer<typeof appToExtensionMessageSchema>
 export const extensionToAppMessageSchema = z.discriminatedUnion('type', [
   z.strictObject({ ...envelope, type: z.literal('focus-composer'), sessionId: z.uuid() }),
   z.strictObject({ ...envelope, type: z.literal('connected'), sessionId: z.uuid() }),
-  z.strictObject({ ...envelope, type: z.literal('shortcuts-available'), sessionId: z.uuid() }),
   z.strictObject({
     ...envelope,
     type: z.literal('reference-preference'),
@@ -123,14 +123,20 @@ export const SIM_LINK_NAME_MAX_LENGTH = 64
 /** Destination limit shared by editable drafts and saved Sim links. */
 export const SIM_LINK_URL_MAX_LENGTH = 2048
 
+/** Short hosts a link opens from: `sim/<name>` and `go/<name>`. */
+export const SIM_LINK_HOSTS = ['sim', 'go'] as const
+
+export const SIM_LINK_HOST_PATTERN = SIM_LINK_HOSTS.join('|')
+
 /** Where the extension asks for the address-bar suggestions behind its `sim` keyword. */
 export const SIM_LINK_SUGGESTIONS_PATH = '/api/sim-links/suggestions'
 
 /**
- * Listed Sim links whose name starts with what was typed, most visited first. Not strict: an
- * installed extension lags the server, so a field added later must not break its parse.
+ * Listed Sim links matching what was typed, and whether links are on at all for this session. Not
+ * strict: an installed extension lags the server, so a field added later must not break its parse.
  */
 export const simLinkSuggestionsSchema = z.object({
+  enabled: z.boolean().optional(),
   links: z.array(
     z.object({ name: z.string(), description: z.string().nullable(), url: z.string() })
   ),

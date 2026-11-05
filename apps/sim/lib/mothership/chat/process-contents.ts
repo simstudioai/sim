@@ -163,11 +163,11 @@ export async function processContextsServer(
   if (contexts.length > MAX_CHAT_CONTEXTS) {
     throw new Error(`Context count exceeds the maximum of ${MAX_CHAT_CONTEXTS}`)
   }
-  const pageBudgetError = getPageContextBudgetError(contexts)
-  if (pageBudgetError) throw new Error(pageBudgetError)
   for (const context of contexts) {
     if (context.kind === 'browser_page') pageSnapshotSchema.parse(context.snapshot)
   }
+  const pageBudgetError = getPageContextBudgetError(contexts)
+  if (pageBudgetError) throw new Error(pageBudgetError)
   if ((userMessage?.length ?? 0) > MAX_CHAT_MESSAGE_LENGTH) {
     throw new Error(`Message exceeds the maximum of ${MAX_CHAT_MESSAGE_LENGTH} characters`)
   }

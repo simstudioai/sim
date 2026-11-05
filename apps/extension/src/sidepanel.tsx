@@ -4,28 +4,33 @@ import {
   type ExtensionToAppMessage,
   type PageSnapshot,
 } from '@sim/browser-extension-protocol'
-import { Chip } from '@sim/emcn'
 import { createRoot } from 'react-dom/client'
 import {
   captureActivePage,
   captureErrorMessage,
+  PAGE_CHANGED_MESSAGE,
   PageCaptureError,
   SiteAccessRequiredError,
   UnreadableSelectionError,
 } from '@/capture'
-import { CAPTURE_INTENT_KEY, CAPTURE_INTENT_TTL_MS, REFERENCE_PAGE_KEY, SIM_ORIGIN } from '@/config'
+import {
+  CAPTURE_INTENT_KEY,
+  CAPTURE_INTENT_TTL_MS,
+  REFERENCE_PAGE_KEY,
+  SIM_ORIGIN,
+  VISIT_SHORT_HOSTS_MESSAGE,
+} from '@/config'
 import { type CaptureIntent, captureIntentSchema } from '@/intent'
-import { createReferenceCapture } from '@/reference'
-import { SearchRecoveryDialog } from '@/search-recovery-dialog'
-import { ShortcutHint } from '@/shortcut-hint'
-import { SiteAccessDialog } from '@/site-access'
+import { createReferenceCapture, PAGE_ATTACHMENT_PENDING_MESSAGE } from '@/reference'
+import { PageAccessButton, SiteAccessDialog } from '@/site-access'
 import '@/shell.css'
 
+const PAGE_ATTACHMENT_EXPIRED_MESSAGE = 'The page attachment expired. Attach it again.'
 const BLOCKED_SELECTION =
   'Select readable text again, attach the page explicitly, or turn off Reference current page.'
 const KEYBOARD_FOCUS_HINT = navigator.platform.startsWith('Mac')
-  ? 'To type here, click the message field or press ⌘⌥↑ to move focus.'
-  : 'To type here, click the message field or use F6 to move focus.'
+  ? 'Click the message field, or press ⌘⌥↑ to move focus.'
+  : 'Click the message field, or press F6 to move focus.'
 
 interface SidePanelProps {
   origin: string
@@ -43,7 +48,6 @@ function SidePanel({ origin }: SidePanelProps) {
   const intentCutoffRef = useRef(0)
   const busyRef = useRef(false)
   const [accessOpen, setAccessOpen] = useState(false)
-  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [status, setStatus] = useState<string | { message: string }>('')
   const referenceRef = useRef<ReturnType<typeof createReferenceCapture> | null>(null)
 
@@ -51,9 +55,7 @@ function SidePanel({ origin }: SidePanelProps) {
     if (!(status instanceof SiteAccessRequiredError)) return
     const navigated = (tabId: number, change: chrome.tabs.OnUpdatedInfo) => {
       if (tabId === status.tabId && (change.status === 'loading' || change.url !== undefined)) {
-        setStatus((current) =>
-          current === status ? 'The page changed. Try attaching it again.' : current
-        )
+        setStatus((current) => (current === status ? PAGE_CHANGED_MESSAGE : current))
       }
     }
     const activated = (tab: chrome.tabs.OnActivatedInfo) => {
@@ -76,7 +78,7 @@ function SidePanel({ origin }: SidePanelProps) {
     if (Date.now() - Date.parse(snapshot.capturedAt) > CAPTURE_INTENT_TTL_MS) {
       pendingRef.current = null
       focusRequested.current = false
-      setStatus('The capture expired. Attach the page again.')
+      setStatus(PAGE_ATTACHMENT_EXPIRED_MESSAGE)
       return
     }
     const message: ExtensionToAppMessage = {
@@ -111,9 +113,7 @@ function SidePanel({ origin }: SidePanelProps) {
     setStatus((status) => (typeof status === 'string' ? status : ''))
     intentCutoffRef.current = Date.now()
     setAccessOpen(false)
-    setShortcutsOpen(false)
-    if (pendingRef.current || busyRef.current)
-      setStatus('The conversation changed before delivery. Attach the page again.')
+    if (pendingRef.current || busyRef.current) setStatus('The chat changed. Attach the page again.')
     captureGenerationRef.current++
     pendingRef.current = null
     deliveredRef.current = null
@@ -133,12 +133,12 @@ function SidePanel({ origin }: SidePanelProps) {
     }
   ) {
     if (referenceRef.current?.busy()) {
-      setStatus('Wait for the current message to finish attaching its page.')
+      setStatus(PAGE_ATTACHMENT_PENDING_MESSAGE)
       return
     }
     if (busyRef.current) return
     if (pendingRef.current) {
-      setStatus('Waiting for Sim to receive the previous capture. Try again after it appears.')
+      setStatus(PAGE_ATTACHMENT_PENDING_MESSAGE)
       return
     }
     busyRef.current = true
@@ -150,7 +150,7 @@ function SidePanel({ origin }: SidePanelProps) {
       focusRequested.current = expected?.focusComposer === true
       unreadableSelection.current = null
       pendingRef.current = snapshot
-      setStatus('Waiting for Sim to receive the attachment…')
+      setStatus('Attaching the page…')
       deliver()
     } catch (error) {
       if (generation !== captureGenerationRef.current) return
@@ -174,7 +174,7 @@ function SidePanel({ origin }: SidePanelProps) {
       manualCaptureError: () => {
         if (busyRef.current || pendingRef.current || processingManual || manualIntents.size)
           return {
-            message: 'A page attachment is still being prepared. Try again once it appears.',
+            message: PAGE_ATTACHMENT_PENDING_MESSAGE,
           }
         if (unreadableSelection.current) return { message: BLOCKED_SELECTION, reason: 'selection' }
       },
@@ -247,15 +247,12 @@ function SidePanel({ origin }: SidePanelProps) {
         for (const key of keys) manualIntents.delete(key)
         const intent = intents[0]
         if (intent && intent.createdAt <= intentCutoffRef.current) {
-          if (!disposed)
-            setStatus(
-              'A capture from the previous conversation was discarded. Attach the page again.'
-            )
+          if (!disposed) setStatus('The chat changed. Attach the page again.')
           return
         }
         if (disposed || !intent) return
         if (!currentIntent(intent, window.id)) {
-          setStatus('The capture expired. Attach the page again.')
+          setStatus(PAGE_ATTACHMENT_EXPIRED_MESSAGE)
           return
         }
         if (intent.kind === 'focus') {
@@ -266,7 +263,7 @@ function SidePanel({ origin }: SidePanelProps) {
           }
         } else await capture(intent.kind, intent)
       } catch {
-        if (!disposed) setStatus('Could not receive the capture request. Attach the page again.')
+        if (!disposed) setStatus('Could not attach the page. Try again.')
       } finally {
         processingManual = false
         consumingIntent = false
@@ -316,13 +313,6 @@ function SidePanel({ origin }: SidePanelProps) {
         sessionId,
       }
       frameRef.current?.contentWindow?.postMessage(connected, SIM_ORIGIN)
-      const shortcuts: ExtensionToAppMessage = {
-        channel: 'sim-extension',
-        version: 1,
-        type: 'shortcuts-available',
-        sessionId,
-      }
-      frameRef.current?.contentWindow?.postMessage(shortcuts, SIM_ORIGIN)
       deliver()
       if (!pendingRef.current) deliverFocus()
     }
@@ -333,6 +323,8 @@ function SidePanel({ origin }: SidePanelProps) {
       if (parsed.data.type === 'theme') {
         appTheme = parsed.data.theme
         applyTheme()
+      } else if (parsed.data.type === 'signed-in') {
+        void chrome.runtime.sendMessage(VISIT_SHORT_HOSTS_MESSAGE).catch(() => undefined)
       } else if (parsed.data.type === 'ready') {
         void connect(parsed.data.sessionId)
       } else if (parsed.data.sessionId !== sessionRef.current) {
@@ -350,7 +342,8 @@ function SidePanel({ origin }: SidePanelProps) {
       } else if (parsed.data.type === 'action') {
         if (!navigator.userActivation.isActive) return
         if (parsed.data.action === 'site-access') setAccessOpen(true)
-        else if (parsed.data.action === 'browser-shortcuts') setShortcutsOpen(true)
+        else if (parsed.data.action === 'microphone-settings')
+          void chrome.tabs.create({ url: 'chrome://settings/content/microphone' })
         else void capture(parsed.data.action === 'capture-page' ? 'page' : 'selection')
       } else if (pendingRef.current?.id === parsed.data.snapshotId) {
         pendingRef.current = null
@@ -366,7 +359,7 @@ function SidePanel({ origin }: SidePanelProps) {
       ) {
         pendingRef.current = null
         focusRequested.current = false
-        setStatus('The capture expired. Attach the page again.')
+        setStatus(PAGE_ATTACHMENT_EXPIRED_MESSAGE)
       }
       void consumeIntent()
     }, 5_000)
@@ -402,18 +395,20 @@ function SidePanel({ origin }: SidePanelProps) {
         }
         role='status'
       >
-        {typeof status === 'string' ? status : status.message}
-        {status instanceof SiteAccessRequiredError && (
-          <>
-            <Chip className='ml-2' onClick={() => setAccessOpen(true)}>
-              Request site access
-            </Chip>
-            <ShortcutHint />
-          </>
+        {status instanceof SiteAccessRequiredError ? (
+          <PageAccessButton
+            onAccessGranted={() =>
+              setStatus((current) => (current instanceof SiteAccessRequiredError ? '' : current))
+            }
+          />
+        ) : typeof status === 'string' ? (
+          status
+        ) : (
+          status.message
         )}
       </div>
       <iframe
-        allow={`clipboard-write ${origin}`}
+        allow={`clipboard-write ${origin}; microphone ${origin}`}
         ref={frameRef}
         title='Sim chat'
         src={`${origin}/extension`}
@@ -424,12 +419,12 @@ function SidePanel({ origin }: SidePanelProps) {
       {accessOpen && (
         <SiteAccessDialog
           onClose={() => setAccessOpen(false)}
-          onAccessGranted={() =>
+          onAccessGranted={() => {
+            setAccessOpen(false)
             setStatus((current) => (current instanceof SiteAccessRequiredError ? '' : current))
-          }
+          }}
         />
       )}
-      {shortcutsOpen && <SearchRecoveryDialog onClose={() => setShortcutsOpen(false)} />}
     </main>
   )
 }

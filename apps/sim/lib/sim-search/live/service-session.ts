@@ -146,6 +146,7 @@ export async function createLiveServiceSession(input: {
         const query =
           search.native?.query ??
           (search.query ? confluenceTextClause(search.query, search.textMatch) : '')
+        if (query === undefined) return null
         return {
           ...search,
           native: { provider, ...search.native, query: scopeAtlassianQuery(query, scope) },

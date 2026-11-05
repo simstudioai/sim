@@ -175,71 +175,6 @@ async function auditActions(orgId: string): Promise<string[]> {
 }
 
 async function run() {
-  await check(
-    'search recovery hands safe shortcuts to the canonical resolver without a page',
-    async () => {
-      const maximum = `sim/${'a'.repeat(64)}/${Array(8).fill('v'.repeat(256)).join('/')}`
-      const cases = [
-        ['sim/bookface', '/sim/bookface'],
-        ['SIM/Book-Face/', '/sim/Book-Face'],
-        ['sim/a.:@&~_-', '/sim/a.%3A%40%26~_-'],
-        ['sim/jira/PROD-123', '/sim/jira/PROD-123'],
-        [`${maximum}/`, `/${maximum}`],
-      ]
-      for (const [shortcut, destination] of cases) {
-        const response = await send(`/sim-links/recover?q=${encodeURIComponent(shortcut)}`, null)
-        assert.equal(response.status, 307, shortcut)
-        assert.equal(response.headers.get('location'), destination)
-        assert.equal(response.headers.get('cache-control'), 'no-store')
-        assert.equal(response.headers.get('referrer-policy'), 'no-referrer')
-        assert.equal(await response.text(), '')
-      }
-    }
-  )
-
-  await check(
-    'search recovery rejects ambiguous, escaping and oversized input without reflecting it',
-    async () => {
-      const invalidShortcuts = [
-        'sim/',
-        'sim/...',
-        'web/handbook',
-        'https://evil.example.com',
-        'sim/a/../private',
-        'sim/a/./private',
-        'sim/a//private',
-        'sim/a/%2e%2e',
-        'sim/a\\private',
-        'sim/a?private=secret',
-        'sim/a#private',
-        'sim/a private',
-        `sim/${'a'.repeat(65)}`,
-        `sim/a/${'v'.repeat(257)}`,
-        `sim/a/${Array(9).fill('v').join('/')}`,
-        `sim/a/${'v'.repeat(6400)}`,
-      ]
-      const queries = [
-        '',
-        '?q=',
-        '?q=sim%2Fa&q=sim%2Fb',
-        '?q=sim%2Fa&%71=sim%2Fb',
-        '?q=sim%2Fa&extra=private',
-        '?x=sim%2Fa',
-        '?q=sim%2Fa%ZZ',
-        '?q=sim%2Fa+private',
-        ...invalidShortcuts.map((shortcut) => `?q=${encodeURIComponent(shortcut)}`),
-      ]
-      for (const query of queries) {
-        const response = await send(`/sim-links/recover${query}`, null)
-        assert.equal(response.status, 400, query)
-        assert.equal(response.headers.get('location'), null)
-        assert.equal(response.headers.get('cache-control'), 'no-store')
-        assert.equal(response.headers.get('referrer-policy'), 'no-referrer')
-        assert.equal(await response.text(), 'Invalid Sim shortcut.')
-      }
-    }
-  )
-
   const orgId = await seedOrganization()
   const owner = await seedMember(orgId, 'owner')
   const member = await seedMember(orgId, 'member')
@@ -338,7 +273,7 @@ async function run() {
       body: fields({ name: 'team.handbook', url: 'https://other.example.com' }),
       expected: 409,
     })
-    assert.match(String(error), /sim\/Team-Handbook already exists/)
+    assert.match(String(error), /A link named Team-Handbook already exists/)
   })
 
   await check('unlisted links are hidden from other members but still resolve', async () => {
@@ -403,57 +338,37 @@ async function run() {
     await api({ ...outsider, orgId }, '', { expected: 404 })
   })
 
-  await check('team bookmarks preserve encoded names and organization across sign-in', async () => {
-    const destination = 'https://team.example.com/help'
-    for (const name of ['managed-help', 'managed:help@team&docs']) {
-      const path = `/sim-links/${encodeURIComponent(orgId)}/${encodeURIComponent(name)}`
-      await create(owner, { name, url: destination })
-      await create(outsider, { name, url: 'https://another-team.example.com/help' })
-      const signedOut = await send(path, null)
-      assert.equal(signedOut.status, 307, `${name}: expected sign-in redirect`)
-      const login = new URL(signedOut.headers.get('location') ?? '/', baseUrl)
-      assert.equal(login.pathname, '/login', name)
-      assert.equal(login.searchParams.get('callbackUrl'), path, name)
-      const opened = await send(path, member)
-      assert.equal(opened.status, 307, `${name}: expected destination redirect`)
-      assert.equal(opened.headers.get('location'), destination, name)
-      const denied = await send(path, outsider)
-      assert.equal(denied.status, 404, name)
-      assert(!denied.headers.get('location'), name)
+  await check('the address bar learns whether links are on and matches inside names', async () => {
+    const suggest = (caller: Member | null, q: string) =>
+      send(`/api/sim-links/suggestions?q=${encodeURIComponent(q)}`, caller)
+    assert.equal((await suggest(null, '')).status, 401)
+    const { enabled, links } = (await (await suggest(member, 'handbook')).json()) as {
+      enabled: boolean
+      links: { name: string }[]
     }
-    for (const encodedName of ['%256Danaged-help', 'managed%2Fhelp']) {
-      const denied = await send(`/sim-links/${encodeURIComponent(orgId)}/${encodedName}`, member)
-      assert.equal(denied.status, 404, encodedName)
-      assert(!denied.headers.get('location'), encodedName)
-    }
+    assert.equal(enabled, true)
+    assert(links.some((link) => link.name === 'Team-Handbook'))
+    const withoutOrganization = await seedMember(orgId, 'member')
+    await sql`delete from member where user_id = ${withoutOrganization.userId}`
+    assert.deepEqual(await (await suggest(withoutOrganization, '')).json(), {
+      enabled: false,
+      links: [],
+    })
+    assert.match((await open(withoutOrganization, 'handbook')).text, /aren.*t available/)
   })
 
-  await check(
-    'bookmark export requires admin access and drops stale or foreign selections',
-    async () => {
-      const name = 'managed-directory'
-      const id = await create(owner, { name, url: 'https://directory.example.com' })
-      const otherId = await create(outsider, { name, url: 'https://other.example.com' })
-      const request = {
-        links: [
-          { id, name },
-          { id: otherId, name },
-        ],
-      }
-      const exportPolicy = (caller: Member, expected = 200) =>
-        api(caller, '/bookmarks', { method: 'POST', body: request, expected })
-      assert.deepEqual((await exportPolicy(owner)).links, [{ id, name }])
-      await exportPolicy(member, 403)
-      await api(owner, `/${id}`, {
-        method: 'PUT',
-        body: fields({ name, url: 'https://directory.example.com', unlisted: true }),
-      })
-      assert.deepEqual((await exportPolicy(owner)).links, [])
-      await api(owner, `/${id}`, { method: 'DELETE' })
-      await create(owner, { name, url: 'https://replacement.example.com' })
-      assert.deepEqual((await exportPolicy(owner)).links, [])
-    }
-  )
+  await check('a typed phrase searches links and a near miss offers what exists', async () => {
+    const phrase = await open(member, 'team%20handbook')
+    assert(phrase.location, 'Expected a redirect to search')
+    assert.equal(new URL(phrase.location).searchParams.get('search'), 'team handbook')
+    const { links } = await api(member, '?search=team%20handbook', {})
+    assert(
+      Array.isArray(links) &&
+        links.some((link) => isRecordLike(link) && link.name === 'Team-Handbook'),
+      'Expected a typed phrase to find the hyphenated name'
+    )
+    assert.match((await open(member, 'handbook')).text, /Team-Handbook/)
+  })
 
   await check('redirects are counted and order the most-used view', async () => {
     const { links } = await api(member, '?sort=popular', {})

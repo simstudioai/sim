@@ -184,6 +184,19 @@ export type ProseSegment = string | { text: string; href: string }
 /** A paragraph of comparison prose, as an ordered run of {@link ProseSegment}s. */
 export type Prose = ProseSegment[]
 
+/** A buyer question answered in its own section, worded the way buyers ask it. */
+export interface ComparisonQuestion {
+  question: string
+  answer: Prose
+}
+
+/** One row of the at-a-glance table: a buying decision point and each product's sourced answer. */
+export interface GlanceRow {
+  label: string
+  sim: Prose
+  competitor: Prose
+}
+
 /** Brand icon + colors for a competitor, sourced from a brand-intelligence lookup rather than the vendor's own docs. */
 export interface CompetitorBrand {
   /** Icon component from @/components/icons rendering this competitor's logo. */
@@ -244,6 +257,35 @@ export interface CompetitorProfile {
    * condition under which each one wins.
    */
   leadAnswer?: Prose
+  /**
+   * The question {@link leadAnswer} answers. When set, the hero shows the lead answer under it as
+   * a question heading, in place of the generic introduction.
+   */
+  leadQuestion?: string
+  /**
+   * Buyer questions answered as page sections, by position. A profile that sets them answers its
+   * buyer questions in place, so the page omits the FAQ block and its FAQ structured data lists
+   * these questions instead of {@link faqs} and the generated set.
+   */
+  questions?: {
+    /** After the lead, ahead of the product definitions: whether Sim fits the buyer's need. */
+    intro?: ComparisonQuestion[]
+    /** After the at-a-glance table, ahead of the detailed comparison. */
+    glance?: ComparisonQuestion[]
+    /** After the documented limitations, ahead of the bottom line: the switching decision. */
+    closing?: ComparisonQuestion[]
+  }
+  /**
+   * Summary of the main buying decision points, shown after the product definitions and ahead of
+   * the feature-by-feature comparison, which it summarizes rather than replaces.
+   */
+  glance?: GlanceRow[]
+  /**
+   * Library slugs listed under Related reading, in order, in place of the articles matched by
+   * {@link mentions}. Set it to point at one broader article, such as an alternatives roundup,
+   * instead of listing several that repeat this page.
+   */
+  relatedReading?: string[]
   /**
    * Answer to the "Is Sim better than {name}?" section, phrased the way buyers
    * ask the question of an AI model. Verdict first, then the condition that

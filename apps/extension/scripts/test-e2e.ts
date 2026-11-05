@@ -11,10 +11,13 @@ import {
   type AppToExtensionMessage,
   extensionToAppMessageSchema,
   pageSnapshotSchema,
+  SIM_LINK_HOSTS,
+  SIM_LINK_SUGGESTIONS_PATH,
 } from '@sim/browser-extension-protocol'
 import { SecretReveal } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { renderToStaticMarkup } from 'react-dom/server'
 
@@ -28,6 +31,8 @@ const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; e
 const secretReveal = renderToStaticMarkup(
   createElement(SecretReveal, { value: 'SECRET_REVEAL_SENTINEL' })
 )
+let linksChecks = 0
+let shortHostVisits = 0
 const fixture = Bun.serve({
   hostname: '127.0.0.1',
   port: 0,
@@ -37,6 +42,14 @@ const fixture = Bun.serve({
       return new Response('Fixture session created', {
         headers: { 'set-cookie': 'fixture-session=present; Path=/; HttpOnly; SameSite=Lax' },
       })
+    if (url.pathname === SIM_LINK_SUGGESTIONS_PATH) {
+      linksChecks += 1
+      return Response.json({
+        enabled: request.headers.get('cookie')?.includes('fixture-session=present') === true,
+        links: [],
+      })
+    }
+    if (url.pathname === '/sim/') shortHostVisits += 1
     if (url.pathname === '/extension')
       return new Response(
         `<!doctype html><html><body>
@@ -83,14 +96,6 @@ const fixture = Bun.serve({
     )
   },
 })
-const searchProviders = [
-  { id: 'google', hosts: ['www.google.com', 'google.com'], path: '/search', parameter: 'q' },
-  { id: 'bing', hosts: ['www.bing.com', 'bing.com'], path: '/search', parameter: 'q' },
-  { id: 'duckduckgo', hosts: ['duckduckgo.com', 'www.duckduckgo.com'], path: '/', parameter: 'q' },
-  { id: 'yahoo', hosts: ['search.yahoo.com'], path: '/search', parameter: 'p' },
-] as const
-const searchRequests: { url: string; method: string }[] = []
-let searchFixture: ReturnType<typeof Bun.serve> | undefined
 const temporary = await mkdtemp(resolve(tmpdir(), 'sim-extension-e2e-'))
 const extensionPath = resolve(temporary, 'extension')
 let context: BrowserContext | undefined
@@ -134,50 +139,6 @@ try {
     )
     assert(!existsSync(rejectedOutput), 'Invalid key material reached build output')
   })
-  const searchKey = resolve(temporary, 'search-key.pem')
-  const searchCertificate = resolve(temporary, 'search-cert.pem')
-  const certificate = spawnSync(
-    'openssl',
-    [
-      'req',
-      '-x509',
-      '-newkey',
-      'rsa:2048',
-      '-nodes',
-      '-days',
-      '1',
-      '-keyout',
-      searchKey,
-      '-out',
-      searchCertificate,
-      '-subj',
-      '/CN=extension-search.test',
-    ],
-    { encoding: 'utf8', timeout: 10_000 }
-  )
-  assert(certificate.status === 0, 'Could not create the isolated search fixture certificate')
-  searchFixture = Bun.serve({
-    hostname: '127.0.0.1',
-    port: 0,
-    tls: { key: await readFile(searchKey), cert: await readFile(searchCertificate) },
-    fetch(request) {
-      const path = new URL(request.url).pathname
-      if (path === '/' || path === '/search')
-        searchRequests.push({ url: request.url, method: request.method })
-      return new Response(
-        '<!doctype html><title>Local search fixture</title><h1>Search fixture</h1>',
-        {
-          headers: { 'content-type': 'text/html' },
-        }
-      )
-    },
-  })
-  const searchHosts = searchProviders.flatMap((provider) => [...provider.hosts])
-  const searchPort = searchFixture.port
-  const fixtureSearchHosts = [...searchHosts, 'm.google.com', 'www.google.com.evil.test']
-  const resolverRules = fixtureSearchHosts
-    .map((host) => `MAP ${host} 127.0.0.1:${searchPort}`)
-    .join(', ')
   const origin = `http://127.0.0.1:${fixture.port}`
   const pageOrigin = `http://localhost:${fixture.port}`
   const built = spawnSync(process.execPath, ['scripts/build.ts', `--outdir=${extensionPath}`], {
@@ -187,18 +148,14 @@ try {
   })
   assert(built.status === 0, `Extension build failed: ${built.stderr}`)
   const manifest = JSON.parse(await readFile(resolve(extensionPath, 'manifest.json'), 'utf8'))
-  // Pregrants isolate routing from consent; approved search hosts resolve to the local fixture.
-  manifest.host_permissions.push(
-    `${pageOrigin}/*`,
-    ...fixtureSearchHosts.map((host) => `https://${host}/*`)
-  )
+  // Pregrants isolate routing from consent.
+  manifest.host_permissions.push(`${pageOrigin}/*`)
   await writeFile(resolve(extensionPath, 'manifest.json'), JSON.stringify(manifest))
   context = await chromium.launchPersistentContext(resolve(temporary, 'profile'), {
     channel: 'chromium',
     headless: true,
     ignoreHTTPSErrors: true,
     args: [
-      `--host-resolver-rules=${resolverRules}`,
       '--no-proxy-server',
       '--enable-unsafe-extension-debugging',
       `--disable-extensions-except=${extensionPath}`,
@@ -208,6 +165,16 @@ try {
   const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'))
   context.setDefaultTimeout(15_000)
   const extensionId = worker.url().split('/')[2]
+  const shortHostsVisitedAt = () =>
+    worker.evaluate(
+      async () => typeof (await chrome.storage.local.get('shortHostsVisitedAt')).shortHostsVisitedAt
+    )
+  await check('Installing signed out leaves go/ and sim/ as ordinary searches', async () => {
+    await expect.poll(() => linksChecks, { timeout: 30_000 }).toBeGreaterThan(0)
+    await sleep(2_000)
+    assert((await shortHostsVisitedAt()) === 'undefined', 'Visits were recorded while signed out')
+    assert(shortHostVisits === 0, 'Short hosts were visited while signed out')
+  })
   const signIn = await context.newPage()
   await signIn.goto(`${origin}/sign-in`)
   await signIn.close()
@@ -360,18 +327,20 @@ try {
   }
 
   await check(
-    'HTTP and HTTPS navigations to the sim host reach the configured resolver',
+    'HTTP and HTTPS navigations to the sim and go hosts reach the configured resolver',
     async () => {
       const tab = await page.context().newPage()
       for (const scheme of ['http', 'https']) {
-        for (const path of [
-          'handbook',
-          'handbook/',
-          'jira/123?view=board',
-          'jira/a%2Fb?view=board%20view',
-        ]) {
-          await tab.goto(`${scheme}://sim/${path}`)
-          assert(tab.url() === `${origin}/sim/${path}`, `sim/${path} reached ${tab.url()}`)
+        for (const host of SIM_LINK_HOSTS) {
+          for (const path of [
+            'handbook',
+            'handbook/',
+            'jira/123?view=board',
+            'jira/a%2Fb?view=board%20view',
+          ]) {
+            await tab.goto(`${scheme}://${host}/${path}`)
+            assert(tab.url() === `${origin}/sim/${path}`, `${host}/${path} reached ${tab.url()}`)
+          }
         }
       }
       await tab.close()
@@ -448,7 +417,7 @@ try {
 
   await check('Capture stays local until the trusted hosted frame is ready', async () => {
     await capture()
-    await panel.getByRole('status').filter({ hasText: 'Waiting for Sim' }).waitFor()
+    await panel.getByRole('status').filter({ hasText: 'Attaching the page…' }).waitFor()
     assert((await snapshots()).length === 0, 'Capture crossed before readiness')
     await panel.evaluate(
       (sessionId) =>
@@ -501,6 +470,26 @@ try {
     await page.reload()
   })
   await check(
+    'A signed-in panel visits each short host in tabs that close themselves',
+    async () => {
+      await app.evaluate(
+        (targetOrigin) =>
+          parent.postMessage(
+            { channel: 'sim-extension', version: 1, type: 'signed-in' },
+            targetOrigin
+          ),
+        `chrome-extension://${extensionId}`
+      )
+      await expect.poll(shortHostsVisitedAt, { timeout: 30_000 }).toBe('number')
+      assert(shortHostVisits === SIM_LINK_HOSTS.length, `Visited ${shortHostVisits} short hosts`)
+      const leftBehind = await worker.evaluate(
+        async (simLinks) => (await chrome.tabs.query({ url: simLinks })).length,
+        ['http://go/*', 'http://sim/*', `${origin}/sim/`]
+      )
+      assert(leftBehind === 0, 'Short host tabs were left open')
+    }
+  )
+  await check(
     'An expired toolbar intent asks for a fresh capture without delivering content',
     async () => {
       const before = (await snapshots()).length
@@ -509,7 +498,7 @@ try {
         await chrome.storage.session.set({ [`captureIntent:${pending.windowId}:expired`]: pending })
       }, intent)
       await expect(panel.getByRole('status')).toHaveText(
-        'The capture expired. Attach the page again.'
+        'The page attachment expired. Attach it again.'
       )
       assert((await snapshots()).length === before, 'Expired toolbar intent delivered content')
     }
@@ -688,7 +677,7 @@ try {
     }, intent)
     await panel
       .getByRole('status')
-      .filter({ hasText: /document|frame|changed|cannot/i })
+      .filter({ hasText: /document|frame|changed|cannot|unavailable/i })
       .waitFor()
     assert((await snapshots()).length === 3, 'Stale document handoff captured a new document')
   })
@@ -705,7 +694,7 @@ try {
     }, intent)
     await panel
       .getByRole('status')
-      .filter({ hasText: /changed before reading/i })
+      .filter({ hasText: /The page changed/ })
       .waitFor()
     assert((await snapshots()).length === 3, 'Stale URL handoff captured a different SPA route')
   })
@@ -715,10 +704,9 @@ try {
     )
     await page.goto('https://ungranted.example/')
     await capture()
-    await panel
-      .getByRole('status')
-      .filter({ hasText: /access|permission|cannot/i })
-      .waitFor()
+    await expect(
+      panel.getByRole('button', { name: 'Allow across websites', exact: true })
+    ).toBeEnabled()
     assert((await snapshots()).length === 3, 'Unpermitted page was captured')
   })
   await check('Changing the receiving conversation expires an undelivered capture', async () => {
@@ -727,7 +715,7 @@ try {
       document.body.dataset.ignoreCaptures = 'true'
     })
     await capture()
-    await panel.getByRole('status').filter({ hasText: 'Waiting for Sim' }).waitFor()
+    await panel.getByRole('status').filter({ hasText: 'Attaching the page…' }).waitFor()
     const queuedIntent = await pendingIntent()
     await worker.evaluate(async (intent) => {
       await chrome.storage.session.set({ [`captureIntent:${intent.windowId}:queued`]: intent })
@@ -737,14 +725,16 @@ try {
       delete document.body.dataset.ignoreCaptures
     })
     await ready()
-    await panel
-      .getByRole('status')
-      .filter({ hasText: /conversation changed|previous conversation was discarded/ })
-      .waitFor()
-    await panel
-      .getByRole('status')
-      .filter({ hasText: /previous conversation was discarded/ })
-      .waitFor()
+    await expect(panel.getByRole('status')).toHaveText('The chat changed. Attach the page again.')
+    await expect
+      .poll(() =>
+        worker.evaluate(
+          async (key) => (await chrome.storage.session.get(key))[key],
+          `captureIntent:${queuedIntent.windowId}:queued`
+        )
+      )
+      .toBeUndefined()
+    await settleMessages()
     assert((await snapshots()).length === 3, 'A capture crossed into another conversation')
     await capture()
     await app.waitForFunction(
@@ -778,7 +768,10 @@ try {
       )
     await receipt(generateId())
     await capture()
-    await panel.getByRole('status').filter({ hasText: 'previous capture' }).waitFor()
+    await panel
+      .getByRole('status')
+      .filter({ hasText: 'Wait for the page attachment, then try again.' })
+      .waitFor()
     assert((await snapshots()).length === 5, 'A stale receipt released the pending capture')
     await receipt(receiverSessionId)
     await panel.waitForFunction(() => document.querySelector('[role="status"]')?.textContent === '')
@@ -1058,7 +1051,7 @@ try {
         )
       await panel.bringToFront()
       await openAccess()
-      const dialog = panel.getByRole('dialog', { name: 'Site access' })
+      const dialog = panel.getByRole('dialog', { name: 'Page access' })
       await expect(dialog).toBeVisible()
       await settleMessages()
       assert(policyErrors.length === 0, `Site access violated CSP: ${policyErrors.join('\n')}`)
@@ -1321,7 +1314,7 @@ try {
     }
   )
   await check(
-    'Site access requests only the address the user confirms, without reading the page',
+    'Page access asks the browser for website access without reading before approval',
     async () => {
       const source = 'https://private-source.example'
       const privateUrl = `${source}/sensitive-path?token=PRIVATE_URL_SENTINEL#fragment`
@@ -1355,34 +1348,11 @@ try {
           return execute(...args)
         }) as typeof chrome.scripting.executeScript
       })
-      await panel.getByRole('button', { name: 'Request site access' }).click()
-      const dialog = panel.getByRole('dialog', { name: 'Site access' })
-      await expect(dialog).toBeVisible()
-      const address = dialog.getByRole('textbox', { name: 'Site address' })
-      await expect(address).toHaveValue('')
-      const allow = dialog.getByRole('button', { name: /^Allow access/ })
-      for (const unsafe of [
-        'https://user:password@example.com/',
-        'https://*.example.com/',
-        'https://%2A.example.com/',
-        'https://＊.example.com/',
-        '<all_urls>',
-        'chrome://settings/',
-      ]) {
-        await address.fill(unsafe)
-        await expect(allow, `Do not offer to grant access for ${unsafe}`).toHaveAccessibleName(
-          'Allow access'
-        )
-        await expect(allow).toBeDisabled()
-      }
-      await address.fill('http://intranet.example:8080/private-path')
-      await expect(allow).toHaveAccessibleName('Allow access to http://intranet.example:8080')
-      const allowedHost = 'https://approved-site.example'
-      await address.fill(`${allowedHost}/private-path?token=INPUT_SECRET#fragment`)
-      await expect(allow).toHaveAccessibleName(`Allow access to ${allowedHost}`)
+      const allow = panel.getByRole('button', { name: 'Allow across websites', exact: true })
+      await expect(allow).toBeEnabled()
       assert(
         (await panel.locator('body').getAttribute('data-requested-access')) === null,
-        'Typing initiated a permission request'
+        'A failed capture initiated a permission request without an explicit action'
       )
       const grantedSites = () =>
         worker.evaluate(async () => ((await chrome.permissions.getAll()).origins ?? []).sort())
@@ -1391,7 +1361,7 @@ try {
       await expect(panel.locator('body')).toHaveAttribute('data-request-gesture', 'true')
       const requested = await panel.locator('body').getAttribute('data-requested-access')
       assert(requested, 'The user action never reached Chrome')
-      expect(JSON.parse(requested)).toEqual([{ origins: ['https://approved-site.example:443/*'] }])
+      expect(JSON.parse(requested)).toEqual([{ origins: ['https://*/*', 'http://*/*'] }])
       expect(await grantedSites(), 'A site received persistent access without approval').toEqual(
         previousAccess
       )
@@ -1402,118 +1372,6 @@ try {
       )
       assert((await snapshots()).length === before, 'Managing site access attached a page')
       await expect(app.locator('body')).toHaveAttribute('data-reference-request', denied.requestId)
-    }
-  )
-  await check(
-    'Opted-in shortcut recovery redirects only explicit searches on the chosen providers',
-    async () => {
-      const tab = await page.context().newPage()
-      const toggle = async (provider: string, enabled: boolean) => {
-        const result = await panel.evaluate(
-          ({ provider, enabled }) =>
-            chrome.runtime.sendMessage({ type: 'set-search-recovery', provider, enabled }),
-          { provider, enabled }
-        )
-        assert(
-          result?.ok === true,
-          `Could not ${enabled ? 'enable' : 'disable'} ${provider} recovery`
-        )
-      }
-      const unchanged = async (url: string) => {
-        await tab.goto(url)
-        assert(tab.url() === url, `An ordinary or ambiguous search was redirected: ${url}`)
-        assert(
-          (await tab.title()) === 'Local search fixture',
-          'A provider request escaped the local fixture'
-        )
-      }
-      try {
-        for (const provider of searchProviders) {
-          const endpoint = `https://${provider.hosts[0]}${provider.path}`
-          const url = `${endpoint}?${provider.parameter}=sim%2Faskit`
-          await unchanged(url)
-          await toggle(provider.id, true)
-          for (const host of provider.hosts) {
-            for (const shortcut of ['sim%2Faskit', 'sim/jira/ABC-123']) {
-              const candidate = `https://${host}${provider.path}?client=chrome&${provider.parameter}=${shortcut}&source=qa`
-              const prior = searchRequests.filter((request) => request.url === candidate).length
-              await tab.goto(candidate)
-              assert(
-                tab.url() === `${origin}/sim-links/recover?q=${shortcut}`,
-                `${provider.id} lost the explicit shortcut`
-              )
-              assert(
-                searchRequests.filter((request) => request.url === candidate).length === prior,
-                'The matched shortcut reached the search provider'
-              )
-            }
-          }
-          for (const query of [
-            `${provider.parameter}=quarterly+planning`,
-            `${provider.parameter}=sim%2Faskit%20help`,
-            `${provider.parameter}=sim%2Faskit+help`,
-            `${provider.parameter}=sim%252Faskit`,
-            `${provider.parameter}=sim%2Faskit%ZZ`,
-            `${provider.parameter}=sim%2Faskit&${provider.parameter}=other`,
-            `${provider.parameter}=other&${provider.parameter}=sim%2Faskit`,
-            `${provider.parameter}=sim%2Faskit&%${provider.parameter.charCodeAt(0).toString(16)}=other`,
-          ])
-            await unchanged(`${endpoint}?${query}`)
-          await toggle(provider.id, false)
-          await unchanged(url)
-          assert(
-            await worker.evaluate(
-              (origins) => chrome.permissions.contains({ origins }),
-              provider.hosts.map((host) => `https://${host}/*`)
-            ),
-            'Disabling recovery removed a capture permission'
-          )
-        }
-        await toggle('google', true)
-        for (const url of [
-          'https://www.google.com/other?q=sim%2Faskit',
-          'https://m.google.com/search?q=sim%2Faskit',
-          'https://www.google.com.evil.test/search?q=sim%2Faskit',
-          'https://www.google.com/search?%71=sim%2Faskit',
-        ])
-          await unchanged(url)
-        const search = 'https://www.google.com/search?q=sim%2Faskit'
-        await tab.goto(`${origin}/post-fixture`)
-        await Promise.all([
-          tab.waitForNavigation(),
-          tab.evaluate((url) => {
-            const form = document.createElement('form')
-            form.method = 'POST'
-            form.action = url
-            document.body.append(form)
-            form.submit()
-          }, search),
-        ])
-        assert(
-          tab.url() === search &&
-            searchRequests.some((request) => request.url === search && request.method === 'POST'),
-          'A POST search was recovered'
-        )
-        await tab.goto(`${origin}/frame-fixture`)
-        await Promise.all([
-          tab.waitForEvent(
-            'framenavigated',
-            (child) => child.parentFrame() !== null && child.url() === search
-          ),
-          tab.evaluate((url) => {
-            const child = document.createElement('iframe')
-            child.src = url
-            document.body.append(child)
-          }, search),
-        ])
-        assert(
-          tab.url() === `${origin}/frame-fixture`,
-          'A subframe search changed the top-level page'
-        )
-        await toggle('google', false)
-      } finally {
-        await tab.close()
-      }
     }
   )
   await mkdir(dirname(output), { recursive: true })
@@ -1530,7 +1388,6 @@ try {
 } finally {
   await context?.close()
   fixture.stop(true)
-  searchFixture?.stop(true)
   await mkdir(dirname(output), { recursive: true })
   await writeFile(output, JSON.stringify({ suite: 'browser-extension', checks }, null, 2))
   await rm(temporary, { recursive: true, force: true })

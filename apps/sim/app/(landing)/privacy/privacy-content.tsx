@@ -44,7 +44,7 @@ function richText(content: string): ReactNode {
 export const PRIVACY_CONFIG: LegalPageConfig = {
   title: 'Privacy Policy',
   description: 'Sim Studio, Inc. · Operating the Sim platform (sim.ai)',
-  lastUpdated: 'November 3, 2026',
+  lastUpdated: 'November 4, 2026',
   intro: [
     {
       kind: 'paragraph',
@@ -806,13 +806,19 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'When You ask Sim to attach a page or selection, the browser extension reads the requested text from the top frame of that page and transfers it, the page title, and a normalized page address to the hosted Sim composer. URL credentials, query parameters, and fragments are removed. The extractor skips form inputs, editable fields, scripts, embedded frames, and elements it detects as hidden. Page text, including text in collapsed sections, may still contain personal or sensitive information, such as personal communications or health, financial, or authentication information.'
+            'When You click the microphone and grant browser permission, Sim streams microphone audio to ElevenLabs for transcription into Your editable message draft. Opening the panel does not start recording, and this feature does not capture tab audio. Stopping voice input ends microphone capture; sending a message or changing conversations cancels unfinished transcription. Submitted transcripts become conversation content under the retention and processing rules below.'
           ),
         },
         {
           kind: 'paragraph',
           content: richText(
-            'Reference current page is an optional setting stored in Your Chrome profile. When it is on, sending a message from the sidebar includes a snapshot of the active tab unless You have attached a page or selection Yourself. Opening the panel or switching tabs does not trigger this capture. If Chrome has not granted access, Your draft stays in the composer. You can grant access to an individual site and send again, or turn the setting off. You can revoke site access in the extension or Chrome settings. Incognito capture is disabled.'
+            'When You ask Sim to attach a page or selection, or open Sim from its toolbar button or keyboard shortcut with Reference current page off, the browser extension reads the requested text from the top frame of that page and transfers it, the page title, and a normalized page address to the hosted Sim composer. URL credentials, query parameters, and fragments are removed. The extractor skips form inputs, editable fields, scripts, embedded frames, and elements it detects as hidden. Page text, including text in collapsed sections, may still contain personal or sensitive information, such as personal communications or health, financial, or authentication information.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Reference current page is an optional setting stored in Your Chrome profile. When it is on, sending a message from the sidebar includes a snapshot of the active tab unless You have attached a page or selection Yourself. Opening the panel or switching tabs does not trigger this capture. If Chrome has not granted access, Your draft stays in the composer. You can grant browser access and send again, or turn the setting off. Page access can be granted across HTTP and HTTPS websites. You can revoke or restrict access in Chrome settings. Incognito capture is disabled.'
           ),
         },
         {
@@ -836,13 +842,13 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'When You use the sim address-bar keyword, the extension sends the typed link name, before any path values or query, to Sim with Your authenticated session to suggest Your organization’s links. Suggestions are cached in memory and are not written to extension storage. Opening a sim/ shortcut sends its path and query to Sim to resolve the destination, then opens that destination. Sim records each link’s visit count and last-visited time. These requests also use the operational diagnostics described in this Privacy Policy. Choosing Create Sim Link from the browser menu opens a draft with the selected link’s address, omitting query parameters and fragments. The destination becomes an organization Sim Link only when You confirm creation. The extension does not read Your browser history or unrelated address-bar input.'
+            'When You use the sim address-bar keyword, the extension sends the typed link name, before any path values or query, to Sim with Your authenticated session to suggest Your organization’s links. Suggestions are cached in memory and are not written to extension storage. Opening a sim/ or go/ shortcut sends its path and query to Sim to resolve the destination, then opens that destination. Sim records each link’s visit count and last-visited time. These requests also use the operational diagnostics described in this Privacy Policy. Choosing Create link in Sim from the browser menu opens a draft with the selected link’s address, omitting query parameters and fragments. The destination becomes an organization link only when You confirm creation. The extension does not read Your browser history or unrelated address-bar input.'
           ),
         },
         {
           kind: 'paragraph',
           content: richText(
-            'Browser shortcuts can optionally recover an explicit sim/ shortcut that Chrome sends to a supported search engine. After You enable a provider and approve access to its listed sites, Chrome applies request rules that send only the matching shortcut name and path values to Sim’s normal link resolver. Other search parameters and ordinary search terms are not sent to Sim by this feature. The extension stores Your provider choices locally and does not change Your default search engine. These site permissions can also allow page attachment when You explicitly request it; enabling shortcut recovery does not enable Reference current page or background capture. Turning recovery off stops these redirects. Site access remains until You revoke it in the extension or Chrome settings.'
+            'When Links are available for Your organization, the extension opens sim/ and go/ about once a week in background tabs that close themselves, so Chrome recognizes these shortcuts in the address bar. Those tabs load Sim’s link page with Your session, send no browsing data, and appear in Your browser history.'
           ),
         },
         {

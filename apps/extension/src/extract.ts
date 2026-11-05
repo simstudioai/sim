@@ -110,8 +110,7 @@ export function extractPageText(
     }
   }
   const text = parts.join('\n')
-  if (!text)
-    return { error: 'No readable text was found. This page may use a document viewer or canvas.' }
+  if (!text) return { error: 'No readable text was found on this page.' }
   return {
     url: source.href,
     title: document.title.slice(0, 512),

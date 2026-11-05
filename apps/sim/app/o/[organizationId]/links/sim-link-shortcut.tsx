@@ -47,7 +47,7 @@ function useExistingSimLink(organizationId: string, url: string) {
   const copyExisting = async () => {
     if (!existing) return false
     const done = await copy(simLinkUrl(window.location.origin, existing.name))
-    if (!done) toast.error('Unable to copy Sim link')
+    if (!done) toast.error('Unable to copy link')
     return done
   }
   return { existing, isPending, isError, copied, copyExisting }
@@ -82,7 +82,7 @@ export function SimLinkMenuItem({ organizationId, url, onCreate }: SimLinkShortc
   return (
     <DropdownMenuItem disabled={isPending} onSelect={onCreate}>
       <Plus className='size-[14px]' />
-      Create Sim link
+      Create link
     </DropdownMenuItem>
   )
 }
@@ -102,7 +102,7 @@ function ShortcutChip({ organizationId, url, onCreate }: SimLinkShortcutProps) {
   }
   return (
     <Chip leftIcon={Plus} disabled={isPending} onClick={onCreate}>
-      Create Sim link
+      Create link
     </Chip>
   )
 }

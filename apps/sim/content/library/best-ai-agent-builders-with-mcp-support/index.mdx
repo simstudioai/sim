@@ -4,10 +4,10 @@ title: 'Best AI Agent Builders with MCP Support'
 description: 'Compare the best AI agent builders with MCP support, including Sim, n8n, Zapier, Make, and Gumloop, across client and server roles, authentication, deployment, and enterprise controls.'
 seoDescription: 'Sim, n8n, Zapier, Make, and Gumloop compared as AI agent builders with MCP support: client and server roles, auth, deployment, and enterprise controls.'
 date: 2026-09-19
-updated: 2026-11-02
+updated: 2026-11-04
 authors:
   - andrew
-readingTime: 16
+readingTime: 19
 tags: [AI Agents, MCP, Automation, Open Source, Sim]
 ogImage: /library/best-ai-agent-builders-with-mcp-support/cover.jpg
 draft: false
@@ -17,18 +17,40 @@ faq:
   - q: "What is the difference between MCP client and MCP server support?"
     a: "MCP client support lets a platform connect its agents to tools published by external MCP servers. MCP server support lets the platform publish its own workflows as callable tools for clients such as Claude Desktop, Cursor, or VS Code."
   - q: "Can no-code platforms build MCP agents?"
-    a: "Yes. No-code platforms can build agents that call MCP tools when they provide native client support and visual steps for mapping inputs and outputs. Some platforms limit custom logic, deployment choices, or server creation, so buyers should check both sides of MCP support."
+    a: "Yes, no-code platforms can build agents that call MCP tools when they provide native client support and visual steps for mapping inputs and outputs. Some platforms limit custom logic, deployment choices, or server creation, so buyers should check both sides of MCP support."
   - q: "How do MCP tool calling and authentication work?"
-    a: "An agent reads the tools published by an MCP server, selects an appropriate tool, and sends arguments that match its input definition. Authentication depends on the server and platform. Common methods include access tokens, OAuth connections, and platform-managed credentials."
+    a: "An agent reads the tools published by an MCP server, selects an appropriate tool, and sends arguments that match its input definition. Authentication depends on the server and platform, with common methods including access tokens, OAuth connections, and platform-managed credentials."
   - q: "What does a custom remote MCP server require?"
-    a: "A remote MCP server needs a reachable endpoint that publishes valid tool definitions and handles tool requests. You also need hosting, authentication, and operational monitoring. Sim can publish deployed workflows as remote MCP tools and provides connection configurations for supported clients."
+    a: "A remote MCP server needs a reachable endpoint that publishes valid tool definitions and handles tool requests, along with hosting, authentication, and operational monitoring. Sim can publish deployed workflows as remote MCP tools and provides connection configurations for supported clients."
   - q: "Which platform fits enterprise MCP use?"
-    a: "Sim and n8n are relevant options for enterprises comparing source access, self-hosting, or custom workflow control. Zapier, Make, and Gumloop are relevant options for enterprises comparing vendor-managed visual automation. Dify, Langflow, and Microsoft Copilot Studio should remain on the shortlist only after their required MCP roles and production controls are confirmed in current first-party documentation. The Flowise open-source project reached end of life on August 31, 2026, so it fits only teams prepared to maintain a fork. Governance features, deployment options, and MCP availability may vary by product and plan. Before purchasing any platform, verify its current identity controls and audit logging, along with its data residency and governance options."
+    a: "Sim and n8n fit enterprises comparing source access, self hosting, and custom workflow control, while Zapier, Make, and Gumloop fit enterprises comparing vendor managed visual automation. Dify, Langflow, and Microsoft Copilot Studio should be assessed against current identity, audit, data residency, and production MCP requirements before purchasing; the Flowise open-source project reached end of life on August 31, 2026, so it fits only teams prepared to maintain a fork."
+  - q: "Can Sim connect to an existing MCP server?"
+    a: "Sim can connect workflows to compatible MCP tools, allowing an agent to use external capabilities through a defined tool interface."
+  - q: "Is n8n open source?"
+    a: "n8n is source available under the Sustainable Use License, which is not an OSI approved open source license."
+  - q: "Is Sim open source?"
+    a: "Sim's core is open source under the OSI approved Apache 2.0 license, while code in apps/sim/ee is governed by the separate Sim Enterprise License."
+  - q: "Is Sim free?"
+    a: "Sim's Apache 2.0 core can be used and self hosted under that license, while Sim Cloud and production use of enterprise code have separate commercial terms."
+  - q: "What is the best open source Zapier alternative with MCP support?"
+    a: "Sim fits teams seeking an open source Zapier alternative for MCP focused AI agent workflows because Sim's core uses Apache 2.0 and supports custom workflow tools."
+  - q: "What is the best n8n alternative with MCP support?"
+    a: "Sim fits teams that want the open source AI workspace with a visual builder and a workflow centered approach to custom MCP tools."
+  - q: "Sim vs n8n: Which is better for MCP agents?"
+    a: "Sim fits teams prioritizing visual AI agent workflows and Apache 2.0 licensed core code, while n8n fits teams extending an established n8n automation environment."
+  - q: "Sim vs Zapier: Which is better for MCP?"
+    a: "Sim fits custom MCP workflows and self hosting, while Zapier fits managed access to supported actions in Zapier's hosted app ecosystem."
+  - q: "Does MCP authentication make an agent safe?"
+    a: "MCP authentication does not make an agent safe by itself because every tool also needs narrow authorization, constrained inputs, protected credentials, and testing for rejected requests."
+  - q: "Should a Salesforce or Google Sheets MCP tool allow every operation?"
+    a: "A Salesforce or Google Sheets MCP tool should expose only the minimum operations and data required for its named business task."
 ---
 
 ## TL;DR
 
-- **Sim** [consumes MCP tools](https://docs.sim.ai/agents/mcp) and exposes deployed workflows as MCP tools. Its open-source codebase and multi-model agent workspace suit buyers building custom agents that need flexible model and deployment options.
+Sim fits teams that need one visual workflow to consume remote MCP tools and expose bounded workflow logic as reusable MCP tools. n8n fits automation teams that already use its workflow ecosystem, while Zapier fits teams that want managed access to actions from its app ecosystem.
+
+- **Sim** [consumes MCP tools](https://docs.sim.ai/agents/mcp) and exposes deployed workflows as MCP tools. Sim's Apache 2.0 core and multi-model agent workspace suit buyers building custom agents that need flexible model and deployment options; code in `apps/sim/ee` uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
 - **n8n** [supports both MCP patterns](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolmcp). It fits technical users who want [low-code workflow control and self-hosting](https://n8n.io/).
 - **Zapier** [connects AI clients to app actions through managed MCP servers](https://docs.zapier.com/mcp/home). It fits no-code users already working within Zapier's integration catalog.
 - **Make** [supports consuming MCP tools](https://apps.make.com/c5ZhYquO55e90hoCJ0rzt) and [exposing scenarios to AI clients](https://help.make.com/make-mcp-server). It fits visual builders who want granular automation control.
@@ -56,35 +78,35 @@ Product interfaces, plan limits, and MCP implementations can change. Verify mate
 
 ### Evaluation methodology
 
-This comparison uses linked first-party product documentation for product-specific capabilities. It treats consuming external MCP tools and publishing workflows or actions as MCP tools as separate capabilities. The review also checks transport, authentication, deployment, model choice, enterprise controls, human approval, observability, and coding requirements. A field is marked "Unclear" when the reviewed first-party documentation does not establish the capability; it is not inferred from general AI, API, or automation features. Preview, beta, and plan-dependent features should be validated with the vendor before purchase.
+This comparison uses linked first-party product documentation for product-specific capabilities. It treats consuming external MCP tools and publishing workflows or actions as MCP tools as separate capabilities. The review also checks transport, authentication, deployment, model choice, enterprise controls, human approval, observability, and coding requirements. Capabilities that are not established in current vendor documentation are omitted rather than inferred. Preview, beta, and plan-dependent features should be validated with the vendor before purchase.
 
-The table separates platforms that consume external MCP tools from those that make workflows callable by MCP clients.
+The table separates platforms that consume external MCP tools from those that make workflows callable by MCP clients. All dated capability checks use **As of November 2026**.
 
-| Platform | MCP client support | Publishes workflows or actions as MCP tools | Transport | Authentication | Deployment | Model choice | Enterprise controls | Human approval | Observability | Coding requirements |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **Sim** | [Yes](https://docs.sim.ai/agents/mcp) | [Yes, deployed workflows](https://docs.sim.ai/workflows/deployment/mcp) | See the [current deployment configurations](https://docs.sim.ai/workflows/deployment/mcp) | See the [current deployment guide](https://docs.sim.ai/workflows/deployment/mcp) | [Hosted or self-hosted](https://docs.sim.ai/platform/self-hosting) | Hosted multi-model access and BYOK; self-hosted deployments can use locally configured model providers | [Enterprise controls](https://docs.sim.ai/platform/enterprise) and self-hosting | Available, but the reviewed MCP documentation does not establish MCP-specific approval behavior | Run logs are available, but the reviewed MCP documentation does not establish MCP-specific logging coverage | Low-code; technical work may be needed for custom integrations or self-hosting |
-| **n8n** | [Yes](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolmcp) | [Yes](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-langchain.mcptrigger) | Confirm against the [client](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolmcp) and [server](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-langchain.mcptrigger) node documentation | [Bearer, header, or OAuth, depending on the node](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolmcp) | [Cloud or self-hosted](https://n8n.io/) | [Multiple model providers](https://n8n.io/) | [Features vary by plan](https://n8n.io/pricing/) | Unclear from the reviewed first-party MCP documentation | Execution visibility should be tested for the selected MCP node | [Low-code, with code nodes available](https://docs.n8n.io/build/code-in-n8n/using-the-code-node) |
-| **Zapier** | [Yes](https://help.zapier.com/hc/en-us/articles/38777069364109-Connect-remote-MCP-servers-to-Zapier-using-MCP-Client) | [Selected app actions, not arbitrary existing Zaps](https://help.zapier.com/hc/en-us/articles/36265551472781-Manage-tools-for-your-Zapier-MCP-server) | Unclear from the reviewed first-party documentation | [Managed connections and authorization](https://docs.zapier.com/mcp/home) | [Managed cloud](https://docs.zapier.com/mcp/home) | Product-dependent | [Features vary by plan](https://zapier.com/pricing) | Unclear from the reviewed first-party MCP documentation | Unclear from the reviewed first-party MCP documentation | [No-code configuration](https://zapier.com/mcp) |
-| **Make** | [Yes](https://apps.make.com/c5ZhYquO55e90hoCJ0rzt) | [Yes, eligible scenarios](https://help.make.com/get-started-with-make-mcp-server) | Unclear from the reviewed first-party documentation | [Configured connections and toolbox access](https://help.make.com/mcp-toolboxes) | [Managed cloud](https://www.make.com/) | [Multiple providers through integrations](https://www.make.com/) | [Features vary by plan](https://www.make.com/en/pricing) | Unclear from the reviewed first-party MCP documentation | Unclear from the reviewed first-party MCP documentation | [No-code to low-code](https://www.make.com/en/pricing) |
-| **Gumloop** | [Yes](https://docs.gumloop.com/nodes/mcp/custom_mcp_servers) | [Yes](https://docs.gumloop.com/mcp-server/overview) | Unclear from the reviewed first-party documentation | See the [MCP server documentation](https://docs.gumloop.com/mcp-server/overview) | [Managed cloud](https://docs.gumloop.com/) | [Multiple models](https://docs.gumloop.com/core-concepts/ai_models) | [Enterprise identity controls](https://docs.gumloop.com/enterprise-features/sso_saml_scim) | Unclear from the reviewed first-party MCP documentation | Unclear from the reviewed first-party MCP documentation | [No-code builder](https://docs.gumloop.com/core-concepts/workbooks) |
+| Platform | MCP client support | Workflow deployment as MCP tools or servers | Authentication | Hosted or self hosted availability | Supported server patterns | Model choice | Enterprise controls | Human approval and observability | Coding requirements |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **Sim** | [Connects workflows to compatible MCP tools](https://docs.sim.ai/agents/mcp) | [Exposes deployed workflows as reusable MCP tools](https://docs.sim.ai/workflows/deployment/mcp) | Credentials are configured for the workflow and connected services; see the [deployment configurations](https://docs.sim.ai/workflows/deployment/mcp) | [Sim Cloud or self hosted Sim](https://docs.sim.ai/platform/self-hosting) | Remote MCP tools, custom internal tools, and workflows backed by connected services | Hosted multi-model access and BYOK; self hosted deployments can use locally configured model providers | [Enterprise controls](https://docs.sim.ai/platform/enterprise) and self hosting | Human in the Loop pauses a run for submitted fields; a downstream Condition must route on the result, and run logs support execution review | Low code; technical work may be needed for custom integrations or self hosting |
+| **n8n** | [Calls tools from external MCP servers](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolmcp) | [Exposes tools and selected workflows through its MCP Server Trigger](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-langchain.mcptrigger) | [Bearer, header, multiple header, or OAuth2 for the client tool](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolmcp) | [n8n Cloud or self hosted n8n](https://n8n.io/) | The client tool connects over SSE, while the server trigger supports SSE and streamable HTTP | [Multiple model providers](https://n8n.io/) | [Features vary by plan](https://n8n.io/pricing/) | Workflow execution data can be reviewed in n8n; teams should test approval behavior for their chosen workflow | [Low code, with code nodes available](https://docs.n8n.io/build/code-in-n8n/using-the-code-node) |
+| **Zapier** | [Connects to remote MCP servers through its beta MCP Client integration](https://help.zapier.com/hc/en-us/articles/38777069364109-Connect-remote-MCP-servers-to-Zapier-using-MCP-Client) | [Exposes managed app actions rather than arbitrary existing Zaps](https://help.zapier.com/hc/en-us/articles/36265551472781-Manage-tools-for-your-Zapier-MCP-server) | [Zapier manages connected app authorization](https://docs.zapier.com/mcp/home) | [Managed cloud](https://docs.zapier.com/mcp/home) | Hosted tools backed by supported Zapier app actions | Product-dependent | [Features vary by plan](https://zapier.com/pricing) | Action access is controlled through the tools enabled for the MCP server | [No code configuration](https://zapier.com/mcp) |
+| **Make** | [Calls tools from external MCP servers](https://apps.make.com/c5ZhYquO55e90hoCJ0rzt) | [Exposes active, on demand scenarios as MCP tools](https://help.make.com/get-started-with-make-mcp-server) | [MCP toolboxes use API key authorization](https://help.make.com/mcp-toolboxes) | [Managed cloud](https://www.make.com/) | Account scoped Make MCP servers or dedicated toolboxes with selected scenarios | [Multiple providers through integrations](https://www.make.com/) | [Features vary by plan](https://www.make.com/en/pricing) | Make records toolbox tool runs for review | [No code to low code](https://www.make.com/en/pricing) |
+| **Gumloop** | [Connects workflows and agents to custom MCP servers](https://docs.gumloop.com/nodes/mcp/custom_mcp_servers) | [Provides a remote MCP server for workflows and agents](https://docs.gumloop.com/mcp-server/overview) | The [MCP server documentation](https://docs.gumloop.com/mcp-server/overview) describes API key and OAuth connection paths | [Managed cloud](https://docs.gumloop.com/) | Custom remote servers plus Gumloop's hosted server for agents, workflows, skills, and connected services | [Multiple models](https://docs.gumloop.com/core-concepts/ai_models) | [Enterprise identity controls](https://docs.gumloop.com/enterprise-features/sso_saml_scim) | The hosted server can trigger and monitor workflow and agent executions | [No code builder](https://docs.gumloop.com/core-concepts/workbooks) |
 
 Authentication methods, enterprise controls, human approval features, and observability can vary by plan and MCP connection type. During evaluation, record the supported transport, credential method, approval behavior, and execution data available for each product. Buyers should confirm current limits before choosing a production deployment.
 
 ### Sim
 
-Sim is an open, extensible, multi-model agent workspace for building custom agents with specific tools, models, and data sources. You construct and deploy your own workflows rather than start with a single ready-made assistant. The open-source code lets technical buyers inspect and modify the software and operate a [self-hosted deployment](https://docs.sim.ai/platform/self-hosting). Teams comparing source access and deployment rights can also read this guide to [open-source AI agent frameworks](https://www.sim.ai/library/open-source-ai-agent-platforms).
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents with specific tools, models, and data sources. You construct and deploy your own workflows rather than start with a single ready-made assistant. Sim's core is licensed under Apache 2.0 and supports a [self-hosted deployment](https://docs.sim.ai/platform/self-hosting), while code in `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Teams comparing source access and deployment rights can also read this guide to [open-source AI agent frameworks](https://www.sim.ai/library/open-source-ai-agent-platforms).
 
 Sim can [consume tools from external MCP servers](https://docs.sim.ai/agents/mcp) and turn a deployed workflow into a tool that other applications call through an MCP server. After you create a server and add the workflow as a tool, Sim provides [connection configurations for supported MCP clients](https://docs.sim.ai/workflows/deployment/mcp). Supported clients include Cursor, Codex, Claude Code, Claude Desktop, VS Code, and Sim itself. Each client can then invoke the workflow through the tool interface instead of reproducing its logic locally.
 
 Sim supports hosted model access and bring-your-own-key connections for provider accounts. Self-hosted deployments can use locally configured model providers. Model and deployment availability can vary by plan and environment, so buyers should verify current terms for their intended setup. The [BYOK and multi-model agent builder guide](https://www.sim.ai/library/byok-multi-model-ai-agent-builder) covers the tradeoffs behind provider choice.
 
-**Best for:** Sim fits technical buyers who want to build custom, multi-model agents and expose their workflows to several MCP clients. It also suits buyers who need source access or the option to self-host.
+**Fit:** Sim fits technical buyers who want to build custom, multi-model agents and expose their workflows to several MCP clients. It also suits buyers who need source access or the option to self-host.
 
 **Pros.** Sim lets buyers construct agents, deploy workflows, consume external MCP tools, and expose deployed workflows as MCP tools in one workspace. Multi-model access reduces dependence on one model provider, and client-specific configurations simplify connections to common coding and assistant applications.
 
 **Cons.** Buyers seeking a ready-made assistant may find Sim broader than necessary. Complex custom integrations and self-hosted deployments still require technical ownership.
 
-**Pricing.** Sim offers hosted and enterprise options alongside its self-hosted codebase. Check Sim's current plan details for feature limits and deployment terms.
+**Pricing.** Sim offers hosted and enterprise options alongside its self hosted Apache 2.0 core. Production use of code in `apps/sim/ee` requires an active Sim Enterprise subscription under the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
 
 ### n8n
 
@@ -110,7 +132,7 @@ Authentication depends on the MCP node and server configuration. The MCP Client 
 - Custom nodes, unsupported APIs, and advanced transformations may require code.
 - [Enterprise governance features depend on the selected plan](https://n8n.io/pricing/).
 
-**Pricing:** [n8n offers self-hosted and paid cloud options, with cloud pricing based on workflow executions](https://n8n.io/pricing/). Buyers should compare execution limits against a representative agent workflow because loops and repeated tool calls can increase the number of executions.
+**Pricing:** [n8n offers self-hosted and paid cloud options, with cloud pricing based on workflow executions](https://n8n.io/pricing/). Buyers should compare execution limits against a representative agent workflow because loops and repeated tool calls can increase the number of executions. n8n is source available under its [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), which is not an OSI approved open source license.
 
 ### Zapier
 
@@ -122,7 +144,7 @@ Zapier also supports consuming remote MCP tools through its [MCP Client integrat
 
 **Pros:** [Zapier handles MCP hosting, credentials, and connection setup](https://docs.zapier.com/mcp/home). Its integration catalog lets agents use configured actions in supported business applications. [Action-level configuration](https://help.zapier.com/hc/en-us/articles/36265551472781-Manage-tools-for-your-Zapier-MCP-server) also limits which capabilities an MCP client can invoke.
 
-**Cons:** Zapier manages MCP hosting and does not provide the source access or self-hosted deployment options offered by open-source platforms in this comparison. Buyers who need custom tool logic should confirm whether Zapier's supported actions and configuration options cover the intended workflow. Zapier MCP is vendor-hosted, and advanced workflows remain subject to Zapier's product limits.
+**Cons:** Zapier manages MCP hosting and does not provide the source access or self hosted deployment options available with Sim's Apache 2.0 core or n8n's source available code. Buyers who need custom tool logic should confirm whether Zapier's supported actions and configuration options cover the intended workflow. Zapier MCP is vendor hosted, and advanced workflows remain subject to Zapier's product limits.
 
 **Pricing:** [Zapier uses plan-based pricing](https://zapier.com/pricing), and MCP-triggered actions may count toward applicable usage limits. Buyers should confirm current MCP access and task allowances for their chosen plan.
 
@@ -136,7 +158,7 @@ Make supports both MCP directions. Its [MCP Client app](https://apps.make.com/c5
 
 **Pros:** The visual canvas makes branching logic and data transformations easier to inspect. Make also provides an integration catalog and supports both [consuming MCP tools](https://apps.make.com/c5ZhYquO55e90hoCJ0rzt) and [making scenarios callable through MCP](https://help.make.com/mcp-toolboxes).
 
-**Cons:** Scenarios require more maintenance as routes and mappings multiply because each branch adds configuration that buyers must test and update. Standard integrations require little coding, but custom APIs, JSON payloads, and unsupported authentication methods may require technical knowledge. Make is a managed cloud platform rather than a self-hosted open-source platform such as Sim or n8n.
+**Cons:** Scenarios require more maintenance as routes and mappings multiply because each branch adds configuration that buyers must test and update. Standard integrations require little coding, but custom APIs, JSON payloads, and unsupported authentication methods may require technical knowledge. Make is a managed cloud platform rather than a self hosted platform. Sim's core is open source under Apache 2.0, while n8n is source available under its Sustainable Use License.
 
 **Pricing:** [Make offers a free plan and paid tiers based on usage credits](https://www.make.com/en/pricing). Scenario module actions count toward credits, so buyers should estimate costs using expected agent call volume.
 
@@ -154,6 +176,26 @@ Gumloop supports both sides of MCP. Workflows can [call tools from external MCP 
 
 **Pricing:** [Gumloop bills agent chats and workflow runs with credits](https://docs.gumloop.com/core-concepts/credits). Buyers should check its [current pricing page](https://www.gumloop.com/pricing) for workflow, collaboration, and enterprise terms before estimating production costs.
 
+## Building custom MCP tools for internal systems
+
+Sim fits teams that need to turn a bounded internal process into a named MCP tool instead of waiting for a packaged server. A workflow can validate inputs, call an approved internal API or data source, transform the result, and return a structured response through Sim's [MCP deployment model](https://docs.sim.ai/workflows/deployment/mcp).
+
+Design each tool around one business action. Separate read operations from writes when they require different permissions, define a narrow input contract, and return only the fields the calling agent needs. This keeps the MCP interface easier to govern and evaluate than a generic tool with broad system access.
+
+n8n also lets teams [attach selected workflows to its MCP Server Trigger](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-langchain.mcptrigger), which fits processes that already live in n8n. [Zapier MCP](https://zapier.com/mcp) instead centers on managed actions from supported apps.
+
+## Creating a Salesforce MCP tool for CRM data
+
+Sim fits teams that want controlled Salesforce operations behind a named MCP interface. A workflow can accept a narrow request, retrieve or update approved CRM records, apply business rules, and return only the fields needed by the calling agent.
+
+Teams can separate tools for finding an account, retrieving an opportunity summary, or submitting a lead for scoring. Each tool should use a credential with the minimum permissions required for its operation, validate expected and rejected inputs, and avoid exposing unrestricted CRM access.
+
+## Creating a Google Sheets MCP tool
+
+Sim fits teams that need custom validation, transformation, or approval logic around a Google Sheets action. A workflow can represent a specific action such as reading an approved range, appending a qualified lead, updating a reporting row, or returning a summary rather than an entire sheet.
+
+Narrow names such as `append_qualified_lead` communicate intent better than a generic editing tool. Zapier can fit teams whose required Sheets action is available through its [managed MCP tools](https://help.zapier.com/hc/en-us/articles/36265551472781-Manage-tools-for-your-Zapier-MCP-server), while Sim fits actions that combine custom agent logic or additional systems before returning a result.
+
 ## How to expose a Sim workflow as an MCP tool
 
 You can expose a deployed Sim workflow as an MCP tool in four steps.
@@ -168,6 +210,18 @@ Several of these clients are [AI coding agents](https://www.sim.ai/library/agent
 Authentication settings determine which clients can connect to the MCP server. Use the configuration and credentials Sim provides, and avoid placing sensitive credentials directly inside workflow prompts. A remote client must also have network access to the deployed MCP endpoint. A self-hosted environment may require network routing and firewall configuration so the client can reach the MCP endpoint.
 
 Sim's [MCP deployment guide](https://docs.sim.ai/workflows/deployment/mcp) provides the current client-specific configuration fields, authentication instructions, and deployment details.
+
+## Securing MCP tools connected to business systems
+
+Secure MCP tools by minimizing permissions, constraining inputs, separating read and write actions, and retaining enough execution detail to investigate failures. Authentication establishes who or what can call a tool, while authorization determines what the tool may do after it is called.
+
+Credentials for Salesforce, Google Sheets, GitHub, Slack, databases, and internal services should have only the permissions required for the named action. Keep credentials in configured connections rather than prompts or tool descriptions, reject malformed or unauthorized inputs, and avoid returning unnecessary sensitive fields.
+
+Sensitive writes should use explicit validation and, when appropriate, human review before the action occurs. In Sim, Human in the Loop pauses the run and resumes with submitted form fields. An approval or rejection value must be checked by a downstream Condition before the workflow takes the corresponding branch.
+
+## Related guides for evaluating and implementing MCP agents
+
+The related resources linked throughout this article cover platform evaluation, source access, provider choice, maintenance requirements, and the use of deployed workflows from coding agents. Together, they help teams move from an MCP capability comparison to a representative implementation and security test.
 
 ## Choosing between MCP client tools and MCP-exposed workflows
 
@@ -209,11 +263,11 @@ Before selecting a platform, test a representative workflow rather than relying 
 
 ## Why Sim fits buyers building custom agents beyond a single assistant
 
-Sim fits buyers who need custom agents with tailored access to company tools and data. Its open-source codebase supports [self-hosting and modification](https://docs.sim.ai/platform/self-hosting). Multi-model support lets buyers configure workflows with more than one model provider.
+Sim fits buyers who need custom agents with tailored access to company tools and data. Sim's Apache 2.0 core supports [self hosting and modification](https://docs.sim.ai/platform/self-hosting), while code in `apps/sim/ee` follows the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Multi-model support lets buyers configure workflows with more than one model provider.
 
 Sim provides workflow controls for review, approval, evaluation, waiting, and post-run inspection. Buyers should test these controls with the intended MCP workflow and confirm that the resulting logs capture the tool call, approval outcome, and execution details required by their policies.
 
-Sim best fits buyers with developers or technical operators who can extend, deploy, and govern the agent workspace. Buyers seeking pure no-code automation with minimal engineering involvement may find Zapier or Gumloop easier to adopt. Buyers focused on general workflow automation and self-hosting should also compare n8n before deciding.
+Sim fits buyers with developers or technical operators who can extend, deploy, and govern the agent workspace. Buyers seeking pure no-code automation with minimal engineering involvement may find Zapier or Gumloop easier to adopt. Buyers focused on general workflow automation and self-hosting should also compare n8n before deciding.
 
 ## Conclusion
 
