@@ -194,10 +194,6 @@ export const listSimLinks = defineAuthorizedOrganizationUseCase({
   },
 })
 
-/**
- * One link by id or by name as typed. Hidden exactly as browsing hides it: an unlisted link reads
- * as missing to anyone who cannot manage it.
- */
 async function findLinkIdByName(organizationId: string, typedName: string) {
   const link = await repository.findSimLinkDestination(
     organizationId,
@@ -206,6 +202,10 @@ async function findLinkIdByName(organizationId: string, typedName: string) {
   return link?.id
 }
 
+/**
+ * One link by id or by name as typed. Hidden exactly as browsing hides it: an unlisted link reads
+ * as missing to anyone who cannot manage it.
+ */
 export const getSimLinkView = defineAuthorizedOrganizationUseCase({
   operation: simLinkOperations.get,
   ...rollout,

@@ -708,7 +708,9 @@ try {
               await navigation.getByRole('button', { name: 'Search', exact: true }).click()
               await expect(page).toHaveURL((url) => url.searchParams.get('mode') === 'search')
             }
-            await page.clock.pauseAt(new Date(Date.now() + 100))
+            const pausedAt = new Date()
+            await page.clock.setFixedTime(pausedAt)
+            await page.clock.pauseAt(pausedAt)
             const selected = navigation.getByRole('button', {
               name: selectedMode === 'assistant' ? 'Assistant' : 'Search',
               exact: true,
@@ -726,6 +728,7 @@ try {
           } finally {
             admission.resolve()
             heldAdmission = undefined
+            await page.clock.setSystemTime(new Date())
             await page.clock.resume()
           }
         }
