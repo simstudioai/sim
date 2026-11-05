@@ -21,6 +21,7 @@ import {
 import { pageSnapshotSchema } from '@sim/browser-extension-protocol'
 import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createLogger } from '@sim/logger'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -1416,19 +1417,27 @@ try {
     }
   )
   await checkComposer(
-    'Voice input recovers permission, preserves drafts, and stops on Send or restart',
+    'Voice input cancels startup, recovers permission, and preserves drafts through Send or restart',
     async () => {
       const input = frame().getByRole('textbox', { name: 'Message', exact: true })
       const mic = frame().getByRole('button', { name: 'Voice input', exact: true })
       const stop = frame().getByRole('button', { name: 'Stop listening', exact: true })
       const sessions: { socket: WebSocketRoute; chunks: number; closed: boolean }[] = []
-      await shell.route('**/api/speech/token', (route) => {
+      const connectionGate = createDeferred<void>()
+      const tokenGate = createDeferred<void>()
+      let holdToken = false
+      let tokenRequested = false
+      await shell.route('**/api/speech/token', async (route) => {
         injectedRequests.add(route.request())
+        if (holdToken) {
+          tokenRequested = true
+          await tokenGate.promise
+        }
         return route.fulfill({ json: { token: 'synthetic-extension-voice' } })
       })
       await shell.routeWebSocket(
         'wss://api.elevenlabs.io/v1/speech-to-text/realtime*',
-        (socket) => {
+        async (socket) => {
           const session = { socket, chunks: 0, closed: false }
           sessions.push(session)
           socket.onMessage((message) => {
@@ -1443,8 +1452,45 @@ try {
             await socket.close()
             session.closed = true
           })
+          if (sessions.length === 1) await connectionGate.promise
         }
       )
+      type VoiceCaptureWindow = typeof window & {
+        __voiceCaptureProbe?: {
+          getUserMedia: MediaDevices['getUserMedia']
+          WebSocket: typeof WebSocket
+          tracks: MediaStreamTrack[]
+          sockets: WebSocket[]
+        }
+      }
+      await frame().evaluate(() => {
+        const probe = {
+          getUserMedia: navigator.mediaDevices.getUserMedia,
+          WebSocket: window.WebSocket,
+          tracks: [] as MediaStreamTrack[],
+          sockets: [] as WebSocket[],
+        }
+        ;(window as VoiceCaptureWindow).__voiceCaptureProbe = probe
+        navigator.mediaDevices.getUserMedia = async (constraints) => {
+          const stream = await probe.getUserMedia.call(navigator.mediaDevices, constraints)
+          probe.tracks.push(...stream.getTracks())
+          return stream
+        }
+        window.WebSocket = class extends probe.WebSocket {
+          constructor(url: string | URL, protocols?: string | string[]) {
+            super(url, protocols)
+            probe.sockets.push(this)
+          }
+        }
+      })
+      const captureState = () =>
+        frame().evaluate(() => {
+          const probe = (window as VoiceCaptureWindow).__voiceCaptureProbe
+          return {
+            tracks: probe?.tracks.map((track) => track.readyState) ?? [],
+            sockets: probe?.sockets.map((socket) => socket.readyState) ?? [],
+          }
+        })
       const microphone = await browserContext.newCDPSession(shell)
       const setMicrophonePermission = async (setting: 'granted' | 'denied') => {
         await microphone.send('Browser.setPermission', {
@@ -1490,9 +1536,34 @@ try {
         await setPanelViewport(viewport.width, viewport.height)
         await setMicrophonePermission('granted')
         await mic.click()
+        await expect.poll(() => sessions.length).toBe(1)
+        await expect.poll(captureState).toEqual({ tracks: ['live'], sockets: [0] })
+        await screenshot('microphone-connecting')
+        await frame()
+          .getByRole('button', { name: /^(Voice input|Stop listening)$/ })
+          .click()
+        await expect.poll(captureState).toEqual({ tracks: ['ended'], sockets: [3] })
+        await expect.poll(() => sessions[0].closed).toBe(true)
+        voiceDiagnostics.push({ event: 'cancel-connecting', ...(await captureState()) })
+        connectionGate.resolve()
+        await expect(mic).toBeVisible()
+        await expect(input).toHaveValue('Keep my draft')
+        assert.equal(sessions[0].chunks, 0, 'Cancelled startup sent audio')
+
+        holdToken = true
+        await mic.click()
+        await expect.poll(() => tokenRequested).toBe(true)
+        await stop.click()
+        tokenGate.resolve()
+        holdToken = false
+        await expect(mic).toBeVisible()
+        await expect(input).toHaveValue('Keep my draft')
+        await mic.click()
         await expect(stop).toBeVisible()
-        await expect.poll(() => sessions[0]?.chunks ?? 0).toBeGreaterThan(0)
-        sessions[0].socket.send(
+        await expect.poll(() => sessions[1]?.chunks ?? 0).toBeGreaterThan(0)
+        assert.equal(sessions.length, 2, 'Cancelled token request started another session')
+        assert.deepEqual((await captureState()).tracks, ['ended', 'live'])
+        sessions[1].socket.send(
           JSON.stringify({ message_type: 'partial_transcript', text: 'first thought' })
         )
         await expect(input).toHaveValue('Keep my draft first thought')
@@ -1501,16 +1572,16 @@ try {
         await expect(mic).toBeVisible()
         await mic.click()
         await expect(stop).toBeVisible()
-        await expect.poll(() => sessions.length).toBe(2)
-        sessions[0].socket.send(
+        await expect.poll(() => sessions.length).toBe(3)
+        sessions[1].socket.send(
           JSON.stringify({ message_type: 'partial_transcript', text: 'stale thought' })
         )
-        await expect.poll(() => sessions[0].closed).toBe(true)
+        await expect.poll(() => sessions[1].closed).toBe(true)
         await expect(stop).toBeVisible()
         await expect(input).toHaveValue('Keep my draft first thought')
-        const chunks = sessions[1].chunks
-        await expect.poll(() => sessions[1].chunks).toBeGreaterThan(chunks)
-        sessions[1].socket.send(
+        const chunks = sessions[2].chunks
+        await expect.poll(() => sessions[2].chunks).toBeGreaterThan(chunks)
+        sessions[2].socket.send(
           JSON.stringify({ message_type: 'partial_transcript', text: 'second thought' })
         )
         await expect(input).toHaveValue('Keep my draft first thought second thought')
@@ -1519,15 +1590,15 @@ try {
         assert.equal(submitted[0].message, 'Keep my draft first thought second thought')
         await expect(input).toHaveValue('')
         await expect(mic).toBeVisible()
-        await expect.poll(() => sessions[1].closed).toBe(true)
+        await expect.poll(() => sessions[2].closed).toBe(true)
         await expect(
           frame().getByRole('button', { name: 'Send message', exact: true })
         ).toBeVisible()
         await input.fill('Another draft')
         await mic.click()
         await expect(stop).toBeVisible()
-        await expect.poll(() => sessions[2]?.chunks ?? 0).toBeGreaterThan(0)
-        sessions[2].socket.send(
+        await expect.poll(() => sessions[3]?.chunks ?? 0).toBeGreaterThan(0)
+        sessions[3].socket.send(
           JSON.stringify({ message_type: 'partial_transcript', text: 'ready to send' })
         )
         await expect(input).toHaveValue('Another draft ready to send')
@@ -1535,15 +1606,27 @@ try {
         await stop.click()
         await input.press('Enter')
         await expect(input).toHaveValue('')
-        assert.equal(sessions[2].closed, false, 'Final-transcript grace must still be open')
-        sessions[2].socket.send(
+        assert.equal(sessions[3].closed, false, 'Final-transcript grace must still be open')
+        sessions[3].socket.send(
           JSON.stringify({ message_type: 'partial_transcript', text: 'late words' })
         )
-        await expect.poll(() => sessions[2].closed).toBe(true)
+        await expect.poll(() => sessions[3].closed).toBe(true)
         await expect(input).toHaveValue('')
         assert.equal(submitted.length, 2, 'Dictation submitted a message without Send')
         await screenshot('microphone-after-send')
       } finally {
+        voiceDiagnostics.push({ event: 'capture-finally', ...(await captureState()) })
+        connectionGate.resolve()
+        tokenGate.resolve()
+        await frame().evaluate(() => {
+          const probeWindow = window as VoiceCaptureWindow
+          const probe = probeWindow.__voiceCaptureProbe
+          if (!probe) return
+          navigator.mediaDevices.getUserMedia = probe.getUserMedia
+          window.WebSocket = probe.WebSocket
+          probe.tracks.forEach((track) => track.stop())
+          probeWindow.__voiceCaptureProbe = undefined
+        })
         voiceDiagnostics.push({
           event: 'finally',
           sessions: sessions.map(({ chunks, closed }) => ({ chunks, closed })),
