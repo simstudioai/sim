@@ -160,7 +160,7 @@ start_platform() {
   local port=$1
   platform_tag="platform-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
   platform_log="$report_dir/platform-live-platform.log"
-  E2E_APP="$platform_tag" SIM_PLATFORM_API_ORIGIN="$local_app_url" setsid node \
+  E2E_APP="$platform_tag" SIM_PLATFORM_API_ORIGIN="$local_app_url" SIM_PLATFORM_BASE_PATH=/org setsid node \
     ../../node_modules/next/dist/bin/next start platform --hostname 127.0.0.1 --port "$port" \
     > "$platform_log" 2>&1 &
   platform_pid=$!

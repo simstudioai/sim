@@ -29,7 +29,7 @@ Deployed, the Platform is a zone at `/org` on the main app's origin, so it share
 
 | Variable | Set on | Purpose |
 | --- | --- | --- |
-| `SIM_PLATFORM_BASE_PATH=/org` | Platform, at build | Prefixes routes and assets |
+| `SIM_PLATFORM_BASE_PATH=/org` | Platform, at build and at `next start` | Prefixes routes and assets; `next start` re-reads the config, so without it every route answers 404 |
 | `SIM_PLATFORM_API_ORIGIN` | Platform, at runtime | Where server reads go, with the viewer's cookies |
 | `NEXT_PUBLIC_APP_URL` | Platform, at runtime | The main app's public origin, for login and legacy links |
 | `SIM_PLATFORM_ORIGIN` | Main app, at build and runtime | The `/org` rewrite is baked at build; the organization redirect reads it at runtime |
