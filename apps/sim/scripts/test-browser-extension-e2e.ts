@@ -1404,7 +1404,7 @@ try {
           await resolved.close()
         }
       } catch (error) {
-        await screenshot('create-link-failure', draft)
+        if (!draft.isClosed()) await screenshot('create-link-failure', draft).catch(() => {})
         throw error
       } finally {
         await draft.close()
