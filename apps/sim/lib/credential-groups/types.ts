@@ -94,6 +94,7 @@ export interface CredentialGroupEnrollmentMcpConnection {
   mcpServerId: string
   name: string
   status: 'active' | 'needs_reauth' | 'revoked'
+  count: number
 }
 
 export interface CredentialGroupEnrollmentDetail extends CredentialGroupEnrollmentRecord {
