@@ -190,6 +190,7 @@ function ConnectionDetails({ organizationId, active, connection }: ConnectionDet
           >
             <ActionMenu
               label={`${credential.tokenPrefix} actions`}
+              icon='I108'
               actions={[
                 {
                   id: 'revoke',

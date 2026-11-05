@@ -665,6 +665,7 @@ export function GroupDetail({
                     >
                       <ActionMenu
                         label={`${name} actions`}
+                        icon='I108'
                         actions={[
                           {
                             id: 'remove',

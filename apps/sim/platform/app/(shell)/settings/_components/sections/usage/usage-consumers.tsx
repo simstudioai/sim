@@ -105,6 +105,7 @@ export function UsageConsumers({
               onManageCredits && row.id ? (
                 <ActionMenu
                   label={`${row.label} actions`}
+                  icon='I108'
                   align='end'
                   actions={[
                     {

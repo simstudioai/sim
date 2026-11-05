@@ -232,6 +232,7 @@ export function GroupMappings({
                 >
                   <ActionMenu
                     label={`${target} actions`}
+                    icon='I108'
                     actions={[
                       {
                         id: 'remove',

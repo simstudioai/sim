@@ -65,6 +65,7 @@ export function OrganizationAccounts() {
             action: account.canDisconnect ? (
               <ActionMenu
                 label={`${account.name} actions`}
+                icon='I108'
                 align='end'
                 actions={[
                   {
