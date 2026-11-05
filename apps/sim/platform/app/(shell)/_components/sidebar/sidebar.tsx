@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { isPathOrDescendant, organizationRoutes } from '@/lib/navigation/paths'
 import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
@@ -50,7 +50,6 @@ export function Sidebar(flags: OrganizationNavFlags) {
   const { isCollapsed: railCollapsed, isPeeking, onToggle } = useSidebarChrome()
   const collapsed = railCollapsed && !isPeeking
   const pathname = usePathname() ?? ''
-  const router = useRouter()
   const { data, retryChats, retryWorkspaces } = useOrganizationShell(flags)
   const actions = useShellActions()
   const { organization, destinations } = data
@@ -121,7 +120,7 @@ export function Sidebar(flags: OrganizationNavFlags) {
                   <OrganizationMenu
                     anchor={header}
                     organization={organization}
-                    onOpen={() => router.prefetch(membersSettings)}
+                    onOpen={() => warmers.warmSettings('members')}
                     onSettings={() => actions.navigate(membersSettings)}
                   />
                   <div className={styles.actions}>
@@ -229,7 +228,7 @@ export function Sidebar(flags: OrganizationNavFlags) {
                 image={data.user.image}
                 iconOnly={collapsed}
                 canSignOut={data.user.canSignOut}
-                onOpen={() => router.prefetch(generalSettings)}
+                onOpen={() => warmers.warmSettings('general')}
                 onSettings={() => actions.navigate(generalSettings)}
                 onSignOut={actions.signOut}
               />
