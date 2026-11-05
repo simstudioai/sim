@@ -154,9 +154,7 @@ function LiveSearchResults({
       {!isFetching && data?.live && accounts.length === 0 && (
         <div className='flex items-center gap-2 px-2 py-2'>
           <p role='status' className='text-[var(--text-muted)] text-caption'>
-            {filters.source
-              ? 'You haven’t connected this app.'
-              : 'Connect your apps to search them.'}
+            No connected apps are available for this search.
           </p>
           <ChipLink
             variant='border'
