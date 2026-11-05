@@ -417,3 +417,99 @@ it('preserves mode-specific models and unsent effort across composer remounts', 
   expect(container.textContent).toContain('GPT-6.1 Sol')
   expect(container.textContent).toContain('Extra High')
 })
+
+const settleQueries = () => act(async () => new Promise((resolve) => setTimeout(resolve, 20)))
+
+function typeInto(input: HTMLTextAreaElement, text: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+  setter?.call(input, text)
+  input.setSelectionRange(text.length, text.length)
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+it('reads no workspace list on mount, even with the field focused', async () => {
+  await render(true, '', 'agent')
+  await act(async () =>
+    container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!.focus()
+  )
+  expect(mocks.skillQuery).not.toHaveBeenCalled()
+  expect(mocks.resourceMenu.mock.lastCall?.[0].warm).toBe(false)
+})
+
+it('warms the lists when the viewer presses the field, and opening the + menu does too', async () => {
+  await render(true, '', 'agent')
+  await act(async () =>
+    container
+      .querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+      .dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
+  )
+  expect(mocks.skillQuery).toHaveBeenCalledExactlyOnceWith('workspace-a')
+  expect(mocks.resourceMenu.mock.lastCall?.[0].warm).toBe(true)
+
+  await act(async () => root.unmount())
+  root = createRoot(container)
+  queryClient.clear()
+  await render(true, '', 'agent')
+  expect(mocks.resourceMenu.mock.lastCall?.[0].warm).toBe(false)
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('button[aria-label="Add resources"]')!.click()
+  )
+  expect(mocks.openResourceMenu).toHaveBeenCalledOnce()
+  expect(mocks.resourceMenu.mock.lastCall?.[0].warm).toBe(true)
+})
+
+it('a slash reads the skills only, and the resource lists stay cold', async () => {
+  await render(true, '', 'agent')
+  await act(async () =>
+    typeInto(container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!, '/')
+  )
+  expect(mocks.skillQuery).toHaveBeenCalledExactlyOnceWith('workspace-a')
+  expect(mocks.resourceMenu.mock.lastCall?.[0].warm).toBe(false)
+})
+
+it('a draft carrying a skill still chips once its list arrives', async () => {
+  await render(true, '/review this', 'agent')
+  const input = container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+  expect(mocks.skillQuery).toHaveBeenCalledExactlyOnceWith('workspace-a')
+  await settleQueries()
+  expect(input.value).toBe(' review this')
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click()
+  )
+  expect(mocks.contexts).toHaveBeenLastCalledWith([
+    { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
+  ])
+})
+
+it('a skill typed to its boundary before the lists land chips when they do, caret in place', async () => {
+  let resolveSkills: (skills: unknown[]) => void = () => {}
+  mocks.skillQuery.mockReturnValue(
+    new Promise((resolve) => {
+      resolveSkills = resolve
+    })
+  )
+  await render(true, '', 'agent')
+  const input = container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+  await act(async () => typeInto(input, '/'))
+  await act(async () => typeInto(input, '/review now'))
+  expect(input.value).toBe('/review now')
+  await act(async () => {
+    input.setSelectionRange(4, 4)
+    resolveSkills([
+      {
+        id: 'skill-a',
+        workspaceId: 'workspace-a',
+        userId: 'user-a',
+        name: 'review',
+        description: 'Review a draft',
+        content: 'Review carefully.',
+        canEdit: true,
+        createdAt: '',
+        updatedAt: '',
+      },
+    ])
+  })
+  await settleQueries()
+  expect(input.value).toBe(' review now')
+  expect(input.selectionStart).toBe(4)
+})

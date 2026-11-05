@@ -99,6 +99,13 @@ function isNativeResourceGroup({ type }: { type: MothershipResourceType }): bool
 const EMPTY_BROWSER_TABS = [] as const
 const EMPTY_TERMINAL_TABS = [] as const
 const MENU_ITEM_SELECTOR = '[role="menuitem"], [role="menuitemcheckbox"]'
+/**
+ * Workspaces an organization chat reads at once. Each is about a dozen requests, so an organization's
+ * whole list arriving together would be hundreds at the app server. Rows fill in as each one lands.
+ */
+const ORGANIZATION_INVENTORY_CONCURRENCY = 8
+const MENU_NOTICE_CLASS =
+  'flex h-[28px] items-center justify-center px-2 text-[var(--text-muted)] text-caption'
 
 interface PlusMenuDropdownProps {
   actions?: React.ReactNode
@@ -110,6 +117,8 @@ interface PlusMenuDropdownProps {
    * synchronously on Enter, and an empty list falls through to submitting the
    * message with the mention unresolved. Focus is the earliest reliable signal
    * that a mention may be coming, and still keeps these lists off page load.
+   * An organization chat passes the viewer's explicit intent instead, because
+   * its field takes focus on load and its lists cost a dozen reads per workspace.
    */
   warm?: boolean
   onResourceSelect: (resource: MothershipResource) => void
@@ -180,6 +189,14 @@ export const PlusMenuDropdown = React.memo(
         current[workspaceId] === inventory ? current : { ...current, [workspaceId]: inventory }
       )
     }, [])
+    const settledInventories = workspaces.filter(
+      (workspace) => inventories[workspace.id]?.isHydrating === false
+    ).length
+    const [readableInventories, setReadableInventories] = useState(0)
+    const inventoriesToRead = settledInventories + ORGANIZATION_INVENTORY_CONCURRENCY
+    if (organizationId && inventoryEnabled && inventoriesToRead > readableInventories) {
+      setReadableInventories(inventoriesToRead)
+    }
     const combined = organizationId
       ? mergeOrganizationResourceInventories(workspaces, inventories)
       : workspaceInventory
@@ -415,15 +432,17 @@ export const PlusMenuDropdown = React.memo(
       <DropdownMenu open={open} onOpenChange={handleOpenChange}>
         {organizationId &&
           inventoryEnabled &&
-          workspaces.map((workspace) => (
-            <OrganizationResourceInventory
-              key={workspace.id}
-              workspaceId={workspace.id}
-              excludeTypes={COMPOSER_EXCLUDED_TYPES}
-              fileSearch={query}
-              onChange={receiveInventory}
-            />
-          ))}
+          workspaces
+            .slice(0, readableInventories)
+            .map((workspace) => (
+              <OrganizationResourceInventory
+                key={workspace.id}
+                workspaceId={workspace.id}
+                excludeTypes={COMPOSER_EXCLUDED_TYPES}
+                fileSearch={query}
+                onChange={receiveInventory}
+              />
+            ))}
         <DropdownMenuTrigger asChild>
           <div
             className='pointer-events-none fixed size-0'
@@ -473,6 +492,9 @@ export const PlusMenuDropdown = React.memo(
             {/* Always-mounted; swapping this subtree with filtered results makes Radix's
                   menu FocusScope steal focus from the search input back to the content root. */}
             <div hidden={filteredItems !== null}>
+              {organizationId && workspaces.length === 0 && workspacesPending && (
+                <div className={MENU_NOTICE_CLASS}>Loading resources</div>
+              )}
               {organizationId &&
                 workspaces.map((workspace) => (
                   <WorkspaceResourceSubmenu
@@ -551,11 +573,12 @@ export const PlusMenuDropdown = React.memo(
                     </React.Fragment>
                   )
                 })
-              ) : (
-                <div className='flex h-[28px] items-center justify-center px-2 text-[var(--text-muted)] text-caption'>
-                  No results
-                </div>
+              ) : organizationId && isHydrating ? null : (
+                <div className={MENU_NOTICE_CLASS}>No results</div>
               ))}
+            {filteredItems !== null && organizationId && isHydrating && (
+              <div className={MENU_NOTICE_CLASS}>Loading resources</div>
+            )}
           </div>
         </DropdownMenuContent>
       </DropdownMenu>

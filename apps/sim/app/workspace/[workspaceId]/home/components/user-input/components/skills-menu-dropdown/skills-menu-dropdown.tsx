@@ -25,7 +25,7 @@ export interface SkillsMenuHandle {
   close: () => void
   /** Moves the active highlight by `delta` rows (wrapping). */
   moveActive: (delta: number) => void
-  /** Selects the active row. Returns true when a skill was selected. */
+  /** Selects the active row. Returns true when the key is spent: a skill selected, or more coming. */
   selectActive: () => boolean
 }
 
@@ -46,6 +46,8 @@ interface SkillsMenuDropdownProps {
   pendingCursorRef: React.MutableRefObject<number | null>
   /** Active `/`-query used to filter the list (case-insensitive substring). */
   slashQuery?: string
+  /** More skills are on their way, so an empty result does not yet mean no match. */
+  isLoading?: boolean
 }
 
 /**
@@ -65,6 +67,7 @@ export const SkillsMenuDropdown = React.memo(
       textareaRef,
       pendingCursorRef,
       slashQuery,
+      isLoading = false,
     },
     ref
   ) {
@@ -93,6 +96,8 @@ export const SkillsMenuDropdown = React.memo(
     filteredItemsRef.current = filteredItems
     const activeIndexRef = useRef(activeIndex)
     activeIndexRef.current = activeIndex
+    const isLoadingRef = useRef(isLoading)
+    isLoadingRef.current = isLoading
 
     const doOpen = useCallback((anchor?: { left: number; top: number }) => {
       if (anchor) setAnchorPos(anchor)
@@ -134,7 +139,8 @@ export const SkillsMenuDropdown = React.memo(
         },
         selectActive: () => {
           const items = filteredItemsRef.current
-          if (items.length === 0) return false
+          // Swallows the key while loading, or Enter would send the unresolved `/name` as text.
+          if (items.length === 0) return isLoadingRef.current
           const target = items[activeIndexRef.current] ?? items[0]
           if (!target) return false
           handleSelectRef.current(target)
@@ -237,9 +243,14 @@ export const SkillsMenuDropdown = React.memo(
                   </button>
                 )
               })
-            ) : (
+            ) : isLoading ? null : (
               <div className='flex h-[28px] items-center justify-center px-2 text-[var(--text-muted)] text-caption'>
                 No skills or MCP servers
+              </div>
+            )}
+            {isLoading && (
+              <div className='flex h-[28px] items-center justify-center px-2 text-[var(--text-muted)] text-caption'>
+                Loading skills
               </div>
             )}
           </div>
