@@ -53,6 +53,7 @@
     "ci:e2e-desktop-inbox": "bash ../../.github/scripts/http-e2e.sh desktop-inbox",
     "ci:e2e-assistant-actions": "bash ../../.github/scripts/http-e2e.sh assistant-actions",
     "ci:e2e-organization-search": "bash ../../.github/scripts/http-e2e.sh organization-search",
+    "ci:e2e-org-redesign": "bash ../../.github/scripts/http-e2e.sh org-redesign",
     "ci:e2e-docs-platform": "bun --no-env-file scripts/test-docs-search-provider-e2e.ts",
     "ci:e2e-project-files": "bash ../../.github/scripts/http-e2e.sh project-files",
     "ci:e2e-mobile": "bash ../../.github/scripts/http-e2e.sh mobile",

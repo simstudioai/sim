@@ -264,6 +264,7 @@ describe('CI task attribution through real Turborepo', () => {
       'browser-extension-composer',
       'browser-extension-navigation',
       'mobile',
+      'org-redesign',
       'organization-search',
       'seo',
     ])
@@ -420,6 +421,7 @@ describe('CI task attribution through real Turborepo', () => {
     ['test-desktop-inbox-e2e.ts', 'desktop-inbox'],
     ['test-assistant-actions-e2e.ts', 'assistant-actions'],
     ['test-organization-search-e2e.ts', 'organization-search'],
+    ['test-org-redesign-e2e.ts', 'org-redesign'],
   ])('selects the owning organization acceptance job for %s', (file, group) => {
     const plan = classifyFiles([`apps/sim/scripts/${file}`])
     expect(plan.fallback).toBeUndefined()

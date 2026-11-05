@@ -135,6 +135,15 @@
       "inputs": ["scripts/test-organization-search-e2e.ts"],
       "cache": false
     },
+    "ci:e2e-org-redesign": {
+      "dependsOn": ["ci:server", "ci:ui", "@sim/realtime#ci:runtime"],
+      "inputs": [
+        "scripts/test-org-redesign-e2e.ts",
+        "scripts/org-redesign-seed.ts",
+        "scripts/org-redesign-e2e/**"
+      ],
+      "cache": false
+    },
     "ci:e2e-docs-platform": {
       "dependsOn": ["ci:server", "docs#build"],
       "inputs": ["scripts/test-docs-search-provider-e2e.ts"],
