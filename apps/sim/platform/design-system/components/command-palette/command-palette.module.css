@@ -1,0 +1,55 @@
+.field,
+.footer,
+.footer > span {
+  display: flex;
+  align-items: center;
+}
+.field {
+  flex: none;
+  gap: var(--ui-row-gap);
+  min-block-size: var(--spacing-44);
+  padding-inline: var(--ui-dialog-inset);
+}
+.field input {
+  flex: 1;
+  min-inline-size: 0;
+  color: var(--ui-ink);
+}
+.results {
+  min-block-size: 0;
+  max-block-size: 50dvh;
+  padding-inline: var(--ui-row-inset);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.results:empty {
+  display: none;
+}
+.group {
+  display: grid;
+  gap: var(--ui-list-gap);
+}
+.group + .group {
+  padding-block-start: var(--ui-section-gap);
+}
+.empty:not(:empty) {
+  padding: var(--ui-section-gap) var(--ui-dialog-inset);
+  color: var(--ui-secondary);
+}
+.footer {
+  flex: none;
+  flex-wrap: wrap;
+  min-block-size: var(--spacing-40);
+  padding: var(--ui-row-block) var(--ui-dialog-inset);
+  color: var(--ui-secondary);
+  gap: var(--ui-list-gap) var(--ui-section-gap);
+}
+.footer > span {
+  gap: var(--spacing-4);
+}
+.footer > span:last-child {
+  margin-inline-start: auto;
+}
+.footer kbd {
+  font: inherit;
+}

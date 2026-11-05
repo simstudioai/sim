@@ -1,0 +1,21 @@
+.composerInput {
+  display: block;
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: var(--spacing-48);
+  padding: 0 var(--spacing-4);
+  border: 0;
+  background: transparent;
+  color: var(--ui-ink);
+  field-sizing: content;
+  overflow-wrap: anywhere;
+}
+
+.composerInput[data-density="compact"] {
+  min-block-size: var(--spacing-40);
+}
+
+.composerInput::placeholder {
+  color: var(--ui-muted);
+  opacity: 1;
+}

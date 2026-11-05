@@ -1,0 +1,22 @@
+.recents {
+  display: grid;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  gap: var(--ui-row-gap);
+  inline-size: 100%;
+}
+.heading {
+  display: flex;
+  align-items: center;
+  min-height: var(--spacing-20);
+  padding-inline: var(--spacing-8);
+  color: var(--collection-heading-ink);
+}
+.recentLane {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-list-gap);
+}
+.recentLane > li {
+  flex: none;
+}

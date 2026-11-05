@@ -1,0 +1,12 @@
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: var(--ui-row-gap);
+  min-inline-size: 0;
+}
+
+.position {
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+}

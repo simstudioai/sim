@@ -1,0 +1,12 @@
+.touchTarget {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--spacing-app-touch-target);
+  block-size: var(--spacing-app-touch-target);
+}
+.touchTarget button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
