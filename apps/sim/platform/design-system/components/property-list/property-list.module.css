@@ -8,7 +8,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: var(--spacing-64) minmax(0, 1fr);
+  grid-template-columns: var(--spacing-80) minmax(0, 1fr);
   align-items: center;
   gap: var(--spacing-8);
   min-block-size: var(--spacing-32);
