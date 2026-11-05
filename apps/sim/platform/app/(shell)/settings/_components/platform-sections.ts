@@ -3,6 +3,7 @@ const PLATFORM_SETTINGS_SECTIONS = [
   'billing',
   'knowledge-graphs',
   'members',
+  'connected-accounts',
   'usage',
   'whitelabeling',
   'recently-deleted',

@@ -25,6 +25,13 @@ const PLATFORM_SECTIONS: Record<PlatformSettingsSection, ComponentType<SettingsS
       ),
     { loading }
   ),
+  'connected-accounts': dynamic(
+    () =>
+      import(
+        '@/platform/app/(shell)/settings/_components/sections/connected-accounts/connected-accounts-section'
+      ),
+    { loading }
+  ),
   general: dynamic(
     () => import('@/platform/app/(shell)/settings/_components/sections/general/general-section'),
     { loading }
