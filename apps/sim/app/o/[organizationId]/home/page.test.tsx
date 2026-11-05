@@ -8,11 +8,17 @@ import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ context: vi.fn() }))
+const mocks = vi.hoisted(() => ({ context: vi.fn(), prefetchHome: vi.fn() }))
 
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/organizations/surface', () => ({ getOrganizationSurfaceContext: mocks.context }))
 vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
+vi.mock('@/platform/lib/data/prefetch-home', () => ({ prefetchHome: mocks.prefetchHome }))
+vi.mock('@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton', () => ({
+  HomeDashboardSkeleton: ({ requestMode }: { requestMode: string }) => (
+    <div>Home for {requestMode}</div>
+  ),
+}))
 vi.mock('@/app/o/[organizationId]/integrations/integrations', () => ({
   OrganizationIntegrations: () => <div>Integrations</div>,
 }))
@@ -80,7 +86,47 @@ describe('organization Search page gates', () => {
     expect(mockChat).not.toHaveBeenCalled()
   })
 
-  it('routes chat URLs exactly where Home routes the same viewer, before loading the chat', async () => {
+  const searchOnlyMember = {
+    mothershipAvailable: true,
+    canBuild: false,
+    searchAccess: { memberScoped: true },
+  }
+
+  it('gives a search-only member Home with the Assistant, at both of its addresses', async () => {
+    mocks.context.mockResolvedValue(searchOnlyMember)
+    expect(renderToStaticMarkup(await OrganizationHomePage({ params }))).toContain(
+      'Home for assistant'
+    )
+    await expect(OrganizationPage({ params })).rejects.toThrow('NEXT_REDIRECT:/o/org-1/home')
+  })
+
+  it.each([true, false])(
+    'gives a builder Home with the agent (Search access: %s)',
+    async (memberScoped) => {
+      mocks.context.mockResolvedValue({
+        mothershipAvailable: true,
+        canBuild: true,
+        searchAccess: { memberScoped },
+      })
+      expect(renderToStaticMarkup(await OrganizationHomePage({ params }))).toContain(
+        'Home for agent'
+      )
+      await expect(OrganizationPage({ params })).rejects.toThrow('NEXT_REDIRECT:/o/org-1/home')
+    }
+  )
+
+  it('sends a member without the Assistant to Search, where Home has no conversation to hold', async () => {
+    mocks.context.mockResolvedValue({ ...searchOnlyMember, mothershipAvailable: false })
+    await expect(OrganizationHomePage({ params })).rejects.toThrow('NEXT_REDIRECT:/o/org-1/search')
+    await expect(OrganizationPage({ params })).rejects.toThrow('NEXT_REDIRECT:/o/org-1/search')
+  })
+
+  it('keeps a search-only member out of an agent chat that Home does not entitle them to', async () => {
+    mocks.context.mockResolvedValue(searchOnlyMember)
+    await expect(OrganizationChatPage({ params })).rejects.toThrow('NEXT_REDIRECT:/o/org-1/search')
+  })
+
+  it('sends a viewer with no conversation here away from chat URLs, before loading the chat', async () => {
     mocks.context.mockResolvedValue({
       mothershipAvailable: true,
       canBuild: false,

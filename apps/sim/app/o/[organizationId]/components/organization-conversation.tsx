@@ -78,6 +78,13 @@ export interface OrganizationSummaryRequest {
   assistantSearch: WorkspaceSearchFilters
 }
 
+/** What a surface's own landing arranges in place of the default one. */
+export interface OrganizationLandingSlot {
+  requestMode: ChatRequestMode
+  composer: ReactNode
+  shortcuts: ReactNode
+}
+
 const serializeSearchConversation = createSerializer({
   ...organizationSearchParsers,
   ...searchFilterParsers,
@@ -92,6 +99,13 @@ interface OrganizationConversationProps {
   chatId?: string
   requestMode: ChatRequestMode
   header?: ReactNode
+  /** Names this surface's new-chat draft, for a surface that must not share another's. */
+  draftId?: string
+  /** Replaces the landing, and the blank frame before it, until the first turn takes over. */
+  landing?: {
+    fallback: ReactNode
+    render: (slot: OrganizationLandingSlot) => ReactNode
+  }
   panelOptions?: {
     header: ReactNode
     attachments?: ReactNode
@@ -117,8 +131,9 @@ export function OrganizationConversation(props: OrganizationConversationProps) {
     (props.requestMode === 'assistant' ? !searchAccess.memberScoped : !canBuild)
   )
     return null
-  if (isRestoredChatEntry || !isClient || !session?.user?.id)
-    return <HomeFallback header={props.header} />
+  if (isRestoredChatEntry) return <HomeFallback header={props.header} />
+  if (!isClient || !session?.user?.id)
+    return props.landing?.fallback ?? <HomeFallback header={props.header} />
   return (
     <OrganizationConversationContent
       key={`${session.user.id}:${organization.id}:${props.chatId ?? 'new'}:${props.panelOptions ? 'panel' : props.requestMode}`}
@@ -135,6 +150,8 @@ function OrganizationConversationContent({
   active = true,
   summaryRequest,
   onSummaryConsumed,
+  draftId,
+  landing,
   panelOptions,
 }: OrganizationConversationProps) {
   const { organization, canBuild } = useOrganizationContext()
@@ -171,7 +188,8 @@ function OrganizationConversationContent({
       ? { projectsDesktopTabs: false, onChatIdResolved: panelOptions.onChatIdResolved }
       : {}),
   })
-  const newDraftId = !compact && destinationMode === 'assistant' ? 'search-assistant' : 'home'
+  const newDraftId =
+    draftId ?? (!compact && destinationMode === 'assistant' ? 'search-assistant' : 'home')
   const draftPrefix = panelOptions ? `${panelOptions.draftNamespace}:` : ''
   const initialDraftKey = `${draftPrefix}${userId}:organization:${organization.id}:${chatId ?? newDraftId}`
   const draftKey = `${draftPrefix}${userId}:organization:${organization.id}:${chat.resolvedChatId ?? chatId ?? newDraftId}`
@@ -492,6 +510,16 @@ function OrganizationConversationContent({
     />
   )
 
+  const shortcuts =
+    requestMode !== 'assistant' ? (
+      <SuggestedActions
+        organizationId={organization.id}
+        onSelectPrompt={(prompt) => setDraft(mentionifyIntegrations(prompt))}
+      />
+    ) : (
+      <GetStarted />
+    )
+
   const content = (
     <div
       className={cn(
@@ -549,6 +577,8 @@ function OrganizationConversationContent({
           </div>
           <ComposerScrollArea className='px-3 pb-3'>{composer}</ComposerScrollArea>
         </>
+      ) : landing ? (
+        landing.render({ requestMode, composer, shortcuts })
       ) : (
         <OrganizationLanding
           heading={
@@ -560,16 +590,7 @@ function OrganizationConversationContent({
           }
         >
           {composer}
-          <div className='relative md:absolute md:inset-x-0 md:top-full'>
-            {requestMode !== 'assistant' ? (
-              <SuggestedActions
-                organizationId={organization.id}
-                onSelectPrompt={(prompt) => setDraft(mentionifyIntegrations(prompt))}
-              />
-            ) : (
-              <GetStarted />
-            )}
-          </div>
+          <div className='relative md:absolute md:inset-x-0 md:top-full'>{shortcuts}</div>
         </OrganizationLanding>
       )}
     </div>

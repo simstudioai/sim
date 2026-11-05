@@ -54,3 +54,10 @@ export const clearSearchHistoryContract = defineRouteContract({
   params: searchHistoryParamsSchema,
   response: { mode: 'json', schema: z.object({ success: z.literal(true) }) },
 })
+export const removeSearchHistorySourceContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/organizations/[id]/search/history/sources',
+  params: searchHistoryParamsSchema,
+  body: z.object({ url: z.string().min(1).max(4096) }),
+  response: { mode: 'json', schema: z.object({ success: z.literal(true) }) },
+})
