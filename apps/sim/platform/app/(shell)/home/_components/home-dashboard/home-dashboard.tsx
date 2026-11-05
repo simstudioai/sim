@@ -124,13 +124,12 @@ export function HomeDashboard({
             {view.getStarted.length > 0 && <GetStarted steps={view.getStarted} />}
             <div className={styles.columns}>
               <div className={styles.column}>
-                {!hiddenWidgets.includes('Activity') && (
-                  <HomeActivityChart
-                    title={metricTitle}
-                    state={activity}
-                    onRetry={actions.retryActivity}
-                  />
-                )}
+                <HomeActivityChart
+                  title={metricTitle}
+                  state={activity}
+                  onRetry={actions.retryActivity}
+                  hidden={hiddenWidgets.includes('Activity')}
+                />
                 {!hiddenWidgets.includes('Email') && (
                   <ConnectedWidget
                     title='Email'

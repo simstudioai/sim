@@ -21,6 +21,8 @@ interface HomeActivityChartProps {
   title: string
   state: HomeActivityState
   onRetry?: () => void
+  /** Kept mounted while hidden, so its range survives Customize Home. */
+  hidden?: boolean
   /** The workbench opens a specimen on a point or on the range menu. */
   initialPoint?: number
   initiallyOpen?: boolean
@@ -113,12 +115,13 @@ export function HomeActivityChart({
   title,
   state,
   onRetry = () => {},
+  hidden = false,
   initialPoint,
   initiallyOpen,
 }: HomeActivityChartProps) {
   const [range, setRange] = useState(RANGE_LABELS[0])
   const scrollEdges = useScrollEdges<HTMLElement>('vertical', { tabStop: true })
-  if (state.status === 'hidden') return null
+  if (hidden || state.status === 'hidden') return null
   const ready = state.status === 'ready'
   const days = WINDOW_DAYS[RANGE_LABELS.indexOf(range)]
   const points = ready ? calendarWindow(state.points, days) : []
