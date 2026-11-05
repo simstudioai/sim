@@ -248,7 +248,7 @@ await db.transaction(async (tx) => {
       name: 'Standard Access',
       config: STANDARD_GROUP_CONFIG,
       createdBy: OWNER.userId,
-      membershipMode: 'explicit',
+      isDefault: true,
     },
     {
       id: NARROW_GROUP_ID,
