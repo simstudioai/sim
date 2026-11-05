@@ -16,7 +16,7 @@ import { createLogger } from '@sim/logger'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { escapeRegExp, truncate } from '@sim/utils/string'
+import { truncate } from '@sim/utils/string'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
@@ -460,12 +460,11 @@ async function expectPageNotFound(page: Page) {
   await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
 }
 
-/** A rail row's link. A workspace's name also reads through its avatar. */
+/** A rail row's link, named once: a workspace's avatar adds nothing to its name. */
 const railLink = (page: Page, label: string) =>
-  sidebar(page).getByRole('link', { name: new RegExp(`(^| )${escapeRegExp(label)}$`) })
+  sidebar(page).getByRole('link', { name: label, exact: true })
 
-const accountChip = (page: Page) =>
-  sidebar(page).getByRole('button', { name: 'Account menu', exact: true })
+const accountChip = (page: Page) => sidebar(page).getByRole('button', { name: /, account menu$/ })
 
 /** The row around a rail link: its status glyph sits beside the link, not in it. */
 const railRow = (page: Page, label: string) => railLink(page, label).locator('xpath=..')
@@ -545,6 +544,14 @@ async function landingChecks() {
         await expectPageNotFound(page)
         await page.goto(orgUrl(`/search/chat/${MEMBER_CHATS.agent.id}`))
         await expectPageNotFound(page)
+        await sql`update copilot_chats set last_seen_at = null where id = ${MEMBER_CHATS.agent.id}`
+        await page.goto(orgUrl('/home'))
+        await expect(railLink(page, MEMBER_CHATS.assistant.title)).toBeVisible()
+        await expect(railLink(page, MEMBER_CHATS.agent.title)).toHaveCount(0)
+        await expect(
+          homeRegion(page, 'Needs your attention').getByText(MEMBER_CHATS.agent.title)
+        ).toHaveCount(0)
+        await sql`update copilot_chats set last_seen_at = now() where id = ${MEMBER_CHATS.agent.id}`
       })
       await withSession(ADMIN, async ({ page }) => {
         await page.goto(orgUrl(`/search/chat/${ADMIN_CHATS.agent.id}`))
@@ -769,6 +776,25 @@ async function sidebarChecks() {
       await expect
         .poll(async () => (await sidebar(page).boundingBox())?.width ?? 0)
         .toBeGreaterThan(before + 30)
+    })
+  })
+  await check('arrow keys on the edge resize the rail, within its bounds', async () => {
+    await withSession(MEMBER, async ({ page }) => {
+      await page.goto(orgUrl('/home'))
+      const edge = sidebar(page).getByRole('separator', { name: 'Resize sidebar' })
+      const width = async () => Math.round((await sidebar(page).boundingBox())?.width ?? 0)
+      const before = await width()
+      await expect(edge).toHaveAttribute('aria-valuenow', String(before))
+      await edge.focus()
+      await page.keyboard.press('ArrowRight')
+      await expect.poll(width).toBe(before + 16)
+      await expect(edge).toHaveAttribute('aria-valuenow', String(before + 16))
+      await page.keyboard.press('ArrowLeft')
+      await expect.poll(width).toBe(before)
+      for (let press = 0; press < 20; press++) await page.keyboard.press('ArrowLeft')
+      await expect.poll(width).toBe(SIDEBAR_WIDTH.MIN)
+      await page.keyboard.press('Enter')
+      await expect.poll(width).toBe(SIDEBAR_WIDTH.MIN)
     })
   })
   await check(
@@ -1269,6 +1295,7 @@ async function sidebarChecks() {
       await page.goto(orgUrl('/home'))
       const chip = accountChip(page)
       await expect(chip).toContainText(MEMBER.name)
+      await expect(chip).toHaveAccessibleName(`${MEMBER.name}, account menu`)
       await chip.click()
       const menu = dialog(page, 'Account menu')
       await expect(menu.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible()
@@ -1322,6 +1349,24 @@ async function sidebarChecks() {
       })
     }
   )
+  await check('Help menu: the macOS app is offered on a Mac browser only', async () => {
+    const mac = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
+    const windows = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+    for (const [userAgent, offered] of [
+      [mac, 1],
+      [windows, 0],
+    ] as const) {
+      await withSession(MEMBER, async ({ page }) => {
+        await page.addInitScript((agent) => {
+          Object.defineProperty(navigator, 'userAgent', { get: () => agent })
+        }, userAgent)
+        await page.goto(orgUrl('/home'))
+        await sidebar(page).getByRole('button', { name: 'Help', exact: true }).click()
+        await expect(menuEntry(page, 'Contact support')).toBeVisible()
+        await expect(menuEntry(page, 'Download apps')).toHaveCount(offered)
+      })
+    }
+  })
   notProvable(
     'Help menu: desktop update row',
     'Needs the packaged desktop app with an update pending'
@@ -2105,6 +2150,47 @@ async function searchChecks() {
       })
     })
   })
+  for (const viewport of [DESKTOP, { ...DESKTOP, name: 'narrow', width: 900 }, PHONE]) {
+    await check(`field and results share one column (${viewport.name})`, async () => {
+      await withSession(
+        MEMBER,
+        async ({ page }) => {
+          await stubSearch(page)
+          await page.goto(orgUrl('/search?mode=search&q=recall'))
+          const frame = searchField(page).locator('xpath=..')
+          const row = page.getByRole('link', { name: 'Recall playbook' }).locator('xpath=../..')
+          await expect(row).toBeVisible()
+          const [field, result] = [await frame.boundingBox(), await row.boundingBox()]
+          assert(field && result, 'The field and a result are on screen')
+          assert(Math.abs(field.x - result.x) <= 1, `Left ${field.x} and ${result.x}`)
+          assert(
+            Math.abs(field.x + field.width - (result.x + result.width)) <= 1,
+            `Right ${field.x + field.width} and ${result.x + result.width}`
+          )
+        },
+        { viewport }
+      )
+    })
+  }
+  await check("a phone's Search button keeps its size and widens its target to 44px", async () => {
+    await withSession(
+      MEMBER,
+      async ({ page }) => {
+        await page.goto(orgUrl('/search?mode=search'))
+        await searchField(page).fill('recall')
+        const button = page.getByRole('button', { name: 'Search', exact: true }).last()
+        const box = await button.boundingBox()
+        assert(box, 'The button is on screen')
+        assert.equal(Math.round(box.height), 28)
+        const hit = await button.evaluate(
+          (node, { x, y }) => node === document.elementFromPoint(x, y),
+          { x: box.x + box.width / 2, y: box.y - 6 }
+        )
+        assert(hit, 'A touch above the drawn button still lands on it')
+      },
+      { viewport: PHONE }
+    )
+  })
   await check(
     'row menu: Copy link, Copy sim/name when a link exists, Create link when not, none on failure',
     async () => {
@@ -2129,6 +2215,8 @@ async function searchChecks() {
         await create.click()
         const form = page.getByRole('dialog').filter({ hasText: 'Destination URL' })
         await expect(form).toBeVisible()
+        await expect(form.locator('xpath=ancestor::*[@data-platform-ui]')).not.toHaveCount(0)
+        await expect(form.getByRole('checkbox', { name: 'Hide from the Links page' })).toBeVisible()
         await expect(form.getByRole('textbox', { name: 'Destination URL' })).toHaveValue(
           'https://wiki.example.com/recall'
         )
@@ -2573,6 +2661,25 @@ async function linksChecks() {
       await expect(rowFor(page, 'timesheet')).toBeVisible()
       assert(pages.length > 0, 'Rows past the first page load as the list scrolls')
     })
+  })
+  await check('a phone keeps every fact of a link, with Restricted in view', async () => {
+    await withSession(
+      MEMBER,
+      async ({ page }) => {
+        await page.goto(linksUrl)
+        const row = rowFor(page, NAMED_LINKS.restricted.name)
+        await expect(
+          row.getByText(NAMED_LINKS.restricted.url, { exact: true }).first()
+        ).toBeVisible()
+        await expect(
+          row.getByText(NAMED_LINKS.restricted.description, { exact: true }).first()
+        ).toBeVisible()
+        await expect(row.getByText(/^Restricted · /)).toBeVisible()
+        const columns = await page.getByRole('columnheader').allInnerTexts()
+        assert(!columns.join().includes('Created by'), `Columns ${columns}`)
+      },
+      { viewport: PHONE }
+    )
   })
   await check('the API serves every link the member can see', async () => {
     await withSession(MEMBER, async ({ page }) => {

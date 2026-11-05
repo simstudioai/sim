@@ -16,7 +16,7 @@ import {
 } from '@/hooks/queries/workspace'
 import { buildOrganizationNavItems } from '@/platform/app/(shell)/_components/destinations'
 import type { ShellChat, ShellData, ShellWorkspace } from '@/platform/app/(shell)/_components/model'
-import { organizationChatHref } from '@/platform/lib/data/chat-list'
+import { organizationChatHref, useCanOpenOrganizationChat } from '@/platform/lib/data/chat-list'
 import { workspaceHref } from '@/platform/lib/data/workspaces'
 
 function toShellWorkspace(
@@ -78,6 +78,7 @@ export function useOrganizationShell(flags: OrganizationNavFlags) {
   const chats = useOrganizationMothershipChats(organization.id, 'active', {
     enabled: chatsAvailable,
   })
+  const canOpenChat = useCanOpenOrganizationChat()
   const profile = useUserProfile()
   const data: ShellData = {
     organization,
@@ -85,7 +86,9 @@ export function useOrganizationShell(flags: OrganizationNavFlags) {
     workspaces: (workspaces.data ?? [])
       .filter((workspace) => workspace.organizationId === organization.id)
       .map((workspace) => toShellWorkspace(workspace, pinnedIds.data)),
-    chats: chatsAvailable ? (chats.data ?? []).map((chat) => toShellChat(chat, routes)) : [],
+    chats: chatsAvailable
+      ? (chats.data ?? []).filter(canOpenChat).map((chat) => toShellChat(chat, routes))
+      : [],
     status: {
       workspaces: workspaces.isRefetchError ? 'success' : workspaces.status,
       chats: chats.isRefetchError ? 'success' : chats.status,

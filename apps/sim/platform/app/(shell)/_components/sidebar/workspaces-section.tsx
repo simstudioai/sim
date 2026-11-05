@@ -89,7 +89,13 @@ export function WorkspacesSection({
             actions={rowActions(item)}
             onMenuOpenChange={hold}
             leading={
-              <Avatar name={item.name} src={item.logoUrl ?? undefined} organization size='inline' />
+              <Avatar
+                name={item.name}
+                src={item.logoUrl ?? undefined}
+                organization
+                size='inline'
+                decorative
+              />
             }
             status={item.isPinned && <PinnedIndicator />}
             render={<SettingsGuardedLink href={item.href} />}

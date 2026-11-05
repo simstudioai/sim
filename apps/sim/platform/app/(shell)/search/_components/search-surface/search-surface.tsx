@@ -173,9 +173,11 @@ function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearch
         <RedesignSurface>
           {query ? (
             <div className={styles.docked}>
-              <div className={styles.dockedField}>{field}</div>
+              <div className={styles.dockedRow}>
+                <div className={`${styles.column} ${styles.dockedField}`}>{field}</div>
+              </div>
               <div ref={resultsScroll} className={styles.scroll}>
-                <div className={styles.resultsColumn}>
+                <div className={`${styles.column} ${styles.resultsColumn}`}>
                   <SearchResults
                     scope={{ kind: 'organization', organizationId: organization.id }}
                     query={query}
@@ -187,10 +189,12 @@ function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearch
           ) : (
             <div className={styles.scroll}>
               <div className={styles.landing}>
-                <h1 className={styles.heading} data-type='T076'>
-                  Search {organization.name}
-                </h1>
-                <div className={styles.landingField}>{field}</div>
+                <div className={styles.column}>
+                  <h1 className={styles.heading} data-type='T076'>
+                    Search {organization.name}
+                  </h1>
+                  {field}
+                </div>
               </div>
             </div>
           )}

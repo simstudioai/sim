@@ -49,7 +49,7 @@ export function LinksFrame({
       <div className={styles.options}>
         <SearchField
           label='Search links'
-          placeholder='Search links...'
+          placeholder='Search links…'
           value={search}
           onValueChange={onSearch}
         />

@@ -19,16 +19,19 @@ interface AvatarProps {
   src?: string
   organization?: boolean
   size?: 'inline'
+  /** Beside a visible name, which already says who this is. */
+  decorative?: boolean
 }
 
-export function Avatar({ name, src, organization, size }: AvatarProps) {
+export function Avatar({ name, src, organization, size, decorative }: AvatarProps) {
   return (
     <span
       className={styles.avatar}
       data-organization={organization || undefined}
       data-size={size}
-      role='img'
-      aria-label={name}
+      role={decorative ? undefined : 'img'}
+      aria-label={decorative ? undefined : name}
+      aria-hidden={decorative || undefined}
       data-type={size ? 'T021' : organization ? 'T034' : 'T050'}
     >
       {src ? <AvatarImage src={src} /> : Array.from(name.trim().toUpperCase())[0]}
@@ -49,7 +52,7 @@ interface PersonRowProps {
 export function PersonRow({ name, src }: PersonRowProps) {
   return (
     <span className={styles.personRow}>
-      <Avatar name={name} src={src} size='inline' />
+      <Avatar name={name} src={src} size='inline' decorative />
       <span data-type='T060'>{name}</span>
     </span>
   )

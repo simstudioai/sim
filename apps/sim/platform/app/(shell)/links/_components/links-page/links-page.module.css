@@ -1,12 +1,4 @@
 .page {
-  /* Everything above and below the table's own scroller, so the page itself stays still. */
-  --ui-table-viewport-offset: calc(
-    var(--shell-home-row-start) +
-    2 *
-    var(--spacing-app-control-md) +
-    3 *
-    var(--ui-product-section-gap)
-  );
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
@@ -36,6 +28,41 @@
   flex: 1 1 var(--spacing-128);
   min-inline-size: 0;
 }
+.nameLeading {
+  display: inline-flex;
+  flex: none;
+}
+.nameCell {
+  display: grid;
+  flex: 1;
+  min-inline-size: 0;
+}
+.summary {
+  display: none;
+  min-inline-size: 0;
+  gap: var(--spacing-2);
+  margin-block-start: var(--spacing-2);
+  color: var(--ui-secondary);
+}
+.summaryDestination {
+  display: none;
+  min-inline-size: 0;
+}
+/* The breakpoints where the table hides its columns: what leaves the row joins the name's cell. */
+@container (width < 48rem) {
+  .nameLeading {
+    align-self: flex-start;
+    margin-block-start: var(--spacing-2);
+  }
+  .summary {
+    display: grid;
+  }
+}
+@container (width < 30rem) {
+  .summaryDestination {
+    display: grid;
+  }
+}
 .favicon {
   flex: none;
   inline-size: var(--spacing-16);
@@ -51,6 +78,9 @@
   block-size: var(--spacing-40);
   border-radius: var(--radius-4);
   background: var(--ui-hover);
+}
+.learnMore {
+  margin-inline-start: calc(-1 * var(--spacing-8));
 }
 .access {
   display: grid;
