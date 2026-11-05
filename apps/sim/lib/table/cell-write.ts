@@ -179,11 +179,10 @@ function emitCellStateEvent(
 
 function isCommittedState(
   current: RowExecutionMetadata | undefined,
-  ctx: WriteWorkflowGroupContext,
-  payload: WriteWorkflowGroupStatePayload
+  { executionState }: WriteWorkflowGroupStatePayload
 ): boolean {
   return (
-    current?.executionId === ctx.executionId && current.status === payload.executionState.status
+    current?.executionId === executionState.executionId && current.status === executionState.status
   )
 }
 
@@ -196,7 +195,7 @@ export async function confirmWorkflowGroupStateCommitted(
   payload: WriteWorkflowGroupStatePayload
 ): Promise<boolean> {
   const current = (await loadExecutionsForRow(db, ctx.rowId))[ctx.groupId]
-  if (!isCommittedState(current, ctx, payload)) return false
+  if (!isCommittedState(current, payload)) return false
   emitCellStateEvent(ctx, { ...payload, eventOutputs: await readStoredOutputs(ctx, payload) })
   return true
 }
@@ -268,41 +267,42 @@ async function readStoredOutputs(
  * A lost connection leaves the outcome unknown, so each repeat first checks what the last attempt
  * did. Re-applying a commit that landed could undo what the user did since, such as editing the
  * output or stopping a downstream group, so a cell whose state already matches only needs the event
- * the lost attempt never emitted, carrying what is stored now. A completed run or a write carrying
- * outputs comes after a pickup wrote the cell's state, so if that state is gone the user cleared it,
- * and an unclaimed marker in its place belongs to a newer run. Any other write can be the first the
- * cell ever had, or can be settling its own marker, so it is written; the most that can come back is
- * an error badge with no outputs, which the user can clear or re-run.
+ * the lost attempt never emitted, carrying what is stored now.
+ *
+ * Otherwise `claimed` says what a changed cell means. After this carrier's pickup landed, a missing
+ * state means the user cleared the cell and an unclaimed marker belongs to a newer run, so the write
+ * is dropped and the cascade drains that marker. Before a pickup, either can be the cell's own, so
+ * the write goes ahead, except that an error over a marker leaves the execution id null: a newer
+ * run's carrier can still claim the cell.
  *
  * A `cancelled` stamp is never repeated. It carries no guard, so a repeat could kill a run the user
  * started after it.
  */
 export async function writeWorkflowGroupStateDurably(
   ctx: WriteWorkflowGroupContext,
-  payload: WriteWorkflowGroupStatePayload
+  payload: WriteWorkflowGroupStatePayload,
+  { claimed }: { claimed: boolean }
 ): Promise<'wrote' | 'skipped'> {
-  const { status } = payload.executionState
-  if (status === 'cancelled') return writeWorkflowGroupState(ctx, payload)
+  if (payload.executionState.status === 'cancelled') return writeWorkflowGroupState(ctx, payload)
 
+  let write = payload
   let attempted = false
   return withIdempotentWriteRetry(
     async () => {
       if (attempted) {
         const current = (await loadExecutionsForRow(db, ctx.rowId))[ctx.groupId]
-        if (isCommittedState(current, ctx, payload)) {
-          emitCellStateEvent(ctx, {
-            ...payload,
-            eventOutputs: await readStoredOutputs(ctx, payload),
-          })
+        if (isCommittedState(current, write)) {
+          emitCellStateEvent(ctx, { ...write, eventOutputs: await readStoredOutputs(ctx, write) })
           return 'wrote'
         }
-        const followsPickup =
-          status === 'completed' || Object.keys(payload.dataPatch ?? {}).length > 0
-        const isNewerMarker = current?.status === 'pending' && current.executionId == null
-        if (followsPickup && (!current || isNewerMarker)) return 'skipped'
+        const isUnclaimedMarker = current?.status === 'pending' && current.executionId == null
+        if (claimed && (!current || isUnclaimedMarker)) return 'skipped'
+        if (isUnclaimedMarker && write.executionState.status === 'error') {
+          write = { ...write, executionState: { ...write.executionState, executionId: null } }
+        }
       }
       attempted = true
-      return writeWorkflowGroupState(ctx, payload)
+      return writeWorkflowGroupState(ctx, write)
     },
     { label: 'writeWorkflowGroupState', ...CELL_DATABASE_RETRY }
   )
@@ -506,15 +506,19 @@ export async function markWorkflowGroupPickedUp(
   ctx: WriteWorkflowGroupContext,
   prev: Pick<RowExecutionMetadata, 'workflowId' | 'jobId'>
 ): Promise<'wrote' | 'skipped'> {
-  return writeWorkflowGroupStateDurably(ctx, {
-    executionState: {
-      status: 'running',
-      executionId: ctx.executionId,
-      jobId: prev.jobId,
-      workflowId: prev.workflowId,
-      error: null,
+  return writeWorkflowGroupStateDurably(
+    ctx,
+    {
+      executionState: {
+        status: 'running',
+        executionId: ctx.executionId,
+        jobId: prev.jobId,
+        workflowId: prev.workflowId,
+        error: null,
+      },
     },
-  })
+    { claimed: false }
+  )
 }
 
 /** Builds the canonical `cancelled` execution state used by every cancel path.

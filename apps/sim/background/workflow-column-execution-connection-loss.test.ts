@@ -95,6 +95,7 @@ import {
   executeWorkflowGroupCellJob,
   runRowCascadeLoop,
 } from '@/background/workflow-column-execution'
+import { buildBlockExecutionError } from '@/executor/utils/errors'
 
 const GROUP = { id: 'group-1', workflowId: 'workflow-1', outputs: [] }
 const NEXT_GROUP = { id: 'group-2', workflowId: 'workflow-2', outputs: [] }
@@ -375,13 +376,58 @@ describe('a table cell losing a database socket', () => {
     expect(lastWrite()?.executionState.error).toBe(message)
   })
 
-  it('keeps a block error that names the block over a database cause', async () => {
-    const message = 'Agent 1: An internal error occurred while executing the block.'
-    mocks.executeWorkflow.mockRejectedValue(new Error(message, { cause: resetRead() }))
+  /** The chain the block executor builds around a query failure, with the block's generic text. */
+  function blockErrorOver(queryError: Error): Error {
+    const internal = 'An internal error occurred while executing the block. Please try again.'
+    return buildBlockExecutionError({
+      block: { id: 'agent-1', metadata: { id: 'agent', name: 'Agent 1' } } as never,
+      error: new Error(internal, { cause: queryError }),
+    })
+  }
+
+  it('says a block lost the connection, since its generic text would hide that a re-run can work', async () => {
+    mocks.executeWorkflow.mockRejectedValue(blockErrorOver(resetRead()))
 
     await runRowCascadeLoop(PAYLOAD)
 
-    expect(lastWrite()?.executionState.error).toBe(message)
+    expect(lastWrite()?.executionState.error).toBe(
+      'Lost the database connection. Run this cell again.'
+    )
+  })
+
+  it('keeps the error of a block whose query the database rejected, which names the block', async () => {
+    const failure = blockErrorOver(
+      Object.assign(new Error('Failed query: update "x"\nparams: secret-value'), {
+        query: 'update "x"',
+        params: ['secret-value'],
+        cause: Object.assign(new Error('duplicate key'), { name: 'PostgresError', code: '23505' }),
+      })
+    )
+    mocks.executeWorkflow.mockRejectedValue(failure)
+
+    await runRowCascadeLoop(PAYLOAD)
+
+    expect(lastWrite()?.executionState.error).toBe(failure.message)
+  })
+
+  it('leaves a cell it never claimed open for a newer carrier when it fails before pickup', async () => {
+    mocks.readDispatch.mockRejectedValue(resetRead())
+
+    await runRowCascadeLoop(PAYLOAD)
+
+    const [, write, options] = mocks.writeWorkflowGroupState.mock.calls.at(-1) ?? []
+    expect(write.executionState).toMatchObject({ status: 'error', executionId: null })
+    expect(options).toEqual({ claimed: false })
+  })
+
+  it('reports a failure after pickup under its own claim', async () => {
+    mocks.executeWorkflow.mockRejectedValue(resetRead())
+
+    await runRowCascadeLoop(PAYLOAD)
+
+    const [, write, options] = mocks.writeWorkflowGroupState.mock.calls.at(-1) ?? []
+    expect(write.executionState).toMatchObject({ status: 'error', executionId: 'execution-1' })
+    expect(options).toEqual({ claimed: true })
   })
 
   it('does not tell the user to re-run a query that will fail the same way', async () => {

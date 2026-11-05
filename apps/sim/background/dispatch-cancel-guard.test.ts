@@ -122,7 +122,8 @@ describe('the cell guard on its owning dispatch', () => {
       expect.anything(),
       expect.objectContaining({
         executionState: expect.objectContaining({ status: 'cancelled' }),
-      })
+      }),
+      { claimed: false }
     )
   })
 })

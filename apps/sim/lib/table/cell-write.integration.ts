@@ -73,11 +73,15 @@ const { writeExecutionsPatch } = await import('@/lib/table/rows/executions')
 const { getTableById } = await import('@/lib/table/service')
 const {
   confirmWorkflowGroupStateCommitted,
+  markWorkflowGroupPickedUp,
   terminalizeUnclaimedRowMarkers,
   writeWorkflowGroupStateDurably,
 } = await import('@/lib/table/cell-write')
 
 const LANDED_COMMIT = { match: /commit/i, forward: true }
+const LOST_COMMIT = { match: /commit/i, forward: false }
+const CLAIMED = { claimed: true }
+const UNCLAIMED = { claimed: false }
 const workspaceId = generateId()
 const userId = generateId()
 const groupId = 'group-1'
@@ -108,6 +112,16 @@ async function createCell({ pickedUp = true } = {}) {
   if (!table) throw new Error('Fixture table was not created')
   return { ctx: { tableId, rowId, workspaceId, groupId, executionId, table }, tableId, rowId }
 }
+
+const failed = (error = 'A block failed') => ({
+  executionState: {
+    status: 'error' as const,
+    executionId,
+    jobId: null,
+    workflowId: 'workflow-1',
+    error,
+  },
+})
 
 const completed = (dataPatch: { out: string }) => ({
   dataPatch,
@@ -164,11 +178,11 @@ afterAll(async () => {
 describe('a durable cell state write around a lost connection', { timeout: 90_000 }, () => {
   it('applies a write whose statement never reached the server', async () => {
     const { ctx, rowId } = await createCell()
-    interception = { match: /commit/i, forward: false }
+    interception = LOST_COMMIT
 
-    await expect(writeWorkflowGroupStateDurably(ctx, completed({ out: 'result' }))).resolves.toBe(
-      'wrote'
-    )
+    await expect(
+      writeWorkflowGroupStateDurably(ctx, completed({ out: 'result' }), CLAIMED)
+    ).resolves.toBe('wrote')
 
     expect(await readCell(rowId)).toMatchObject({ out: 'result', status: 'completed' })
     expect(tableEventsMockFns.mockAppendTableEvent).toHaveBeenCalledOnce()
@@ -178,9 +192,9 @@ describe('a durable cell state write around a lost connection', { timeout: 90_00
     const { ctx, rowId } = await createCell()
     interception = LANDED_COMMIT
 
-    await expect(writeWorkflowGroupStateDurably(ctx, completed({ out: 'result' }))).resolves.toBe(
-      'wrote'
-    )
+    await expect(
+      writeWorkflowGroupStateDurably(ctx, completed({ out: 'result' }), CLAIMED)
+    ).resolves.toBe('wrote')
 
     expect(await readCell(rowId)).toMatchObject({ out: 'result', status: 'completed' })
     expect(tableEventsMockFns.mockAppendTableEvent).toHaveBeenCalledOnce()
@@ -198,7 +212,7 @@ describe('a durable cell state write around a lost connection', { timeout: 90_00
       },
     }
 
-    await writeWorkflowGroupStateDurably(ctx, completed({ out: 'result' }))
+    await writeWorkflowGroupStateDurably(ctx, completed({ out: 'result' }), CLAIMED)
 
     expect((await readCell(rowId)).out).toBe('edited')
     expect(tableEventsMockFns.mockAppendTableEvent).toHaveBeenCalledWith(
@@ -215,9 +229,9 @@ describe('a durable cell state write around a lost connection', { timeout: 90_00
       },
     }
 
-    await expect(writeWorkflowGroupStateDurably(ctx, completed({ out: 'result' }))).resolves.toBe(
-      'skipped'
-    )
+    await expect(
+      writeWorkflowGroupStateDurably(ctx, completed({ out: 'result' }), CLAIMED)
+    ).resolves.toBe('skipped')
 
     expect((await readCell(rowId)).status).toBeNull()
   })
@@ -233,16 +247,7 @@ describe('a durable cell state write around a lost connection', { timeout: 90_00
     }
 
     await expect(
-      writeWorkflowGroupStateDurably(ctx, {
-        dataPatch: { out: 'partial' },
-        executionState: {
-          status: 'error',
-          executionId,
-          jobId: null,
-          workflowId: 'workflow-1',
-          error: 'A block failed',
-        },
-      })
+      writeWorkflowGroupStateDurably(ctx, { ...failed(), dataPatch: { out: 'partial' } }, CLAIMED)
     ).resolves.toBe('skipped')
 
     expect(await readCell(rowId)).toMatchObject({ out: null, status: null })
@@ -250,28 +255,33 @@ describe('a durable cell state write around a lost connection', { timeout: 90_00
 
   it('writes an error for a cell that never had a state, not mistaking it for a cleared one', async () => {
     const { ctx, rowId } = await createCell({ pickedUp: false })
-    interception = { match: /commit/i, forward: false }
+    interception = LOST_COMMIT
 
     await expect(
-      writeWorkflowGroupStateDurably(ctx, {
-        executionState: {
-          status: 'error',
-          executionId,
-          jobId: null,
-          workflowId: 'workflow-1',
-          error: 'Workflow not found',
-        },
-      })
+      writeWorkflowGroupStateDurably(ctx, failed('Workflow not found'), UNCLAIMED)
     ).resolves.toBe('wrote')
 
     expect((await readCell(rowId)).status).toBe('error')
   })
 
-  it('does not overwrite the marker of a newer run requested during the retry backoff', async () => {
+  it('does not bring back a cell the user cleared before a claimed error write landed', async () => {
     const { ctx, rowId } = await createCell()
     interception = {
-      match: /commit/i,
-      forward: false,
+      ...LOST_COMMIT,
+      afterReset: async () => {
+        await control`DELETE FROM table_row_executions WHERE row_id = ${rowId}`
+      },
+    }
+
+    await expect(writeWorkflowGroupStateDurably(ctx, failed(), CLAIMED)).resolves.toBe('skipped')
+
+    expect((await readCell(rowId)).status).toBeNull()
+  })
+
+  it('leaves a newer run queued when a claimed error write retries, so the cascade can drain it', async () => {
+    const { ctx, rowId } = await createCell()
+    interception = {
+      ...LOST_COMMIT,
       afterReset: async () => {
         await control`
           UPDATE table_row_executions SET status = 'pending', execution_id = NULL
@@ -279,9 +289,92 @@ describe('a durable cell state write around a lost connection', { timeout: 90_00
       },
     }
 
-    await expect(writeWorkflowGroupStateDurably(ctx, completed({ out: 'result' }))).resolves.toBe(
-      'skipped'
-    )
+    await expect(writeWorkflowGroupStateDurably(ctx, failed(), CLAIMED)).resolves.toBe('skipped')
+
+    expect(await readCell(rowId)).toMatchObject({ status: 'pending', execution_id: null })
+  })
+
+  it('lets a newer carrier claim a cell whose unclaimed error write retried over a marker', async () => {
+    const { ctx, tableId, rowId } = await createCell({ pickedUp: false })
+    await writeExecutionsPatch(db, tableId, rowId, {
+      [groupId]: {
+        status: 'pending',
+        executionId: null,
+        jobId: null,
+        workflowId: 'workflow-1',
+        error: null,
+      },
+    })
+    interception = LOST_COMMIT
+
+    await expect(writeWorkflowGroupStateDurably(ctx, failed(), UNCLAIMED)).resolves.toBe('wrote')
+
+    expect(await readCell(rowId)).toMatchObject({ status: 'error', execution_id: null })
+    await expect(
+      markWorkflowGroupPickedUp(
+        { ...ctx, executionId: 'newer-execution' },
+        { workflowId: 'workflow-1', jobId: null }
+      )
+    ).resolves.toBe('wrote')
+    expect(await readCell(rowId)).toMatchObject({
+      status: 'running',
+      execution_id: 'newer-execution',
+    })
+  })
+
+  it('claims the cell when a pickup retries over a marker, which keeps its execution id', async () => {
+    const { ctx, tableId, rowId } = await createCell({ pickedUp: false })
+    await writeExecutionsPatch(db, tableId, rowId, {
+      [groupId]: {
+        status: 'pending',
+        executionId: null,
+        jobId: null,
+        workflowId: 'workflow-1',
+        error: null,
+      },
+    })
+    interception = LOST_COMMIT
+
+    await expect(
+      markWorkflowGroupPickedUp(ctx, { workflowId: 'workflow-1', jobId: null })
+    ).resolves.toBe('wrote')
+
+    expect(await readCell(rowId)).toMatchObject({ status: 'running', execution_id: executionId })
+  })
+
+  it('does not take a finished newer run for its own lost write', async () => {
+    const { ctx, rowId } = await createCell()
+    interception = {
+      ...LOST_COMMIT,
+      afterReset: async () => {
+        await control`
+          UPDATE table_row_executions SET status = 'completed', execution_id = 'newer-execution'
+          WHERE row_id = ${rowId}`
+      },
+    }
+
+    await expect(
+      writeWorkflowGroupStateDurably(ctx, completed({ out: 'result' }), CLAIMED)
+    ).resolves.toBe('skipped')
+
+    expect(tableEventsMockFns.mockAppendTableEvent).not.toHaveBeenCalled()
+    expect(await readCell(rowId)).toMatchObject({ out: 'before', execution_id: 'newer-execution' })
+  })
+
+  it('does not overwrite the marker of a newer run requested during the retry backoff', async () => {
+    const { ctx, rowId } = await createCell()
+    interception = {
+      ...LOST_COMMIT,
+      afterReset: async () => {
+        await control`
+          UPDATE table_row_executions SET status = 'pending', execution_id = NULL
+          WHERE row_id = ${rowId}`
+      },
+    }
+
+    await expect(
+      writeWorkflowGroupStateDurably(ctx, completed({ out: 'result' }), CLAIMED)
+    ).resolves.toBe('skipped')
 
     expect(await readCell(rowId)).toMatchObject({
       out: 'before',
@@ -293,16 +386,15 @@ describe('a durable cell state write around a lost connection', { timeout: 90_00
   it('does not overwrite a Stop that lands during the retry backoff', async () => {
     const { ctx, rowId } = await createCell()
     interception = {
-      match: /commit/i,
-      forward: false,
+      ...LOST_COMMIT,
       afterReset: async () => {
         await control`UPDATE table_row_executions SET status = 'cancelled' WHERE row_id = ${rowId}`
       },
     }
 
-    await expect(writeWorkflowGroupStateDurably(ctx, completed({ out: 'result' }))).resolves.toBe(
-      'skipped'
-    )
+    await expect(
+      writeWorkflowGroupStateDurably(ctx, completed({ out: 'result' }), CLAIMED)
+    ).resolves.toBe('skipped')
 
     expect((await readCell(rowId)).status).toBe('cancelled')
   })
@@ -353,15 +445,19 @@ describe('a durable cell state write around a lost connection', { timeout: 90_00
     }
 
     await expect(
-      writeWorkflowGroupStateDurably(ctx, {
-        executionState: {
-          status: 'cancelled',
-          executionId,
-          jobId: null,
-          workflowId: 'workflow-1',
-          error: 'Cancelled',
+      writeWorkflowGroupStateDurably(
+        ctx,
+        {
+          executionState: {
+            status: 'cancelled',
+            executionId,
+            jobId: null,
+            workflowId: 'workflow-1',
+            error: 'Cancelled',
+          },
         },
-      })
+        CLAIMED
+      )
     ).rejects.toThrow()
 
     expect(await readCell(rowId)).toMatchObject({ status: 'pending', execution_id: null })

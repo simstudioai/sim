@@ -80,9 +80,9 @@ const CELL_STOPPED_MESSAGE = 'This cell stopped before it finished. Run it again
 
 /**
  * The error a cell shows. Text that would expose a query, a bare driver error, or a wrapper repeating
- * a driver's text says what happened instead, because anyone viewing the table reads it. Anything
- * else keeps its own message, including a block's already-safe error over a database cause, which
- * names the block that failed.
+ * a driver's text says what happened instead, because anyone viewing the table reads it. A block's
+ * error over a lost connection is one of those, since its generic text would hide that a re-run can
+ * work. Anything else keeps its own message, including a block's error over a rejected query.
  */
 function getCellFailureMessage(error: unknown): string {
   const failure = toError(error)
@@ -408,12 +408,11 @@ export async function executeWorkflowGroupCellJob(
  *  cascade become visible to the eligibility check. The resume worker must
  *  already hold the row's cascade lock before calling.
  *
- *  A read that runs out of retries between groups kills this carrier, the row's
- *  only owner. Other carriers bail on its lock expecting it to drain their
- *  markers, so any left unclaimed would stay Queued with nothing to revisit
- *  them. It fails them while it still holds the lock, so it cannot touch work a
- *  later owner has taken on, and rethrows because the database stayed
- *  unreachable through a full retry budget. */
+ *  Anything thrown here, usually a read out of retries between groups, kills this
+ *  carrier, the row's only owner. Other carriers bail on its lock expecting it to
+ *  drain their markers, so any left unclaimed would stay Queued with nothing to
+ *  revisit them. It fails them while it still holds the lock, so it cannot touch
+ *  work a later owner has taken on, and rethrows so the run fails visibly. */
 export async function runRowCascadeLoop(
   payload: QueuedWorkflowGroupCellPayload,
   signal?: AbortSignal
@@ -538,6 +537,7 @@ async function runWorkflowAndWriteTerminal(
   const timeoutController = createWorkflowGroupAttemptTimeoutController(payload, signal)
   const attemptSignal = timeoutController.signal
   const requestId = `wfgrp-${executionId}`
+  let claimed = false
 
   try {
     return await runWithRequestContext({ requestId }, async () => {
@@ -563,12 +563,11 @@ async function runWorkflowAndWriteTerminal(
         eventOutputs?: RowData,
         secretProvenance?: TableRowSecretProvenanceWrite
       ) =>
-        writeWorkflowGroupStateDurably(cellCtx, {
-          executionState,
-          dataPatch,
-          eventOutputs,
-          secretProvenance,
-        })
+        writeWorkflowGroupStateDurably(
+          cellCtx,
+          { executionState, dataPatch, eventOutputs, secretProvenance },
+          { claimed }
+        )
 
       /**
        * Dispatch-level cancellation guard.
@@ -691,6 +690,7 @@ async function runWorkflowAndWriteTerminal(
           jobId: null,
         })
         if (pickedUp === 'skipped') return 'error'
+        claimed = true
 
         try {
           // Map table columns → enrichment input ids (skip this group's own outputs).
@@ -1090,6 +1090,7 @@ async function runWorkflowAndWriteTerminal(
         // check and pickup.
         const pickedUp = await markWorkflowGroupPickedUp(cellCtx, { workflowId, jobId: null })
         if (pickedUp === 'skipped') return 'error'
+        claimed = true
 
         // Output columns produced by THIS group are skipped on input — they're
         // populated by the run we're starting. Other group's outputs ARE
@@ -1345,6 +1346,8 @@ async function runWorkflowAndWriteTerminal(
      * dispatcher has moved on by then and no sweep revisits the cell, so a `pending` left behind
      * renders as Queued for good. Reporting it as an error lets the cascade continue and the user
      * re-run it. The text is fixed because anything can be thrown here, and the log holds the rest.
+     * A carrier that never claimed the cell leaves the execution id null, so a newer run's carrier
+     * can still claim it.
      *
      * A rejected write means a Stop or a newer run owns the cell, so this carrier ends rather than
      * start the next group. If the write fails too the throw fails the run, the alert to act on.
@@ -1363,12 +1366,13 @@ async function runWorkflowAndWriteTerminal(
       {
         executionState: {
           status: 'error',
-          executionId,
+          executionId: claimed ? executionId : null,
           jobId: null,
           workflowId: (group.type === 'enrichment' && group.enrichmentId) || workflowId,
           error: CELL_STOPPED_MESSAGE,
         },
-      }
+      },
+      { claimed }
     )
     return written === 'wrote' ? 'error' : 'cancelled'
   } finally {
