@@ -1,6 +1,6 @@
 const LOCALE = 'en-US'
 export const MINUTE_MS = 60_000
-const DAY_MS = 24 * 60 * MINUTE_MS
+export const DAY_MS = 24 * 60 * MINUTE_MS
 
 function utcFormat(options: Intl.DateTimeFormatOptions) {
   return new Intl.DateTimeFormat(LOCALE, { timeZone: 'UTC', ...options })
@@ -16,9 +16,32 @@ const UTC_CLOCK = utcFormat(CLOCK_OPTIONS)
 const ORDINAL = new Intl.PluralRules(LOCALE, { type: 'ordinal' })
 const SUFFIX: Partial<Record<Intl.LDMLPluralRule, string>> = { one: 'st', two: 'nd', few: 'rd' }
 
+/** Format many instants as ISO calendar days in one reporting time zone. */
+export function calendarDayFormatter(timeZone: string) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format
+}
+
 /** Format an ISO calendar day independently of the viewer's time zone. */
 export function formatCalendarDate(dateKey: string, style: keyof typeof DATE = 'short') {
   return DATE[style].format(new Date(`${dateKey}T00:00:00Z`))
+}
+
+/**
+ * An instant's date. Defaults to the viewer's zone; one that renders on the server passes the zone
+ * `useBrowserTimezone` settles on, since the server cannot know the viewer's.
+ */
+export function formatInstantDate(instant: string | number | Date, timeZone?: string) {
+  return new Intl.DateTimeFormat(LOCALE, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone,
+  }).format(new Date(instant))
 }
 
 /** Use the same reference instant for a surface's server and client renders. */
@@ -46,6 +69,19 @@ export function formatClockTime(timestampMs: number, timeZone = 'UTC') {
   const clock =
     timeZone === 'UTC' ? UTC_CLOCK : new Intl.DateTimeFormat(LOCALE, { ...CLOCK_OPTIONS, timeZone })
   return clock.format(new Date(timestampMs)).replace(/\s/gu, ' ')
+}
+
+/** An absolute date and time, for a record people compare. Defaults to the viewer's zone. */
+export function formatTimestamp(timestampMs: number, timeZone?: string) {
+  return new Intl.DateTimeFormat(LOCALE, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    ...CLOCK_OPTIONS,
+    timeZone,
+  })
+    .format(new Date(timestampMs))
+    .replace(/\s/gu, ' ')
 }
 
 /** Minutes are wall-clock positions within a calendar day. The end may extend past midnight. */

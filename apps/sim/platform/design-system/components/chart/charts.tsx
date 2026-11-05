@@ -161,6 +161,14 @@ export function BarChart({
       ),
     Math.max(1, maximum || 0)
   )
+  const legend = series
+    .map((label, layer) => ({ label, layer }))
+    .filter(({ layer }) => !hideEmptySeries || values.some((row) => row[layer] > 0))
+  const [hovered, setHovered] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(null)
+  if (selected !== null && !legend.some((item) => item.label === selected)) setSelected(null)
+  if (hovered !== null && !legend.some((item) => item.label === hovered)) setHovered(null)
+  const highlighted = legend.find((item) => item.label === (hovered ?? selected))?.layer
   return (
     <SeriesFrame
       title={title}
@@ -175,18 +183,38 @@ export function BarChart({
       }
       legend={
         <ul className={styles.series} aria-label='Bar series'>
-          {series.map(
-            (text, i) =>
-              (!hideEmptySeries || values.some((layers) => layers[i] > 0)) && (
-                <li key={text} data-type='T052'>
-                  <i className={styles.swatch} data-bar={i} />
-                  {text}
-                </li>
-              )
-          )}
+          {legend.map(({ label, layer }) => (
+            <li
+              key={label}
+              data-dimmed={(highlighted !== undefined && highlighted !== layer) || undefined}
+            >
+              <button
+                type='button'
+                data-type='T052'
+                aria-label={`Highlight ${label}`}
+                aria-pressed={selected === label}
+                onPointerEnter={() => setHovered(label)}
+                onPointerLeave={() => setHovered(null)}
+                onFocus={() => setHovered(label)}
+                onBlur={() => setHovered(null)}
+                onClick={() => setSelected(selected === label ? null : label)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    setHovered(null)
+                    setSelected(null)
+                  }
+                }}
+              >
+                <i className={styles.swatch} data-bar={layer} />
+                {label}
+              </button>
+            </li>
+          ))}
         </ul>
       }
-      render={() => <StackPlot label={title} values={values} maximum={peak} />}
+      render={() => (
+        <StackPlot label={title} values={values} maximum={peak} highlighted={highlighted} />
+      )}
     />
   )
 }

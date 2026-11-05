@@ -141,3 +141,16 @@ export const USAGE_SOURCE_CATEGORY: Record<OrganizationUsageSource, UsageSourceC
   'voice-output': 'other',
   'api-tool': 'other',
 }
+
+export const ACTIVITY_DIMENSION_OPTIONS = [
+  { value: 'workspace', label: 'Workspaces' },
+  { value: 'workflow', label: 'Workflows' },
+  { value: 'member', label: 'Members' },
+  { value: 'trigger', label: 'Triggers' },
+] as const
+
+export const ACTIVITY_SORT_OPTIONS = [
+  { value: 'runs', label: 'Most runs' },
+  { value: 'failures', label: 'Most failures' },
+  { value: 'duration', label: 'Longest duration' },
+] as const

@@ -2,7 +2,11 @@ import type { ReactNode } from 'react'
 import { notFound, redirect } from 'next/navigation'
 import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { resolveOrganizationSurfaceHeaderMeta } from '@/app/o/[organizationId]/settings/navigation'
+import {
+  resolveOrganizationSurfaceHeaderMeta,
+  resolveOrganizationSurfaceSection,
+} from '@/app/o/[organizationId]/settings/navigation'
+import { isPlatformSettingsSection } from '@/platform/app/(shell)/settings/_components/platform-sections'
 
 interface OrganizationSettingsSectionLayoutProps {
   children: ReactNode
@@ -21,6 +25,9 @@ export default async function OrganizationSettingsSectionLayout({
   }
   const meta = resolveOrganizationSurfaceHeaderMeta(section)
   if (!meta) notFound()
+  const resolved = resolveOrganizationSurfaceSection(section)
+  /** A section on the design draws its own heading in its surface. */
+  if (resolved && isPlatformSettingsSection(resolved.section)) return children
 
   return (
     <SettingsHeaderProvider>

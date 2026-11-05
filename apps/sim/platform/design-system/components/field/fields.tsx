@@ -136,6 +136,7 @@ interface TextAreaFieldProps extends FieldProps, TextValueProps {
   placeholder?: string
   required?: boolean
   maxLength?: number
+  readOnly?: boolean
 }
 
 export function TextAreaField({
@@ -151,6 +152,7 @@ export function TextAreaField({
   placeholder,
   required,
   maxLength,
+  readOnly,
 }: TextAreaFieldProps) {
   const id = useId()
   return (
@@ -159,6 +161,7 @@ export function TextAreaField({
         id={id}
         required={required}
         maxLength={maxLength}
+        readOnly={readOnly}
         label={label}
         name={name}
         defaultValue={defaultValue}
