@@ -1,7 +1,8 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { Checkbox, ChevronDown, cn, OverflowText } from '@sim/emcn'
+import { Checkbox, cn, OverflowText } from '@sim/emcn'
+import { ForkDisclosureTrigger } from '@/ee/workspace-forking/components/fork-disclosure-trigger'
 
 export interface ForkFileTreeItem {
   id: string
@@ -132,22 +133,13 @@ function ForkFileFolderRow({
           onCheckedChange={() => onToggleMany(fileIds, headerState !== true)}
           disabled={disabled}
         />
-        <button
-          type='button'
-          className='flex min-w-0 flex-1 items-center gap-1 text-left hover:text-[var(--text-primary)]'
-          onClick={() => setExpanded((value) => !value)}
-        >
-          <OverflowText
-            label={`${folder.name} (${selectedCount > 0 ? `${selectedCount}/${total}` : total})`}
-            className='flex-1'
-          />
-          <ChevronDown
-            className={cn(
-              'size-[14px] shrink-0 text-[var(--text-icon)] transition-transform',
-              expanded && 'rotate-180'
-            )}
-          />
-        </button>
+        <ForkDisclosureTrigger
+          label={`${folder.name} (${selectedCount > 0 ? `${selectedCount}/${total}` : total})`}
+          expanded={expanded}
+          onToggle={() => setExpanded((value) => !value)}
+          className='min-w-0 flex-1 gap-1'
+          labelClassName='flex-1'
+        />
       </div>
       {expanded ? (
         <div className='ml-6 flex flex-col gap-0.5'>
