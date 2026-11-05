@@ -43,6 +43,10 @@
   width: var(--spacing-24);
   height: var(--spacing-24);
 }
+.iconButton[data-size="inline"] {
+  inline-size: var(--spacing-16);
+  block-size: var(--spacing-16);
+}
 
 .chip {
   min-height: var(--spacing-app-chip);
@@ -98,6 +102,10 @@
 }
 
 @media (pointer: coarse) {
+  .iconButton[data-size="inline"] {
+    inline-size: var(--spacing-20);
+    block-size: var(--spacing-20);
+  }
   .iconButton[data-size="small"] {
     inline-size: var(--spacing-app-touch-target);
     block-size: var(--spacing-app-touch-target);
@@ -148,24 +156,6 @@
   visibility: hidden;
 }
 
-.chip[data-recipient] {
-  min-block-size: 0;
-  block-size: 1lh;
-  background: var(--ui-hover);
-  cursor: text;
-}
-.chip[data-recipient="invalid"],
-.chipRow:hover > .chip[data-recipient="invalid"] {
-  background: var(--control-danger-soft);
-  color: var(--control-danger);
-}
-.chipRow:has(> .chip[data-recipient]) {
-  position: relative;
-}
-.chipRow:has(> .chip[data-recipient]) > .chipAction {
-  position: absolute;
-  inset-inline-end: 0;
-}
 @media (hover: none) {
   .chipAction {
     opacity: 1;

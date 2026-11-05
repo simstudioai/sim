@@ -133,7 +133,7 @@ test('form titles start at their content edge and Cancel is consistent across ro
   await expect(edit).toBeHidden()
 })
 
-test('invite recipients can be typed, pasted, corrected and removed from the keyboard', async ({
+test('invite recipients can be typed, pasted, corrected and removed by keyboard or pointer', async ({
   page,
   context,
 }) => {
@@ -154,16 +154,51 @@ test('invite recipients can be typed, pasted, corrected and removed from the key
   await expect(remove('second@example.test')).toBeAttached()
   await page.keyboard.press('Backspace')
   await expect(remove('second@example.test')).toHaveCount(0)
-  await page.evaluate(() =>
-    navigator.clipboard.writeText('first@example.test;second@example.test\nthird@example.test,typo')
+  const longAddress = 'warehouse-reconciliation-and-customer-operations@example.test'
+  await page.evaluate(
+    (address) =>
+      navigator.clipboard.writeText(`first@example.test;${address}\nthird@example.test,typo`),
+    longAddress
   )
   await page.keyboard.press('ControlOrMeta+v')
   await expect(modal.getByRole('button', { name: /^Remove / })).toHaveCount(4)
   await expect(input).toHaveAttribute('aria-invalid', 'true')
   await page.keyboard.press('Backspace')
   await expect(input).not.toHaveAttribute('aria-invalid', 'true')
-  await modal.getByText('second@example.test', { exact: true }).hover()
-  await remove('second@example.test').click()
+  const longRemove = remove(longAddress)
+  await longRemove.scrollIntoViewIfNeeded()
+  await page.mouse.move(0, 0)
+  const firstRowBottom = await remove('first@example.test').evaluate(
+    (button) => button.getBoundingClientRect().bottom
+  )
+  for (const hover of [false, true]) {
+    if (hover) await longRemove.hover()
+    const bounds = await longRemove.evaluate((button, address) => {
+      let tag = button.parentElement
+      while (tag && !tag.textContent?.includes(address)) tag = tag.parentElement
+      if (!tag) throw new Error('Missing tag around the address and its remove button')
+      const hit = button.getBoundingClientRect()
+      const box = tag.getBoundingClientRect()
+      return {
+        top: hit.top,
+        insideTag:
+          hit.left >= box.left &&
+          hit.right <= box.right &&
+          hit.top >= box.top &&
+          hit.bottom <= box.bottom,
+        visible: button
+          .querySelector('svg')
+          ?.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
+      }
+    }, longAddress)
+    expect(bounds.top).toBeGreaterThanOrEqual(firstRowBottom)
+    expect(bounds, hover ? 'Hovered remove action' : 'Resting remove action').toMatchObject({
+      insideTag: true,
+      visible: true,
+    })
+  }
+  await longRemove.click()
+  await expect(longRemove).toHaveCount(0)
   await expect(input).toBeFocused()
   await page.keyboard.type('draft')
   await page.keyboard.press('Backspace')

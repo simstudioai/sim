@@ -2,9 +2,9 @@
 
 import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { IconButton } from '@/platform/design-system/components/button/button'
-import { ControlRow } from '@/platform/design-system/components/button/control-row'
 import { FieldFrame } from '@/platform/design-system/components/field/fields'
 import { Icon } from '@/platform/design-system/components/icon/icon'
+import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import styles from '@/platform/design-system/components/workspace-fields/workspace-fields.module.css'
 
@@ -37,21 +37,17 @@ interface RecipientTagProps extends Recipient {
 
 export function RecipientTag({ address, invalid, onRemove }: RecipientTagProps) {
   return (
-    <ControlRow
-      render={<span />}
-      label={address}
-      recipient={invalid ? 'invalid' : 'valid'}
-      action={
-        onRemove && (
-          <IconButton
-            size='compact'
-            label={`Remove ${address}`}
-            icon='I105'
-            onClick={() => onRemove(address)}
-          />
-        )
-      }
-    />
+    <span className={styles.tag} data-invalid={invalid || undefined} data-type='T052'>
+      <OverflowText text={address}>{address}</OverflowText>
+      {onRemove && (
+        <IconButton
+          size='inline'
+          label={`Remove ${address}`}
+          icon='I105'
+          onClick={() => onRemove(address)}
+        />
+      )}
+    </span>
   )
 }
 

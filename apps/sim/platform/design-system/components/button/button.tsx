@@ -63,7 +63,7 @@ interface IconButtonProps {
   render?: ReactElement
   label: string
   icon: IconName
-  size?: 'small' | 'row' | 'compact'
+  size?: 'small' | 'row' | 'compact' | 'inline'
   variant?: 'quiet' | 'solid' | 'floating'
   disabled?: boolean
   onClick?: MouseEventHandler<HTMLButtonElement>

@@ -16,7 +16,6 @@ interface ControlRowProps {
   onClick?: () => void
   icon?: IconName
   wrap?: boolean
-  recipient?: 'valid' | 'invalid'
   action?: ReactNode
   actionSide?: 'start' | 'end'
 }
@@ -30,7 +29,6 @@ export function ControlRow({
   onClick,
   icon,
   wrap,
-  recipient,
   action,
   actionSide = 'end',
 }: ControlRowProps) {
@@ -39,7 +37,6 @@ export function ControlRow({
     props: {
       className: styles.chip,
       'data-type': 'T043',
-      'data-recipient': recipient,
       'aria-label': accessibleLabel,
       onClick,
       children: (

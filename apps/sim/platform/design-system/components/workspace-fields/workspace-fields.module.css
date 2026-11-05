@@ -50,6 +50,22 @@
   border-color: var(--control-danger);
 }
 
+.tag {
+  display: inline-flex;
+  align-items: center;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  gap: var(--ui-action-gap);
+  padding-inline: var(--spacing-4) var(--spacing-2);
+  border-radius: var(--ui-control-radius);
+  background: var(--ui-hover);
+}
+
+.tag[data-invalid] {
+  background: var(--control-danger-soft);
+  color: var(--control-danger);
+}
+
 .recipientViewport {
   display: flex;
   flex-wrap: wrap;
