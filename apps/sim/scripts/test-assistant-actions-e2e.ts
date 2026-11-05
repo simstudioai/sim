@@ -972,15 +972,18 @@ try {
     const toolPermissions = await context.request.get(
       `${baseUrl.origin}/api/organizations/${organizationId}/connected-accounts/personal/${credentialId}/tool-permissions`
     )
-    const jiraWrite = readAssistantToolPermissionsContract.response.schema
-      .parse(await toolPermissions.json())
-      .tools.find((tool) => tool.toolId === 'jira_write')
+    const { tools } = readAssistantToolPermissionsContract.response.schema.parse(
+      await toolPermissions.json()
+    )
+    const jiraWrite = tools.find((tool) => tool.toolId === 'jira_write')
     assert(jiraWrite?.description)
     await expect(page.getByText(jiraWrite.description, { exact: true })).toBeVisible()
-    await expect(policy).toHaveAttribute(
-      'aria-description',
-      /^(Inherits Ask from|Choose Ask to inherit the default for) write tools\.$/
-    )
+    await expect(policy).not.toHaveAttribute('aria-description')
+    const inherited = tools.find((tool) => tool.inherited)
+    assert(inherited)
+    await expect(
+      page.getByRole('group', { name: `${inherited.name} permission`, exact: true })
+    ).toHaveAttribute('aria-description', /^Inherits (Allow|Ask|Block) from /)
     await capture('tool-permission-description')
     await policy.getByRole('radio', { name: 'Ask', exact: true }).focus()
     await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeFocused()
