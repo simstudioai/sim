@@ -1335,10 +1335,17 @@ async function homeChecks() {
         })
         const chatId = new URL(page.url()).pathname.split('/').at(-1)
         await expect(page.getByRole('navigation', { name: 'Search views' })).toBeVisible()
-        await page.getByRole('button', { name: 'New chat' }).click()
-        await expect(page).toHaveURL(/\/home$/)
-        await expect(composer(page)).toBeVisible()
-        await page.goto(orgUrl(`/search/chat/${chatId}`))
+        await composer(page).fill('An unsent follow-up')
+        await page
+          .getByRole('navigation', { name: 'Search views' })
+          .getByRole('button', { name: 'Search' })
+          .click()
+        await expect(page).toHaveURL(new RegExp(`/search/chat/${chatId}\\?mode=search`))
+        await expect(searchField(page)).toBeVisible()
+        await page
+          .getByRole('navigation', { name: 'Search views' })
+          .getByRole('button', { name: 'Assistant' })
+          .click()
         await expect(page.getByText('Hello from the scripted agent.')).toBeVisible()
         await expect(
           sidebar(page)
@@ -1348,6 +1355,17 @@ async function homeChecks() {
       })
     }
   )
+  await check('New chat on a chat started from Home returns to an empty Home', async () => {
+    await withSession(MEMBER, async ({ page }) => {
+      await page.goto(orgUrl('/home'))
+      await composer(page).fill('Say hello again from Home')
+      await composer(page).press('Enter')
+      await expect(page).toHaveURL(/\/search\/chat\/[^/?]+/, { timeout: 30_000 })
+      await page.getByRole('button', { name: 'New chat' }).click()
+      await expect(page).toHaveURL(/\/home$/)
+      await expect(composer(page)).toHaveValue('')
+    })
+  })
   await check('Home, Search and the agent keep separate drafts', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(orgUrl('/home'))

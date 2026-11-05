@@ -5,7 +5,6 @@ import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-hos
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { SearchFrame } from '@/app/o/[organizationId]/search/search-frame'
 import {
-  type OrganizationSearchState,
   useOrganizationSearch,
   useSearchFieldDraft,
 } from '@/app/o/[organizationId]/search/use-organization-search'
@@ -16,7 +15,7 @@ import { SearchResults } from '@/platform/app/(shell)/_components/search/search-
 import { SearchHistory } from '@/platform/app/(shell)/search/_components/search-surface/search-history'
 import styles from '@/platform/app/(shell)/search/_components/search-surface/search-surface.module.css'
 import { SearchSurfaceHeader } from '@/platform/app/(shell)/search/_components/search-surface/search-surface-header'
-import { Button, IconButton } from '@/platform/design-system/components/button/button'
+import { IconButton } from '@/platform/design-system/components/button/button'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
