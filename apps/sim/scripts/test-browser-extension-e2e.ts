@@ -1573,6 +1573,7 @@ try {
         await mic.click()
         await expect(stop).toBeVisible()
         await expect.poll(() => sessions.length).toBe(3)
+        assert.equal(sessions[1].closed, false, 'Stale-transcript grace must still be open')
         sessions[1].socket.send(
           JSON.stringify({ message_type: 'partial_transcript', text: 'stale thought' })
         )

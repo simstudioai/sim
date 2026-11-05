@@ -127,7 +127,6 @@ export const SIM_LINK_URL_MAX_LENGTH = 2048
 /** Short hosts a link opens from: `sim/<name>` and `go/<name>`. */
 export const SIM_LINK_HOSTS = ['sim', 'go'] as const
 
-/** {@link SIM_LINK_HOSTS} as a regular-expression alternation. */
 export const SIM_LINK_HOST_PATTERN = SIM_LINK_HOSTS.join('|')
 
 /** Where the extension asks for the address-bar suggestions behind its `sim` keyword. */

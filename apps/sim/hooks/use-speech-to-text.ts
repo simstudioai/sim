@@ -234,7 +234,7 @@ export function useSpeechToText({
             : { workspaceId: workspaceIdRef.current },
         })
       } catch (err) {
-        if (!mountedRef.current || generation !== generationRef.current) return false
+        if (generation !== generationRef.current) return false
         if (isApiClientError(err) && err.status === 402) {
           const isMemberLimit = (err.body as { scope?: string } | null)?.scope === 'member'
           setIsListening(false)
@@ -246,7 +246,7 @@ export function useSpeechToText({
 
       const token = typeof tokenData.token === 'string' ? tokenData.token : undefined
       if (!token) throw new Error('Failed to get speech token')
-      if (!mountedRef.current || generation !== generationRef.current) return false
+      if (generation !== generationRef.current) return false
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -258,7 +258,7 @@ export function useSpeechToText({
         },
       })
 
-      if (!mountedRef.current || generation !== generationRef.current) {
+      if (generation !== generationRef.current) {
         stream.getTracks().forEach((track) => track.stop())
         return false
       }
@@ -287,7 +287,7 @@ export function useSpeechToText({
         ws.onerror = () => reject(new Error('WebSocket connection failed'))
 
         ws.onmessage = (event) => {
-          if (!mountedRef.current || generation !== generationRef.current) return
+          if (generation !== generationRef.current) return
           try {
             const msg = JSON.parse(event.data)
 
@@ -331,7 +331,7 @@ export function useSpeechToText({
         }
       })
 
-      if (!mountedRef.current || generation !== generationRef.current) {
+      if (generation !== generationRef.current) {
         ws.close()
         stream.getTracks().forEach((track) => track.stop())
         return false
