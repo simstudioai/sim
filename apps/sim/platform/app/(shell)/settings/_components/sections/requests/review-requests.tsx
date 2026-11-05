@@ -5,6 +5,7 @@ import { ReviewModal } from '@/platform/app/(shell)/settings/_components/section
 import {
   Button,
   EmptyState,
+  FailureNotice,
   InlineNotice,
   Pagination,
   SearchField,
@@ -46,7 +47,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
       <SearchField
         label='Search requests'
         placeholder='Search requests...'
-        defaultValue={list.search}
+        value={list.search}
         onValueChange={list.setSearch}
       />
       {settings.loading ? (
@@ -54,15 +55,11 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
           Loading request settings…
         </p>
       ) : settings.error ? (
-        <InlineNotice
-          intent='danger'
+        <FailureNotice
           title='Unable to load request settings'
           message={settings.error.message}
-          action={
-            <Button size='compact' disabled={settings.fetching} onClick={settings.retry}>
-              Retry
-            </Button>
-          }
+          retrying={settings.fetching}
+          onRetry={settings.retry}
         />
       ) : (
         <SettingsSurface>
@@ -108,15 +105,11 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
           Loading requests…
         </p>
       ) : list.error ? (
-        <InlineNotice
-          intent='danger'
+        <FailureNotice
           title='Unable to load requests'
           message={list.error.message}
-          action={
-            <Button size='compact' disabled={list.fetching} onClick={list.retry}>
-              Retry
-            </Button>
-          }
+          retrying={list.fetching}
+          onRetry={list.retry}
         />
       ) : list.rows.length === 0 ? (
         <EmptyState

@@ -7,14 +7,13 @@ import {
   FieldStack,
   LoadingState,
   Muted,
-  QueryErrorState,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { useUnsavedGuard } from '@/platform/app/(shell)/settings/_components/section-parts/use-unsaved-guard'
 import {
   ActionMenu,
   Button,
   CopyField,
+  FailureNotice,
   Modal,
   StatusTag,
   TextField,
@@ -23,6 +22,7 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
+import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import {
   type OrganizationDomain,
   useAddOrganizationDomain,
@@ -113,7 +113,7 @@ export function DomainsPanel({
   const [pendingRemovalId, setPendingRemovalId] = useState<string | null>(null)
   const domains = data?.domains ?? []
   const pendingRemoval = domains.find((domain) => domain.id === pendingRemovalId) ?? null
-  const guard = useUnsavedGuard({
+  useSettingsUnsavedGuard({
     isDirty: newDomain.trim().length > 0,
     navigationBlocked: addDomain.isPending || removeDomain.isPending,
     onDiscard: () => setNewDomain(''),
@@ -162,7 +162,7 @@ export function DomainsPanel({
           </FieldStack>
         ) : data === undefined && isError ? (
           <FieldStack>
-            <QueryErrorState
+            <FailureNotice
               message={getErrorMessage(error, 'Failed to load verified domains')}
               retrying={isFetching}
               onRetry={() => void refetch()}
@@ -199,7 +199,6 @@ export function DomainsPanel({
           toast.success(`${pendingRemoval.domain} removed`)
         }}
       />
-      {guard.dialog}
     </SectionStack>
   )
 }

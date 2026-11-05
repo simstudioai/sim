@@ -8,6 +8,7 @@ import {
   Button,
   DataTable,
   EmptyState,
+  FailureNotice,
   InlineNotice,
   PersonRow,
   RecipientTag,
@@ -38,12 +39,7 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
   const directory = usePeopleDirectory(organizationId)
   const { origin } = directory
   const departments = useDepartmentOptions(organizationId, origin)
-  const [searchEpoch, setSearchEpoch] = useState(0)
   const originQuery = profileOriginQuery(origin, { view: 'directory' })
-  const clear = () => {
-    directory.clearFilters()
-    setSearchEpoch((epoch) => epoch + 1)
-  }
   const rows = useMemo(
     () =>
       directory.rows.map((person) => ({
@@ -71,10 +67,9 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
       <div className={styles.filters}>
         <div className={styles.search}>
           <SearchField
-            key={searchEpoch}
             label='Search people'
             placeholder='Search people...'
-            defaultValue={directory.search}
+            value={directory.search}
             onValueChange={directory.setSearch}
           />
         </div>
@@ -87,6 +82,7 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
             value={departments.value}
             selectedLabel={directory.departmentLabel || 'All departments'}
             search={departments.search}
+            onOpenChange={departments.onOpenChange}
             onValueChange={(next) => directory.setDepartment(departments.parse(next))}
           />
         </div>
@@ -102,15 +98,10 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
       {directory.loading ? (
         <PeopleStatus>Loading people…</PeopleStatus>
       ) : directory.error ? (
-        <InlineNotice
-          intent='danger'
+        <FailureNotice
           title='Could not load people'
           message={directory.error.message}
-          action={
-            <Button size='compact' onClick={directory.retry}>
-              Retry
-            </Button>
-          }
+          onRetry={directory.retry}
         />
       ) : rows.length === 0 ? (
         !directory.query && !directory.hasDepartment ? (
@@ -126,7 +117,7 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
                 ? 'No people match the selected department.'
                 : 'Searched everyone in your organization.'
             }
-            action={<Button onClick={clear}>Clear</Button>}
+            action={<Button onClick={directory.clearFilters}>Clear</Button>}
           />
         )
       ) : (

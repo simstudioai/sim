@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
-import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-skeleton/section-skeleton'
+import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
   ActionMenu,
   DataTable,
   EmptyState,
+  FailureNotice,
   Modal,
   SearchField,
 } from '@/platform/design-system/components'
@@ -28,14 +28,17 @@ export function AuthorizedApps() {
   const [revoking, setRevoking] = useState<{ id: string; name: string } | null>(null)
   if (list.status === 'error')
     return (
-      <LoadFailure message={list.error ?? 'Failed to load authorized apps'} onRetry={list.retry} />
+      <FailureNotice
+        message={list.error ?? 'Failed to load authorized apps'}
+        onRetry={list.retry}
+      />
     )
   return (
     <>
       <SearchField
         label='Search authorized apps'
         placeholder='Search authorized apps…'
-        defaultValue={list.search}
+        value={list.search}
         onValueChange={list.setSearch}
       />
       {list.status === 'pending' ? (

@@ -1,10 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
+import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
-import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-skeleton/section-skeleton'
-import { Button, Modal, StatusTag, TextField } from '@/platform/design-system/components'
+import {
+  Button,
+  FailureNotice,
+  Modal,
+  StatusTag,
+  TextField,
+} from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
@@ -32,7 +37,7 @@ export default function KnowledgeGraphsSection({ organization }: SettingsSection
         </Button>
       </div>
       {graphs.status === 'error' ? (
-        <LoadFailure
+        <FailureNotice
           message={graphs.error ?? 'Failed to load knowledge graphs'}
           onRetry={graphs.retry}
         />

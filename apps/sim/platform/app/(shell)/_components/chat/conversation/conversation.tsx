@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
+import { memo, type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import styles from '@/platform/app/(shell)/_components/chat/conversation/conversation.module.css'
 import { QueuedMessages } from '@/platform/app/(shell)/_components/chat/conversation/queued-messages'
 import { ResponseMessage } from '@/platform/app/(shell)/_components/chat/message/response-message'
@@ -19,7 +19,8 @@ import {
 } from '@/platform/design-system/components'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
-function Turn({ turn }: { turn: PlatformTurn }) {
+/** A settled turn keeps its identity, so only the streaming one renders per chunk. */
+const Turn = memo(function Turn({ turn }: { turn: PlatformTurn }) {
   if (turn.role === 'user') return <UserMessage turn={turn} />
   if (turn.role === 'automated')
     return (
@@ -28,7 +29,7 @@ function Turn({ turn }: { turn: PlatformTurn }) {
       </p>
     )
   return <ResponseMessage turn={turn} />
-}
+})
 
 /** One exchange per article: a person's message and what answered it. */
 function groupExchanges(turns: readonly PlatformTurn[]): PlatformTurn[][] {

@@ -6,6 +6,7 @@ import styles from '@/platform/app/(shell)/settings/_components/sections/request
 import {
   Button,
   Disclosure,
+  FailureNotice,
   InlineNotice,
   Modal,
   PropertyList,
@@ -72,15 +73,10 @@ export function ReviewModal({ organizationId, requestId, onClose }: ReviewModalP
         </p>
       )}
       {review.loadError && (
-        <InlineNotice
-          intent='danger'
+        <FailureNotice
           title='Unable to load preview'
           message={review.loadError.message}
-          action={
-            <Button size='compact' onClick={review.retry}>
-              Try again
-            </Button>
-          }
+          onRetry={review.retry}
         />
       )}
       {model && (

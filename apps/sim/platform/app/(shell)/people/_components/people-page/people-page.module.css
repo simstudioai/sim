@@ -26,3 +26,10 @@
   padding-block: var(--spacing-48);
   text-align: center;
 }
+
+.viewsPlaceholder {
+  block-size: var(--spacing-app-control-sm);
+  inline-size: var(--spacing-128);
+  border-radius: var(--ui-control-radius);
+  background: var(--control-muted-fill);
+}

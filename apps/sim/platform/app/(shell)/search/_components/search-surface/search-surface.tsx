@@ -7,6 +7,7 @@ import styles from '@/platform/app/(shell)/search/_components/search-surface/sea
 import {
   Button,
   EmptyState,
+  FailureNotice,
   InlineNotice,
   RecentItems,
   SegmentedControl,
@@ -99,15 +100,7 @@ export function SearchSurface({ chatId }: SearchSurfaceProps) {
             {query || surface.filtered ? (
               <SearchResults results={surface.results} />
             ) : history.status === 'error' ? (
-              <InlineNotice
-                intent='danger'
-                message='Your history could not load.'
-                action={
-                  <Button variant='muted' size='compact' onClick={history.retry}>
-                    Try again
-                  </Button>
-                }
-              />
+              <FailureNotice message='Your history could not load.' onRetry={history.retry} />
             ) : history.status === 'loading' ? (
               <p data-type='T048' role='status'>
                 Loading history

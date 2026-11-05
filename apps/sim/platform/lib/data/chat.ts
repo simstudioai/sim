@@ -39,6 +39,7 @@ import { toPlatformTurns } from '@/platform/lib/data/chat-model'
 import { useAssistantReview } from '@/platform/lib/data/chat-review'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { toast } from '@/platform/lib/data/toast'
+import { plural } from '@/platform/lib/plural'
 import type { ChatContext } from '@/stores/panel'
 import { useToolPermissionStore } from '@/stores/tool-permission/store'
 
@@ -212,6 +213,13 @@ export function useLiveChatRuntime({
   const awaitingIds = useToolPermissionStore((state) => state.awaitingIds)
   const submittedIds = useToolPermissionStore((state) => state.submittedIds)
   const { mutateAsync: decideToolPermissions } = useDecideToolPermissions()
+  const approvals = useMemo(
+    () => ({
+      outstanding: awaitingIds.filter((id) => !submittedIds.includes(id)),
+      submitted: submittedIds,
+    }),
+    [awaitingIds, submittedIds]
+  )
   const decideTools = useCallback(
     async (ids: readonly string[], decision: ToolDecision): Promise<'ok' | 'gone'> => {
       const list = [...ids]
@@ -302,10 +310,7 @@ export function useLiveChatRuntime({
         })
     },
     cancelQueueEdit: chat.cancelQueueEdit,
-    approvals: {
-      outstanding: awaitingIds.filter((id) => !submittedIds.includes(id)),
-      submitted: submittedIds,
-    },
+    approvals,
     registerApproval,
     decideTools,
     review,
@@ -332,9 +337,7 @@ export function useLiveChatRuntime({
         upToMessageId: turnId,
       })
       if (result.failedFileCopies) {
-        toast.warning(
-          `${result.failedFileCopies} file${result.failedFileCopies === 1 ? '' : 's'} could not be copied to the fork`
-        )
+        toast.warning(`${plural(result.failedFileCopies, 'file')} could not be copied to the fork`)
       }
       router.push(chatPath(result.id))
     },

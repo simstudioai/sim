@@ -9,6 +9,7 @@ import {
   Button,
   DateRangePicker,
   EmptyState,
+  FailureNotice,
   InlineNotice,
   Select,
 } from '@/platform/design-system/components'
@@ -41,15 +42,7 @@ export function SearchResults({ results }: { results: SearchResultsData }) {
       )}
       {status === 'needs-range' && <p data-type='T052'>Choose the days to search.</p>}
       {status === 'error' && (
-        <InlineNotice
-          intent='danger'
-          message='Search couldn’t run.'
-          action={
-            <Button variant='muted' size='compact' onClick={results.retry}>
-              Try again
-            </Button>
-          }
-        />
+        <FailureNotice message='Search couldn’t run.' onRetry={results.retry} />
       )}
       {filters && (
         <div className={styles.filters} role='group' aria-label='Search filters'>

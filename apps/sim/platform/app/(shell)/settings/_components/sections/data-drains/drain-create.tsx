@@ -8,13 +8,12 @@ import {
   FieldStack,
   FormFieldset,
   Muted,
-  QueryErrorState,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { useUnsavedGuard } from '@/platform/app/(shell)/settings/_components/section-parts/use-unsaved-guard'
 import {
   Button,
   Checkbox,
+  InlineNotice,
   SecretField,
   SelectField,
   TextAreaField,
@@ -34,6 +33,7 @@ import {
   type SOURCE_TYPES,
   useCreateDataDrain,
 } from '@/platform/lib/data/data-drains'
+import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { toast } from '@/platform/lib/data/toast'
 
 const DEFAULT_SOURCE = 'workflow_logs' satisfies (typeof SOURCE_TYPES)[number]
@@ -120,7 +120,7 @@ export function DrainCreate({ organizationId, onBack, onCreated }: DrainCreatePr
     source !== DEFAULT_SOURCE ||
     cadence !== DEFAULT_CADENCE ||
     destinationType !== DEFAULT_DESTINATION
-  const guard = useUnsavedGuard({
+  const guard = useSettingsUnsavedGuard({
     isDirty,
     navigationBlocked: createDrain.isPending,
     onDiscard: () => {
@@ -203,7 +203,9 @@ export function DrainCreate({ organizationId, onBack, onCreated }: DrainCreatePr
                 }}
               />
             ))}
-            {createDrain.error && <QueryErrorState message={toError(createDrain.error).message} />}
+            {createDrain.error && (
+              <InlineNotice intent='danger' message={toError(createDrain.error).message} />
+            )}
           </FieldStack>
         </SettingsSection>
         <ActionRow>
@@ -217,7 +219,6 @@ export function DrainCreate({ organizationId, onBack, onCreated }: DrainCreatePr
           {!canSubmit && <Muted>Name the drain and complete its destination</Muted>}
         </ActionRow>
       </FormFieldset>
-      {guard.dialog}
     </SectionStack>
   )
 }

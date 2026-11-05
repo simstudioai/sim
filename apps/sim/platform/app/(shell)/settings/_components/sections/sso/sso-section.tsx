@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   LoadingState,
-  QueryErrorState,
   ResourceList,
   SectionStack,
   SectionToolbar,
@@ -19,6 +18,7 @@ import {
   ActivityRow,
   Button,
   EmptyState,
+  FailureNotice,
   Modal,
   SegmentedControl,
 } from '@/platform/design-system/components'
@@ -93,7 +93,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
   }
   if (billingEnabled && billing.data === undefined && billing.error) {
     return (
-      <QueryErrorState
+      <FailureNotice
         message={getErrorMessage(billing.error, 'Failed to load organization access')}
         retrying={billing.isFetching}
         onRetry={() => void billing.refetch()}
@@ -113,7 +113,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
   return (
     <SectionStack>
       {billing.error != null && (
-        <QueryErrorState
+        <FailureNotice
           message={getErrorMessage(billing.error, 'Failed to refresh organization access')}
           retrying={billing.isFetching}
           onRetry={() => void billing.refetch()}
@@ -144,7 +144,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
           {providers.isLoading ? (
             <LoadingState label='Loading identity providers…' />
           ) : providers.data === undefined && providers.error ? (
-            <QueryErrorState
+            <FailureNotice
               message={getErrorMessage(providers.error, 'Failed to load Single Sign-On settings')}
               retrying={providers.isFetching}
               onRetry={() => void providers.refetch()}

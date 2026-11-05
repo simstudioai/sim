@@ -7,7 +7,10 @@ import type {
   PlatformTool,
   PlatformToolStatus,
 } from '@/platform/app/(shell)/_components/chat/model'
-import { useChatRuntime } from '@/platform/app/(shell)/_components/session/chat-runtime'
+import {
+  useChatHandlers,
+  useChatInteractions,
+} from '@/platform/app/(shell)/_components/session/chat-runtime'
 import {
   Button,
   CopyButton,
@@ -140,7 +143,7 @@ export function ToolActivity({
 }
 
 function TerminalHandoff({ handoff }: { handoff: NonNullable<PlatformTool['handoff']> }) {
-  const { finishTerminalHandoff } = useChatRuntime()
+  const { finishTerminalHandoff } = useChatHandlers()
   const [done, setDone] = useState(false)
   return (
     <div className={styles.card} data-type='T048'>
@@ -162,7 +165,7 @@ function TerminalHandoff({ handoff }: { handoff: NonNullable<PlatformTool['hando
 
 /** A call that holds the turn on a person. It stands apart so collapsing activity cannot hide it. */
 export function ToolInteraction({ tool }: { tool: PlatformTool }) {
-  const { review } = useChatRuntime()
+  const { review } = useChatInteractions()
   if (tool.handoff) return <TerminalHandoff handoff={tool.handoff} />
   if (tool.status !== 'awaiting_approval') return null
   if (review && tool.reviewed) {

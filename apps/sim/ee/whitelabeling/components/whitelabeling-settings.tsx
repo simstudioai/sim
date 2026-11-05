@@ -7,7 +7,6 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import Image from 'next/image'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
 import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
 import { DropZone } from '@/app/workspace/[workspaceId]/components/drop-zone'
@@ -26,6 +25,7 @@ import {
 } from '@/ee/whitelabeling/hooks/whitelabel'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useProfilePictureUpload } from '@/hooks/use-profile-picture-upload'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 
 const logger = createLogger('WhitelabelingSettings')
 

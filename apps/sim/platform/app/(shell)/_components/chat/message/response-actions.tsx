@@ -4,7 +4,7 @@ import { useState } from 'react'
 import styles from '@/platform/app/(shell)/_components/chat/message/message.module.css'
 import { MessageTime } from '@/platform/app/(shell)/_components/chat/message/message-time'
 import type { PlatformTurn } from '@/platform/app/(shell)/_components/chat/model'
-import { useChatRuntime } from '@/platform/app/(shell)/_components/session/chat-runtime'
+import { useChatHandlers } from '@/platform/app/(shell)/_components/session/chat-runtime'
 import {
   ActionMenu,
   CopyButton,
@@ -24,7 +24,7 @@ interface ResponseActionsProps {
 
 export function ResponseActions({ turn }: ResponseActionsProps) {
   const { copyText: text, sentAt } = turn
-  const { rate, fork } = useChatRuntime()
+  const { rate, fork } = useChatHandlers()
   const [feedback, setFeedback] = useState<Rating | null>(null)
   const [rating, setRating] = useState<Rating | null>(null)
   const [details, setDetails] = useState('')

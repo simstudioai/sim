@@ -14,19 +14,13 @@ import type {
   WorkspaceMemberRowModel,
   WorkspacePermission,
 } from '@/platform/lib/data/members'
-
-const ORGANIZATION_ROLES = [
-  { value: 'admin', label: 'Admin' },
-  { value: 'member', label: 'Member' },
-] as const
+import { ORGANIZATION_ROLE_LABELS, ORGANIZATION_ROLE_OPTIONS } from '@/platform/lib/data/members'
 
 const WORKSPACE_ROLES = [
   { value: 'read', label: 'Read' },
   { value: 'write', label: 'Write' },
   { value: 'admin', label: 'Admin' },
 ] as const
-
-const ROLE_LABELS = { owner: 'Owner', admin: 'Admin', member: 'Member', external: 'External' }
 
 const toOrganizationRole = (value: string) => (value === 'admin' ? 'admin' : 'member')
 
@@ -86,13 +80,13 @@ export function MemberRow({ row, actions, onRemove, onManageCredits, onTransfer 
           <Select
             variant='quiet'
             label={`Role for ${row.name}`}
-            options={ORGANIZATION_ROLES}
+            options={ORGANIZATION_ROLE_OPTIONS}
             value={row.role}
             disabled={actions.rolePending}
             onValueChange={(next) => void actions.changeRole(row.userId, toOrganizationRole(next))}
           />
         ) : (
-          <StatusTag label={ROLE_LABELS[row.role]} />
+          <StatusTag label={ORGANIZATION_ROLE_LABELS[row.role]} />
         )
       }
       actions={[
@@ -158,12 +152,12 @@ export function InvitationRow({ row, canManage, actions }: InvitationRowProps) {
       actions={menu}
       control={
         row.isExternal || !canManage ? (
-          <StatusTag label={row.isExternal ? 'External' : ROLE_LABELS[row.role]} />
+          <StatusTag label={row.isExternal ? 'External' : ORGANIZATION_ROLE_LABELS[row.role]} />
         ) : (
           <Select
             variant='quiet'
             label={`Role for ${row.email}`}
-            options={ORGANIZATION_ROLES}
+            options={ORGANIZATION_ROLE_OPTIONS}
             value={row.role}
             disabled={actions.invitationPending}
             onValueChange={(next) =>

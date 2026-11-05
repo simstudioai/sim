@@ -29,12 +29,14 @@ export function productUsage(app: string, program: ts.Program): Usage {
     if (!decl) return
     if (ts.isFunctionDeclaration(decl) || ts.isArrowFunction(decl) || ts.isFunctionExpression(decl))
       return decl
-    if (
-      ts.isVariableDeclaration(decl) &&
-      decl.initializer &&
-      (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer))
-    )
-      return decl.initializer
+    if (ts.isVariableDeclaration(decl) && decl.initializer) {
+      const inner =
+        ts.isCallExpression(decl.initializer) &&
+        /^(?:React\.)?memo$/.test(decl.initializer.expression.getText())
+          ? decl.initializer.arguments[0]
+          : decl.initializer
+      if (inner && (ts.isArrowFunction(inner) || ts.isFunctionExpression(inner))) return inner
+    }
   }
   function literalCondition(node: ts.Expression) {
     const type = checker.getTypeAtLocation(node)

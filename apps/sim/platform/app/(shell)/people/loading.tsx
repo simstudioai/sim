@@ -1,5 +1,5 @@
-import { PeopleFrame } from '@/platform/app/(shell)/people/_components/people-page/people-frame'
+import { PeopleSkeleton } from '@/platform/app/(shell)/people/_components/people-page/people-skeleton'
 
 export default function PeopleLoading() {
-  return <PeopleFrame loading='Loading people…' />
+  return <PeopleSkeleton />
 }

@@ -7,6 +7,7 @@ import styles from '@/platform/app/(shell)/settings/_components/sections/request
 import {
   Button,
   EmptyState,
+  FailureNotice,
   InlineNotice,
   Pagination,
   SearchField,
@@ -28,16 +29,14 @@ interface MyRequestsProps {
 export function MyRequests({ scope, view, mine }: MyRequestsProps) {
   const { params, setParams } = useRequestsUrl(false)
   const [asking, setAsking] = useState<{ target: RequestTarget; label: string } | null>(null)
-  const [searchEpoch, setSearchEpoch] = useState(0)
   const viewRequest = (requestId: string) => void setParams({ requestId }, { history: 'push' })
   return (
     <>
       {view === 'catalog' && mine.hasOrganization && (
         <SearchField
-          key={searchEpoch}
           label='Search access'
           placeholder='Search features, integrations, and models...'
-          defaultValue={mine.search}
+          value={mine.search}
           onValueChange={mine.setSearch}
         />
       )}
@@ -49,15 +48,11 @@ export function MyRequests({ scope, view, mine }: MyRequestsProps) {
           Loading…
         </p>
       ) : mine.error ? (
-        <InlineNotice
-          intent='danger'
+        <FailureNotice
           title='Unable to load access requests'
           message={mine.error.message}
-          action={
-            <Button size='compact' disabled={mine.fetching} onClick={mine.retry}>
-              Retry
-            </Button>
-          }
+          retrying={mine.fetching}
+          onRetry={mine.retry}
         />
       ) : view === 'requests' ? (
         mine.rows.length === 0 ? (
@@ -96,14 +91,7 @@ export function MyRequests({ scope, view, mine }: MyRequestsProps) {
           }
           action={
             mine.query ? (
-              <Button
-                onClick={() => {
-                  mine.setSearch('')
-                  setSearchEpoch((epoch) => epoch + 1)
-                }}
-              >
-                Clear search
-              </Button>
+              <Button onClick={() => mine.setSearch('')}>Clear search</Button>
             ) : undefined
           }
         />

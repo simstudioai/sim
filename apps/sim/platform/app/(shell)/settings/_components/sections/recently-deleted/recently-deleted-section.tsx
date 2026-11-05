@@ -1,9 +1,8 @@
 'use client'
 
-import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
+import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
-import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-skeleton/section-skeleton'
-import { Button, EmptyState, SearchField } from '@/platform/design-system/components'
+import { Button, EmptyState, FailureNotice, SearchField } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
@@ -37,11 +36,11 @@ export default function RecentlyDeletedSection({ organization }: SettingsSection
       <SearchField
         label='Search deleted chats'
         placeholder='Search deleted chats'
-        defaultValue={deleted.search}
+        value={deleted.search}
         onValueChange={deleted.setSearch}
       />
       {deleted.status === 'error' ? (
-        <LoadFailure
+        <FailureNotice
           message={deleted.error ?? 'Failed to load deleted chats'}
           onRetry={deleted.retry}
         />

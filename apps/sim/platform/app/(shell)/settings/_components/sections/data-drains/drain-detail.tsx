@@ -7,10 +7,16 @@ import {
   FieldStack,
   LoadingState,
   Muted,
-  QueryErrorState,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { Button, Modal, PropertyList, StatusTag, Switch } from '@/platform/design-system/components'
+import {
+  Button,
+  FailureNotice,
+  Modal,
+  PropertyList,
+  StatusTag,
+  Switch,
+} from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
@@ -222,7 +228,7 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
           </FieldStack>
         ) : runs.data === undefined ? (
           <FieldStack>
-            <QueryErrorState
+            <FailureNotice
               message={toError(runs.error).message}
               retrying={runs.isFetching}
               onRetry={() => void runs.refetch()}

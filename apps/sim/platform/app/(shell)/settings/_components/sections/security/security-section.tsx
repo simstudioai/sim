@@ -7,15 +7,14 @@ import {
   FieldStack,
   LoadingState,
   Muted,
-  QueryErrorState,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { useUnsavedGuard } from '@/platform/app/(shell)/settings/_components/section-parts/use-unsaved-guard'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import {
   Button,
   CopyField,
   EmptyState,
+  FailureNotice,
   Modal,
   TextField,
 } from '@/platform/design-system/components'
@@ -31,7 +30,9 @@ import {
   useRevokeOrganizationSessions,
   useUpdateOrganizationSessionPolicy,
 } from '@/platform/lib/data/security'
+import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { toast } from '@/platform/lib/data/toast'
+import { plural } from '@/platform/lib/plural'
 
 type SessionPolicy = NonNullable<ReturnType<typeof useOrganizationSessionPolicy>['data']>
 
@@ -56,7 +57,7 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
     setMaxHours(savedMax)
     setIdleHours(savedIdle)
   }
-  const guard = useUnsavedGuard({
+  useSettingsUnsavedGuard({
     isDirty: dirty,
     navigationBlocked: updatePolicy.isPending,
     onDiscard: discard,
@@ -141,12 +142,9 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
         confirmLabel={revokeSessions.isPending ? 'Signing out…' : 'Sign out all'}
         onConfirm={async () => {
           const result = await revokeSessions.mutateAsync({ orgId: organizationId })
-          toast.success(
-            `Signed out ${result.data.revokedSessions} session${result.data.revokedSessions === 1 ? '' : 's'}`
-          )
+          toast.success(`Signed out ${plural(result.data.revokedSessions, 'session')}`)
         }}
       />
-      {guard.dialog}
     </SettingsSection>
   )
 }
@@ -173,7 +171,7 @@ function SessionPolicySection({
     return (
       <SettingsSection title='Session policies'>
         <FieldStack>
-          <QueryErrorState
+          <FailureNotice
             message={getErrorMessage(error, 'Failed to load session policy')}
             retrying={isFetching}
             onRetry={() => void refetch()}
@@ -196,7 +194,7 @@ function NetworkSection({ organizationId }: { organizationId: string }) {
         {isPending ? (
           <LoadingState label='Loading network settings…' />
         ) : !data || data.mode === 'unavailable' ? (
-          <QueryErrorState
+          <FailureNotice
             message={getErrorMessage(error, 'Could not load network settings')}
             retrying={isFetching}
             onRetry={() => void refetch()}

@@ -212,7 +212,7 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () =
 }))
 
 /** The guard's own behavior is tested with its hook; here leaving is always allowed. */
-vi.mock('@/components/settings/use-settings-unsaved-guard', () => ({
+vi.mock('@/hooks/use-settings-unsaved-guard', () => ({
   useSettingsUnsavedGuard: () => ({
     guardBack: (onLeave: () => void) => onLeave(),
   }),

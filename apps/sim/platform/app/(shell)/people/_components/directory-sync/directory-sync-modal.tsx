@@ -5,9 +5,9 @@ import { formatDateTime } from '@sim/utils/formatting'
 import Link from 'next/link'
 import styles from '@/platform/app/(shell)/people/_components/directory-sync/directory-sync.module.css'
 import { canUseProvisioning } from '@/platform/app/(shell)/people/_components/import/import-modal'
-import { useHeldModal } from '@/platform/app/(shell)/people/_components/use-held-modal'
 import {
   Button,
+  FailureNotice,
   InlineNotice,
   Modal,
   PropertyList,
@@ -269,7 +269,6 @@ type SyncMode = 'details' | 'update' | 'disconnect'
 export function DirectorySyncModal({ organization, onClose }: DirectorySyncModalProps) {
   const organizationId = organization.organization.id
   const provisionable = canUseProvisioning(organization)
-  const held = useHeldModal(onClose)
   const directory = useDirectorySync(organizationId)
   const { sync } = directory
   const [mode, setMode] = useState<SyncMode>('details')
@@ -311,6 +310,8 @@ export function DirectorySyncModal({ organization, onClose }: DirectorySyncModal
         ? Boolean(draft.token.trim() && draft.domain.trim())
         : Boolean(draft.clientSecret.trim() && draft.tenantId.trim() && draft.clientId.trim())
   const syncing = sync?.state === 'syncing' || directory.pending
+  /** While a request runs the footer stays Cancel: closing is safe, resetting it mid-flight is not. */
+  const steppedBack = mode !== 'details' && Boolean(sync) && !directory.pending
 
   const { title, label, disabled, destructive, confirm } = ((): {
     title: string
@@ -325,10 +326,7 @@ export function DirectorySyncModal({ organization, onClose }: DirectorySyncModal
         label: 'Disconnect',
         disabled: directory.pending,
         destructive: true,
-        confirm: () => {
-          held.hold()
-          directory.disconnect(backToDetails)
-        },
+        confirm: () => directory.disconnect(backToDetails),
       }
     if (connecting)
       return {
@@ -340,7 +338,6 @@ export function DirectorySyncModal({ organization, onClose }: DirectorySyncModal
         label: directory.pending ? 'Syncing…' : sync ? 'Save and sync' : 'Connect and sync',
         disabled: directory.pending || !directory.loaded || !canConnect,
         confirm: () => {
-          held.hold()
           const errors = directory.connect({ ...draft, source }, backToDetails)
           setFieldErrors(errors ?? {})
         },
@@ -349,36 +346,33 @@ export function DirectorySyncModal({ organization, onClose }: DirectorySyncModal
       title: 'Directory sync',
       label: syncLabel(sync, syncing),
       disabled: sync.state === 'paused' || syncing || sync.retryBlocked,
-      confirm: () => {
-        held.hold()
-        directory.run()
-      },
+      confirm: directory.run,
     }
   })()
 
   return (
     <Modal
       open
-      onOpenChange={held.onOpenChange}
+      onOpenChange={onClose}
       title={title}
       confirmLabel={label}
       confirmDisabled={disabled}
       destructive={destructive}
-      onConfirm={confirm}
+      onBack={steppedBack ? backToDetails : undefined}
+      onConfirm={() => {
+        confirm()
+        return false
+      }}
     >
       {directory.loading ? (
         <p role='status' data-type='T060'>
           Loading directory connection…
         </p>
       ) : directory.loadError ? (
-        <InlineNotice
-          intent='danger'
+        <FailureNotice
           message={directory.loadError.message}
-          action={
-            <Button size='compact' disabled={directory.fetching} onClick={directory.retry}>
-              Retry connection
-            </Button>
-          }
+          retrying={directory.fetching}
+          onRetry={directory.retry}
         />
       ) : mode === 'disconnect' && sync ? (
         <>
@@ -386,16 +380,6 @@ export function DirectorySyncModal({ organization, onClose }: DirectorySyncModal
             Disconnecting removes the profile details and reporting lines supplied by this
             directory. Sim keeps organization memberships and manually recorded profiles.
           </p>
-          <div>
-            <Button
-              variant='quiet'
-              size='compact'
-              disabled={directory.pending}
-              onClick={backToDetails}
-            >
-              Back
-            </Button>
-          </div>
         </>
       ) : connecting ? (
         <>
@@ -465,18 +449,6 @@ export function DirectorySyncModal({ organization, onClose }: DirectorySyncModal
             <p className={styles.secondary} data-type='T060'>
               Sync is running. You can close this window and return for the result.
             </p>
-          )}
-          {sync && (
-            <div>
-              <Button
-                variant='quiet'
-                size='compact'
-                disabled={directory.pending}
-                onClick={backToDetails}
-              >
-                Back
-              </Button>
-            </div>
           )}
         </>
       ) : (

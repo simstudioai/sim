@@ -37,6 +37,7 @@ import {
   stageHasContent,
   updateStagePolicy,
 } from '@/platform/lib/data/data-retention'
+import { plural } from '@/platform/lib/plural'
 
 function CustomPatternsEditor({
   patterns,
@@ -275,7 +276,7 @@ export function PolicyDetail({
               <MultiSelect
                 label={
                   draft.workspaceIds.length > 0
-                    ? `Overrides ${draft.workspaceIds.length} workspace${draft.workspaceIds.length === 1 ? '' : 's'}`
+                    ? `Overrides ${plural(draft.workspaceIds.length, 'workspace')}`
                     : 'Select the workspaces this override applies to'
                 }
                 searchLabel='Search workspaces'

@@ -44,15 +44,29 @@ export function useScrollEdges<T extends HTMLElement>(
         if (tabStop) element.tabIndex = start || end ? 0 : -1
       }
       const resize = new ResizeObserver(measure)
-      const observe = () => {
-        resize.disconnect()
-        resize.observe(element)
-        if (arrows && element.parentElement) resize.observe(element.parentElement)
-        for (const child of element.children) resize.observe(child)
+      resize.observe(element)
+      if (arrows && element.parentElement) resize.observe(element.parentElement)
+      const observedChildren = new Set<Element>()
+      /** Only the rows that came or went, so a windowed list's scrolling stays cheap. */
+      const syncChildren = () => {
+        for (const child of observedChildren) {
+          if (child.parentElement === element) continue
+          resize.unobserve(child)
+          observedChildren.delete(child)
+        }
+        for (const child of element.children) {
+          if (observedChildren.has(child)) continue
+          resize.observe(child)
+          observedChildren.add(child)
+        }
         measure()
       }
-      observe()
-      const content = new MutationObserver(observe)
+      syncChildren()
+      const content = new MutationObserver((records) => {
+        if (records.some(({ type, target }) => type === 'childList' && target === element))
+          syncChildren()
+        else measure()
+      })
       content.observe(element, { childList: true, subtree: true, characterData: true })
       const form =
         element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement

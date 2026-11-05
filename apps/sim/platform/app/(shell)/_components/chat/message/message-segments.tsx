@@ -10,7 +10,7 @@ import type {
   PlatformCredentialSubmission,
   PlatformSegment,
 } from '@/platform/app/(shell)/_components/chat/model'
-import { useChatRuntime } from '@/platform/app/(shell)/_components/session/chat-runtime'
+import { useChatHandlers } from '@/platform/app/(shell)/_components/session/chat-runtime'
 import { Button, InlineNotice } from '@/platform/design-system/components'
 
 export interface CredentialCardProps {
@@ -36,7 +36,7 @@ const Cards = createContext<ChatCards | null>(null)
 export const ChatCardsProvider = Cards.Provider
 
 function Segment({ segment }: { segment: PlatformSegment }) {
-  const runtime = useChatRuntime()
+  const runtime = useChatHandlers()
   const cards = useContext(Cards)
   switch (segment.kind) {
     case 'markdown':

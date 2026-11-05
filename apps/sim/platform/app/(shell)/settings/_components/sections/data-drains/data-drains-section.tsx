@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   LoadingState,
-  QueryErrorState,
   ResourceList,
   SectionStack,
   SectionToolbar,
@@ -12,7 +11,13 @@ import {
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { DrainCreate } from '@/platform/app/(shell)/settings/_components/sections/data-drains/drain-create'
 import { DrainDetail } from '@/platform/app/(shell)/settings/_components/sections/data-drains/drain-detail'
-import { ActivityRow, Button, EmptyState, SearchField } from '@/platform/design-system/components'
+import {
+  ActivityRow,
+  Button,
+  EmptyState,
+  FailureNotice,
+  SearchField,
+} from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   CADENCE_LABELS,
@@ -78,7 +83,7 @@ export default function DataDrainsSection({ organization }: SettingsSectionProps
           <SearchField
             label='Search data drains'
             placeholder='Search data drains...'
-            defaultValue={search}
+            value={search}
             onValueChange={setSearch}
           />
         }
@@ -93,7 +98,7 @@ export default function DataDrainsSection({ organization }: SettingsSectionProps
         </Button>
       </SectionToolbar>
       {error ? (
-        <QueryErrorState
+        <FailureNotice
           message={getErrorMessage(error, "Couldn't load data drains")}
           retrying={isFetching}
           onRetry={() => void refetch()}

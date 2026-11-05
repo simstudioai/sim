@@ -9,7 +9,6 @@ import { useQueryState } from 'nuqs'
 import { CodeIcon } from '@/components/icons'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type { SandboxDependencyIssue } from '@/lib/api/contracts/sandboxes'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -46,6 +45,7 @@ import {
   useUpdateSandbox,
 } from '@/hooks/queries/sandboxes'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 
 export function Sandboxes() {
   const params = useParams()

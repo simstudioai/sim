@@ -21,7 +21,6 @@ import { toError } from '@sim/utils/errors'
 import { CustomPatternsEditor } from '@/components/pii/custom-patterns-editor'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type { RetentionOverride } from '@/lib/api/contracts/primitives'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
@@ -69,6 +68,7 @@ import {
   withoutOverride,
 } from '@/ee/data-retention/lib/policy-draft'
 import { useWorkspacesQuery, type Workspace } from '@/hooks/queries/workspace'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 
 const logger = createLogger('DataRetentionSettings')
 

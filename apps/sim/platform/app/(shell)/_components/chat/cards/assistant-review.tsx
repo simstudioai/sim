@@ -7,8 +7,8 @@ import type {
   AssistantReceipt,
   AssistantReviewAction,
 } from '@/platform/app/(shell)/_components/chat/model'
-import { useChatRuntime } from '@/platform/app/(shell)/_components/session/chat-runtime'
-import { Button, InlineNotice, StatusTag } from '@/platform/design-system/components'
+import { useChatInteractions } from '@/platform/app/(shell)/_components/session/chat-runtime'
+import { Button, FailureNotice, InlineNotice, StatusTag } from '@/platform/design-system/components'
 import { Input, TextArea } from '@/platform/design-system/components/field/inputs'
 
 type Edits = Record<string, Record<string, string>>
@@ -133,7 +133,7 @@ function Receipt({ receipt }: { receipt: AssistantReceipt }) {
  * the turn they belong to; failure to load is shown rather than read as nothing to review.
  */
 export function AssistantReview({ turnId }: { turnId: string }) {
-  const { review } = useChatRuntime()
+  const { review } = useChatInteractions()
   const [edits, setEdits] = useState<Edits>({})
   const [failure, setFailure] = useState('')
   if (!review || review.turnId !== turnId) return null
@@ -151,17 +151,7 @@ export function AssistantReview({ turnId }: { turnId: string }) {
     }
   }
   if (status === 'error')
-    return (
-      <InlineNotice
-        intent='danger'
-        message='Could not load action review'
-        action={
-          <Button variant='muted' size='compact' onClick={retry}>
-            Retry
-          </Button>
-        }
-      />
-    )
+    return <FailureNotice message='Could not load action review' onRetry={retry} />
   if (!actions.length && !receipts.length) return null
   const allowDisabled = pending || actions.some((action) => action.account?.active === false)
   return (

@@ -3,9 +3,8 @@
 import {
   FieldStack,
   Muted,
-  QueryErrorState,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { Checkbox } from '@/platform/design-system/components'
+import { Checkbox, FailureNotice } from '@/platform/design-system/components'
 import { LoadMoreFooter } from '@/platform/design-system/components/scroll-area/load-more-footer'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import { isApiClientError, useProjectList } from '@/platform/lib/data/access-control'
@@ -43,7 +42,7 @@ export function ProjectIssueRestrictions({
           environment to use Issues.
         </Muted>
         {projects.error && (
-          <QueryErrorState
+          <FailureNotice
             message={projects.error.message}
             retrying={projects.isFetching}
             onRetry={() => void projects.refetch()}

@@ -1,13 +1,11 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import { SavedSettingsSection } from '@/platform/app/(shell)/settings/_components/section-parts/saved-settings'
+import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
-import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-skeleton/section-skeleton'
 import { Switch } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
+import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 import { useTelemetrySetting } from '@/platform/lib/data/preferences'
 
 /** Only the hosted service sets cookies, so only it loads the consent runtime. */
@@ -22,7 +20,7 @@ export default function PrivacySection({ organization }: SettingsSectionProps) {
   const telemetry = useTelemetrySetting()
   return (
     <>
-      <SettingsSection title='Telemetry'>
+      <SavedSettingsSection title='Telemetry' rows={1}>
         <SettingsRow
           label={TELEMETRY_LABEL}
           description='Share browser performance and error diagnostics to improve Sim. You can opt out at any time. This does not control server operational logs.'
@@ -34,7 +32,7 @@ export default function PrivacySection({ organization }: SettingsSectionProps) {
             onCheckedChange={(checked) => void telemetry.set(checked)}
           />
         </SettingsRow>
-      </SettingsSection>
+      </SavedSettingsSection>
       {organization.deployment.hosted && (
         <CookiePreferences policyHref={`${organization.legacyOrigin}/cookie-policy`} />
       )}

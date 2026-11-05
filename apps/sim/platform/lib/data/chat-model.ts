@@ -253,7 +253,7 @@ function toSegments(
         segments.push({ kind: 'failure', message: segment.data.message })
         break
       case 'thinking':
-        // Deliberate legacy choice: reasoning text is not part of the transcript.
+        // Reasoning text is not part of the transcript.
         break
     }
   }
@@ -487,6 +487,31 @@ interface ProjectionOptions {
   isPersisted: (messageId: string) => boolean
 }
 
+/** The last turn built for each message, so one that did not change keeps its identity. */
+const LAST_TURNS = new WeakMap<ChatMessage, PlatformTurn>()
+
+/** A user or automated turn's other fields are the message's own, which this map is keyed by. */
+function isUnchanged(previous: PlatformTurn, next: PlatformTurn): boolean {
+  if (previous.role !== next.role) return false
+  if (previous.role === 'automated') return true
+  if (previous.sentAt !== (next as typeof previous).sentAt) return false
+  if (previous.role === 'user' || next.role !== 'assistant') return true
+  return (
+    previous.parts === next.parts &&
+    previous.state === next.state &&
+    previous.waiting === next.waiting &&
+    previous.userQuery === next.userQuery &&
+    previous.forkable === next.forkable
+  )
+}
+
+function keepIdentity(message: ChatMessage, next: PlatformTurn): PlatformTurn {
+  const previous = LAST_TURNS.get(message)
+  if (previous && isUnchanged(previous, next)) return previous
+  LAST_TURNS.set(message, next)
+  return next
+}
+
 /**
  * The hook's transcript as Platform turns. A pure read of `messages`, so a replay, a reconnect or a
  * reload lands on the same turns, and it keeps the legacy parsers as the only readers of the wire.
@@ -504,15 +529,17 @@ export function toPlatformTurns(
       lastUserText = message.content
       if (hidden.has(index)) return
       if (message.origin) {
-        turns.push(automatedTurn(message))
+        turns.push(keepIdentity(message, automatedTurn(message)))
         return
       }
-      turns.push({
-        role: 'user',
-        id: message.id,
-        prompt: { text: message.content, attachments: toUserAttachments(message) },
-        sentAt: sentAt(message),
-      })
+      turns.push(
+        keepIdentity(message, {
+          role: 'user',
+          id: message.id,
+          prompt: { text: message.content, attachments: toUserAttachments(message) },
+          sentAt: sentAt(message),
+        })
+      )
       return
     }
     const live = streaming && index === lastIndex
@@ -544,19 +571,21 @@ export function toPlatformTurns(
       }
     }
     const stopped = parts.some((part) => part.kind === 'stopped')
-    turns.push({
-      role: 'assistant',
-      id: message.id,
-      state: live ? 'running' : stopped ? 'stopped' : 'complete',
-      parts,
-      copyText,
-      sentAt: sentAt(message),
-      waiting: live ? deriveThinkingLabel(blocks) : undefined,
-      requestId: message.requestId,
-      userQuery: lastUserText,
-      endsWithInteraction: endsWithInteraction(parts),
-      forkable: isPersisted(message.id),
-    })
+    turns.push(
+      keepIdentity(message, {
+        role: 'assistant',
+        id: message.id,
+        state: live ? 'running' : stopped ? 'stopped' : 'complete',
+        parts,
+        copyText,
+        sentAt: sentAt(message),
+        waiting: live ? deriveThinkingLabel(blocks) : undefined,
+        requestId: message.requestId,
+        userQuery: lastUserText,
+        endsWithInteraction: endsWithInteraction(parts),
+        forkable: isPersisted(message.id),
+      })
+    )
   })
   return turns
 }

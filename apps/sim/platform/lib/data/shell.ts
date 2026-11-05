@@ -36,7 +36,6 @@ function toShellWorkspace(
     id: workspace.id,
     name: workspace.name,
     href: routes.workspace(workspace.id),
-    logoUrl: workspace.logoUrl ?? null,
     permissions: workspace.permissions,
     isPinned: pinnedIds?.has(workspace.id) ?? false,
   }

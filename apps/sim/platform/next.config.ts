@@ -16,7 +16,6 @@ const emcnShim = path.join(import.meta.dirname, 'lib/data/emcn-shim.ts')
 /** Modules the chat hook reaches for a canvas this app does not have. Each shim says what it drops. */
 const canvasShims = [
   ['@/lib/mothership/tools/client/block-name', 'lib/data/shims/block-name.ts'],
-  ['@/lib/mothership/tools/client/read-block', 'lib/data/shims/read-block.ts'],
   ['@/stores/workflows/registry/store', 'lib/data/shims/workflow-registry-store.ts'],
   ['@/stores/workflows/workflow/store', 'lib/data/shims/workflow-store.ts'],
 ] as const

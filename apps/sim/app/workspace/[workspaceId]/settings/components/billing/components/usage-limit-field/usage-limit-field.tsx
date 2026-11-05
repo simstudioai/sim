@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChipInput, Info, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { isUsageLimitDraftDirty, resolveUsageLimitDraft } from '@/lib/billing/usage-limit-draft'
@@ -11,6 +10,7 @@ import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/componen
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useUpdateUsageLimit } from '@/hooks/queries/subscription'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 
 /** Delay before a usage-limit edit is auto-saved once the user stops typing. */
 const AUTOSAVE_DELAY_MS = 1000

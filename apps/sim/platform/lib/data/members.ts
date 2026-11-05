@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
-import { formatDate } from '@sim/utils/formatting'
 import { useQueryState } from 'nuqs'
 import type {
   OrganizationRoster,
@@ -40,10 +39,26 @@ import { useOpenBillingPortal } from '@/hooks/queries/subscription'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useOrganization } from '@/platform/lib/data/organization'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
+import { useBrowserTimezone } from '@/platform/lib/data/preferences'
 import { toast } from '@/platform/lib/data/toast'
+import { plural } from '@/platform/lib/plural'
+import { formatInstantDate } from '@/platform/lib/time'
 
 type OrganizationRole = RosterMember['role']
 export type WorkspacePermission = RosterWorkspaceAccess['permission']
+
+/** Assignable roles, the default first. */
+export const ORGANIZATION_ROLE_OPTIONS = [
+  { value: 'member', label: 'Member' },
+  { value: 'admin', label: 'Admin' },
+] as const
+
+export const ORGANIZATION_ROLE_LABELS = {
+  owner: 'Owner',
+  admin: 'Admin',
+  member: 'Member',
+  external: 'External',
+}
 
 export interface MemberRowModel {
   key: string
@@ -56,7 +71,6 @@ export interface MemberRowModel {
   /** "Joined ..." or the directory deactivation. */
   status: string
   isSelf: boolean
-  isOwner: boolean
   canEditRole: boolean
   canRemove: boolean
   canManageCredits: boolean
@@ -105,11 +119,13 @@ interface RosterViewer {
   userId: string | undefined
   canManage: boolean
   hosted: boolean
+  /** The roster renders on the server, so its dates wait for the zone both renders agree on. */
+  timeZone: string
 }
 
-function joinedLabel(member: RosterMember): string {
+function joinedLabel(member: RosterMember, timeZone: string): string {
   if (member.suspendedAt) return 'Deactivated by your directory'
-  return `Joined ${formatDate(new Date(member.createdAt))}`
+  return `Joined ${formatInstantDate(member.createdAt, timeZone)}`
 }
 
 /**
@@ -127,9 +143,8 @@ function toMemberRow(member: RosterMember, viewer: RosterViewer): MemberRowModel
     email: member.email,
     image: member.image ?? undefined,
     role: member.role,
-    status: joinedLabel(member),
+    status: joinedLabel(member, viewer.timeZone),
     isSelf,
-    isOwner,
     canEditRole: viewer.canManage && !isSelf && !isOwner && !isExternal,
     canRemove: viewer.canManage && !isSelf && !isOwner,
     // The usage-limit API answers 404 outside hosted deployments.
@@ -227,7 +242,7 @@ function toRosterModel(roster: OrganizationRoster, viewer: RosterViewer): Roster
   }
 }
 
-export interface SeatsModel {
+interface SeatsModel {
   kind: 'none' | 'team' | 'enterprise'
   used: number
   total: number
@@ -277,6 +292,7 @@ export function useMembers(organization: PlatformOrganization) {
   const { data: session } = useSession()
   const viewerId = session?.user?.id
   const roster = useOrganizationRoster(organizationId)
+  const timeZone = useBrowserTimezone()
   const role =
     roster.data?.members.find((member) => member.userId === viewerId)?.role ??
     organization.viewer.role
@@ -297,7 +313,7 @@ export function useMembers(organization: PlatformOrganization) {
     roster: {
       status: roster.status,
       model: roster.data
-        ? toRosterModel(roster.data, { userId: viewerId, canManage, hosted })
+        ? toRosterModel(roster.data, { userId: viewerId, canManage, hosted, timeZone })
         : undefined,
       error: roster.error,
       retrying: roster.isFetching,
@@ -478,9 +494,10 @@ export function useOwnershipTransfer() {
   }
 }
 
-export function useMemberCredits(userId: string | undefined) {
+/** A member's credit cap. Hosted only: only hosted deployments enforce it. */
+export function useMemberCredits(userId: string) {
   const organizationId = useOrganization().organization.id
-  const limit = useOrganizationMemberUsageLimit(organizationId, userId, userId !== undefined)
+  const limit = useOrganizationMemberUsageLimit(organizationId, userId)
   const update = useUpdateOrganizationMemberUsageLimit()
   return {
     loading: limit.isLoading,
@@ -488,7 +505,6 @@ export function useMemberCredits(userId: string | undefined) {
     retry: () => void limit.refetch(),
     usage: limit.data,
     save: async (creditLimit: number | null) => {
-      if (!userId) return
       await update.mutateAsync({ orgId: organizationId, userId, creditLimit })
     },
   }
@@ -526,7 +542,7 @@ export function useInviteMembers(open: boolean) {
     },
     seatWarning: (count: number): string | undefined =>
       seatCapped && count > available
-        ? `Only ${available} seat${available === 1 ? '' : 's'} available — ${SEAT_WARNING}`
+        ? `Only ${plural(available, 'seat')} available — ${SEAT_WARNING}`
         : undefined,
     /** Resolves with the addresses to keep, and the reasons when any of them failed. */
     submit: async (emails: string[], membership: 'member' | 'admin') => {
@@ -538,10 +554,8 @@ export function useInviteMembers(open: boolean) {
         organizationId,
       })
       const sent = [
-        result.added.length > 0 &&
-          `${result.added.length} member${result.added.length === 1 ? '' : 's'} added`,
-        result.successful.length > 0 &&
-          `${result.successful.length} invite${result.successful.length === 1 ? '' : 's'} sent`,
+        result.added.length > 0 && `${plural(result.added.length, 'member')} added`,
+        result.successful.length > 0 && `${plural(result.successful.length, 'invite')} sent`,
       ].filter(Boolean)
       if (sent.length > 0) toast.success(sent.join(' · '))
       return {

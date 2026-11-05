@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import styles from '@/platform/app/(shell)/people/_components/import/import.module.css'
-import { useHeldModal } from '@/platform/app/(shell)/people/_components/use-held-modal'
 import {
   Button,
   FileField,
@@ -23,6 +22,7 @@ import {
   useProvisioningConnection,
 } from '@/platform/lib/data/people'
 import { toast } from '@/platform/lib/data/toast'
+import { plural } from '@/platform/lib/plural'
 
 const ACCEPTED_FILES = '.csv,.tsv,.xlsx,.xls'
 const TEMPLATE_HREF = `data:text/csv;charset=utf-8,${encodeURIComponent(
@@ -40,10 +40,6 @@ const SOURCES = {
 } as const
 
 type ImportSource = keyof typeof SOURCES
-
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`
-}
 
 /** Whether SCIM can be offered: `canProvision` in the legacy sync and import dialogs alike. */
 export function canUseProvisioning({ deployment, settingsFeatures }: PlatformOrganization) {
@@ -84,7 +80,6 @@ interface ImportModalProps {
 export function ImportModal({ organization, onClose }: ImportModalProps) {
   const organizationId = organization.organization.id
   const provisionable = canUseProvisioning(organization)
-  const held = useHeldModal(onClose)
   const importPeople = usePeopleImport(organizationId)
   const [source, setSource] = useState<ImportSource>('okta')
   const connection = useProvisioningConnection(organizationId, source === 'directory')
@@ -143,10 +138,11 @@ export function ImportModal({ organization, onClose }: ImportModalProps) {
   return (
     <Modal
       open
-      onOpenChange={held.onOpenChange}
+      onOpenChange={onClose}
       title={title}
       confirmLabel={done ? 'Done' : preview ? 'Import' : 'Preview import'}
       confirmDisabled={pending || (!preview && !ready)}
+      onBack={preview ? () => setPreview(null) : undefined}
       onConfirm={
         done
           ? undefined
@@ -160,7 +156,7 @@ export function ImportModal({ organization, onClose }: ImportModalProps) {
                   return
                 }
                 setPreview(result)
-                held.hold()
+                return false
               } catch (error) {
                 if (source !== 'file' && preview && isApiConflict(error)) setPreview(null)
                 throw error
@@ -191,16 +187,6 @@ export function ImportModal({ organization, onClose }: ImportModalProps) {
                 : 'Import updates matching members’ profiles. If the directory changes, you’ll be asked to preview it again.'}
             </p>
           )}
-          <div>
-            <Button
-              variant='quiet'
-              size='compact'
-              disabled={pending}
-              onClick={() => setPreview(null)}
-            >
-              Back
-            </Button>
-          </div>
         </>
       ) : (
         <>
@@ -276,7 +262,7 @@ export function ImportModal({ organization, onClose }: ImportModalProps) {
                       ? 'Enable SCIM provisioning and assign accounts in your provider to import their profiles.'
                       : connection.userCount === 0
                         ? 'Your connection is active. Assign accounts to Sim in your identity provider, then refresh here.'
-                        : `Your connection has ${connection.userCount} provisioned ${connection.userCount === 1 ? 'account' : 'accounts'}. Preview the profile fields and reporting lines sent by your provider.`}
+                        : `Your connection has ${plural(connection.userCount, 'provisioned account')}. Preview the profile fields and reporting lines sent by your provider.`}
               </p>
               {!connection.loading && (
                 <div className={styles.links}>

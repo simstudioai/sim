@@ -2,7 +2,8 @@
 
 import type { ReactNode } from 'react'
 import styles from '@/platform/app/(shell)/settings/_components/section-parts/section-parts.module.css'
-import { Button, InlineNotice } from '@/platform/design-system/components'
+import { Button } from '@/platform/design-system/components'
+import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 
 interface ChildrenProps {
   children: ReactNode
@@ -113,34 +114,38 @@ export function DetailHeader({
   )
 }
 
-/** Loading text at the place the content will appear, so nothing reads as empty meanwhile. */
-export function LoadingState({ label }: { label: string }) {
+interface LoadingStateProps {
+  /** Announced, since the rows themselves say nothing. */
+  label: string
+  rows?: number
+}
+
+/** Rows the height of the ones being read, at the place they will appear, so nothing reads as empty. */
+export function LoadingState({ label, rows = 3 }: LoadingStateProps) {
   return (
-    <p className={styles.muted} data-type='T060' role='status'>
-      {label}
-    </p>
+    <>
+      <span role='status' data-visually-hidden>
+        {label}
+      </span>
+      {Array.from({ length: rows }, (_, index) => (
+        <div key={index} className={styles.skeletonRow} aria-hidden='true'>
+          <span className={styles.skeletonLabel} />
+          <span className={styles.skeletonControl} />
+        </div>
+      ))}
+    </>
   )
 }
 
-interface QueryErrorStateProps {
-  message: string
-  retrying?: boolean
-  onRetry?: () => void
+interface SectionSkeletonProps {
+  title: string
+  rows?: number
 }
 
-/** A failed read. It must say so rather than leaving the setting looking absent. */
-export function QueryErrorState({ message, retrying, onRetry }: QueryErrorStateProps) {
+export function SectionSkeleton({ title, rows }: SectionSkeletonProps) {
   return (
-    <InlineNotice
-      intent='danger'
-      message={message}
-      action={
-        onRetry && (
-          <Button variant='quiet' size='compact' disabled={retrying} onClick={onRetry}>
-            {retrying ? 'Retrying…' : 'Retry'}
-          </Button>
-        )
-      }
-    />
+    <SettingsSection title={title}>
+      <LoadingState label={`Loading ${title}`} rows={rows} />
+    </SettingsSection>
   )
 }

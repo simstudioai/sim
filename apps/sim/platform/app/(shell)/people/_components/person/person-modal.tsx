@@ -88,6 +88,7 @@ export function PersonModal({ organizationId, person, onClose }: PersonModalProp
         value={draft.managerMemberId ?? NO_MANAGER}
         selectedLabel={draft.managerMemberId ? (managerName ?? 'Suspended member') : 'No manager'}
         search={picker.search}
+        onOpenChange={picker.onOpenChange}
         error={errors.managerMemberId}
         onValueChange={(value) => {
           const manager = picker.people.find((candidate) => candidate.memberId === value)

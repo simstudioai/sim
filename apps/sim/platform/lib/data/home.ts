@@ -65,8 +65,8 @@ import { useOrganization } from '@/platform/lib/data/organization'
 import { legacyRoutes, type PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { useLiveShellData } from '@/platform/lib/data/shell-context'
 import { toast } from '@/platform/lib/data/toast'
+import { MINUTE_MS } from '@/platform/lib/time'
 
-const MINUTE_MS = 60_000
 /** Long enough to fit the 7, 30 and 90 day chart windows in one read of daily buckets. */
 const ACTIVITY_DAYS = 90
 const REFUSAL_STATUSES: ReadonlySet<number> = new Set([401, 403, 404, 409])
@@ -294,7 +294,7 @@ function useHomeAttention(
   readAccounts: readonly HomeAccountView[]
 ): { state: HomeListState<AttentionItem>; retry: () => void } {
   const shell = useLiveShellData()
-  const canReview = organization.settingsSections.includes('requests')
+  const canReview = organization.viewer.isAdmin
   const requests = useOrganizationAccessRequests(canReview ? organization.organization.id : '')
   const items = toAttentionItems({
     entries: integrations.entries ?? [],

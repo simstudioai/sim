@@ -16,7 +16,8 @@ export const DELETE = defineInternalJsonRoute({
   operation: searchHistoryOperations.removeSource,
   rateLimit: internalRateLimits.user({ bucketName: 'search-history-write' }),
   errorPolicy: internalOrchestrationErrorPolicy,
-  mapInput: ({ params, query }) => ({ organizationId: params.id, url: query.url }),
+  parseOptions: { maxBodyBytes: 24 * 1024 },
+  mapInput: ({ params, body }) => ({ organizationId: params.id, url: body.url }),
   useCase: removeSearchHistorySource,
   staticResponseHeaders: { 'Cache-Control': 'private, no-store' },
 })

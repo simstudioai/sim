@@ -2,15 +2,15 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import {
+  type CreditsTarget,
+  ManageCreditsModal,
+} from '@/platform/app/(shell)/settings/_components/section-parts/manage-credits-modal'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import {
   ActivityOverview,
   ActivityPanel,
 } from '@/platform/app/(shell)/settings/_components/sections/usage/activity'
-import {
-  type CreditsTarget,
-  ManageCredits,
-} from '@/platform/app/(shell)/settings/_components/sections/usage/manage-credits'
 import { UsageConsumers } from '@/platform/app/(shell)/settings/_components/sections/usage/usage-consumers'
 import { UsageCredits } from '@/platform/app/(shell)/settings/_components/sections/usage/usage-credits'
 import { UsageCalendar } from '@/platform/app/(shell)/settings/_components/sections/usage/usage-heatmap'
@@ -56,9 +56,10 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
     expanded: true,
   })
   const workspaceName = workspaceList.data?.rows.find((row) => row.id === workspace)?.label
-  /** Only once the list has loaded, so a deep link does not flash the Workspaces tab first. */
+  /** A dead id falls back to the Workspaces tab, once the list can actually say it is dead. */
   const isWorkspaceDetail =
-    isWorkspaceSelected && (workspaceList.loading || workspaceName !== undefined)
+    isWorkspaceSelected &&
+    (workspaceList.loading || workspaceList.failed || workspaceName !== undefined)
   const dimension: UsageBreakdownDimension = isWorkspaceDetail
     ? 'workflow'
     : isOverview || tab === 'activity'
@@ -207,9 +208,8 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
         />
       )}
       {canManageCredits && creditsTarget && (
-        <ManageCredits
+        <ManageCreditsModal
           key={creditsTarget.userId}
-          organizationId={organizationId}
           member={creditsTarget}
           onClose={() => setCreditsTarget(null)}
         />

@@ -36,3 +36,10 @@ export function canListOrganizationChats(organization: PlatformOrganization): bo
   const { mothershipAvailable, canBuild, searchAccess } = organization
   return mothershipAvailable && (canBuild || searchAccess.memberScoped)
 }
+
+/** The legacy Home page's gate: a member who cannot build goes to Search, otherwise to Settings. */
+export function resolveHomeRedirect(organization: PlatformOrganization): string | null {
+  const { mothershipAvailable, canBuild, searchAccess } = organization
+  if (mothershipAvailable && canBuild) return null
+  return searchAccess.memberScoped ? '/search' : legacyRoutes(organization).workspaceSettings
+}

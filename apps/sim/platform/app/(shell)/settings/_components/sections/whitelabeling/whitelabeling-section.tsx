@@ -1,13 +1,13 @@
 'use client'
 
 import { useId } from 'react'
-import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
+import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
-import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-skeleton/section-skeleton'
 import styles from '@/platform/app/(shell)/settings/_components/sections/whitelabeling/whitelabeling-section.module.css'
 import {
   Button,
   EmptyState,
+  FailureNotice,
   FieldFrame,
   FileField,
   Input,
@@ -205,7 +205,7 @@ export default function WhitelabelingSection({ organization }: SettingsSectionPr
   const read = useWhitelabelRead(organizationId)
   if (read.status === 'pending') return <SectionSkeleton title='Brand identity' />
   if (read.status === 'error' || !read.settings)
-    return <LoadFailure message={read.error} onRetry={read.retry} />
+    return <FailureNotice message={read.error} onRetry={read.retry} />
   if (!read.entitled)
     return <EmptyState title='Whitelabeling requires an active Enterprise plan.' />
   return (

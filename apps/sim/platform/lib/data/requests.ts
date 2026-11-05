@@ -1,6 +1,5 @@
 'use client'
 
-import { formatDate } from '@sim/utils/formatting'
 import { useQueryStates } from 'nuqs'
 import type {
   AccessRequestRecord,
@@ -33,6 +32,7 @@ import {
 } from '@/hooks/queries/access-requests'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
+import { formatInstantDate } from '@/platform/lib/time'
 
 export type RequestScope = AccessRequestScope
 export type RequestTarget = AccessRequestTarget
@@ -61,7 +61,7 @@ function statusTag(status: AccessRequestRecord['status']) {
 }
 
 function requestDate(request: AccessRequestRecord): string {
-  return formatDate(new Date(request.createdAt))
+  return formatInstantDate(request.createdAt)
 }
 
 function requesterName(request: AccessRequestRecord): string {
@@ -244,7 +244,6 @@ export function useReviewList(organizationId: string) {
       id: request.id,
       title: request.targetLabel,
       detail: `${requesterName(request)} · ${requestDate(request)}`,
-      requester: requesterName(request),
       status: statusTag(request.status),
     })),
     settings: {

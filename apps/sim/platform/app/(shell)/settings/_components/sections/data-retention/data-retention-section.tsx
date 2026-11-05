@@ -4,15 +4,13 @@ import { useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import {
   LoadingState,
-  QueryErrorState,
   ResourceList,
   SectionStack,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { useUnsavedGuard } from '@/platform/app/(shell)/settings/_components/section-parts/use-unsaved-guard'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { PolicyDetail } from '@/platform/app/(shell)/settings/_components/sections/data-retention/policy-detail'
-import { ActivityRow, Button, EmptyState } from '@/platform/design-system/components'
+import { ActivityRow, Button, EmptyState, FailureNotice } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   buildRetentionUpdate,
@@ -36,6 +34,7 @@ import {
   withOverridePolicy,
   withoutOverride,
 } from '@/platform/lib/data/data-retention'
+import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { toast } from '@/platform/lib/data/toast'
 
 function snapshotFrom(data: DataRetentionResponse): RetentionSnapshot {
@@ -76,7 +75,7 @@ function RetentionForm({ initialData, organizationId, workspaceOptions }: Retent
   const discard = () => {
     if (editing) setEditing({ ...editing, draft: editing.original })
   }
-  const guard = useUnsavedGuard({
+  const guard = useSettingsUnsavedGuard({
     isDirty: changed,
     navigationBlocked: update.isPending,
     onDiscard: discard,
@@ -143,7 +142,6 @@ function RetentionForm({ initialData, organizationId, workspaceOptions }: Retent
             toast.success('Workspace override removed.')
           }}
         />
-        {guard.dialog}
       </SectionStack>
     )
   }
@@ -191,7 +189,7 @@ export default function DataRetentionSection({ organization }: SettingsSectionPr
     return <LoadingState label='Loading data retention…' />
   if (!data) {
     return (
-      <QueryErrorState
+      <FailureNotice
         message='Failed to load data retention settings.'
         retrying={isFetching}
         onRetry={() => void refetch()}
@@ -200,7 +198,7 @@ export default function DataRetentionSection({ organization }: SettingsSectionPr
   }
   if (!workspacesQuery.data) {
     return (
-      <QueryErrorState
+      <FailureNotice
         message='Failed to load workspaces.'
         retrying={workspacesQuery.isFetching}
         onRetry={() => void workspacesQuery.refetch()}

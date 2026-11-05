@@ -7,16 +7,15 @@ import {
   FieldStack,
   LoadingState,
   Muted,
-  QueryErrorState,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { useUnsavedGuard } from '@/platform/app/(shell)/settings/_components/section-parts/use-unsaved-guard'
 import { GroupMappings } from '@/platform/app/(shell)/settings/_components/sections/sso/group-mappings'
 import {
   ActionMenu,
   Button,
   CopyField,
   Disclosure,
+  FailureNotice,
   Modal,
   Select,
   StatusTag,
@@ -38,7 +37,12 @@ import {
   useScimActivity,
   useScimConnection,
 } from '@/platform/lib/data/scim'
+import {
+  useSettingsNavigationBlocked,
+  useSettingsUnsavedGuard,
+} from '@/platform/lib/data/settings-guard'
 import { toast } from '@/platform/lib/data/toast'
+import { plural } from '@/platform/lib/plural'
 import { formatCalendarDate, formatRelativeTime } from '@/platform/lib/time'
 
 function formatInstant(iso: string | null, now: number): string {
@@ -57,7 +61,7 @@ function ActivityList({ organizationId, active }: { organizationId: string; acti
   if (isLoading) return <LoadingState label='Loading activity…' />
   if (data === undefined && isError) {
     return (
-      <QueryErrorState
+      <FailureNotice
         message={getErrorMessage(error, 'Failed to load directory activity')}
         retrying={isFetching}
         onRetry={() => void refetch()}
@@ -106,7 +110,7 @@ function ConnectionDetails({ organizationId, active, connection }: ConnectionDet
   const [pendingRevokeId, setPendingRevokeId] = useState<string | null>(null)
   const pendingRevoke =
     connection.credentials.find((credential) => credential.id === pendingRevokeId) ?? null
-  const guard = useUnsavedGuard({
+  useSettingsUnsavedGuard({
     isDirty: expiry !== 'never' || issuedSecret !== null,
     navigationBlocked: issueCredential.isPending,
     onDiscard: () => {
@@ -145,7 +149,7 @@ function ConnectionDetails({ organizationId, active, connection }: ConnectionDet
       toast.success(
         corrections === 0
           ? `Checked ${report.reconciledUsers} members. Review Group mappings for assignment status.`
-          : `Checked ${report.reconciledUsers} members; corrected ${corrections} grant${corrections === 1 ? '' : 's'}`
+          : `Checked ${report.reconciledUsers} members; corrected ${plural(corrections, 'grant')}`
       )
     } catch (error) {
       toast.error(getErrorMessage(error, 'Reconciliation failed'))
@@ -163,8 +167,8 @@ function ConnectionDetails({ organizationId, active, connection }: ConnectionDet
             hint='Enter this as the tenant or connector URL in your identity provider.'
           />
           <Muted>
-            {connection.userCount} provisioned member{connection.userCount === 1 ? '' : 's'},{' '}
-            {connection.groupCount} group{connection.groupCount === 1 ? '' : 's'}. Last request{' '}
+            {plural(connection.userCount, 'provisioned member')},{' '}
+            {plural(connection.groupCount, 'group')}. Last request{' '}
             {formatInstant(connection.lastRequestAt, now)}; last reconciled{' '}
             {formatInstant(connection.reconciledAt, now)}.
           </Muted>
@@ -300,7 +304,6 @@ function ConnectionDetails({ organizationId, active, connection }: ConnectionDet
           toast.success('Token revoked')
         }}
       />
-      {guard.dialog}
     </>
   )
 }
@@ -318,12 +321,13 @@ export function ScimPanel({ organizationId, active, onOpenDomains }: ScimPanelPr
     active
   )
   const configure = useConfigureScimConnection()
+  const navigationBlocked = useSettingsNavigationBlocked()
 
   if (data === undefined && isError) {
     return (
       <SettingsSection title='Directory provisioning'>
         <FieldStack>
-          <QueryErrorState
+          <FailureNotice
             message={getErrorMessage(error, 'Failed to load directory provisioning settings')}
             retrying={isFetching}
             onRetry={() => void refetch()}
@@ -355,7 +359,7 @@ export function ScimPanel({ organizationId, active, onOpenDomains }: ScimPanelPr
           <Switch
             label='Enable directory provisioning'
             checked={enabled}
-            disabled={isLoading || configure.isPending}
+            disabled={isLoading || configure.isPending || navigationBlocked}
             onCheckedChange={(checked) => void updateEnabled(checked)}
           />
         </SettingsRow>

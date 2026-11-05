@@ -1,30 +1,28 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
+import { LoadingState } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/members/members.module.css'
-import { Button, InlineNotice, StatusTag } from '@/platform/design-system/components'
+import { Button, FailureNotice, InlineNotice, StatusTag } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import type { useMembers } from '@/platform/lib/data/members'
+import { plural } from '@/platform/lib/plural'
 
 interface SeatsOverviewProps {
   seats: ReturnType<typeof useMembers>['seats']
 }
 
 export function SeatsOverview({ seats }: SeatsOverviewProps) {
-  if (seats.status === 'pending') return null
+  if (seats.status === 'pending') return <LoadingState label='Loading seats' rows={1} />
   if (seats.status === 'error')
     return (
-      <InlineNotice
-        intent='danger'
+      <FailureNotice
         title='Failed to load seat information'
         message={getErrorMessage(seats.error, 'Seat information is unavailable.')}
-        action={
-          <Button size='compact' disabled={seats.retrying} onClick={seats.retry}>
-            Retry
-          </Button>
-        }
+        retrying={seats.retrying}
+        onRetry={seats.retry}
       />
     )
   const { model } = seats
@@ -53,9 +51,7 @@ export function SeatsOverview({ seats }: SeatsOverviewProps) {
   if (model.kind === 'team')
     return (
       <SettingsSection title='Seats'>
-        <SettingsRow label={`${model.used} ${model.used === 1 ? 'seat' : 'seats'}`}>
-          {tags}
-        </SettingsRow>
+        <SettingsRow label={plural(model.used, 'seat')}>{tags}</SettingsRow>
       </SettingsSection>
     )
   return (

@@ -11,11 +11,9 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  signOutAndLeave,
-  useAccountEmail,
-  useResetPasswordAction,
-} from '@/platform/lib/data/account'
+import { useAccountEmail, useResetPasswordAction } from '@/platform/lib/data/account'
+import { signOutAndLeave } from '@/platform/lib/data/session'
+import { toast } from '@/platform/lib/data/toast'
 
 export default function AccountSection({ organization }: SettingsSectionProps) {
   const { legacyOrigin, deployment } = organization
@@ -45,7 +43,11 @@ export default function AccountSection({ organization }: SettingsSectionProps) {
             disabled={signingOut}
             onClick={() => {
               setSigningOut(true)
-              void signOutAndLeave(legacyOrigin)
+              void signOutAndLeave(`${legacyOrigin}/login?fromLogout=true`).then((left) => {
+                if (left) return
+                setSigningOut(false)
+                toast.error('Failed to sign out. Please try again.')
+              })
             }}
           >
             Sign out

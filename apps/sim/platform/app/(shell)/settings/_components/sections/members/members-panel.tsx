@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { InviteModal } from '@/platform/app/(shell)/_components/invite-modal/invite-modal'
-import { ManageCreditsModal } from '@/platform/app/(shell)/settings/_components/sections/members/manage-credits-modal'
+import { ManageCreditsModal } from '@/platform/app/(shell)/settings/_components/section-parts/manage-credits-modal'
 import {
   InvitationRow,
   MemberRow,
@@ -19,6 +19,7 @@ import { TransferOwnershipModal } from '@/platform/app/(shell)/settings/_compone
 import {
   Button,
   EmptyState,
+  FailureNotice,
   InlineNotice,
   SearchField,
   Tooltip,
@@ -67,7 +68,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
           <SearchField
             label='Search members'
             placeholder='Search members...'
-            defaultValue={search}
+            value={search}
             onValueChange={setSearch}
           />
         </div>
@@ -110,15 +111,11 @@ export function MembersPanel({ organization }: MembersPanelProps) {
           </p>
         </SettingsSection>
       ) : !visible ? (
-        <InlineNotice
-          intent='danger'
+        <FailureNotice
           title={LOAD_FAILED}
           message={roster.error?.message ?? 'The roster is unavailable.'}
-          action={
-            <Button size='compact' disabled={roster.retrying} onClick={roster.retry}>
-              Retry
-            </Button>
-          }
+          retrying={roster.retrying}
+          onRetry={roster.retry}
         />
       ) : noMatches ? (
         <EmptyState title={`No members matching “${search.trim()}”`} />
@@ -188,11 +185,13 @@ export function MembersPanel({ organization }: MembersPanelProps) {
         roster={roster.model}
         hasPaidSubscription={members.seats.hasPaidSubscription}
       />
-      <ManageCreditsModal
-        key={credits?.userId ?? 'none'}
-        member={credits}
-        onClose={() => setCredits(null)}
-      />
+      {credits && (
+        <ManageCreditsModal
+          key={credits.userId}
+          member={{ userId: credits.userId, name: credits.name || credits.email }}
+          onClose={() => setCredits(null)}
+        />
+      )}
     </div>
   )
 }

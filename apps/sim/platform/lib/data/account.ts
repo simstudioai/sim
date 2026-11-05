@@ -2,7 +2,6 @@
 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { formatDate } from '@sim/utils/formatting'
 import { sleep } from '@sim/utils/helpers'
 import { formatQuotedNameList, normalizeEmail } from '@sim/utils/string'
 import type { PersonalOrganizationAccount } from '@/lib/api/contracts/organization-accounts'
@@ -31,6 +30,7 @@ import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
 import { loadMoreOf, queryView } from '@/platform/lib/data/query-view'
 import { toast } from '@/platform/lib/data/toast'
+import { formatInstantDate } from '@/platform/lib/time'
 
 const logger = createLogger('PlatformAccount')
 
@@ -41,17 +41,6 @@ const MAX_NAMES_LISTED = 3
 const SIGN_OUT_TIMEOUT_MS = 3000
 
 const LOGOUT_PATH = '/login?fromLogout=true'
-
-/** Signs out and leaves the document, which is what resets this app's in-memory state. */
-export async function signOutAndLeave(legacyOrigin: string) {
-  try {
-    await signOut()
-    clearBrowserUserData()
-  } catch (error) {
-    logger.error('Error signing out', { error })
-  }
-  window.location.assign(`${legacyOrigin}${LOGOUT_PATH}`)
-}
 
 export function useAccountEmail() {
   const profile = useUserProfile()
@@ -81,7 +70,7 @@ export function useAuthorizedAppsList() {
       id: app.clientId,
       name: app.name,
       access: summarizeOAuthAccess(app.scopes),
-      authorized: `Authorized ${formatDate(new Date(app.authorizedAt))}`,
+      authorized: `Authorized ${formatInstantDate(app.authorizedAt)}`,
     })),
     loadMore: loadMoreOf(apps, 'Failed to load more authorized apps'),
     revoke: async (id: string, name: string) => {

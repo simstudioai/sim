@@ -3,8 +3,8 @@
 import { useCallback } from 'react'
 import { ChipConfirmModal } from '@sim/emcn'
 import { useRouter } from 'next/navigation'
-import { useSettingsBrowserNavigation } from '@/components/settings/use-settings-browser-navigation'
-import { useSettingsLeaveLinks } from '@/components/settings/use-settings-leave-links'
+import { useSettingsBrowserNavigation } from '@/hooks/use-settings-browser-navigation'
+import { useSettingsLeaveLinks } from '@/hooks/use-settings-leave-links'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 /** One browser guard and discard dialog for every registered editor in the app. */

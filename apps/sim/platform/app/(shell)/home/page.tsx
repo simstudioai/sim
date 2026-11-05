@@ -6,10 +6,10 @@ import { resolvePlatformMode } from '@/platform/lib/data/mode'
 export default async function Page({ searchParams }: PageProps<'/home'>) {
   if (resolvePlatformMode() === 'live') {
     // Loaded only here, so a fixture server never evaluates the data seam.
-    const { LiveHomePage } = await import(
-      '@/platform/app/(shell)/home/_components/live-home/live-home-page'
+    const { LiveHomeRoute } = await import(
+      '@/platform/app/(shell)/home/_components/live-home/live-home-route'
     )
-    return <LiveHomePage />
+    return <LiveHomeRoute />
   }
   const query = await searchParams
   const scenario = readScenario(query.state)

@@ -3,12 +3,11 @@
 import type { ReactNode } from 'react'
 import { type DehydratedState, HydrationBoundary, QueryClientProvider } from '@tanstack/react-query'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
-import { useSettingsBrowserNavigation } from '@/components/settings/use-settings-browser-navigation'
 import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
+import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import { LiveChatEvents } from '@/platform/lib/data/chat-events'
 import { OrganizationProvider } from '@/platform/lib/data/organization'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
-import { getQueryClient } from '@/platform/lib/data/query-client'
 import { SessionProvider } from '@/platform/lib/data/session'
 import { type ShellNavigation, useShellData } from '@/platform/lib/data/shell'
 import { LiveShellContext } from '@/platform/lib/data/shell-context'
@@ -21,7 +20,6 @@ function LiveShellProvider({
   children: ReactNode
 }) {
   const shell = useShellData(navigation)
-  useSettingsBrowserNavigation()
   return <LiveShellContext.Provider value={shell}>{children}</LiveShellContext.Provider>
 }
 

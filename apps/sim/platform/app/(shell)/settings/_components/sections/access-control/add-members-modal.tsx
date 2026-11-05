@@ -6,10 +6,15 @@ import {
   ActionRow,
   LoadingState,
   Muted,
-  QueryErrorState,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/access-control/permission-rows.module.css'
-import { Button, Checkbox, Modal, SearchField } from '@/platform/design-system/components'
+import {
+  Button,
+  Checkbox,
+  FailureNotice,
+  Modal,
+  SearchField,
+} from '@/platform/design-system/components'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { useOrganizationRoster } from '@/platform/lib/data/access-control'
 
@@ -88,7 +93,7 @@ export function AddMembersModal({
       {isPending ? (
         <LoadingState label='Loading members…' />
       ) : roster === undefined ? (
-        <QueryErrorState
+        <FailureNotice
           message={getErrorMessage(error, 'Failed to load members')}
           retrying={isFetching}
           onRetry={() => void refetch()}

@@ -1,28 +1,16 @@
-import { create } from 'zustand'
+import { inertStore } from '@/platform/lib/data/shims/inert-store'
 import type { WorkflowRegistry } from '@/stores/workflows/registry/types'
 
-/**
- * Stands in for `stores/workflows/registry/store`. That store hydrates the canvas, and the Platform
- * has no canvas: a tool run executes on the server and only names its workflow here. Nothing else
- * reads this state, so hydration, the clipboard and paste stay inert rather than pull in every
- * block and trigger.
- */
-export const useWorkflowRegistry = create<WorkflowRegistry>()((set) => ({
+const registry: Pick<WorkflowRegistry, 'activeWorkflowId' | 'hydration' | 'setActiveWorkflow'> = {
   activeWorkflowId: null,
-  error: null,
   hydration: { phase: 'idle', workspaceId: null, workflowId: null, requestId: null, error: null },
-  clipboard: null,
-  pendingSelection: null,
-  setActiveWorkflow: async (id) => set({ activeWorkflowId: id }),
-  loadWorkflowState: async () => {},
-  switchToWorkspace: () => {},
-  markWorkflowCreating: () => {},
-  markWorkflowCreated: () => {},
-  copyBlocks: () => {},
-  preparePasteData: () => null,
-  hasClipboard: () => false,
-  clearClipboard: () => {},
-  setPendingSelection: () => {},
-  clearPendingSelection: () => {},
-  logout: () => set({ activeWorkflowId: null }),
-}))
+  setActiveWorkflow: async (id) => {
+    registry.activeWorkflowId = id
+  },
+}
+
+/**
+ * Stands in for `stores/workflows/registry/store`, which hydrates a canvas and would pull in every
+ * block and trigger. A tool run executes on the server and only names its workflow here.
+ */
+export const useWorkflowRegistry = inertStore('stores/workflows/registry/store', registry)

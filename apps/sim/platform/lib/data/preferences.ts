@@ -28,7 +28,7 @@ const SNAP_TO_GRID_OPTIONS = SNAP_TO_GRID_VALUES.map((size) => ({
 const noSubscription = () => () => {}
 
 /** Stable across the server and first client render, then the viewer's real zone. */
-function useBrowserTimezone(): string {
+export function useBrowserTimezone(): string {
   return useSyncExternalStore(noSubscription, getBrowserTimezone, () => 'UTC')
 }
 
@@ -76,6 +76,10 @@ export function useProfileSettings() {
   }
 }
 
+export function useSavedSettingsRead() {
+  return queryView(useGeneralSettings())
+}
+
 export function useAppearanceSettings() {
   const settings = useGeneralSettings()
   const { write } = useSettingWriter()
@@ -86,7 +90,6 @@ export function useAppearanceSettings() {
     [savedTimezone, browserTimezone]
   )
   return {
-    ...queryView(settings),
     theme: settings.data?.theme ?? 'system',
     setTheme: (value: string) => {
       if (value === 'system' || value === 'light' || value === 'dark')
@@ -131,7 +134,7 @@ export function useSnapToGridSetting() {
 
 /**
  * Browser telemetry stops first and resumes only once the account says so, so a failed save can
- * never leave collection on after an opt-out. It defaults on until the setting loads.
+ * never leave collection on after an opt-out.
  */
 export function useTelemetrySetting() {
   const settings = useGeneralSettings()

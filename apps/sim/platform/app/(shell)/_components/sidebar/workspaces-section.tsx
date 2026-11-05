@@ -120,6 +120,13 @@ export function WorkspacesSection({ data, actions, navigate }: WorkspacesSection
                 <div className={styles.row}>
                   <Chip
                     href={platformHref(item.href ?? '/home', query)}
+                    status={
+                      item.isPinned && (
+                        <span className={styles.indicator} role='img' aria-label='Pinned'>
+                          <Icon name='I131' />
+                        </span>
+                      )
+                    }
                     action={
                       <ActionMenu
                         label={`Actions for ${item.name}`}
@@ -133,11 +140,6 @@ export function WorkspacesSection({ data, actions, navigate }: WorkspacesSection
                   >
                     {item.name}
                   </Chip>
-                  {item.isPinned && (
-                    <span className={styles.indicator} role='img' aria-label='Pinned'>
-                      <Icon name='I131' />
-                    </span>
-                  )}
                 </div>
               </ContextActionMenu>
             )

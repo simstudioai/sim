@@ -15,7 +15,6 @@ import {
 import { formatDateTime } from '@sim/utils/formatting'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import {
   type MothershipTab,
   mothershipParsers,
@@ -30,6 +29,7 @@ import {
   useMothershipRequests,
   useMothershipUserBreakdown,
 } from '@/hooks/queries/mothership-admin'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const TABS: { id: MothershipTab; label: string }[] = [

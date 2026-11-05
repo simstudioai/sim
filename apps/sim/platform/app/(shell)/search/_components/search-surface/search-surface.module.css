@@ -53,3 +53,8 @@
   gap: var(--ui-section-gap);
   justify-items: start;
 }
+.fieldPlaceholder {
+  block-size: var(--spacing-app-control-sm);
+  border-radius: var(--ui-control-radius);
+  background: var(--control-muted-fill);
+}

@@ -12,7 +12,7 @@ import { ChartTooltip } from '@/platform/design-system/components/chart/chart-to
 import { usePlotInspection } from '@/platform/design-system/components/chart/use-plot-inspection'
 import { RangePicker } from '@/platform/design-system/components/menu/range-picker'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
-import { formatCalendarDate } from '@/platform/lib/time'
+import { DAY_MS, formatCalendarDate } from '@/platform/lib/time'
 
 interface ActivityPoint {
   date: string
@@ -95,7 +95,6 @@ function ActivitySeries({ title, points, initialPoint }: ActivitySeriesProps) {
 
 const WINDOW_DAYS = [7, 30, 90] as const
 const RANGE_LABELS = WINDOW_DAYS.map((days) => `Last ${days} days`)
-const DAY_MS = 86_400_000
 
 function calendarWindow(history: readonly ActivityPoint[] | undefined, days: number) {
   if (!history?.length) return []

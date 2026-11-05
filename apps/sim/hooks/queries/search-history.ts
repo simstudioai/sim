@@ -59,7 +59,7 @@ export function useRemoveSearchHistorySource(organizationId: string, userId: str
     mutationFn: (url: string) =>
       requestJson(removeSearchHistorySourceContract, {
         params: { id: organizationId },
-        query: { url },
+        body: { url },
       }),
     onMutate: async (url) => {
       await queryClient.cancelQueries({ queryKey })

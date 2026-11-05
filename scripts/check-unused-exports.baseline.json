@@ -1028,7 +1028,6 @@
   "apps/sim/hooks/queries/organization.ts#ORGANIZATION_DETAIL_STALE_TIME",
   "apps/sim/hooks/queries/organization.ts#ORGANIZATION_MEMBER_USAGE_LIMIT_STALE_TIME",
   "apps/sim/hooks/queries/organization.ts#ORGANIZATION_REMOVAL_IMPACT_STALE_TIME",
-  "apps/sim/hooks/queries/organization.ts#ORGANIZATION_ROSTER_STALE_TIME",
   "apps/sim/hooks/queries/organization.ts#RosterPendingInvitation",
   "apps/sim/hooks/queries/organization.ts#RosterWorkspaceAccess",
   "apps/sim/hooks/queries/personal-credentials.ts#PERSONAL_CREDENTIAL_STALE_TIME",

@@ -112,7 +112,7 @@ One row per capability of the legacy organization surface. Every capability is e
 | Links | Copy or create from a chat source card | `source-card` | Open | Chat owner |
 | White-labeling | Form, entitlement, upload, colors, links, save and discard, guard | White-labeling | Done | `settings-a.spec.ts` asserts the entitlement states; upload needs a workspace and storage |
 | White-labeling | Applying the brand to the Platform | `BrandingProvider` | Hidden | The Platform's tokens differ from `--brand*`. Needs a token mapping |
-| Unsaved changes | Link click, closing tab, browser Back and Forward | `settings-navigation-guard` | Done | The same hooks and dirty store as legacy; one dialog in `live-settings`. Not exercised in `settings-a.spec.ts`, which seeds no draft on a paid plan |
+| Unsaved changes | Link click, closing tab, browser Back and Forward | `settings-navigation-guard` | Done | The same hooks and dirty store as legacy; one dialog in `session-state/settings-leave-guard`. Not exercised in `settings-a.spec.ts`, which seeds no draft on a paid plan |
 ## Settings: governance
 
 Proof `settings-b` is `checks/live/settings-b.spec.ts`. Every API behind these sections keeps its own server gate; the navigation entry comes from `organization.settingsSections`.
@@ -153,7 +153,7 @@ Proof `settings-b` is `checks/live/settings-b.spec.ts`. Every API behind these s
 | Data drains | List, search, deep link holds first paint, states | `ee/data-drains/components/data-drains-settings.tsx` | Done | `settings-b` |
 | Data drains | Create with all eight destinations; credentials write-only | `ee/data-drains/destinations/specs.ts` | Done | `settings-b` |
 | Data drains | Detail: enabled, Run now, Test connection, schedule, destination, runs, delete | `data-drain-detail.tsx` | Done | `settings-b` |
-| Settings | Unsaved-changes guard | `components/settings/use-settings-unsaved-guard.ts` | Open | Back, shell links and tab close are guarded by `section-parts/use-unsaved-guard`. Browser back is not, the SCIM enable switch does not read a shared navigation block, and each editor guards alone, so a discard covers one dirty editor rather than all of them. Owner: settings shell, with one guard provider |
+| Settings | Unsaved-changes guard | `hooks/use-settings-unsaved-guard.ts` | Open | Every editor registers with the shared dirty store through `useSettingsUnsavedGuard`; one dialog covers them all, and the SCIM enable switch reads the shared navigation block. Not exercised in `settings-b.spec.ts` |
 
 Status is one of:
 
@@ -239,7 +239,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Home page gate | `O/home/page.tsx` | Open | Home owner |
 | Error boundary with retry | `O/error.tsx` | Done | Foundation: `(shell)/error.tsx`. Unproved |
 | Not found page | `O/not-found.tsx` | Done | Foundation: `(shell)/not-found.tsx`. Unproved |
-| Server prefetch of chats, workspaces, profile | `O/prefetch.ts` | Done | Foundation: `lib/data/prefetch.ts`. Unproved |
+| Server prefetch of chats, workspaces, profile | `O/prefetch.ts` | Done | Foundation: `lib/data/prefetch-shell.ts`. Unproved |
 | Org surface context | `organization-provider.tsx` | Done | Foundation: `lib/data/organization.tsx` |
 | Deployment shape seeding | `organization-provider.tsx` | Done | Foundation: `useSeedDeploymentShape` in `lib/data/organization.tsx` |
 | Live chat status over SSE | `use-mothership-chat-events.ts` | Open | Chat owner: the list reads `isActive` and `isUnread`, but nothing here subscribes to the events route yet |
@@ -249,8 +249,8 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Sim link scope and global create form | `O/layout.tsx` | Open | Settings owner: Links is a Settings section |
 | Impersonation banner | `impersonation-banner.tsx` | Done | Foundation: `session-state.tsx`. Unproved |
 | Session expired takeover | `session-expired.tsx` | Done | Foundation: `session-state.tsx`. Unproved |
-| Unsaved settings guard on links and sign out | `settings-navigation-guard.tsx`, `settings-guarded-link.tsx` | Done | `lib/data/shell-guard.ts`, `settings-leave-guard.tsx`, `requestLeave`. Unproved until a Settings editor registers a guard |
-| Unsaved settings guard on browser back and forward | `use-settings-browser-navigation.ts` | Open | Settings owner: it lives in a settings component the seam cannot import |
+| Unsaved settings guard on links and sign out | `settings-navigation-guard.tsx`, `settings-guarded-link.tsx` | Done | `lib/data/settings-guard`, `settings-leave-guard.tsx`, `requestLeave`. Unproved |
+| Unsaved settings guard on browser back and forward | `use-settings-browser-navigation.ts` | Done | `lib/data/settings-guard`, the same hook as legacy. Unproved |
 | Branded metadata and whitelabel theme | `app/layout.tsx` | Open | Settings owner, with White-labeling |
 | Analytics and telemetry, including `docs_opened` and `slack_community_opened` | `app/layout.tsx`, `organization-sidebar.tsx` | Open | No PostHog provider is mounted here, so the help menu sends no events |
 | Error and success toasts | `@sim/emcn` `toast` | Done | Foundation: `lib/data/toast.ts`, `useToastNotices`. Unproved |
@@ -280,7 +280,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Rename inline | `organization-header.tsx` | Done | `organization-menu.tsx`; `shell.spec` rename, and the member refusal |
 | Settings entry | `organization-header.tsx` | Done | Existing `organization-menu.tsx` |
 | Invite entry | `organization-header.tsx` | Done | Gated on `canInviteMembers`; `shell.spec` member |
-| Invite form | `invite-modal.tsx` | Open | People owner: replaces the `invite-modal/` placeholder |
+| Invite form | `invite-modal.tsx` | Done | `_components/invite-modal/invite-modal.tsx`. Unproved |
 | Workspace list, pinned then by visits | `use-organization-workspaces.ts` | Done | `lib/data/shell.ts`, `workspaces-section.tsx`. Unproved |
 | Workspace logo tile | `workspace-list.tsx` | Hidden | Design contract: workspace names are text-only |
 | No workspaces yet, silent while loading, retry on failure | `workspace-list.tsx` | Done | `section-status.tsx`. Unproved |
@@ -297,7 +297,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Chats section visibility | `organization-sidebar.tsx` | Done | `chatsAvailable` from `canListOrganizationChats`. Unproved |
 | Chat list | `use-organization-chats.ts` | Done | Foundation: `lib/data/shell.ts`; `shell.spec` chat |
 | Mode-aware link | `use-organization-chats.ts` | Done | Assistant chats open under Search on the legacy surface. Unproved |
-| Status dot and pin glyph | `chats-section.tsx` | Done | `ChatIndicator` in `chats-section.tsx`. On touch, where the row action is always shown, the indicator gives way to it. Unproved |
+| Status dot and pin glyph | `chats-section.tsx` | Done | `chatStatus` in `chats-section.tsx`, through Chip's `status` slot, which keeps it beside the always-shown row action on touch. Unproved |
 | No chats yet, silent while loading, retry on failure | `chats-section.tsx` | Done | `section-status.tsx`. Unproved |
 | Row options and right click | `use-organization-chat-actions.ts` | Done | `shell.spec` chat |
 | Shift multi-select, background click clears | `use-chat-selection.ts` | Done | Local to `chats-section.tsx`. Unproved |
@@ -326,7 +326,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Domain | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- | --- |
 | Home | Personal greeting | `app/o/[id]/components/organization-conversation.tsx` | Done | `checks/live/home.spec.ts`. Name from the profile, time of day from the viewer's clock; `Welcome` until hydration knows it |
-| Home | Gate for members who cannot build | `app/o/[id]/home/home-redirect.ts` | Done | `home-server.ts` `resolveHomeRedirect`, the same order: Search if member-scoped, else workspace settings. Runs on the server before anything renders |
+| Home | Gate for members who cannot build | `app/o/[id]/home/home-redirect.ts` | Done | `organization-model.ts` `resolveHomeRedirect`, the same order: Search if member-scoped, else workspace settings. Runs on the server before anything renders |
 | Home | Email widget: read the viewer's mail | None; Platform only | Done | `home-widgets.integration.ts`, `provider-reads.test.ts`. Gmail threads and Outlook inbox through the existing tool logic, narrowed so no mail body is requested; `GET /api/organizations/[id]/home/email`, session only, the acting member's own grants |
 | Home | Calendar widget: read a day of meetings | None; Platform only | Done | `home-widgets.integration.ts`. Primary Google calendar and default Outlook calendar; `GET .../home/calendar?date=&timeZone=`. Previous and next day read for real and hold in `?day=`, so a chosen day survives reload and midnight; all-day events sit above the timeline; overlapping meetings share lanes |
 | Home | Connect, reconnect, disconnect from a widget | Integrations page | Done | Same operations as Integrations: `useConnectOrganizationAccount`, `useReconnectPersonalOrganizationAccount`, `useDisconnectPersonalOrganizationAccount`. The disconnect dialog says it reaches everywhere the account is used |

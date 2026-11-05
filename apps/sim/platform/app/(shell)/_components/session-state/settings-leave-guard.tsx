@@ -1,7 +1,7 @@
 'use client'
 
 import { Modal } from '@/platform/design-system/components'
-import { useSettingsLeaveGuard } from '@/platform/lib/data/shell-guard'
+import { useSettingsLeaveGuard } from '@/platform/lib/data/settings-guard'
 
 /** One discard dialog for every Settings editor that registers an unsaved draft. */
 export function SettingsLeaveGuard() {
@@ -15,6 +15,7 @@ export function SettingsLeaveGuard() {
       variant='confirm'
       title='Unsaved changes'
       confirmLabel='Discard changes'
+      cancelLabel='Keep editing'
       destructive
       onConfirm={confirm}
     >

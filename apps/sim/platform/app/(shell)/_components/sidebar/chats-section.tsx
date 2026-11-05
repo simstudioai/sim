@@ -26,7 +26,7 @@ import { platformHref } from '@/platform/design-system/navigation'
 const NO_SELECTION: ReadonlySet<string> = new Set()
 const CHAT_TITLE_MAX_LENGTH = 200
 
-function ChatIndicator({ chat, isCurrent }: { chat: ShellChat; isCurrent: boolean }) {
+function chatStatus(chat: ShellChat, isCurrent: boolean) {
   if (chat.isActive)
     return (
       <span className={styles.indicator} role='img' aria-label='Running'>
@@ -245,6 +245,7 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
                   <Chip
                     href={platformHref(href, query)}
                     selected={isCurrent}
+                    status={chatStatus(item, isCurrent)}
                     action={
                       <ActionMenu
                         label={`Actions for ${item.title}`}
@@ -259,7 +260,6 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
                   >
                     {item.title}
                   </Chip>
-                  <ChatIndicator chat={item} isCurrent={isCurrent} />
                 </div>
               </ContextActionMenu>
             )

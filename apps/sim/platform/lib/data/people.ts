@@ -137,9 +137,10 @@ export function useDepartmentOptions(
   organizationId: string,
   selected: { department: string; departmentKey: string }
 ) {
+  const [open, setOpen] = useState(false)
   const [term, setTerm] = useState('')
   const debounced = useSearchFilterValue(term, SEARCH_DEBOUNCE_MS).trim()
-  const departments = useDepartments(organizationId, debounced, true)
+  const departments = useDepartments(organizationId, debounced, open)
   const waiting = term.trim() !== debounced
   const entries = useMemo(
     () => (waiting ? [] : (departments.data?.pages.flatMap((page) => page.departments) ?? [])),
@@ -157,6 +158,7 @@ export function useDepartmentOptions(
   )
   return {
     options,
+    onOpenChange: setOpen,
     value: selected.departmentKey
       ? `${DEPARTMENT_KEY_PREFIX}${selected.departmentKey}`
       : selected.department || ALL_DEPARTMENTS,
@@ -185,9 +187,10 @@ export function usePeoplePicker(
   scope?: 'roots' | 'members',
   excludeMemberId?: string
 ) {
+  const [open, setOpen] = useState(false)
   const [term, setTerm] = useState('')
   const debounced = useDebounce(term.trim(), SEARCH_DEBOUNCE_MS)
-  const query = usePeople(organizationId, debounced, '', { scope })
+  const query = usePeople(organizationId, debounced, '', { scope, enabled: open })
   const waiting = term.trim() !== debounced || query.isPlaceholderData
   const pages = waiting || query.isRefetchError ? undefined : query.data?.pages
   const people = useMemo(
@@ -208,6 +211,7 @@ export function usePeoplePicker(
   return {
     people,
     options,
+    onOpenChange: setOpen,
     search: {
       query: term,
       onQueryChange: (next: string) => setTerm(next.slice(0, PEOPLE_SEARCH_MAX_LENGTH)),

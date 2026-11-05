@@ -4,8 +4,6 @@ import type { PlatformOrganization } from '@/platform/lib/data/organization-mode
 
 /**
  * What a section receives. Its gate has already passed; its own API calls enforce the same rule.
- *
- * @public Section folders import this as their owners fill them in.
  */
 export interface SettingsSectionProps {
   organization: PlatformOrganization

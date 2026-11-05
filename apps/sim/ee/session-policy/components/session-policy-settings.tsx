@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { ChipConfirmModal, ChipInput, Label, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
@@ -16,6 +15,7 @@ import {
   useUpdateOrganizationSessionPolicy,
 } from '@/ee/session-policy/hooks/session-policy'
 import { parseSessionPolicyHours } from '@/ee/session-policy/lib/policy-form'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 
 interface SessionPolicySettingsProps {
   organizationId: string

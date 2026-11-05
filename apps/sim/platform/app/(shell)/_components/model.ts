@@ -30,7 +30,6 @@ export interface ShellWorkspace {
   name: string
   /** Absolute: a workspace opens on the legacy surface. */
   href?: string
-  logoUrl?: string | null
   permissions?: 'admin' | 'write' | 'read' | null
   isPinned?: boolean
 }
@@ -75,7 +74,6 @@ export interface ShellData {
     name: string
     memberCount: number
     id?: string
-    slug?: string
     logo?: string | null
   }
   user: { name: string; id?: string; email?: string; image?: string | null }

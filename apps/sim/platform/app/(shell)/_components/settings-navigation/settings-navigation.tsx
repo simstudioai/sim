@@ -7,6 +7,7 @@ import { SETTINGS_DESTINATIONS } from '@/platform/app/(shell)/_components/settin
 import styles from '@/platform/app/(shell)/_components/settings-navigation/settings-navigation.module.css'
 import { Chip, SearchField } from '@/platform/design-system/components'
 import { platformHref } from '@/platform/design-system/navigation'
+import { plural } from '@/platform/lib/plural'
 
 interface SettingsNavigationProps {
   section?: string
@@ -83,7 +84,7 @@ export function SettingsNavigation({
       />
       {filter ? (
         matches.length ? (
-          group(`${matches.length} ${matches.length === 1 ? 'result' : 'results'}`, matches)
+          group(plural(matches.length, 'result'), matches)
         ) : (
           <div className={styles.result} role='status'>
             <strong data-type='T043'>No matching settings</strong>
