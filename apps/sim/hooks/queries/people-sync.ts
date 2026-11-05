@@ -37,7 +37,7 @@ export function isDirectorySyncAccessError(error: unknown) {
 
 function refreshPublishedPeople(client: QueryClient, organizationId: string, result: SyncResult) {
   const previous = client.getQueryData<SyncResult>(syncKeys.organization(organizationId))
-  if (previous && (previous.sync?.lastSuccessAt ?? null) !== (result.sync?.lastSuccessAt ?? null)) {
+  if ((previous?.sync?.lastSuccessAt ?? null) !== (result.sync?.lastSuccessAt ?? null)) {
     return client.invalidateQueries({ queryKey: peopleKeys.organization(organizationId) })
   }
 }

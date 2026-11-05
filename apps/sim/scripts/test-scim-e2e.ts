@@ -535,12 +535,12 @@ async function run() {
             .addCookies([
               { name: 'better-auth.session_token', value: primary.cookie, url: baseUrl.origin },
             ])
-          await page.goto(
-            new URL(`/o/${primary.orgId}/people?focus=${aliceMemberId}`, baseUrl).href
-          )
           const statusUrl = new URL(syncPath, baseUrl).href
           await page.route(statusUrl, (route) =>
             route.fulfill({ status: 503, json: { error: 'Unavailable' } })
+          )
+          await page.goto(
+            new URL(`/o/${primary.orgId}/people?focus=${aliceMemberId}`, baseUrl).href
           )
           const openSync = page.getByRole('button', { name: 'Directory sync', exact: true })
           await openSync.click()
