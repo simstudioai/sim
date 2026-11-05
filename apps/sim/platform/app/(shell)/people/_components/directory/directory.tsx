@@ -8,6 +8,7 @@ import {
   Button,
   DataTable,
   EmptyState,
+  FailureNotice,
   InlineNotice,
   PersonRow,
   RecipientTag,
@@ -97,15 +98,10 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
       {directory.loading ? (
         <PeopleStatus>Loading people…</PeopleStatus>
       ) : directory.error ? (
-        <InlineNotice
-          intent='danger'
+        <FailureNotice
           title='Could not load people'
           message={directory.error.message}
-          action={
-            <Button size='compact' onClick={directory.retry}>
-              Retry
-            </Button>
-          }
+          onRetry={directory.retry}
         />
       ) : rows.length === 0 ? (
         !directory.query && !directory.hasDepartment ? (

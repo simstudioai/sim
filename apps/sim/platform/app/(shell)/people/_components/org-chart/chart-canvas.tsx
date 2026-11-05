@@ -3,6 +3,7 @@ import Link from 'next/link'
 import styles from '@/platform/app/(shell)/people/_components/org-chart/org-chart.module.css'
 import { Avatar, Icon, IconButton, OverflowText } from '@/platform/design-system/components'
 import { type ChartBranch, type PersonSummary, personHref } from '@/platform/lib/data/people'
+import { plural } from '@/platform/lib/plural'
 
 type ChartFocus = (memberId: string, event: MouseEvent<HTMLButtonElement>) => void
 
@@ -58,9 +59,7 @@ function ExploreCard({ person, relation, reportCount, profileQuery, onFocus }: E
           footer={relation}
           action={
             <>
-              {reportCount === undefined
-                ? 'Explore team'
-                : `${reportCount} report${reportCount === 1 ? '' : 's'}`}
+              {reportCount === undefined ? 'Explore team' : plural(reportCount, 'report')}
               <Icon name='I032' />
             </>
           }

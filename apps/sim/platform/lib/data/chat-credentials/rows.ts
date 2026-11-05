@@ -7,7 +7,6 @@ import { getDesktopBridge } from '@/lib/desktop'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { CredentialWorkspaceContext } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/credential-workspace-context'
 import { formatCredentialSubmissionMessage } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/parse'
-import { useOAuthChipConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/use-oauth-chip-connection'
 import {
   usePersonalEnvironment,
   useSavePersonalEnvironment,
@@ -26,7 +25,6 @@ import { toast } from '@/platform/lib/data/toast'
 
 /** The card's workspace target, read by the connection hooks in place of a workspace route. */
 export const CredentialWorkspaceProvider = CredentialWorkspaceContext.Provider
-export { useOAuthChipConnection }
 
 export function useSearchConnectionRow(
   target: SearchConnectionTarget,

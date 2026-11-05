@@ -134,7 +134,7 @@ export type LiveComposer = ComposerController & {
  * A draft persisted per viewer and chat through the legacy drafts store, with uploads through the
  * legacy attachment hook, so a reload, a queued edit and the upload rules all behave the same.
  */
-function useLiveComposer({
+export function useLiveComposer({
   draftKey,
   requestMode = 'agent',
   chatId,
@@ -394,5 +394,3 @@ export const LIVE_COMPOSER_HOST: ComposerHost = {
   useStartChat: useLiveStartChat,
   useStartSearch,
 }
-
-export { useLiveComposer }

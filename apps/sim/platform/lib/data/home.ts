@@ -294,7 +294,7 @@ function useHomeAttention(
   readAccounts: readonly HomeAccountView[]
 ): { state: HomeListState<AttentionItem>; retry: () => void } {
   const shell = useLiveShellData()
-  const canReview = organization.settingsSections.includes('requests')
+  const canReview = organization.viewer.isAdmin
   const requests = useOrganizationAccessRequests(canReview ? organization.organization.id : '')
   const items = toAttentionItems({
     entries: integrations.entries ?? [],

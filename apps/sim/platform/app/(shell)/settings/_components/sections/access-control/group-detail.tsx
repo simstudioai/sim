@@ -7,7 +7,6 @@ import {
   FieldStack,
   LoadingState,
   Muted,
-  QueryErrorState,
   SectionStack,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -25,6 +24,7 @@ import {
   ActionMenu,
   Avatar,
   Button,
+  FailureNotice,
   Modal,
   MultiSelect,
   SearchableSelect,
@@ -72,6 +72,7 @@ import {
 } from '@/platform/lib/data/access-control'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { toast } from '@/platform/lib/data/toast'
+import { plural } from '@/platform/lib/plural'
 import { formatTimestamp } from '@/platform/lib/time'
 
 const TABS = [
@@ -206,7 +207,7 @@ export function GroupDetail({
     ? isAgentDefaultUsable(editingConfig, { hosted, providerIds: model.providerIds }, model.facts)
     : true
   const hasConfigChanges = hasPermissionConfigChanges(viewing.config, editingConfig)
-  // Compared trimmed: a row stored before the schemas gained `.trim()` would otherwise open dirty.
+  // Compared trimmed: an older row may hold untrimmed text and would otherwise open dirty.
   const trimmedName = editingName.trim()
   const trimmedDescription = editingDescription.trim()
   const nameChanged = trimmedName !== viewing.name.trim()
@@ -322,7 +323,7 @@ export function GroupDetail({
     if (editor.isLoading) return <LoadingState label='Loading permissions…' />
     if (!model || !controls) {
       return (
-        <QueryErrorState
+        <FailureNotice
           message={getErrorMessage(editor.error, 'Could not load provider availability')}
           retrying={editor.retrying}
           onRetry={editor.retry}
@@ -604,7 +605,7 @@ export function GroupDetail({
                   <MultiSelect
                     label={
                       viewing.workspaces.length > 0
-                        ? `Governs ${viewing.workspaces.length} workspace${viewing.workspaces.length === 1 ? '' : 's'}`
+                        ? `Governs ${plural(viewing.workspaces.length, 'workspace')}`
                         : 'Select the workspaces this group governs'
                     }
                     searchLabel='Search workspaces…'
@@ -631,7 +632,7 @@ export function GroupDetail({
                       ? group.membershipMode === 'inherit'
                         ? 'Applies to all members of its workspaces. Add members to restrict it to specific people.'
                         : 'No members assigned.'
-                      : `Restricted to ${memberList.length} member${memberList.length === 1 ? '' : 's'}`
+                      : `Restricted to ${plural(memberList.length, 'member')}`
                 }
               >
                 <Button
@@ -646,7 +647,7 @@ export function GroupDetail({
               {members.isPending ? (
                 <LoadingState label='Loading members…' />
               ) : members.data === undefined ? (
-                <QueryErrorState
+                <FailureNotice
                   message={getErrorMessage(members.error, 'Failed to load members')}
                   retrying={members.isFetching}
                   onRetry={() => void members.refetch()}

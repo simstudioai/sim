@@ -1,13 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { BooleanRow } from '@/platform/app/(shell)/settings/_components/section-parts/boolean-row'
 import {
-  QueryErrorState,
-  SectionSkeleton,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+  BooleanRow,
+  SavedSettingsSection,
+} from '@/platform/app/(shell)/settings/_components/section-parts/saved-settings'
+import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
   Avatar,
+  FailureNotice,
   Icon,
   Modal,
   SearchableSelect,
@@ -38,7 +39,7 @@ function Profile() {
   const [editing, setEditing] = useState(false)
   if (profile.status === 'pending') return <SectionSkeleton title='Profile' />
   if (profile.status === 'error')
-    return <QueryErrorState message='Failed to load your profile' onRetry={profile.retry} />
+    return <FailureNotice message='Failed to load your profile' onRetry={profile.retry} />
   const displayName = profile.name || profile.email
   return (
     <SettingsSection title='Profile'>
@@ -103,11 +104,8 @@ function Profile() {
 
 function Appearance() {
   const appearance = useAppearanceSettings()
-  if (appearance.status === 'pending') return <SectionSkeleton title='Appearance' rows={2} />
-  if (appearance.status === 'error')
-    return <QueryErrorState message='Failed to load your settings' onRetry={appearance.retry} />
   return (
-    <SettingsSection title='Appearance'>
+    <SavedSettingsSection title='Appearance' rows={2}>
       <SettingsRow label='Theme' description='Select your preferred color theme' field>
         <Select
           label='Theme'
@@ -127,14 +125,14 @@ function Appearance() {
           onValueChange={appearance.setTimezone}
         />
       </SettingsRow>
-    </SettingsSection>
+    </SavedSettingsSection>
   )
 }
 
 function WorkflowEditor() {
   const snap = useSnapToGridSetting()
   return (
-    <SettingsSection title='Workflow editor'>
+    <SavedSettingsSection title='Workflow editor' rows={3}>
       <BooleanRow
         setting='autoConnect'
         label='Auto-connect on drop'
@@ -160,7 +158,7 @@ function WorkflowEditor() {
         label='Show canvas controls'
         description='Show the zoom and layout controls on the canvas'
       />
-    </SettingsSection>
+    </SavedSettingsSection>
   )
 }
 

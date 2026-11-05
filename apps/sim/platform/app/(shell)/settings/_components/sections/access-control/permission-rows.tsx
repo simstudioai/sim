@@ -6,12 +6,12 @@ import {
   ActionRow,
   LoadingState,
   Muted,
-  QueryErrorState,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/access-control/permission-rows.module.css'
 import {
   Disclosure,
+  FailureNotice,
   Icon,
   SearchField,
   Select,
@@ -210,7 +210,7 @@ function DynamicProviderModels({ provider, controls }: ControlsProps & { provide
   )
   if (isError && !data) {
     return (
-      <QueryErrorState
+      <FailureNotice
         message={getErrorMessage(error, 'Could not load models')}
         retrying={isFetching}
         onRetry={() => void refetch()}

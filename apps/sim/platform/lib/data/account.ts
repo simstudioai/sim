@@ -42,17 +42,6 @@ const SIGN_OUT_TIMEOUT_MS = 3000
 
 const LOGOUT_PATH = '/login?fromLogout=true'
 
-/** Signs out and leaves the document, which is what resets this app's in-memory state. */
-export async function signOutAndLeave(legacyOrigin: string) {
-  try {
-    await signOut()
-    clearBrowserUserData()
-  } catch (error) {
-    logger.error('Error signing out', { error })
-  }
-  window.location.assign(`${legacyOrigin}${LOGOUT_PATH}`)
-}
-
 export function useAccountEmail() {
   const profile = useUserProfile()
   return profile.data?.email

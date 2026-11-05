@@ -8,12 +8,12 @@ import {
   FieldStack,
   FormFieldset,
   Muted,
-  QueryErrorState,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
   Button,
   Checkbox,
+  FailureNotice,
   SecretField,
   SelectField,
   TextAreaField,
@@ -203,7 +203,7 @@ export function DrainCreate({ organizationId, onBack, onCreated }: DrainCreatePr
                 }}
               />
             ))}
-            {createDrain.error && <QueryErrorState message={toError(createDrain.error).message} />}
+            {createDrain.error && <FailureNotice message={toError(createDrain.error).message} />}
           </FieldStack>
         </SettingsSection>
         <ActionRow>

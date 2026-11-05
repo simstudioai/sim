@@ -9,9 +9,6 @@ import { serverRequestJson } from '@/platform/lib/data/server-request'
 
 const logger = createLogger('PlatformSurface')
 
-/** Long enough for the legacy layout's own reads, short enough to reach the error state with a retry. */
-const SURFACE_TIMEOUT_MS = 10_000
-
 type OrganizationSurfaceResult =
   | { status: 'ok'; organization: PlatformOrganization }
   | { status: 'unauthenticated' | 'denied' | 'unavailable' }
@@ -22,9 +19,7 @@ type OrganizationSurfaceResult =
  */
 export const readOrganizationSurface = cache(async (): Promise<OrganizationSurfaceResult> => {
   try {
-    const surface = await serverRequestJson(getOrganizationSurfaceContract, {
-      signal: AbortSignal.timeout(SURFACE_TIMEOUT_MS),
-    })
+    const surface = await serverRequestJson(getOrganizationSurfaceContract, {})
     return { status: 'ok', organization: { ...surface, legacyOrigin: getBaseUrl() } }
   } catch (error) {
     if (isApiClientError(error) && error.status === 401) return { status: 'unauthenticated' }

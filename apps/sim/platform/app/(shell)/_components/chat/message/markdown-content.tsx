@@ -4,7 +4,7 @@ import { memo, type ReactNode } from 'react'
 import { Streamdown } from 'streamdown'
 import styles from '@/platform/app/(shell)/_components/chat/message/markdown.module.css'
 import { CopyButton } from '@/platform/design-system/components'
-import { extractTextContent } from '@/platform/lib/data/node-text'
+import { nodeText } from '@/platform/lib/data/node-text'
 
 const COMPONENTS = {
   p: ({ children }: { children?: ReactNode }) => <p data-type='T048'>{children}</p>,
@@ -21,7 +21,7 @@ const COMPONENTS = {
   pre: ({ children }: { children?: ReactNode }) => (
     <div className={styles.code}>
       <span className={styles.copy}>
-        <CopyButton label='Copy code' text={extractTextContent(children)} />
+        <CopyButton label='Copy code' text={nodeText(children)} />
       </span>
       <pre>{children}</pre>
     </div>

@@ -1,8 +1,3 @@
-'use client'
-
-import { useQueryState } from 'nuqs'
-import { dataDrainIdParam, dataDrainIdUrlKeys } from '@/ee/data-drains/search-params'
-
 export type { CreateDataDrainBody, DataDrain, DataDrainRun } from '@/lib/api/contracts/data-drains'
 export { CADENCE_TYPES, DESTINATION_TYPES, SOURCE_TYPES } from '@/lib/data-drains/types'
 export { formatFileSize } from '@/lib/uploads/utils/file-size'
@@ -29,8 +24,4 @@ export {
   SOURCE_OPTIONS,
 } from '@/ee/data-drains/labels'
 export { useSettingsSearch } from '@/hooks/use-settings-search'
-
-/** The drain being viewed. */
-export function useDataDrainParam() {
-  return useQueryState(dataDrainIdParam.key, { ...dataDrainIdParam.parser, ...dataDrainIdUrlKeys })
-}
+export { useDataDrainParam } from './params'

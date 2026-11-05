@@ -1,14 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  QueryErrorState,
-  SectionSkeleton,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
   ActionMenu,
   DataTable,
   EmptyState,
+  FailureNotice,
   Modal,
   SearchField,
 } from '@/platform/design-system/components'
@@ -30,7 +28,7 @@ export function AuthorizedApps() {
   const [revoking, setRevoking] = useState<{ id: string; name: string } | null>(null)
   if (list.status === 'error')
     return (
-      <QueryErrorState
+      <FailureNotice
         message={list.error ?? 'Failed to load authorized apps'}
         onRetry={list.retry}
       />

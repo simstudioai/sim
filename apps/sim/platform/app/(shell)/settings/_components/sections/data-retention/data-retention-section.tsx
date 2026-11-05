@@ -4,14 +4,13 @@ import { useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import {
   LoadingState,
-  QueryErrorState,
   ResourceList,
   SectionStack,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { PolicyDetail } from '@/platform/app/(shell)/settings/_components/sections/data-retention/policy-detail'
-import { ActivityRow, Button, EmptyState } from '@/platform/design-system/components'
+import { ActivityRow, Button, EmptyState, FailureNotice } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   buildRetentionUpdate,
@@ -190,7 +189,7 @@ export default function DataRetentionSection({ organization }: SettingsSectionPr
     return <LoadingState label='Loading data retention…' />
   if (!data) {
     return (
-      <QueryErrorState
+      <FailureNotice
         message='Failed to load data retention settings.'
         retrying={isFetching}
         onRetry={() => void refetch()}
@@ -199,7 +198,7 @@ export default function DataRetentionSection({ organization }: SettingsSectionPr
   }
   if (!workspacesQuery.data) {
     return (
-      <QueryErrorState
+      <FailureNotice
         message='Failed to load workspaces.'
         retrying={workspacesQuery.isFetching}
         onRetry={() => void workspacesQuery.refetch()}

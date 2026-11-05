@@ -15,6 +15,7 @@ import {
 } from '@/platform/design-system/components'
 import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
 import { AnchoredPopover } from '@/platform/design-system/components/menu/anchored-popover'
+import { plural } from '@/platform/lib/plural'
 
 /** Lazy because its form reads real data, which a fixture session never loads. */
 const InviteModal = dynamic(
@@ -164,9 +165,7 @@ export function OrganizationMenu({
                 </span>
               )}
               {organization && (
-                <span data-type='T050'>
-                  {organization.memberCount} {organization.memberCount === 1 ? 'member' : 'members'}
-                </span>
+                <span data-type='T050'>{plural(organization.memberCount, 'member')}</span>
               )}
             </div>
             {(!actions || actions.canInvite) && (

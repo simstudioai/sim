@@ -44,10 +44,7 @@ import {
 } from '@/ee/organization-usage/format'
 import { useUsageWindow } from '@/ee/organization-usage/hooks/use-usage-window'
 import { serializeOrganizationUsageParams } from '@/ee/organization-usage/search-params'
-import {
-  useOrganizationMemberUsageLimit,
-  useUpdateOrganizationMemberUsageLimit,
-} from '@/hooks/queries/organization'
+import {} from '@/hooks/queries/organization'
 import {
   useOrganizationActivityBreakdown,
   useOrganizationActivitySummary,
@@ -76,13 +73,6 @@ const PERIOD_OPTIONS = USAGE_WINDOW_PRESETS.map((preset) => PERIOD_LABELS[preset
 export const ACTIVITY_DIMENSIONS = ACTIVITY_DIMENSION_OPTIONS
 export const ACTIVITY_SORTS = ACTIVITY_SORT_OPTIONS
 
-export type {
-  OrganizationUsageBreakdown,
-  OrganizationUsageWindowKey,
-  UsageBreakdownDimension,
-  UsageTab,
-}
-
 export const OVERVIEW_TAB = USAGE_OVERVIEW_TAB
 export const SECTION_LABELS = USAGE_SECTION_LABELS
 export const EMPTY_COPY = USAGE_TAB_EMPTY_COPY
@@ -91,8 +81,6 @@ export const EMPTY_COPY = USAGE_TAB_EMPTY_COPY
 function dayLabel(timestamp: string): string {
   return formatCalendarDate(timestamp.slice(0, 10))
 }
-
-export const formatActivityFailureRate = formatFailureRate
 
 export function formatDurationMs(ms: number | null): string {
   if (ms === null) return '—'
@@ -306,7 +294,10 @@ export function useActivityBreakdown(
     workspaceId,
   })
   return {
-    rows: query.data?.rows,
+    rows: query.data?.rows.map((row) => ({
+      ...row,
+      failureRateLabel: formatFailureRate(row.failureRate),
+    })),
     hasMore: Boolean(query.data?.hasMore),
     failed: query.isError,
     loading: query.isLoading,
@@ -380,27 +371,5 @@ export async function exportUsageCsv(
   } catch (error) {
     logger.error('Failed to export usage', { error })
     toast.error('Failed to export usage')
-  }
-}
-
-/** A member's credit cap. Hosted only: only hosted deployments enforce it. */
-export function useMemberCredits(organizationId: string, userId: string | undefined) {
-  const usage = useOrganizationMemberUsageLimit(organizationId, userId, Boolean(userId))
-  const update = useUpdateOrganizationMemberUsageLimit()
-  return {
-    data: usage.data,
-    loading: usage.isLoading,
-    failed: usage.isError && !usage.data,
-    retry: () => void usage.refetch(),
-    /** A blank field means no limit, so only something else typed can be invalid. */
-    save: async (draft: string) => {
-      if (!userId) return
-      const trimmed = draft.trim()
-      const limit = trimmed === '' ? null : Number(trimmed)
-      if (limit !== null && (!Number.isInteger(limit) || limit < 0)) {
-        throw new Error('Enter a whole number of credits, or leave blank for no limit.')
-      }
-      await update.mutateAsync({ orgId: organizationId, userId, creditLimit: limit })
-    },
   }
 }

@@ -2,7 +2,13 @@
 
 import { useState } from 'react'
 import { RequestText } from '@/platform/app/(shell)/settings/_components/sections/requests/request-text'
-import { Button, InlineNotice, Modal, TextAreaField } from '@/platform/design-system/components'
+import {
+  Button,
+  FailureNotice,
+  InlineNotice,
+  Modal,
+  TextAreaField,
+} from '@/platform/design-system/components'
 import {
   type RequestScope,
   type RequestTarget,
@@ -45,15 +51,7 @@ export function RequestAccessModal({
     >
       <RequestText label='Access'>{label}</RequestText>
       {access.loadError && (
-        <InlineNotice
-          intent='danger'
-          message={access.loadError.message}
-          action={
-            <Button size='compact' onClick={access.retry}>
-              Retry
-            </Button>
-          }
-        />
+        <FailureNotice message={access.loadError.message} onRetry={access.retry} />
       )}
       {access.alreadyAllowed && <InlineNotice message='Access is already available.' />}
       {access.unavailableReason && (

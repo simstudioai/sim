@@ -1,6 +1,5 @@
 'use client'
 
-import { QueryErrorState } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
 import {
   Avatar,
@@ -8,6 +7,7 @@ import {
   Button,
   DataTable,
   EmptyState,
+  FailureNotice,
   MetricGroup,
   OverflowText,
   Pagination,
@@ -18,7 +18,6 @@ import {
 import {
   ACTIVITY_DIMENSIONS,
   ACTIVITY_SORTS,
-  formatActivityFailureRate,
   formatDurationMs,
   type OrganizationUsageWindowKey,
   useActivityBreakdown,
@@ -37,7 +36,7 @@ function SummaryView({ summary }: { summary: ReturnType<typeof useActivitySummar
     <section className={styles.block} aria-label='Activity'>
       <h2 data-type='T093'>Activity</h2>
       {summary.failed ? (
-        <QueryErrorState message='Couldn’t load activity.' onRetry={summary.retry} />
+        <FailureNotice message='Couldn’t load activity.' onRetry={summary.retry} />
       ) : summary.pending ? (
         <span className={styles.chartPlaceholder} role='status' aria-label='Loading activity' />
       ) : (
@@ -155,7 +154,7 @@ export function ActivityPanel({ organizationId }: { organizationId: string }) {
           )}
         </div>
         {breakdown.failed ? (
-          <QueryErrorState message='Couldn’t load the breakdown.' onRetry={breakdown.retry} />
+          <FailureNotice message='Couldn’t load the breakdown.' onRetry={breakdown.retry} />
         ) : !breakdown.rows ? (
           <span className={styles.listPlaceholder} role='status' aria-label='Loading breakdown' />
         ) : breakdown.rows.length === 0 ? (
@@ -172,7 +171,7 @@ export function ActivityPanel({ organizationId }: { organizationId: string }) {
                 workflowRuns: row.workflowRuns,
                 chatRuns: row.chatRuns,
                 failed: row.failed,
-                failureRate: formatActivityFailureRate(row.failureRate),
+                failureRate: row.failureRateLabel,
                 duration: formatDurationMs(row.averageDurationMs),
               },
               cells: {

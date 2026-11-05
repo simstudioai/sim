@@ -24,18 +24,6 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
-export {
-  AUDIT_TIME_RANGE_OPTIONS,
-  describeMetadataValue,
-  formatAuditAction,
-  formatMetadataLabel,
-  formatResourceType,
-  getAuditMetadataEntries,
-  isDestructiveAuditAction,
-} from '@/ee/audit-logs/lib/format'
-export { canExportAuditLogs } from '@/ee/audit-logs/lib/scope'
-export { RESOURCE_TYPE_OPTIONS }
-
 /**
  * The audit feed under the URL's filters and deep-linked workspace scope. The scope is resolved
  * before anything reads: an unanswerable scope presents no rows and refreshes nothing organization

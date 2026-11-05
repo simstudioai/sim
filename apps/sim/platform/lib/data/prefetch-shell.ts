@@ -24,12 +24,9 @@ import {
   canListOrganizationChats,
   type PlatformOrganization,
 } from '@/platform/lib/data/organization-model'
-import { serverRequestJson } from '@/platform/lib/data/server-request'
+import { prefetchSignal, serverRequestJson } from '@/platform/lib/data/server-request'
 
 const logger = createLogger('PlatformShellPrefetch')
-
-/** A slow read gives up its first-paint seat rather than hold the document; the client fetches it. */
-const PREFETCH_TIMEOUT_MS = 2_000
 
 /**
  * The legacy sidebar's reads for first paint, under the client hooks' keys and mappers. A failed
@@ -38,7 +35,6 @@ const PREFETCH_TIMEOUT_MS = 2_000
  */
 export async function prefetchShell(organization: PlatformOrganization): Promise<DehydratedState> {
   const queryClient = makeQueryClient()
-  const signal = () => AbortSignal.timeout(PREFETCH_TIMEOUT_MS)
   await Promise.all([
     canListOrganizationChats(organization) &&
       queryClient.prefetchQuery({
@@ -46,7 +42,7 @@ export async function prefetchShell(organization: PlatformOrganization): Promise
         queryFn: async () => {
           const { data } = await serverRequestJson(listMothershipChatsContract, {
             query: { organizationId: organization.organization.id, scope: 'active' },
-            signal: signal(),
+            signal: prefetchSignal(),
           })
           return data.map(mapChat)
         },
@@ -54,7 +50,7 @@ export async function prefetchShell(organization: PlatformOrganization): Promise
       }),
     serverRequestJson(listWorkspacesContract, {
       query: { scope: 'active' },
-      signal: signal(),
+      signal: prefetchSignal(),
     }).then(
       (payload) => {
         if (payload.workspaces.length === 0) return
@@ -66,7 +62,9 @@ export async function prefetchShell(organization: PlatformOrganization): Promise
     queryClient.prefetchQuery({
       queryKey: userProfileKeys.profile(),
       queryFn: async () => {
-        const { user } = await serverRequestJson(getUserProfileContract, { signal: signal() })
+        const { user } = await serverRequestJson(getUserProfileContract, {
+          signal: prefetchSignal(),
+        })
         return mapUserProfileResponse(user)
       },
       staleTime: USER_PROFILE_STALE_TIME,
@@ -74,7 +72,9 @@ export async function prefetchShell(organization: PlatformOrganization): Promise
     queryClient.prefetchQuery({
       queryKey: generalSettingsKeys.settings(),
       queryFn: async () => {
-        const { data } = await serverRequestJson(getUserSettingsContract, { signal: signal() })
+        const { data } = await serverRequestJson(getUserSettingsContract, {
+          signal: prefetchSignal(),
+        })
         return mapGeneralSettingsResponse(data)
       },
       staleTime: GENERAL_SETTINGS_STALE_TIME,

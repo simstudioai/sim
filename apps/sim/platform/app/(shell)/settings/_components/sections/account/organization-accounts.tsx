@@ -1,14 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  QueryErrorState,
-  SectionSkeleton,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
   ActionMenu,
   DataTable,
   EmptyState,
+  FailureNotice,
   Icon,
   Modal,
   StatusTag,
@@ -37,7 +35,7 @@ export function OrganizationAccounts() {
   if (list.status === 'pending') return <SectionSkeleton title={TITLE} rows={2} />
   if (list.status === 'error')
     return (
-      <QueryErrorState
+      <FailureNotice
         message={list.error ?? 'Failed to load connected accounts'}
         onRetry={list.retry}
       />

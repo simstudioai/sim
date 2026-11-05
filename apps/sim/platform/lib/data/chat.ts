@@ -39,6 +39,7 @@ import { toPlatformTurns } from '@/platform/lib/data/chat-model'
 import { useAssistantReview } from '@/platform/lib/data/chat-review'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { toast } from '@/platform/lib/data/toast'
+import { plural } from '@/platform/lib/plural'
 import type { ChatContext } from '@/stores/panel'
 import { useToolPermissionStore } from '@/stores/tool-permission/store'
 
@@ -331,9 +332,7 @@ export function useLiveChatRuntime({
         upToMessageId: turnId,
       })
       if (result.failedFileCopies) {
-        toast.warning(
-          `${result.failedFileCopies} file${result.failedFileCopies === 1 ? '' : 's'} could not be copied to the fork`
-        )
+        toast.warning(`${plural(result.failedFileCopies, 'file')} could not be copied to the fork`)
       }
       router.push(chatPath(result.id))
     },

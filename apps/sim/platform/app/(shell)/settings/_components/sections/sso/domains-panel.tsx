@@ -7,13 +7,13 @@ import {
   FieldStack,
   LoadingState,
   Muted,
-  QueryErrorState,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
   ActionMenu,
   Button,
   CopyField,
+  FailureNotice,
   Modal,
   StatusTag,
   TextField,
@@ -162,7 +162,7 @@ export function DomainsPanel({
           </FieldStack>
         ) : data === undefined && isError ? (
           <FieldStack>
-            <QueryErrorState
+            <FailureNotice
               message={getErrorMessage(error, 'Failed to load verified domains')}
               retrying={isFetching}
               onRetry={() => void refetch()}

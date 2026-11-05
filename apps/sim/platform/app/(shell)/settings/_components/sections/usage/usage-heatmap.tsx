@@ -1,9 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { QueryErrorState } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
-import { ScrollArea } from '@/platform/design-system/components'
+import { FailureNotice, ScrollArea } from '@/platform/design-system/components'
 import {
   layoutUsageCalendar,
   type UsageCalendarDay,
@@ -126,7 +125,7 @@ export function UsageCalendar({ organizationId, timezone, workspaceId }: UsageCa
         </span>
       </div>
       {calendar.failed ? (
-        <QueryErrorState message='Could not load daily usage' onRetry={calendar.retry} />
+        <FailureNotice message='Could not load daily usage' onRetry={calendar.retry} />
       ) : !calendar.days ? (
         <span className={styles.listPlaceholder} role='status' aria-label='Loading daily usage' />
       ) : (

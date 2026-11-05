@@ -1,11 +1,8 @@
 'use client'
 
-import {
-  QueryErrorState,
-  SectionSkeleton,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
-import { Button, EmptyState, SearchField } from '@/platform/design-system/components'
+import { Button, EmptyState, FailureNotice, SearchField } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
@@ -43,7 +40,7 @@ export default function RecentlyDeletedSection({ organization }: SettingsSection
         onValueChange={deleted.setSearch}
       />
       {deleted.status === 'error' ? (
-        <QueryErrorState
+        <FailureNotice
           message={deleted.error ?? 'Failed to load deleted chats'}
           onRetry={deleted.retry}
         />

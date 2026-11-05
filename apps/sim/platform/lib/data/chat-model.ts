@@ -253,7 +253,7 @@ function toSegments(
         segments.push({ kind: 'failure', message: segment.data.message })
         break
       case 'thinking':
-        // Deliberate legacy choice: reasoning text is not part of the transcript.
+        // Reasoning text is not part of the transcript.
         break
     }
   }

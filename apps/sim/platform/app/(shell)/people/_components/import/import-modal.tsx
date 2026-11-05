@@ -22,6 +22,7 @@ import {
   useProvisioningConnection,
 } from '@/platform/lib/data/people'
 import { toast } from '@/platform/lib/data/toast'
+import { plural } from '@/platform/lib/plural'
 
 const ACCEPTED_FILES = '.csv,.tsv,.xlsx,.xls'
 const TEMPLATE_HREF = `data:text/csv;charset=utf-8,${encodeURIComponent(
@@ -39,10 +40,6 @@ const SOURCES = {
 } as const
 
 type ImportSource = keyof typeof SOURCES
-
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`
-}
 
 /** Whether SCIM can be offered: `canProvision` in the legacy sync and import dialogs alike. */
 export function canUseProvisioning({ deployment, settingsFeatures }: PlatformOrganization) {
@@ -266,7 +263,7 @@ export function ImportModal({ organization, onClose }: ImportModalProps) {
                       ? 'Enable SCIM provisioning and assign accounts in your provider to import their profiles.'
                       : connection.userCount === 0
                         ? 'Your connection is active. Assign accounts to Sim in your identity provider, then refresh here.'
-                        : `Your connection has ${connection.userCount} provisioned ${connection.userCount === 1 ? 'account' : 'accounts'}. Preview the profile fields and reporting lines sent by your provider.`}
+                        : `Your connection has ${plural(connection.userCount, 'provisioned account')}. Preview the profile fields and reporting lines sent by your provider.`}
               </p>
               {!connection.loading && (
                 <div className={styles.links}>

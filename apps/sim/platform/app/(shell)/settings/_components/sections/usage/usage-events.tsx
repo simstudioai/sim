@@ -1,9 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { QueryErrorState } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
-import { Button, DataTable, EmptyState } from '@/platform/design-system/components'
+import { Button, DataTable, EmptyState, FailureNotice } from '@/platform/design-system/components'
 import { useUsageEvents, useUsageView } from '@/platform/lib/data/usage'
 
 const COLUMNS = [
@@ -28,7 +27,7 @@ export function UsageEvents({ organizationId }: { organizationId: string }) {
         Every credit-consuming event across your organization’s workspaces.
       </p>
       {events.failed && events.rows.length === 0 ? (
-        <QueryErrorState message='Couldn’t load usage events.' onRetry={events.retry} />
+        <FailureNotice message='Couldn’t load usage events.' onRetry={events.retry} />
       ) : events.pending ? (
         <span className={styles.listPlaceholder} role='status' aria-label='Loading usage events' />
       ) : events.rows.length === 0 ? (

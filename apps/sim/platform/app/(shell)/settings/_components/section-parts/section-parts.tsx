@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import styles from '@/platform/app/(shell)/settings/_components/section-parts/section-parts.module.css'
-import { Button, InlineNotice } from '@/platform/design-system/components'
+import { Button } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 
 interface ChildrenProps {
@@ -148,28 +148,5 @@ export function SectionSkeleton({ title, rows }: SectionSkeletonProps) {
     <SettingsSection title={title}>
       <LoadingState label={`Loading ${title}`} rows={rows} />
     </SettingsSection>
-  )
-}
-
-interface QueryErrorStateProps {
-  message: string
-  retrying?: boolean
-  onRetry?: () => void
-}
-
-/** A failed read, kept distinct from an empty list or an absent setting. */
-export function QueryErrorState({ message, retrying, onRetry }: QueryErrorStateProps) {
-  return (
-    <InlineNotice
-      intent='danger'
-      message={message}
-      action={
-        onRetry && (
-          <Button variant='quiet' size='compact' disabled={retrying} onClick={onRetry}>
-            {retrying ? 'Retrying…' : 'Retry'}
-          </Button>
-        )
-      }
-    />
   )
 }

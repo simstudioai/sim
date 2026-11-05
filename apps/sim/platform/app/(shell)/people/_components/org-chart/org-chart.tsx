@@ -8,6 +8,7 @@ import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-p
 import {
   Button,
   EmptyState,
+  FailureNotice,
   Icon,
   IconButton,
   InlineNotice,
@@ -15,6 +16,7 @@ import {
 } from '@/platform/design-system/components'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { isGone, useOrgChart, usePeoplePicker } from '@/platform/lib/data/people'
+import { plural } from '@/platform/lib/plural'
 
 interface OrgChartProps {
   organization: PlatformOrganization
@@ -161,7 +163,7 @@ export function OrgChart({ organization, onImport, onSync }: OrgChartProps) {
           <div className={styles.footer} aria-live='polite' data-type='T060'>
             <span>
               {branch.totalReports
-                ? `${branch.totalReports} direct report${branch.totalReports === 1 ? '' : 's'}`
+                ? plural(branch.totalReports, 'direct report')
                 : 'No direct reports'}
             </span>
             {branch.totalReports > size && (
@@ -206,15 +208,10 @@ export function OrgChart({ organization, onImport, onSync }: OrgChartProps) {
             }
           />
         ) : (
-          <InlineNotice
-            intent='danger'
+          <FailureNotice
             title='Could not load the org chart'
             message={chart.error.message}
-            action={
-              <Button size='compact' onClick={chart.retry}>
-                Retry
-              </Button>
-            }
+            onRetry={chart.retry}
           />
         )
       ) : (

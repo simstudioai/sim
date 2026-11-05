@@ -1,7 +1,13 @@
 'use client'
 
 import { RequestText } from '@/platform/app/(shell)/settings/_components/sections/requests/request-text'
-import { Button, InlineNotice, Modal, StatusTag } from '@/platform/design-system/components'
+import {
+  Button,
+  FailureNotice,
+  InlineNotice,
+  Modal,
+  StatusTag,
+} from '@/platform/design-system/components'
 import { type RequestScope, useRequestDetails } from '@/platform/lib/data/requests'
 import { toast } from '@/platform/lib/data/toast'
 
@@ -38,15 +44,10 @@ export function MyRequestModal({ scope, requestId, onClose }: MyRequestModalProp
         </p>
       )}
       {details.error && (
-        <InlineNotice
-          intent='danger'
+        <FailureNotice
           title='Unable to load request'
           message={details.error.message}
-          action={
-            <Button size='compact' onClick={details.retry}>
-              Try again
-            </Button>
-          }
+          onRetry={details.retry}
         />
       )}
       {request && (

@@ -244,7 +244,6 @@ export function useReviewList(organizationId: string) {
       id: request.id,
       title: request.targetLabel,
       detail: `${requesterName(request)} · ${requestDate(request)}`,
-      requester: requesterName(request),
       status: statusTag(request.status),
     })),
     settings: {

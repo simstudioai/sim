@@ -1,8 +1,3 @@
-'use client'
-
-import { useQueryStates } from 'nuqs'
-import { ssoSettingsParsers, ssoSettingsUrlKeys } from '@/ee/sso/search-params'
-
 export type { SsoProviderView } from '@/lib/api/contracts/auth'
 export type { OrganizationDomain } from '@/lib/api/contracts/organization'
 export { getBaseUrl } from '@/lib/core/utils/urls'
@@ -40,8 +35,4 @@ export {
   validateSsoProviderForm,
 } from '@/ee/sso/lib/provider-form'
 export { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
-
-/** The tab, provider and create-flow deep link. */
-export function useSsoSettingsParams() {
-  return useQueryStates(ssoSettingsParsers, ssoSettingsUrlKeys)
-}
+export { useSsoSettingsParams } from './params'

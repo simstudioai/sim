@@ -1,7 +1,8 @@
 import { HydrationBoundary } from '@tanstack/react-query'
 import { redirect } from 'next/navigation'
 import { LiveHome } from '@/platform/app/(shell)/home/_components/live-home/live-home'
-import { prefetchHome, resolveHomeRedirect } from '@/platform/lib/data/home-server'
+import { resolveHomeRedirect } from '@/platform/lib/data/organization-model'
+import { prefetchHome } from '@/platform/lib/data/prefetch-home'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 
 /** The live Home entry: the legacy page's gate, then its cheap reads for first paint. */

@@ -6,9 +6,8 @@ import {
   FieldStack,
   LoadingState,
   Muted,
-  QueryErrorState,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { Modal, SegmentedControl } from '@/platform/design-system/components'
+import { FailureNotice, Modal, SegmentedControl } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   describeSsoPolicy,
@@ -62,7 +61,7 @@ export function RequireSso({ organizationId }: { organizationId: string }) {
             </Muted>
           </>
         ) : error ? (
-          <QueryErrorState
+          <FailureNotice
             message={getErrorMessage(error, 'Failed to load the sign-in requirement')}
             retrying={isFetching}
             onRetry={() => void refetch()}

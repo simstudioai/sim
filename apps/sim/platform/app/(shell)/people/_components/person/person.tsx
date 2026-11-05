@@ -9,6 +9,7 @@ import {
   Avatar,
   Button,
   EmptyState,
+  FailureNotice,
   InlineNotice,
   PropertyList,
 } from '@/platform/design-system/components'
@@ -153,15 +154,11 @@ export function PersonProfile({ organization, memberId }: PersonProfileProps) {
         isGone(profile.error) ? (
           <EmptyState title="This person isn't in your organization." />
         ) : (
-          <InlineNotice
-            intent='danger'
+          <FailureNotice
             title='Could not load this person'
             message={profile.error.message}
-            action={
-              <Button size='compact' disabled={profile.retrying} onClick={profile.retry}>
-                Retry
-              </Button>
-            }
+            retrying={profile.retrying}
+            onRetry={profile.retry}
           />
         )
       ) : !data ? (

@@ -1,8 +1,7 @@
 'use client'
 
-import { QueryErrorState } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
-import { BarChart, StatusTag } from '@/platform/design-system/components'
+import { BarChart, FailureNotice, StatusTag } from '@/platform/design-system/components'
 import type { useUsageOverview } from '@/platform/lib/data/usage'
 
 /** Headline, allowance and the source-stacked credit chart for one window. */
@@ -33,7 +32,7 @@ export function UsageCredits({
         </span>
       )}
       {overview.failed ? (
-        <QueryErrorState message='Couldn’t load credits.' onRetry={overview.retry} />
+        <FailureNotice message='Couldn’t load credits.' onRetry={overview.retry} />
       ) : !chart.loaded ? (
         <span className={styles.chartPlaceholder} role='status' aria-label='Loading credits' />
       ) : (

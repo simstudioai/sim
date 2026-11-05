@@ -12,18 +12,8 @@ import {
   SEARCH_INTEGRATIONS_STALE_TIME,
   searchIntegrationKeys,
 } from '@/hooks/queries/utils/search-integration-keys'
-import { legacyRoutes, type PlatformOrganization } from '@/platform/lib/data/organization-model'
-import { serverRequestJson } from '@/platform/lib/data/server-request'
-
-/** A slow read gives up its first-paint seat rather than hold the document; the client fetches it. */
-const PREFETCH_TIMEOUT_MS = 2_000
-
-/** The legacy Home page's gate: a member who cannot build goes to Search, otherwise to Settings. */
-export function resolveHomeRedirect(organization: PlatformOrganization): string | null {
-  const { mothershipAvailable, canBuild, searchAccess } = organization
-  if (mothershipAvailable && canBuild) return null
-  return searchAccess.memberScoped ? '/search' : legacyRoutes(organization).workspaceSettings
-}
+import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
+import { prefetchSignal, serverRequestJson } from '@/platform/lib/data/server-request'
 
 /**
  * What decides each widget's state, so a viewer with no connection paints their prompt at once. The
@@ -33,14 +23,13 @@ export async function prefetchHome(organization: PlatformOrganization): Promise<
   const queryClient = makeQueryClient()
   if (canReadMemberIntegrations(organization)) {
     const organizationId = organization.organization.id
-    const signal = () => AbortSignal.timeout(PREFETCH_TIMEOUT_MS)
     await Promise.all([
       queryClient.prefetchQuery({
         queryKey: organizationAccountsKeys.detail(organizationId),
         queryFn: () =>
           serverRequestJson(getOrganizationAccountsContract, {
             params: { id: organizationId },
-            signal: signal(),
+            signal: prefetchSignal(),
           }),
         staleTime: ORGANIZATION_ACCOUNTS_STALE_TIME,
       }),
@@ -50,7 +39,7 @@ export async function prefetchHome(organization: PlatformOrganization): Promise<
           (
             await serverRequestJson(listSearchIntegrationsContract, {
               query: { organizationId },
-              signal: signal(),
+              signal: prefetchSignal(),
             })
           ).data,
         staleTime: SEARCH_INTEGRATIONS_STALE_TIME,

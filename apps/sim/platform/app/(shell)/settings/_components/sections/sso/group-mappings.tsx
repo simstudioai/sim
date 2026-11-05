@@ -6,11 +6,11 @@ import {
   ActionRow,
   LoadingState,
   Muted,
-  QueryErrorState,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
   ActionMenu,
   Button,
+  FailureNotice,
   InlineNotice,
   Modal,
   SearchableSelect,
@@ -35,6 +35,7 @@ import {
 } from '@/platform/lib/data/scim'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { toast } from '@/platform/lib/data/toast'
+import { plural } from '@/platform/lib/plural'
 
 type PermissionGroups = NonNullable<ReturnType<typeof usePermissionGroups>['data']>
 type Workspaces = NonNullable<ReturnType<typeof useOrganizationWorkspaces>['data']>
@@ -77,9 +78,7 @@ function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: A
       if ((result.mapping.unassignedMemberCount ?? 0) > 0) {
         toast.info('Mapping saved. Some permission-group memberships need attention below.')
       } else {
-        toast.success(
-          `Mapping saved. Checked ${result.reconciledUsers} member${result.reconciledUsers === 1 ? '' : 's'}.`
-        )
+        toast.success(`Mapping saved. Checked ${plural(result.reconciledUsers, 'member')}.`)
       }
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to add mapping'))
@@ -182,7 +181,7 @@ export function GroupMappings({
   if (isLoading) return <LoadingState label='Loading groups…' />
   if (groups === undefined && isError) {
     return (
-      <QueryErrorState
+      <FailureNotice
         message={getErrorMessage(error, 'Failed to load directory groups')}
         retrying={isFetching}
         onRetry={() => void refetch()}
@@ -195,7 +194,7 @@ export function GroupMappings({
   // The pickers and the name-match warning both read these, so a failed read must not look empty.
   if (!permissionGroupsQuery.data || !workspacesQuery.data) {
     return (
-      <QueryErrorState
+      <FailureNotice
         message='Failed to load mapping targets'
         retrying={permissionGroupsQuery.isFetching || workspacesQuery.isFetching}
         onRetry={() => {
@@ -221,7 +220,7 @@ export function GroupMappings({
           <div key={group.id}>
             <SettingsRow
               label={group.displayName}
-              description={`${group.memberCount} member${group.memberCount === 1 ? '' : 's'}`}
+              description={plural(group.memberCount, 'member')}
             />
             {group.mappings.map((mapping) => {
               const target = describeScimMapping(mapping, names)

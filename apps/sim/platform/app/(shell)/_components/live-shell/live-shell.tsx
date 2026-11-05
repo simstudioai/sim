@@ -8,7 +8,7 @@ import { ProductSession } from '@/platform/app/(shell)/_components/product-sessi
 import { SessionState } from '@/platform/app/(shell)/_components/session-state/session-state'
 import { resolveSettingsNavigation } from '@/platform/app/(shell)/_components/settings-navigation/destinations'
 import { hasOrganizationSurface, legacyRoutes } from '@/platform/lib/data/organization-model'
-import { prefetchShell } from '@/platform/lib/data/prefetch'
+import { prefetchShell } from '@/platform/lib/data/prefetch-shell'
 import { LiveProviders } from '@/platform/lib/data/providers'
 import { legacyUrl, loginUrl, readOrganizationSurface } from '@/platform/lib/data/surface'
 

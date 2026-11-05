@@ -5,7 +5,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import {
   LoadingState,
-  QueryErrorState,
   ResourceList,
   SectionStack,
   SectionToolbar,
@@ -17,6 +16,7 @@ import {
   Button,
   Checkbox,
   EmptyState,
+  FailureNotice,
   Modal,
   MultiSelect,
   SearchField,
@@ -30,14 +30,12 @@ import {
   useOrganizationWorkspaces,
   usePermissionGroups,
 } from '@/platform/lib/data/access-control'
+import { plural } from '@/platform/lib/plural'
 
 function groupSummary(group: PermissionGroup): string {
   if (group.isDefault) return 'Everyone in the organization'
-  const members =
-    group.memberCount === 0
-      ? 'All members'
-      : `${group.memberCount} member${group.memberCount === 1 ? '' : 's'}`
-  return `${members} · ${group.workspaces.length} workspace${group.workspaces.length === 1 ? '' : 's'}`
+  const members = group.memberCount === 0 ? 'All members' : plural(group.memberCount, 'member')
+  return `${members} · ${plural(group.workspaces.length, 'workspace')}`
 }
 
 interface CreateGroupModalProps {
@@ -148,7 +146,7 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
   if (groups.isPending) return <LoadingState label='Loading permission groups…' />
   if (groups.error && groups.data === undefined) {
     return (
-      <QueryErrorState
+      <FailureNotice
         message={getErrorMessage(groups.error, 'Failed to load permission groups')}
         retrying={groups.isFetching}
         onRetry={() => void groups.refetch()}
@@ -157,7 +155,7 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
   }
 
   const workspacesError = workspaces.error && workspaces.data === undefined && (
-    <QueryErrorState
+    <FailureNotice
       message={getErrorMessage(workspaces.error, 'Failed to load workspaces')}
       retrying={workspaces.isFetching}
       onRetry={() => void workspaces.refetch()}
@@ -165,7 +163,7 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
   )
 
   const refreshError = groups.error && (
-    <QueryErrorState
+    <FailureNotice
       message={getErrorMessage(groups.error, 'Failed to refresh permission groups')}
       retrying={groups.isFetching}
       onRetry={() => void groups.refetch()}

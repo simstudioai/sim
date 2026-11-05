@@ -7,6 +7,7 @@ import styles from '@/platform/app/(shell)/settings/_components/sections/request
 import {
   Button,
   EmptyState,
+  FailureNotice,
   InlineNotice,
   Pagination,
   SearchField,
@@ -47,15 +48,11 @@ export function MyRequests({ scope, view, mine }: MyRequestsProps) {
           Loading…
         </p>
       ) : mine.error ? (
-        <InlineNotice
-          intent='danger'
+        <FailureNotice
           title='Unable to load access requests'
           message={mine.error.message}
-          action={
-            <Button size='compact' disabled={mine.fetching} onClick={mine.retry}>
-              Retry
-            </Button>
-          }
+          retrying={mine.fetching}
+          onRetry={mine.retry}
         />
       ) : view === 'requests' ? (
         mine.rows.length === 0 ? (

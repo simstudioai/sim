@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Modal, RecipientField, SelectField } from '@/platform/design-system/components'
-import { useInviteMembers } from '@/platform/lib/data/members'
+import { ORGANIZATION_ROLE_OPTIONS, useInviteMembers } from '@/platform/lib/data/members'
 import { useOrganization } from '@/platform/lib/data/organization'
 
 interface InviteModalProps {
@@ -15,12 +15,7 @@ interface Recipient {
   invalid?: boolean
 }
 
-const ROLE_OPTIONS = [
-  { value: 'member', label: 'Member' },
-  { value: 'admin', label: 'Admin' },
-] as const
-
-type InviteRole = (typeof ROLE_OPTIONS)[number]['value']
+type InviteRole = (typeof ORGANIZATION_ROLE_OPTIONS)[number]['value']
 
 /**
  * Invites people to the organization. Workspace grants belong to the workspace entry points, which
@@ -76,7 +71,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
       />
       <SelectField
         label='Role'
-        options={viewer.isAdmin ? ROLE_OPTIONS : ROLE_OPTIONS.slice(0, 1)}
+        options={viewer.isAdmin ? ORGANIZATION_ROLE_OPTIONS : ORGANIZATION_ROLE_OPTIONS.slice(0, 1)}
         value={role}
         onValueChange={(next) => setRole(next === 'admin' ? 'admin' : 'member')}
         disabled={!invite.canInvite}

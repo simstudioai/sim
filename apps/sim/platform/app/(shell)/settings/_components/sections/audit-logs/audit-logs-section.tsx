@@ -6,7 +6,6 @@ import {
   LoadingState,
   Muted,
   Preformatted,
-  QueryErrorState,
   RowStack,
   SectionStack,
   SectionToolbar,
@@ -17,6 +16,7 @@ import {
   DateRangePicker,
   Disclosure,
   EmptyState,
+  FailureNotice,
   MultiSelect,
   PropertyList,
   SearchField,
@@ -247,7 +247,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
       ) : feed.isLoading ? (
         <LoadingState label='Loading audit logs…' />
       ) : scope.isUnavailable ? (
-        <QueryErrorState
+        <FailureNotice
           message="Couldn't check that workspace."
           retrying={refreshing}
           onRetry={() => void refresh()}
@@ -255,7 +255,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
       ) : scope.isUnresolved ? (
         <EmptyState title='That workspace is not part of this organization.' />
       ) : feed.isError ? (
-        <QueryErrorState
+        <FailureNotice
           message={feed.errorMessage ?? 'Failed to load audit logs'}
           retrying={refreshing}
           onRetry={() => void refresh()}
