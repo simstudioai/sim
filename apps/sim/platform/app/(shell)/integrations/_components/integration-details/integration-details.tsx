@@ -98,17 +98,13 @@ export function IntegrationDetails({
         <ConnectionPrompt
           title={canConnect ? `Connect your ${name} account` : reason}
           setupGuideUrl={integration.setupGuideUrl}
-          options={
-            availability === 'managed'
-              ? []
-              : [
-                  {
-                    label: name,
-                    icon: { providerId },
-                    onConnect: canConnect && !pending ? onConnect : undefined,
-                  },
-                ]
-          }
+          options={[
+            {
+              label: name,
+              icon: { providerId },
+              onConnect: canConnect && !pending ? onConnect : undefined,
+            },
+          ]}
         />
       )}
       {selected?.hasToolPermissions && renderToolPermissions(selected.id)}
