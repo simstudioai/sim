@@ -1361,7 +1361,7 @@ async function homeChecks() {
       await composer(page).fill('Say hello again from Home')
       await composer(page).press('Enter')
       await expect(page).toHaveURL(/\/search\/chat\/[^/?]+/, { timeout: 30_000 })
-      await page.getByRole('button', { name: 'New chat' }).click()
+      await page.getByRole('button', { name: 'New chat', exact: true }).click()
       await expect(page).toHaveURL(/\/home$/)
       await expect(composer(page)).toHaveValue('')
     })

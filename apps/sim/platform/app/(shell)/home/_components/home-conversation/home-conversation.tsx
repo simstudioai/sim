@@ -36,9 +36,11 @@ export function HomeConversation({ requestMode }: HomeConversationProps) {
         modes: [...SEARCH_MODES],
         changeMode: (mode) => {
           if (mode !== 'search') return
-          const { pathname } = window.location
-          const chatPath = pathname.startsWith(`${routes.search}/chat/`) ? pathname : routes.search
-          router.push(`${chatPath}?mode=search`)
+          const current = new URL(window.location.href)
+          const onChat = current.pathname.startsWith(`${routes.search}/chat/`)
+          const params = new URLSearchParams(onChat ? current.search : '')
+          params.set('mode', 'search')
+          router.push(`${onChat ? current.pathname : routes.search}?${params}`)
         },
         newLabel: 'New chat',
         canStartNew: true,
