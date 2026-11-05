@@ -509,20 +509,16 @@ async function generateWithFalAI(
 
     const status = getStringProperty(statusData, 'status')
     if (status === 'COMPLETED') {
-      const statusError = statusData.error
-      if (statusError) {
-        throw new Error(`Fal.ai generation failed: ${getFalAIErrorMessage(statusError)}`)
-      }
-
       const { data: resultData, cost: falaiCost } = await fetchFalAIResult({
         apiKey,
         endpointId: endpoint,
         requestId: falRequestId,
+        queueError: statusData.error,
         maxResponseBytes: MAX_IMAGE_JSON_BYTES,
         trackCost: body.useHostedCostTracking,
         onCost: onFalCost,
         signal,
-        fetchResponse: async () => {
+        fetchResponse: async (resultSignal) => {
           const resultUrl = falQueueUrl(
             getStringProperty(statusData, 'response_url') || responseUrl
           )
@@ -533,7 +529,7 @@ async function generateWithFalAI(
             maxRedirects: 0,
             headers: { Authorization: `Key ${apiKey}` },
             maxResponseBytes: MAX_IMAGE_JSON_BYTES,
-            signal,
+            signal: resultSignal,
           })
         },
       })

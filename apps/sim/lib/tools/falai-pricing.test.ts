@@ -224,6 +224,29 @@ describe('Fal pricing bursts', () => {
     ).toMatchObject({ requestId: 'mine', source: 'historical_estimate', costDollars: 0.1 })
   })
 
+  it('retains a successful shared price after its only waiter stops', async () => {
+    const response = createDeferred<Response>()
+    const started = createDeferred<void>()
+    let estimates = 0
+    vi.stubGlobal('fetch', async (url: string | URL) => {
+      if (String(url).includes('billing-events')) return jsonResponse({ billing_events: [] })
+      estimates++
+      started.resolve()
+      return estimates === 1 ? response.promise : jsonResponse({ total_cost: 0.9 })
+    })
+    const controller = new AbortController()
+    const args = { apiKey: 'stopped-account', endpointId: 'fal-ai/flux' }
+    const stopped = lookup({ ...args, requestId: 'stopped', signal: controller.signal })
+    const rejected = expect(stopped).rejects.toThrow('Stopped')
+    await started.promise
+    controller.abort(new Error('Stopped'))
+    await rejected
+    response.resolve(jsonResponse({ total_cost: 0.2 }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(await lookup({ ...args, requestId: 'later' })).toMatchObject({ costDollars: 0.2 })
+    expect(estimates).toBe(1)
+  })
+
   it('isolates a cancelled waiter from a shared estimate and bounds hung producers', async () => {
     const pending = createDeferred<Response>()
     const started = createDeferred<void>()
@@ -249,10 +272,11 @@ describe('Fal pricing bursts', () => {
     expect(await survivor).toMatchObject({ costDollars: 0.2 })
     expect(estimates).toBe(1)
 
+    const lateResponse = createDeferred<Response>()
     vi.stubGlobal('fetch', async (url: string | URL) =>
       String(url).includes('billing-events')
         ? jsonResponse({ billing_events: [] })
-        : new Promise<Response>(() => {})
+        : lateResponse.promise
     )
     const hung = lookup({ ...args, endpointId: 'fal-ai/hung', requestId: 'hung' })
     await vi.advanceTimersByTimeAsync(10001)
@@ -264,6 +288,11 @@ describe('Fal pricing bursts', () => {
     )
     expect(
       await lookup({ ...args, endpointId: 'fal-ai/hung', requestId: 'recovered' })
+    ).toMatchObject({ costDollars: 0.4 })
+    lateResponse.resolve(jsonResponse({ total_cost: 0.9 }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(
+      await lookup({ ...args, endpointId: 'fal-ai/hung', requestId: 'after-late' })
     ).toMatchObject({ costDollars: 0.4 })
   })
 })

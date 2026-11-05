@@ -14,7 +14,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
-  getFalAICostMetadata: vi.fn(),
+  getFalAIEstimatedCostMetadata: vi.fn(),
   getFalAIBillingReceipt: vi.fn(),
 }))
 
@@ -25,7 +25,8 @@ vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
 
 vi.mock('@/lib/tools/falai-pricing', () => ({
-  getFalAICostMetadata: mocks.getFalAICostMetadata,
+  FALAI_COST_LOOKUP_TIMEOUT_MS: 10_000,
+  getFalAIEstimatedCostMetadata: mocks.getFalAIEstimatedCostMetadata,
   getFalAIBillingReceipt: mocks.getFalAIBillingReceipt,
 }))
 
@@ -54,7 +55,8 @@ const falInput = {
 describe('image operations', () => {
   beforeEach(() => {
     mocks.fetch.mockReset()
-    mocks.getFalAICostMetadata.mockReset()
+    mocks.getFalAIEstimatedCostMetadata.mockReset()
+    mocks.getFalAIBillingReceipt.mockReset().mockResolvedValue(undefined)
     mockSecureFetchWithPinnedIP.mockReset()
     vi.stubGlobal('fetch', mocks.fetch)
     mockInterruptibleSleep.mockResolvedValue(undefined)
@@ -187,15 +189,17 @@ describe('image operations', () => {
   it('retains the completed fal receipt when delivery is interrupted', async () => {
     const controller = new AbortController()
     mocks.fetch.mockResolvedValueOnce(Response.json({ request_id: 'paid-job' }))
-    mocks.getFalAICostMetadata.mockImplementation(async ({ signal }: { signal?: AbortSignal }) => {
-      signal?.throwIfAborted()
-      return {
-        requestId: 'paid-job',
-        endpointId: 'fal-ai/nano-banana-2',
-        costDollars: 0.1,
-        source: 'billing_events',
+    mocks.getFalAIBillingReceipt.mockImplementation(
+      async ({ signal }: { signal?: AbortSignal }) => {
+        signal?.throwIfAborted()
+        return {
+          requestId: 'paid-job',
+          endpointId: 'fal-ai/nano-banana-2',
+          costDollars: 0.1,
+          source: 'billing_events',
+        }
       }
-    })
+    )
     mockSecureFetchWithPinnedIP.mockResolvedValueOnce(Response.json({ status: 'COMPLETED' }))
     mockSecureFetchWithPinnedIP.mockImplementationOnce(async () => {
       controller.abort()
@@ -212,10 +216,10 @@ describe('image operations', () => {
         }
       )
     ).rejects.toMatchObject({ name: 'AbortError' })
-    expect(mocks.getFalAICostMetadata).toHaveBeenCalledWith(
+    expect(mocks.getFalAIBillingReceipt).toHaveBeenCalledWith(
       expect.objectContaining({ requestId: 'paid-job' })
     )
-    expect(mocks.getFalAICostMetadata.mock.calls[0][0].signal).toBeUndefined()
+    expect(mocks.getFalAIBillingReceipt.mock.calls[0][0].signal).toBeUndefined()
   })
   it.each([422, 500])(
     'reports HTTP %i generation failures without speculative delivery receipts',
@@ -233,7 +237,7 @@ describe('image operations', () => {
             { status }
           )
         )
-      mocks.getFalAICostMetadata.mockResolvedValue({
+      mocks.getFalAIEstimatedCostMetadata.mockResolvedValue({
         requestId: 'rejected-job',
         source: 'fallback_floor',
         costDollars: 0.05,
@@ -258,7 +262,7 @@ describe('image operations', () => {
         'secret-prompt'
       )
       expect(receipts).toEqual([])
-      expect(mocks.getFalAICostMetadata).not.toHaveBeenCalled()
+      expect(mocks.getFalAIEstimatedCostMetadata).not.toHaveBeenCalled()
       expect(mockUploadCopilotFile).not.toHaveBeenCalled()
     }
   )
@@ -309,4 +313,33 @@ describe('image operations', () => {
       }
     }
   )
+  it('reconciles exact image receipts when a completed queue status contains an error', async () => {
+    mocks.fetch.mockResolvedValueOnce(Response.json({ request_id: 'image-queue-error' }))
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      Response.json({ status: 'COMPLETED', error: 'sensitive provider error' })
+    )
+    mocks.getFalAIBillingReceipt.mockResolvedValueOnce({
+      requestId: 'image-queue-error',
+      endpointId: 'fal-ai/nano-banana-2',
+      source: 'billing_events',
+      costDollars: 0.1,
+    })
+    const receipts: string[] = []
+    const response = await observeServiceCosts(
+      async () => {},
+      () =>
+        executeImageGeneration(
+          { ...falInput, useHostedCostTracking: true },
+          { userId: 'user', requestId: 'queue-error' }
+        ),
+      async (receipt) => {
+        receipts.push(receipt)
+      }
+    )
+    expect(response.ok).toBe(false)
+    expect(JSON.stringify(await response.json())).not.toContain('sensitive provider error')
+    expect(receipts).toHaveLength(1)
+    expect(receipts[0]).toContain('0.1 (billing_events)')
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(1)
+  })
 })

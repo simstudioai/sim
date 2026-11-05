@@ -424,24 +424,20 @@ async function generateWithFalAI(
     }
 
     if (getStringProperty(statusData, 'status') === 'COMPLETED') {
-      const statusError = statusData.error
-      if (statusError) {
-        throw new Error(`Fal.ai generation failed: ${getFalAIErrorMessage(statusError)}`)
-      }
-
       const { data: resultData, cost: falaiCost } = await fetchFalAIResult({
         apiKey,
         endpointId: endpoint,
         requestId: requestIdFal,
+        queueError: statusData.error,
         maxResponseBytes: MAX_VIDEO_JSON_BYTES,
         trackCost: useHostedCostTracking,
         onCost: context.onFalCost,
         signal,
-        fetchResponse: () =>
+        fetchResponse: (resultSignal) =>
           fetch(falQueueUrl(getStringProperty(statusData, 'response_url') || responseUrl), {
             redirect: 'error',
             headers: { Authorization: `Key ${apiKey}` },
-            signal,
+            signal: resultSignal,
           }),
       })
 

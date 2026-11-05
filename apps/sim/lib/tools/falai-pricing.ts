@@ -20,7 +20,7 @@ const FALAI_PRICING_RESPONSE_MAX_BYTES = 2 * 1024 * 1024
  * Longest a cost lookup may take, covering every billing-event attempt and the estimate. The
  * queue is terminal by then; successful delivery can fall back to an explicitly labeled estimate.
  */
-const FALAI_COST_LOOKUP_TIMEOUT_MS = 10_000
+export const FALAI_COST_LOOKUP_TIMEOUT_MS = 10_000
 const logger = createLogger('FalAIPricing')
 const FALAI_ESTIMATE_TTL_MS = 5 * 60_000
 const FALAI_COOLDOWN_MS = 60_000
@@ -242,14 +242,16 @@ async function getHistoricalEstimate(apiKey: string, endpointId: string, signal?
   if (cooldown) return { error: cooldown }
 
   // One caller stopping must not cancel the estimate shared by other completed jobs.
-  const estimate = await coalesceLocally(`fal-estimate:${cacheKey}`, () =>
-    withinDeadline(
+  const deadlineAt = Date.now() + FALAI_COST_LOOKUP_TIMEOUT_MS
+  const estimate = await coalesceLocally(`fal-estimate:${cacheKey}`, async () => {
+    const result = await withinDeadline(
       (producerSignal) => estimateFalAICallCost(apiKey, endpointId, cooldownKey, producerSignal),
-      Date.now() + FALAI_COST_LOOKUP_TIMEOUT_MS
+      deadlineAt
     )
-  )
+    if (result.costDollars !== undefined) estimateCache.set(cacheKey, result.costDollars)
+    return result
+  })
   signal?.throwIfAborted()
-  if (estimate.costDollars !== undefined) estimateCache.set(cacheKey, estimate.costDollars)
   return estimate
 }
 
@@ -259,23 +261,41 @@ interface FalAICostLookup {
   requestId: string
   /** Ends the lookup with an error. Without one, only {@link FALAI_COST_LOOKUP_TIMEOUT_MS} ends it. */
   signal?: AbortSignal
+  deadlineAt?: number
 }
 
 /**
  * The cost of a completed fal request. The lookup is bounded on its own: past
  * {@link FALAI_COST_LOOKUP_TIMEOUT_MS} it returns the fallback floor rather than nothing.
  */
-export async function getFalAICostMetadata(lookup: FalAICostLookup): Promise<FalAICostMetadata> {
+export function getFalAICostMetadata(lookup: FalAICostLookup): Promise<FalAICostMetadata> {
+  return withCostDeadline(lookup, lookUpFalAICost)
+}
+
+/** Estimates a request whose exact receipt has already been checked, sharing that lookup's deadline. */
+export async function getFalAIEstimatedCostMetadata(
+  lookup: FalAICostLookup
+): Promise<FalAICostMetadata> {
+  lookup.signal?.throwIfAborted()
+  const cached = estimateCache.get(`${credentialFingerprint(lookup.apiKey)}:${lookup.endpointId}`)
+  if (cached !== undefined) return historicalCost(lookup, cached)
+  return withCostDeadline(lookup, lookUpEstimatedCost)
+}
+
+async function withCostDeadline(
+  lookup: FalAICostLookup,
+  operation: (lookup: FalAICostLookup) => Promise<FalAICostMetadata>
+): Promise<FalAICostMetadata> {
   const { endpointId, requestId } = lookup
   try {
     return await withinDeadline(
-      (signal) => lookUpFalAICost({ ...lookup, signal }),
-      Date.now() + FALAI_COST_LOOKUP_TIMEOUT_MS,
+      (signal) => operation({ ...lookup, signal }),
+      lookup.deadlineAt ?? Date.now() + FALAI_COST_LOOKUP_TIMEOUT_MS,
       lookup.signal
     )
   } catch (error) {
     if (!(error instanceof DeadlineExceededError)) throw error
-    logger.warn('Fal.ai cost lookup timed out after generation completed', {
+    logger.warn('Fal.ai cost lookup timed out after queue completion', {
       endpointId,
       requestId,
     })
@@ -305,7 +325,7 @@ export async function getFalAIBillingReceipt(
   try {
     return await withinDeadline(
       (signal) => lookUpBillingReceipt({ ...lookup, signal }),
-      Date.now() + FALAI_COST_LOOKUP_TIMEOUT_MS,
+      lookup.deadlineAt ?? Date.now() + FALAI_COST_LOOKUP_TIMEOUT_MS,
       lookup.signal
     )
   } catch (error) {
@@ -349,20 +369,22 @@ async function lookUpBillingReceipt({
 async function lookUpFalAICost(lookup: FalAICostLookup): Promise<FalAICostMetadata> {
   const receipt = await lookUpBillingReceipt(lookup)
   if (receipt) return receipt
+  return lookUpEstimatedCost(lookup)
+}
+
+function historicalCost(
+  { endpointId, requestId }: FalAICostLookup,
+  costDollars: number
+): FalAICostMetadata {
+  return { endpointId, requestId, costDollars, source: 'historical_estimate', currency: 'USD' }
+}
+
+async function lookUpEstimatedCost(lookup: FalAICostLookup): Promise<FalAICostMetadata> {
   const { apiKey, endpointId, requestId, signal } = lookup
-
   const estimate = await getHistoricalEstimate(apiKey, endpointId, signal)
-  if (estimate.costDollars !== undefined) {
-    return {
-      endpointId,
-      requestId,
-      costDollars: estimate.costDollars,
-      source: 'historical_estimate',
-      currency: 'USD',
-    }
-  }
+  if (estimate.costDollars !== undefined) return historicalCost(lookup, estimate.costDollars)
 
-  logger.warn('Fal.ai cost metadata unavailable after generation completed', {
+  logger.warn('Fal.ai cost metadata unavailable after queue completion', {
     endpointId,
     requestId,
     error: estimate.error,
