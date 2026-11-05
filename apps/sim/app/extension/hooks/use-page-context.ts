@@ -49,7 +49,7 @@ function reduceCaptures(state: CaptureState, action: CaptureAction): CaptureStat
     snapshots.map((snapshot) => ({ kind: 'browser_page', snapshot }))
   )
   return error
-    ? { ...state, error: `${error}. Remove one and capture again.` }
+    ? { ...state, error: `${error}. Remove a page and try again.` }
     : { ...state, snapshots, error: undefined }
 }
 

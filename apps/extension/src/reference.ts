@@ -124,8 +124,7 @@ export function createReferenceCapture({
       replyError(
         sessionId,
         requestId,
-        manualError?.message ??
-          'A page attachment is still being prepared. Try again once it appears.',
+        manualError?.message ?? 'Wait for the page attachment, then try again.',
         manualError?.reason
       )
       return
@@ -169,8 +168,7 @@ export function createReferenceCapture({
     refreshPreference,
     setPreference,
     busy: () => pending !== null,
-    manualRequested: () =>
-      cancel('An explicit attachment was requested. Try again after it appears.'),
+    manualRequested: () => cancel('Wait for the page attachment, then send again.'),
     preferenceChanged(value: unknown) {
       if (preferenceWrite) return
       revision++

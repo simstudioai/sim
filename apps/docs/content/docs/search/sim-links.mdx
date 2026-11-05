@@ -15,15 +15,25 @@ Names ignore case and punctuation, so `sim/Team-Handbook` and `sim/teamhandbook`
 
 ## Open links from the address bar
 
-In Sim Cloud, open **Links → Browser shortcuts** to install [Sim for Chrome](https://chromewebstore.google.com/detail/sim/oanlcahddodnjpdoopcpjlcageejjpmg) in your work profile. Type `sim` in Chrome’s address bar, press **Space**, and enter part of a link name. Chrome shows matching links, most opened first. Unlisted links can still open by name.
+[Install Sim for Chrome](https://chromewebstore.google.com/detail/sim/oanlcahddodnjpdoopcpjlcageejjpmg) in your work profile. In Sim, open **Links → Browser shortcuts** and select **Enable go/ shortcuts**. Type `go/handbook` in the address bar to open a link. Enable **sim/ shortcuts** there if you prefer `sim/handbook`.
 
-To open links as `go/handbook` or `sim/handbook`, select **Enable go/ shortcuts** and **Enable sim/ shortcuts** in that dialog once each, using the Chrome profile where Sim is installed. Each opens your Links directory in a new tab and lets Chrome remember the short host in that profile. If Chrome still sends a shortcut to search, enter `http://sim/handbook` or `sim/handbook/` with a trailing slash. Use **Copy link** in Sim to share an address that also works without the extension.
+For suggestions, type `sim`, press **Space**, and enter part of a name. Matching links appear with the most opened first. Unlisted links still open by name.
 
-Open the extension sidebar’s **+ → Browser shortcuts** and enable your search provider to recover `go/handbook` or `sim/handbook` when Chrome treats it as a search. Approve access to the exact sites shown. This is optional and supports Google (`google.com`), Bing, DuckDuckGo, and Yahoo. Sim remembers the choice in this Chrome profile. Ordinary searches still use your search engine; its default is unchanged.
+### If a shortcut opens search
 
-Recovery matches a whole `go/<name>` or `sim/<name>` shortcut, including simple slash-separated values such as `go/jira/123`. For values containing spaces, query parameters, unsupported search domains, or a managed browser that blocks site access, use `sim` + **Space** or the full `https://www.sim.ai/sim/<name>` address. Turn recovery off in **Browser shortcuts**; this keeps the site permission, which you can remove through **Site access** or Chrome’s extension settings.
+Open the extension’s **+ → Browser shortcuts** and turn on your search engine. Approve Chrome’s site-access prompt if shown. Google (`google.com`), Bing, DuckDuckGo, and Yahoo are supported. Other searches and your default search engine stay unchanged.
 
-If `sim` + **Space** sends link names to your search engine even when the address bar shows **Sim**, a Chrome site search may already use the `sim` shortcut. Enter `http://sim/handbook` to open the link directly. To restore suggestions, temporarily turn off the Sim extension, rename the old shortcut in `chrome://settings/searchEngines`, then turn Sim back on. If your organization manages the shortcut, ask your administrator to rename it.
+This handles whole shortcuts such as `go/handbook` or `go/jira/123`. For spaces, query parameters, unsupported search sites, or blocked site access, use `sim` + **Space** or the full `https://www.sim.ai/sim/<name>` address. A trailing slash (`go/handbook/`) or `http://go/handbook` also tells Chrome to navigate directly.
+
+Turning shortcuts off keeps site access. To remove it, open Chrome’s **Extensions → Manage extensions → Sim → Details**.
+
+### If another tool uses go/ or sim
+
+Sim routes both `go/` and `sim/` to your organization’s links. If Glean or another extension also handles `go/`, Chrome uses the most recently installed extension. Disable the other tool’s go-link handling or remove that extension to use Sim consistently. An existing intranet host named `go` or `sim` conflicts too.
+
+If `sim` + **Space** still searches while the address bar shows **Sim**, an old Chrome site-search shortcut may use the same keyword. Turn off the Sim extension, rename that shortcut in `chrome://settings/searchEngines`, then turn Sim back on. Ask your administrator if the shortcut is managed.
+
+### Use links without the extension
 
 Without the extension, add Sim as a Chrome site search shortcut to type `sim handbook` instead:
 

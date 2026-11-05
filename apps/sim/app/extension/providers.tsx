@@ -33,7 +33,8 @@ export function ExtensionProviders({
   const { data: session, isPending, error } = useSession()
   if (isPending) return <ExtensionLoading />
   const accessDenied = isApiClientError(error) && (error.status === 401 || error.status === 403)
-  if (accessDenied || !session?.user || session.user.id !== userId) return <ExtensionSignIn />
+  if (accessDenied || !session?.user || session.user.id !== userId)
+    return <ExtensionSignIn expectedUserId={userId} />
   return (
     <ExtensionIdentityContext.Provider value={{ origins, userId }}>
       <FeatureFlagsProvider
@@ -61,4 +62,9 @@ export function useExtensionIdentity(): ExtensionIdentity {
   const identity = useContext(ExtensionIdentityContext)
   if (!identity) throw new Error('Extension identity is unavailable')
   return identity
+}
+
+export function ExtensionSessionExpired() {
+  const { userId } = useExtensionIdentity()
+  return <ExtensionSignIn expectedUserId={userId} />
 }

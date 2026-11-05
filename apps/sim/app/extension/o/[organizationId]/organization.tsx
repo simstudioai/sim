@@ -10,6 +10,7 @@ import { ExtensionHeader } from '@/app/extension/[workspaceId]/header'
 import { extensionChatParam } from '@/app/extension/[workspaceId]/search-params'
 import { useExtensionComposer } from '@/app/extension/hooks/use-composer'
 import ExtensionLoading from '@/app/extension/loading'
+import { useExtensionIdentity } from '@/app/extension/providers'
 import { ExtensionSignIn } from '@/app/extension/sign-in'
 import { ExtensionUnavailable } from '@/app/extension/unavailable'
 import { OrganizationConversation } from '@/app/o/[organizationId]/components/organization-conversation'
@@ -19,18 +20,21 @@ import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import { SettingsLoader } from '@/app/workspace/[workspaceId]/providers/settings-loader'
 import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
 import { useOrganizationSummary } from '@/hooks/queries/organization'
+import { VoiceInputPermissionContext } from '@/hooks/use-voice-input'
 
 interface ExtensionOrganizationProps {
   context: OrganizationSurfaceContext
 }
 
 export function ExtensionOrganization({ context }: ExtensionOrganizationProps) {
+  const { userId } = useExtensionIdentity()
   const access = useOrganizationSummary(context.organization.id)
   const history = useOrganizationMothershipChats(context.organization.id)
   const denied = [access.error, history.error].find(
     (error) => isApiClientError(error) && [401, 403, 404].includes(error.status)
   )
-  if (isApiClientError(denied) && denied.status === 401) return <ExtensionSignIn />
+  if (isApiClientError(denied) && denied.status === 401)
+    return <ExtensionSignIn expectedUserId={userId} />
   if (access.isPending) return <ExtensionLoading />
   if (denied || !access.data?.chatAccess)
     return (
@@ -162,35 +166,37 @@ function ExtensionOrganizationConversation({
       ? routes.search
       : routes.home
   return (
-    <OrganizationConversation
-      chatId={initialChatId}
-      requestMode={requestMode}
-      panelOptions={{
-        ...composer,
-        onSubmitted: () => {
-          onCommitMode()
-          composer.onSubmitted()
-        },
-        draftNamespace: 'extension',
-        onChatIdResolved,
-        onNavigateToChat: onSelectChat,
-        header: (
-          <>
-            <ExtensionHeader
-              scopeName={context.organization.name}
-              history={history}
-              chatId={selectedChatId}
-              onSelectChat={onSelectChat}
-              appHref={appHref}
-            />
-            {composer.captureError && (
-              <p role='alert' className='px-3 py-2 text-[var(--text-error)] text-caption'>
-                {composer.captureError}
-              </p>
-            )}
-          </>
-        ),
-      }}
-    />
+    <VoiceInputPermissionContext value={composer.openMicrophoneSettings}>
+      <OrganizationConversation
+        chatId={initialChatId}
+        requestMode={requestMode}
+        panelOptions={{
+          ...composer,
+          onSubmitted: () => {
+            onCommitMode()
+            composer.onSubmitted()
+          },
+          draftNamespace: 'extension',
+          onChatIdResolved,
+          onNavigateToChat: onSelectChat,
+          header: (
+            <>
+              <ExtensionHeader
+                scopeName={context.organization.name}
+                history={history}
+                chatId={selectedChatId}
+                onSelectChat={onSelectChat}
+                appHref={appHref}
+              />
+              {composer.captureError && (
+                <p role='alert' className='px-3 py-2 text-[var(--text-error)] text-caption'>
+                  {composer.captureError}
+                </p>
+              )}
+            </>
+          ),
+        }}
+      />
+    </VoiceInputPermissionContext>
   )
 }

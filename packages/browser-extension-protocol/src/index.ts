@@ -48,6 +48,7 @@ const extensionActionSchema = z.enum([
   'capture-selection',
   'site-access',
   'browser-shortcuts',
+  'microphone-settings',
 ])
 export type ExtensionAction = z.infer<typeof extensionActionSchema>
 

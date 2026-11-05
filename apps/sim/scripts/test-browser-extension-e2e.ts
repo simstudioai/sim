@@ -16,6 +16,7 @@ import {
   type Page,
   type Request,
   type Route,
+  type WebSocketRoute,
 } from '@playwright/test'
 import { pageSnapshotSchema } from '@sim/browser-extension-protocol'
 import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
@@ -75,6 +76,7 @@ const checks: {
 }[] = []
 const screenshots: string[] = []
 const browserErrors: string[] = []
+const voiceDiagnostics: Record<string, unknown>[] = []
 const httpErrors: { path: string; status: number; injected: boolean }[] = []
 const injectedRequests = new WeakSet<Request>()
 const pendingRequests = new Set<Request>()
@@ -187,9 +189,9 @@ const checkNavigation = (name: string, run: () => Promise<void>) => check('navig
 const checkComposer = (name: string, run: () => Promise<void>) => check('composer', name, run)
 const checkAccess = (name: string, run: () => Promise<void>) => check('access', name, run)
 
-async function screenshot(name: string) {
-  if (!panel) return
-  for (const frame of panel.frames()) {
+async function screenshot(name: string, target = panel) {
+  if (!target) return
+  for (const frame of target.frames()) {
     await frame.evaluate(() =>
       Promise.all(
         document
@@ -216,7 +218,7 @@ async function screenshot(name: string) {
     }
   }
   const path = `${report}.${name}.png`
-  await panel.screenshot({ path, fullPage: true, animations: 'disabled' })
+  await target.screenshot({ path, fullPage: true, animations: 'disabled' })
   screenshots.push(path)
 }
 
@@ -506,6 +508,14 @@ try {
     await login.waitForURL('**/login**')
     assert.equal(new URL(login.url()).origin, base.origin)
     await login.close()
+    const draft = await openPage()
+    try {
+      await draft.goto(`${base.origin}/extension/create-link`)
+      await expect(draft.getByRole('heading', { name: 'Sign in to create a link' })).toBeVisible()
+      await screenshot('create-link-sign-in', draft)
+    } finally {
+      await draft.close()
+    }
   })
   const signInAndSeed = async () => {
     const signup = await browserContext.request.post(`${base.origin}/api/auth/sign-up/email`, {
@@ -524,8 +534,11 @@ try {
     await seed()
   }
   await checkNavigation('A real Better Auth session reaches the extension iframe', async () => {
+    const login = await openPage()
+    await login.goto(`${base.origin}/login`)
     await signInAndSeed()
-    await shell.reload()
+    await login.close()
+    await shell.bringToFront()
     await expect(
       frame().getByRole('link', { name: 'Extension QA alpha', exact: true })
     ).toBeVisible()
@@ -998,7 +1011,7 @@ try {
       await capture()
       await capture()
       await expect(attachments()).toHaveCount(3)
-      await expect(frame().getByRole('alert').filter({ hasText: 'Remove one' })).toBeVisible()
+      await expect(frame().getByRole('alert').filter({ hasText: 'Remove a page' })).toBeVisible()
       await screenshot('page-limit')
       await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
       await expect(attachments()).toHaveCount(2)
@@ -1084,14 +1097,14 @@ try {
               .evaluate((button) => (button as HTMLButtonElement).click())
             await screenshot('capture-menu')
             await frame()
-              .getByRole('menuitem', { name: 'Site access', exact: true })
+              .getByRole('menuitem', { name: 'Page access', exact: true })
               .evaluate((button) => (button as HTMLElement).click())
-            const access = shell.getByRole('dialog', { name: 'Site access', exact: true })
+            const access = shell.getByRole('dialog', { name: 'Page access', exact: true })
             await expect(
-              access.getByRole('button', { name: `Remove access to ${fixtureOrigin}`, exact: true })
+              access.getByRole('button', { name: 'Allow across websites', exact: true })
             ).toBeVisible()
             await expect(
-              frame().getByRole('menuitem', { name: 'Site access', exact: true })
+              frame().getByRole('menuitem', { name: 'Page access', exact: true })
             ).toHaveCount(0)
             await screenshot('site-options')
             await access.getByRole('button', { name: 'Close', exact: true }).click()
@@ -1326,22 +1339,217 @@ try {
       await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('')
     }
   )
-  await checkComposer(
-    'The extension blocks microphone capture even when the Sim origin has permission',
+  await checkNavigation(
+    'A sanitized link draft saves in the current organization and opens its destination',
     async () => {
-      await browserContext.grantPermissions(['microphone'], { origin: base.origin })
-      const denied = await frame().evaluate(async () => {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-          stream.getTracks().forEach((track) => track.stop())
-          return false
-        } catch (error) {
-          return error instanceof DOMException && error.name === 'NotAllowedError'
-        }
+      let draft = await openPage()
+      await setPageViewport(draft, 1280, 900)
+      const endpoint = `/api/organizations/${organizationId}/sim-links`
+      let writes = 0
+      draft.on('request', (request) => {
+        if (new URL(request.url()).pathname === endpoint && request.method() === 'POST') writes++
       })
-      assert(denied, 'Microphone capture escaped the extension permissions policy')
-      await expect(frame().getByRole('button', { name: 'Voice input', exact: true })).toHaveCount(0)
-      await browserContext.clearPermissions()
+      try {
+        await draft.goto(`${base.origin}/extension/create-link`)
+        await expect(
+          draft.getByRole('heading', { name: 'Links unavailable', exact: true })
+        ).toBeVisible()
+        await screenshot('create-link-unavailable', draft)
+        await draft.close()
+        await seedViewerOrganization()
+        draft = await openPage()
+        await setPageViewport(draft, 1280, 900)
+        draft.on('request', (request) => {
+          if (new URL(request.url()).pathname === endpoint && request.method() === 'POST') writes++
+        })
+        const destination = `${fixtureOrigin}/page`
+        const hash = new URLSearchParams({
+          url: `${destination}?private=QUERY_SECRET#FRAGMENT_SECRET`,
+        })
+        await draft.goto(`${base.origin}/extension/create-link#${hash}`)
+        const dialog = draft.getByRole('dialog', { name: 'New link', exact: true })
+        await expect(
+          dialog.getByRole('textbox', { name: 'Destination URL', exact: true })
+        ).toHaveValue(destination)
+        await expect.poll(() => new URL(draft.url()).hash).toBe('')
+        await screenshot('create-link-draft', draft)
+        await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+        await expect(dialog.getByRole('textbox', { name: 'Name', exact: true })).toHaveAttribute(
+          'aria-invalid',
+          'true'
+        )
+        assert.equal(writes, 0, 'An invalid draft reached the create boundary')
+        await screenshot('create-link-validation', draft)
+        await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill('qa-draft')
+        const saved = draft.waitForResponse(
+          (response) =>
+            new URL(response.url()).pathname === endpoint && response.request().method() === 'POST'
+        )
+        await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+        assert.equal((await saved).status(), 200)
+        await draft.waitForURL(`${base.origin}/o/${organizationId}/links`)
+        const [row] =
+          await sql`select name, url from sim_link where organization_id=${organizationId}`
+        assert.equal(row?.name, 'qa-draft')
+        assert.equal(row?.url, destination)
+        const link = draft.getByRole('row').filter({ hasText: 'qa-draft' })
+        await expect(link).toBeVisible()
+        await screenshot('create-link-saved', draft)
+        const opened = browserContext.waitForEvent('page')
+        await link.click()
+        const resolved = await opened
+        try {
+          await resolved.waitForURL(destination)
+        } finally {
+          await resolved.close()
+        }
+      } catch (error) {
+        if (!draft.isClosed()) await screenshot('create-link-failure', draft).catch(() => {})
+        throw error
+      } finally {
+        await draft.close()
+        await sql`delete from organization where id=${organizationId}`
+      }
+    }
+  )
+  await checkComposer(
+    'Voice input recovers permission, preserves drafts, and stops on Send or restart',
+    async () => {
+      const input = frame().getByRole('textbox', { name: 'Message', exact: true })
+      const mic = frame().getByRole('button', { name: 'Voice input', exact: true })
+      const stop = frame().getByRole('button', { name: 'Stop listening', exact: true })
+      const sessions: { socket: WebSocketRoute; chunks: number; closed: boolean }[] = []
+      await shell.route('**/api/speech/token', (route) => {
+        injectedRequests.add(route.request())
+        return route.fulfill({ json: { token: 'synthetic-extension-voice' } })
+      })
+      await shell.routeWebSocket(
+        'wss://api.elevenlabs.io/v1/speech-to-text/realtime*',
+        (socket) => {
+          const session = { socket, chunks: 0, closed: false }
+          sessions.push(session)
+          socket.onMessage((message) => {
+            const data = toRecord(JSON.parse(String(message)))
+            if (typeof data.audio_base_64 === 'string' && data.audio_base_64.length > 0) {
+              assert.equal(data.sample_rate, 16000)
+              assert(Buffer.from(data.audio_base_64, 'base64').length > 0)
+              session.chunks++
+            }
+          })
+          socket.onClose(async () => {
+            await socket.close()
+            session.closed = true
+          })
+        }
+      )
+      const microphone = await browserContext.newCDPSession(shell)
+      const setMicrophonePermission = async (setting: 'granted' | 'denied') => {
+        await microphone.send('Browser.setPermission', {
+          permission: { name: 'microphone' },
+          setting,
+          origin: `chrome-extension://${extensionId}`,
+          embeddedOrigin: base.origin,
+        })
+        const state = await frame().evaluate(
+          async () =>
+            (await navigator.permissions.query({ name: 'microphone' as PermissionName })).state
+        )
+        voiceDiagnostics.push({ event: 'permission', setting, state })
+        assert.equal(state, setting)
+      }
+      const submitted: Record<string, unknown>[] = []
+      await shell.route('**/api/mothership/chat', (route) => {
+        if (route.request().method() !== 'POST') return route.continue()
+        submitted.push(toRecord(route.request().postDataJSON()))
+        injectedRequests.add(route.request())
+        return route.fulfill({ status: 403, json: { error: 'QA admission rejected' } })
+      })
+      try {
+        await expect(mic).toBeVisible()
+        await input.fill('Keep my draft')
+        assert.equal(sessions.length, 0, 'Voice started before an explicit click')
+        await screenshot('microphone-ready')
+        await setMicrophonePermission('denied')
+        await mic.click()
+        const settings = frame().getByRole('button', { name: 'Open settings', exact: true })
+        await expect(settings).toBeVisible()
+        await expect(input).toHaveValue('Keep my draft')
+        assert.equal(sessions.length, 0, 'Denied microphone started transcription')
+        await screenshot('microphone-blocked')
+        const opened = browserContext.waitForEvent('page')
+        await settings.click()
+        const settingsPage = await opened
+        await settingsPage.waitForURL('chrome://settings/content/microphone')
+        await settingsPage.close()
+        await shell.bringToFront()
+        const viewport = shell.viewportSize()
+        assert(viewport)
+        await setPanelViewport(viewport.width, viewport.height)
+        await setMicrophonePermission('granted')
+        await mic.click()
+        await expect(stop).toBeVisible()
+        await expect.poll(() => sessions[0]?.chunks ?? 0).toBeGreaterThan(0)
+        sessions[0].socket.send(
+          JSON.stringify({ message_type: 'partial_transcript', text: 'first thought' })
+        )
+        await expect(input).toHaveValue('Keep my draft first thought')
+        await screenshot('microphone-listening')
+        await stop.click()
+        await expect(mic).toBeVisible()
+        await mic.click()
+        await expect(stop).toBeVisible()
+        await expect.poll(() => sessions.length).toBe(2)
+        sessions[0].socket.send(
+          JSON.stringify({ message_type: 'partial_transcript', text: 'stale thought' })
+        )
+        await expect.poll(() => sessions[0].closed).toBe(true)
+        await expect(stop).toBeVisible()
+        await expect(input).toHaveValue('Keep my draft first thought')
+        const chunks = sessions[1].chunks
+        await expect.poll(() => sessions[1].chunks).toBeGreaterThan(chunks)
+        sessions[1].socket.send(
+          JSON.stringify({ message_type: 'partial_transcript', text: 'second thought' })
+        )
+        await expect(input).toHaveValue('Keep my draft first thought second thought')
+        await input.press('Enter')
+        await expect.poll(() => submitted.length).toBe(1)
+        assert.equal(submitted[0].message, 'Keep my draft first thought second thought')
+        await expect(input).toHaveValue('')
+        await expect(mic).toBeVisible()
+        await expect.poll(() => sessions[1].closed).toBe(true)
+        await expect(
+          frame().getByRole('button', { name: 'Send message', exact: true })
+        ).toBeVisible()
+        await input.fill('Another draft')
+        await mic.click()
+        await expect(stop).toBeVisible()
+        await expect.poll(() => sessions[2]?.chunks ?? 0).toBeGreaterThan(0)
+        sessions[2].socket.send(
+          JSON.stringify({ message_type: 'partial_transcript', text: 'ready to send' })
+        )
+        await expect(input).toHaveValue('Another draft ready to send')
+        await screenshot('microphone-dictated-draft')
+        await stop.click()
+        await input.press('Enter')
+        await expect(input).toHaveValue('')
+        assert.equal(sessions[2].closed, false, 'Final-transcript grace must still be open')
+        sessions[2].socket.send(
+          JSON.stringify({ message_type: 'partial_transcript', text: 'late words' })
+        )
+        await expect.poll(() => sessions[2].closed).toBe(true)
+        await expect(input).toHaveValue('')
+        assert.equal(submitted.length, 2, 'Dictation submitted a message without Send')
+        await screenshot('microphone-after-send')
+      } finally {
+        voiceDiagnostics.push({
+          event: 'finally',
+          sessions: sessions.map(({ chunks, closed }) => ({ chunks, closed })),
+        })
+        await shell.unroute('**/api/speech/token')
+        await shell.unroute('**/api/mothership/chat')
+        await microphone.send('Browser.resetPermissions')
+        await microphone.detach()
+      }
     }
   )
   await checkComposer(
@@ -1742,7 +1950,11 @@ try {
         .poll(() => new URL(frame().url()).pathname)
         .toBe(`/extension/o/${organizationId}`)
       await expect(frame().getByRole('textbox', { name: 'Ask Sim', exact: true })).toBeVisible()
+      await expect(frame().getByRole('button', { name: 'Voice input', exact: true })).toBeVisible()
       await screenshot('organization-new-chat')
+      await setPanelViewport(320, 844)
+      await screenshot('organization-microphone-320')
+      await setPanelViewport(390, 844)
       await capture()
       await expect(attachments()).toHaveCount(1)
       let submitted: unknown
@@ -1894,7 +2106,7 @@ try {
           const expectDraftHeld = async () => {
             await input().press('Enter')
             await expect(
-              frame().getByText('Connecting to the Sim extension. Try again in a moment.').first()
+              frame().getByText('Connecting to Sim. Try again in a moment.').first()
             ).toBeVisible()
             await expect(input()).toHaveValue(draft)
             assert.equal(received.length, 1)
@@ -2037,7 +2249,7 @@ try {
                 .getByRole('button', { name: org ? 'Send' : 'Send message', exact: true })
                 .click()
             await expect(
-              shell.getByRole('button', { name: 'Request site access', exact: true })
+              shell.getByRole('button', { name: 'Allow across websites', exact: true })
             ).toBeEnabled()
             await expect(input()).toHaveValue(draft)
             await expect
@@ -2576,7 +2788,11 @@ try {
             frame().getByRole('heading', { name: 'How can I help?', exact: true })
           )
         : undefined
+      await expect(frame().getByRole('button', { name: 'Voice input', exact: true })).toBeVisible()
       await screenshot('organization-assistant-page')
+      await setPanelViewport(320, 844)
+      await screenshot('assistant-microphone-320')
+      await setPanelViewport(390, 844)
       if (!liveChat)
         await shell.route('**/api/mothership/chat', (route) =>
           route.fulfill({ status: 403, json: { error: 'QA submission boundary' } })
@@ -2788,22 +3004,38 @@ try {
       }
     })
   }
-  await checkAccess('An initial workspace-list 401 opens sign-in recovery', async () => {
-    await browserContext.route(workspaceListUrl, async (route) => {
-      injectedRequests.add(route.request())
-      await route.fulfill({ status: 401, json: { error: 'QA workspace-list session expired' } })
-    })
-    try {
-      await navigate(`${base.origin}/extension`)
-      await expect(frame().getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
-      await expect(
-        frame().getByRole('navigation', { name: 'Workspaces', exact: true })
-      ).toHaveCount(0)
-      await screenshot('workspace-picker-initial-session-expired')
-    } finally {
-      await browserContext.unroute(workspaceListUrl)
+  await checkAccess(
+    'An initial workspace-list 401 recovers when the same user returns',
+    async () => {
+      await browserContext.route(workspaceListUrl, async (route) => {
+        injectedRequests.add(route.request())
+        await route.fulfill({ status: 401, json: { error: 'QA workspace-list session expired' } })
+      })
+      try {
+        await navigate(`${base.origin}/extension`)
+        await expect(frame().getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
+        await expect(
+          frame().getByRole('navigation', { name: 'Workspaces', exact: true })
+        ).toHaveCount(0)
+        await screenshot('workspace-picker-initial-session-expired')
+      } finally {
+        await browserContext.unroute(workspaceListUrl)
+      }
+      const returnedFrom = await openPage()
+      try {
+        await returnedFrom.goto(`${fixtureOrigin}/page`)
+        await returnedFrom.bringToFront()
+      } finally {
+        await returnedFrom.close()
+      }
+      await shell.bringToFront()
+      const choices = frame().getByRole('navigation', { name: 'Workspaces', exact: true })
+      await expect(choices).toBeVisible()
+      await screenshot('workspace-picker-session-restored')
+      await choices.getByRole('link', { name: 'Extension QA alpha', exact: true }).click()
+      await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
     }
-  })
+  )
   await checkAccess(
     'Transient session, workspace, and permission-policy refetch failures preserve the mounted composer and page draft',
     async () => {
@@ -3024,6 +3256,7 @@ try {
         checks,
         screenshots,
         browserErrors,
+        voiceDiagnostics,
         failedRequests,
         pendingRequests: pendingAtFailure,
         failureState,

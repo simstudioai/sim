@@ -451,7 +451,7 @@ try {
 
   await check('Capture stays local until the trusted hosted frame is ready', async () => {
     await capture()
-    await panel.getByRole('status').filter({ hasText: 'Waiting for Sim' }).waitFor()
+    await panel.getByRole('status').filter({ hasText: 'Attaching the page…' }).waitFor()
     assert((await snapshots()).length === 0, 'Capture crossed before readiness')
     await panel.evaluate(
       (sessionId) =>
@@ -512,7 +512,7 @@ try {
         await chrome.storage.session.set({ [`captureIntent:${pending.windowId}:expired`]: pending })
       }, intent)
       await expect(panel.getByRole('status')).toHaveText(
-        'The capture expired. Attach the page again.'
+        'The page attachment expired. Attach it again.'
       )
       assert((await snapshots()).length === before, 'Expired toolbar intent delivered content')
     }
@@ -691,7 +691,7 @@ try {
     }, intent)
     await panel
       .getByRole('status')
-      .filter({ hasText: /document|frame|changed|cannot/i })
+      .filter({ hasText: /document|frame|changed|cannot|unavailable/i })
       .waitFor()
     assert((await snapshots()).length === 3, 'Stale document handoff captured a new document')
   })
@@ -708,7 +708,7 @@ try {
     }, intent)
     await panel
       .getByRole('status')
-      .filter({ hasText: /changed before reading/i })
+      .filter({ hasText: /The page changed/ })
       .waitFor()
     assert((await snapshots()).length === 3, 'Stale URL handoff captured a different SPA route')
   })
@@ -718,10 +718,9 @@ try {
     )
     await page.goto('https://ungranted.example/')
     await capture()
-    await panel
-      .getByRole('status')
-      .filter({ hasText: /access|permission|cannot/i })
-      .waitFor()
+    await expect(
+      panel.getByRole('button', { name: 'Allow across websites', exact: true })
+    ).toBeEnabled()
     assert((await snapshots()).length === 3, 'Unpermitted page was captured')
   })
   await check('Changing the receiving conversation expires an undelivered capture', async () => {
@@ -730,7 +729,7 @@ try {
       document.body.dataset.ignoreCaptures = 'true'
     })
     await capture()
-    await panel.getByRole('status').filter({ hasText: 'Waiting for Sim' }).waitFor()
+    await panel.getByRole('status').filter({ hasText: 'Attaching the page…' }).waitFor()
     const queuedIntent = await pendingIntent()
     await worker.evaluate(async (intent) => {
       await chrome.storage.session.set({ [`captureIntent:${intent.windowId}:queued`]: intent })
@@ -740,14 +739,16 @@ try {
       delete document.body.dataset.ignoreCaptures
     })
     await ready()
-    await panel
-      .getByRole('status')
-      .filter({ hasText: /conversation changed|previous conversation was discarded/ })
-      .waitFor()
-    await panel
-      .getByRole('status')
-      .filter({ hasText: /previous conversation was discarded/ })
-      .waitFor()
+    await expect(panel.getByRole('status')).toHaveText('The chat changed. Attach the page again.')
+    await expect
+      .poll(() =>
+        worker.evaluate(
+          async (key) => (await chrome.storage.session.get(key))[key],
+          `captureIntent:${queuedIntent.windowId}:queued`
+        )
+      )
+      .toBeUndefined()
+    await settleMessages()
     assert((await snapshots()).length === 3, 'A capture crossed into another conversation')
     await capture()
     await app.waitForFunction(
@@ -781,7 +782,10 @@ try {
       )
     await receipt(generateId())
     await capture()
-    await panel.getByRole('status').filter({ hasText: 'previous capture' }).waitFor()
+    await panel
+      .getByRole('status')
+      .filter({ hasText: 'Wait for the page attachment, then try again.' })
+      .waitFor()
     assert((await snapshots()).length === 5, 'A stale receipt released the pending capture')
     await receipt(receiverSessionId)
     await panel.waitForFunction(() => document.querySelector('[role="status"]')?.textContent === '')
@@ -1061,7 +1065,7 @@ try {
         )
       await panel.bringToFront()
       await openAccess()
-      const dialog = panel.getByRole('dialog', { name: 'Site access' })
+      const dialog = panel.getByRole('dialog', { name: 'Page access' })
       await expect(dialog).toBeVisible()
       await settleMessages()
       assert(policyErrors.length === 0, `Site access violated CSP: ${policyErrors.join('\n')}`)
@@ -1324,7 +1328,7 @@ try {
     }
   )
   await check(
-    'Site access requests only the address the user confirms, without reading the page',
+    'Page access asks the browser for website access without reading before approval',
     async () => {
       const source = 'https://private-source.example'
       const privateUrl = `${source}/sensitive-path?token=PRIVATE_URL_SENTINEL#fragment`
@@ -1358,34 +1362,11 @@ try {
           return execute(...args)
         }) as typeof chrome.scripting.executeScript
       })
-      await panel.getByRole('button', { name: 'Request site access' }).click()
-      const dialog = panel.getByRole('dialog', { name: 'Site access' })
-      await expect(dialog).toBeVisible()
-      const address = dialog.getByRole('textbox', { name: 'Site address' })
-      await expect(address).toHaveValue('')
-      const allow = dialog.getByRole('button', { name: /^Allow access/ })
-      for (const unsafe of [
-        'https://user:password@example.com/',
-        'https://*.example.com/',
-        'https://%2A.example.com/',
-        'https://＊.example.com/',
-        '<all_urls>',
-        'chrome://settings/',
-      ]) {
-        await address.fill(unsafe)
-        await expect(allow, `Do not offer to grant access for ${unsafe}`).toHaveAccessibleName(
-          'Allow access'
-        )
-        await expect(allow).toBeDisabled()
-      }
-      await address.fill('http://intranet.example:8080/private-path')
-      await expect(allow).toHaveAccessibleName('Allow access to http://intranet.example:8080')
-      const allowedHost = 'https://approved-site.example'
-      await address.fill(`${allowedHost}/private-path?token=INPUT_SECRET#fragment`)
-      await expect(allow).toHaveAccessibleName(`Allow access to ${allowedHost}`)
+      const allow = panel.getByRole('button', { name: 'Allow across websites', exact: true })
+      await expect(allow).toBeEnabled()
       assert(
         (await panel.locator('body').getAttribute('data-requested-access')) === null,
-        'Typing initiated a permission request'
+        'A failed capture initiated a permission request without an explicit action'
       )
       const grantedSites = () =>
         worker.evaluate(async () => ((await chrome.permissions.getAll()).origins ?? []).sort())
@@ -1394,7 +1375,7 @@ try {
       await expect(panel.locator('body')).toHaveAttribute('data-request-gesture', 'true')
       const requested = await panel.locator('body').getAttribute('data-requested-access')
       assert(requested, 'The user action never reached Chrome')
-      expect(JSON.parse(requested)).toEqual([{ origins: ['https://approved-site.example:443/*'] }])
+      expect(JSON.parse(requested)).toEqual([{ origins: ['https://*/*', 'http://*/*'] }])
       expect(await grantedSites(), 'A site received persistent access without approval').toEqual(
         previousAccess
       )
