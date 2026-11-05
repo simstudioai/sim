@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { OrganizationSettingsFeatures } from '@/components/settings/navigation'
-import { buildOrganizationNavItems } from '@/app/o/[organizationId]/components/organization-sidebar/navigation'
 import {
   organizationSettingsNavigation,
   resolveOrganizationSettingsSection,
 } from '@/app/o/[organizationId]/settings/navigation'
+import { buildOrganizationNavItems } from '@/platform/app/(shell)/_components/destinations'
 
 const enterprise: OrganizationSettingsFeatures = {
   billingEnabled: true,
@@ -25,7 +25,7 @@ describe('organization settings navigation', () => {
     expect(resolveOrganizationSettingsSection('/o/one/settings/network')).toBeNull()
     expect(resolveOrganizationSettingsSection('skills')).toBeNull()
     expect(
-      buildOrganizationNavItems('org', { searchAvailable: true, mothershipAvailable: true }).map(
+      buildOrganizationNavItems('org', { searchAvailable: true, homeAvailable: true }).map(
         ({ id }) => id
       )
     ).toEqual(['home', 'search', 'integrations'])

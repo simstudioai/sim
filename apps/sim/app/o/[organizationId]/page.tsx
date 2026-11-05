@@ -19,8 +19,8 @@ export default async function OrganizationPage({
   }
   const context = await getOrganizationSurfaceContext(organizationId, session.user.id)
   if (!context) notFound()
-  if (context.mothershipAvailable && context.canBuild) redirect(routes.home)
-  if (context.searchAccess.memberScoped) redirect(routes.search)
+  if ((context.mothershipAvailable && context.canBuild) || context.searchAccess.memberScoped)
+    redirect(routes.home)
   if (await canBrowsePeople(organizationId, context.viewer.role)) redirect(routes.people)
   redirect((await isSimLinksEnabled(organizationId)) ? routes.simLinks : WORKSPACE_SETTINGS_PATH)
 }

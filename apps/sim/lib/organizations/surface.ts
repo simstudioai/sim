@@ -25,7 +25,7 @@ import {
   isOrganizationPermissionRegimeActive,
 } from '@/lib/permission-groups/resolve.server'
 
-export interface OrganizationSurfaceOrganization {
+interface OrganizationSurfaceOrganization {
   id: string
   name: string
   slug: string
