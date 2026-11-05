@@ -666,6 +666,28 @@ describe('authorized live retrieval', () => {
     expect(result.live?.accounts.map((status) => status.queryIndex)).toEqual([0, 1])
     expect(result.live?.guidance).toBe('Live coverage: slack')
   })
+  it('reports a search that reached no account as nothing searched, not as no results', async () => {
+    mocks.accounts.mockResolvedValue([])
+    const result = await searchLiveKnowledge.execute({ principal, input })
+    expect(mocks.search).not.toHaveBeenCalled()
+    expect(result.results).toEqual([])
+    expect(result.retrieval.status).toBe('partial')
+    expect(result.live?.accounts).toEqual([])
+    expect(result.live?.guidance).toMatch(
+      /^Nothing was searched: you have no connected sources here\. Connect your accounts at \S*\/workspace\/workspace\/integrations,/
+    )
+  })
+  it('names the filtered source when only other sources are connected', async () => {
+    const result = await searchLiveKnowledge.execute({
+      principal,
+      input: { ...input, filters: { source: 'slack' } },
+    })
+    expect(mocks.search).not.toHaveBeenCalled()
+    expect(result.retrieval.status).toBe('partial')
+    expect(result.live?.guidance).toMatch(
+      /^Nothing was searched: you have no connected slack account here\. .* or search without the source filter\./
+    )
+  })
   describe('result previews', () => {
     const excerpts = ['a', 'b', 'c', 'd'].map((id) => ({
       ...document,

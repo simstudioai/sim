@@ -445,7 +445,15 @@ try {
       const body = toRecord(response.request().postDataJSON())
       assert.equal(body.organizationId, organizationId)
       assert.equal(body.query, 'Launch notes')
-      await expect(page.getByText('Search found no results.', { exact: true })).toBeVisible()
+      // The seeded member has connected no account, so nothing was searched.
+      await expect(
+        page.getByText('Connect your apps to search them.', { exact: true })
+      ).toBeVisible()
+      await expect(page.getByText('Search found no results.', { exact: true })).toHaveCount(0)
+      await expect(page.getByRole('link', { name: 'Connect apps' })).toHaveAttribute(
+        'href',
+        `${root}/integrations`
+      )
       await expect(page).toHaveURL(
         (url) => url.pathname === `${root}/search` && url.searchParams.get('q') === 'Launch notes'
       )

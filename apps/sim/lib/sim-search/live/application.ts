@@ -32,6 +32,7 @@ import {
   mapWithConcurrency,
   waitWithAbort,
 } from '@/lib/core/utils/concurrency'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { MANAGED_MCP_CONNECTORS } from '@/lib/credential-groups/managed-mcp-connectors'
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
@@ -49,6 +50,7 @@ import {
 import { RRF_K } from '@/lib/knowledge/search/recency'
 import { matchPassage } from '@/lib/knowledge/search/snippet'
 import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/source-url'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import {
   type LiveAccountSession,
@@ -440,6 +442,24 @@ function compareAccounts(left: LiveAccount, right: LiveAccount): number {
   )
 }
 
+/**
+ * Why a plain search that reached no account returned nothing, and where the caller connects one;
+ * an empty result would otherwise read as a search that found nothing.
+ */
+function nothingSearchedGuidance(
+  owner: ResourceOwner,
+  source: string | undefined,
+  hasOtherAccounts: boolean
+): string {
+  const path = owner.organizationId
+    ? organizationRoutes(owner.organizationId).integrations
+    : `/workspace/${owner.workspaceId}/integrations`
+  const connect = new URL(path, getBaseUrl()).href
+  return source && hasOtherAccounts
+    ? `Nothing was searched: you have no connected ${source} account here. Connect one at ${connect}, or search without the source filter.`
+    : `Nothing was searched: you have no connected sources here. Connect your accounts at ${connect}, then search again.`
+}
+
 const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.search,
   resolveContext: ({ input }: { input: LiveSearchInput }) => resolveKnowledgeOwnerContext(input),
@@ -503,6 +523,7 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
           nativesFor(account).length > 0
       )
       .sort(compareAccounts)
+    const nothingSearched = !queries && eligible.length === 0
     const selected = eligible.slice(0, MAX_ACCOUNTS)
     const openingAccount = createConcurrencyLimit(ACCOUNT_OPEN_CONCURRENCY)
     annotateSearchDiagnostics({
@@ -909,9 +930,14 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
       }
     })
     /** Live coverage guides the providers this call searched or tried to search. */
-    const guidance = liveSearchGuidance(
-      accounts.filter((account) => account.status !== 'reconnect').map(({ provider }) => provider)
-    )
+    const guidance = [
+      ...(nothingSearched
+        ? [nothingSearchedGuidance(input, filters?.source, allAccounts.length > 0)]
+        : []),
+      liveSearchGuidance(
+        accounts.filter((account) => account.status !== 'reconnect').map(({ provider }) => provider)
+      ),
+    ].join('\n')
     for (const account of eligible.slice(MAX_ACCOUNTS)) {
       for (const { queryIndex } of nativesFor(account))
         accounts.push({
@@ -934,9 +960,10 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
           message: 'No connection with this provider is configured and approved in this scope.',
         })
     }
-    const retrievalStatus = accounts.some((account) => account.status !== 'ok')
-      ? 'partial'
-      : 'complete'
+    const retrievalStatus =
+      nothingSearched || accounts.some((account) => account.status !== 'ok')
+        ? 'partial'
+        : 'complete'
     annotateSearchDiagnostics({
       resultCount: Math.min(ranked.length, input.topK),
       retrievalStatus,
