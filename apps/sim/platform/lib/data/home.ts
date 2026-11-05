@@ -31,6 +31,7 @@ import {
 import { useRemoveSearchHistorySource, useSearchHistory } from '@/hooks/queries/search-history'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useOrderedWorkspacesQuery } from '@/hooks/queries/workspace'
+import { useDebounce } from '@/hooks/use-debounce'
 import type {
   AttentionItem,
   EmailItem,
@@ -75,6 +76,8 @@ import {
 
 /** Long enough to fit the 7, 30 and 90 day chart windows in one read of daily buckets. */
 const ACTIVITY_DAYS = 90
+/** How long a day must stay chosen before it is read, so a run of clicks is one read at the provider. */
+const CALENDAR_DAY_SETTLE_MS = 250
 const REFUSAL_STATUSES: ReadonlySet<number> = new Set([401, 403, 404, 409])
 const NO_WIDGETS: readonly OrganizationHomeWidget[] = []
 
@@ -198,8 +201,11 @@ function useHomeCalendar(
   hidden: boolean
 ): HomeWidgetRead<HomeCalendarDay> {
   const date = selectedDay ?? clock.today
+  const settledDate = useDebounce(date, CALENDAR_DAY_SETTLE_MS)
+  // Keyed by the shown day throughout: the header moves at once, a day already read shows at once,
+  // and any other reads as loading until it settles, exactly as an unread day always has.
   const read = useOrganizationHomeCalendar(organizationId, date, timeZone, {
-    enabled: connection.status === 'connected' && !hidden,
+    enabled: connection.status === 'connected' && !hidden && settledDate === date,
   })
   const retry = () => void read.refetch()
   if (connection.status !== 'connected') return { state: connection, retry: retryConnection }
