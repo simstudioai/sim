@@ -74,20 +74,20 @@ async function resolveOrganizationSurfaceContext(
   organizationId: string,
   userId: string
 ): Promise<OrganizationSurfaceContext | null> {
-  const access = await getOrganizationSettingsAccess(organizationId, userId)
-  if (!access.isMember || access.role === null) return null
-
-  const [row] = await db
-    .select({
-      id: organization.id,
-      name: organization.name,
-      slug: organization.slug,
-      logo: organization.logo,
-    })
-    .from(organization)
-    .where(eq(organization.id, organizationId))
-    .limit(1)
-  if (!row) return null
+  const [access, [row]] = await Promise.all([
+    getOrganizationSettingsAccess(organizationId, userId),
+    db
+      .select({
+        id: organization.id,
+        name: organization.name,
+        slug: organization.slug,
+        logo: organization.logo,
+      })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .limit(1),
+  ])
+  if (!access.isMember || access.role === null || !row) return null
 
   const deployment = getDeploymentShape()
   const [
