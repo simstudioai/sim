@@ -76,11 +76,10 @@ import {
 
 const landing = {
   fallback: <div>Dashboard skeleton</div>,
-  render: ({ requestMode, composer, shortcuts }: OrganizationLandingSlot) => (
+  render: ({ requestMode, composer }: OrganizationLandingSlot) => (
     <div>
       <div>Dashboard for {requestMode}</div>
       {composer}
-      <div data-testid='shortcuts'>{shortcuts}</div>
     </div>
   ),
 }
