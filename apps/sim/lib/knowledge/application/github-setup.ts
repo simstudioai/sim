@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { credential, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
-import { and, asc, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { completePublicCredentialGroupOAuth } from '@/lib/credential-groups/application/public-enrollment'
 import { getCredentialGroupOAuthContextForEnrollment } from '@/lib/credential-groups/enrollments'
@@ -244,7 +244,7 @@ async function authorizeReader(attempt: GitHubSetupAttempt) {
   )
   if (!context)
     throw new OrchestrationError('forbidden', 'This account connection is no longer available.')
-  const [existing] = await db
+  const connected = await db
     .select({ id: credential.id })
     .from(credential)
     .where(
@@ -256,8 +256,14 @@ async function authorizeReader(attempt: GitHubSetupAttempt) {
         isNull(credential.revokedAt)
       )
     )
-    .orderBy(sql`(${credential.managedOauthStatus} = 'needs_reauth') DESC`, asc(credential.id))
-    .limit(1)
+    .limit(2)
+  /** GitHub signs in whoever its session holds, so setup cannot aim at one of several accounts. */
+  if (connected.length > 1)
+    throw new OrchestrationError(
+      'validation',
+      'Reconnect one of your GitHub accounts in Integrations, then try setup again.'
+    )
+  const [existing] = connected
   const url = await startCredentialGroupOAuth(context, token, {
     completionRedirect: true,
     completionId: attempt.setupId,

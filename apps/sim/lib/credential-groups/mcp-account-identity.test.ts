@@ -3,8 +3,9 @@
  */
 import { describe, expect, it } from 'vitest'
 import { readManagedMcpAccountIdentity } from '@/lib/credential-groups/mcp-account-identity'
+import type { McpToolResult } from '@/lib/mcp/types'
 
-const text = (value: unknown) => ({
+const text = (value: unknown): McpToolResult => ({
   content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }],
 })
 
@@ -59,7 +60,7 @@ describe('reading the connected account from a provider response', () => {
     ).toMatchObject({ subject: 'pat@example.test' })
   })
 
-  it.each([
+  it.each<[string, McpToolResult]>([
     ['a tool error', { isError: true, content: [{ type: 'text', text: 'pat@example.test' }] }],
     ['no content', { content: [] }],
     ['a response with no email', text({ name: 'Pat' })],

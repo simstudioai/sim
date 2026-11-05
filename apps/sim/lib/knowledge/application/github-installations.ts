@@ -99,6 +99,9 @@ async function readerToken(organizationId: string, credentialId: string) {
   })
 }
 
+/** What GitHub setup can offer a person to choose from at once. */
+const MAX_LISTED_INSTALLATIONS = 1000
+
 /** A null answer means only this account needs reconnecting; App JWT failures stay errors. */
 async function listInstallationsThroughReader(
   organizationId: string,
@@ -155,18 +158,25 @@ export const listGitHubSearchInstallations = defineAuthorizedKnowledgeUseCase({
     const readers = configuration.configured
       ? await listGitHubSearchReaderCredentials(db, context.organizationId, principal.userId)
       : []
-    const answers = await Promise.all(
+    const answers = await Promise.allSettled(
       readers.map((reader) =>
         listInstallationsThroughReader(context.organizationId, reader.id, input.signal)
       )
     )
-    const answered = answers.filter((answer) => answer !== null)
+    const answered = answers.flatMap((answer) =>
+      answer.status === 'fulfilled' && answer.value ? [answer.value] : []
+    )
+    /** One account's failure stays hidden while another account still answers. */
+    if (answered.length === 0) {
+      const failed = answers.find((answer) => answer.status === 'rejected')
+      if (failed) throw failed.reason
+    }
     const needsUserConnection = configuration.configured && answered.length === 0
     const installations = [
       ...new Map(
         answered.flat().map((installation) => [installation.installationId, installation])
       ).values(),
-    ]
+    ].slice(0, MAX_LISTED_INSTALLATIONS)
     return {
       available: configuration.configured,
       installUrl: configuration.installUrl,

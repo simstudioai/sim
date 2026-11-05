@@ -108,7 +108,7 @@ export const MANAGED_MCP_CONNECTORS = {
  * The vendor-documented tool naming the signed-in account. Only these connectors can tell two
  * accounts apart, so every other connector stays at one connection per person.
  */
-export const MANAGED_MCP_ACCOUNT_IDENTITY_CALLS: Partial<
+const MANAGED_MCP_ACCOUNT_IDENTITY_CALLS: Partial<
   Record<ManagedMcpConnectorId, { name: string; arguments: Record<string, unknown> }>
 > = {
   notion: { name: 'notion-get-self', arguments: {} },
@@ -118,10 +118,14 @@ export const MANAGED_MCP_ACCOUNT_IDENTITY_CALLS: Partial<
   hubspot: { name: 'get_user_details', arguments: { include: ['TOOL_INFORMATION'] } },
 }
 
+export function managedMcpAccountIdentityCall(connectorId: string | null | undefined) {
+  return connectorId && isManagedMcpConnectorId(connectorId)
+    ? MANAGED_MCP_ACCOUNT_IDENTITY_CALLS[connectorId]
+    : undefined
+}
+
 export function managedMcpAccountLimit(connectorId: string | null | undefined): number {
-  return connectorId &&
-    isManagedMcpConnectorId(connectorId) &&
-    MANAGED_MCP_ACCOUNT_IDENTITY_CALLS[connectorId]
+  return managedMcpAccountIdentityCall(connectorId)
     ? CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT
     : 1
 }

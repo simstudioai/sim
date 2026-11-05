@@ -487,6 +487,28 @@ export async function persistManagedMcpCredential(params: {
   })
 }
 
+/** Names a connection made before accounts were identified, unless it was identified meanwhile. */
+export async function recordManagedMcpAccountIdentity(
+  credentialId: string,
+  identity: ManagedMcpAccountIdentity
+) {
+  await db
+    .update(credential)
+    .set({
+      providerSubjectId: identity.subject,
+      providerTenantId: identity.tenant,
+      displayName: identity.label,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(credential.id, credentialId),
+        eq(credential.type, 'managed_mcp'),
+        isNull(credential.providerSubjectId)
+      )
+    )
+}
+
 export async function saveManagedMcpRuntimeTokens(
   credentialId: string,
   tokens: OAuthTokens | null,

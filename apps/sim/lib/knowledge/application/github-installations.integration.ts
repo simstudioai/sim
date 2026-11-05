@@ -38,7 +38,8 @@ vi.mock('@/lib/oauth/github-installation', () => ({
   GitHubInstallationError: class extends Error {
     constructor(
       message: string,
-      readonly status?: number
+      readonly status?: number,
+      readonly operation?: string
     ) {
       super(message)
     }
@@ -163,6 +164,34 @@ describe('GitHub installation setup reader ownership in PostgreSQL', () => {
         needsUserConnection: false,
         installations: [installation('personal')],
       })
+    })
+
+    it('still lists through one account when another lacks organization access', async () => {
+      mocks.list.mockImplementation(async (token: string) => {
+        if (token === 'token-alice-github')
+          throw new GitHubInstallationError('Approve access', 403, 'membership-permissions')
+        return [installation('personal')]
+      })
+      expect(await list()).toMatchObject({
+        needsUserConnection: false,
+        installations: [installation('personal')],
+      })
+    })
+
+    it('reports the failure when no account answers', async () => {
+      mocks.list.mockImplementation(async (token: string) => {
+        if (token === 'token-alice-github')
+          throw new GitHubInstallationError('Approve access', 403, 'membership-permissions')
+        throw new GitHubInstallationError('expired', 401)
+      })
+      await expect(list()).rejects.toThrow('Approve access')
+    })
+
+    it('stays within the setup limit when accounts together see too many', async () => {
+      mocks.list.mockImplementation(async (token: string) =>
+        Array.from({ length: 600 }, (_, index) => installation(`${token}-${index}`))
+      )
+      expect((await list()).installations).toHaveLength(1000)
     })
 
     it('asks to reconnect once no account answers', async () => {

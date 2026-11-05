@@ -329,6 +329,13 @@ describe('GitHub setup reader OAuth continuation', () => {
     queueTableRows(credential, [])
     return start(intent)
   }
+  it('sends a person with several expired accounts to reconnect the right one', async () => {
+    m.list.mockResolvedValueOnce({ available: true, needsUserConnection: true, installations: [] })
+    queueTableRows(credential, [{ id: 'first' }, { id: 'second' }])
+    await start()
+    expect(m.oauthStart).not.toHaveBeenCalled()
+    await expect(status()).resolves.toMatchObject({ status: 'failed' })
+  })
   it('a revoked enrollment stays denied before provider authorization', async () => {
     m.enrollment.mockRejectedValueOnce(new Error('revoked'))
     await startOAuth()

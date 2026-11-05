@@ -56,9 +56,11 @@ export function resolveAccountWrite<Account extends ConnectedAccount>({
         'The account changed during authorization. Refresh your connections and try again.',
         409
       )
-    if (target.providerSubjectId === null) return target
-    if (!identity) throw accountConflict('account_identity_required')
-    if (existing?.id !== target.id) throw accountConflict('account_mismatch')
+    if (target.providerSubjectId !== null) {
+      if (!identity) throw accountConflict('account_identity_required')
+      if (existing?.id !== target.id) throw accountConflict('account_mismatch')
+    }
+    if (target.revokedAt && live.length >= limit) throw accountConflict('account_limit_reached')
     return target
   }
 
@@ -81,4 +83,17 @@ export function resolveAccountWrite<Account extends ConnectedAccount>({
     )
   if (live.length === 1 && hasUnidentifiedLive) return live[0]
   throw accountConflict(identity ? 'account_mismatch' : 'account_identity_required')
+}
+
+const ACCOUNT_STATUS_RANK: Record<string, number> = { active: 2, needs_reauth: 1 }
+
+/** The account that best represents a connection: usable, then fixable by reconnecting. */
+export function moreUsableAccount<Account>(
+  current: Account | undefined,
+  candidate: Account,
+  statusOf: (account: Account) => string | null
+): Account {
+  if (current === undefined) return candidate
+  const rank = (account: Account) => ACCOUNT_STATUS_RANK[statusOf(account) ?? ''] ?? 0
+  return rank(candidate) > rank(current) ? candidate : current
 }

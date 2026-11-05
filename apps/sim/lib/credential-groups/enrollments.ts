@@ -25,6 +25,7 @@ import {
 } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { moreUsableAccount } from '@/lib/credential-groups/account-rules'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
 import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
@@ -1178,8 +1179,14 @@ async function buildPublicCredentialGroupEnrollment(
   const mcpConnectionByServerId = new Map<string, (typeof mcpConnectionRows)[number]>()
   for (const connection of mcpConnectionRows) {
     if (!connection.mcpServerId) throw new Error('Managed MCP credential has no server')
-    if (connection.status === 'active' || !mcpConnectionByServerId.has(connection.mcpServerId))
-      mcpConnectionByServerId.set(connection.mcpServerId, connection)
+    mcpConnectionByServerId.set(
+      connection.mcpServerId,
+      moreUsableAccount(
+        mcpConnectionByServerId.get(connection.mcpServerId),
+        connection,
+        (account) => account.status
+      )
+    )
   }
   const options = projection
     ? row.options.filter(

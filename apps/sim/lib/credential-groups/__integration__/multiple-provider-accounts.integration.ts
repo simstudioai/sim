@@ -18,6 +18,7 @@ import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CredentialGroupOAuthContext } from '@/lib/credential-groups/enrollments'
+import { identifyStoredManagedMcpConnections } from '@/lib/credential-groups/mcp-oauth'
 import { completeCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
 import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
 import { CredentialGroupOAuthError } from '@/lib/credential-groups/provider-adapter'
@@ -25,12 +26,17 @@ import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import { persistManagedMcpCredential } from '@/lib/credentials/managed-mcp'
 import { decryptManagedOAuthTokenSet } from '@/lib/credentials/managed-oauth'
 import { resolveSlackSearchMember } from '@/lib/knowledge/application/slack-search/identity'
+import { mcpService } from '@/lib/mcp/service'
 
 const POLICY = {
   authorizationAppId: 'fixture-app',
   requiredScopes: ['read'],
   scopeVersion: 1,
 }
+
+vi.mock('@/lib/credential-groups/scoped-availability', () => ({
+  isScopedCredentialGroupsAvailable: async () => true,
+}))
 
 vi.mock('@/lib/credential-groups/provider-registry', async (importOriginal) => {
   const { getCredentialGroupProviderId } = await import('@/lib/credential-groups/providers')
@@ -69,7 +75,7 @@ const organizationId = generateId()
 const userId = generateId()
 const groupId = generateId()
 const enrollmentId = generateId()
-const invitationToken = generateId()
+let invitationToken = generateId()
 const mcpServerId = generateId()
 const email = `${userId}@example.test`
 
@@ -148,11 +154,18 @@ const rows = () =>
     .from(credential)
     .where(eq(credential.organizationId, organizationId))
 
-const disconnect = (id: string) =>
-  db
+/** Mirrors the disconnect operation, which also invalidates the outstanding invitation token. */
+async function disconnect(id: string) {
+  await db
     .update(credential)
     .set({ managedOauthStatus: 'revoked', revokedAt: new Date() })
     .where(eq(credential.id, id))
+  invitationToken = generateId()
+  await db
+    .update(credentialGroupEnrollment)
+    .set({ invitationTokenHash: sha256Hex(invitationToken) })
+    .where(eq(credentialGroupEnrollment.id, enrollmentId))
+}
 
 beforeAll(async () => {
   await db.insert(user).values({
@@ -190,7 +203,7 @@ beforeAll(async () => {
     managedConnectorId: 'notion',
     name: 'Notion',
     transport: 'streamable-http',
-    url: 'https://mcp.notion.test/mcp',
+    url: 'https://mcp.notion.com/mcp',
     authType: 'oauth',
     oauthConfigVersion: 1,
     enabled: true,
@@ -321,6 +334,22 @@ describe('reconnecting one of several accounts', () => {
 })
 
 describe('after disconnecting', () => {
+  it('does not let reconnecting a disconnected account exceed the limit', async () => {
+    const created = []
+    for (let index = 0; index < 5; index += 1)
+      created.push(await connect(`user-${index}@tenant.test`, { kind: 'create' }))
+    const disconnected = created[0]?.credentialId ?? ''
+    await disconnect(disconnected)
+    await connect('replacement@tenant.test', { kind: 'create' })
+
+    expect(
+      await failureOf(
+        connect('user-0@tenant.test', { kind: 'reconnect', credentialId: disconnected })
+      )
+    ).toBe('account_limit_reached')
+    expect((await rows()).filter((row) => !row.revokedAt)).toHaveLength(5)
+  })
+
   it('lets the member connect a different account', async () => {
     const first = await connect('work@first-tenant.test', { kind: 'create' })
     await disconnect(first.credentialId)
@@ -471,6 +500,59 @@ describe('managed MCP accounts', () => {
   })
 
   describe('with a connection made before accounts were identified', () => {
+    const identifyStored = (result: unknown) => {
+      const call = vi.spyOn(mcpService, 'executeManagedMcpTool').mockImplementation(async () => {
+        if (result instanceof Error) throw result
+        return result as Awaited<ReturnType<typeof mcpService.executeManagedMcpTool>>
+      })
+      return identifyStoredManagedMcpConnections({
+        organizationId,
+        enrollmentId,
+        server: { id: mcpServerId, connectorId: 'notion' },
+      }).finally(() => call.mockRestore())
+    }
+    const notionSelf = (name: string) => ({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            workspace: { id: 'workspace-1', name: 'Fixture' },
+            user: { type: 'person', id: name, email: `${name}@example.test` },
+          }),
+        },
+      ],
+    })
+
+    it('identifies it from its stored tokens so another account can be added directly', async () => {
+      const legacy = await connectMcp(null, { kind: 'create' })
+
+      await identifyStored(notionSelf('one'))
+
+      expect(await mcpRows()).toMatchObject([
+        { id: legacy.connectionId, subject: 'one', displayName: 'one@example.test' },
+      ])
+      await expect(connectMcp(identityOf('two'), { kind: 'create' })).resolves.toMatchObject({
+        created: true,
+      })
+    })
+
+    it('recognizes the same account being added again', async () => {
+      await connectMcp(null, { kind: 'create' })
+      await identifyStored(notionSelf('one'))
+      expect(await failureOf(connectMcp(identityOf('one'), { kind: 'create' }))).toBe(
+        'account_already_connected'
+      )
+    })
+
+    it('keeps the connection unidentified when its tokens no longer work', async () => {
+      await connectMcp(null, { kind: 'create' })
+      await identifyStored(new Error('token expired'))
+      expect(await mcpRows()).toMatchObject([{ subject: null, displayName: 'Notion' }])
+      expect(await failureOf(connectMcp(identityOf('two'), { kind: 'create' }))).toBe(
+        'account_identity_required'
+      )
+    })
+
     it('requires reconnecting it before adding another, then allows both', async () => {
       const legacy = await connectMcp(null, { kind: 'create' })
 
