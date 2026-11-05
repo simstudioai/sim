@@ -825,6 +825,12 @@ async function sidebarChecks() {
         const restore = await startRename()
         await restore.fill(ORGANIZATION_NAME)
         await restore.press('Enter')
+        await expect
+          .poll(
+            async () =>
+              (await sql`select name from organization where id = ${ORGANIZATION_ID}`)[0]?.name
+          )
+          .toBe(ORGANIZATION_NAME)
         await expect(chip).toContainText(ORGANIZATION_NAME)
       })
     }
@@ -2141,16 +2147,48 @@ async function integrationChecks() {
   })
 
   section('3 Generic Secrets')
-  await check('the Generic Secrets page opens in member mode with a way back', async () => {
+  await check('member mode opens the personal editor and keeps q on the way back', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/integrations/secrets?q=sec`))
-      await expect(
-        page
-          .getByRole('link', { name: /Integrations/ })
-          .or(page.getByRole('button', { name: /Back|Integrations/ }))
-          .first()
-      ).toBeVisible()
+      await page.goto(url(`${root}/integrations?q=secret`))
+      const row = page
+        .getByRole('main')
+        .getByRole('link')
+        .filter({ hasText: /Secrets/ })
+      await expect(row).toContainText('Personal secrets')
+      await row.click()
+      await expect(page).toHaveURL(
+        (address) =>
+          address.pathname === `${root}/integrations/secrets` &&
+          address.searchParams.get('q') === 'secret'
+      )
+      await page
+        .getByRole('link', { name: /Integrations/ })
+        .first()
+        .click()
+      await expect(page).toHaveURL(
+        (address) =>
+          address.pathname === `${root}/integrations` && address.searchParams.get('q') === 'secret'
+      )
     })
+  })
+  await check('organization mode lists a read-only view under the organization', async () => {
+    await sql`update organization_secret_source set mode = 'organization' where organization_id = ${ORGANIZATION_ID}`
+    await withSession(MEMBER, async ({ page }) => {
+      await page.goto(url(`${root}/integrations?q=secret`))
+      const row = page
+        .getByRole('region', { name: 'Managed by your organization' })
+        .getByRole('link')
+        .filter({ hasText: /Secrets/ })
+      await expect(row).toContainText('Organization managed')
+      await row.click()
+      await expect(page).toHaveURL(
+        (address) => address.pathname === `${root}/integrations/generic-secrets`
+      )
+      await expect(page.getByRole('heading', { level: 1 })).toContainText('Secrets')
+    }).finally(
+      () =>
+        sql`update organization_secret_source set mode = 'member' where organization_id = ${ORGANIZATION_ID}`
+    )
   })
   notProvable(
     'Slack onboarding ?slack= actions',

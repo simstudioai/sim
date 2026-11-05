@@ -10,6 +10,7 @@ import {
   organization,
   organizationSearchHistory,
   organizationSearchIntegration,
+  organizationSecretSource,
   permissionGroup,
   permissionGroupMember,
   permissions,
@@ -350,6 +351,11 @@ await db.transaction(async (tx) => {
   )
 
   await tx.insert(simLink).values(syntheticLinks())
+  await tx.insert(organizationSecretSource).values({
+    id: 'org-redesign-secret-source',
+    organizationId: ORGANIZATION_ID,
+    mode: 'member',
+  })
 
   const policies = Object.fromEntries(
     await Promise.all(
