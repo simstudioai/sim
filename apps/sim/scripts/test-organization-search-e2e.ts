@@ -1030,7 +1030,8 @@ try {
       await expect(page).toHaveURL((url) => url.pathname === `${root}/home`)
       await expect(page.getByRole('textbox', { name: 'Ask Sim' })).toBeVisible()
       await page.goto(`${baseUrl.origin}${root}/chat/${agentId}`)
-      await expect(page).toHaveURL((url) => url.pathname === `${root}/search`)
+      await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
+      await expect(page.getByRole('textbox', { name: 'Ask Sim' })).toHaveCount(0)
       await page.goto(`${baseUrl.origin}${root}/search/chat/${assistantId}`)
       await expect(page.getByText(answer, { exact: true })).toBeVisible()
     }
@@ -1054,11 +1055,14 @@ try {
     const deniedRecoveries = browserErrorEvents.filter(
       (event) =>
         event.digest === 'NEXT_HTTP_ERROR_FALLBACK;404' &&
-        event.url === `${baseUrl.origin}${root}/search/chat/${deniedChatId}` &&
-        [
-          'Assistant history rejects a chat from another organization',
-          'A streamed denied chat remains navigable after hydration',
-        ].includes(event.stage)
+        ((event.url === `${baseUrl.origin}${root}/search/chat/${deniedChatId}` &&
+          [
+            'Assistant history rejects a chat from another organization',
+            'A streamed denied chat remains navigable after hydration',
+          ].includes(event.stage)) ||
+          (event.url === `${baseUrl.origin}${root}/chat/${agentId}` &&
+            event.stage ===
+              'Search-only members have Home with the Assistant and their history, but no agent chat'))
     )
     const recoveryCount = deniedRecoveries.reduce((total, event) => total + event.count, 0)
     assert.equal(

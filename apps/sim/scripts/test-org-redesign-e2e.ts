@@ -430,21 +430,32 @@ async function landingChecks() {
       ).toBeVisible()
     })
   })
-  await check('an agent chat redirects a member to Search and renders for an admin', async () => {
-    await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(`${root}/chat/${MEMBER_CHATS.agent.id}`))
-      await expect(page).toHaveURL((address) => address.pathname === `${root}/search`)
-      await page.goto(url(`${root}/search/chat/${MEMBER_CHATS.agent.id}`))
-      await expect(page).toHaveURL((address) => address.pathname === `${root}/search`)
-    })
-    await withSession(ADMIN, async ({ page }) => {
-      await page.goto(url(`${root}/search/chat/${ADMIN_CHATS.agent.id}`))
-      await expect(page).toHaveURL(url(`${root}/chat/${ADMIN_CHATS.agent.id}`))
-      await expect(
-        page.getByText(`Here is what I found about ${ADMIN_CHATS.agent.title}.`)
-      ).toBeVisible()
-    })
-  })
+  await check(
+    'an agent chat is not found for a member, stays out of their rail, and renders for an admin',
+    async () => {
+      await withSession(MEMBER, async ({ page }) => {
+        await page.goto(url(`${root}/chat/${MEMBER_CHATS.agent.id}`))
+        await expectPageNotFound(page)
+        await page.goto(url(`${root}/search/chat/${MEMBER_CHATS.agent.id}`))
+        await expectPageNotFound(page)
+        await page.goto(url(`${root}/home`))
+        await expect(
+          sidebar(page).getByRole('link', { name: MEMBER_CHATS.unread.title })
+        ).toBeVisible()
+        await expect(
+          sidebar(page).getByRole('link', { name: MEMBER_CHATS.agent.title })
+        ).toHaveCount(0)
+      })
+      await withSession(ADMIN, async ({ page }) => {
+        await page.goto(url(`${root}/search/chat/${ADMIN_CHATS.agent.id}`))
+        await expect(page).toHaveURL(url(`${root}/chat/${ADMIN_CHATS.agent.id}`))
+        await expect(
+          page.getByText(`Here is what I found about ${ADMIN_CHATS.agent.title}.`)
+        ).toBeVisible()
+      })
+    },
+    { allow: [/404/] }
+  )
   await check(
     'a chat that is not theirs, or in another organization, is not found',
     async () => {
