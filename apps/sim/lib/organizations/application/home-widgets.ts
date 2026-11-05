@@ -34,12 +34,15 @@ import {
   HOME_WIDGET_ACCOUNT_LIMIT,
 } from '@/lib/organizations/home/limits'
 import {
+  type GmailThreadCursor,
+  gmailThreadsStillNeeded,
   type HomeCalendarEvent,
   type HomeCalendarWindow,
   type HomeEmailThread,
   HomeProviderReadError,
   readGmailThreads,
   readGoogleCalendarDay,
+  readMoreGmailThreads,
   readOutlookCalendarDay,
   readOutlookMessages,
 } from '@/lib/organizations/home/provider-reads'
@@ -174,6 +177,13 @@ interface WidgetReadResult<T> {
   rows: (T & { credentialId: string })[]
 }
 
+/** One account's read: which grant it is, and how many accounts this widget read is sharing. */
+interface ViewerAccountRead extends ProviderTokenInput {
+  readableAccounts: number
+}
+
+type ViewerAccountReader<T> = (accessToken: string, account: ViewerAccountRead) => Promise<T[]>
+
 /**
  * Reads the viewer's own accounts for a widget. The account list is scoped to the acting user's
  * enrollments and no input names a credential, so a request cannot reach another member's grant;
@@ -181,7 +191,7 @@ interface WidgetReadResult<T> {
  */
 async function readViewerAccounts<T>(
   context: OrganizationMembershipContext,
-  readers: Partial<Record<CredentialGroupProvider, (accessToken: string) => Promise<T[]>>>
+  readers: Partial<Record<CredentialGroupProvider, ViewerAccountReader<T>>>
 ): Promise<WidgetReadResult<T>> {
   const { organizationId, userId } = context
   const [{ providers: allowed, config }, memberScoped] = await Promise.all([
@@ -243,7 +253,11 @@ async function readViewerAccounts<T>(
       if (!ownedIds.has(credentialId)) return settled('not_offered')
       if (!toRead.has(credentialId)) return settled('not_read')
       try {
-        return settled('ready', await readWithToken({ context, credentialId, providerId }, read))
+        const account = { context, credentialId, providerId, readableAccounts: toRead.size }
+        return settled(
+          'ready',
+          await readWithToken(account, (accessToken) => read(accessToken, account))
+        )
       } catch (error) {
         return settled(failedState(error, { organizationId, credentialId, providerId }))
       }
@@ -255,15 +269,71 @@ async function readViewerAccounts<T>(
   }
 }
 
+interface GmailAccountCursor extends GmailThreadCursor {
+  account: ProviderTokenInput
+}
+
+/**
+ * Completes the merge a per-account budget started, so the rows match reading every thread of every
+ * account: a busy mailbox still fills the list, and a quiet one leaves its share to the others. A
+ * failure here fails the account, as a thread that would not read always has.
+ */
+async function readRemainingGmailThreads(
+  { accounts, rows }: WidgetReadResult<HomeEmailThread>,
+  cursors: Map<string, GmailAccountCursor>,
+  signal: AbortSignal
+) {
+  for (;;) {
+    const needed = gmailThreadsStillNeeded(rows, cursors, HOME_EMAIL_THREAD_LIMIT)
+    if (needed.size === 0) return
+    await Promise.all(
+      [...needed].map(async ([credentialId, count]) => {
+        const cursor = cursors.get(credentialId)
+        if (!cursor) return
+        try {
+          const threads = await readWithToken(cursor.account, (accessToken) =>
+            readMoreGmailThreads({ accessToken, signal, cursor, count })
+          )
+          rows.push(...threads.map((thread) => ({ ...thread, credentialId })))
+        } catch (error) {
+          cursors.delete(credentialId)
+          const { context, providerId } = cursor.account
+          const state = failedState(error, {
+            organizationId: context.organizationId,
+            credentialId,
+            providerId,
+          })
+          for (const account of accounts)
+            if (account.credentialId === credentialId) account.state = state
+          for (let index = rows.length - 1; index >= 0; index--)
+            if (rows[index].credentialId === credentialId) rows.splice(index, 1)
+        }
+      })
+    )
+  }
+}
+
 /** The viewer's latest mail across the email accounts they connected. */
 export const readOrganizationHomeEmail = defineOrganizationAccountsUseCase({
   operation: organizationHomeOperations.readEmail,
   async execute({ context }): Promise<OrganizationHomeEmail> {
     const signal = AbortSignal.timeout(READ_TIMEOUT_MS)
-    const { accounts, rows } = await readViewerAccounts<HomeEmailThread>(context, {
-      gmail: (accessToken) => readGmailThreads({ accessToken, signal }),
+    const cursors = new Map<string, GmailAccountCursor>()
+    const result = await readViewerAccounts<HomeEmailThread>(context, {
+      gmail: async (accessToken, account) => {
+        const { threads, cursor } = await readGmailThreads({
+          accessToken,
+          signal,
+          credentialId: account.credentialId,
+          count: Math.ceil(HOME_EMAIL_THREAD_LIMIT / account.readableAccounts),
+        })
+        cursors.set(account.credentialId, { ...cursor, account })
+        return threads
+      },
       outlook: (accessToken) => readOutlookMessages({ accessToken, signal }),
     })
+    await readRemainingGmailThreads(result, cursors, signal)
+    const { accounts, rows } = result
     return {
       accounts,
       threads: rows
