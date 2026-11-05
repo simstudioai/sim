@@ -26,7 +26,7 @@ import {
 /** A slow read gives up its first-paint seat rather than hold the document; the client fetches it. */
 const PREFETCH_TIMEOUT_MS = 2_000
 
-async function withinBudget<T>(read: Promise<T>): Promise<T> {
+function withinBudget<T>(read: Promise<T>): Promise<T> {
   return Promise.race([
     read,
     sleep(PREFETCH_TIMEOUT_MS).then(() => {
@@ -46,42 +46,41 @@ export async function prefetchHome(
 ): Promise<DehydratedState> {
   const queryClient = makeQueryClient()
   const organizationId = surface.organization.id
+  const input = { organizationId }
+  const seed = <T>(queryKey: readonly unknown[], staleTime: number, read: () => Promise<T>) =>
+    queryClient.prefetchQuery({ queryKey, staleTime, queryFn: read })
   const reads: Promise<void>[] = []
   if (canReadMemberIntegrations(surface)) {
     reads.push(
-      queryClient.prefetchQuery({
-        queryKey: organizationAccountsKeys.detail(organizationId),
-        queryFn: async () =>
+      seed(
+        organizationAccountsKeys.detail(organizationId),
+        ORGANIZATION_ACCOUNTS_STALE_TIME,
+        async () =>
           getOrganizationAccountsContract.response.schema.parse(
-            await withinBudget(
-              getOrganizationAccountsSettings.execute({ principal, input: { organizationId } })
-            )
-          ),
-        staleTime: ORGANIZATION_ACCOUNTS_STALE_TIME,
-      }),
-      queryClient.prefetchQuery({
-        queryKey: searchIntegrationKeys.list(organizationId),
-        queryFn: async () =>
+            await withinBudget(getOrganizationAccountsSettings.execute({ principal, input }))
+          )
+      ),
+      seed(
+        searchIntegrationKeys.list(organizationId),
+        SEARCH_INTEGRATIONS_STALE_TIME,
+        async () =>
           listSearchIntegrationsContract.response.schema.parse({
             success: true,
-            data: await withinBudget(
-              listSearchIntegrations.execute({ principal, input: { organizationId } })
-            ),
-          }).data,
-        staleTime: SEARCH_INTEGRATIONS_STALE_TIME,
-      })
+            data: await withinBudget(listSearchIntegrations.execute({ principal, input })),
+          }).data
+      )
     )
   }
   if (surface.searchAccess.memberScoped) {
     reads.push(
-      queryClient.prefetchQuery({
-        queryKey: searchHistoryKeys.list(organizationId, principal.userId),
-        queryFn: async () =>
+      seed(
+        searchHistoryKeys.list(organizationId, principal.userId),
+        SEARCH_HISTORY_STALE_TIME,
+        async () =>
           listSearchHistoryContract.response.schema.parse(
-            await withinBudget(listSearchHistory.execute({ principal, input: { organizationId } }))
-          ),
-        staleTime: SEARCH_HISTORY_STALE_TIME,
-      })
+            await withinBudget(listSearchHistory.execute({ principal, input }))
+          )
+      )
     )
   }
   await Promise.all(reads)

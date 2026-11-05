@@ -1,5 +1,8 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
+import { registerUserDataReset } from '@/stores/user-data-reset-registry'
+
+const STORAGE_KEY = 'organization-home:v1'
 
 export type OrganizationHomeWidget = 'Activity' | 'Email' | 'Calendar'
 
@@ -7,6 +10,7 @@ interface OrganizationHomeState {
   /** What each viewer hid from Customize Home, keyed by user and organization. */
   hiddenWidgets: Record<string, OrganizationHomeWidget[]>
   setWidgetHidden: (viewer: string, widget: OrganizationHomeWidget, hidden: boolean) => void
+  reset: () => void
 }
 
 export const useOrganizationHomeStore = create<OrganizationHomeState>()(
@@ -24,12 +28,18 @@ export const useOrganizationHomeStore = create<OrganizationHomeState>()(
               },
             }
           }),
+        reset: () => set({ hiddenWidgets: {} }),
       }),
       {
-        name: 'organization-home:v1',
+        name: STORAGE_KEY,
         partialize: (state) => ({ hiddenWidgets: state.hiddenWidgets }),
       }
     ),
     { name: 'organization-home-store' }
   )
 )
+
+registerUserDataReset(STORAGE_KEY, () => {
+  useOrganizationHomeStore.getState().reset()
+  void useOrganizationHomeStore.persist.clearStorage()
+})

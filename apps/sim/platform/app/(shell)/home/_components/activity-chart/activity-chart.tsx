@@ -2,7 +2,10 @@
 
 import { useState } from 'react'
 import styles from '@/platform/app/(shell)/home/_components/activity-chart/activity-chart.module.css'
-import type { HomeActivityState } from '@/platform/app/(shell)/home/_components/model'
+import type {
+  ActivityPoint,
+  HomeActivityState,
+} from '@/platform/app/(shell)/home/_components/model'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { SkeletonBlock } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import { TrendPlot } from '@/platform/design-system/catalog/plots'
@@ -12,18 +15,12 @@ import { ChartTooltip } from '@/platform/design-system/components/chart/chart-to
 import { usePlotInspection } from '@/platform/design-system/components/chart/use-plot-inspection'
 import { RangePicker } from '@/platform/design-system/components/menu/range-picker'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
-import { DAY_MS, formatCalendarDate } from '@/platform/lib/time'
-
-interface ActivityPoint {
-  date: string
-  value: number
-}
+import { formatCalendarDate } from '@/platform/lib/time'
 
 interface HomeActivityChartProps {
   title: string
   state: HomeActivityState
-  onRetry?: () => void
-  hidden?: boolean
+  onRetry: () => void
 }
 
 interface ActivitySeriesProps {
@@ -93,33 +90,13 @@ function ActivitySeries({ title, points }: ActivitySeriesProps) {
 const WINDOW_DAYS = [7, 30, 90] as const
 const RANGE_LABELS = WINDOW_DAYS.map((days) => `Last ${days} days`)
 
-function calendarWindow(history: readonly ActivityPoint[] | undefined, days: number) {
-  if (!history?.length) return []
-  const end = Date.parse(history[history.length - 1].date)
-  const start = Math.max(Date.parse(history[0].date), end - (days - 1) * DAY_MS)
-  const counts = new Map(history.map(({ date, value }) => [date, value]))
-  const points: ActivityPoint[] = []
-  for (let day = start; day <= end; day += DAY_MS) {
-    const date = new Date(day).toISOString().slice(0, 10)
-    const count = counts.get(date) ?? 0
-    points.push({ date, value: Number.isFinite(count) && count > 0 ? count : 0 })
-  }
-  return points
-}
-
-export function HomeActivityChart({
-  title,
-  state,
-  onRetry,
-  hidden = false,
-}: HomeActivityChartProps) {
+export function HomeActivityChart({ title, state, onRetry }: HomeActivityChartProps) {
   const [range, setRange] = useState(RANGE_LABELS[0])
   const scrollEdges = useScrollEdges<HTMLElement>('vertical', { tabStop: true })
-  if (hidden || state.status === 'hidden') return null
+  if (state.status === 'hidden') return null
   const ready = state.status === 'ready'
-  const history = ready ? state.points : undefined
   const days = WINDOW_DAYS[RANGE_LABELS.indexOf(range)]
-  const points = calendarWindow(history, days)
+  const points = ready ? state.points.slice(-days) : []
   const total = points.reduce((sum, point) => sum + point.value, 0)
   return (
     <section ref={scrollEdges} className={styles.chart} aria-label={title}>
@@ -135,7 +112,7 @@ export function HomeActivityChart({
         {ready && (
           <RangePicker
             label='Range'
-            options={history ? RANGE_LABELS : []}
+            options={RANGE_LABELS}
             value={range}
             onValueChange={setRange}
           />

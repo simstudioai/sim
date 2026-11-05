@@ -1,25 +1,27 @@
 'use client'
 
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
+import {
+  isOrganizationSettingsSectionAvailable,
+  resolveOrganizationSectionAccess,
+} from '@/components/settings/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/client'
-import { OAUTH_SEARCH_READ_SCOPE, oauthScopeSatisfies } from '@/lib/auth/oauth-provider'
 import { addCalendarDays, getBrowserTimezone } from '@/lib/core/utils/timezone'
 import {
   canReadMemberIntegrations,
-  hasSearchIntegrationReady,
   memberIntegrationEntries,
 } from '@/lib/credential-groups/member-integrations'
+import { hasSearchIntegrationReady } from '@/lib/credential-groups/search-readiness'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import { organizationSurfaceSettingsNavigation } from '@/app/o/[organizationId]/settings/navigation'
 import { useOrganizationAccessRequests } from '@/hooks/queries/access-requests'
 import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
-import { useAuthorizedApps } from '@/hooks/queries/oauth-provider'
+import { useHasSearchAuthorization } from '@/hooks/queries/oauth-provider'
 import {
   useConnectOrganizationAccount,
   useDisconnectPersonalOrganizationAccount,
@@ -60,6 +62,7 @@ import {
   toEmailItems,
   toHomeConnection,
   toReadAccounts,
+  toReadableProviders,
   toRecentItems,
   toTaskPoints,
   wallClockMinute,
@@ -88,13 +91,9 @@ function currentMinute() {
   return Math.floor(Date.now() / MINUTE_MS) * MINUTE_MS
 }
 
-function serverMinute() {
-  return null
-}
-
-/** The viewer's clock, unknown while rendering on the server so markup never disagrees with it. */
-function useMinuteClock(): number | null {
-  return useSyncExternalStore(subscribeToMinutes, currentMinute, serverMinute)
+/** Home mounts only after hydration, behind the conversation's own gate, so no markup can disagree. */
+function useMinuteClock(): number {
+  return useSyncExternalStore(subscribeToMinutes, currentMinute, currentMinute)
 }
 
 /** An answer about the viewer, which retrying cannot change, unlike a failure or a rate limit. */
@@ -124,7 +123,10 @@ function useHomeIntegrations(organization: OrganizationSurfaceContext) {
     accounts,
     policies,
     entries,
-    readableProviders: accounts.data?.assistantProviders ?? [],
+    readableProviders: toReadableProviders(
+      accounts.data?.assistantProviders ?? [],
+      policies.data ?? []
+    ),
     failure,
     retrying: accounts.isFetching || policies.isFetching,
     retry: () => {
@@ -152,8 +154,6 @@ function useConnectionActions(organizationId: string): Omit<HomeWidgetActions, '
     disconnect: async (credentialId) => {
       await disconnect.mutateAsync({ credentialId, organizationId })
     },
-    disconnectNotice:
-      'Sim will stop reading this account everywhere it is used, including Integrations. You can reconnect anytime.',
   }
 }
 
@@ -184,11 +184,7 @@ function useHomeEmail(
   if (settled?.status === 'error')
     return { state: { status: 'error', retrying: read.isFetching }, retry }
   return {
-    state: settled ?? {
-      status: 'ready',
-      data: toEmailItems(read.data),
-      accounts: accounts.length ? accounts : connection.accounts,
-    },
+    state: settled ?? { status: 'ready', data: toEmailItems(read.data), accounts },
     retry,
   }
 }
@@ -202,18 +198,17 @@ function useHomeCalendar(
   organizationId: string,
   connection: HomeConnection,
   retryConnection: () => void,
-  clock: HomeClock | null,
+  clock: HomeClock,
   selectedDay: string | null,
   timeZone: string,
   hidden: boolean
 ): HomeWidgetRead<HomeCalendarDay> {
-  const date = selectedDay ?? clock?.today ?? null
-  const read = useOrganizationHomeCalendar(organizationId, date ?? '', timeZone, {
-    enabled: connection.status === 'connected' && date !== null && !hidden,
+  const date = selectedDay ?? clock.today
+  const read = useOrganizationHomeCalendar(organizationId, date, timeZone, {
+    enabled: connection.status === 'connected' && !hidden,
   })
   const retry = () => void read.refetch()
   if (connection.status !== 'connected') return { state: connection, retry: retryConnection }
-  if (!date || !clock) return { state: { status: 'loading' }, retry }
   const nowMinute = date === clock.today ? wallClockMinute(clock.nowMs, timeZone) : null
   const ready = (day: HomeCalendarDay, accounts: readonly HomeAccountView[]) => ({
     state: { status: 'ready' as const, data: day, accounts },
@@ -226,43 +221,37 @@ function useHomeCalendar(
   const settled = settleReadAccounts(accounts)
   if (settled?.status === 'error') return withoutData('error', accounts)
   if (settled) return { state: settled, retry }
-  return ready(
-    toCalendarDay(read.data, { date, nowMinute, timeZone }),
-    accounts.length ? accounts : connection.accounts
-  )
+  return ready(toCalendarDay(read.data, { date, nowMinute, timeZone }), accounts)
 }
 
-/** Tasks run, where the settings navigation already lets this viewer open Insights. */
+/** Tasks run, behind the same gates as the settings section that shows them. */
 function useHomeActivity(
   organization: OrganizationSurfaceContext,
-  today: string | null,
+  today: string,
   timeZone: string,
   hidden: boolean
 ): { state: HomeActivityState; retry: () => void } {
-  const allowed = organizationSurfaceSettingsNavigation(
-    organization.viewer.isAdmin,
-    organization.settingsFeatures,
-    {
-      connectedAccounts: organization.connectedAccountsAvailable,
-      search: organization.searchAccess.memberScoped,
-    },
-    false
-  ).some((section) => section.id === 'usage')
+  const allowed =
+    resolveOrganizationSectionAccess({
+      section: 'usage',
+      isTargetOrganizationMember: true,
+      isTargetOrganizationAdmin: organization.viewer.isAdmin,
+    }) !== 'unavailable' &&
+    isOrganizationSettingsSectionAvailable('usage', organization.settingsFeatures)
   const summary = useOrganizationActivitySummary(
     organization.organization.id,
     {
       preset: 'custom',
-      startDate: today ? addCalendarDays(today, 1 - ACTIVITY_DAYS) : undefined,
-      endDate: today ?? undefined,
+      startDate: addCalendarDays(today, 1 - ACTIVITY_DAYS),
+      endDate: today,
       timezone: timeZone,
     },
-    { enabled: allowed && today !== null && !hidden }
+    { enabled: allowed && !hidden }
   )
   const retry = () => void summary.refetch()
   if (!allowed || (summary.error && isRefusal(summary.error)))
     return { state: { status: 'hidden' }, retry }
-  if (summary.data)
-    return { state: { status: 'ready', points: toTaskPoints(summary.data, timeZone) }, retry }
+  if (summary.data) return { state: { status: 'ready', points: toTaskPoints(summary.data) }, retry }
   return {
     state: summary.isError
       ? { status: 'error', retrying: summary.isFetching }
@@ -314,7 +303,7 @@ function useHomeAttention(
       title: chat.name,
       href: chat.mode === 'assistant' ? routes.searchChat(chat.id) : routes.chat(chat.id),
       isUnread: chat.isUnread,
-      updatedAt: chat.updatedAt.toISOString(),
+      updatedAt: chat.updatedAt.getTime(),
     })),
     requests: requests.data?.requests ?? [],
     reconnect,
@@ -351,17 +340,7 @@ function useHomeGetStarted(
   assistant: boolean
 ): HomeGetStartedStep[] {
   const { viewer, connectedAccountsAvailable, searchAccess } = organization
-  const canUseSearchMcp = viewer.canUseSearchMcp && assistant
-  const apps = useAuthorizedApps('', { enabled: canUseSearchMcp })
-  const authorized =
-    apps.data?.pages.some((page) =>
-      page.apps.some((app) => oauthScopeSatisfies(app.scopes, OAUTH_SEARCH_READ_SCOPE))
-    ) ?? false
-  const { hasNextPage, isFetching, isError, fetchNextPage } = apps
-  useEffect(() => {
-    if (canUseSearchMcp && !authorized && hasNextPage && !isFetching && !isError)
-      void fetchNextPage()
-  }, [canUseSearchMcp, authorized, hasNextPage, isFetching, isError, fetchNextPage])
+  const authorized = useHasSearchAuthorization(viewer.canUseSearchMcp && assistant)
 
   if (!assistant || !searchAccess.memberScoped) return []
   const routes = organizationRoutes(organization.organization.id)
@@ -408,8 +387,8 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
   const nowMs = useMinuteClock()
   const [timeZone] = useState(getBrowserTimezone)
   const [selectedDay, setSelectedDay] = useQueryState(homeDayParam.key, homeDayParam.parser)
-  const today = nowMs === null ? null : localDate(new Date(nowMs), timeZone)
-  const clock = nowMs === null || today === null ? null : { nowMs, today }
+  const today = localDate(new Date(nowMs), timeZone)
+  const clock = { nowMs, today }
 
   const integrations = useHomeIntegrations(organization)
   const connectionFor = (sources: typeof HOME_EMAIL_SOURCES) =>
@@ -465,11 +444,10 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
       email: { ...connectionActions, retry: email.retry },
       calendar: { ...connectionActions, retry: calendar.retry },
       openEmail: (mail) => {
-        if (mail.url) window.open(mail.url, '_blank', 'noopener,noreferrer')
+        window.open(mail.url, '_blank', 'noopener,noreferrer')
       },
       changeDay: (delta) => {
-        const base = selectedDay ?? today
-        if (base) showDay(addCalendarDays(base, delta))
+        showDay(addCalendarDays(selectedDay ?? today, delta))
       },
       returnToToday: () => showDay(null),
       retryAttention: attention.retry,

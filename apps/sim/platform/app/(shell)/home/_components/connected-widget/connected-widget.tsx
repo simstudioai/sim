@@ -15,6 +15,9 @@ import { ConnectionPrompt } from '@/platform/design-system/components/connection
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { Modal } from '@/platform/design-system/components/modal/modal'
 
+const DISCONNECT_NOTICE =
+  'Sim will stop reading this account everywhere it is used, including Integrations. You can reconnect anytime.'
+
 const COPY = {
   Email: { icon: 'I005', noun: 'email' },
   Calendar: { icon: 'I088', noun: 'calendar' },
@@ -31,7 +34,7 @@ interface ConnectedWidgetProps<T> {
 interface AccountNoticesProps {
   accounts: readonly HomeAccountView[]
   onReconnect?: (accountId: string) => void
-  onRetry?: () => void
+  onRetry: () => void
 }
 
 /** The accounts that did not contribute, listed above the ones that did. */
@@ -179,9 +182,9 @@ export function ConnectedWidget<T>({
         title={`Disconnect ${several && disconnecting ? disconnecting.label : title}?`}
         confirmLabel='Disconnect'
         destructive
-        description={actions.disconnectNotice}
+        description={DISCONNECT_NOTICE}
         onConfirm={async () => {
-          if (disconnecting) await actions.disconnect?.(disconnecting.id)
+          if (disconnecting) await actions.disconnect(disconnecting.id)
         }}
       />
     </HomeSection>

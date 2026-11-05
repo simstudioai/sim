@@ -1,15 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { cn } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import { HomeSection } from '@/components/home/home-section'
 import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
-import { OAUTH_SEARCH_READ_SCOPE, oauthScopeSatisfies } from '@/lib/auth/oauth-provider'
-import { hasSearchIntegrationReady } from '@/lib/credential-groups/member-integrations'
+import { hasSearchIntegrationReady } from '@/lib/credential-groups/search-readiness'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import { useAuthorizedApps } from '@/hooks/queries/oauth-provider'
+import { useHasSearchAuthorization } from '@/hooks/queries/oauth-provider'
 import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 
@@ -80,17 +79,8 @@ export function GetStarted() {
   const { data: integrations } = useSearchIntegrations(organization.id, {
     enabled: canConnectIntegrations,
   })
-  const {
-    data: authorizedApps,
-    fetchNextPage,
-    hasNextPage,
-    isFetching,
-    isError,
-  } = useAuthorizedApps('', { enabled: viewer.canUseSearchMcp })
-  const hasSearchAuthorization =
-    authorizedApps?.pages.some((page) =>
-      page.apps.some((app) => oauthScopeSatisfies(app.scopes, OAUTH_SEARCH_READ_SCOPE))
-    ) ?? false
+  const hasSearchAuthorization = useHasSearchAuthorization(viewer.canUseSearchMcp)
+
   const hrefs: Record<StepId, string> = {
     'connect-integration': viewer.isAdmin
       ? routes.settingsSection('integrations')
@@ -113,25 +103,6 @@ export function GetStarted() {
    * above it.
    */
   const [animationsEnabled, setAnimationsEnabled] = useState(false)
-
-  useEffect(() => {
-    if (
-      viewer.canUseSearchMcp &&
-      !hasSearchAuthorization &&
-      hasNextPage &&
-      !isFetching &&
-      !isError
-    ) {
-      void fetchNextPage()
-    }
-  }, [
-    viewer.canUseSearchMcp,
-    hasSearchAuthorization,
-    hasNextPage,
-    isFetching,
-    isError,
-    fetchNextPage,
-  ])
 
   const handleToggleExpanded = () => {
     setAnimationsEnabled(true)

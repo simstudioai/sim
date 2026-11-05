@@ -21,14 +21,13 @@ interface PrefetchedHomeProps {
   surface: OrganizationSurfaceContext
   principal: SessionPrincipal
   requestMode: 'agent' | 'assistant'
-  userName: string
 }
 
 /** Holds only its own boundary, so the page's arrangement paints before these reads settle. */
-async function PrefetchedHome({ surface, principal, requestMode, userName }: PrefetchedHomeProps) {
+async function PrefetchedHome({ surface, principal, requestMode }: PrefetchedHomeProps) {
   return (
     <HydrationBoundary state={await prefetchHome(surface, principal)}>
-      <HomeConversation requestMode={requestMode} userName={userName} />
+      <HomeConversation requestMode={requestMode} />
     </HydrationBoundary>
   )
 }
@@ -53,7 +52,6 @@ export default async function OrganizationHomePage({
         surface={context}
         principal={{ kind: 'session', userId: session.user.id, sessionId: session.session.id }}
         requestMode={requestMode}
-        userName={session.user.name}
       />
     </Suspense>
   )

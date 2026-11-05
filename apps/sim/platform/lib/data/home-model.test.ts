@@ -7,13 +7,16 @@
  * a meeting placed by UTC rather than the viewer's clock, and a day's edge wrapping around.
  */
 import { describe, expect, it } from 'vitest'
+import type { SearchIntegrationStatus } from '@/lib/api/contracts/knowledge/search-integrations'
 import type { MemberIntegration } from '@/lib/credential-groups/member-integrations'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
+import { defaultLiveSearchPolicy, type LiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import {
   HOME_EMAIL_SOURCES,
   settleReadAccounts,
   toCalendarDay,
   toHomeConnection,
+  toReadableProviders,
 } from '@/platform/lib/data/home-model'
 
 function entry(provider: string, overrides: Partial<MemberIntegration>): MemberIntegration {
@@ -90,6 +93,26 @@ describe('where a widget stands', () => {
     expect(connection(inventory, true, ['slack']).status).toBe('not_offered')
   })
 
+  it('shows nothing connected on a provider the viewer’s permission group cannot read', () => {
+    const reauth = entry('gmail', {
+      accounts: [account('a', 'needs_reauth')],
+      reconnectAccountIds: ['a'],
+    })
+    expect(connection([reauth], true, ['slack']).status).toBe('not_offered')
+  })
+
+  it('offers a readable provider beside one the permission group took away', () => {
+    const state = connection(
+      [
+        entry('outlook', { accounts: [account('a', 'active')], reconnectAccountIds: ['a'] }),
+        entry('gmail', { connectionTarget: { optionId: 'gmail-option' } }),
+      ],
+      true,
+      ['gmail']
+    )
+    expect(state).toMatchObject({ status: 'not_connected', options: [{ id: 'gmail-option' }] })
+  })
+
   it('leads with Google and keeps an approved Outlook as the second choice', () => {
     const state = connection([
       entry('outlook', { connectionTarget: { optionId: 'outlook-option' } }),
@@ -116,6 +139,27 @@ describe('where a widget stands', () => {
         entry('outlook', { accounts: [account('b', 'active')], reconnectAccountIds: ['b'] }),
       ]).status
     ).toBe('connected')
+  })
+})
+
+describe('which providers a widget can read', () => {
+  const status = (connectorType: string, policy: Partial<LiveSearchPolicy>) =>
+    ({
+      connectorType,
+      policy: { ...defaultLiveSearchPolicy(connectorType), ...policy },
+    }) as SearchIntegrationStatus
+
+  it('keeps a provider whose source has no content boundary', () => {
+    expect(toReadableProviders(['gmail', 'slack'], [status('gmail', {})])).toEqual([
+      'gmail',
+      'slack',
+    ])
+  })
+
+  it('drops a provider whose source restricts content, which a direct read would sidestep', () => {
+    expect(
+      toReadableProviders(['gmail', 'outlook'], [status('gmail', { excludePromotions: true })])
+    ).toEqual(['outlook'])
   })
 })
 

@@ -9,15 +9,13 @@ const HOME_ASSISTANT_DRAFT_ID = 'home-assistant'
 
 interface HomeConversationProps {
   requestMode: 'agent' | 'assistant'
-  userName?: string
 }
 
 /** The real conversation, landing on the dashboard until the first turn takes over. */
-export function HomeConversation({ requestMode, userName }: HomeConversationProps) {
+export function HomeConversation({ requestMode }: HomeConversationProps) {
   return (
     <OrganizationConversation
       requestMode={requestMode}
-      userName={userName}
       draftId={requestMode === 'assistant' ? HOME_ASSISTANT_DRAFT_ID : undefined}
       landing={{
         fallback: <HomeDashboardSkeleton requestMode={requestMode} />,

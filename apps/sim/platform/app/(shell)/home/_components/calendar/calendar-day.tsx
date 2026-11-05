@@ -22,7 +22,7 @@ interface CalendarDayProps {
   calendar: HomeCalendarDay
   onDayChange: (delta: number) => void
   onReturnToToday: () => void
-  onRetry?: () => void
+  onRetry: () => void
 }
 
 function externalUrl(url: string | undefined) {

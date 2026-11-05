@@ -19,12 +19,12 @@ import { formatRelativeTime } from '@/platform/lib/time'
 
 interface EmailListProps {
   items: readonly EmailItem[]
-  asOf: number | null
+  asOf: number
   onOpen: (mail: EmailItem) => void
 }
 
-function relativeTime(at: number | undefined, asOf: number | null) {
-  return at === undefined || asOf === null ? undefined : formatRelativeTime(at, asOf)
+function relativeTime(at: number | undefined, asOf: number) {
+  return at === undefined ? undefined : formatRelativeTime(at, asOf)
 }
 
 export function EmailList({ items, asOf, onOpen }: EmailListProps) {
@@ -36,7 +36,7 @@ export function EmailList({ items, asOf, onOpen }: EmailListProps) {
           {items.map((mail) => (
             <ActivityRow
               key={mail.id}
-              leading={<Avatar size='inline' name={mail.sender} src={mail.avatar} />}
+              leading={<Avatar size='inline' name={mail.sender} />}
               title={mail.sender}
               count={mail.count}
               detailLead={mail.subject}
@@ -53,8 +53,8 @@ export function EmailList({ items, asOf, onOpen }: EmailListProps) {
 
 interface AttentionListProps {
   state: HomeListState<AttentionItem>
-  asOf: number | null
-  onRetry?: () => void
+  asOf: number
+  onRetry: () => void
 }
 
 export function AttentionList({ state, asOf, onRetry }: AttentionListProps) {
@@ -68,50 +68,42 @@ export function AttentionList({ state, asOf, onRetry }: AttentionListProps) {
           action={<RetryButton retrying={state.retrying} onRetry={onRetry} />}
         />
       )}
-      {state.status === 'ready' && state.partial && (
-        <InlineNotice
-          intent='warning'
-          message='Some items could not load.'
-          action={<RetryButton onRetry={onRetry} />}
-        />
-      )}
-      {state.status === 'ready' &&
-        (state.items.length ? (
-          <div className={styles.viewport}>
-            <ScrollArea label='Attention requests'>
-              <ul className={styles.entries}>
-                {state.items.map((row) =>
-                  row.onOpen ? (
-                    <ActivityRow
-                      key={row.id}
-                      leading={<Icon name={row.icon} />}
-                      title={row.title}
-                      detail={row.detail}
-                      metadata={relativeTime(row.occurredAt, asOf)}
-                      onOpen={row.onOpen}
-                    />
-                  ) : (
-                    <ActivityRow
-                      key={row.id}
-                      leading={<Icon name={row.icon} />}
-                      title={row.title}
-                      detail={row.detail}
-                      metadata={relativeTime(row.occurredAt, asOf)}
-                      href={row.href}
-                    />
-                  )
-                )}
-              </ul>
-            </ScrollArea>
-          </div>
-        ) : (
-          !state.partial && (
-            <EmptyState
-              title='You’re all caught up'
-              description='Reviews and requests will appear here.'
+      {state.status === 'ready' && (
+        <>
+          {state.partial && (
+            <InlineNotice
+              intent='warning'
+              message='Some items could not load.'
+              action={<RetryButton onRetry={onRetry} />}
             />
-          )
-        ))}
+          )}
+          {state.items.length > 0 ? (
+            <div className={styles.viewport}>
+              <ScrollArea label='Attention requests'>
+                <ul className={styles.entries}>
+                  {state.items.map((row) => (
+                    <ActivityRow
+                      key={row.id}
+                      leading={<Icon name={row.icon} />}
+                      title={row.title}
+                      detail={row.detail}
+                      metadata={relativeTime(row.occurredAt, asOf)}
+                      {...(row.onOpen ? { onOpen: row.onOpen } : { href: row.href })}
+                    />
+                  ))}
+                </ul>
+              </ScrollArea>
+            </div>
+          ) : (
+            !state.partial && (
+              <EmptyState
+                title='You’re all caught up'
+                description='Reviews and requests will appear here.'
+              />
+            )
+          )}
+        </>
+      )}
     </HomeSection>
   )
 }

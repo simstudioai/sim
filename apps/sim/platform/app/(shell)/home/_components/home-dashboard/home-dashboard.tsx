@@ -20,7 +20,11 @@ import { ActionMenu, Icon, InlineNotice, RecentItems } from '@/platform/design-s
 import type { OrganizationHomeWidget } from '@/stores/organization-home/store'
 
 const WIDGETS: readonly OrganizationHomeWidget[] = ['Activity', 'Email', 'Calendar']
-const ACTIVITY_TITLE = 'Tasks run'
+const WIDGET_LABELS: Record<OrganizationHomeWidget, string> = {
+  Activity: 'Tasks run',
+  Email: 'Email',
+  Calendar: 'Calendar',
+}
 
 const COMPOSER_PROMPTS: Record<ChatRequestMode, string> = {
   agent: 'What should we get done?',
@@ -32,23 +36,13 @@ interface HomeDashboardProps {
   view: HomeView
   actions: HomeActions
   requestMode: ChatRequestMode
-  /** The real composer. It sits between surfaces: legacy chrome never renders inside one. */
+  /** The real composer and its shortcuts. They sit between surfaces: legacy chrome never renders inside one. */
   composer: ReactNode
-  /** Legacy shortcuts for the mode, under the composer for the same reason. */
-  shortcuts?: ReactNode
 }
 
-export function HomeDashboard({
-  view,
-  actions,
-  requestMode,
-  composer,
-  shortcuts,
-}: HomeDashboardProps) {
+export function HomeDashboard({ view, actions, requestMode, composer }: HomeDashboardProps) {
   const { notify, dismiss } = usePlatformNotices()
   const { activity, hiddenWidgets } = view
-  const widgetLabel = (widget: OrganizationHomeWidget) =>
-    widget === 'Activity' ? ACTIVITY_TITLE : widget
   const customizable = WIDGETS.filter(
     (widget) => widget !== 'Activity' || activity.status !== 'hidden'
   )
@@ -60,7 +54,7 @@ export function HomeDashboard({
     } else {
       notify({
         id,
-        title: `${widgetLabel(widget)} hidden`,
+        title: `${WIDGET_LABELS[widget]} hidden`,
         icon: 'I072',
         action: 'Undo',
         onAction: () => actions.setWidgetHidden(widget, false),
@@ -86,7 +80,7 @@ export function HomeDashboard({
                 align='end'
                 actions={customizable.map((widget) => ({
                   id: widget,
-                  label: widgetLabel(widget),
+                  label: WIDGET_LABELS[widget],
                   checked: !hiddenWidgets.includes(widget),
                   onSelect: () => setVisible(widget, hiddenWidgets.includes(widget)),
                 }))}
@@ -99,7 +93,6 @@ export function HomeDashboard({
         </RedesignSurface>
         <section className={styles.composer} aria-label='Start a conversation'>
           {composer}
-          {shortcuts}
         </section>
         <RedesignSurface>
           <div className={styles.sections}>
@@ -125,12 +118,13 @@ export function HomeDashboard({
             {view.getStarted.length > 0 && <GetStarted steps={view.getStarted} />}
             <div className={styles.columns}>
               <div className={styles.column}>
-                <HomeActivityChart
-                  title={ACTIVITY_TITLE}
-                  state={activity}
-                  onRetry={actions.retryActivity}
-                  hidden={hiddenWidgets.includes('Activity')}
-                />
+                {!hiddenWidgets.includes('Activity') && (
+                  <HomeActivityChart
+                    title={WIDGET_LABELS.Activity}
+                    state={activity}
+                    onRetry={actions.retryActivity}
+                  />
+                )}
                 {!hiddenWidgets.includes('Email') && (
                   <ConnectedWidget
                     title='Email'

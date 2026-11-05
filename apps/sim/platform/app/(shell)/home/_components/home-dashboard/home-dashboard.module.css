@@ -19,8 +19,7 @@
   padding-block: 4rem 1.5rem;
 }
 /* The host page's canvas shows through, so the composer's row does not read as a band. */
-.dashboard > [data-platform-ui],
-.composer > [data-platform-ui] {
+.dashboard > [data-platform-ui] {
   background: transparent;
 }
 /* Customize Home's menu opens over the composer, whose own stacking stays within its row. */

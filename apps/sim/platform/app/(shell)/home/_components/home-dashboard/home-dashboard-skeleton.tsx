@@ -20,12 +20,12 @@ export function HomeDashboardSkeleton({ requestMode }: HomeDashboardSkeletonProp
             <div className={styles.placeholderWordmark} />
           </div>
         </RedesignSurface>
-        <div className={styles.composer}>
-          <RedesignSurface>
+        <RedesignSurface>
+          <div className={styles.composer}>
             <div className={styles.placeholderComposer} data-mode={requestMode} />
             {requestMode === 'agent' && <div className={styles.placeholderSuggestedActions} />}
-          </RedesignSurface>
-        </div>
+          </div>
+        </RedesignSurface>
         <RedesignSurface>
           <div className={styles.sections}>
             <SkeletonLane label='Loading recents' />
