@@ -17,6 +17,7 @@ vi.mock('@/lib/organizations/surface', () => ({
 import {
   resolveAppEntryPath,
   resolveOrganizationEntryPath,
+  resolveRolledOutOrganizationId,
 } from '@/lib/navigation/resolve-app-entry'
 
 const mockSearchAvailable = knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable
@@ -67,5 +68,19 @@ describe('resolveOrganizationEntryPath', () => {
     mockSearchAvailable.mockResolvedValue(false)
 
     await expect(resolveOrganizationEntryPath({ user: { id: 'viewer' } })).resolves.toBeNull()
+  })
+})
+
+describe('resolveRolledOutOrganizationId', () => {
+  beforeEach(() => {
+    mockSearchAvailable.mockResolvedValue(true)
+  })
+
+  it('names the organization only when its surface would keep the viewer', async () => {
+    mockResolveOrganizationLanding.mockResolvedValue('org-1')
+    await expect(resolveRolledOutOrganizationId({ user: { id: 'viewer' } })).resolves.toBe('org-1')
+
+    mockSearchAvailable.mockResolvedValue(false)
+    await expect(resolveRolledOutOrganizationId({ user: { id: 'viewer' } })).resolves.toBeNull()
   })
 })
