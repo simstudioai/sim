@@ -30,6 +30,8 @@ const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; e
 const secretReveal = renderToStaticMarkup(
   createElement(SecretReveal, { value: 'SECRET_REVEAL_SENTINEL' })
 )
+let linksChecks = 0
+let shortHostVisits = 0
 const fixture = Bun.serve({
   hostname: '127.0.0.1',
   port: 0,
@@ -39,8 +41,14 @@ const fixture = Bun.serve({
       return new Response('Fixture session created', {
         headers: { 'set-cookie': 'fixture-session=present; Path=/; HttpOnly; SameSite=Lax' },
       })
-    if (url.pathname === SIM_LINK_SUGGESTIONS_PATH)
-      return Response.json({ enabled: true, links: [] })
+    if (url.pathname === SIM_LINK_SUGGESTIONS_PATH) {
+      linksChecks += 1
+      return Response.json({
+        enabled: request.headers.get('cookie')?.includes('fixture-session=present') === true,
+        links: [],
+      })
+    }
+    if (url.pathname === '/sim/') shortHostVisits += 1
     if (url.pathname === '/extension')
       return new Response(
         `<!doctype html><html><body>
@@ -212,22 +220,14 @@ try {
   const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'))
   context.setDefaultTimeout(15_000)
   const extensionId = worker.url().split('/')[2]
-  await check('Installing visits each short host in tabs that close themselves', async () => {
-    await expect
-      .poll(
-        () =>
-          worker.evaluate(
-            async () =>
-              typeof (await chrome.storage.local.get('shortHostsVisitedAt')).shortHostsVisitedAt
-          ),
-        { timeout: 30_000 }
-      )
-      .toBe('number')
-    const leftBehind = await worker.evaluate(
-      async (simLinks) => (await chrome.tabs.query({ url: simLinks })).length,
-      ['http://go/*', 'http://sim/*', `${origin}/sim*`]
+  const shortHostsVisitedAt = () =>
+    worker.evaluate(
+      async () => typeof (await chrome.storage.local.get('shortHostsVisitedAt')).shortHostsVisitedAt
     )
-    assert(leftBehind === 0, 'Short host tabs were left open')
+  await check('Installing signed out leaves go/ and sim/ as ordinary searches', async () => {
+    await expect.poll(() => linksChecks, { timeout: 30_000 }).toBeGreaterThan(0)
+    assert((await shortHostsVisitedAt()) === 'undefined', 'Visits were recorded while signed out')
+    assert(shortHostVisits === 0, 'Short hosts were visited while signed out')
   })
   const signIn = await context.newPage()
   await signIn.goto(`${origin}/sign-in`)
@@ -523,6 +523,18 @@ try {
     )
     await page.reload()
   })
+  await check(
+    'A signed-in panel visits each short host in tabs that close themselves',
+    async () => {
+      await expect.poll(shortHostsVisitedAt, { timeout: 30_000 }).toBe('number')
+      assert(shortHostVisits === SIM_LINK_HOSTS.length, `Visited ${shortHostVisits} short hosts`)
+      const leftBehind = await worker.evaluate(
+        async (simLinks) => (await chrome.tabs.query({ url: simLinks })).length,
+        ['http://go/*', 'http://sim/*', `${origin}/sim/`]
+      )
+      assert(leftBehind === 0, 'Short host tabs were left open')
+    }
+  )
   await check(
     'An expired toolbar intent asks for a fresh capture without delivering content',
     async () => {

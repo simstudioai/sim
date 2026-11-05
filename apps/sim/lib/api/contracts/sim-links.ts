@@ -6,7 +6,7 @@ import {
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
-import { SIM_LINK_SORTS, simLinkFieldsSchema, simLinkNameSchema } from '@/lib/sim-links/validation'
+import { SIM_LINK_SORTS, simLinkFieldsSchema } from '@/lib/sim-links/validation'
 import { SORT_DIRECTIONS } from '@/lib/url-state'
 
 const params = z.object({ id: organizationIdSchema })

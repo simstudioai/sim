@@ -13,7 +13,13 @@ import {
   SiteAccessRequiredError,
   UnreadableSelectionError,
 } from '@/capture'
-import { CAPTURE_INTENT_KEY, CAPTURE_INTENT_TTL_MS, REFERENCE_PAGE_KEY, SIM_ORIGIN } from '@/config'
+import {
+  CAPTURE_INTENT_KEY,
+  CAPTURE_INTENT_TTL_MS,
+  REFERENCE_PAGE_KEY,
+  SIM_ORIGIN,
+  VISIT_SHORT_HOSTS_MESSAGE,
+} from '@/config'
 import { type CaptureIntent, captureIntentSchema } from '@/intent'
 import { createReferenceCapture, PAGE_ATTACHMENT_PENDING_MESSAGE } from '@/reference'
 import { SearchRecoveryDialog } from '@/search-recovery-dialog'
@@ -329,6 +335,7 @@ function SidePanel({ origin }: SidePanelProps) {
         applyTheme()
       } else if (parsed.data.type === 'ready') {
         void connect(parsed.data.sessionId)
+        void chrome.runtime.sendMessage(VISIT_SHORT_HOSTS_MESSAGE).catch(() => undefined)
       } else if (parsed.data.sessionId !== sessionRef.current) {
         return
       } else if (parsed.data.type === 'unavailable') {
