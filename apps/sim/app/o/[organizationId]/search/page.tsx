@@ -4,8 +4,8 @@ import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
-import { OrganizationSearch } from '@/app/o/[organizationId]/search/search'
 import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
+import { OrganizationSearchSurface } from '@/platform/app/(shell)/search/_components/search-surface/search-surface'
 
 export const metadata: Metadata = { title: 'Search' }
 
@@ -22,7 +22,7 @@ export default async function OrganizationSearchPage({
   if (!context.searchAccess.memberScoped) redirect(WORKSPACE_SETTINGS_PATH)
   return (
     <Suspense fallback={<HomeFallback />}>
-      <OrganizationSearch userId={session.user.id} />
+      <OrganizationSearchSurface userId={session.user.id} />
     </Suspense>
   )
 }
