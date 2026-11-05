@@ -2,6 +2,13 @@ import { expect, type Locator, test } from '@playwright/test'
 
 const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
 
+test.use({
+  launchOptions: {
+    ignoreDefaultArgs: ['--hide-scrollbars'],
+    args: ['--disable-features=OverlayScrollbar'],
+  },
+})
+
 async function expectSidebarInsets(sidebar: Locator) {
   const scroll = sidebar.getByRole('region', { name: 'Platform navigation' })
   const [frame, header, navigation, footer] = await Promise.all([
@@ -37,6 +44,11 @@ test('the sidebar keeps its reading position across route changes and a Settings
   const sidebar = page.getByRole('complementary', { name: 'Platform sidebar' })
   const nav = sidebar.getByRole('region', { name: 'Platform navigation' })
   await expect(nav).toHaveAttribute('data-edges', 'end')
+  expect(
+    await nav.evaluate((element) => element.getBoundingClientRect().width - element.clientWidth)
+  ).toBe(0)
+  await nav.press('PageDown')
+  await expect.poll(() => nav.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
   const row = nav.getByRole('region', { name: 'Chats', exact: true }).getByRole('link').last()
   await row.scrollIntoViewIfNeeded()
   const offset = await nav.evaluate((element) => element.scrollTop)

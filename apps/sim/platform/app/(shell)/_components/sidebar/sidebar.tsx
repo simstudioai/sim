@@ -85,7 +85,7 @@ export function Sidebar({
         }}
       >
         <Activity mode={settings ? 'hidden' : 'visible'}>
-          <ScrollArea label='Platform navigation'>
+          <ScrollArea label='Platform navigation' hideScrollbar>
             <nav className={styles.nav} aria-label='Main navigation'>
               <div className={styles.group}>
                 {destinations
@@ -120,7 +120,7 @@ export function Sidebar({
           </ScrollArea>
         </Activity>
         {settings && (
-          <ScrollArea label='Settings navigation'>
+          <ScrollArea label='Settings navigation' hideScrollbar>
             <SettingsNavigation
               section={settingsSection}
               organization={data?.organization.name}

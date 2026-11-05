@@ -139,31 +139,30 @@ test('Home fills the available chart column and keeps calendar day controls on t
   }
 })
 
-test('scrolling Home leaves the composer accessible where the drawer opener was resting', async ({
+test('the sidebar opener stays in place while Home scrolls and keeps its reading position', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 700 })
   await page.goto(`${populated}/home?state=full`)
   const home = page.getByRole('region', { name: 'Home dashboard' })
   const opener = page.getByRole('button', { name: 'Expand sidebar' })
-  const attachment = page.getByRole('button', { name: 'Add attachment' })
-  const [navigation, button] = await Promise.all([opener.boundingBox(), attachment.boundingBox()])
-  if (!navigation || !button)
-    throw new Error('The navigation and attachment controls must be visible')
-  await home.evaluate(
-    (el, offset) => {
-      el.scrollTop = offset
-    },
-    button.y + button.height / 2 - navigation.y - navigation.height / 2
-  )
-  await page.mouse.click(button.x + button.width / 4, navigation.y + navigation.height / 2)
-  await expect(page.getByRole('menuitem', { name: 'Upload files' })).toBeVisible()
-  await page.keyboard.press('Escape')
-  await home.evaluate((el) => {
-    el.scrollTop = 0
+  await expect(opener).toBeVisible()
+  const resting = await opener.boundingBox()
+  if (!resting) throw new Error('The sidebar opener must be visible')
+  const offset = await home.evaluate((el) => {
+    el.scrollTop = el.clientHeight / 2
+    return el.scrollTop
   })
-  await opener.click()
+  expect(offset).toBeGreaterThan(0)
+  await expect(home).toHaveAttribute('data-edges', 'both')
+  expect(await opener.boundingBox()).toEqual(resting)
+  await page.mouse.click(resting.x + resting.width / 2, resting.y + resting.height / 2)
   await expect(page.getByRole('dialog', { name: 'Navigation drawer' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(opener).toBeFocused()
+  expect(await home.evaluate((el) => el.scrollTop)).toBe(offset)
+  await page.getByRole('button', { name: 'Add attachment' }).click()
+  await expect(page.getByRole('menuitem', { name: 'Upload files' })).toBeVisible()
 })
 
 test('clipped mail fades sideways inside the scrolling Home dashboard', async ({ page }) => {
