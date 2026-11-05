@@ -287,6 +287,7 @@ case "$group" in
     app_server=start
     export REDIS_URL=redis://127.0.0.1:6379
     export E2E_APP_PUBLIC_URL=http://org-redesign.sim.ai:3029
+    export NEXT_PUBLIC_APP_URL="$E2E_APP_PUBLIC_URL"
     export INTERNAL_API_BASE_URL=http://127.0.0.1:3029 TRUSTED_ORIGINS=http://127.0.0.1:3029
     export NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:3030 SOCKET_SERVER_URL=http://127.0.0.1:3030
     export BILLING_ENABLED=true NEXT_PUBLIC_BILLING_ENABLED=true
