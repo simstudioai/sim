@@ -10,7 +10,7 @@ export interface ManagedMcpAccountIdentity {
 
 /** An address only counts in text when a label names it as the signed-in account. */
 const LABELED_EMAIL_IN_TEXT =
-  /(?:e-?mail|signed in as|logged in as)[\s*_`"':=]*([a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z][a-z0-9-]+)/gi
+  /(?:e-?mail|signed in as|logged in as)[\s*`"':=]*([a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z][a-z0-9-]+)/gi
 
 function responseText(result: McpToolResult) {
   return (result.content ?? [])

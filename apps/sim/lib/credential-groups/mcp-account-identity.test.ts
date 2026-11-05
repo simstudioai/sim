@@ -68,6 +68,7 @@ describe('reading the connected account from a provider response', () => {
     ['sentence punctuation', 'Signed in as pat@example.test.', 'pat@example.test'],
     ['markdown', '**Email:** **pat@example.test**', 'pat@example.test'],
     ['a punycode domain', 'email: pat@example.xn--p1ai', 'pat@example.xn--p1ai'],
+    ['a leading underscore', 'email: _pat@example.test', '_pat@example.test'],
   ])('reads a labeled email in text despite %s', (_name, value, subject) => {
     expect(readManagedMcpAccountIdentity('granola', text(value))).toMatchObject({ subject })
   })
