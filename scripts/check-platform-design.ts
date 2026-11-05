@@ -122,6 +122,21 @@ for (const [owner, props] of Object.entries(variants)) {
   }
 }
 
+const dataSeam = 'platform/lib/data/'
+/** Everything under these may cross into the data seam; each wraps a contract or its hook. */
+const seamRoots = ['hooks/queries', 'lib/api']
+/** Named pure helpers the seam needs. Their import closures reach no `@/app` or `@/components`. */
+const seamHelpers = new Set([
+  'hooks/use-seed-deployment-shape',
+  'lib/auth/browser-storage',
+  'lib/auth/client',
+  'lib/auth/session-context',
+  'lib/core/config/env',
+  'lib/core/config/public-env',
+  'lib/core/utils/urls',
+  'lib/navigation/paths',
+])
+const seamPackages = /^@sim\/(?:utils|logger)(?:\/|$)/
 function resolveImport(file: string, specifier: string) {
   if (specifier.startsWith('@/')) return path.normalize(specifier.slice(2))
   if (specifier.startsWith('.')) return path.normalize(path.join(path.dirname(file), specifier))
@@ -163,18 +178,28 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
   }
   if (targetOwner) {
     const gallery = file.startsWith('platform/preview/')
-    const fixtureContract = typesOnly && file.startsWith('platform/fixtures/')
-    if (!file.startsWith(targetOwner) && !gallery && !fixtureContract)
+    const dataContract =
+      typesOnly && (file.startsWith('platform/fixtures/') || file.startsWith(dataSeam))
+    if (!file.startsWith(targetOwner) && !gallery && !dataContract)
       report('private-composition', file, `Promote ${specifier} before using it outside its route`)
   }
   const workbenchDependency = target && /^platform\/(preview|app\/workbench)(?:\/|$)/.test(target)
   const workbenchConsumer = /^(?:platform\/preview|platform\/app\/workbench)\//.test(file)
   if (inPlatform && workbenchDependency && !workbenchConsumer)
     report('workbench-dependency', file, 'Only the workbench may import its tooling')
+  const inSeam = file.startsWith(dataSeam)
+  const seamTarget =
+    inSeam &&
+    target !== null &&
+    (seamHelpers.has(target) ||
+      seamRoots.some((root) => target === root || target.startsWith(`${root}/`)))
   if (
-    (target && (target === 'platform' || target.startsWith(platform)) !== inPlatform) ||
+    (target &&
+      (target === 'platform' || target.startsWith(platform)) !== inPlatform &&
+      !seamTarget) ||
     (inPlatform &&
       /^@sim\/(?!utils(?:\/|$))/.test(specifier) &&
+      !(inSeam && seamPackages.test(specifier)) &&
       !(
         file === 'platform/app/(shell)/_components/desktop/desktop-host.tsx' &&
         specifier === '@sim/desktop-bridge'

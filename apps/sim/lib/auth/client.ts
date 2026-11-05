@@ -11,9 +11,9 @@ import {
 } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
 import type { auth } from '@/lib/auth'
+import { SessionContext, type SessionHookResult } from '@/lib/auth/session-context'
 import { isBillingEnabled, isOrganizationsEnabled, isSsoEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl, getBrowserOrigin } from '@/lib/core/utils/urls'
-import { SessionContext, type SessionHookResult } from '@/app/_shell/providers/session-provider'
 
 function getAuthBaseUrl(): string {
   return getBrowserOrigin() ?? getBaseUrl()

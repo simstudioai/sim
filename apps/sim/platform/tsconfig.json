@@ -1,10 +1,14 @@
 {
   "extends": "@sim/tsconfig/nextjs.json",
   "compilerOptions": {
-    "paths": { "@/platform/*": ["./*"] }
+    "paths": {
+      "@/platform/*": ["./*"],
+      "@/*": ["../*"]
+    }
   },
   "include": [
     "next-env.d.ts",
+    "../types/**/*.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",

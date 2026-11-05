@@ -365,6 +365,31 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       export const data = () => import('@/platform/fixtures/data')`
     )
     write(
+      'platform/lib/data/allowed.ts',
+      `import type { Principal } from '@/lib/api/contracts/primitives'
+      import { useOrganizations } from '@/hooks/queries/organization'
+      import { client } from '@/lib/auth/client'
+      import { createLogger } from '@sim/logger'
+      import { generateId } from '@sim/utils/id'
+      import type { ShellData } from '@/platform/app/shell/_components/model'
+      export const allowed: unknown[] = [useOrganizations, client, createLogger, generateId]
+      export type { Principal, ShellData }`
+    )
+    write(
+      'platform/lib/data/forbidden.ts',
+      `import '@/app/o/layout'
+      import '@/components/settings/navigation'
+      import '@/lib/auth/server-only-module'
+      import '@sim/emcn'
+      import '@/platform/app/shell/_components/value'`
+    )
+    write(
+      'platform/app/chats/bypasses-seam.ts',
+      `import '@/hooks/queries/mothership-chats'
+      import '@/lib/api/client/request'
+      import '@sim/logger'`
+    )
+    write(
       `${component}/unregistered.tsx`,
       `
       interface ActionProps { variant: 'default' | 'not-in-paper' }
@@ -426,6 +451,23 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     expect(result.output).not.toContain('platform/app/chats/total.ts:1 [time-format]')
     expect(result.output).toContain(`${feature}/icon.tsx:1 [icon-owner]`)
     expect(result.output).toContain(`${feature}/ink.module.css:1 [icon-owner]`)
+    expect(result.output).not.toContain('platform/lib/data/allowed.ts [')
+    for (const specifier of [
+      '@/app/o/layout',
+      '@/components/settings/navigation',
+      '@/lib/auth/server-only-module',
+      '@sim/emcn',
+    ])
+      expect(result.output).toContain(`platform/lib/data/forbidden.ts [legacy-import] ${specifier}`)
+    expect(result.output).toContain('platform/lib/data/forbidden.ts [private-composition]')
+    for (const specifier of [
+      '@/hooks/queries/mothership-chats',
+      '@/lib/api/client/request',
+      '@sim/logger',
+    ])
+      expect(result.output).toContain(
+        `platform/app/chats/bypasses-seam.ts [legacy-import] ${specifier}`
+      )
     for (const issue of [
       'legacy-import',
       'consumer-style',
