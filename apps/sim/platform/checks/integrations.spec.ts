@@ -3,6 +3,20 @@ import { expect, test } from '@playwright/test'
 const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
 const withoutFixtures = 'http://127.0.0.1:3180'
 
+test('a single click opens an integration from a long list with enlarged text', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 820 })
+  await page.goto(`${origin}/integrations?state=stress`)
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%'
+  })
+  const gmail = page.getByRole('link', { name: /^Gmail / })
+  await gmail.scrollIntoViewIfNeeded()
+  await gmail.click()
+  await expect(page.getByRole('heading', { name: 'Gmail', exact: true })).toBeVisible()
+})
+
 test('adding member Search provisions sign-in, preserves decisions on navigation and lets an admin remove the app', async ({
   page,
 }) => {

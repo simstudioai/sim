@@ -19,6 +19,10 @@
   visibility: visible;
 }
 
+.tooltip[aria-hidden="true"] {
+  pointer-events: none;
+}
+
 .tooltip {
   width: max-content;
   max-width: min(var(--container-app-sidebar), 90vw);

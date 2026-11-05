@@ -48,14 +48,14 @@ export function ActivityRow({
       </ActivityBody>
       {(metadata || showChevron) && (
         <span className={styles.meta} data-type='T052'>
-          {metadata}
+          {metadata && <span className={styles.metaLabel}>{metadata}</span>}
           {showChevron && <Icon name='I032' />}
         </span>
       )}
     </>
   )
   return (
-    <li>
+    <li className={styles.entry}>
       {href !== undefined ? (
         <Link href={href} className={styles.row}>
           {content}

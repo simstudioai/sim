@@ -1,3 +1,7 @@
+.entry {
+  min-inline-size: 0;
+  container: activity-row / inline-size;
+}
 .row {
   display: flex;
   align-items: center;
@@ -7,6 +11,28 @@
   border-radius: var(--ui-control-radius);
   text-align: start;
   cursor: pointer;
+}
+
+@container activity-row (max-width: 19rem) {
+  .row:has(.metaLabel) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--ui-stack-gap) var(--ui-row-gap);
+  }
+  .row:has(.metaLabel) .meta {
+    display: contents;
+  }
+  .metaLabel {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .row:has(.leading) .metaLabel {
+    margin-inline-start: calc(var(--ui-icon-size) + var(--ui-row-gap));
+  }
+  .row:has(.metaLabel) .meta > svg {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
 }
 .row:hover {
   background: var(--ui-hover);

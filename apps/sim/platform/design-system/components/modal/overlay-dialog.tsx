@@ -76,6 +76,20 @@ export function OverlayDialog({
       aria-label={label}
       aria-labelledby={title ? `${id}-title` : undefined}
       aria-describedby={description ? `${id}-description` : undefined}
+      onKeyDown={(event) => {
+        if (
+          event.key === 'Escape' &&
+          !event.defaultPrevented &&
+          !event.nativeEvent.isComposing &&
+          event.target instanceof HTMLInputElement &&
+          event.target.type === 'search' &&
+          event.target.closest('dialog') === event.currentTarget
+        ) {
+          event.preventDefault()
+          event.stopPropagation()
+          onClose()
+        }
+      }}
       onCancel={(event) => {
         event.preventDefault()
         event.stopPropagation()

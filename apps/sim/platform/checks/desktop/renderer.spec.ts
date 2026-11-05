@@ -30,6 +30,7 @@ test('the actual desktop renderer shares product routes, reserves native chrome 
     await catalog.getByRole('searchbox').fill('Databricks')
     await expect(catalog.getByRole('button', { name: /^Databricks / })).toBeInViewport()
     await page.keyboard.press('Escape')
+    await expect(catalog).toBeHidden()
     await expect(
       page.getByRole('main').getByRole('button', { name: 'Add integration' })
     ).toBeFocused()
