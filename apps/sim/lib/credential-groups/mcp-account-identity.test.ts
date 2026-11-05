@@ -60,10 +60,12 @@ describe('reading the connected account from a provider response', () => {
     ).toMatchObject({ subject: 'pat@example.test' })
   })
 
-  it('leaves sentence punctuation out of an email in text', () => {
-    expect(
-      readManagedMcpAccountIdentity('granola', text('Signed in as pat@example.test.'))
-    ).toMatchObject({ subject: 'pat@example.test' })
+  it.each([
+    ['sentence punctuation', 'Signed in as pat@example.test.', 'pat@example.test'],
+    ['markdown', '**Email:** **pat@example.test**', 'pat@example.test'],
+    ['a punycode domain', 'email: pat@example.xn--p1ai', 'pat@example.xn--p1ai'],
+  ])('reads a labeled email in text despite %s', (_name, value, subject) => {
+    expect(readManagedMcpAccountIdentity('granola', text(value))).toMatchObject({ subject })
   })
 
   it.each<[string, string, McpToolResult]>([
@@ -74,7 +76,8 @@ describe('reading the connected account from a provider response', () => {
     ],
     ['no content', 'fireflies', { content: [] }],
     ['a response with no email', 'fireflies', text({ name: 'Pat' })],
-    ['two different emails in text', 'fireflies', text('a@example.test and b@example.test')],
+    ['two labeled emails', 'fireflies', text('email: a@example.test\nemail: b@example.test')],
+    ['an email nothing names as the account', 'fireflies', text('Owner: a@example.test')],
     ['a Notion response without a user', 'notion', text({ workspace: { id: 'workspace-1' } })],
     ['a Notion response without a workspace', 'notion', text({ user: { id: 'user-1' } })],
   ])('reports no identity for %s rather than guessing', (_name, connector, result) => {

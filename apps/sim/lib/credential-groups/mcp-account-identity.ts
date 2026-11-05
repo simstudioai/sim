@@ -8,7 +8,9 @@ export interface ManagedMcpAccountIdentity {
   label: string
 }
 
-const EMAIL_IN_TEXT = /[^\s"'<>(),:;]+@[^\s"'<>(),:;]+\.[a-z0-9]+/gi
+/** An address only counts in text when a label names it as the signed-in account. */
+const LABELED_EMAIL_IN_TEXT =
+  /(?:e-?mail|signed in as|logged in as)[\s*_`"':=]*([a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z][a-z0-9-]+)/gi
 
 function responseText(result: McpToolResult) {
   return (result.content ?? [])
@@ -42,8 +44,8 @@ function emailFrom(result: McpToolResult, payload: unknown): string | null {
   }
   if (payload !== undefined) return null
   const found = new Set(
-    (responseText(result).match(EMAIL_IN_TEXT) ?? [])
-      .map((email) => email.toLowerCase())
+    [...responseText(result).matchAll(LABELED_EMAIL_IN_TEXT)]
+      .map((match) => (match[1] ?? '').toLowerCase())
       .filter((email) => isValidEmailSyntax(email))
   )
   return found.size === 1 ? ([...found][0] ?? null) : null
