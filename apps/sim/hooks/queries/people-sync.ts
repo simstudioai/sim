@@ -91,10 +91,15 @@ export function usePeopleSyncActions(organizationId: string) {
       if (!body) throw new Error('Choose a directory connection')
       return requestJson(configurePeopleSyncContract, { params, body })
     },
-    onSuccess: async (result) => {
+    onSuccess: async (result, action) => {
       const queryKey = syncKeys.organization(organizationId)
       await client.cancelQueries({ queryKey })
-      const refreshed = refreshPublishedPeople(client, organizationId, result)
+      // A sync can publish while the disconnect is in flight, so its last-success time can't say
+      // whether the cached people still exist.
+      const refreshed =
+        action === 'disconnect'
+          ? client.invalidateQueries({ queryKey: peopleKeys.organization(organizationId) })
+          : refreshPublishedPeople(client, organizationId, result)
       client.setQueryData(queryKey, result)
       await refreshed
     },

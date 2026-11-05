@@ -47,10 +47,13 @@ export function PeoplePage({ organizationId }: PeoplePageProps) {
   const [connecting, setConnecting] = useState<SyncSource | null>(null)
   const currentView = view ?? (search || department || departmentKey ? 'directory' : 'chart')
   const status = useDirectorySyncStatus(organizationId, isAdmin)
-  const { emptyOrganization } = useChartRoots(organizationId, isAdmin && currentView === 'chart')
+  const roots = useChartRoots(organizationId, isAdmin && currentView === 'chart')
   const openSync = () => void setView({ panel: 'sync' }, { history: 'push' })
   const openImport = () => setImporting(true)
-  const firstUse = isAdmin && emptyOrganization && status.loaded && !status.sync
+  const firstUse = isAdmin && roots.emptyOrganization && status.loaded && !status.sync
+  // First use has no header actions, so they wait for the reads that decide it rather than flash.
+  const showActions =
+    isAdmin && (currentView !== 'chart' || (roots.settled && status.settled && !firstUse))
   const lastSuccessAt = status.sync?.lastSuccessAt
   const modals = (
     <>
@@ -96,7 +99,7 @@ export function PeoplePage({ organizationId }: PeoplePageProps) {
       view={currentView}
       onViewChange={(next) => void setView({ view: next }, { history: 'push' })}
       actions={
-        isAdmin && !(firstUse && currentView === 'chart') ? (
+        showActions ? (
           <>
             {lastSuccessAt && (
               <span className={styles.updated} data-type='T050'>

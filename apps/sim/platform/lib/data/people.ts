@@ -88,9 +88,11 @@ export function isApiConflict(error: unknown): boolean {
   return isApiClientError(error) && error.status === 409
 }
 
-/** A refusal replaces what is on screen; a transient failure keeps it. */
+const REFUSAL_STATUSES = new Set([400, 401, 403, 404])
+
+/** A refusal replaces what is on screen; a transient failure, including a 429, keeps it. */
 export function isRefusal(error: unknown): boolean {
-  return isApiClientError(error) && error.status < 500
+  return isApiClientError(error) && REFUSAL_STATUSES.has(error.status)
 }
 
 export function usePeopleUrl() {
@@ -290,7 +292,11 @@ export function useOrgChart(organizationId: string) {
 export function useChartRoots(organizationId: string, enabled = true) {
   const roots = usePeople(organizationId, '', '', { scope: 'roots', enabled })
   const firstTeam = roots.data?.pages[0]?.people[0]
-  return { firstTeam, emptyOrganization: Boolean(roots.data) && !firstTeam }
+  return {
+    firstTeam,
+    emptyOrganization: Boolean(roots.data) && !firstTeam,
+    settled: !roots.isPending,
+  }
 }
 
 export function usePersonProfile(organizationId: string, memberId: string) {
@@ -389,7 +395,7 @@ export type SyncFieldErrors = Partial<Record<keyof SyncDraft, string>>
 export function useDirectorySyncStatus(organizationId: string, enabled: boolean) {
   const query = usePeopleSyncStatus(organizationId, enabled)
   const status = isDirectorySyncAccessError(query.error) ? undefined : query.data
-  return { loaded: Boolean(status), sync: status?.sync ?? null }
+  return { loaded: Boolean(status), settled: !query.isPending, sync: status?.sync ?? null }
 }
 
 /** The status with the action state machine the hook keeps out of the cache. */
