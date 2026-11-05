@@ -1,0 +1,288 @@
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { formatDate } from '@sim/utils/formatting'
+import { useSubscription } from '@/lib/auth/client'
+import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
+import { dollarsToCredits, formatCreditCost } from '@/lib/billing/credits/conversion'
+import { formatInvoiceAmount, getInvoiceStatusBadge } from '@/lib/billing/invoices'
+import {
+  getCoveredUsage,
+  getIsOnDemandActive,
+  getOnDemandOffLimit,
+  isOnDemandOffDisabled,
+} from '@/lib/billing/on-demand'
+import {
+  getDisplayPlanName,
+  getPlanTierDollars,
+  getPlanWeeklyRefreshDollars,
+  isEnterprise,
+  isFree,
+  isPaid,
+  isPro,
+  isTeam,
+} from '@/lib/billing/plan-helpers'
+import { getSubscriptionPermissions } from '@/lib/billing/subscription-permissions'
+import {
+  hasPaidSubscriptionStatus,
+  hasUsableSubscriptionAccess,
+} from '@/lib/billing/subscriptions/utils'
+import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
+import { isUsageLimitDraftDirty, resolveUsageLimitDraft } from '@/lib/billing/usage-limit-draft'
+import { getBaseUrl } from '@/lib/core/utils/urls'
+import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
+import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
+import { useInvoices, useOpenBillingPortal } from '@/hooks/queries/subscription'
+import { useDebounce } from '@/hooks/use-debounce'
+import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
+import { useUnsavedGuard } from '@/platform/lib/data/settings-guard'
+import { toast } from '@/platform/lib/data/toast'
+import { formatCalendarDate } from '@/platform/lib/time'
+
+const logger = createLogger('PlatformBilling')
+
+/** Delay before a usage-limit edit is saved once the viewer stops typing. */
+const AUTOSAVE_DELAY_MS = 1000
+
+const INVOICE_INTENTS = {
+  green: 'success',
+  amber: 'warning',
+  red: 'danger',
+  gray: 'neutral',
+} as const
+
+/**
+ * The organization's subscription, with the legacy panel's rules. A failed read is an error, never
+ * a plan: nothing here reports over-limit or blocked from a summary that did not load, so usage that
+ * is merely unavailable never reads as usage that is over.
+ */
+export function useBillingSection(organization: PlatformOrganization) {
+  const organizationId = organization.organization.id
+  const summary = useOrganizationBillingSummary(organizationId)
+  const invoiceList = useInvoices({ context: 'organization', organizationId })
+  const updateLimit = useUpdateOrganizationUsageLimit()
+  const portal = useOpenBillingPortal()
+  const subscriptionClient = useSubscription()
+
+  const billing = summary.data?.data
+  const plan = billing?.subscriptionPlan ?? 'free'
+  const status = billing?.subscriptionStatus ?? 'inactive'
+  const enterprise = isEnterprise(plan)
+  const free = isFree(plan)
+  const paid = isPaid(plan) && hasPaidSubscriptionStatus(status)
+  const permissions = getSubscriptionPermissions(
+    {
+      isFree: free,
+      isPro: isPro(plan),
+      isTeam: isTeam(plan),
+      isEnterprise: enterprise,
+      isPaid: paid,
+      isOrgScoped: true,
+      plan,
+      status,
+    },
+    { isTeamAdmin: organization.viewer.isAdmin, userRole: billing?.userRole ?? 'member' }
+  )
+  const canManage = permissions.canEditUsageLimit
+
+  const included = billing?.minimumBillingAmount ?? 0
+  const limit = billing?.totalUsageLimit ?? 0
+  const current = billing?.totalCurrentUsage ?? 0
+  const covered = getCoveredUsage(included, billing?.creditBalance ?? 0)
+  const onDemandActive = getIsOnDemandActive({
+    isPaid: paid,
+    planIncludedAmount: included,
+    effectiveUsageLimit: limit,
+    covered,
+  })
+  const onDemandLocked = isOnDemandOffDisabled({
+    isOnDemandActive: onDemandActive,
+    effectiveCurrentUsage: current,
+    covered,
+  })
+  const usablePaidAccess =
+    paid && hasUsableSubscriptionAccess(status, Boolean(billing?.billingBlocked))
+
+  const planName = getDisplayPlanName(plan)
+  const interval = billing?.billingInterval === 'year' ? 'billed annually' : 'billed monthly'
+  const state = billing?.subscriptionState
+  const weeklyRefresh = getPlanWeeklyRefreshDollars(plan) * (billing?.totalSeats || 1)
+  const upgradeHref = billing?.upgradeWorkspaceId
+    ? `${organization.legacyOrigin}${buildUpgradeHref(billing.upgradeWorkspaceId)}`
+    : null
+
+  function openPortal() {
+    if (!canManage) return
+    // Opened before the request so a popup blocker still treats it as the viewer's click.
+    const portalWindow = window.open('', '_blank')
+    portal.mutate(
+      { context: 'organization', organizationId, returnUrl: window.location.href },
+      {
+        onSuccess: (data) => {
+          if (portalWindow) portalWindow.location.href = data.url
+          else window.location.href = data.url
+        },
+        onError: (error) => {
+          portalWindow?.close()
+          logger.error('Failed to open billing portal', { error })
+          toast.error("Couldn't open billing portal", {
+            description: getErrorMessage(error, 'Please try again in a moment.'),
+          })
+        },
+      }
+    )
+  }
+
+  return {
+    status: billing ? 'success' : summary.status,
+    fetching: summary.isFetching,
+    error: summary.error
+      ? getErrorMessage(summary.error, 'Failed to load billing information')
+      : '',
+    retry: () => void summary.refetch(),
+    planTitle:
+      state === 'lapsed' ? `Organization ${planName} plan ended` : `Organization ${planName} plan`,
+    priceText:
+      state === 'free'
+        ? 'No active organization subscription'
+        : state === 'lapsed'
+          ? 'Choose a new plan for this organization'
+          : enterprise
+            ? 'Custom pricing'
+            : `$${getPlanTierDollars(plan)} per user/month, ${interval}`,
+    showExplorePlans: !enterprise,
+    explorePlansHref: permissions.showUpgradePlans ? upgradeHref : null,
+    showUsageLimit: paid && !enterprise,
+    usageLimit: { current: limit, minimum: included, canEdit: canManage, organizationId },
+    showOnDemand: usablePaidAccess && !enterprise,
+    onDemand: {
+      active: onDemandActive,
+      locked: onDemandLocked,
+      disabled: onDemandLocked || updateLimit.isPending || !canManage,
+      toggle: async () => {
+        if (!canManage) return
+        try {
+          await updateLimit.mutateAsync({
+            organizationId,
+            limit: onDemandActive ? getOnDemandOffLimit(current, covered) : ON_DEMAND_UNLIMITED,
+          })
+        } catch (error) {
+          logger.error('Failed to toggle on-demand billing', { error })
+          toast.error("Couldn't update on-demand usage", {
+            description: getErrorMessage(error, 'Please try again in a moment.'),
+          })
+        }
+      },
+    },
+    showSubscription: paid || enterprise,
+    periodEndLabel: billing?.cancelAtPeriodEnd ? 'Access until' : 'Next billing date',
+    periodEnd: billing?.billingPeriodEnd
+      ? formatCalendarDate(billing.billingPeriodEnd.slice(0, 10), 'full')
+      : null,
+    weeklyRefresh: paid && weeklyRefresh > 0 ? `+${formatCreditCost(weeklyRefresh)}` : null,
+    canManage,
+    portalPending: portal.isPending,
+    openPortal,
+    showCancellation: !enterprise,
+    cancelled: billing?.cancelAtPeriodEnd === true,
+    cancel: async () => {
+      if (!canManage || !subscriptionClient.cancel) return
+      try {
+        await subscriptionClient.cancel({
+          returnUrl: getBaseUrl() + window.location.pathname,
+          referenceId: organizationId,
+        })
+      } catch (error) {
+        logger.error('Failed to cancel subscription', { error })
+        toast.error("Couldn't cancel subscription", {
+          description: getErrorMessage(error, 'Please try again in a moment.'),
+        })
+      }
+    },
+    restore: async () => {
+      if (!canManage || !subscriptionClient.restore) return
+      try {
+        await subscriptionClient.restore({ referenceId: organizationId })
+        await summary.refetch()
+      } catch (error) {
+        logger.error('Failed to restore subscription', { error })
+        toast.error("Couldn't restore subscription", {
+          description: getErrorMessage(error, 'Please try again in a moment.'),
+        })
+      }
+    },
+    invoices: free
+      ? []
+      : (invoiceList.data?.invoices ?? []).map((invoice) => {
+          const badge = getInvoiceStatusBadge(invoice.status)
+          return {
+            id: invoice.id,
+            date: formatDate(new Date(invoice.created * 1000)),
+            amount: formatInvoiceAmount(invoice.total, invoice.currency),
+            description: invoice.description,
+            statusLabel: badge.label,
+            statusIntent: INVOICE_INTENTS[badge.variant],
+            url: invoice.hostedInvoiceUrl ?? invoice.invoicePdf,
+          }
+        }),
+    hasMoreInvoices: Boolean(invoiceList.data?.hasMore),
+  }
+}
+
+interface UsageLimitOptions {
+  current: number
+  minimum: number
+  canEdit: boolean
+  organizationId: string
+}
+
+/** The usage limit's draft in credits, saved shortly after typing stops. Limits are stored in dollars. */
+export function useUsageLimitField({
+  current,
+  minimum,
+  canEdit,
+  organizationId,
+}: UsageLimitOptions) {
+  const update = useUpdateOrganizationUsageLimit()
+  const save = update.mutate
+  const [draft, setDraft] = useState<string | null>(null)
+  const debounced = useDebounce(draft, AUTOSAVE_DELAY_MS)
+  const latest = useRef({ current, draft, pending: update.isPending })
+  useEffect(() => {
+    latest.current = { current, draft, pending: update.isPending }
+  })
+  useUnsavedGuard({
+    isDirty: canEdit && draft !== null && isUsageLimitDraftDirty(draft, current),
+    navigationBlocked: update.isPending,
+    onDiscard: () => setDraft(null),
+  })
+  useEffect(() => {
+    if (!canEdit || debounced === null) return
+    if (latest.current.draft !== debounced || latest.current.pending) return
+    const settle = () => setDraft((value) => (value === debounced ? null : value))
+    const decision = resolveUsageLimitDraft(debounced, latest.current.current, minimum)
+    if (decision.kind === 'settled') settle()
+    if (decision.kind === 'invalid') toast.error(decision.message)
+    if (decision.kind === 'save') {
+      save(
+        { organizationId, limit: decision.limitDollars },
+        {
+          onSuccess: settle,
+          onError: (error) =>
+            toast.error("Couldn't update usage limit", {
+              description: getErrorMessage(error, 'Please try again in a moment.'),
+            }),
+        }
+      )
+    }
+  }, [debounced, minimum, canEdit, organizationId, save])
+  const unlimited = current >= ON_DEMAND_UNLIMITED
+  return {
+    value: draft ?? (unlimited ? '' : String(dollarsToCredits(current))),
+    placeholder: unlimited ? 'No usage limit' : String(dollarsToCredits(current)),
+    disabled: !canEdit || update.isPending,
+    change: setDraft,
+  }
+}

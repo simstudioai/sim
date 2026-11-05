@@ -14,7 +14,7 @@ import {
 import { formatDuration } from '@sim/utils/formatting'
 import type { OrganizationActivityBreakdown } from '@/lib/api/contracts/organization-activity'
 import type { ActivityDimension } from '@/lib/billing/core/organization-activity'
-import { formatFailureRate } from '@/ee/organization-usage/components/activity-summary'
+import { formatFailureRate } from '@/ee/organization-usage/format'
 
 interface ActivityTableProps {
   rows: OrganizationActivityBreakdown['rows']

@@ -2,8 +2,11 @@
 
 import { createContext, type ReactNode, useContext, useEffect, useState } from 'react'
 import type { HomeMode, HomeWidget } from '@/platform/app/(shell)/_components/model'
+import { useLiveShellData } from '@/platform/lib/data/shell-context'
 
 function usePreferenceState() {
+  /** The viewer's saved theme on live data. Fixtures leave it unset and read `?theme=`. */
+  const appearance = useLiveShellData()?.appearance
   const [profileName, setProfileName] = useState<string>()
   const [picture, setPicture] = useState<string>()
   useEffect(
@@ -25,6 +28,7 @@ function usePreferenceState() {
   const [systemFont, setSystemFont] = useState(false)
   const [systemMono, setSystemMono] = useState(false)
   return {
+    appearance,
     profileName,
     setProfileName,
     picture,

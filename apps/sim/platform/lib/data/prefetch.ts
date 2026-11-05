@@ -2,9 +2,12 @@ import 'server-only'
 import { createLogger } from '@sim/logger'
 import { type DehydratedState, dehydrate } from '@tanstack/react-query'
 import { listMothershipChatsContract } from '@/lib/api/contracts/mothership-chats'
-import { getUserProfileContract } from '@/lib/api/contracts/user'
+import { getUserProfileContract, getUserSettingsContract } from '@/lib/api/contracts/user'
 import { listWorkspacesContract } from '@/lib/api/contracts/workspaces'
 import {
+  GENERAL_SETTINGS_STALE_TIME,
+  generalSettingsKeys,
+  mapGeneralSettingsResponse,
   mapUserProfileResponse,
   USER_PROFILE_STALE_TIME,
   userProfileKeys,
@@ -67,6 +70,14 @@ export async function prefetchShell(organization: PlatformOrganization): Promise
         return mapUserProfileResponse(user)
       },
       staleTime: USER_PROFILE_STALE_TIME,
+    }),
+    queryClient.prefetchQuery({
+      queryKey: generalSettingsKeys.settings(),
+      queryFn: async () => {
+        const { data } = await serverRequestJson(getUserSettingsContract, { signal: signal() })
+        return mapGeneralSettingsResponse(data)
+      },
+      staleTime: GENERAL_SETTINGS_STALE_TIME,
     }),
   ])
   return dehydrate(queryClient)

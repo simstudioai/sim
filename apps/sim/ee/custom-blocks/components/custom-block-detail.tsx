@@ -32,7 +32,6 @@ import type { CustomBlockInputPlaceholder } from '@/lib/workflows/custom-blocks/
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { DropZone } from '@/app/workspace/[workspaceId]/components/drop-zone'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
 import {
   type CustomBlockInput,
   type CustomBlockOutput,
@@ -49,6 +48,7 @@ import {
 import { useDeployedWorkflowState } from '@/hooks/queries/deployments'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
+import { useProfilePictureUpload } from '@/hooks/use-profile-picture-upload'
 
 const OUTPUT_SEP = '::'
 const ICON_ACCEPT = 'image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'

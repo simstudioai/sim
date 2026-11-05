@@ -1,5 +1,6 @@
 import type { Workspace, WorkspaceCreationPolicy } from '@/lib/api/contracts'
 import type { UserProfile } from '@/hooks/queries/current-user-data'
+import { useGeneralSettings } from '@/hooks/queries/general-settings'
 import type { MothershipChatMetadata } from '@/hooks/queries/mothership-chats'
 import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
 import { useUserProfile } from '@/hooks/queries/user-profile'
@@ -91,7 +92,9 @@ export function useShellData(navigation: ShellNavigation): ShellData {
     enabled: chatsAvailable,
   })
   const profile = useUserProfile()
+  const settings = useGeneralSettings()
   return {
+    appearance: settings.data?.theme,
     organization: organization.organization,
     user: toShellUser(profile.data),
     workspaces: (workspaces.data ?? [])

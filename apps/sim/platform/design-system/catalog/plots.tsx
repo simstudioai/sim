@@ -73,16 +73,22 @@ export function TrendPlot({ label, values, maximum, active, straight }: TrendPlo
 
 interface StackPlotProps {
   label: string
-  values: readonly (readonly [number, number])[]
+  /** Each column's layers, bottom-up. */
+  values: readonly (readonly number[])[]
   maximum: number
 }
 
 export function StackPlot({ label, values, maximum }: StackPlotProps) {
   return (
     <div className={styles.columns} role='img' aria-label={label}>
-      {values.map(([base, extra], index) => {
-        const lower = Math.max(0, Math.min(136, (136 * base) / maximum))
-        const total = Math.min(136, lower + Math.max(0, (136 * extra) / maximum))
+      {values.map((layers, index) => {
+        let height = 0
+        const tops = layers.map((value) => {
+          height = Math.min(136, height + Math.max(0, (136 * value) / maximum))
+          return height
+        })
+        const total = tops.at(-1) ?? 0
+        const topLayer = layers.reduce((top, value, layer) => (value > 0 ? layer : top), 0)
         const y = 136 - total
         const radius = Math.min(4, total)
         const outline = `M0 136V${y + radius}Q0 ${y} ${radius} ${y}H${32 - radius}Q32 ${y} 32 ${y + radius}V136Z`
@@ -94,16 +100,22 @@ export function StackPlot({ label, values, maximum }: StackPlotProps) {
               viewBox='0 0 32 136'
               preserveAspectRatio='none'
             >
-              <path className={styles[extra > 0 ? 'stackSecondary' : 'stackPrimary']} d={outline} />
-              {extra > 0 && (
-                <rect
-                  className={styles.stackPrimary}
-                  x='0'
-                  y={136 - lower}
-                  width='32'
-                  height={lower}
-                />
-              )}
+              <path className={styles.stackLayer} data-layer={topLayer} d={outline} />
+              {tops
+                .slice(0, topLayer)
+                .map((top, layer) => ({ top, layer }))
+                .reverse()
+                .map(({ top, layer }) => (
+                  <rect
+                    key={layer}
+                    className={styles.stackLayer}
+                    data-layer={layer}
+                    x='0'
+                    y={136 - top}
+                    width='32'
+                    height={top}
+                  />
+                ))}
             </svg>
           </div>
         )

@@ -32,8 +32,11 @@ interface Point {
 }
 interface Bar {
   label: string
-  values: readonly [number, number]
+  values: readonly number[]
 }
+
+/** Past this many columns a label per column no longer fits, so the axis marks its span instead. */
+const BAND_TICK_LIMIT = 12
 
 interface SeriesFrameProps extends Omit<ChartFrameProps, 'children'> {
   labels: string[]
@@ -57,7 +60,8 @@ function SeriesFrame({
   const tickEdges = useScrollEdges<HTMLLIElement>('horizontal')
   const inspection = usePlotInspection(labels.length, { band })
   const { active, tooltipId } = inspection
-  const ticks = band
+  const bandTicks = band && labels.length <= BAND_TICK_LIMIT
+  const ticks = bandTicks
     ? labels
     : labels.filter(
         (_, i) => i === 0 || i === Math.floor((labels.length - 1) / 2) || i === labels.length - 1
@@ -92,7 +96,7 @@ function SeriesFrame({
         <ul
           className={styles.ticks}
           aria-label='Chart periods'
-          data-band={band || undefined}
+          data-band={bandTicks || undefined}
           data-type='T050'
         >
           {ticks.map((tick, i) => (
@@ -132,14 +136,27 @@ export function TrendChart({ title, control, points, maximum = 0 }: TrendChartPr
 
 interface BarChartProps extends Omit<ChartFrameProps, 'children'> {
   bars: readonly Bar[]
-  series: readonly [string, string]
+  /**
+   * Layer names, bottom-up, up to six. A series keeps its color by position, so a caller that needs
+   * a layer's color to stay put passes every layer. Past two, a layer with no values leaves the
+   * legend and the tooltip.
+   */
+  series: readonly string[]
   maximum?: number
 }
 
 export function BarChart({ title, control, bars, series, maximum = 0 }: BarChartProps) {
   const data = bars.filter((bar) => bar.values.every((n) => Number.isFinite(n) && n >= 0))
   const values = data.map((bar) => bar.values)
-  const peak = values.reduce((n, [a, b]) => Math.max(n, a + b), Math.max(1, maximum || 0))
+  const peak = values.reduce(
+    (n, layers) =>
+      Math.max(
+        n,
+        layers.reduce((sum, value) => sum + value, 0)
+      ),
+    Math.max(1, maximum || 0)
+  )
+  const sparse = series.length > 2
   return (
     <SeriesFrame
       title={title}
@@ -147,15 +164,22 @@ export function BarChart({ title, control, bars, series, maximum = 0 }: BarChart
       labels={data.map((b) => b.label)}
       maximum={peak}
       band
-      detail={(i) => series.map((label, j) => ({ label, value: values[i][j] }))}
+      detail={(i) =>
+        series
+          .map((label, j) => ({ label, value: values[i][j] }))
+          .filter((entry) => !sparse || entry.value > 0)
+      }
       legend={
         <ul className={styles.series} aria-label='Bar series'>
-          {series.map((text, i) => (
-            <li key={text} data-type='T052'>
-              <i className={styles.swatch} data-bar={i} />
-              {text}
-            </li>
-          ))}
+          {series.map(
+            (text, i) =>
+              (!sparse || values.some((layers) => layers[i] > 0)) && (
+                <li key={text} data-type='T052'>
+                  <i className={styles.swatch} data-bar={i} />
+                  {text}
+                </li>
+              )
+          )}
         </ul>
       }
       render={() => <StackPlot label={title} values={values} maximum={peak} />}

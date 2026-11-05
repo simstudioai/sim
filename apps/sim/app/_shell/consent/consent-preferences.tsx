@@ -2,7 +2,7 @@
 
 import { useConsentManager } from '@c15t/nextjs/headless'
 import { Label, Switch } from '@sim/emcn'
-import type { ConsentCategory } from '@/lib/consent/constants'
+import { CONSENT_CATEGORY_COPY } from '@/lib/consent/copy'
 
 /**
  * Inline link chrome for the consent surfaces, matching `PROSE_TYPE.link` on the
@@ -12,35 +12,6 @@ import type { ConsentCategory } from '@/lib/consent/constants'
  */
 export const CONSENT_LINK_CLASS =
   'text-[var(--text-primary)] underline underline-offset-2 transition-colors hover:text-[var(--text-body)]'
-
-interface ConsentCategoryCopy {
-  title: string
-  description: string
-}
-
-/**
- * Sim's own wording per category. The runtime ships generic descriptions; these
- * say what the cookies actually do here.
- *
- * Typed by name rather than by {@link ConsentCategory} because the runtime's
- * union is wider than the three categories we configure — a policy that adds
- * one server-side falls back to the runtime's description instead of
- * disappearing. The `satisfies` still requires an entry for each of ours.
- */
-const CONSENT_CATEGORY_COPY: Record<string, ConsentCategoryCopy | undefined> = {
-  necessary: {
-    title: 'Necessary',
-    description: 'Sign-in and security. Always on.',
-  },
-  measurement: {
-    title: 'Analytics',
-    description: 'Shows us how Sim is used so we can make it better.',
-  },
-  marketing: {
-    title: 'Marketing',
-    description: 'Measures campaigns and personalizes ads on other sites.',
-  },
-} satisfies Record<ConsentCategory, ConsentCategoryCopy>
 
 /** The runtime's category union, without re-declaring it. */
 type ConsentCategoryName = Parameters<ReturnType<typeof useConsentManager>['setSelectedConsent']>[0]

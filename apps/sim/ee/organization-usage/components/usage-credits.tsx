@@ -12,12 +12,8 @@ import {
   formatChartCompactNumber,
 } from '@sim/emcn'
 import type { OrganizationUsageOverview } from '@/lib/api/contracts/organization-usage'
-import {
-  USAGE_PALETTE_CLASS,
-  USAGE_SOURCE_CATEGORIES,
-  USAGE_SOURCE_CATEGORY,
-  type UsageSourceCategoryId,
-} from '@/ee/organization-usage/constants'
+import { USAGE_PALETTE_CLASS, USAGE_SOURCE_CATEGORIES } from '@/ee/organization-usage/constants'
+import { foldUsageSeries } from '@/ee/organization-usage/format'
 import { useLegendHighlight } from '@/ee/organization-usage/hooks/use-legend-highlight'
 
 const CHART_HEIGHT = 200
@@ -36,23 +32,7 @@ interface CreditLayers {
  * failure.
  */
 function toCreditLayers(series: OrganizationUsageOverview['series']): CreditLayers {
-  const byCategory = new Map<UsageSourceCategoryId, number[]>()
-  series.forEach((point, index) => {
-    for (const [source, credits] of Object.entries(point.sources)) {
-      const category = USAGE_SOURCE_CATEGORY[source as keyof typeof USAGE_SOURCE_CATEGORY]
-      let values = byCategory.get(category)
-      if (!values) {
-        values = new Array<number>(series.length).fill(0)
-        byCategory.set(category, values)
-      }
-      values[index] += credits ?? 0
-    }
-  })
-
-  const present = USAGE_SOURCE_CATEGORIES.flatMap((category) => {
-    const values = byCategory.get(category.id)
-    return values ? [{ category, values }] : []
-  })
+  const present = foldUsageSeries(series)
   if (present.length === 0) {
     return {
       layers: [

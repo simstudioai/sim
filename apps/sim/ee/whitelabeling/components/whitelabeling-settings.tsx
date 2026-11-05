@@ -14,14 +14,18 @@ import { DropZone } from '@/app/workspace/[workspaceId]/components/drop-zone'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
 import { SettingRow } from '@/ee/components/setting-row'
+import {
+  findInvalidWhitelabelColor,
+  normalizeHexInput,
+  toWhitelabelPayload,
+} from '@/ee/whitelabeling/form'
 import {
   useUpdateWhitelabelSettings,
   useWhitelabelSettings,
-  type WhitelabelSettingsPayload,
 } from '@/ee/whitelabeling/hooks/whitelabel'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
+import { useProfilePictureUpload } from '@/hooks/use-profile-picture-upload'
 
 const logger = createLogger('WhitelabelingSettings')
 
@@ -52,12 +56,7 @@ function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorIn
         }
         value={value}
         onChange={(e) => {
-          let v = e.target.value.trim()
-          if (v && !v.startsWith('#')) {
-            v = `#${v}`
-          }
-          v = v.slice(0, 1) + v.slice(1).replace(/[^0-9a-fA-F]/g, '')
-          onChange(v.slice(0, 7))
+          onChange(normalizeHexInput(e.target.value))
         }}
         onFocus={(e) => e.target.select()}
         placeholder={placeholder}
@@ -159,33 +158,25 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
   async function handleSave() {
     if (!orgId || saving) return
 
-    const colorFields: Array<[string, string]> = [
-      ['Primary color', primaryColor],
-      ['Primary hover color', primaryHoverColor],
-      ['Accent color', accentColor],
-      ['Accent hover color', accentHoverColor],
-    ]
-
-    for (const [fieldName, value] of colorFields) {
-      if (value && !HEX_COLOR_REGEX.test(value)) {
-        toast.error(`${fieldName} must be a valid hex color (e.g. #33c482)`)
-        return
-      }
+    const form = {
+      brandName,
+      logoUrl: logoUpload.previewUrl,
+      wordmarkUrl: wordmarkUpload.previewUrl,
+      primaryColor,
+      primaryHoverColor,
+      accentColor,
+      accentHoverColor,
+      supportEmail,
+      documentationUrl,
+      termsUrl,
+      privacyUrl,
     }
-
-    const settings: WhitelabelSettingsPayload = {
-      brandName: brandName || null,
-      logoUrl: logoUpload.previewUrl || null,
-      wordmarkUrl: wordmarkUpload.previewUrl || null,
-      primaryColor: primaryColor || null,
-      primaryHoverColor: primaryHoverColor || null,
-      accentColor: accentColor || null,
-      accentHoverColor: accentHoverColor || null,
-      supportEmail: supportEmail || null,
-      documentationUrl: documentationUrl || null,
-      termsUrl: termsUrl || null,
-      privacyUrl: privacyUrl || null,
+    const invalidColor = findInvalidWhitelabelColor(form)
+    if (invalidColor) {
+      toast.error(invalidColor)
+      return
     }
+    const settings = toWhitelabelPayload(form)
 
     try {
       await updateSettings.mutateAsync({ orgId, settings })

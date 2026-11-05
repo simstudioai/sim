@@ -1,4 +1,3 @@
-import type { ComboboxOption } from '@sim/emcn'
 import {
   ORGANIZATION_USAGE_BREAKDOWN_DEFAULT_LIMIT,
   ORGANIZATION_USAGE_BREAKDOWN_MAX_LIMIT,
@@ -20,7 +19,7 @@ export const PERIOD_LABELS: Record<UsageWindowPreset, string> = {
   custom: 'Custom range',
 }
 
-export const PERIOD_OPTIONS: ComboboxOption[] = USAGE_WINDOW_PRESETS.map((preset) => ({
+export const PERIOD_OPTIONS = USAGE_WINDOW_PRESETS.map((preset) => ({
   value: preset,
   label: PERIOD_LABELS[preset],
 }))

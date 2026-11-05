@@ -3,7 +3,7 @@ import {
   AUTO_TIMEZONE_OPTION_VALUE,
   getTimezonePickerPresentation,
   INVALID_TIMEZONE_OPTION_VALUE,
-} from '@/app/workspace/[workspaceId]/settings/components/general/timezone-picker'
+} from '@/lib/core/utils/timezone-picker'
 
 const timezoneOptions = [{ label: 'Los Angeles (GMT-07:00)', value: 'America/Los_Angeles' }]
 

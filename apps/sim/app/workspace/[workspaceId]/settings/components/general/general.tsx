@@ -28,6 +28,10 @@ import { useSession } from '@/lib/auth/client'
 import { signOutAndRedirect } from '@/lib/auth/sign-out'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'
+import {
+  getTimezonePickerPresentation,
+  timezonePreferenceFromPickerValue,
+} from '@/lib/core/utils/timezone-picker'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { DeleteAccountModal } from '@/app/workspace/[workspaceId]/settings/components/general/components/delete-account-modal'
 import { PrivacyView } from '@/app/workspace/[workspaceId]/settings/components/general/components/privacy-view'
@@ -35,14 +39,9 @@ import {
   generalViewParam,
   generalViewUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/general/search-params'
-import {
-  getTimezonePickerPresentation,
-  timezonePreferenceFromPickerValue,
-} from '@/app/workspace/[workspaceId]/settings/components/general/timezone-picker'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
 import { useBrandConfig } from '@/ee/whitelabeling'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import {
@@ -50,6 +49,7 @@ import {
   useUpdateUserProfile,
   useUserProfile,
 } from '@/hooks/queries/user-profile'
+import { useProfilePictureUpload } from '@/hooks/use-profile-picture-upload'
 
 /** `loading` gives the view its own boundary; the section page has none to suspend into. */
 const AuthorizedApps = dynamic(
