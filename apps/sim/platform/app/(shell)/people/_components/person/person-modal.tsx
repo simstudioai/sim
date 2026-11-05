@@ -38,6 +38,7 @@ export function PersonModal({ organizationId, person, onClose }: PersonModalProp
     managerMemberId: person.managerMemberId,
   })
   const [errors, setErrors] = useState<Partial<Record<keyof PersonDraft, string>>>({})
+  const [saving, setSaving] = useState(false)
   // The chosen manager's name, kept with the choice: the search results may no longer include them.
   // Only a stored manager who is suspended has an id and no name.
   const [managerName, setManagerName] = useState(person.manager?.name ?? null)
@@ -53,7 +54,8 @@ export function PersonModal({ organizationId, person, onClose }: PersonModalProp
       confirmLabel='Save'
       onConfirm={async () => {
         // A validation problem keeps the dialog open, with its message on the field.
-        const problems = await edit.save(draft)
+        setSaving(true)
+        const problems = await edit.save(draft).finally(() => setSaving(false))
         if (problems) {
           setErrors(problems)
           return false
@@ -66,6 +68,7 @@ export function PersonModal({ organizationId, person, onClose }: PersonModalProp
           label={label}
           placeholder={placeholder}
           maxLength={PROFILE_TEXT_MAX_LENGTH}
+          disabled={saving}
           value={draft[field] ?? ''}
           onChange={(value) => change(field, value || null)}
           error={errors[field]}
@@ -75,6 +78,7 @@ export function PersonModal({ organizationId, person, onClose }: PersonModalProp
         label='Start date'
         placeholder='Not recorded'
         clearable
+        disabled={saving}
         value={draft.startDate ?? null}
         onValueChange={(value) => change('startDate', value)}
         error={errors.startDate}
@@ -82,6 +86,7 @@ export function PersonModal({ organizationId, person, onClose }: PersonModalProp
       <SearchableSelect
         label='Manager'
         searchLabel='Search people'
+        disabled={saving}
         options={[{ value: NO_MANAGER, label: 'No manager' }, ...picker.options]}
         value={draft.managerMemberId ?? NO_MANAGER}
         selectedLabel={draft.managerMemberId ? (managerName ?? 'Suspended member') : 'No manager'}

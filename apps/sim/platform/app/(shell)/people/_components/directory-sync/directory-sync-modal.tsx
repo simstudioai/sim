@@ -365,6 +365,7 @@ export function DirectorySyncModal({ organization, onClose }: DirectorySyncModal
       confirmLabel={label}
       confirmDisabled={disabled}
       destructive={destructive}
+      pending={directory.pending}
       onBack={steppedBack ? backToDetails : undefined}
       onConfirm={() => {
         confirm()
