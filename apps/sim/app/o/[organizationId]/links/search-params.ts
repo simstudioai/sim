@@ -3,7 +3,8 @@ import { createParser, createSerializer, parseAsString } from 'nuqs/server'
 import { SIM_LINK_SEARCH_MAX_LENGTH, SIM_LINK_SORTS } from '@/lib/sim-links/validation'
 import { createSortParams } from '@/lib/url-state'
 
-const boundedSearch = (value: string) => truncateAtCodePoint(value, SIM_LINK_SEARCH_MAX_LENGTH, '')
+export const boundedSearch = (value: string) =>
+  truncateAtCodePoint(value, SIM_LINK_SEARCH_MAX_LENGTH, '')
 
 /**
  * `create` opens the new-link editor, prefilled with its value as the name. `search` filters by

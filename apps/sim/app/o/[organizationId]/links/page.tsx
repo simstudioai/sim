@@ -4,7 +4,8 @@ import { getSession } from '@/lib/auth'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
-import { SimLinks } from '@/app/o/[organizationId]/links/sim-links'
+import { LinksSurface } from '@/app/o/[organizationId]/links/links-surface'
+import { LinksPage } from '@/platform/app/(shell)/links/_components/links-page/links-page'
 
 export const metadata: Metadata = { title: 'Links' }
 
@@ -23,5 +24,9 @@ export default async function SimLinksPage({ params }: SimLinksPageProps) {
       })
     )
   if (!(await isSimLinksEnabled(organizationId))) notFound()
-  return <SimLinks organizationId={organizationId} />
+  return (
+    <LinksSurface>
+      <LinksPage organizationId={organizationId} />
+    </LinksSurface>
+  )
 }
