@@ -777,6 +777,7 @@ function resolveSource(file: string, specifier: string): string | null {
  * modules at build time, so the walk stops at them the same way.
  */
 function checkSeamClosure() {
+  if (!existsSync(path.join(app, dataSeam))) return
   const config = 'platform/next.config.ts'
   const replaced = new Set(
     existsSync(path.join(app, config))
