@@ -20,7 +20,7 @@ const REDIRECTS: readonly (readonly [string, string])[] = [
   ['/settings/members', '/org/settings/members'],
   ['/settings/team', '/org/settings/members'],
   ['/settings/subscription?from=mail', '/org/settings/billing?from=mail'],
-  ['/settings/general?view=privacy', '/org/settings/privacy'],
+  ['/settings/general?view=privacy', '/org/settings/general?view=privacy'],
   ['/links?search=hand', '/org/settings/links?search=hand'],
   ['/search?q=renewal', '/org/search?q=renewal'],
 ]
@@ -36,7 +36,9 @@ for (const [from, to] of REDIRECTS) {
 test('a route with no Platform counterpart stays legacy', async ({ page }) => {
   await signInAsAdmin(page, legacy(UNMAPPED))
   await expect(page).toHaveURL(new RegExp(`${escapeRegExp(legacy(UNMAPPED))}$`))
-  await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
+  // The main app serves it, embedded rail and all, rather than this zone's shell.
+  await expect(page.getByRole('complementary', { name: 'Organization sidebar' })).toBeVisible()
+  await expect(page.getByRole('complementary', { name: 'Platform sidebar' })).toHaveCount(0)
 })
 
 test('a client navigation into a mapped legacy route also reaches the Platform', async ({

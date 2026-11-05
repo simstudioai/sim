@@ -24,8 +24,15 @@ test('a theme chosen here persists across a reload and repaints the shell', asyn
 test('a display name saves through the profile read', async ({ page }) => {
   await page.goto(settings())
   const name = `Live ${Date.now()}`
-  await page.getByRole('button', { name: /^Edit display name/ }).click()
-  await page.getByRole('textbox', { name: 'Display name' }).fill(name)
+  // The row's button is named by the value it edits: the seeded name, or an earlier run's.
+  await page
+    .getByRole('region', { name: 'Profile' })
+    .getByRole('button', { name: /^(?:Ada Admin|Live \d+)$/ })
+    .click()
+  await page
+    .getByRole('dialog', { name: 'Edit display name' })
+    .getByRole('textbox', { name: 'Display name' })
+    .fill(name)
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   await page.reload()
   await expect(page.getByRole('region', { name: 'Profile' })).toContainText(name)
@@ -69,7 +76,8 @@ test('account deletion is refused, with the reasons, while the member still belo
 test('a plan read on the server stands when the browser’s own read fails', async ({ page }) => {
   await page.route('**/billing-summary', (route) => route.abort())
   await page.goto(settings('/billing'))
-  await expect(page.getByRole('region', { name: 'Plan' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Subscription' })).toBeVisible()
+  await expect(page.getByText('Enterprise plan')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0)
 })
 
@@ -133,7 +141,7 @@ test('links: create, find, open, edit and delete on the Platform', async ({ page
   await page.getByRole('button', { name: `${name} actions` }).click()
   await page.getByRole('menuitem', { name: 'Delete', exact: true }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click()
-  await expect(page.getByRole('heading', { name: `No links match "${name}"` })).toBeVisible()
+  await expect(page.getByRole('heading', { name: `No results for “${name}”` })).toBeVisible()
 })
 
 test('an unknown sim/ link opens the editor here, prefilled', async ({ page }) => {

@@ -358,5 +358,5 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | An unmapped route stays legacy; a forged header moves nobody | `proxy.ts` | Done | "a route with no Platform counterpart stays legacy", "a forged legacy URL header" |
 | Security headers and noindex on zone pages, assets under the base path | `platform/proxy.ts` | Done | "zone pages carry the security headers" |
 | No uncaught error, hydration mismatch, CSP block or 5xx on any route, in both themes at both widths | None; Platform only | Done | "renders healthy in both themes", one per route in `checks/live/routes.spec.ts` |
-| Flag off, zone built: `/o` renders legacy with no redirect, `/org` is absent | `layout.tsx`, `live-shell.tsx` | Done | "renders the legacy surface with no redirect", "/org is absent", run with the flag off |
+| Flag off, zone built: `/o` renders legacy with no redirect, `/org` is absent | `layout.tsx`, `live-shell.tsx` | Done | "stays on the main app with no redirect", "/org is absent", run with the flag off |
 | Zone not built, flag on: `/o` renders legacy with no redirect, `/org` is absent | `next.config.ts` | Done | "/org is absent", in the `live (flag-off)` job |

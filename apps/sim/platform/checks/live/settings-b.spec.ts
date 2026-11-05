@@ -70,16 +70,13 @@ test.describe('governance settings', () => {
   })
 
   test('single sign-on never receives a stored client secret', async ({ page }) => {
-    await openSection(page, 'sso')
-    const bodies: string[] = []
-    page.on('response', async (response) => {
-      if (response.url().includes('/api/auth/sso/providers')) bodies.push(await response.text())
-    })
+    // Waits on this page's read, so its body cannot belong to a page that navigated away.
+    const providers = page.waitForResponse((response) =>
+      response.url().includes('/api/auth/sso/providers')
+    )
     await page.goto('/org/settings/sso')
     await expect(page.getByRole('radio', { name: 'Domains' })).toBeAttached()
-    for (const body of bodies) {
-      expect(body).not.toMatch(/"clientSecret":"(?!\[REDACTED\])/)
-    }
+    expect(await (await providers).text()).not.toMatch(/"clientSecret":"(?!\[REDACTED\])/)
     await expect(page.getByRole('button', { name: /Copy Client secret/ })).toHaveCount(0)
   })
 
