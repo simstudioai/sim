@@ -219,6 +219,10 @@ export async function readContractResponse<C extends AnyApiRouteContract>(
   contract: C,
   response: Response
 ): Promise<ContractJsonResponse<C>> {
+  if (contract.response.mode !== 'json') {
+    throw new Error(`Contract ${contract.method} ${contract.path} does not declare a JSON response`)
+  }
+
   const { parsed, raw } = await readResponseBody(response)
   if (!response.ok) {
     throw new ApiClientError({
