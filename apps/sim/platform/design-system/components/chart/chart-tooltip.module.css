@@ -17,6 +17,11 @@
   color: var(--ui-secondary);
 }
 
+.detail > span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
 .detail {
   display: flex;
   justify-content: space-between;

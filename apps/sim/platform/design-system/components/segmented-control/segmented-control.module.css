@@ -58,6 +58,9 @@
 .choice:has(.radio:disabled) {
   cursor: default;
 }
-.radio:disabled + .choiceLabel {
+.radio:disabled:not(:checked) + .choiceLabel {
   opacity: var(--opacity-disabled);
+}
+.radio:focus-visible + .choiceLabel {
+  outline: var(--spacing-stroke-focus) solid var(--ui-secondary);
 }

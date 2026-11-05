@@ -21,7 +21,7 @@ import { useHydrated } from '@/hooks/use-hydrated'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 
-const SEARCH_MODES = [
+export const SEARCH_MODES = [
   { value: 'search', label: 'Search' },
   { value: 'assistant', label: 'Assistant' },
 ] as const

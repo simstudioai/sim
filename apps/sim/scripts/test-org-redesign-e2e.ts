@@ -1334,7 +1334,11 @@ async function homeChecks() {
           timeout: 30_000,
         })
         const chatId = new URL(page.url()).pathname.split('/').at(-1)
-        await page.reload()
+        await expect(page.getByRole('navigation', { name: 'Search views' })).toBeVisible()
+        await page.getByRole('button', { name: 'New chat' }).click()
+        await expect(page).toHaveURL(/\/home$/)
+        await expect(composer(page)).toBeVisible()
+        await page.goto(orgUrl(`/search/chat/${chatId}`))
         await expect(page.getByText('Hello from the scripted agent.')).toBeVisible()
         await expect(
           sidebar(page)

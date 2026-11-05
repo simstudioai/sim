@@ -15,73 +15,12 @@ import { useAutoSizeTextarea } from '@/hooks/use-auto-size-textarea'
 import { SearchResults } from '@/platform/app/(shell)/_components/search/search-results'
 import { SearchHistory } from '@/platform/app/(shell)/search/_components/search-surface/search-history'
 import styles from '@/platform/app/(shell)/search/_components/search-surface/search-surface.module.css'
+import { SearchSurfaceHeader } from '@/platform/app/(shell)/search/_components/search-surface/search-surface-header'
 import { Button, IconButton } from '@/platform/design-system/components/button/button'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
-const SEARCH_MODE_ICONS = { search: 'I089', assistant: 'I073' } as const
 const FIELD_MAX_HEIGHT_PX = 200
-
-/**
- * A `nav` of buttons rather than `SegmentedControl`: its radios would flip on reselect, and each
- * view here is a history entry with `aria-current`.
- */
-function SearchSurfaceHeader({ search }: { search: OrganizationSearchState }) {
-  const { activeMode, newLabel } = search
-  return (
-    <div className={styles.transparentSurface}>
-      <RedesignSurface>
-        <div className={styles.header}>
-          <nav aria-label='Search views' className={styles.views}>
-            {search.modes.map((entry) => (
-              <button
-                key={entry.value}
-                type='button'
-                className={styles.view}
-                data-type='T056'
-                aria-current={activeMode === entry.value ? 'page' : undefined}
-                onClick={() => search.changeMode(entry.value)}
-              >
-                <Icon name={SEARCH_MODE_ICONS[entry.value]} />
-                {entry.label}
-              </button>
-            ))}
-          </nav>
-          {search.canStartNew && (
-            <>
-              <span className={styles.newFull}>
-                <Button
-                  variant='quiet'
-                  size='compact'
-                  icon='I074'
-                  disabled={search.isStartingNew}
-                  onClick={search.startNew}
-                  render={<button type='button' className={styles.newButton} />}
-                >
-                  {newLabel}
-                </Button>
-              </span>
-              <span className={styles.newShort}>
-                <Button
-                  variant='quiet'
-                  size='compact'
-                  icon='I074'
-                  disabled={search.isStartingNew}
-                  onClick={search.startNew}
-                  render={
-                    <button type='button' className={styles.newButton} aria-label={newLabel} />
-                  }
-                >
-                  New
-                </Button>
-              </span>
-            </>
-          )}
-        </div>
-      </RedesignSurface>
-    </div>
-  )
-}
 
 interface SearchFieldProps {
   userId: string

@@ -89,6 +89,9 @@
   border: var(--spacing-stroke-default) solid var(--ui-divider);
   border-radius: var(--radius-composer);
 }
+.field:has(textarea:focus-visible) {
+  border-color: var(--ui-secondary);
+}
 .fieldMark {
   display: inline-flex;
   flex: none;
@@ -129,7 +132,7 @@
 .dockedField,
 .resultsColumn {
   inline-size: 100%;
-  max-inline-size: var(--container-chat);
+  max-inline-size: calc(var(--container-chat) + 2 * var(--spacing-24));
   margin-inline: auto;
 }
 .dockedField {
@@ -143,7 +146,7 @@
   scrollbar-gutter: stable both-edges;
 }
 .resultsColumn {
-  padding: var(--spacing-4) var(--spacing-32) var(--spacing-24);
+  padding: var(--spacing-4) var(--spacing-24) var(--spacing-24);
 }
 .landing {
   display: flex;

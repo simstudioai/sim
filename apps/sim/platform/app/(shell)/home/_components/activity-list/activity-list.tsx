@@ -98,7 +98,7 @@ export function AttentionList({ state, asOf, onRetry }: AttentionListProps) {
             !state.partial && (
               <EmptyState
                 title='You’re all caught up'
-                description='Reviews and requests will appear here.'
+                description='Anything that needs you will appear here.'
               />
             )
           )}

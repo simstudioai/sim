@@ -103,6 +103,8 @@ interface OrganizationConversationProps {
   draftId?: string
   /** Replaces the landing, and the blank frame before it, until the first turn takes over. */
   landing?: {
+    /** Shown over the conversation once the first turn has replaced the landing. */
+    chatHeader?: ReactNode
     fallback: ReactNode
     render: (slot: OrganizationLandingSlot) => ReactNode
   }
@@ -146,7 +148,7 @@ function OrganizationConversationContent({
   userName,
   chatId,
   requestMode: destinationMode,
-  header,
+  header: frameHeader,
   active = true,
   summaryRequest,
   onSummaryConsumed,
@@ -232,6 +234,7 @@ function OrganizationConversationContent({
     store.migrateDraft(initialDraftKey, draftKey)
   }, [initialDraftKey, draftKey, legacyDraftKey])
   const hasChat = Boolean(chatId || chat.messages.length)
+  const header = frameHeader ?? (hasChat ? landing?.chatHeader : undefined)
   const assistantSearchLevel = 'fast'
   const panel = useChatResourcePanel(chat, controller, userId)
   const addResource = panel.addResourceFromUser

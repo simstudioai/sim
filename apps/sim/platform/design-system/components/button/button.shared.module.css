@@ -79,10 +79,10 @@
 .button[data-variant="muted"] {
   background: var(--control-muted-fill);
 }
-.button[data-variant="muted"]:enabled:hover {
+.button[data-variant="muted"]:is(:enabled, a[href]):hover {
   background: var(--control-muted-hover);
 }
-.button[data-variant="muted"]:enabled:active {
+.button[data-variant="muted"]:is(:enabled, a[href]):active {
   background: var(--control-muted-pressed);
 }
 
@@ -91,11 +91,11 @@
   color: var(--control-on-solid);
 }
 
-:is(.button, .iconButton)[data-solid]:enabled:hover {
+:is(.button, .iconButton)[data-solid]:is(:enabled, a[href]):hover {
   background: var(--control-solid-hover);
 }
 
-:is(.button, .iconButton)[data-solid]:enabled:active {
+:is(.button, .iconButton)[data-solid]:is(:enabled, a[href]):active {
   background: var(--control-solid-pressed);
 }
 
@@ -153,6 +153,7 @@
   justify-self: start;
 }
 .chipRow:hover .chipAction,
+.chipRow:has(:focus-visible) .chipAction,
 .chipRow:has([role="tab"]) .chipAction,
 .chipAction:has([aria-expanded="true"]) {
   opacity: 1;
@@ -170,7 +171,8 @@
   color: var(--ui-secondary);
   pointer-events: none;
 }
-.chipRow:has([aria-expanded="true"]) .chipStatus {
+.chipRow:has([aria-expanded="true"]) .chipStatus,
+.chipRow:has(:focus-visible):has(.chipAction) .chipStatus {
   visibility: hidden;
 }
 @media (hover: hover) {

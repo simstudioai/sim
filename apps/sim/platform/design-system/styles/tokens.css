@@ -394,6 +394,7 @@
   --container-auth-form: var(--container-form);
   --container-auth-nav: var(--container-1280);
   --container-auth-panel: var(--container-form);
+  --container-chat: 44rem;
   --container-chat-message: var(--container-640);
   --container-chat-thread: var(--container-800);
   --container-docs-article: var(--container-reading);

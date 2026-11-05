@@ -10,6 +10,11 @@ import {
   HOME_TEXT_LIMITS,
 } from '@/lib/organizations/home/limits'
 import { getGmailMailboxEmail, gmailThreadUrl } from '@/connectors/gmail/mailbox'
+import {
+  GoogleApiError,
+  isGoogleQuotaReason,
+  readGoogleErrorDetails,
+} from '@/connectors/google-workspace/api-errors'
 import { gmailGetThreadV2Tool } from '@/tools/gmail/get_thread'
 import { gmailListThreadsV2Tool } from '@/tools/gmail/list_threads'
 import { listV2Tool as googleCalendarListTool } from '@/tools/google_calendar/list'
@@ -112,9 +117,15 @@ async function requestTool<P>(
     acceptCompressed: true,
   })
   if (response.ok) return response
-  await response.text().catch(() => '')
+  const body = await response.text().catch(() => '')
   if (response.status === 401) throw new HomeProviderReadError('token_rejected', 401)
-  if (response.status === 403 && !hasRateLimitEvidence(response.headers))
+  // Google reports quota as a 403 reason in the body, which reconnecting would not fix.
+  const { reasons } = await readGoogleErrorDetails(new Response(body))
+  if (
+    response.status === 403 &&
+    !hasRateLimitEvidence(response.headers) &&
+    !reasons.some(isGoogleQuotaReason)
+  )
     throw new HomeProviderReadError('needs_reauth', 403)
   throw new HomeProviderReadError('unavailable', response.status)
 }
@@ -152,6 +163,14 @@ function isoOrNull(value: string | null | undefined) {
   return Number.isFinite(time) ? new Date(time).toISOString() : null
 }
 
+function mailboxReadFailure(error: unknown): HomeProviderReadError {
+  if (!(error instanceof GoogleApiError)) return new HomeProviderReadError('unavailable')
+  if (error.status === 401) return new HomeProviderReadError('token_rejected', 401)
+  if (error.status === 403 && !error.rateLimited && error.category !== 'rate_limit')
+    return new HomeProviderReadError('needs_reauth', 403)
+  return new HomeProviderReadError('unavailable', error.status)
+}
+
 export async function readGmailThreads({
   accessToken,
   signal,
@@ -162,7 +181,9 @@ export async function readGmailThreads({
     signal
   )
   if (!list.success) throw new HomeProviderReadError('unavailable')
-  const mailbox = await getGmailMailboxEmail(accessToken, { signal })
+  const mailbox = await getGmailMailboxEmail(accessToken, { signal }).catch((error: unknown) => {
+    throw mailboxReadFailure(error)
+  })
   const threads = await mapWithConcurrency(
     list.output.threads.slice(0, HOME_EMAIL_THREAD_LIMIT),
     GMAIL_THREAD_CONCURRENCY,
