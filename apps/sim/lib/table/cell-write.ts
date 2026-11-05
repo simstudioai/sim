@@ -16,7 +16,7 @@ import { getValueAtPath } from '@sim/utils/object'
 import { and, eq, isNull } from 'drizzle-orm'
 import { withIdempotentWriteRetry } from '@/lib/db/read-retry'
 import { CELL_DATABASE_RETRY } from '@/lib/table/constants'
-import { appendTableEvent } from '@/lib/table/events'
+import { appendTableEvent, signalTableRowsChanged } from '@/lib/table/events'
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import { loadExecutionsForRow, writeExecutionsPatch } from '@/lib/table/rows/executions'
 import {
@@ -204,24 +204,32 @@ export async function confirmWorkflowGroupStateCommitted(
  * Fails every marker on a row that no worker has claimed. `executionId` stays null, so a carrier
  * still queued for one of them can claim it and run. Claimed, cancelled, and finished cells are
  * untouched, and so is a paused one, which holds an execution id.
+ *
+ * Open tables are told to refetch too: a repeat after a lost reply finds nothing left to update, so
+ * it cannot name the cells the lost attempt failed.
  */
 export async function terminalizeUnclaimedRowMarkers(
   tableId: string,
   rowId: string,
   error: string
 ): Promise<void> {
-  const failed = await db
-    .update(tableRowExecutions)
-    .set({ status: 'error', jobId: null, error, runningBlockIds: [], updatedAt: new Date() })
-    .where(
-      and(
-        eq(tableRowExecutions.tableId, tableId),
-        eq(tableRowExecutions.rowId, rowId),
-        eq(tableRowExecutions.status, 'pending'),
-        isNull(tableRowExecutions.executionId)
-      )
-    )
-    .returning({ groupId: tableRowExecutions.groupId })
+  const failed = await withIdempotentWriteRetry(
+    () =>
+      db
+        .update(tableRowExecutions)
+        .set({ status: 'error', jobId: null, error, runningBlockIds: [], updatedAt: new Date() })
+        .where(
+          and(
+            eq(tableRowExecutions.tableId, tableId),
+            eq(tableRowExecutions.rowId, rowId),
+            eq(tableRowExecutions.status, 'pending'),
+            isNull(tableRowExecutions.executionId)
+          )
+        )
+        .returning({ groupId: tableRowExecutions.groupId }),
+    { label: 'terminalizeUnclaimedRowMarkers', ...CELL_DATABASE_RETRY }
+  )
+  signalTableRowsChanged(tableId)
   for (const { groupId } of failed) {
     void appendTableEvent({
       kind: 'cell',

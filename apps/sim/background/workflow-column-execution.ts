@@ -25,7 +25,7 @@ import {
 } from '@/lib/core/execution-limits'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
-import { withDatabaseReadRetry, withIdempotentWriteRetry } from '@/lib/db/read-retry'
+import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import {
   registerManualExecutionAborter,
   unregisterManualExecutionAborter,
@@ -422,16 +422,15 @@ export async function runRowCascadeLoop(
   } catch (err) {
     const { tableId, rowId } = payload
     const { terminalizeUnclaimedRowMarkers } = await import('@/lib/table/cell-write')
-    await withIdempotentWriteRetry(
-      () => terminalizeUnclaimedRowMarkers(tableId, rowId, CELL_STOPPED_MESSAGE),
-      { label: 'terminalizeUnclaimedRowMarkers', ...CELL_DATABASE_RETRY }
-    ).catch((markerErr) => {
-      logger.error('Failed to terminalize the unclaimed markers of a failed row', {
-        tableId,
-        rowId,
-        cause: describeError(markerErr),
-      })
-    })
+    await terminalizeUnclaimedRowMarkers(tableId, rowId, CELL_STOPPED_MESSAGE).catch(
+      (markerErr) => {
+        logger.error('Failed to terminalize the unclaimed markers of a failed row', {
+          tableId,
+          rowId,
+          cause: describeError(markerErr),
+        })
+      }
+    )
     throw err
   }
 }

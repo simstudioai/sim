@@ -433,6 +433,33 @@ describe('a durable cell state write around a lost connection', { timeout: 90_00
     expect(tableEventsMockFns.mockAppendTableEvent).toHaveBeenCalledOnce()
   })
 
+  it('tells open tables to refetch when the reply to failing the markers is lost', async () => {
+    const { tableId, rowId } = await createCell({ pickedUp: false })
+    await writeExecutionsPatch(db, tableId, rowId, {
+      [groupId]: {
+        status: 'pending',
+        executionId: null,
+        jobId: null,
+        workflowId: 'workflow-1',
+        error: null,
+      },
+    })
+    /** An unprepared statement waits on a reply before it executes, so the commit is applied here. */
+    interception = {
+      match: /update "table_row_executions"/i,
+      forward: false,
+      beforeReset: async () => {
+        await control`UPDATE table_row_executions SET status = 'error' WHERE row_id = ${rowId}`
+      },
+    }
+
+    await terminalizeUnclaimedRowMarkers(tableId, rowId, 'Stopped')
+
+    expect((await readCell(rowId)).status).toBe('error')
+    expect(tableEventsMockFns.mockAppendTableEvent).not.toHaveBeenCalled()
+    expect(tableEventsMockFns.mockSignalTableRowsChanged).toHaveBeenCalledWith(tableId)
+  })
+
   it('does not repeat a cancel stamp, which could kill a run the user just started', async () => {
     const { ctx, rowId } = await createCell()
     interception = {
