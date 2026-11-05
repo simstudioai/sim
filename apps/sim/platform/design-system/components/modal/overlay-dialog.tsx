@@ -14,6 +14,8 @@ interface DialogSurfaceProps {
   /** Names the dialog more specifically than its visible title. */
   accessibleName?: string
   onSubmit?: FormEventHandler<HTMLFormElement>
+  /** Lets Enter in a text field submit the form. Search fields and pickers never do. */
+  submitOnEnter?: boolean
   children: ReactNode
 }
 
@@ -34,6 +36,7 @@ export function OverlayDialog({
   busy,
   accessibleName,
   onSubmit,
+  submitOnEnter,
   children,
 }: OverlayDialogProps) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -111,6 +114,18 @@ export function OverlayDialog({
             className={styles.modalLayout}
             aria-busy={busy || undefined}
             onSubmit={onSubmit}
+            onKeyDown={(event) => {
+              const { target } = event
+              if (event.key !== 'Enter' || event.defaultPrevented || event.nativeEvent.isComposing)
+                return
+              if (!(target instanceof HTMLInputElement)) return
+              if (
+                !submitOnEnter ||
+                target.type === 'search' ||
+                target.getAttribute('role') === 'combobox'
+              )
+                event.preventDefault()
+            }}
           >
             {content}
           </form>

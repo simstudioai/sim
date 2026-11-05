@@ -373,6 +373,7 @@ function SourceSettingsForm({
         }
         confirmLabel={removal.pending ? 'Removing…' : 'Remove'}
         confirmDisabled={removal.disabled}
+        pending={removal.pending}
         onConfirm={() => {
           removal.onConfirm()
           return false

@@ -307,6 +307,7 @@ export default function AdminSection() {
           title='Ban user'
           confirmLabel={admin.banUser.isPending ? 'Banning…' : 'Ban'}
           confirmDisabled={admin.banUser.isPending}
+          pending={admin.banUser.isPending}
           onConfirm={() => {
             admin.handleConfirmBan()
             return false
@@ -346,6 +347,7 @@ export default function AdminSection() {
                 : 'Promote'
           }
           confirmDisabled={admin.setUserRole.isPending}
+          pending={admin.setUserRole.isPending}
           onConfirm={() => {
             admin.handleConfirmRoleChange()
             return false
@@ -393,6 +395,7 @@ function AddUserModal({ onClose, onCreated }: AddUserModalProps) {
       title='Add user'
       confirmLabel={isSubmissionPending ? 'Adding…' : 'Add user'}
       confirmDisabled={!form.canSubmit}
+      pending={isSubmissionPending}
       onConfirm={() => {
         form.handleAddUser()
         return false

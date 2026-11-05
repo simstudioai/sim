@@ -29,6 +29,16 @@ interface ModalActions {
   onConfirm?: ConfirmHandler<[values: FormData]>
   /** Names the dialog more specifically than its visible title. */
   accessibleName?: string
+  /**
+   * Work the caller is tracking, for a confirm that returns `false` and settles elsewhere. Nothing
+   * dismisses, confirms or steps back until it ends.
+   */
+  pending?: boolean
+  /**
+   * Whether Enter in a text field confirms. Off unless set for a destructive, confirming or
+   * multi-step dialog. A search field or picker never confirms on Enter.
+   */
+  submitOnEnter?: boolean
 }
 type ModalTrigger =
   | { triggerLabel: string; triggerIcon?: IconName; open?: never; onOpenChange?: never }
@@ -70,12 +80,15 @@ function ModalSurface({
   onBack,
   onConfirm,
   accessibleName,
+  pending: trackedPending,
+  submitOnEnter,
   open: controlled,
   onOpenChange,
 }: ModalSurfaceProps) {
   const [internal, setInternal] = useState(false)
   const [index, setIndex] = useState(0)
-  const [pending, setPending] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const pending = confirming || Boolean(trackedPending)
   const [error, setError] = useState<string | null>(null)
   /** A step back within one step still moves focus, so a repeated Enter cannot reach Cancel. */
   const [backs, setBacks] = useState(0)
@@ -97,14 +110,14 @@ function ModalSurface({
     try {
       const result = onConfirm?.(values)
       if (result instanceof Promise) {
-        setPending(true)
+        setConfirming(true)
         if ((await result) === false) return
       } else if (result === false) return
       close()
     } catch (failure) {
       setError(getErrorMessage(failure, 'Something went wrong. Please try again.'))
     } finally {
-      setPending(false)
+      setConfirming(false)
     }
   }
 
@@ -127,6 +140,9 @@ function ModalSurface({
         step={index + backs}
         presentation={presentation}
         busy={pending}
+        submitOnEnter={
+          submitOnEnter ?? (presentation === 'form' && !destructive && steps.length === 1)
+        }
         onClose={dismiss}
         onSubmit={(event) => {
           event.preventDefault()
@@ -201,6 +217,8 @@ export function Modal({
   cancelLabel,
   onBack,
   accessibleName,
+  pending,
+  submitOnEnter,
 }: ModalProps) {
   return (
     <ModalSurface
@@ -218,6 +236,8 @@ export function Modal({
       cancelLabel={cancelLabel}
       onBack={onBack}
       accessibleName={accessibleName}
+      pending={pending}
+      submitOnEnter={submitOnEnter}
     />
   )
 }

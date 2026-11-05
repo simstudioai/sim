@@ -119,6 +119,7 @@ export function PolicyModal({ organizationId, integration, onClose }: PolicyModa
             : 'Save settings'
       }
       confirmDisabled={update.isPending}
+      pending={update.isPending}
       onConfirm={() => {
         save()
         return false

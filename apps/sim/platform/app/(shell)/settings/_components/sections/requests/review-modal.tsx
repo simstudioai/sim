@@ -51,6 +51,7 @@ export function ReviewModal({ organizationId, requestId, onClose }: ReviewModalP
       onOpenChange={(open) => !open && onClose()}
       title={model?.title ?? 'Review access request'}
       cancelLabel='Close'
+      submitOnEnter={false}
       confirmLabel={label}
       destructive={pending && declining}
       confirmDisabled={
