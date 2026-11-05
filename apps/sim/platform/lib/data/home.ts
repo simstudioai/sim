@@ -46,7 +46,7 @@ import type {
 } from '@/platform/app/(shell)/home/_components/model'
 import { homeDayParam } from '@/platform/app/(shell)/home/search-params'
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
-import { organizationChatHref } from '@/platform/lib/data/chat-list'
+import { organizationChatHref, useCanOpenOrganizationChat } from '@/platform/lib/data/chat-list'
 import {
   greetingAt,
   HOME_CALENDAR_SOURCES,
@@ -280,12 +280,13 @@ function useHomeAttention(
   const routes = organizationRoutes(organizationId)
   const canReview = organization.viewer.isAdmin
   const chats = useOrganizationMothershipChats(organizationId)
+  const canOpenChat = useCanOpenOrganizationChat()
   const requests = useOrganizationAccessRequests(canReview ? organizationId : '')
   const reviewFailed = canReview && requests.isError && !isRefusal(requests.error)
   const items = toAttentionItems({
     entries: integrations.entries ?? [],
     readAccounts,
-    chats: (chats.data ?? []).map((chat) => ({
+    chats: (chats.data ?? []).filter(canOpenChat).map((chat) => ({
       id: chat.id,
       title: chat.name,
       href: organizationChatHref(chat, routes),

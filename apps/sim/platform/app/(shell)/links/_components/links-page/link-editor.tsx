@@ -13,6 +13,8 @@ interface LinkEditorProps {
   link?: SimLink
   /** Prefills the name of a new link, such as one opened from an unknown sim/ link. */
   initialName?: string
+  /** Prefills the destination of a new link, such as a search result's address. */
+  initialUrl?: string
   onClose: () => void
 }
 
@@ -20,8 +22,14 @@ interface LinkEditorProps {
  * The URL fields are plain text and nothing is `required`, so a problem reaches the shared schema
  * and shows its message on the field instead of a browser validation bubble.
  */
-export function LinkEditor({ organizationId, link, initialName, onClose }: LinkEditorProps) {
-  const editor = useLinkEditor(organizationId, link, initialName)
+export function LinkEditor({
+  organizationId,
+  link,
+  initialName,
+  initialUrl,
+  onClose,
+}: LinkEditorProps) {
+  const editor = useLinkEditor(organizationId, link, initialName, initialUrl)
   const { draft, errors, pending } = editor
   return (
     <Modal
@@ -97,7 +105,7 @@ export function LinkEditor({ organizationId, link, initialName, onClose }: LinkE
           />
         </div>
       </FieldFrame>
-      <div>
+      <div className={styles.learnMore}>
         <Button variant='quiet' size='compact' trailingIcon='I037' onClick={openLinkDocs}>
           Learn more
         </Button>

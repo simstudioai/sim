@@ -20,7 +20,7 @@ import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
-import { SimLinkOrganizationProvider } from '@/app/o/[organizationId]/links/sim-link-organization-provider'
+import { OrganizationSimLinkProvider } from '@/app/o/[organizationId]/links/organization-sim-link-provider'
 import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
 import { OrganizationProvider } from '@/app/o/[organizationId]/providers/organization-provider'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
@@ -131,7 +131,7 @@ export default async function OrganizationLayout({
         }}
       >
         <OrganizationProvider context={context}>
-          <SimLinkOrganizationProvider organizationId={simLinkOrganizationId}>
+          <OrganizationSimLinkProvider organizationId={simLinkOrganizationId}>
             <GlobalCommandsProvider>
               <WorkspaceViewport className='workspace-root'>
                 <ImpersonationBanner />
@@ -153,7 +153,7 @@ export default async function OrganizationLayout({
                 </SettingsNavigationProvider>
               </WorkspaceViewport>
             </GlobalCommandsProvider>
-          </SimLinkOrganizationProvider>
+          </OrganizationSimLinkProvider>
         </OrganizationProvider>
       </FeatureFlagsProvider>
     </HydrationBoundary>

@@ -28,7 +28,9 @@ export function PropertyList({ title, titleHidden, properties }: PropertyListPro
           <div className={styles.row} key={property.id}>
             <dt data-type='T050'>{property.label}</dt>
             <dd data-type='T060' data-kind={property.kind}>
-              {property.kind === 'person' && <Avatar name={property.value} src={property.src} />}
+              {property.kind === 'person' && (
+                <Avatar name={property.value} src={property.src} decorative />
+              )}
               {property.kind === 'link' ? (
                 <Link href={property.href}>{property.value}</Link>
               ) : (

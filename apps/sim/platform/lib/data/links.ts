@@ -147,10 +147,10 @@ export function useLinksPage(organizationId: string) {
   }
 }
 
-function draftOf(link: SimLink | undefined, initialName = ''): SimLinkBody {
+function draftOf(link: SimLink | undefined, initialName = '', initialUrl = ''): SimLinkBody {
   return {
     name: link?.name ?? initialName,
-    url: link?.url ?? '',
+    url: link?.url ?? initialUrl,
     defaultUrl: link?.defaultUrl ?? null,
     description: link?.description ?? '',
     unlisted: link?.unlisted ?? false,
@@ -159,10 +159,15 @@ function draftOf(link: SimLink | undefined, initialName = ''): SimLinkBody {
 }
 
 /** One open editor's draft. Mount it per link (keyed) so each starts from that link's saved fields. */
-export function useLinkEditor(organizationId: string, link?: SimLink, initialName?: string) {
+export function useLinkEditor(
+  organizationId: string,
+  link?: SimLink,
+  initialName?: string,
+  initialUrl?: string
+) {
   const create = useCreateSimLink(organizationId)
   const update = useUpdateSimLink(organizationId)
-  const [draft, setDraft] = useState(() => draftOf(link, initialName))
+  const [draft, setDraft] = useState(() => draftOf(link, initialName, initialUrl))
   const [errors, setErrors] = useState<Partial<Record<LinkField, string>>>({})
   const variable = isVariableSimLinkUrl(draft.url)
   const change = <K extends keyof SimLinkBody>(field: K, value: SimLinkBody[K]) => {

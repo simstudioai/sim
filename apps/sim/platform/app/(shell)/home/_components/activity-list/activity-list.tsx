@@ -36,7 +36,7 @@ export function EmailList({ items, asOf, onOpen }: EmailListProps) {
           {items.map((mail) => (
             <ActivityRow
               key={mail.id}
-              leading={<Avatar size='inline' name={mail.sender} />}
+              leading={<Avatar size='inline' name={mail.sender} decorative />}
               title={mail.sender}
               count={mail.count}
               detailLead={mail.subject}

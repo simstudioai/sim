@@ -36,8 +36,12 @@ import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
 import { useNavWarmers } from '@/platform/lib/data/nav-warmers'
 import { type OrganizationNavFlags, useOrganizationShell } from '@/platform/lib/data/shell'
 import { useShellActions } from '@/platform/lib/data/shell-actions'
+import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
+import { useSidebarStore } from '@/stores/sidebar/store'
+
+const EDGE_KEY_STEP_PX = 16
 
 /**
  * The organization surface's rail in the design system's style, hosted by the same `WorkspaceChrome`
@@ -63,6 +67,8 @@ export function Sidebar(flags: OrganizationNavFlags) {
   const [workspacesOpen, setWorkspacesOpen] = useState(true)
   const [chatsOpen, setChatsOpen] = useState(true)
   const setCommandOpen = useSearchModalStore((state) => state.setOpen)
+  const railWidth = useSidebarStore((state) => state.renderedSidebarWidth)
+  const setRailWidth = useSidebarStore((state) => state.setSidebarWidth)
 
   const routes = organizationRoutes(organization.id)
   const isSettings = isPathOrDescendant(pathname, routes.settings)
@@ -265,12 +271,18 @@ export function Sidebar(flags: OrganizationNavFlags) {
           tabIndex={0}
           aria-orientation={collapsed ? undefined : 'vertical'}
           aria-label={collapsed ? 'Expand sidebar' : 'Resize sidebar'}
+          aria-valuenow={collapsed ? undefined : railWidth}
+          aria-valuemin={collapsed ? undefined : SIDEBAR_WIDTH.MIN}
+          aria-valuemax={collapsed ? undefined : SIDEBAR_WIDTH.MAX}
           onPointerDown={collapsed ? undefined : handlePointerDown}
           onClick={collapsed ? onToggle : undefined}
           onKeyDown={(event) => {
             if (collapsed && (event.key === 'Enter' || event.key === ' ')) {
               event.preventDefault()
               onToggle()
+            } else if (!collapsed && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+              event.preventDefault()
+              setRailWidth(railWidth + (event.key === 'ArrowLeft' ? -1 : 1) * EDGE_KEY_STEP_PX)
             }
           }}
         />

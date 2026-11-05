@@ -31,10 +31,12 @@ export function AccountMenu({
   onSignOut,
 }: AccountMenuProps) {
   const [open, setOpen] = useState(false)
+  const accountLabel = `${name}, account menu`
   return (
     <AnchoredPopover
       presentation='menu'
       label='Account menu'
+      triggerLabel={accountLabel}
       anchor={anchor}
       open={open}
       onOpenChange={(next) => {
@@ -45,8 +47,8 @@ export function AccountMenu({
         <Tooltip label={name} enabled={iconOnly}>
           <IdentityButton
             render={button}
-            label={name}
-            leading={<Avatar name={name} src={image ?? undefined} size='inline' />}
+            label={accountLabel}
+            leading={<Avatar name={name} src={image ?? undefined} size='inline' decorative />}
           >
             {iconOnly ? undefined : name}
           </IdentityButton>

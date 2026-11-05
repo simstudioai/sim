@@ -122,6 +122,9 @@
   .field {
     padding-block: var(--spacing-2);
   }
+  .field > [data-solid] {
+    margin-block: calc((var(--spacing-app-touch-target) - var(--spacing-app-control-sm)) / 2);
+  }
   .fieldMark {
     block-size: var(--spacing-app-touch-target);
   }
@@ -129,47 +132,58 @@
     padding-block: calc((var(--spacing-app-touch-target) - var(--leading-22)) / 2);
   }
 }
-.dockedField,
-.resultsColumn {
-  inline-size: 100%;
-  max-inline-size: calc(var(--container-chat) + 2 * var(--spacing-24));
-  margin-inline: auto;
+.docked,
+.landing {
+  --search-column-inset: var(--spacing-12);
 }
-.dockedField {
-  flex: none;
-  padding: var(--spacing-32) var(--spacing-24) var(--spacing-12);
+@media (width >= 48rem) {
+  .docked,
+  .landing {
+    --search-column-inset: var(--spacing-24);
+  }
+}
+/* The field's row reserves the scroller's gutters, so the column measures the same in both. */
+.scroll,
+.dockedRow {
+  scrollbar-gutter: stable both-edges;
 }
 .scroll {
   flex: 1;
   min-block-size: 0;
   overflow-y: auto;
-  scrollbar-gutter: stable both-edges;
+}
+.dockedRow {
+  flex: none;
+  overflow: hidden;
+}
+.column {
+  inline-size: 100%;
+  max-inline-size: calc(var(--container-chat) + 2 * var(--search-column-inset));
+  margin-inline: auto;
+  padding-inline: var(--search-column-inset);
+}
+.dockedField {
+  padding-block: var(--spacing-32) var(--spacing-12);
 }
 .resultsColumn {
-  padding: var(--spacing-4) var(--spacing-24) var(--spacing-24);
+  padding-block: var(--spacing-4) var(--spacing-24);
 }
 .landing {
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
   min-block-size: 100%;
-  padding: var(--spacing-56) var(--spacing-12) var(--spacing-32);
+  padding-block: var(--spacing-56) var(--spacing-32);
 }
 @media (width >= 48rem) {
   .landing {
-    padding: 2vh var(--spacing-24) 22vh;
+    padding-block: 2vh 22vh;
   }
 }
 .heading {
-  max-inline-size: var(--container-chat);
   margin-block-end: var(--spacing-28);
   text-align: center;
   text-wrap: balance;
-}
-.landingField {
-  inline-size: 100%;
-  max-inline-size: var(--container-chat);
 }
 .historyAnchor {
   position: relative;
@@ -185,7 +199,6 @@
 }
 .history {
   margin-block-start: var(--spacing-24);
-  padding-inline: var(--spacing-8);
 }
 .historyBar {
   display: flex;
