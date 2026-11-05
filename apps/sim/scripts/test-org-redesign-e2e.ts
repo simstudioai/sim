@@ -1373,6 +1373,21 @@ async function sidebarChecks() {
   )
 }
 
+const FOUR_WAY_MEETINGS = ['Board prep', 'Budget review', 'Hiring loop', 'Vendor call']
+/** Adjacent meetings, a pair side by side with one shorter than its slot, then a four-way overlap. */
+const BUSY_DAY_EVENTS = [
+  { title: 'Morning planning', start: '09:30', end: '10:00', people: [{ name: 'Ada Lovelace' }] },
+  {
+    title: 'Sim search feedback review',
+    start: '10:00',
+    end: '10:30',
+    people: [{ name: 'Ada Lovelace' }, { name: 'Alan Turing' }, { name: 'Edith Clarke' }],
+  },
+  { title: 'Design check-in', start: '10:00', end: '10:20', people: [{ name: 'Alan Turing' }] },
+  { title: 'Roadmap session', start: '11:00', end: '12:00', people: [{ name: 'Edith Clarke' }] },
+  ...FOUR_WAY_MEETINGS.map((title) => ({ title, start: '13:00', end: '14:00', people: [] })),
+]
+
 /** Replies the same Google stand-in every test sees for a viewer's connected accounts. */
 async function stubConnectedHome(page: Page) {
   const today = new Date().toISOString().slice(0, 10)
@@ -1416,6 +1431,16 @@ async function stubConnectedHome(page: Page) {
             endAt: `${date}T15:30:00.000Z`,
             people: [{ name: 'Grace Hopper' }],
           },
+          ...BUSY_DAY_EVENTS.map(({ title, start, end, people }) => ({
+            id: `${title}-${date}`,
+            credentialId: GRANTS['google-calendar'].credentialId,
+            title,
+            allDay: false,
+            startAt: `${date}T${start}:00.000Z`,
+            endAt: `${date}T${end}:00.000Z`,
+            url: `https://calendar.google.com/event/${encodeURIComponent(title)}`,
+            people,
+          })),
         ],
       },
     })
@@ -1596,6 +1621,78 @@ async function homeChecks() {
       await expect(standup).toBeVisible()
     })
   })
+  for (const viewport of [DESKTOP, PHONE]) {
+    for (const theme of ['light', 'dark'] as const) {
+      await check(`Calendar cards never touch (${viewport.name} ${theme})`, async () => {
+        await withSession(
+          CONNECTED,
+          async ({ page }) => {
+            await stubConnectedHome(page)
+            await page.goto(orgUrl('/home'))
+            const schedule = page.getByRole('region', { name: 'Calendar schedule' })
+            const cards = schedule.locator('article')
+            await expect(cards.first()).toBeVisible()
+            const overflow = schedule.getByRole('button', { name: /^\d+ more meetings$/ })
+            await expect(overflow).toHaveCount(1)
+
+            const drawn = await schedule
+              .locator('article, button[aria-label$="more meetings"]')
+              .evaluateAll((elements) =>
+                elements.map((element) => {
+                  const { left, right, top, bottom } = element.getBoundingClientRect()
+                  return {
+                    name: element.textContent ?? '',
+                    left,
+                    right,
+                    top,
+                    bottom,
+                    clippedBy: element.scrollHeight - element.clientHeight,
+                  }
+                })
+              )
+            const touching = drawn.flatMap((first, index) =>
+              drawn
+                .slice(index + 1)
+                .filter(
+                  (second) =>
+                    first.left < second.right + 2 &&
+                    second.left < first.right + 2 &&
+                    first.top < second.bottom + 2 &&
+                    second.top < first.bottom + 2
+                )
+                .map((second) => `${first.name} / ${second.name}`)
+            )
+            assert.deepEqual(touching, [])
+            assert.deepEqual(
+              drawn.filter((card) => card.clippedBy > 1).map((card) => card.name),
+              []
+            )
+
+            const shown = await cards.allInnerTexts()
+            await overflow.focus()
+            await page.keyboard.press('Enter')
+            const offered = await page.getByRole('menuitem').allInnerTexts()
+            assert.ok(offered.length > 0, 'the overflow opens from the keyboard')
+            for (const title of FOUR_WAY_MEETINGS) {
+              const reached = [...shown, ...offered].filter((text) => text.includes(title))
+              assert.equal(reached.length, 1, `${title} is reachable exactly once`)
+            }
+            await page.keyboard.press('Escape')
+
+            await schedule.evaluate((element) => {
+              const first = element.querySelector('article')
+              if (first instanceof HTMLElement) element.scrollTop = first.offsetTop
+            })
+            await homeRegion(page, 'Calendar').screenshot({
+              path: resolve(artifactDirectory, `calendar__${viewport.name}__${theme}.png`),
+              animations: 'disabled',
+            })
+          },
+          { viewport, theme }
+        )
+      })
+    }
+  }
   await check('a member gets no Tasks run chart rather than a broken one', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(orgUrl('/home'))

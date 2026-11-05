@@ -26,6 +26,8 @@ export interface CalendarMeeting {
   title: string
   startMinute: number
   duration: number
+  /** The meeting's own wall clock, when it runs past the edges of this day. */
+  clock?: { startMinute: number; endMinute: number }
   providerUrl?: string
   people: { name: string }[]
 }

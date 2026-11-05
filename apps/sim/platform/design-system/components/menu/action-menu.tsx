@@ -66,6 +66,8 @@ interface TriggeredMenuProps {
   heading?: string
   triggerSize?: 'small' | 'row' | 'compact'
   tooltip?: boolean
+  /** A short visible trigger, such as a count, which `label` then names for assistive technology. */
+  triggerText?: string
   children?: never
   defaultValue?: never
 }
@@ -83,6 +85,7 @@ export function ActionMenu(props: ActionMenuProps | TriggeredMenuProps) {
         heading={props.heading}
         triggerSize={props.triggerSize}
         tooltip={props.tooltip}
+        triggerText={props.triggerText}
       />
     )
   return (
@@ -126,6 +129,7 @@ function TriggeredMenu({
   heading,
   triggerSize = 'small',
   tooltip = true,
+  triggerText,
 }: TriggeredMenuProps) {
   const { trigger, container, opener } = usePopoverContainer()
   return (
@@ -147,8 +151,13 @@ function TriggeredMenu({
           disabled={!actions.length}
         />
       ) : (
-        <Button render={<Menu.Trigger ref={trigger} />} variant='quiet' disabled={!actions.length}>
-          {label}
+        <Button
+          render={<Menu.Trigger ref={trigger} aria-label={triggerText ? label : undefined} />}
+          variant='quiet'
+          size={triggerText ? 'compact' : undefined}
+          disabled={!actions.length}
+        >
+          {triggerText ?? label}
         </Button>
       )}
       <ActionMenuPopup label={label} container={container} align={align}>
