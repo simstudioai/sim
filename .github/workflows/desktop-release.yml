@@ -65,19 +65,16 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      commit: ${{ steps.source.outputs.commit }}
       name: ${{ steps.channel.outputs.name }}
       app_id: ${{ steps.channel.outputs.app_id }}
       origin: ${{ steps.channel.outputs.origin }}
       release_repository: ${{ steps.channel.outputs.release_repository }}
       token_kind: ${{ steps.channel.outputs.token_kind }}
-      smoke_shards: ${{ steps.smoke.outputs.shards }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.sha }}
 
       # Prerelease versions carry their environment in the tag: -dev.N is a
       # dev build, -staging.N a staging build. Legacy -alpha/-beta tags remain
@@ -108,7 +105,6 @@ jobs:
           echo "Building $NAME ($APP_ID) for $RELEASE_REPOSITORY; default origin: ${ORIGIN:-production}"
 
       - name: Validate release source
-        id: source
         env:
           PUBLISH: ${{ inputs.publish }}
           SIGN: ${{ inputs.sign }}
@@ -123,6 +119,10 @@ jobs:
             echo "::error::Manual desktop releases must use a stable source-repository tag."
             exit 1
           fi
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "$GITHUB_REF" != "refs/tags/$VERSION" ]; then
+            echo "::error::Run this workflow from the $VERSION tag, so it executes only that tag's code and its caches stay scoped to that tag."
+            exit 1
+          fi
           if [ "$PUBLISH" = true ] && [ "$SIGN" != true ]; then
             echo "::error::Desktop releases must be signed before publication."
             exit 1
@@ -135,17 +135,6 @@ jobs:
               echo "::error::Requested tag $VERSION points to $TAG_COMMIT, but the checkout is $HEAD_COMMIT."
               exit 1
             fi
-          fi
-
-          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Select available smoke partitioning
-        id: smoke
-        run: |
-          if [ -f scripts/desktop-e2e.ts ]; then
-            echo 'shards=[1,2,3,4]' >> "$GITHUB_OUTPUT"
-          else
-            echo 'shards=[1]' >> "$GITHUB_OUTPUT"
           fi
 
       - name: Validate release authentication
@@ -168,17 +157,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON(needs.source.outputs.smoke_shards) }}
+        shard: [1, 2, 3, 4]
     steps:
       - &checkout-source
         name: Checkout verified source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
-          ref: ${{ needs.source.outputs.commit }}
 
-      - &setup-bun
-        name: Setup Bun
+      - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.4.4
@@ -218,9 +205,7 @@ jobs:
             exit 1
           fi
 
-      - &native-cache
-        name: Restore native compilation
-        if: hashFiles('.github/actions/desktop-native-cache/action.yml') != ''
+      - name: Restore native compilation
         uses: ./.github/actions/desktop-native-cache
 
       - &bundle-desktop
@@ -245,12 +230,7 @@ jobs:
           BACKGROUND_EXECUTOR_REPORT_PATH: test-results/background-executor-report.json
           TERMINAL_CANCEL_REPORT_PATH: test-results/terminal-cancel-report.json
           CONTINUE_SIGN_IN_REPORT_PATH: test-results/continue-sign-in-report.json
-        run: |
-          if [ -f ../../scripts/desktop-e2e.ts ]; then
-            bun run ../../scripts/desktop-e2e.ts ${{ matrix.shard }}/${{ strategy.job-total }}
-          else
-            bun run test:e2e --reporter=line,json
-          fi
+        run: bun run ../../scripts/desktop-e2e.ts ${{ matrix.shard }}/${{ strategy.job-total }}
 
       - name: Upload smoke coverage and timings
         if: always()
@@ -271,6 +251,8 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # Restores no caches: every byte that gets signed comes from this checkout or
+  # a fresh download, never from a cache another run could have written.
   build:
     name: build
     needs: source
@@ -281,23 +263,17 @@ jobs:
     steps:
       - *checkout-source
 
-      - *setup-bun
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.4
+          no-cache: true
 
       - *setup-node
-
-      - name: Cache Electron binaries
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
-        with:
-          path: |
-            ~/Library/Caches/electron
-            ~/Library/Caches/electron-builder
-          key: electron-cache-${{ runner.os }}-${{ hashFiles('apps/desktop/package.json') }}
 
       - *install-dependencies
 
       - *inject-version
-
-      - *native-cache
 
       - name: Verify desktop source
         run: |
