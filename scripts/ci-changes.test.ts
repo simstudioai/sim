@@ -479,6 +479,7 @@ describe('CI task attribution through real Turborepo', () => {
       'cli',
       'desktop-inbox',
       'mobile',
+      'org-redesign',
       'organization-search',
       'project-files',
       'scim',
