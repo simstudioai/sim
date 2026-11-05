@@ -2324,8 +2324,10 @@ async function searchChecks() {
   await check('an unconnected member gets the connect prompt, not an empty result', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(orgUrl('/search?mode=search&q=warranty'))
-      await expect(page.getByText('No connected apps are available for this search.')).toBeVisible()
-      await expect(page.getByRole('link', { name: 'Connect apps' })).toHaveAttribute(
+      await expect(
+        page.getByText('No connected integrations are available for this search.')
+      ).toBeVisible()
+      await expect(page.getByRole('link', { name: 'Connect integrations' })).toHaveAttribute(
         'href',
         `${root}/integrations`
       )
@@ -2498,11 +2500,13 @@ async function searchChecks() {
         partial = true
         await page.goto(orgUrl('/search?mode=search&q=partial'))
         await expect(
-          page.getByText('Some apps couldn’t be searched. Showing available results.')
+          page.getByText('Some integrations couldn’t be searched. Showing available results.')
         ).toBeVisible()
         partial = false
         await page.goto(orgUrl('/search?mode=search&q=nothing'))
-        await expect(page.getByText(/Search found no results|No connected apps/)).toBeVisible()
+        await expect(
+          page.getByText(/Search found no results|No connected integrations/)
+        ).toBeVisible()
         await page.goto(orgUrl('/search?mode=search&q=recall&updated=custom'))
         await expect(page.getByText('Choose the days to search.')).toBeVisible()
       })

@@ -16,7 +16,7 @@ export default function OrganizationError({ error, reset }: ErrorBoundaryProps) 
   return (
     <RouteStatus
       title='Something went wrong'
-      description='An unexpected error occurred. Please try again or refresh the page.'
+      description='An unexpected error occurred. Try again or refresh the page.'
       actions={
         <Button variant='primary' onClick={reset}>
           Try again

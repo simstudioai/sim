@@ -90,14 +90,14 @@ function LiveResults({ scope, query, onSummarize }: LiveResultsProps) {
       {results.noResults && <EmptyState title='Search found no results.' />}
       {results.connectAppsHref && (
         <InlineNotice
-          message='No connected apps are available for this search.'
-          action={<Chip href={results.connectAppsHref}>Connect apps</Chip>}
+          message='No connected integrations are available for this search.'
+          action={<Chip href={results.connectAppsHref}>Connect integrations</Chip>}
         />
       )}
       {results.someAppsUnavailable && (
         <InlineNotice
           intent='warning'
-          message='Some apps couldn’t be searched. Showing available results.'
+          message='Some integrations couldn’t be searched. Showing available results.'
         />
       )}
       {results.coverageIncomplete && (

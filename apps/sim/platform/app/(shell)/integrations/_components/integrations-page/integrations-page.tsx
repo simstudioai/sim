@@ -32,7 +32,9 @@ export function IntegrationsHeading({ handoff }: IntegrationsHeadingProps) {
   return (
     <header className={styles.heading}>
       <h1 data-type='T076'>Integrations</h1>
-      <p data-type='T060'>Connect your accounts to the apps your organization makes available.</p>
+      <p data-type='T060'>
+        Connect your accounts to the integrations your organization makes available.
+      </p>
       {handoff}
     </header>
   )

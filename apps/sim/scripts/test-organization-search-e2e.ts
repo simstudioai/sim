@@ -447,10 +447,10 @@ try {
       assert.equal(body.query, 'Launch notes')
       // The seeded member has connected no account, so nothing was searched.
       await expect(
-        page.getByText('No connected apps are available for this search.', { exact: true })
+        page.getByText('No connected integrations are available for this search.', { exact: true })
       ).toBeVisible()
       await expect(page.getByText('Search found no results.', { exact: true })).toHaveCount(0)
-      await expect(page.getByRole('link', { name: 'Connect apps' })).toHaveAttribute(
+      await expect(page.getByRole('link', { name: 'Connect integrations' })).toHaveAttribute(
         'href',
         `${root}/integrations`
       )
@@ -947,7 +947,7 @@ try {
         partial = true
         await page.goto(`${baseUrl.origin}${root}/search?q=Partial%20coverage`)
         await expect(
-          page.getByText('Some apps couldn’t be searched. Showing available results.')
+          page.getByText('Some integrations couldn’t be searched. Showing available results.')
         ).toBeVisible()
         await capture('search-partial-coverage')
         unavailable = true

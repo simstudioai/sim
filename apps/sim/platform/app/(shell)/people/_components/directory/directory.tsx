@@ -115,10 +115,7 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
         />
       ) : rows.length === 0 ? (
         !directory.query && !directory.hasDepartment ? (
-          <EmptyState
-            title='No people to show'
-            description='Organization members and people from a connected directory appear here.'
-          />
+          <EmptyState title='No people to show' />
         ) : (
           <EmptyState
             title={directory.query ? `No results for “${directory.query}”` : 'No results'}

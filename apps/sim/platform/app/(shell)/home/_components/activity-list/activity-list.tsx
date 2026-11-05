@@ -93,12 +93,7 @@ export function AttentionList({ state, asOf, onRetry }: AttentionListProps) {
               </ScrollArea>
             </div>
           ) : (
-            !state.partial && (
-              <EmptyState
-                title='You’re all caught up'
-                description='Anything that needs you will appear here.'
-              />
-            )
+            !state.partial && <EmptyState title='You’re all caught up' />
           )}
         </>
       )}

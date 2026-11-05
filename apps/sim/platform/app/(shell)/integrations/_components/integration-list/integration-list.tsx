@@ -88,10 +88,7 @@ export function IntegrationList({
         (term ? (
           <EmptyState title='No matching integrations' />
         ) : (
-          <EmptyState
-            title='No integrations available'
-            description='Apps enabled for your organization will appear here.'
-          />
+          <EmptyState title='No integrations available' />
         ))}
       {SECTIONS.map((section) => {
         const items = matches.filter((item) => item.section === section)
