@@ -201,6 +201,7 @@ const seamHelpers = new Set([
   'lib/block-metadata/names.generated',
   'lib/core/config/feature-flags-context',
   'lib/core/resource-scope',
+  'lib/core/security/csp',
   'lib/core/utils/browser-storage',
   'lib/core/utils/react-node-text',
   'lib/desktop',
