@@ -8,6 +8,11 @@
   cursor: pointer;
 }
 
+.target[data-disabled] {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
 .track {
   display: flex;
   align-items: center;

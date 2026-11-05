@@ -31,6 +31,19 @@
   gap: var(--ui-stack-gap);
 }
 
+.identity {
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  min-inline-size: 0;
+  gap: var(--ui-row-gap);
+}
+
+.leading {
+  display: inline-flex;
+  flex: none;
+}
+
 .detail {
   color: var(--ui-secondary);
 }

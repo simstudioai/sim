@@ -66,7 +66,7 @@
   inline-size: calc(var(--ui-table-wide) + var(--spacing-16));
 }
 .table th {
-  height: var(--spacing-app-control-md);
+  height: var(--ui-table-head);
 }
 .table td {
   height: var(--spacing-40);
@@ -75,6 +75,56 @@
 .table tbody tr:hover {
   background: var(--ui-hover);
   clip-path: inset(0 round var(--radius-item));
+}
+.table tbody tr.spacer:hover {
+  background: transparent;
+}
+.table .spacer td {
+  height: auto;
+  padding: 0;
+}
+.table tr[data-openable] {
+  position: relative;
+  cursor: pointer;
+}
+.rowTarget {
+  display: block;
+  inline-size: 100%;
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+.rowTarget::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+}
+.table [data-kind="action"] {
+  position: relative;
+  inline-size: calc(var(--spacing-app-control-sm) + var(--spacing-16));
+  padding-inline: 0;
+  text-align: end;
+}
+.sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+  color: inherit;
+  cursor: pointer;
+}
+.virtualViewport {
+  max-block-size: calc(100dvh - var(--ui-table-viewport-offset));
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.virtualViewport .table {
+  inline-size: 100%;
+}
+.virtualViewport th {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  background: var(--ui-canvas);
 }
 @container (width < 48rem) {
   .table [data-from="wide"] {
@@ -102,7 +152,6 @@
   .header {
     min-block-size: var(--spacing-app-touch-target);
   }
-  .table th,
   .table td {
     height: var(--spacing-app-touch-target);
   }

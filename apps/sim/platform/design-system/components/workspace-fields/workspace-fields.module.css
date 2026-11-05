@@ -42,8 +42,13 @@
   cursor: text;
 }
 
-.recipients:hover {
+.recipients:hover:where(:not([data-disabled])) {
   border-color: var(--control-hover-border);
+}
+
+.recipients[data-disabled] {
+  opacity: var(--opacity-disabled);
+  cursor: default;
 }
 
 .recipients[data-invalid] {

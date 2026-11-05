@@ -5,6 +5,12 @@
   --control-solid-step: 0.03;
   --control-danger: var(--color-light-danger);
   --control-danger-soft: var(--color-red-soft);
+  --status-info: var(--color-light-accent);
+  --status-info-soft: var(--color-blue-soft);
+  --status-success: var(--color-light-success);
+  --status-success-soft: var(--color-green-soft);
+  --status-warning: var(--color-light-warning);
+  --status-warning-soft: var(--color-orange-soft);
   --control-hover-border: var(--color-ink-20);
   --control-avatar: var(--color-surface-muted);
   --control-muted-fill: var(--color-neutral-silver);
@@ -20,6 +26,12 @@
   --control-solid-step: 0.1;
   --control-danger: var(--color-dark-red);
   --control-danger-soft: var(--color-dark-red-soft);
+  --status-info: var(--color-dark-blue);
+  --status-info-soft: var(--color-dark-blue-soft);
+  --status-success: var(--color-dark-green);
+  --status-success-soft: var(--color-dark-green-soft);
+  --status-warning: var(--color-dark-orange);
+  --status-warning-soft: var(--color-dark-orange-soft);
   --control-hover-border: var(--color-white-20);
   --control-avatar: var(--color-dark-selected);
   --control-muted-fill: var(--color-dark-raised);

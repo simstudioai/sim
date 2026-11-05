@@ -2,136 +2,123 @@
 
 import { useId, useMemo, useRef } from 'react'
 import { Combobox } from '@base-ui/react/combobox'
-import { FieldFrame } from '@/platform/design-system/components/field/fields'
+import { FieldFrame, fieldDescription } from '@/platform/design-system/components/field/fields'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import popup from '@/platform/design-system/components/menu/popup.shared.module.css'
 import picker from '@/platform/design-system/components/picker/picker.module.css'
+import {
+  optionKeys,
+  type PickerOption,
+  type PickerServerSearch,
+  SearchPopup,
+} from '@/platform/design-system/components/picker/search-popup'
 import { usePickerValue } from '@/platform/design-system/components/picker/use-picker-value'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
-import { MenuSearchField } from '@/platform/design-system/components/search-field/menu-search-field'
-
-type Option = string | { value: string; label: string }
 
 interface SearchableSelectProps {
   label: string
-  options: readonly Option[]
-  defaultValue: string
+  labelHidden?: boolean
+  options: readonly PickerOption[]
+  defaultValue?: string
+  /** Controlled selection, where `null` holds nothing. It may be absent from the current `options`. */
+  value?: string | null
+  onValueChange?: (value: string | null) => void
+  /** The trigger's text for a controlled `value` the current `options` may not contain. */
+  selectedLabel?: string
+  placeholder?: string
   searchLabel: string
+  /** Needs a controlled `value`: a selection may leave the current `options`. */
+  search?: PickerServerSearch
   name?: string
   disabled?: boolean
+  error?: string
+  hint?: string
   createLabel?: string
   onCreate?: () => void
 }
 
-const collectionKeys = {
-  getValue: (option: Option) => (typeof option === 'string' ? option : option.value),
-  getLabel: (option: Option) => (typeof option === 'string' ? option : option.label),
-}
-
 export function SearchableSelect({
   label,
+  labelHidden,
   options,
   defaultValue,
+  value,
+  onValueChange,
+  selectedLabel,
+  placeholder,
   searchLabel,
+  search,
   name,
   disabled,
+  error,
+  hint,
   createLabel,
   onCreate,
 }: SearchableSelectProps) {
   const id = useId()
   const actions = useRef<Combobox.Root.Actions>(null)
-  const input = useRef<HTMLInputElement>(null)
-  const queryEdges = useScrollEdges('horizontal', { viewport: input })
   const valueEdges = useScrollEdges<HTMLSpanElement>('horizontal')
-  const scrollRef = useScrollEdges<HTMLDivElement>()
-  const selection = usePickerValue(options, collectionKeys.getValue, defaultValue)
-  const items = useMemo(() => Combobox.createItems(options, collectionKeys), [options])
+  const selection = usePickerValue(options, optionKeys.getValue, defaultValue)
+  const items = useMemo(() => Combobox.createItems(options, optionKeys), [options])
+  const current = value === undefined ? selection.value : value
   return (
-    <FieldFrame id={id} label={label}>
+    <FieldFrame id={id} label={label} labelHidden={labelHidden} error={error} hint={hint}>
       <Combobox.Root
         items={items}
-        value={selection.value}
+        value={current}
         name={name}
-        onValueChange={selection.setValue}
+        filter={search ? null : undefined}
+        inputValue={search?.query}
+        onInputValueChange={search?.onQueryChange}
+        onValueChange={(next) => {
+          selection.setValue(next)
+          onValueChange?.(next)
+        }}
         autoHighlight
         actionsRef={actions}
-        disabled={disabled || (options.length === 0 && !createLabel)}
+        disabled={disabled || (options.length === 0 && !createLabel && !search)}
         modal={false}
       >
         <Combobox.Trigger
           id={id}
           ref={selection.trigger}
           aria-label={label}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={fieldDescription(id, error, hint)}
           className={picker.trigger}
+          data-empty={current === null && placeholder ? true : undefined}
           data-type='T043'
         >
           <span ref={valueEdges} className={picker.value}>
-            <Combobox.Value />
+            {current === null && placeholder ? placeholder : (selectedLabel ?? <Combobox.Value />)}
           </span>
           <Icon name='I051' />
         </Combobox.Trigger>
         {selection.container && (
-          <Combobox.Portal container={selection.container}>
-            <Combobox.Positioner
-              align='start'
-              positionMethod='fixed'
-              sideOffset={8}
-              className={popup.anchorWidth}
-            >
-              <Combobox.Popup
-                className={popup.popup}
-                data-material='floating'
-                data-elevation='menu'
-                aria-label={label}
-                initialFocus={input}
-              >
-                <MenuSearchField
-                  input={
-                    <Combobox.Input
-                      ref={queryEdges}
-                      aria-label={searchLabel}
-                      placeholder={searchLabel}
-                    />
-                  }
-                />
-                <Combobox.Empty className={picker.empty} data-type='T060'>
-                  No matches
-                </Combobox.Empty>
-                <Combobox.List ref={scrollRef} aria-label={label} className={popup.list}>
-                  {(option: Option) => (
-                    <Combobox.Item
-                      key={collectionKeys.getValue(option)}
-                      value={collectionKeys.getValue(option)}
-                      className={popup.item}
-                      data-type='T060'
-                    >
-                      <span className={popup.label}>{collectionKeys.getLabel(option)}</span>
-                      <Combobox.ItemIndicator className={popup.indicator}>
-                        <Icon name='I072' />
-                      </Combobox.ItemIndicator>
-                    </Combobox.Item>
-                  )}
-                </Combobox.List>
-                {createLabel && (
-                  <>
-                    <Combobox.Separator className={popup.separator} />
-                    <button
-                      type='button'
-                      className={popup.item}
-                      data-type='T060'
-                      onClick={() => {
-                        actions.current?.close()
-                        onCreate?.()
-                      }}
-                    >
-                      <Icon name='I074' />
-                      {createLabel}
-                    </button>
-                  </>
-                )}
-              </Combobox.Popup>
-            </Combobox.Positioner>
-          </Combobox.Portal>
+          <SearchPopup
+            label={label}
+            searchLabel={searchLabel}
+            container={selection.container}
+            search={search}
+          >
+            {createLabel && (
+              <>
+                <Combobox.Separator className={popup.separator} />
+                <button
+                  type='button'
+                  className={popup.item}
+                  data-type='T060'
+                  onClick={() => {
+                    actions.current?.close()
+                    onCreate?.()
+                  }}
+                >
+                  <Icon name='I074' />
+                  {createLabel}
+                </button>
+              </>
+            )}
+          </SearchPopup>
         )}
       </Combobox.Root>
     </FieldFrame>
