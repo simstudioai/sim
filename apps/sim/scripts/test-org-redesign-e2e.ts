@@ -916,6 +916,7 @@ async function sidebarChecks() {
             successful: ['invitee@org-redesign.test'],
             added: [],
             failed: [{ email: 'refused@org-redesign.test', error: 'Seat limit reached' }],
+            invitations: [],
           },
         })
       )
@@ -2118,7 +2119,7 @@ async function integrationChecks() {
         ).toBeVisible()
         await expect(panel.getByRole('heading', { name: /Read-only tools/ })).toBeVisible()
         await expect(panel.getByRole('heading', { name: /Write tools/ })).toBeVisible()
-        const group = panel.getByRole('radiogroup', { name: 'Write tools permission' })
+        const group = panel.getByRole('group', { name: 'Write tools permission' })
         await expect(group.getByRole('radio', { name: 'Allow', exact: true })).toBeDisabled()
         await expect(group.getByRole('radio', { name: 'Block', exact: true })).toBeEnabled()
         const saved = page.waitForRequest(
@@ -2852,13 +2853,22 @@ async function blastRadiusChecks() {
           []
         )
       })
-    }
+    },
+    // The workspace shell reads its inbox whatever the group's hideInboxTab says, as it does today.
+    { allow: [/403 GET .*\/inbox/] }
   )
   await check('the extension panel has no platform surface and reads no Home data', async () => {
     await withSession(
       MEMBER,
       async (session) => {
         const { page } = session
+        // Opened outside the extension's frame, where a chrome-extension target has no meaning.
+        await page.addInitScript(() => {
+          const post = window.postMessage.bind(window)
+          window.postMessage = ((message: unknown, target: string) => {
+            if (!String(target).startsWith('chrome-extension://')) post(message, target)
+          }) as typeof window.postMessage
+        })
         const consoleErrors: string[] = []
         page.on('console', (message) => {
           if (message.type() === 'error') consoleErrors.push(message.text())
@@ -3191,9 +3201,11 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
           const response = await page.goto(url(`${root}/${route.path}`), { timeout: 60_000 })
           await session.settle()
           const screenshot = `${persona.key}__${route.name}__${viewport.name}__${theme}.png`
-          await fullPageScreenshot(page, resolve(artifactDirectory, screenshot), viewport).catch(
-            (error) => failures.push(`${route.name} screenshot: ${getErrorMessage(error)}`)
-          )
+          const path = resolve(artifactDirectory, screenshot)
+          await fullPageScreenshot(page, path, viewport)
+            // A client redirect can land after the page has settled.
+            .catch(() => session.settle().then(() => fullPageScreenshot(page, path, viewport)))
+            .catch((error) => failures.push(`${route.name} screenshot: ${getErrorMessage(error)}`))
           const facts = await page.evaluate(() => ({
             dark: document.documentElement.classList.contains('dark'),
             font: getComputedStyle(document.body).fontFamily,

@@ -577,7 +577,7 @@ try {
     })
     await integrationRow('Salesforce').click()
     await expect(page.getByRole('button', { name: 'Add account', exact: true })).toHaveCount(0)
-    const policy = page.getByRole('radiogroup', { name: 'Create Task in Salesforce permission' })
+    const policy = page.getByRole('group', { name: 'Create Task in Salesforce permission' })
     await expect(policy).toBeVisible({ timeout: 180_000 })
     await page.getByRole('button', { name: /^Manage / }).click()
     await expect(
@@ -605,7 +605,7 @@ try {
       const permissions = page.getByRole('textbox', { name: 'Search tools', exact: true })
       if (account.supported) {
         await expect(permissions).toBeVisible()
-        await expect(page.getByRole('radiogroup').first()).toBeVisible()
+        await expect(page.getByRole('radio').first()).toBeVisible()
       } else {
         await expect(permissions).toHaveCount(0)
       }
@@ -641,7 +641,7 @@ try {
       await secondAccount.click()
       await expect(page).toHaveURL((url) => url.searchParams.get('account') === secondCredentialId)
       const selectedUrl = page.url()
-      const policy = page.getByRole('radiogroup', { name: 'Jira Write permission' })
+      const policy = page.getByRole('group', { name: 'Jira Write permission' })
       await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeChecked()
       await capture('integration-selected-account')
       await policy.getByRole('radio', { name: 'Block', exact: true }).click()
@@ -941,7 +941,7 @@ try {
       waitUntil: 'domcontentloaded',
       timeout: 180_000,
     })
-    const policy = page.getByRole('radiogroup', { name: 'Jira Write permission' })
+    const policy = page.getByRole('group', { name: 'Jira Write permission' })
     await expect(policy).toBeVisible({ timeout: 180_000 })
     await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeChecked()
     await policy.getByRole('radio', { name: 'Block', exact: true }).click()
