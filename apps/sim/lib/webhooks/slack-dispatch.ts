@@ -128,7 +128,7 @@ export async function dispatchSlackWebhooks(
       if (result.outcome === 'ignored' && result.reason === 'filtered') {
         const rawEvent = payload.event as Record<string, unknown> | undefined
         const providerConfig = toRecord(foundWebhook.providerConfig)
-        logger.info(
+        logger.debug(
           `[${requestId}] Event skipped by trigger filter for webhook ${foundWebhook.id}`,
           {
             eventKey: resolveSlackEventKey(payload),

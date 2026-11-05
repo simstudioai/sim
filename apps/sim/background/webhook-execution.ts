@@ -1100,7 +1100,7 @@ async function executeWebhookJobInternal(
         }
       }
 
-      logger.info(`[${requestId}] Executing workflow for ${payload.provider} webhook`)
+      logger.debug(`[${requestId}] Executing workflow for ${payload.provider} webhook`)
 
       const metadata: ExecutionMetadata = {
         requestId,
