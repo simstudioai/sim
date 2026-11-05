@@ -20,9 +20,12 @@ test('the member secrets destination delivers only the credential names the view
   expect(await managed?.text()).not.toContain('REPORTING_TOKEN')
   await link.click()
   await expect(page).toHaveURL(/\/integrations\/secrets\?.*secrets=organization/)
-  await expect(
-    page.getByRole('main').getByText('Organization managed', { exact: true })
-  ).toBeVisible()
+  const main = page.getByRole('main')
+  await expect(main.getByRole('link', { name: /Docs/ })).toHaveAttribute(
+    'href',
+    'https://docs.sim.ai/search/generic-secrets'
+  )
+  await expect(main.getByRole('button')).toHaveCount(0)
   const detail = await page.reload()
   expect(await detail?.text()).not.toContain('REPORTING_TOKEN')
 })

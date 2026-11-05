@@ -444,4 +444,5 @@ export const gmailToolMetadata = [
 export const memberSecretMetadata = {
   name: 'Generic Secrets',
   description: 'Store shared or personal secrets for organization Home conversations',
+  setupGuideUrl: 'https://docs.sim.ai/search/generic-secrets',
 } as const
