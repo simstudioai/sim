@@ -57,7 +57,18 @@ export function ChatPanels({ children, data, workspaces }: ChatPanelsProps) {
   const [current, setCurrent] = useState('initial')
   const [removed, setRemoved] = useState<string[]>([])
   const trigger = useRef<HTMLButtonElement>(null)
+  const panel = useRef<HTMLElement>(null)
   const recents = (data?.recents ?? []).filter((item) => !removed.includes(item.id))
+  function show(element: HTMLButtonElement) {
+    trigger.current = element
+    setVisible(true)
+    requestAnimationFrame(() => {
+      const controls = panel.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')
+      Array.from(controls ?? [])
+        .find((control) => control.tabIndex >= 0 && control.getClientRects().length > 0)
+        ?.focus()
+    })
+  }
   function hide() {
     setVisible(false)
     requestAnimationFrame(() => trigger.current?.focus())
@@ -113,15 +124,10 @@ export function ChatPanels({ children, data, workspaces }: ChatPanelsProps) {
     }
   })
   return (
-    <OpenPanel.Provider
-      value={(element) => {
-        trigger.current = element
-        setVisible(true)
-      }}
-    >
+    <OpenPanel.Provider value={show}>
       <div className={styles.frame} data-panel-open={visible} data-expanded={visible && expanded}>
         <div className={styles.conversation}>{children}</div>
-        <aside className={styles.panel} aria-label='Chat panel' hidden={!visible}>
+        <aside ref={panel} className={styles.panel} aria-label='Chat panel' hidden={!visible}>
           <PanelTabs
             tabs={tabViews}
             current={current}
