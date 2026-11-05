@@ -7,7 +7,6 @@ import {
   useScrollEdges,
 } from '@sim/emcn'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
-import type { SearchResource } from '@/lib/mothership/generated/resources'
 import { OrganizationLanding } from '@/app/o/[organizationId]/components/organization-landing'
 import { PAGE_COLUMN_CLASS } from '@/app/o/[organizationId]/components/organization-page'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
@@ -21,16 +20,10 @@ interface SearchResultsViewProps {
   composer: ReactNode
   query: string
   onSummarize?: (message: string, filters: WorkspaceSearchFilters) => void
-  onSearchChange?: (search: SearchResource) => void
 }
 
 /** Standalone Search uses the original centered field and docked results layout. */
-export function SearchResultsView({
-  composer,
-  query,
-  onSummarize,
-  onSearchChange,
-}: SearchResultsViewProps) {
+export function SearchResultsView({ composer, query, onSummarize }: SearchResultsViewProps) {
   const { organization } = useOrganizationContext()
   const scope = { kind: 'organization' as const, organizationId: organization.id }
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -61,12 +54,7 @@ export function SearchResultsView({
             {/* The rows carry their own `px-2`; this gutter brings each row's mark under the
                 field's own search glyph, so results read as a column hanging from the field. */}
             <div ref={scrollContentRef} className={cn(PAGE_COLUMN_CLASS, 'px-8')}>
-              <KnowledgeSearchResults
-                scope={scope}
-                query={query}
-                onSummarize={onSummarize}
-                onSearchChange={onSearchChange}
-              />
+              <KnowledgeSearchResults scope={scope} query={query} onSummarize={onSummarize} />
             </div>
           </div>
         </>

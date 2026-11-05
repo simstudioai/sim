@@ -1,11 +1,11 @@
 'use client'
 
-import { type ReactNode, useState } from 'react'
-import { Chip, cn, toast } from '@sim/emcn'
+import type { ReactNode } from 'react'
+import { Chip, cn } from '@sim/emcn'
 import { Clock } from '@sim/emcn/icons'
 import { inter } from '@/app/_styles/fonts/inter/inter'
+import { useSearchLandingHistory } from '@/app/o/[organizationId]/components/use-search-landing-history'
 import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
-import { useClearSearchHistory, useSearchHistory } from '@/hooks/queries/search-history'
 
 interface SearchLandingHistoryProps {
   organizationId: string
@@ -21,13 +21,8 @@ export function SearchLandingHistory({
   onSearch,
   children,
 }: SearchLandingHistoryProps) {
-  const history = useSearchHistory(organizationId)
-  const clear = useClearSearchHistory(organizationId, userId)
-  const [selection, setSelection] = useState<'sources' | 'queries' | null>(null)
-  const data = history.isError ? undefined : history.data
-  const sources = data?.sources.slice(0, 5) ?? []
-  const queries = data?.queries.slice(0, 5) ?? []
-  const selected = selection ?? (sources.length > 0 ? 'sources' : 'queries')
+  const { failed, retrying, retry, sources, queries, selected, setSelection, clear, isClearing } =
+    useSearchLandingHistory(organizationId, userId)
   return (
     <div className={cn('relative w-full min-w-0', inter.className)}>
       {children}
@@ -51,12 +46,7 @@ export function SearchLandingHistory({
                   Recent searches
                 </Chip>
               </div>
-              <Chip
-                disabled={clear.isPending}
-                onClick={() =>
-                  clear.mutate(undefined, { onError: (error) => toast.error(error.message) })
-                }
-              >
+              <Chip disabled={isClearing} onClick={clear}>
                 Clear history
               </Chip>
             </div>
@@ -102,10 +92,10 @@ export function SearchLandingHistory({
             </div>
           </section>
         )}
-        {history.isError && (
+        {failed && (
           <div className='mt-6 flex items-center gap-2 px-4 text-[var(--text-tertiary)] text-small'>
             Recent activity couldn’t load.
-            <Chip onClick={() => void history.refetch()} disabled={history.isFetching}>
+            <Chip onClick={retry} disabled={retrying}>
               Try again
             </Chip>
           </div>
