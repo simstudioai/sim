@@ -60,7 +60,7 @@
 .collectionActions {
   position: absolute;
   inset-block-start: 0;
-  inset-inline-end: 0;
+  inset-inline-end: calc((var(--spacing-app-chip) - var(--spacing-24)) / 2);
   min-block-size: var(--spacing-28);
   display: flex;
   align-items: center;
