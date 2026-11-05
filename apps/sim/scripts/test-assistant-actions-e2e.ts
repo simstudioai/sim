@@ -977,7 +977,10 @@ try {
       .tools.find((tool) => tool.toolId === 'jira_write')
     assert(jiraWrite?.description)
     await expect(page.getByText(jiraWrite.description, { exact: true })).toBeVisible()
-    await expect(policy).toHaveAccessibleDescription('Inherits Ask from write tools.')
+    await expect(policy).toHaveAttribute(
+      'aria-description',
+      /^(Inherits Ask from|Choose Ask to inherit the default for) write tools\.$/
+    )
     await capture('tool-permission-description')
     await policy.getByRole('radio', { name: 'Ask', exact: true }).focus()
     await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeFocused()
