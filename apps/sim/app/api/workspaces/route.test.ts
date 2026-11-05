@@ -112,6 +112,7 @@ describe('GET /api/workspaces blocked viewer forwarding', () => {
     pinnedWorkspaceIds: [],
     creationPolicy: { canCreate: false },
   }
+  const routeContext = { params: Promise.resolve({}) }
   const listRequest = () =>
     createMockRequest('GET', undefined, {}, 'http://localhost/api/workspaces')
 
@@ -126,19 +127,19 @@ describe('GET /api/workspaces blocked viewer forwarding', () => {
 
   it('names the organization that can serve a viewer with nothing to pick', async () => {
     mockResolveRolledOutOrganizationId.mockResolvedValue('org-1')
-    const response = await GET(listRequest())
+    const response = await GET(listRequest(), routeContext)
     expect((await response.json()).forwardOrganizationId).toBe('org-1')
   })
 
   it('leaves the blocked picker in place when no organization can serve them', async () => {
     mockResolveRolledOutOrganizationId.mockResolvedValue(null)
-    const response = await GET(listRequest())
+    const response = await GET(listRequest(), routeContext)
     expect(await response.json()).not.toHaveProperty('forwardOrganizationId')
   })
 
   it('still returns the list when the organization lookup fails', async () => {
     mockResolveRolledOutOrganizationId.mockRejectedValue(new Error('down'))
-    const response = await GET(listRequest())
+    const response = await GET(listRequest(), routeContext)
     expect(response.status).toBe(200)
     expect(await response.json()).not.toHaveProperty('forwardOrganizationId')
   })
