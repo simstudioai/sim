@@ -1,4 +1,5 @@
 import { INTEGRATION_COUNT_LABEL } from '@sim/deployment-config/integration-claims'
+import { CREDITS_PER_DOLLAR } from '@/lib/billing/constants'
 import { PricingPlans } from '@/app/(landing)/pricing/components/pricing-plans'
 import { PricingStructuredData } from '@/app/(landing)/pricing/components/pricing-structured-data'
 
@@ -54,6 +55,19 @@ export default function Pricing() {
         className='mx-auto flex w-full max-w-[1728px] flex-col gap-7 px-10 pt-8 max-md:px-7 max-lg:px-8 max-xl:px-9'
       >
         <PricingPlans heading={PRICING_HEADING} />
+        <p className='mx-auto max-w-[720px] text-balance text-center text-[var(--text-body)] text-small'>
+          Sim is open source under the Apache 2.0 license, so you can self-host it for free with
+          Docker Compose or Kubernetes. Enterprise features need a license.{' '}
+          <a
+            href='https://docs.sim.ai/platform/self-hosting'
+            target='_blank'
+            rel='noopener noreferrer'
+            className='underline underline-offset-2'
+          >
+            Read the self-hosting guide
+          </a>
+          . On Sim Cloud, one credit is worth ${1 / CREDITS_PER_DOLLAR}.
+        </p>
       </section>
     </main>
   )

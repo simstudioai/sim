@@ -17,7 +17,7 @@ export default async function Page({ params }: PageProps<'/people/[memberId]'>) 
   const { memberId } = await params
   return (
     <Suspense fallback={<PersonLoading />}>
-      <PersonProfile organization={organization} memberId={memberId} />
+      <PersonProfile organizationId={organization.organization.id} memberId={memberId} />
     </Suspense>
   )
 }

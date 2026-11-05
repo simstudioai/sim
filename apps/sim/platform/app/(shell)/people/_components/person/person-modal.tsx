@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { DatePicker, Modal, SearchableSelect, TextField } from '@/platform/design-system/components'
 import {
   type Person,
@@ -40,10 +40,15 @@ export function PersonModal({ organizationId, person, onClose }: PersonModalProp
     startDate: person.startDate,
     managerMemberId: person.managerMemberId,
   })
+  const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<Partial<Record<keyof PersonDraft, string>>>({})
   // The chosen manager's name, kept with the choice: the search results may no longer include them.
   // Only a stored manager who is suspended has an id and no name.
   const [managerName, setManagerName] = useState(person.manager?.name ?? null)
+  const managerOptions = useMemo(
+    () => [{ value: NO_MANAGER, label: 'No manager' }, ...picker.options],
+    [picker.options]
+  )
   const change = <Key extends keyof PersonDraft>(field: Key, value: PersonDraft[Key]) => {
     setDraft((current) => ({ ...current, [field]: value }))
     setErrors((current) => ({ ...current, [field]: undefined }))
@@ -55,10 +60,15 @@ export function PersonModal({ organizationId, person, onClose }: PersonModalProp
       title={`Edit ${person.name}`}
       confirmLabel='Save'
       onConfirm={async () => {
-        const problems = await edit.save(draft)
-        if (problems) {
-          setErrors(problems)
-          throw new FieldProblems('Check the highlighted fields.')
+        setSaving(true)
+        try {
+          const problems = await edit.save(draft)
+          if (problems) {
+            setErrors(problems)
+            throw new FieldProblems('Check the highlighted fields.')
+          }
+        } finally {
+          setSaving(false)
         }
       }}
     >
@@ -71,6 +81,7 @@ export function PersonModal({ organizationId, person, onClose }: PersonModalProp
           value={draft[field] ?? ''}
           onChange={(value) => change(field, value || null)}
           error={errors[field]}
+          disabled={saving}
         />
       ))}
       <DatePicker
@@ -80,16 +91,18 @@ export function PersonModal({ organizationId, person, onClose }: PersonModalProp
         value={draft.startDate ?? null}
         onValueChange={(value) => change('startDate', value)}
         error={errors.startDate}
+        disabled={saving}
       />
       <SearchableSelect
         label='Manager'
         searchLabel='Search people'
-        options={[{ value: NO_MANAGER, label: 'No manager' }, ...picker.options]}
+        options={managerOptions}
         value={draft.managerMemberId ?? NO_MANAGER}
         selectedLabel={draft.managerMemberId ? (managerName ?? 'Suspended member') : 'No manager'}
         search={picker.search}
         onOpenChange={picker.onOpenChange}
         error={errors.managerMemberId}
+        disabled={saving}
         onValueChange={(value) => {
           const manager = picker.people.find((candidate) => candidate.memberId === value)
           setManagerName(manager?.name ?? null)

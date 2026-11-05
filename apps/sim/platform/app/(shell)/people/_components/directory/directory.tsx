@@ -1,65 +1,62 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useRouter } from 'next/navigation'
 import styles from '@/platform/app/(shell)/people/_components/directory/directory.module.css'
 import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
+import { PersonIdentity } from '@/platform/app/(shell)/people/_components/person-identity/person-identity'
 import {
   Button,
   DataTable,
   EmptyState,
   FailureNotice,
-  PersonRow,
-  RecipientTag,
   SearchableSelect,
   SearchField,
 } from '@/platform/design-system/components'
 import {
   personHref,
-  profileOriginQuery,
   useDepartmentOptions,
   usePeopleDirectory,
+  usePeoplePath,
 } from '@/platform/lib/data/people'
 
 const COLUMNS = [
-  { key: 'name', label: 'Name', kind: 'text' },
-  { key: 'title', label: 'Title', kind: 'text', showFrom: 'compact' },
+  { key: 'person', label: 'Person', kind: 'text', primary: true },
   { key: 'department', label: 'Department', kind: 'text', showFrom: 'compact' },
   { key: 'location', label: 'Location', kind: 'text', showFrom: 'wide' },
   { key: 'manager', label: 'Manager', kind: 'text', showFrom: 'wide' },
 ] as const
+
+interface DirectoryCellProps {
+  value: string | null | undefined
+}
+
+function DirectoryCell({ value }: DirectoryCellProps) {
+  return <span data-type='T043'>{value || '—'}</span>
+}
 
 interface PeopleDirectoryProps {
   organizationId: string
 }
 
 export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
-  const router = useRouter()
   const directory = usePeopleDirectory(organizationId)
-  const { origin } = directory
-  const departments = useDepartmentOptions(organizationId, origin)
-  const originQuery = profileOriginQuery(origin, { view: 'directory' })
+  const departments = useDepartmentOptions(organizationId, directory.origin)
+  const { originQuery } = directory
+  const peoplePath = usePeoplePath()
   const rows = useMemo(
     () =>
       directory.rows.map((person) => ({
         id: person.memberId,
-        values: {
-          name: person.name,
-          title: person.title,
-          department: person.department,
-          location: person.location,
-        },
+        values: {},
         cells: {
-          name: <PersonRow name={person.name} src={person.image ?? undefined} />,
-          manager: person.manager ? (
-            <PersonRow name={person.manager.name} src={person.manager.image ?? undefined} />
-          ) : (
-            '—'
-          ),
+          person: <PersonIdentity person={person} />,
+          department: <DirectoryCell value={person.department} />,
+          location: <DirectoryCell value={person.location} />,
+          manager: <DirectoryCell value={person.manager?.name} />,
         },
-        onOpen: () => router.push(personHref(person.memberId, originQuery)),
+        href: personHref(peoplePath, person.memberId, originQuery),
       })),
-    [directory.rows, originQuery, router]
+    [directory.rows, peoplePath, originQuery]
   )
   return (
     <section className={styles.directory} aria-label='Directory'>
@@ -67,7 +64,7 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
         <div className={styles.search}>
           <SearchField
             label='Search people'
-            placeholder='Search people...'
+            placeholder='Search name, role, or location'
             value={directory.search}
             onValueChange={directory.setSearch}
           />
@@ -85,15 +82,10 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
             onValueChange={(next) => directory.setDepartment(departments.parse(next))}
           />
         </div>
+        <span className={styles.scope} data-type='T050'>
+          People in your organization
+        </span>
       </div>
-      {directory.hasDepartment && (
-        <div>
-          <RecipientTag
-            address={`Department: ${directory.departmentLabel}`}
-            onRemove={() => directory.setDepartment(null)}
-          />
-        </div>
-      )}
       {directory.loading ? (
         <PeopleStatus>Loading people…</PeopleStatus>
       ) : directory.error ? (
@@ -110,13 +102,9 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
           />
         ) : (
           <EmptyState
-            title={directory.query ? `No results for “${directory.query}”` : 'No results'}
-            description={
-              directory.hasDepartment
-                ? 'No people match the selected department.'
-                : 'Searched everyone in your organization.'
-            }
-            action={<Button onClick={directory.clearFilters}>Clear</Button>}
+            title='No people found'
+            description='Try another name, title, email address, or department.'
+            action={<Button onClick={directory.clearFilters}>Clear search</Button>}
           />
         )
       ) : (
@@ -124,6 +112,7 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
           title='People'
           titleHidden
           virtualized
+          rowChevron
           columns={COLUMNS}
           rows={rows}
           loadMore={directory.loadMore}

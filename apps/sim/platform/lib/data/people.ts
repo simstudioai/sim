@@ -17,11 +17,19 @@ import {
   peopleSyncConfigSchema,
 } from '@/lib/api/contracts/people-sync'
 import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { readPeopleSheet } from '@/lib/people/read-sheet'
-import { peopleParsers, peopleUrlKeys, serializePeopleView } from '@/lib/people/search-params'
-import { memberProfileFieldsSchema, PEOPLE_SEARCH_MAX_LENGTH } from '@/lib/people/validation'
+import {
+  boundedSearch,
+  peopleParsers,
+  peopleUrlKeys,
+  serializePeopleView,
+} from '@/lib/people/search-params'
+import { memberProfileFieldsSchema } from '@/lib/people/validation'
+import { saveBlob } from '@/lib/uploads/client/download'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { useScimConnection } from '@/ee/scim/hooks/scim'
+import { serializeSsoSettings } from '@/ee/sso/search-params'
 import {
   useDepartments,
   useImportPeople,
@@ -39,32 +47,56 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
+import { useOrganization } from '@/platform/lib/data/organization'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 
 export type ChartBranch = ContractChartBranch
 export type PeopleImportResult = ContractImportResult
 export type Person = ContractPerson
 export type PersonSummary = ContractPersonSummary
 export type SyncStatus = PeopleSyncStatus
+export type SyncSource = PeopleSyncConfig['source']
 
-const PEOPLE_PATH = '/people'
-
-export function personHref(memberId: string, originQuery: string): string {
-  return `${PEOPLE_PATH}/${encodeURIComponent(memberId)}${originQuery}`
+export const SYNC_SOURCE_NAMES: Record<SyncSource, string> = {
+  okta: 'Okta',
+  entra: 'Microsoft Entra ID',
+  scim: 'SCIM provisioning',
 }
 
-/** A contract's 404: the person left, as opposed to the viewer being refused. */
-export function isGone(error: unknown): boolean {
-  return isApiClientError(error) && error.status === 404
+/** Who is viewing, and which of the page's administration they may reach. */
+export function usePeopleViewer() {
+  const surface = useOrganization()
+  const { organization, viewer, settingsFeatures } = surface
+  const { features, hosted } = useDeploymentShape()
+  return {
+    organizationName: organization.name,
+    isAdmin: viewer.isAdmin,
+    canProvision: features.scim && (!hosted || settingsFeatures.hasEnterprisePlan),
+    canOpenProvisioningSettings: surface.settingsSections.includes('sso'),
+    provisioningSettingsHref: serializeSsoSettings(surfaceHref(surface, '/settings/sso'), {
+      tab: 'provisioning',
+    }),
+  }
 }
 
-/** A stale preview's 409: the directory moved, so it needs previewing again. */
+/** Where People lives on this host. */
+export function usePeoplePath(): string {
+  return surfaceHref(useOrganization(), '/people')
+}
+
+export function personHref(peoplePath: string, memberId: string, originQuery = ''): string {
+  return `${peoplePath}/${encodeURIComponent(memberId)}${originQuery}`
+}
+
 export function isApiConflict(error: unknown): boolean {
   return isApiClientError(error) && error.status === 409
 }
 
-/** A refusal replaces what is on screen; a transient failure keeps it. */
-function isRefusal(error: unknown): boolean {
-  return isApiClientError(error) && error.status < 500
+const REFUSAL_STATUSES = new Set([400, 401, 403, 404])
+
+/** A refusal replaces what is on screen; a transient failure, including a 429, keeps it. */
+export function isRefusal(error: unknown): boolean {
+  return isApiClientError(error) && REFUSAL_STATUSES.has(error.status)
 }
 
 export function usePeopleUrl() {
@@ -74,16 +106,22 @@ export function usePeopleUrl() {
 type PeopleUrl = ReturnType<typeof usePeopleUrl>[0]
 type PeopleUrlOverrides = { [Key in keyof PeopleUrl]?: PeopleUrl[Key] | null }
 
-/** The query a profile link carries, so Back returns to the same view. */
-export function profileOriginQuery(origin: PeopleUrl, overrides: PeopleUrlOverrides): string {
+function profileOriginQuery(origin: PeopleUrl, overrides: PeopleUrlOverrides): string {
   return serializePeopleView({ ...origin, panel: null, ...overrides })
 }
 
-function peopleViewHref(origin: PeopleUrl, overrides: PeopleUrlOverrides): string {
-  return serializePeopleView(PEOPLE_PATH, { ...origin, panel: null, ...overrides })
+function peopleViewHref(
+  peoplePath: string,
+  origin: PeopleUrl,
+  overrides: PeopleUrlOverrides
+): string {
+  return serializePeopleView(peoplePath, {
+    ...origin,
+    panel: null,
+    ...overrides,
+  })
 }
 
-/** The list and the department filter's own search, with the legacy page's debounce and bounds. */
 export function usePeopleDirectory(organizationId: string) {
   const [origin, setView] = usePeopleUrl()
   const { search, department, departmentKey } = origin
@@ -105,10 +143,11 @@ export function usePeopleDirectory(organizationId: string) {
     origin,
     search,
     query,
-    setSearch,
+    setSearch: (value: string) => setSearch(boundedSearch(value)),
     rows,
     hasDepartment,
     departmentLabel,
+    originQuery: profileOriginQuery(origin, { view: 'directory' }),
     loading: people.isPending || changingFilter,
     error: people.isLoadingError || people.isRefetchError ? people.error : null,
     retry: () => void people.refetch(),
@@ -142,20 +181,18 @@ export function useDepartmentOptions(
   const debounced = useSearchFilterValue(term, SEARCH_DEBOUNCE_MS).trim()
   const departments = useDepartments(organizationId, debounced, open)
   const waiting = term.trim() !== debounced
-  const entries = useMemo(
-    () => (waiting ? [] : (departments.data?.pages.flatMap((page) => page.departments) ?? [])),
-    [waiting, departments.data]
-  )
-  const options = useMemo(
-    () => [
-      { value: ALL_DEPARTMENTS, label: 'All' },
+  const options = useMemo(() => {
+    const entries = waiting
+      ? []
+      : (departments.data?.pages.flatMap((page) => page.departments) ?? [])
+    return [
+      { value: ALL_DEPARTMENTS, label: 'All departments' },
       ...entries.map(({ name, count, departmentKey }) => ({
         value: departmentKey ? `${DEPARTMENT_KEY_PREFIX}${departmentKey}` : name,
         label: `${name} (${count})`,
       })),
-    ],
-    [entries]
-  )
+    ]
+  }, [waiting, departments.data])
   return {
     options,
     onOpenChange: setOpen,
@@ -171,10 +208,10 @@ export function useDepartmentOptions(
     },
     search: {
       query: term,
-      onQueryChange: (query: string) => setTerm(query.slice(0, PEOPLE_SEARCH_MAX_LENGTH)),
+      onQueryChange: (query: string) => setTerm(boundedSearch(query)),
       hasMore: !waiting && departments.hasNextPage,
       loading: waiting || departments.isFetching,
-      error: departments.error?.message,
+      error: waiting ? undefined : departments.error?.message,
       onLoadMore: () => void departments.fetchNextPage(),
       onRetry: () => void departments.refetch(),
     },
@@ -214,10 +251,10 @@ export function usePeoplePicker(
     onOpenChange: setOpen,
     search: {
       query: term,
-      onQueryChange: (next: string) => setTerm(next.slice(0, PEOPLE_SEARCH_MAX_LENGTH)),
+      onQueryChange: (next: string) => setTerm(boundedSearch(next)),
       hasMore: query.hasNextPage && !waiting,
       loading: waiting || query.isFetching,
-      error: query.error?.message,
+      error: waiting ? undefined : query.error?.message,
       onLoadMore: () => void query.fetchNextPage(),
       onRetry: () => void query.refetch(),
     },
@@ -229,7 +266,8 @@ const CHART_MAX_PAGE = 1_000_000
 export function useOrgChart(organizationId: string) {
   const [origin, setView] = usePeopleUrl()
   const { focus, page } = origin
-  const size = useIsMobile() ? 1 : 4
+  const compact = useIsMobile()
+  const size = compact ? 1 : 4
   const chart = usePeopleChart(
     organizationId,
     focus,
@@ -238,11 +276,11 @@ export function useOrgChart(organizationId: string) {
   )
   const branch = isRefusal(chart.error) ? undefined : chart.data
   return {
-    origin,
     setView,
     focus,
     page,
     size,
+    compact,
     branch,
     error: chart.error,
     retry: () => void chart.refetch(),
@@ -254,39 +292,44 @@ export function useOrgChart(organizationId: string) {
   }
 }
 
-/** The first top-level team, for the chart's empty state to offer. */
-export function useChartRoots(organizationId: string) {
-  const roots = usePeople(organizationId, '', '', { scope: 'roots' })
-  const firstTeam = roots.isSuccess ? roots.data.pages[0]?.people[0] : undefined
-  return { firstTeam, emptyOrganization: roots.isSuccess && !firstTeam }
+/** Whether any reporting line exists yet, and the first team to offer someone who has none. */
+export function useChartRoots(organizationId: string, enabled = true) {
+  const roots = usePeople(organizationId, '', '', { scope: 'roots', enabled })
+  const firstTeam = roots.data?.pages[0]?.people[0]
+  return {
+    firstTeam,
+    emptyOrganization: Boolean(roots.data) && !firstTeam,
+    settled: !roots.isPending,
+  }
 }
 
 export function usePersonProfile(organizationId: string, memberId: string) {
+  const peoplePath = usePeoplePath()
   const [origin] = usePeopleUrl()
   const query = usePerson(organizationId, memberId)
-  // A transient refresh failure keeps the loaded profile and any open edit; a refusal does not.
   const loadError = query.data && !isRefusal(query.error) ? null : query.error
   const data = loadError ? undefined : query.data
+  const originView = origin.view ?? 'directory'
   return {
-    origin,
     data,
     error: loadError,
     retrying: query.isFetching,
     retry: () => void query.refetch(),
-    originQuery: profileOriginQuery(origin, { view: origin.view ?? 'directory' }),
-    chartHref: peopleViewHref(origin, {
+    originView,
+    originQuery: profileOriginQuery(origin, { view: originView }),
+    chartHref: peopleViewHref(peoplePath, origin, {
       view: 'chart',
       focus: data?.person.memberId ?? memberId,
       page: origin.focus === data?.person.memberId ? origin.page : 1,
     }),
-    departmentHref: (person: Person) =>
-      peopleViewHref(origin, {
-        view: 'directory',
-        search: '',
-        department: person.departmentKey ? null : person.department,
-        departmentKey: person.departmentKey ?? null,
-      }),
-    backHref: peopleViewHref(origin, { view: origin.view ?? 'directory' }),
+    departmentHref: peopleViewHref(peoplePath, origin, {
+      view: 'directory',
+      search: '',
+      department: data?.person.departmentKey ? null : data?.person.department,
+      departmentKey: data?.person.departmentKey ?? null,
+    }),
+    backHref: peopleViewHref(peoplePath, origin, { view: originView }),
+    directoryHref: peopleViewHref(peoplePath, origin, { view: 'directory' }),
   }
 }
 
@@ -300,13 +343,7 @@ export function useEditPerson(organizationId: string, memberId: string) {
       draft: PersonDraft
     ): Promise<Partial<Record<keyof PersonDraft, string>> | null> => {
       const parsed = memberProfileFieldsSchema.safeParse(draft)
-      if (!parsed.success) {
-        const errors: Partial<Record<keyof PersonDraft, string>> = {}
-        for (const issue of parsed.error.issues) {
-          errors[String(issue.path[0]) as keyof PersonDraft] = issue.message
-        }
-        return errors
-      }
+      if (!parsed.success) return flattenFieldErrors<keyof PersonDraft & string>(parsed.error)
       await update.mutateAsync({ memberId, body: parsed.data })
       return null
     },
@@ -314,6 +351,13 @@ export function useEditPerson(organizationId: string, memberId: string) {
 }
 
 export type ImportBody = PeopleImportBody
+
+const IMPORT_TEMPLATE_CSV =
+  'email,title,department,location,start_date,manager_email\nada@example.com,Engineer,Platform,Berlin,2024-01-31,grace@example.com\n'
+
+export function downloadImportTemplate() {
+  saveBlob(new Blob([IMPORT_TEMPLATE_CSV], { type: 'text/csv' }), 'people-template.csv')
+}
 
 /** The import mutation that keeps provider tokens out of the mutation cache, and its sheet reader. */
 export function usePeopleImport(organizationId: string) {
@@ -339,10 +383,7 @@ export function useProvisioningConnection(organizationId: string, enabled: boole
   }
 }
 
-export type SyncSource = PeopleSyncConfig['source']
-
 export interface SyncDraft {
-  source: SyncSource
   domain: string
   token: string
   tenantId: string
@@ -350,18 +391,33 @@ export interface SyncDraft {
   clientSecret: string
 }
 
-export type SyncFieldErrors = Partial<Record<Exclude<keyof SyncDraft, 'source'>, string>>
+export type SyncFieldErrors = Partial<Record<keyof SyncDraft, string>>
 
-/** The sync status with polling and the action state machine the hook keeps out of the cache. */
+/**
+ * The connection as the page header reads it. Members never ask: its reads are admin-only. Reads
+ * only the result, so a poll starting or settling doesn't re-render the page under it.
+ */
+export function useDirectorySyncStatus(organizationId: string, enabled: boolean) {
+  const query = usePeopleSyncStatus(organizationId, enabled)
+  const status = isDirectorySyncAccessError(query.error) ? undefined : query.data
+  return { loaded: Boolean(status), settled: !query.isPending, sync: status?.sync ?? null }
+}
+
+/** The status with the action state machine the hook keeps out of the cache. */
 export function useDirectorySync(organizationId: string) {
   const query = usePeopleSyncStatus(organizationId)
   const actions = usePeopleSyncActions(organizationId)
-  const status = isDirectorySyncAccessError(query.error) ? undefined : query.data
-  const connect = (draft: SyncDraft, onConnected: () => void): SyncFieldErrors | null => {
+  const denied = isDirectorySyncAccessError(query.error)
+  const status = denied ? undefined : query.data
+  const connect = (
+    source: SyncSource,
+    draft: SyncDraft,
+    onConnected: () => void
+  ): SyncFieldErrors | null => {
     const parsed = peopleSyncConfigSchema.safeParse(
-      draft.source === 'okta'
+      source === 'okta'
         ? { source: 'okta', domain: draft.domain, token: draft.token }
-        : draft.source === 'entra'
+        : source === 'entra'
           ? {
               source: 'entra',
               tenantId: draft.tenantId.trim(),
@@ -375,6 +431,7 @@ export function useDirectorySync(organizationId: string) {
     return null
   }
   return {
+    denied,
     loading: query.isPending,
     loaded: Boolean(status),
     loadError: query.isError && !status ? query.error : null,
@@ -386,7 +443,8 @@ export function useDirectorySync(organizationId: string) {
     actionError: actions.error,
     reset: actions.reset,
     run: actions.run,
-    disconnect: actions.disconnect,
+    /** Settles with the request, so a dialog can hold itself open as pending. */
+    disconnect: () => new Promise<void>((resolve, reject) => actions.disconnect(resolve, reject)),
     connect,
   }
 }

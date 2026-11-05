@@ -4,9 +4,16 @@ import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { PeopleDirectory } from '@/platform/app/(shell)/people/_components/directory/directory'
 import { PeopleFrame } from '@/platform/app/(shell)/people/_components/people-page/people-frame'
-import { Button, SegmentedControl } from '@/platform/design-system/components'
-import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
-import { usePeopleUrl } from '@/platform/lib/data/people'
+import styles from '@/platform/app/(shell)/people/_components/people-page/people-page.module.css'
+import { Button } from '@/platform/design-system/components'
+import {
+  type SyncSource,
+  useChartRoots,
+  useDirectorySyncStatus,
+  usePeopleUrl,
+  usePeopleViewer,
+} from '@/platform/lib/data/people'
+import { formatRelativeTime } from '@/platform/lib/time'
 
 const OrgChart = dynamic(() =>
   import('@/platform/app/(shell)/people/_components/org-chart/org-chart').then(
@@ -18,63 +25,109 @@ const ImportModal = dynamic(() =>
     (module) => module.ImportModal
   )
 )
-const DirectorySyncModal = dynamic(() =>
-  import('@/platform/app/(shell)/people/_components/directory-sync/directory-sync-modal').then(
-    (module) => module.DirectorySyncModal
+const DirectorySyncPage = dynamic(() =>
+  import('@/platform/app/(shell)/people/_components/directory-sync/directory-sync-page').then(
+    (module) => module.DirectorySyncPage
+  )
+)
+const ConnectModal = dynamic(() =>
+  import('@/platform/app/(shell)/people/_components/directory-sync/connect-modal').then(
+    (module) => module.ConnectModal
   )
 )
 
-const VIEWS = [
-  { value: 'chart', label: 'Org chart', icon: 'I117' },
-  { value: 'directory', label: 'Directory', icon: 'I015' },
-] as const
-
 interface PeoplePageProps {
-  organization: PlatformOrganization
+  organizationId: string
 }
 
-export function PeoplePage({ organization }: PeoplePageProps) {
-  const { isAdmin } = organization.viewer
+export function PeoplePage({ organizationId }: PeoplePageProps) {
+  const { isAdmin } = usePeopleViewer()
   const [{ view, search, department, departmentKey, panel }, setView] = usePeopleUrl()
   const [importing, setImporting] = useState(false)
+  const [connecting, setConnecting] = useState<SyncSource | null>(null)
+  const currentView = view ?? (search || department || departmentKey ? 'directory' : 'chart')
+  const status = useDirectorySyncStatus(organizationId, isAdmin)
+  const roots = useChartRoots(organizationId, isAdmin && currentView === 'chart')
   const openSync = () => void setView({ panel: 'sync' }, { history: 'push' })
   const openImport = () => setImporting(true)
-  const currentView = view ?? (search || department || departmentKey ? 'directory' : 'chart')
+  const firstUse = isAdmin && roots.emptyOrganization && status.loaded && !status.sync
+  // First use has no header actions, so they wait for the reads that decide it rather than flash.
+  const showActions =
+    isAdmin && (currentView !== 'chart' || (roots.settled && status.settled && !firstUse))
+  const lastSuccessAt = status.sync?.lastSuccessAt
+  const modals = (
+    <>
+      {importing && isAdmin && (
+        <ImportModal
+          organizationId={organizationId}
+          onClose={() => setImporting(false)}
+          onOpenSync={() => {
+            setImporting(false)
+            openSync()
+          }}
+        />
+      )}
+      {connecting && isAdmin && (
+        <ConnectModal
+          organizationId={organizationId}
+          source={connecting}
+          onClose={() => setConnecting(null)}
+          onConnected={() => {
+            setConnecting(null)
+            openSync()
+          }}
+        />
+      )}
+    </>
+  )
+
+  if (panel === 'sync' && isAdmin)
+    return (
+      <>
+        <DirectorySyncPage
+          organizationId={organizationId}
+          onBack={() => void setView({ panel: null }, { history: 'push' })}
+          onConnect={setConnecting}
+          onImport={openImport}
+        />
+        {modals}
+      </>
+    )
+
   return (
     <PeopleFrame
+      view={currentView}
+      onViewChange={(next) => void setView({ view: next }, { history: 'push' })}
       actions={
-        isAdmin ? (
+        showActions ? (
           <>
-            <Button onClick={openSync}>Directory sync</Button>
-            <Button onClick={openImport}>Import</Button>
+            {lastSuccessAt && (
+              <span className={styles.updated} data-type='T050'>
+                Updated {formatRelativeTime(Date.parse(lastSuccessAt), Date.now())}
+              </span>
+            )}
+            <Button icon='I065' onClick={openSync}>
+              Directory sync
+            </Button>
+            <Button icon='I117' onClick={openImport}>
+              Import
+            </Button>
           </>
         ) : undefined
       }
     >
-      <SegmentedControl
-        label='People view'
-        options={VIEWS}
-        value={currentView}
-        onSelect={(next) => void setView({ view: next }, { history: 'push' })}
-      />
       {currentView === 'chart' ? (
         <OrgChart
-          organization={organization}
-          onImport={isAdmin ? openImport : undefined}
+          organizationId={organizationId}
+          firstUse={firstUse}
+          onConnect={setConnecting}
+          onImport={openImport}
           onSync={isAdmin ? openSync : undefined}
         />
       ) : (
-        <PeopleDirectory organizationId={organization.organization.id} />
+        <PeopleDirectory organizationId={organizationId} />
       )}
-      {importing && !panel && isAdmin && (
-        <ImportModal organization={organization} onClose={() => setImporting(false)} />
-      )}
-      {panel === 'sync' && isAdmin && (
-        <DirectorySyncModal
-          organization={organization}
-          onClose={() => void setView({ panel: null })}
-        />
-      )}
+      {modals}
     </PeopleFrame>
   )
 }

@@ -133,10 +133,14 @@ const embeddedHost = 'app/o/[organizationId]/'
 const FRAMES_OUTSIDE_SURFACE: ReadonlySet<string> = new Set([
   'platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css',
 ])
-/** A page that measures its own chrome for its table's scroller. */
+/** Pages that measure their own chrome for a table's scroller, or theme React Flow through its variables. */
 const LOCAL_TOKEN_OWNERS: ReadonlySet<string> = new Set([
   'platform/app/(shell)/_components/links-page/links-page.module.css',
+  'platform/app/(shell)/people/_components/directory/directory.module.css',
+  'platform/app/(shell)/people/_components/org-chart/org-chart.module.css',
 ])
+/** The org chart's canvas, whose nodes and edges are styled through React Flow's own props. */
+const FLOW_CANVAS = 'platform/app/(shell)/people/_components/org-chart/chart-canvas.tsx'
 const seamRoots = ['hooks/queries', 'lib/api']
 /**
  * Named modules the seam needs. The chat hook's own pure modules are among them, so a name under
@@ -739,7 +743,8 @@ function checkProps(name: string, node: ts.Node, file: string, owner: boolean) {
   for (const shape of type.isUnion() ? type.types : [type]) {
     for (const member of shape.getProperties()) {
       const prop = member.getName()
-      if (['style', 'className', 'css', 'sx'].includes(prop)) report('style-api', file, prop)
+      if (['style', 'className', 'css', 'sx'].includes(prop) && file !== FLOW_CANVAS)
+        report('style-api', file, prop)
       if (
         !variants[name]?.[prop] &&
         !(owner && ['variant', 'size', 'tone', 'appearance', 'density'].includes(prop))
@@ -1022,11 +1027,16 @@ function checkJs(file: string, content: string) {
         if (['style', 'css', 'sx', 'className'].includes(attr)) {
           const expr =
             prop.initializer && ts.isJsxExpression(prop.initializer) && prop.initializer.expression
-          const localClass =
-            expr &&
-            (ts.isPropertyAccessExpression(expr) || ts.isElementAccessExpression(expr)) &&
-            ts.isIdentifier(expr.expression) &&
-            modules.has(expr.expression.text)
+          const isLocalClass = (value: ts.Expression): boolean =>
+            ((ts.isPropertyAccessExpression(value) || ts.isElementAccessExpression(value)) &&
+              ts.isIdentifier(value.expression) &&
+              modules.has(value.expression.text)) ||
+            (ts.isConditionalExpression(value) &&
+              isLocalClass(value.whenTrue) &&
+              isLocalClass(value.whenFalse)) ||
+            (ts.isTemplateExpression(value) &&
+              value.templateSpans.every((span) => isLocalClass(span.expression)))
+          const localClass = expr && isLocalClass(expr)
           if (native && owner && localClass && expr && ts.isPropertyAccessExpression(expr)) {
             const fn = ts.findAncestor(node, ts.isFunctionDeclaration)
             if (fn?.name && variants[fn.name.text]) {
@@ -1052,6 +1062,7 @@ function checkJs(file: string, content: string) {
             )
           if (
             !calendarPlacement &&
+            !(file === FLOW_CANVAS && attr === 'className' && localClass) &&
             !(native && attr === 'className' && (owner || preview) && localClass)
           ) {
             report('consumer-style', location(prop), `${tag}.${attr}: pass a named variant`)

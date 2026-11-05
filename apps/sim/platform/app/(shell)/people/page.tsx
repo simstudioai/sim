@@ -19,7 +19,7 @@ export default async function Page() {
   if (!organization) return null
   return (
     <Suspense fallback={<PeopleLoading />}>
-      <PeoplePage organization={organization} />
+      <PeoplePage organizationId={organization.organization.id} />
     </Suspense>
   )
 }

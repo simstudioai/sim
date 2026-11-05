@@ -7,11 +7,14 @@ import {
   PEOPLE_SEARCH_MAX_LENGTH,
 } from '@/lib/people/validation'
 
-const boundedSearch = (value: string) => truncateAtCodePoint(value, PEOPLE_SEARCH_MAX_LENGTH, '')
+export const boundedSearch = (value: string) =>
+  truncateAtCodePoint(value, PEOPLE_SEARCH_MAX_LENGTH, '')
 
 /** `search` matches name, email, title, department, or location; `department` narrows to one. */
 export const peopleParsers = {
+  /** Nullable: with no explicit view, the default depends on whether a filter is set. */
   view: parseAsStringLiteral(['chart', 'directory'] as const),
+  /** Nullable: absent means no panel is open; there is no default panel. */
   panel: parseAsStringLiteral(['sync'] as const),
   focus: createParser({
     parse: (value) => (value.length > 0 && value.length <= PEOPLE_ID_MAX_LENGTH ? value : null),

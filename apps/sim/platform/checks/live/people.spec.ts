@@ -12,26 +12,28 @@ test('the directory filters, pages and opens a profile that returns to the same 
 }) => {
   await signInAsAdmin(page, '/org/people')
   await expect(page.getByRole('heading', { name: 'People', level: 1 })).toBeVisible()
-  await page.getByRole('radio', { name: 'Directory' }).check({ force: true })
+  await page
+    .getByRole('navigation', { name: 'People view' })
+    .getByRole('button', { name: 'Directory', exact: true })
+    .click()
   const table = page.getByRole('table', { name: 'People' })
   await expect(table.getByRole('row').nth(1)).toBeVisible()
 
   const email = adminEmail()
   await page.getByRole('searchbox', { name: 'Search people' }).fill(email)
   await expect(page).toHaveURL(/search=/)
-  await table.getByRole('row').nth(1).getByRole('button').first().click()
+  await table.getByRole('row').nth(1).getByRole('link').first().click()
   await expect(page).toHaveURL(/\/org\/people\/[^/?]+\?.*search=/)
-  await page.getByRole('main').getByRole('link', { name: 'People' }).first().click()
+  await page.getByRole('link', { name: 'Back to directory', exact: true }).click()
   await expect(page).toHaveURL(/\/org\/people\?.*view=directory/)
   await expect(page.getByRole('searchbox', { name: 'Search people' })).toHaveValue(email)
 })
 
-test('the chart reads without a canvas and an unknown focus says so', async ({ page }) => {
+test('the org chart opens, and an unknown focus says so', async ({ page }) => {
   await signInAsAdmin(page, '/org/people?view=chart')
   await expect(page.getByRole('heading', { name: 'People', level: 1 })).toBeVisible()
-  await expect(page.locator('.react-flow')).toHaveCount(0)
   await page.goto('/org/people?view=chart&focus=platform-live-missing')
-  await expect(page.getByRole('heading', { name: 'Person unavailable' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'This profile is unavailable' })).toBeVisible()
 })
 
 test('a member withheld the directory gets no People, from the sidebar or a saved link', async ({

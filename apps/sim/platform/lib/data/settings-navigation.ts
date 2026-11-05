@@ -8,14 +8,14 @@ const LIVE_SETTINGS = [
     label: 'Account',
     items: [
       { key: 'general', title: 'General', icon: 'I116' },
-      { key: 'billing', title: 'Subscription', icon: 'I133' },
+      { key: 'billing', title: 'Subscription', icon: 'I138' },
       { key: 'knowledge-graphs', title: 'Knowledge graphs', icon: 'I004' },
     ],
   },
   {
     label: 'Organization',
     items: [
-      { key: 'members', title: 'Members', icon: 'I134' },
+      { key: 'members', title: 'Members', icon: 'I139' },
       { key: 'connected-accounts', title: 'Credential Groups', icon: 'I070' },
       { key: 'usage', title: 'Insights', icon: 'I135' },
       { key: 'whitelabeling', title: 'White-labeling', icon: 'I036' },

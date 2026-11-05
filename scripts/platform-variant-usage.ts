@@ -25,11 +25,61 @@ export function productUsage(app: string, program: ts.Program): Usage {
     if (symbol && symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol)
     return symbol?.valueDeclaration
   }
+  /** The component behind `dynamic(() => import('x').then((module) => module.Name))`. */
+  function dynamicComponent(init: ts.Expression): Component | undefined {
+    if (!ts.isCallExpression(init) || init.expression.getText() !== 'dynamic') return
+    const load = init.arguments[0]
+    if (!load || !ts.isArrowFunction(load) || !ts.isCallExpression(load.body)) return
+    const then = load.body
+    if (!ts.isPropertyAccessExpression(then.expression) || then.expression.name.text !== 'then')
+      return
+    const imported = then.expression.expression
+    const pick = then.arguments[0]
+    if (
+      !ts.isCallExpression(imported) ||
+      imported.expression.kind !== ts.SyntaxKind.ImportKeyword ||
+      !imported.arguments[0] ||
+      !pick ||
+      !ts.isArrowFunction(pick) ||
+      !ts.isPropertyAccessExpression(pick.body)
+    )
+      return
+    const target = checker.getSymbolAtLocation(imported.arguments[0])
+    if (!target) return
+    const name = pick.body.name.text
+    const member = checker.getExportsOfModule(target).find((item) => item.getName() === name)
+    return component(member?.declarations?.[0])
+  }
+  /** React Flow renders these itself, so no JSX in this app names them. */
+  function flowNodeComponents(node: ts.JsxOpeningLikeElement): Component[] {
+    return node.attributes.properties.flatMap((item) => {
+      if (!ts.isJsxAttribute(item) || item.name.getText() !== 'nodeTypes') return []
+      const value =
+        item.initializer && ts.isJsxExpression(item.initializer)
+          ? item.initializer.expression
+          : undefined
+      const table = value && declaration(value)
+      if (
+        !table ||
+        !ts.isVariableDeclaration(table) ||
+        !table.initializer ||
+        !ts.isObjectLiteralExpression(table.initializer)
+      )
+        return []
+      return table.initializer.properties.flatMap((member) => {
+        if (!ts.isPropertyAssignment(member)) return []
+        const found = component(declaration(member.initializer))
+        return found ? [found] : []
+      })
+    })
+  }
   function component(decl: ts.Node | undefined): Component | undefined {
     if (!decl) return
     if (ts.isFunctionDeclaration(decl) || ts.isArrowFunction(decl) || ts.isFunctionExpression(decl))
       return decl
     if (ts.isVariableDeclaration(decl) && decl.initializer) {
+      const loaded = dynamicComponent(decl.initializer)
+      if (loaded) return loaded
       const inner =
         ts.isCallExpression(decl.initializer) &&
         /^(?:React\.)?memo$/.test(decl.initializer.expression.getText())
@@ -214,6 +264,7 @@ export function productUsage(app: string, program: ts.Program): Usage {
         if (helper && helper.getSourceFile() === fn.getSourceFile()) walkHelper(helper, node, scope)
       }
       if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+        for (const flowNode of flowNodeComponents(node)) walkComponent(flowNode, {})
         const decl = declaration(node.tagName)
         const owner = decl && component(decl)
         if (!owner) for (const module of lazyEntries(decl)) walkEntry(module.fileName)

@@ -1,5 +1,5 @@
 .empty,
-.empty > div {
+.copy {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -16,6 +16,12 @@
 .empty[data-action] {
   min-height: var(--spacing-132);
   gap: var(--spacing-12);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
 }
 
 .empty p {

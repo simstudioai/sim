@@ -3,48 +3,62 @@
 import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
+import { ExternalLink } from '@/platform/app/(shell)/people/_components/external-link/external-link'
 import styles from '@/platform/app/(shell)/people/_components/import/import.module.css'
 import {
   Button,
   FileField,
   InlineNotice,
+  MetricGroup,
   Modal,
   SecretField,
   SelectField,
   TextField,
 } from '@/platform/design-system/components'
-import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
+import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import {
+  downloadImportTemplate,
   type ImportBody,
   isApiConflict,
   type PeopleImportResult,
   usePeopleImport,
+  usePeopleViewer,
   useProvisioningConnection,
 } from '@/platform/lib/data/people'
 import { toast } from '@/platform/lib/data/toast'
 import { plural } from '@/platform/lib/plural'
 
 const ACCEPTED_FILES = '.csv,.tsv,.xlsx,.xls'
-const TEMPLATE_HREF = `data:text/csv;charset=utf-8,${encodeURIComponent(
-  'email,title,department,location,start_date,manager_email\nada@example.com,Engineer,Platform,Berlin,2024-01-31,grace@example.com\n'
-)}`
 
 const SOURCES = {
+  file: { name: 'Spreadsheet', description: 'Upload a CSV or Excel file' },
   okta: { name: 'Okta', description: 'Read profiles from your Okta directory' },
   entra: { name: 'Microsoft Entra ID', description: 'Read profiles from Microsoft Graph' },
   directory: {
     name: 'SCIM provisioning',
     description: 'Use directory data already provisioned to Sim',
   },
-  file: { name: 'Spreadsheet', description: 'Upload a CSV or Excel file' },
 } as const
 
 type ImportSource = keyof typeof SOURCES
 
-/** Whether SCIM can be offered: `canProvision` in the legacy sync and import dialogs alike. */
-export function canUseProvisioning({ deployment, settingsFeatures }: PlatformOrganization) {
-  return deployment.features.scim && (!deployment.hosted || settingsFeatures.hasEnterprisePlan)
-}
+const TOKEN_SOURCES = {
+  okta: {
+    instructions: 'Use an Okta API token that can read users in your organization.',
+    tokenLabel: 'API token',
+    tokenPlaceholder: 'Paste your token without SSWS',
+    helpHref: 'https://developer.okta.com/docs/guides/create-an-api-token/main/',
+    helpLabel: 'Create an Okta API token',
+  },
+  entra: {
+    instructions:
+      'In Graph Explorer, sign in with your work or school account, grant delegated User.Read.All permission, and copy your access token. Microsoft commercial cloud is supported.',
+    tokenLabel: 'Access token',
+    tokenPlaceholder: 'Paste your token without Bearer',
+    helpHref: 'https://developer.microsoft.com/en-us/graph/graph-explorer',
+    helpLabel: 'Open Graph Explorer',
+  },
+} as const
 
 interface IssueListProps {
   result: PeopleImportResult
@@ -53,23 +67,35 @@ interface IssueListProps {
 
 function IssueList({ result, spreadsheet }: IssueListProps) {
   const unlisted = result.skipped + result.warnings - result.issues.length
+  const issueEdges = useScrollEdges<HTMLUListElement>()
   return (
-    <ul className={styles.issues} data-type='T060'>
-      {result.issues.map((issue) => (
-        <li key={`${issue.row}-${issue.message}`} data-severity={issue.severity}>
-          {spreadsheet && `Row ${issue.row} `}
-          {issue.email ? `${issue.email}: ` : ''}
-          {issue.message}
-        </li>
-      ))}
-      {unlisted > 0 && <li>and {plural(unlisted, 'more issue')}</li>}
-    </ul>
+    <section className={styles.attention} aria-labelledby='import-attention'>
+      <h3 id='import-attention' className={styles.attentionTitle} data-type='T042'>
+        {`${plural(result.skipped + result.warnings, 'row')} need${result.skipped + result.warnings === 1 ? 's' : ''} attention`}
+      </h3>
+      <ul ref={issueEdges} className={styles.issues} data-type='T060'>
+        {result.issues.map((issue) => (
+          <li key={`${issue.row}-${issue.message}`} className={styles.issue}>
+            {spreadsheet && <span className={styles.secondary}>Row {issue.row}</span>}
+            <span className={styles.issueMessage}>
+              {issue.email ? `${issue.email}: ` : ''}
+              {issue.message}
+            </span>
+            <span className={styles.secondary}>
+              {issue.severity === 'skipped' ? 'Skipped' : 'Warning'}
+            </span>
+          </li>
+        ))}
+        {unlisted > 0 && <li className={styles.secondary}>and {plural(unlisted, 'more issue')}</li>}
+      </ul>
+    </section>
   )
 }
 
 interface ImportModalProps {
-  organization: PlatformOrganization
+  organizationId: string
   onClose: () => void
+  onOpenSync: () => void
 }
 
 /**
@@ -77,11 +103,10 @@ interface ImportModalProps {
  * that moved after its preview answers 409 and returns here for a new one. Tokens stay in this
  * component's state and reach the request through the mutation that keeps them out of the cache.
  */
-export function ImportModal({ organization, onClose }: ImportModalProps) {
-  const organizationId = organization.organization.id
-  const provisionable = canUseProvisioning(organization)
+export function ImportModal({ organizationId, onClose, onOpenSync }: ImportModalProps) {
+  const { canProvision, canOpenProvisioningSettings, provisioningSettingsHref } = usePeopleViewer()
   const importPeople = usePeopleImport(organizationId)
-  const [source, setSource] = useState<ImportSource>('okta')
+  const [source, setSource] = useState<ImportSource>('file')
   const connection = useProvisioningConnection(organizationId, source === 'directory')
   const [domain, setDomain] = useState('')
   const [token, setToken] = useState('')
@@ -93,17 +118,16 @@ export function ImportModal({ organization, onClose }: ImportModalProps) {
   const [preview, setPreview] = useState<PeopleImportResult | null>(null)
   const pending = reading || importPeople.pending
   const done = preview?.updated === 0
-  const ready =
-    source === 'file'
-      ? Boolean(sheet)
-      : source === 'directory'
-        ? connection.ready && connection.userCount > 0
-        : Boolean(token.trim() && (source !== 'okta' || domain.trim()))
+  const spreadsheet = source === 'file'
+  const ready = spreadsheet
+    ? Boolean(sheet)
+    : source === 'directory'
+      ? connection.ready && connection.userCount > 0
+      : Boolean(token.trim() && (source !== 'okta' || domain.trim()))
 
-  function requestBody(apply: boolean, selected = sheet): ImportBody | null {
+  function requestBody(apply: boolean): ImportBody | null {
     const previewDigest = apply ? preview?.previewDigest : undefined
-    if (source === 'file')
-      return selected ? { headers: selected.headers, rows: selected.rows, apply } : null
+    if (source === 'file') return sheet ? { headers: sheet.headers, rows: sheet.rows, apply } : null
     if (source === 'okta')
       return { source, domain: domain.trim(), token: token.trim(), apply, previewDigest }
     if (source === 'entra') return { source, token: token.trim(), apply, previewDigest }
@@ -117,8 +141,9 @@ export function ImportModal({ organization, onClose }: ImportModalProps) {
     try {
       const selected = await importPeople.readSheet(file)
       setSheet(selected)
-      const body = requestBody(false, selected)
-      if (body) setPreview(await importPeople.submit(body))
+      setPreview(
+        await importPeople.submit({ headers: selected.headers, rows: selected.rows, apply: false })
+      )
     } catch (error) {
       setFileError(getErrorMessage(error, 'Could not import people data'))
     } finally {
@@ -126,21 +151,14 @@ export function ImportModal({ organization, onClose }: ImportModalProps) {
     }
   }
 
-  const title = preview
-    ? 'Review import'
-    : source === 'file'
-      ? 'Import a spreadsheet'
-      : `Import from ${SOURCES[source].name}`
-  const sourceOptions = (Object.keys(SOURCES) as ImportSource[])
-    .filter((key) => key !== 'directory' || provisionable)
-    .map((key) => ({ value: key, label: SOURCES[key].name }))
-
   return (
     <Modal
       open
       onOpenChange={onClose}
-      title={title}
-      confirmLabel={done ? 'Done' : preview ? 'Import' : 'Preview import'}
+      title={preview ? 'Review profile import' : 'Import profiles'}
+      confirmLabel={
+        done ? 'Done' : preview ? `Import ${plural(preview.updated, 'profile')}` : 'Preview import'
+      }
       confirmDisabled={pending || (!preview && !ready)}
       onBack={preview ? () => setPreview(null) : undefined}
       onConfirm={
@@ -158,7 +176,7 @@ export function ImportModal({ organization, onClose }: ImportModalProps) {
                 setPreview(result)
                 return false
               } catch (error) {
-                if (source !== 'file' && preview && isApiConflict(error)) setPreview(null)
+                if (!spreadsheet && preview && isApiConflict(error)) setPreview(null)
                 throw error
               }
             }
@@ -167,24 +185,26 @@ export function ImportModal({ organization, onClose }: ImportModalProps) {
       {preview ? (
         <>
           <p className={styles.secondary} data-type='T060'>
-            {source === 'file' ? sheet?.fileName : SOURCES[source].name}
+            {spreadsheet
+              ? `${sheet?.fileName} updates profiles for existing organization members. It does not create accounts or an ongoing connection.`
+              : `${SOURCES[source].name} updates profiles for existing organization members. If the directory changes, you’ll be asked to preview it again.`}
           </p>
-          <p data-type='T059'>
-            {done
-              ? 'No profiles to update.'
-              : `${plural(preview.updated, 'profile')} will be updated.`}
-          </p>
-          <p className={styles.secondary} data-type='T060'>
-            {`${preview.unchanged} unchanged · ${preview.skipped} skipped · ${plural(preview.warnings, 'warning')}`}
-          </p>
-          {preview.issues.length > 0 && (
-            <IssueList result={preview} spreadsheet={source === 'file'} />
-          )}
-          {!done && (
+          <MetricGroup
+            metrics={[
+              { label: 'To update', value: preview.updated },
+              { label: 'Unchanged', value: preview.unchanged },
+              { label: 'Skipped', value: preview.skipped },
+            ]}
+          />
+          {preview.issues.length > 0 && <IssueList result={preview} spreadsheet={spreadsheet} />}
+          {spreadsheet && (
             <p className={styles.secondary} data-type='T060'>
-              {source === 'file'
-                ? 'Import applies these profile updates to matching members.'
-                : 'Import updates matching members’ profiles. If the directory changes, you’ll be asked to preview it again.'}
+              To include people without Sim accounts and keep profiles current, connect Okta or
+              Microsoft Entra ID through{' '}
+              <button type='button' className={styles.inlineLink} onClick={onOpenSync}>
+                Directory sync
+              </button>
+              .
             </p>
           )}
         </>
@@ -192,7 +212,9 @@ export function ImportModal({ organization, onClose }: ImportModalProps) {
         <>
           <SelectField
             label='Source'
-            options={sourceOptions}
+            options={(Object.keys(SOURCES) as ImportSource[])
+              .filter((key) => key !== 'directory' || canProvision)
+              .map((key) => ({ value: key, label: SOURCES[key].name }))}
             value={source}
             hint={SOURCES[source].description}
             disabled={pending}
@@ -204,10 +226,7 @@ export function ImportModal({ organization, onClose }: ImportModalProps) {
           {(source === 'okta' || source === 'entra') && (
             <>
               <p className={styles.secondary} data-type='T060'>
-                {source === 'okta'
-                  ? 'Use an Okta API token that can read users in your organization.'
-                  : 'In Graph Explorer, sign in with your work or school account, grant delegated User.Read.All permission, and copy your access token. Microsoft commercial cloud is supported.'}{' '}
-                Sim uses the token for this import only.
+                {TOKEN_SOURCES[source].instructions} Sim uses the token for this import only.
               </p>
               {source === 'okta' && (
                 <TextField
@@ -220,35 +239,15 @@ export function ImportModal({ organization, onClose }: ImportModalProps) {
                 />
               )}
               <SecretField
-                label={source === 'okta' ? 'API token' : 'Access token'}
-                placeholder={
-                  source === 'okta'
-                    ? 'Paste your token without SSWS'
-                    : 'Paste your token without Bearer'
-                }
+                label={TOKEN_SOURCES[source].tokenLabel}
+                placeholder={TOKEN_SOURCES[source].tokenPlaceholder}
                 value={token}
                 disabled={pending}
                 onChange={setToken}
               />
-              <div>
-                <Button
-                  variant='quiet'
-                  size='compact'
-                  render={
-                    <Link
-                      href={
-                        source === 'okta'
-                          ? 'https://developer.okta.com/docs/guides/create-an-api-token/main/'
-                          : 'https://developer.microsoft.com/en-us/graph/graph-explorer'
-                      }
-                      target='_blank'
-                      rel='noreferrer'
-                    />
-                  }
-                >
-                  {source === 'okta' ? 'Create an Okta API token' : 'Open Graph Explorer'}
-                </Button>
-              </div>
+              <ExternalLink href={TOKEN_SOURCES[source].helpHref}>
+                {TOKEN_SOURCES[source].helpLabel}
+              </ExternalLink>
             </>
           )}
           {source === 'directory' && (
@@ -266,29 +265,19 @@ export function ImportModal({ organization, onClose }: ImportModalProps) {
               </p>
               {!connection.loading && (
                 <div className={styles.links}>
-                  {organization.settingsSections.includes('sso') && !connection.failed && (
+                  {canOpenProvisioningSettings && !connection.failed && (
                     <Button
                       variant='quiet'
                       size='compact'
-                      render={<Link href='/settings/sso?tab=provisioning' />}
+                      render={<Link href={provisioningSettingsHref} />}
                     >
                       {connection.active ? 'Manage provisioning' : 'Set up provisioning'}
                     </Button>
                   )}
                   {!connection.active && (
-                    <Button
-                      variant='quiet'
-                      size='compact'
-                      render={
-                        <Link
-                          href='https://docs.sim.ai/platform/enterprise/scim'
-                          target='_blank'
-                          rel='noreferrer'
-                        />
-                      }
-                    >
+                    <ExternalLink href='https://docs.sim.ai/platform/enterprise/scim'>
                       Provisioning guide
-                    </Button>
+                    </ExternalLink>
                   )}
                   <Button
                     variant='quiet'
@@ -317,11 +306,7 @@ export function ImportModal({ organization, onClose }: ImportModalProps) {
               />
               {reading && <InlineNotice message='Reading…' />}
               <div>
-                <Button
-                  variant='quiet'
-                  size='compact'
-                  render={<Link href={TEMPLATE_HREF} download='people-template.csv' />}
-                >
+                <Button variant='quiet' size='compact' onClick={downloadImportTemplate}>
                   Download template
                 </Button>
               </div>

@@ -57,7 +57,7 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
         <SettingsRow
           label={billing.planTitle}
           description={billing.priceText}
-          leading={<Icon name='I133' />}
+          leading={<Icon name='I138' />}
         >
           {billing.showExplorePlans && (
             <Button

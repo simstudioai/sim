@@ -1,22 +1,45 @@
 .directory {
+  /* Everything above and below the table's own scroller, so the page itself stays still. */
+  --ui-table-viewport-offset: calc(
+    var(--shell-home-row-start) +
+    2 *
+    var(--spacing-app-control-md) +
+    2 *
+    var(--spacing-48) +
+    var(--spacing-48)
+  );
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-12);
+  gap: var(--spacing-24);
+  padding-inline: var(--ui-page-inline-gutter);
 }
 
 .filters {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--spacing-8);
+  align-items: center;
+  gap: var(--spacing-12);
 }
 
 .search {
-  flex: 1;
+  flex: 0 1 var(--spacing-320);
   min-inline-size: var(--spacing-192);
 }
 
 .department {
-  flex: none;
-  inline-size: var(--spacing-224);
-  max-inline-size: 100%;
+  flex: 0 1 var(--spacing-192);
+  min-inline-size: var(--spacing-128);
+}
+
+.scope {
+  flex: 1;
+  color: var(--ui-secondary);
+  text-align: end;
+  white-space: nowrap;
+}
+
+@media (width < 48rem) {
+  .scope {
+    display: none;
+  }
 }

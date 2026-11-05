@@ -860,24 +860,19 @@ export const glyphs = {
     ),
   },
   I133: {
-    label: 'credit-card',
-    viewBox: '0 0 24 24',
-    draw: (): ReactNode => (
-      <>
-        <rect x='3' y='5' width='18' height='14' rx='2' />
-        <path d='M3 10h18' />
-      </>
-    ),
-  },
-  I134: {
     label: 'users',
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <circle cx='9' cy='8' r='3' />
-        <path d='M3 20v-2a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v2M16 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 4v2' />
+        <path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M22 21v-2a4 4 0 0 0-3-3.9M16 3a4 4 0 0 1 0 8' />
+        <circle cx='9' cy='7' r='4' />
       </>
     ),
+  },
+  I134: {
+    label: 'minus',
+    viewBox: '0 0 24 24',
+    draw: (): ReactNode => <path d='M5 12h14' />,
   },
   I135: {
     label: 'bar-chart',
@@ -894,6 +889,26 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <path d='M15 4a5 5 0 1 1-3.4 8.6L5 19.2H2v-3l6.6-6.6A5 5 0 0 1 15 4ZM17 7h.01' />
+    ),
+  },
+  I138: {
+    label: 'credit-card',
+    viewBox: '0 0 24 24',
+    draw: (): ReactNode => (
+      <>
+        <rect x='3' y='5' width='18' height='14' rx='2' />
+        <path d='M3 10h18' />
+      </>
+    ),
+  },
+  I139: {
+    label: 'members',
+    viewBox: '0 0 24 24',
+    draw: (): ReactNode => (
+      <>
+        <circle cx='9' cy='8' r='3' />
+        <path d='M3 20v-2a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v2M16 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 4v2' />
+      </>
     ),
   },
 } as const

@@ -1,7 +1,10 @@
 {
   "Avatar": {
     "size": {
-      "inline": []
+      "card": [],
+      "hero": [],
+      "inline": [],
+      "row": []
     }
   },
   "Button": {
@@ -104,6 +107,12 @@
     "target": {
       "standard": ["C1283", "C1284", "C1286"],
       "touch": ["C1288"]
+    }
+  },
+  "SearchableSelect": {
+    "variant": {
+      "field": [],
+      "text": []
     }
   },
   "Select": {

@@ -7,7 +7,7 @@ import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { loadSimLinksListView } from '@/lib/sim-links/search-params'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { prefetchSimLinks } from '@/app/o/[organizationId]/_redesign/prefetch'
-import { LinksSurface } from '@/app/o/[organizationId]/links/links-surface'
+import { RedesignPageSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import { LinksPage } from '@/platform/app/(shell)/_components/links-page/links-page'
 
 export const metadata: Metadata = { title: 'Links' }
@@ -34,10 +34,10 @@ export default async function SimLinksPage({ params, searchParams }: SimLinksPag
     loadSimLinksListView(query)
   )
   return (
-    <LinksSurface>
+    <RedesignPageSurface>
       <HydrationBoundary state={state}>
         <LinksPage organizationId={organizationId} />
       </HydrationBoundary>
-    </LinksSurface>
+    </RedesignPageSurface>
   )
 }
