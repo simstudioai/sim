@@ -18,7 +18,8 @@ import { buildDirectVideoRequest } from '@/lib/internal/video/direct-request'
 import { buildFalVideoRequest, getFalAIValidationError } from '@/lib/internal/video/fal-request'
 import { getFalVideoModel } from '@/lib/media/fal-video-catalog'
 import { downloadFalMedia } from '@/lib/media/falai'
-import { type FalAICostMetadata, getFalAICostMetadata } from '@/lib/tools/falai-pricing'
+import { fetchFalAIResult } from '@/lib/media/falai-result'
+import type { FalAICostMetadata } from '@/lib/tools/falai-pricing'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file.server'
 import type { UserFile } from '@/executor/types'
 
@@ -423,36 +424,23 @@ async function generateWithFalAI(
     }
 
     if (getStringProperty(statusData, 'status') === 'COMPLETED') {
-      const statusError = statusData.error
-      if (statusError) {
-        throw new Error(`Fal.ai generation failed: ${getFalAIErrorMessage(statusError)}`)
-      }
+      const { data: resultData, cost: falaiCost } = await fetchFalAIResult({
+        apiKey,
+        endpointId: endpoint,
+        requestId: requestIdFal,
+        queueError: statusData.error,
+        maxResponseBytes: MAX_VIDEO_JSON_BYTES,
+        trackCost: useHostedCostTracking,
+        onCost: context.onFalCost,
+        signal,
+        fetchResponse: (resultSignal) =>
+          fetch(falQueueUrl(getStringProperty(statusData, 'response_url') || responseUrl), {
+            redirect: 'error',
+            headers: { Authorization: `Key ${apiKey}` },
+            signal: resultSignal,
+          }),
+      })
 
-      logger.info(`[${requestId}] Fal.ai generation completed after ${attempts * 5}s`)
-
-      const falaiCost = useHostedCostTracking
-        ? await getFalAICostMetadata({ apiKey, endpointId: endpoint, requestId: requestIdFal })
-        : undefined
-      if (falaiCost) context.onFalCost?.(falaiCost)
-      signal?.throwIfAborted()
-
-      const resultResponse = await fetch(
-        falQueueUrl(getStringProperty(statusData, 'response_url') || responseUrl),
-        {
-          redirect: 'error',
-          headers: {
-            Authorization: `Key ${apiKey}`,
-          },
-          signal,
-        }
-      )
-
-      if (!resultResponse.ok) {
-        await readVideoErrorText(resultResponse, 'Fal.ai result error response')
-        throw new Error(`Failed to fetch result: ${resultResponse.status}`)
-      }
-
-      const resultData = await readVideoJson<unknown>(resultResponse, 'Fal.ai result response')
       if (!isRecordLike(resultData)) {
         throw new Error('Invalid Fal.ai result response')
       }
