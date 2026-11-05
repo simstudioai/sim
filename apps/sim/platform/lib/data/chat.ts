@@ -36,6 +36,7 @@ import type {
   PlatformQueuedMessage,
   ToolDecision,
 } from '@/platform/app/(shell)/_components/chat/model'
+import { platformUrl } from '@/platform/lib/data/base-path'
 import { draftToSend } from '@/platform/lib/data/chat-draft'
 import { toPlatformTurns } from '@/platform/lib/data/chat-model'
 import { useAssistantReview } from '@/platform/lib/data/chat-review'
@@ -43,8 +44,6 @@ import { useOrganization } from '@/platform/lib/data/organization'
 import { toast } from '@/platform/lib/data/toast'
 import type { ChatContext } from '@/stores/panel'
 import { useToolPermissionStore } from '@/stores/tool-permission/store'
-
-const BASE_PATH = process.env.NEXT_PUBLIC_SIM_PLATFORM_BASE_PATH ?? ''
 
 /** A running `wait` counts down, and nothing else re-renders during the pause. */
 function useWaitClock(messages: readonly ChatMessage[], streaming: boolean): number {
@@ -153,7 +152,7 @@ export function useLiveChatRuntime({
             : resource
               ? `?resource=${encodeURIComponent(resource)}`
               : ''
-        return `${BASE_PATH}${chatPath(id)}${query}`
+        return platformUrl(`${chatPath(id)}${query}`)
       },
       onResourceEvent: controller.onResourceEvent,
       activeResourceState: controller.activeResourceState,
@@ -272,7 +271,6 @@ export function useLiveChatRuntime({
             ? 'sending'
             : 'idle',
     loadFailed: clock.loadFailed && !chat.messages.length,
-    error: chat.error,
     turns,
     queue: chat.messageQueue.map(toQueued),
     editingQueuedId: chat.editingQueuedId,
@@ -297,7 +295,6 @@ export function useLiveChatRuntime({
     stop: () => {
       void stopGeneration()
     },
-    retry: () => {},
     removeQueued: chat.removeFromQueue,
     sendQueuedNow: (id) => {
       void sendNow(id)

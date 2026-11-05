@@ -48,6 +48,7 @@ import type {
   ComposerOptions,
 } from '@/platform/app/(shell)/_components/session/composer-host'
 import { draftToSend } from '@/platform/lib/data/chat-draft'
+import { attachmentKind } from '@/platform/lib/data/chat-model'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { toast } from '@/platform/lib/data/toast'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
@@ -58,12 +59,6 @@ import {
 import type { ChatContext } from '@/stores/panel'
 
 const ASSISTANT_ACCEPT = 'image/*'
-
-function kindOf(mediaType: string): ChatAttachment['kind'] {
-  if (mediaType.startsWith('image/')) return 'image'
-  if (mediaType.startsWith('text/')) return 'text'
-  return 'document'
-}
 
 function contextId(context: ChatContext, index: number): string {
   return `context:${index}:${context.kind}:${context.label}`
@@ -142,7 +137,6 @@ function useLiveComposer({
   draftKey,
   requestMode = 'agent',
   chatId,
-  references = [],
   onPlanChange,
 }: ComposerOptions & { onPlanChange?: (active: boolean) => void }): LiveComposer {
   const { organization } = useOrganization()
@@ -156,7 +150,10 @@ function useLiveComposer({
   useEffect(() => {
     if (initialKey !== key) useMothershipDraftsStore.getState().migrateDraft(initialKey, key)
   }, [initialKey, key])
-  const inventory = useOrganizationReferences(!assistant)
+  const [pickerOpened, setPickerOpened] = useState(false)
+  const inventoryEnabled = !assistant && pickerOpened
+  const references = useOrganizationReferences(inventoryEnabled)
+  const skills = useOrganizationSkills(inventoryEnabled)
   const files = useFileAttachments({
     userId,
     organizationId: organization.id,
@@ -200,7 +197,7 @@ function useLiveComposer({
         id: file.id,
         name: file.name,
         metadata: file.uploading ? 'Uploading' : file.type || 'File',
-        kind: kindOf(file.type),
+        kind: attachmentKind(file.type),
         source: file.previewUrl,
         uploading: file.uploading,
         upload: file.key
@@ -278,7 +275,7 @@ function useLiveComposer({
       if (!item.context) return
       write({
         text: text === '/' ? '' : text,
-        contexts: [...contexts, item.context as ChatContext],
+        contexts: [...contexts, item.context],
       })
     },
     clear: () => {
@@ -303,9 +300,10 @@ function useLiveComposer({
         }))
       )
     },
-    references: assistant ? [] : references.length ? references : inventory,
+    references,
     listsOnlyLoadedGroups: true,
-    skills: useOrganizationSkills(!assistant),
+    skills,
+    onPickerOpen: () => setPickerOpened(true),
     settings,
     accept: assistant ? ASSISTANT_ACCEPT : undefined,
     voice: voice.isSupported

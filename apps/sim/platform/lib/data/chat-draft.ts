@@ -10,8 +10,8 @@ export function draftToSend(draft: ComposerDraft): {
   const files: FileAttachmentForApi[] = []
   const contexts: ChatContext[] = []
   for (const attachment of draft.attachments) {
-    if (attachment.context) contexts.push(attachment.context as ChatContext)
-    else if (attachment.upload) files.push(attachment.upload as FileAttachmentForApi)
+    if (attachment.context) contexts.push(attachment.context)
+    else if (attachment.upload) files.push(attachment.upload)
   }
   return { files, contexts }
 }

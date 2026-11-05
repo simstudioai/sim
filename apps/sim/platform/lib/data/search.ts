@@ -38,6 +38,9 @@ import { useOrganization } from '@/platform/lib/data/organization'
 import { legacyRoutes } from '@/platform/lib/data/organization-model'
 import { toast } from '@/platform/lib/data/toast'
 
+const NO_FILTERS: WorkspaceSearchFilters = {}
+/** A tab without a retrieval address runs nothing: an empty query never enables the read. */
+const NO_SCOPE: ResourceScope = { kind: 'organization', organizationId: '' }
 const SEARCH_MODE_STORAGE = 'organization-search-mode'
 
 interface SearchReadOptions {
@@ -72,7 +75,21 @@ function useSearchResults({
     topK ?? 20,
     { nativeQueries, reuseFreshResult }
   )
-  const documents = groupResultsByDocument(data?.results ?? [])
+  const documents = useMemo(() => groupResultsByDocument(data?.results ?? []), [data?.results])
+  const rows = useMemo(
+    () =>
+      documents.map((result) => {
+        const source = toSource(result, query, scope)
+        return {
+          id: result.documentId,
+          url: source.url,
+          title: source.title ?? source.siteName ?? source.url,
+          meta: source.siteName,
+          snippet: source.snippet,
+        }
+      }),
+    [documents, query, scope]
+  )
   const accounts = data?.live?.accounts ?? []
   const status: SearchResultsData['status'] = awaitingRange
     ? 'needs-range'
@@ -96,16 +113,7 @@ function useSearchResults({
       ['unavailable', 'timeout', 'rate_limited', 'reconnect'].includes(account.status)
     ),
     partial: !data?.live && data?.retrieval.status === 'partial',
-    rows: documents.map((result) => {
-      const source = toSource(result, query, scope)
-      return {
-        id: result.documentId,
-        url: source.url,
-        title: source.title ?? source.siteName ?? source.url,
-        meta: source.siteName,
-        snippet: source.snippet,
-      }
-    }),
+    rows,
     onCopyLink: (row) => {
       navigator.clipboard.writeText(row.url).catch(() => toast.error('Unable to copy link'))
     },
@@ -150,13 +158,15 @@ export function useSearchSurface(chatId: string | undefined) {
     () => ({ kind: 'organization', organizationId }),
     [organizationId]
   )
-  const history = useSearchHistory(organizationId)
+  const showingSearch = mode === 'search'
+  const history = useSearchHistory(showingSearch ? organizationId : undefined)
   const clearHistory = useClearSearchHistory(organizationId, userId)
   const record = useRecordSearchHistory(organizationId, userId)
   const awaitingRange = updated === 'custom' && !(from && to)
   const results = useSearchResults({
     scope,
-    query,
+    // Hidden behind Assistant, a query in the URL must not search every connected app.
+    query: showingSearch ? query : '',
     filters,
     awaitingRange,
     onRecordSource: (row) =>
@@ -259,13 +269,13 @@ export function useSearchSurface(chatId: string | undefined) {
 
 /** A Search tab in a chat panel: its stored query, re-run under the current reader. */
 export function useSearchTabResults(resource: PlatformResource): SearchResultsData {
-  const search = resource.search as SearchResource
+  const search = resource.search
   return useSearchResults({
-    scope: search.scope,
-    query: search.query,
-    filters: search.filters ?? {},
-    topK: search.topK,
-    nativeQueries: search.nativeQueries,
+    scope: search?.scope ?? NO_SCOPE,
+    query: search?.query ?? '',
+    filters: search?.filters ?? NO_FILTERS,
+    topK: search?.topK,
+    nativeQueries: search?.nativeQueries,
     reuseFreshResult: true,
   })
 }

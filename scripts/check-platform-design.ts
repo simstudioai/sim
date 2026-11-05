@@ -155,6 +155,8 @@ const seamHelpers = new Set([
   'lib/block-metadata/names.generated',
   'lib/core/config/feature-flags-context',
   'lib/core/resource-scope',
+  'lib/core/utils/react-node-text',
+  'lib/mothership/tools/client/read-target',
   'lib/core/utils/browser-storage',
   'lib/desktop',
   'lib/desktop/chat-scope',

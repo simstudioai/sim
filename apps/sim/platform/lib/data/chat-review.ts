@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { assistantActionPresentation } from '@/components/assistant-actions/presentation'
 import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
@@ -53,10 +53,10 @@ export function useAssistantReview({
   })
   const decide = useDecideAssistantAction(organizationId, chatId ?? '')
   const [pending, setPending] = useState(false)
-  const turnId = useMemo(
-    () => [...messages].reverse().find((message) => message.role === 'assistant')?.id,
-    [messages]
-  )
+  let turnId: string | undefined
+  for (let index = messages.length - 1; index >= 0 && !turnId; index--) {
+    if (messages[index].role === 'assistant') turnId = messages[index].id
+  }
   if (!enabled) return undefined
   const actions = review.data?.actions ?? []
   return {

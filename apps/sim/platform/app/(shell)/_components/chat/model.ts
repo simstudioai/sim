@@ -1,4 +1,9 @@
 import type { ComposerDraft } from '@/platform/app/(shell)/_components/composer/model'
+import type {
+  CredentialItemData,
+  SearchConnectionTarget,
+  SearchResource,
+} from '@/platform/lib/data/chat-types'
 
 /** Every state a tool call can be in. Waiting on a person and each way of not finishing stay apart. */
 export type PlatformToolStatus =
@@ -57,8 +62,10 @@ export interface PlatformCredentialRequest {
   description?: string
   scope?: string
   workspaceId?: string
-  /** The parsed tag item this row came from, opaque outside the data seam. */
-  source?: unknown
+  /** The parsed tag item this row came from, which the submission message is built from. */
+  source: CredentialItemData
+  /** Present when this row connects a Search source rather than a workspace credential. */
+  searchTarget?: SearchConnectionTarget
 }
 
 /** The structured pieces of assistant prose, in the order the model wrote them. */
@@ -74,7 +81,7 @@ export type PlatformSegment =
     }
   | { kind: 'resource'; type: string; id: string; title: string; workspaceId?: string }
   | { kind: 'usage'; action: string; reason: string; message: string }
-  | { kind: 'failure'; message: string; code?: string; provider?: string }
+  | { kind: 'failure'; message: string }
   | { kind: 'pending'; label: string }
 
 export interface PlatformCredentialSubmission {
@@ -101,8 +108,7 @@ export type PlatformPart =
     }
   | { kind: 'approval'; id: string; tool: PlatformTool }
   | { kind: 'lane'; id: string; lane: PlatformLane }
-  | { kind: 'options'; id: string; options: readonly { id: string; label: string }[] }
-  | { kind: 'task'; id: string; title: string; status?: string; taskId: string }
+  | { kind: 'task'; id: string; title: string }
   | { kind: 'stopped'; id: string }
 
 type PlatformTurnState = 'complete' | 'running' | 'failed' | 'stopped'
@@ -163,11 +169,9 @@ export interface PlatformResource {
   workspaceId?: string
   /** A legacy URL for a kind the Platform does not render in the panel. */
   href?: string
-  closable: boolean
   active?: boolean
-  attention?: boolean
   /** The retrieval a Search tab holds; runs under the current reader's permissions. */
-  search?: unknown
+  search?: SearchResource
 }
 
 /** Cross-turn tool-permission progress, so only one card offers the bulk action. */
@@ -211,7 +215,6 @@ export interface ChatRuntime {
   status: ChatRuntimeStatus
   /** Set when no history could load; distinct from an empty new chat. */
   loadFailed?: boolean
-  error: string | null
   turns: readonly PlatformTurn[]
   queue: readonly PlatformQueuedMessage[]
   editingQueuedId?: string | null
@@ -221,7 +224,8 @@ export interface ChatRuntime {
   stop: () => void
   /** Sends the message as written by the user, for question answers and option picks. */
   sendText: (text: string) => void
-  retry: (turnId: string) => void
+  /** Runs a failed turn again. Absent when this chat has no failed-turn state to recover. */
+  retry?: (turnId: string) => void
   removeQueued: (id: string) => void
   sendQueuedNow: (id?: string) => void
   /** Moves a queued message back into the composer. */

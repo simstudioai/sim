@@ -1,12 +1,13 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   LiveCredentialCard,
   LiveUsageNotice,
 } from '@/platform/app/(shell)/_components/chat/cards/live-credential-card'
 import { Conversation } from '@/platform/app/(shell)/_components/chat/conversation/conversation'
+import { CHAT_PLACEHOLDERS } from '@/platform/app/(shell)/_components/chat/conversation/model'
 import {
   type ChatCards,
   ChatCardsProvider,
@@ -23,16 +24,8 @@ import { useOrganization } from '@/platform/lib/data/organization'
 const CARDS: ChatCards = { Credential: LiveCredentialCard, Usage: LiveUsageNotice }
 
 const PLACEHOLDERS = {
-  agent: {
-    first: 'Ask about your business, or give Sim something to do…',
-    followUp: 'Ask a follow-up…',
-    running: 'Add a follow-up…',
-  },
-  assistant: {
-    first: 'Ask about your company’s knowledge…',
-    followUp: 'Ask a follow-up…',
-    running: 'Add a follow-up…',
-  },
+  agent: CHAT_PLACEHOLDERS,
+  assistant: { ...CHAT_PLACEHOLDERS, first: 'Ask about your company’s knowledge…' },
 }
 
 interface LiveChatProps {
@@ -41,8 +34,6 @@ interface LiveChatProps {
   /** A surface's own controls in place of the chat title. */
   header?: ReactNode
   chatPath?: (chatId: string) => string
-  /** Tells the surface a chat now exists, so it can drop its landing state. */
-  children?: ReactNode
 }
 
 function LiveConversation({ chatId, destination, header, chatPath }: LiveChatProps) {
@@ -64,7 +55,6 @@ function LiveConversation({ chatId, destination, header, chatPath }: LiveChatPro
   })
   restore.current = composer.restore
   const resources = usePanelResources({ chat, panel, controller })
-  const placeholders = useMemo(() => PLACEHOLDERS[destination], [destination])
   return (
     <ChatCardsProvider value={CARDS}>
       <SearchTabProvider value={LiveSearchTab}>
@@ -72,7 +62,7 @@ function LiveConversation({ chatId, destination, header, chatPath }: LiveChatPro
           <Conversation
             runtime={runtime}
             composer={composer}
-            placeholders={placeholders}
+            placeholders={PLACEHOLDERS[destination]}
             header={header}
           />
         </ResourcePanels>

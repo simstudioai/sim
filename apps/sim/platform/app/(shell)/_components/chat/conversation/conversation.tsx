@@ -19,7 +19,7 @@ import {
 } from '@/platform/design-system/components'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
-function Turn({ turn, onRetry }: { turn: PlatformTurn; onRetry: (id: string) => void }) {
+function Turn({ turn }: { turn: PlatformTurn }) {
   if (turn.role === 'user') return <UserMessage turn={turn} />
   if (turn.role === 'automated')
     return (
@@ -27,7 +27,7 @@ function Turn({ turn, onRetry }: { turn: PlatformTurn; onRetry: (id: string) => 
         <strong>{turn.label}</strong> {turn.summary}
       </p>
     )
-  return <ResponseMessage turn={turn} onRetry={() => onRetry(turn.id)} />
+  return <ResponseMessage turn={turn} />
 }
 
 /** One exchange per article: a person's message and what answered it. */
@@ -59,17 +59,23 @@ export function Conversation({ runtime, composer, placeholders, header }: Conver
   const { title, turns, status, chatId, queue } = runtime
   const running = status === 'sending' || status === 'reconnecting'
   const last = turns.at(-1)
-  const following = useRef(true)
-  // Pinned on every commit, since a stream grows the last turn without changing its id.
+  const thread = useRef<HTMLDivElement>(null)
+  // A new turn always comes into view, and scrolling back up is what stops it following.
   useLayoutEffect(() => {
-    const el = viewport.current
-    if (el && following.current) el.scrollTop = el.scrollHeight
-  })
-  useLayoutEffect(() => {
-    following.current = true
+    setEarlier(false)
     const el = viewport.current
     if (el) el.scrollTop = el.scrollHeight
   }, [chatId, last?.id])
+  // A stream grows the last turn without changing its id, so follow the thread's size.
+  useLayoutEffect(() => {
+    const el = viewport.current
+    if (earlier || !el || !thread.current) return
+    const observer = new ResizeObserver(() => {
+      el.scrollTop = el.scrollHeight
+    })
+    observer.observe(thread.current)
+    return () => observer.disconnect()
+  }, [earlier])
   return (
     <ChatRuntimeProvider runtime={runtime}>
       <div className={styles.chat}>
@@ -88,12 +94,10 @@ export function Conversation({ runtime, composer, placeholders, header }: Conver
           ref={reading}
           onScroll={(event) => {
             const el = event.currentTarget
-            const distance = el.scrollHeight - el.clientHeight - el.scrollTop
-            following.current = distance <= FOLLOW_SLACK
-            setEarlier(distance > FOLLOW_SLACK)
+            setEarlier(el.scrollHeight - el.clientHeight - el.scrollTop > FOLLOW_SLACK)
           }}
         >
-          <div className={styles.thread}>
+          <div className={styles.thread} ref={thread}>
             {status === 'loading' && (
               <p className={styles.turn} data-type='T048' role='status'>
                 Loading conversation
@@ -113,7 +117,7 @@ export function Conversation({ runtime, composer, placeholders, header }: Conver
             {groupExchanges(turns).map((exchange) => (
               <article key={exchange[0].id} className={styles.turn}>
                 {exchange.map((turn) => (
-                  <Turn key={turn.id} turn={turn} onRetry={runtime.retry} />
+                  <Turn key={turn.id} turn={turn} />
                 ))}
               </article>
             ))}

@@ -9,7 +9,7 @@ import type {
   ComposerDraft,
   ComposerReferences,
 } from '@/platform/app/(shell)/_components/composer/model'
-import { userTurn } from '@/platform/app/(shell)/_components/composer/user-turn'
+import { draftTitle, userTurn } from '@/platform/app/(shell)/_components/composer/user-turn'
 import { useChatChanges } from '@/platform/app/(shell)/_components/session/chat-changes'
 import { useComposerDraft } from '@/platform/app/(shell)/_components/session/composer-drafts'
 import { platformHref } from '@/platform/design-system/navigation'
@@ -93,8 +93,8 @@ function useMemoryComposer({
     },
     clear: () => updateDraft(() => ({ text: '', attachments: [] })),
     tools: [
-      { id: 'browser', label: 'Browser', context: null },
-      { id: 'terminal', label: 'Terminal', context: null },
+      { id: 'browser', label: 'Browser' },
+      { id: 'terminal', label: 'Terminal' },
     ],
   }
 }
@@ -104,9 +104,7 @@ function useMemoryStartChat() {
   const search = useSearchParams()
   const { createChat } = useChatChanges()
   return (draft: ComposerDraft): undefined => {
-    const id = createChat(draft.text.slice(0, 70) || draft.attachments[0]?.name || 'New chat', [
-      userTurn(draft),
-    ])
+    const id = createChat(draftTitle(draft), [userTurn(draft)])
     router.push(platformHref(`/chat/${id}`, search))
   }
 }

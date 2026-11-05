@@ -1,4 +1,5 @@
 import type { DragEvent } from 'react'
+import type { ChatContext, FileAttachmentForApi } from '@/platform/lib/data/chat-types'
 
 export interface ChatAttachment {
   id: string
@@ -10,10 +11,10 @@ export interface ChatAttachment {
   source?: string
   /** Still uploading; a draft holding one cannot be sent. */
   uploading?: boolean
-  /** The context a reference attaches to the turn, opaque outside the data seam. */
-  context?: unknown
-  /** The stored upload a file attachment sends, opaque outside the data seam. */
-  upload?: unknown
+  /** The context a reference attaches to the turn. */
+  context?: ChatContext
+  /** The stored upload a file attachment sends. */
+  upload?: FileAttachmentForApi
 }
 
 export interface ComposerDraft {
@@ -46,7 +47,7 @@ export interface ChatTurn {
 
 export type ComposerReferences = {
   group: string
-  items: { id: string; name: string; context?: unknown }[]
+  items: { id: string; name: string; context?: ChatContext }[]
 }[]
 
 interface ComposerChoice {
@@ -86,16 +87,18 @@ export interface ComposerController {
   addFiles: (files: File[]) => void
   addPastedText: (text: string) => void
   removeAttachment: (id: string) => void
-  addReference: (group: string, item: { id: string; name: string; context?: unknown }) => void
+  addReference: (group: string, item: { id: string; name: string; context?: ChatContext }) => void
   clear: () => void
   references: ComposerReferences
   /** Reusable instructions the `/` menu lists, grouped like references. */
-  skills?: readonly { id: string; name: string; context?: unknown }[]
+  skills?: readonly { id: string; name: string; context?: ChatContext }[]
+  /** Tells the host a picker opened, which is when it reads the inventories behind them. */
+  onPickerOpen?: () => void
   settings?: ComposerSettings
   drop?: ComposerDropHandlers
   voice?: ComposerVoice
   /** Whether Browser and Terminal can be attached in this host. */
-  tools?: readonly { id: string; label: string; context: unknown }[]
+  tools?: readonly { id: string; label: string; context?: ChatContext }[]
   /** A menu group with no rows is left out, rather than read as the viewer having none. */
   listsOnlyLoadedGroups?: boolean
   /** Accepted file types, when a mode narrows them. */

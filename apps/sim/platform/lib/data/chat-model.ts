@@ -1,5 +1,6 @@
 import { isPlainRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { searchConnectionTargetSchema } from '@/lib/knowledge/search/connection-target'
 import {
   Terminal as TerminalTool,
   Wait as WaitTool,
@@ -57,11 +58,18 @@ import { getToolMetadata } from '@/tools/metadata'
 /** Tool payloads are diagnostic text, never the whole of a file a tool wrote. */
 const MAX_PAYLOAD_CHARS = 6_000
 
+/** A live turn re-projects per chunk, and a large result need only serialize once. */
+const PAYLOAD_TEXT = new WeakMap<object, string>()
+
 function payloadText(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined
-  if (typeof value === 'string') return truncate(value, MAX_PAYLOAD_CHARS, '…')
+  if (typeof value !== 'object') return truncate(String(value), MAX_PAYLOAD_CHARS, '…')
+  const cached = PAYLOAD_TEXT.get(value)
+  if (cached !== undefined) return cached
   try {
-    return truncate(JSON.stringify(value, null, 2), MAX_PAYLOAD_CHARS, '…')
+    const text = truncate(JSON.stringify(value, null, 2), MAX_PAYLOAD_CHARS, '…')
+    PAYLOAD_TEXT.set(value, text)
+    return text
   } catch {
     return undefined
   }
@@ -145,6 +153,11 @@ function activityLabel(tools: ToolCallData[], running: boolean): string {
     : getCompletedActivityLabel(shown, grouped)
 }
 
+function parseSearchTarget(item: CredentialItemData) {
+  const target = searchConnectionTargetSchema.safeParse(item)
+  return target.success ? target.data : undefined
+}
+
 function toCredentialRequest(item: CredentialItemData): PlatformCredentialRequest {
   return {
     type: item.type,
@@ -155,6 +168,7 @@ function toCredentialRequest(item: CredentialItemData): PlatformCredentialReques
     scope: item.scope,
     workspaceId: item.workspaceId,
     source: item,
+    searchTarget: item.connectorType ? parseSearchTarget(item) : undefined,
   }
 }
 
@@ -234,12 +248,7 @@ function toSegments(
         })
         break
       case 'mothership-error':
-        segments.push({
-          kind: 'failure',
-          message: segment.data.message,
-          code: segment.data.code,
-          provider: segment.data.provider,
-        })
+        segments.push({ kind: 'failure', message: segment.data.message })
         break
       case 'thinking':
         // Deliberate legacy choice: reasoning text is not part of the transcript.
@@ -287,13 +296,7 @@ function toLane(
     label: group.agentLabel,
     running,
     error: group.error,
-    status: group.error
-      ? group.error
-      : tools.length
-        ? activityLabel(tools, running)
-        : running
-          ? 'Starting'
-          : '',
+    status: tools.length ? activityLabel(tools, running) : running ? 'Starting' : '',
     items: group.items.map((item, index) =>
       toLaneItem(item, `${group.id}:${index}`, now, streaming)
     ),
@@ -301,7 +304,10 @@ function toLane(
 }
 
 /** A settled message never changes, so a long transcript re-parses only the turn in progress. */
-const SETTLED_PARTS = new WeakMap<ChatMessage, PlatformPart[]>()
+const SETTLED_TURNS = new WeakMap<
+  ChatMessage,
+  { pairing: string; parts: PlatformPart[]; copyText: string }
+>()
 
 function toParts(
   segments: MessageSegment[],
@@ -322,19 +328,13 @@ function toParts(
         })
         return
       case 'options':
-        parts.push({ kind: 'options', id, options: segment.items })
+        parts.push({ kind: 'prose', id, segments: [{ kind: 'options', options: segment.items }] })
         return
       case 'stopped':
         parts.push({ kind: 'stopped', id })
         return
       case 'task':
-        parts.push({
-          kind: 'task',
-          id,
-          title: segment.task.summary || segment.task.note,
-          status: segment.task.status,
-          taskId: segment.task.taskId,
-        })
+        parts.push({ kind: 'task', id, title: segment.task.summary || segment.task.note })
         return
       case 'agent_group':
         break
@@ -373,7 +373,7 @@ function toParts(
   return parts
 }
 
-function attachmentKind(mediaType: string): ChatAttachment['kind'] {
+export function attachmentKind(mediaType: string): ChatAttachment['kind'] {
   if (mediaType.startsWith('image/')) return 'image'
   if (mediaType.startsWith('text/')) return 'text'
   return 'document'
@@ -425,6 +425,9 @@ function automatedTurn(message: ChatMessage): PlatformTurn {
 function pairInteractions(messages: readonly ChatMessage[]) {
   const byIndex = new Map<number, InteractionPairing>()
   const hidden = new Set<number>()
+  /** Only the tail changes per chunk, and only a tagged message pairs, so most skip the parsers. */
+  const mayPair = (message: ChatMessage) =>
+    message.content?.includes('</question>') || message.content?.includes('</credential>')
   let lastUser = -1
   messages.forEach((message, index) => {
     if (message.role === 'user') lastUser = index
@@ -434,7 +437,7 @@ function pairInteractions(messages: readonly ChatMessage[]) {
     const next = messages[index + 1]
     const answer = next?.role === 'user' && next.content ? next.content : null
     const superseded = index < lastUser
-    if (!answer && !superseded) return
+    if ((!answer && !superseded) || !mayPair(message)) return
     if (answer && message.content?.includes('</question>')) {
       const questions = parseLastQuestionTag(message.content)
       const answers = questions ? parseQuestionAnswerMessage(questions, answer) : null
@@ -513,9 +516,14 @@ export function toPlatformTurns(
     const live = streaming && index === lastIndex
     const blocks = message.contentBlocks ?? []
     const pairing = byIndex.get(index)
-    const cacheable = !live && !pairing
-    let parts = cacheable ? SETTLED_PARTS.get(message) : undefined
-    if (!parts) {
+    const pairingKey = pairing ? JSON.stringify(pairing) : ''
+    const settled = SETTLED_TURNS.get(message)
+    let parts: PlatformPart[]
+    let copyText = ''
+    if (!live && settled?.pairing === pairingKey) {
+      parts = settled.parts
+      copyText = settled.copyText
+    } else {
       const cited = resolveMessageCitations(
         blocks,
         message.content,
@@ -528,7 +536,10 @@ export function toPlatformTurns(
             ? [{ type: 'text', id: `${message.id}:text`, content: cited.fallbackContent }]
             : []
       parts = toParts(segments, message, live, now, pairing)
-      if (cacheable) SETTLED_PARTS.set(message, parts)
+      if (!live) {
+        copyText = getOrchestratorMessageText(blocks, message.content)
+        SETTLED_TURNS.set(message, { pairing: pairingKey, parts, copyText })
+      }
     }
     const stopped = parts.some((part) => part.kind === 'stopped')
     turns.push({
@@ -536,7 +547,7 @@ export function toPlatformTurns(
       id: message.id,
       state: live ? 'running' : stopped ? 'stopped' : 'complete',
       parts,
-      copyText: getOrchestratorMessageText(blocks, message.content),
+      copyText,
       sentAt: sentAt(message),
       waiting: live ? deriveThinkingLabel(blocks) : undefined,
       requestId: message.requestId,

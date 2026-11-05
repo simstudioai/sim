@@ -139,11 +139,9 @@ export function ToolActivity({
   )
 }
 
-function TerminalHandoff({ tool }: { tool: PlatformTool }) {
+function TerminalHandoff({ handoff }: { handoff: NonNullable<PlatformTool['handoff']> }) {
   const { finishTerminalHandoff } = useChatRuntime()
   const [done, setDone] = useState(false)
-  const handoff = tool.handoff
-  if (!handoff) return null
   return (
     <div className={styles.card} data-type='T048'>
       <p>{handoff.reason || 'Sim is waiting for you in the terminal.'}</p>
@@ -165,7 +163,7 @@ function TerminalHandoff({ tool }: { tool: PlatformTool }) {
 /** A call that holds the turn on a person. It stands apart so collapsing activity cannot hide it. */
 export function ToolInteraction({ tool }: { tool: PlatformTool }) {
   const { review } = useChatRuntime()
-  if (tool.handoff) return <TerminalHandoff tool={tool} />
+  if (tool.handoff) return <TerminalHandoff handoff={tool.handoff} />
   if (tool.status !== 'awaiting_approval') return null
   if (review && tool.reviewed) {
     // The review card on this turn owns a proposed action; a call it no longer holds says so.

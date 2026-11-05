@@ -17,7 +17,6 @@ type AssistantTurn = Extract<PlatformTurn, { role: 'assistant' }>
 
 interface ResponseMessageProps {
   turn: AssistantTurn
-  onRetry: () => void
 }
 
 function ResponsePart({ part }: { part: PlatformPart }) {
@@ -52,8 +51,6 @@ function ResponsePart({ part }: { part: PlatformPart }) {
       return <ToolInteraction tool={part.tool} />
     case 'lane':
       return <LaneActivity lane={part.lane} />
-    case 'options':
-      return <MessageSegments segments={[{ kind: 'options', options: part.options }]} />
     case 'task':
       return (
         <p className={styles.status} data-type='T048'>
@@ -69,10 +66,10 @@ function ResponsePart({ part }: { part: PlatformPart }) {
   }
 }
 
-export function ResponseMessage({ turn, onRetry }: ResponseMessageProps) {
-  const { state, parts, copyText, sentAt, failure, waiting, endsWithInteraction } = turn
+export function ResponseMessage({ turn }: ResponseMessageProps) {
+  const { state, parts, copyText, failure, waiting, endsWithInteraction } = turn
   const settled = state === 'complete' || state === 'stopped'
-  const { review } = useChatRuntime()
+  const { review, retry } = useChatRuntime()
   const inReview = review?.turnId === turn.id && (review.actions.length > 0 || review.pending)
   return (
     <div className={styles.answer}>
@@ -88,16 +85,16 @@ export function ResponseMessage({ turn, onRetry }: ResponseMessageProps) {
       {state === 'failed' && (
         <>
           {failure && <p data-type='T048'>{failure}</p>}
-          <div className={styles.retry}>
-            <Button variant='muted' size='compact' icon='I055' onClick={onRetry}>
-              Retry
-            </Button>
-          </div>
+          {retry && (
+            <div className={styles.retry}>
+              <Button variant='muted' size='compact' icon='I055' onClick={() => retry(turn.id)}>
+                Retry
+              </Button>
+            </div>
+          )}
         </>
       )}
-      {copyText && settled && !endsWithInteraction && !inReview && (
-        <ResponseActions turn={turn} text={copyText} sentAt={sentAt} />
-      )}
+      {copyText && settled && !endsWithInteraction && !inReview && <ResponseActions turn={turn} />}
     </div>
   )
 }

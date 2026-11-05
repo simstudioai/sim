@@ -3,7 +3,10 @@
 import { useRef, useState } from 'react'
 import styles from '@/platform/app/(shell)/_components/composer/composer.module.css'
 import { MessageAttachments } from '@/platform/app/(shell)/_components/composer/message-attachments'
-import type { ComposerController } from '@/platform/app/(shell)/_components/composer/model'
+import type {
+  ComposerController,
+  ComposerReferences,
+} from '@/platform/app/(shell)/_components/composer/model'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import { IconButton } from '@/platform/design-system/components/button/button'
 import { ComposerInput } from '@/platform/design-system/components/composer-input/composer-input'
@@ -50,7 +53,7 @@ export function MessageComposer({
   const picker = useRef<HTMLInputElement>(null)
   const folder = useRef<HTMLInputElement>(null)
   const uploading = files.some((file) => file.uploading)
-  function addReference(group: string, item: { id: string; name: string; context?: unknown }) {
+  function addReference(group: string, item: ComposerReferences[number]['items'][number]) {
     composer.addReference(group, item)
     requestAnimationFrame(() => editor.current?.focus())
   }
@@ -147,6 +150,7 @@ export function MessageComposer({
         onValueChange={(value) => {
           setText(value)
           setSlash(value === '/' ? 'typed' : null)
+          if (value === '/') composer.onPickerOpen?.()
         }}
         onSubmit={submit}
         onPasteFiles={composer.addFiles}
@@ -157,13 +161,19 @@ export function MessageComposer({
           <ActionMenu
             label='Add attachment'
             icon='I074'
+            onOpenChange={(open) => {
+              if (open) composer.onPickerOpen?.()
+            }}
             actions={[...upload, ...resources, ...tools]}
           />
           <ActionMenu
             label='Commands'
             icon='I044'
             open={Boolean(slash)}
-            onOpenChange={(open) => setSlash(open ? 'button' : null)}
+            onOpenChange={(open) => {
+              if (open) composer.onPickerOpen?.()
+              setSlash(open ? 'button' : null)
+            }}
             actions={[...skills, ...resources, ...tools]}
           />
           {settings?.plan && (

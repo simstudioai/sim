@@ -11,8 +11,6 @@ import { Button, InlineNotice } from '@/platform/design-system/components'
 import { Input } from '@/platform/design-system/components/field/inputs'
 import {
   CredentialWorkspaceProvider,
-  credentialSubmissionMessage,
-  parseSearchTarget,
   useCredentialWorkspace,
   useFolderAccess,
   useIntegrationsHref,
@@ -21,7 +19,7 @@ import {
   useSecretSaver,
   useUsageLink,
 } from '@/platform/lib/data/chat-credentials'
-import { toast } from '@/platform/lib/data/toast'
+import type { SearchConnectionTarget } from '@/platform/lib/data/chat-types'
 
 function serviceName(item: PlatformCredentialRequest): string {
   return (item.provider ?? 'integration').replace(/[-_]/g, ' ')
@@ -61,9 +59,14 @@ function LinkRow({ item, controlId, onConnected }: RowProps) {
   )
 }
 
-function SearchRow({ item, controlId, onConnected }: RowProps) {
+function SearchRow({
+  item,
+  target,
+  controlId,
+  onConnected,
+}: RowProps & { target: SearchConnectionTarget }) {
   const name = serviceName(item)
-  const connection = useSearchConnectionRow(item, controlId, onConnected)
+  const connection = useSearchConnectionRow(target, controlId, onConnected)
   const label = connection.connected
     ? `Connected ${name}`
     : connection.pending
@@ -135,9 +138,7 @@ export function LiveCredentialCard({
   const [saving, setSaving] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const secretRows = items.flatMap((item, index) =>
-    item.type === 'secret_input' && item.name
-      ? [{ item, index, name: item.name, scope: item.scope ?? 'workspace' }]
-      : []
+    item.type === 'secret_input' && item.name ? [{ index, name: item.name }] : []
   )
   const integrationRows = items.flatMap((item, index) =>
     item.type === 'link' || item.type === 'service_account' ? [{ item, index }] : []
@@ -148,19 +149,21 @@ export function LiveCredentialCard({
     const named = [
       ...integrationRows.map(({ item, index }) => ({
         label: serviceName(item),
-        done: submission ? saved.has(item.provider ?? '') : connected.has(index),
+        status: (submission ? saved.has(item.provider ?? '') : connected.has(index))
+          ? 'Connected'
+          : 'Skipped',
       })),
       ...secretRows.map(({ name, index }) => ({
         label: name,
-        done: submission ? saved.has(name) : savedRows.has(index),
+        status: (submission ? saved.has(name) : savedRows.has(index)) ? 'Added' : 'Skipped',
       })),
     ]
     return (
       <dl className={styles.fields}>
-        {named.map(({ label, done }) => (
+        {named.map(({ label, status }) => (
           <div key={label}>
             <dt data-type='T052'>{label}</dt>
-            <dd data-type='T048'>{done ? 'Added' : 'Skipped'}</dd>
+            <dd data-type='T048'>{status}</dd>
           </div>
         ))}
       </dl>
@@ -171,34 +174,12 @@ export function LiveCredentialCard({
 
   async function submit() {
     setSaving(true)
-    const groups = new Map<string, Record<string, string>>()
-    for (const { index, name, scope } of secretRows) {
-      const value = drafts[index]?.trim()
-      if (!value || savedRows.has(index)) continue
-      groups.set(scope, { ...groups.get(scope), [name]: value })
-    }
-    const next = new Set(savedRows)
-    const results = await Promise.allSettled(
-      [...groups].map(async ([scope, variables]) => {
-        await saver.save(scope, workspaceId, variables)
-        for (const { index, name, scope: rowScope } of secretRows)
-          if (rowScope === scope && Object.hasOwn(variables, name)) next.add(index)
-      })
-    )
-    setSavedRows(next)
+    const result = await saver.submit({ drafts, saved: savedRows, connected, workspaceId })
+    setSavedRows(result.saved)
     setSaving(false)
-    if (results.some((result) => result.status === 'rejected')) {
-      toast.error(`Couldn't save all secrets. Retry the remaining entries.`)
-      return
-    }
-    const secretIndexes = new Set(
-      secretRows.flatMap(({ index }, position) => (next.has(index) ? [position] : []))
-    )
-    const integrationIndexes = new Set(
-      integrationRows.flatMap(({ index }, position) => (connected.has(index) ? [position] : []))
-    )
+    if (result.message === null) return
     setSubmitted(true)
-    onSubmit(credentialSubmissionMessage(items, integrationIndexes, secretIndexes))
+    onSubmit(result.message)
   }
 
   const isCard = items.every((item) => CARD_TYPES.has(item.type))
@@ -211,10 +192,11 @@ export function LiveCredentialCard({
           switch (item.type) {
             case 'link':
               if (!item.provider) return null
-              return parseSearchTarget(item) ? (
+              return item.searchTarget ? (
                 <SearchRow
                   key={controlId}
                   item={item}
+                  target={item.searchTarget}
                   controlId={controlId}
                   onConnected={markConnected}
                 />

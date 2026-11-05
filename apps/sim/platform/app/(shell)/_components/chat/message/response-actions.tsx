@@ -20,11 +20,10 @@ type Rating = 'Good response' | 'Bad response'
 
 interface ResponseActionsProps {
   turn: Extract<PlatformTurn, { role: 'assistant' }>
-  text: string
-  sentAt?: number
 }
 
-export function ResponseActions({ turn, text, sentAt }: ResponseActionsProps) {
+export function ResponseActions({ turn }: ResponseActionsProps) {
+  const { copyText: text, sentAt } = turn
   const { rate, fork } = useChatRuntime()
   const [feedback, setFeedback] = useState<Rating | null>(null)
   const [rating, setRating] = useState<Rating | null>(null)

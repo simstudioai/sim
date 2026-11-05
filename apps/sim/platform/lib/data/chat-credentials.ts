@@ -4,12 +4,9 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/client'
 import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
 import { getDesktopBridge } from '@/lib/desktop'
-import { searchConnectionTargetSchema } from '@/lib/knowledge/search/connection-target'
+import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { CredentialWorkspaceContext } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/credential-workspace-context'
-import {
-  type CredentialItemData,
-  formatCredentialSubmissionMessage,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/parse'
+import { formatCredentialSubmissionMessage } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/parse'
 import { useOAuthChipConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/use-oauth-chip-connection'
 import {
   usePersonalEnvironment,
@@ -23,35 +20,26 @@ import {
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useSearchIntegrationConnection } from '@/hooks/use-search-integration-connection'
 import type { PlatformCredentialRequest } from '@/platform/app/(shell)/_components/chat/model'
+import { platformUrl } from '@/platform/lib/data/base-path'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { legacyRoutes } from '@/platform/lib/data/organization-model'
 import { toast } from '@/platform/lib/data/toast'
-
-const BASE_PATH = process.env.NEXT_PUBLIC_SIM_PLATFORM_BASE_PATH ?? ''
 
 /** The card's workspace target, read by the connection hooks in place of a workspace route. */
 export const CredentialWorkspaceProvider = CredentialWorkspaceContext.Provider
 export { useOAuthChipConnection }
 
-/** A Search source this row connects, when its tag item parses as one. */
-export function parseSearchTarget(item: PlatformCredentialRequest) {
-  const target = searchConnectionTargetSchema.safeParse(item.source)
-  return target.success ? target.data : null
-}
-
 export function useSearchConnectionRow(
-  item: PlatformCredentialRequest,
+  target: SearchConnectionTarget,
   controlId: string,
   onConnected: () => void
 ) {
   const { organization } = useOrganization()
   const { data: session } = useSession()
-  const target = parseSearchTarget(item)
   return useSearchIntegrationConnection({
     organizationId: organization.id,
     userId: session?.user?.id ?? '',
-    // The row renders only for an item that parsed.
-    target: target as NonNullable<typeof target>,
+    target,
     controlId,
     onConnected,
   })
@@ -112,52 +100,95 @@ export function useSecretSaver(items: readonly PlatformCredentialRequest[]) {
   const hasOrganization = items.some((item) => item.scope === 'organization')
   const source = useOrganizationSecretSource(hasOrganization ? organizationId : '')
   const saveOrganization = useSaveOrganizationSecrets(organizationId)
+  async function save(scope: string, workspaceId: string, variables: Record<string, string>) {
+    if (scope === 'organization') {
+      const current = source.data?.source
+      if (!current) throw new Error('Generic Secrets are not enabled')
+      try {
+        await saveOrganization.mutateAsync({
+          sourceId: current.id,
+          mode: current.mode,
+          upsert: variables,
+          remove: [],
+        })
+      } catch (error) {
+        // The server compares this source under lock, so a stale one must be read again.
+        if (isApiClientError(error) && (error.status === 409 || error.status === 404))
+          await source.refetch()
+        throw error
+      }
+      return
+    }
+    if (scope === 'personal') {
+      // Saving replaces the whole map, so it merges over the latest copy.
+      const { data: latest } = await personal.refetch()
+      const merged: Record<string, string> = {}
+      for (const [key, entry] of Object.entries(latest ?? personal.data ?? {})) {
+        merged[key] = entry.value
+      }
+      await savePersonal.mutateAsync({ variables: { ...merged, ...variables } })
+      return
+    }
+    await upsertWorkspace.mutateAsync({ workspaceId, variables })
+  }
   return {
     gate: hasOrganization ? organizationSecretGate(source, organization.viewer.isAdmin) : null,
-    async save(scope: string, workspaceId: string, variables: Record<string, string>) {
-      if (scope === 'organization') {
-        const current = source.data?.source
-        if (!current) throw new Error('Generic Secrets are not enabled')
-        try {
-          await saveOrganization.mutateAsync({
-            sourceId: current.id,
-            mode: current.mode,
-            upsert: variables,
-            remove: [],
-          })
-        } catch (error) {
-          // The server compares this source under lock, so a stale one must be read again.
-          if (isApiClientError(error) && (error.status === 409 || error.status === 404))
-            await source.refetch()
-          throw error
-        }
-        return
+    /**
+     * Saves the entered secrets by scope, in parallel. A row that saved stays saved when another
+     * fails. Only with nothing failed is there a message for the chat, which carries names only.
+     */
+    async submit({
+      drafts,
+      saved,
+      connected,
+      workspaceId,
+    }: {
+      drafts: Readonly<Record<number, string>>
+      saved: ReadonlySet<number>
+      connected: ReadonlySet<number>
+      workspaceId: string
+    }): Promise<{ saved: ReadonlySet<number>; message: string | null }> {
+      const rows = items.flatMap((item, index) =>
+        item.type === 'secret_input' && item.name
+          ? [{ index, name: item.name, scope: item.scope ?? 'workspace' }]
+          : []
+      )
+      const groups = new Map<string, Record<string, string>>()
+      for (const { index, name, scope } of rows) {
+        const value = drafts[index]?.trim()
+        if (value && !saved.has(index)) groups.set(scope, { ...groups.get(scope), [name]: value })
       }
-      if (scope === 'personal') {
-        // Saving replaces the whole map, so it merges over the latest copy.
-        const { data: latest } = await personal.refetch()
-        const merged: Record<string, string> = {}
-        for (const [key, entry] of Object.entries(latest ?? personal.data ?? {})) {
-          merged[key] = entry.value
-        }
-        await savePersonal.mutateAsync({ variables: { ...merged, ...variables } })
-        return
+      const next = new Set(saved)
+      const results = await Promise.allSettled(
+        [...groups].map(async ([scope, variables]) => {
+          await save(scope, workspaceId, variables)
+          for (const row of rows)
+            if (row.scope === scope && Object.hasOwn(variables, row.name)) next.add(row.index)
+        })
+      )
+      if (results.some((result) => result.status === 'rejected')) {
+        toast.error(`Couldn't save all secrets. Retry the remaining entries.`)
+        return { saved: next, message: null }
       }
-      await upsertWorkspace.mutateAsync({ workspaceId, variables })
+      const integrations = items.flatMap((item, index) =>
+        item.type === 'link' || item.type === 'service_account' ? [index] : []
+      )
+      return {
+        saved: next,
+        message: formatCredentialSubmissionMessage(
+          items.map((item) => item.source),
+          {
+            connectedIntegrationIndexes: new Set(
+              integrations.flatMap((index, position) => (connected.has(index) ? [position] : []))
+            ),
+            savedSecretIndexes: new Set(
+              rows.flatMap(({ index }, position) => (next.has(index) ? [position] : []))
+            ),
+          }
+        ),
+      }
     },
   }
-}
-
-/** Names only: the message the chat pairs back to this card never carries a secret's value. */
-export function credentialSubmissionMessage(
-  items: readonly PlatformCredentialRequest[],
-  connectedIntegrations: ReadonlySet<number>,
-  savedSecrets: ReadonlySet<number>
-): string {
-  return formatCredentialSubmissionMessage(
-    items.map((item) => item.source as CredentialItemData),
-    { connectedIntegrationIndexes: connectedIntegrations, savedSecretIndexes: savedSecrets }
-  )
 }
 
 export function useIntegrationsHref(): string {
@@ -173,7 +204,7 @@ export function useUsageLink(action: string) {
     canManage: !hosted || organization.viewer.isAdmin,
     upgrade,
     href: hosted
-      ? `${BASE_PATH}/settings/billing`
+      ? platformUrl('/settings/billing')
       : upgrade
         ? buildHostedUpgradeUrl()
         : HOSTED_BILLING_SETTINGS_URL,

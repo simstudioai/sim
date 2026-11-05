@@ -9,7 +9,7 @@ import type {
   PlatformTurn,
 } from '@/platform/app/(shell)/_components/chat/model'
 import type { ChatTurn, ComposerDraft } from '@/platform/app/(shell)/_components/composer/model'
-import { userTurn } from '@/platform/app/(shell)/_components/composer/user-turn'
+import { draftTitle, userTurn } from '@/platform/app/(shell)/_components/composer/user-turn'
 import type { ShellItem } from '@/platform/app/(shell)/_components/model'
 import { platformHref } from '@/platform/design-system/navigation'
 
@@ -172,17 +172,13 @@ export function useFixtureChatRuntime(
       changes.setTurnsFor(id, [...turns, next])
       return
     }
-    const newId = changes.createChat(
-      draft.text.slice(0, 70) || draft.attachments[0]?.name || 'New chat',
-      [next]
-    )
+    const newId = changes.createChat(draftTitle(draft), [next])
     router.replace(platformHref(`/chat/${newId}`, search))
   }
   return {
     chatId,
     title: changes.titleFor(id, thread?.title ?? 'New chat'),
     status: running ? 'sending' : 'idle',
-    error: null,
     turns: fixtureTurns(turns),
     queue: [],
     send,
