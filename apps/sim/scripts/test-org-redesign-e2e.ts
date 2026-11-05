@@ -1394,7 +1394,14 @@ async function homeChecks() {
       await expect(email.getByText('Parts recall notice')).toBeVisible()
       await expect(email.getByText('Connect your email')).toHaveCount(0)
       await expect(page.getByRole('region', { name: 'Calendar schedule' })).toBeVisible()
-      await expect(homeRegion(page, 'Calendar').getByText(/^Standup /)).toBeVisible()
+      const calendar = homeRegion(page, 'Calendar')
+      const standup = calendar.getByText(/^Standup /)
+      await expect(standup).toBeVisible()
+      const today = await standup.innerText()
+      await calendar.getByRole('button', { name: 'Next day', exact: true }).click()
+      await expect(page).toHaveURL((address) => address.searchParams.has('day'))
+      await expect(standup).not.toHaveText(today)
+      await expect(standup).toBeVisible()
     })
   })
   await check('a member gets no Tasks run chart rather than a broken one', async () => {
@@ -1516,20 +1523,10 @@ async function homeChecks() {
   })
   await check('the handoff search params restore a results tab on Home', async () => {
     await withSession(ADMIN, async ({ page }) => {
-      await page.route('**/api/knowledge/search', (route) =>
-        route.fulfill({
-          json: {
-            success: true,
-            data: {
-              query: 'parts',
-              results: [],
-              retrieval: { status: 'complete', timedOutLegs: [] },
-            },
-          },
-        })
-      )
+      await stubSearch(page)
       await page.goto(orgUrl('/home?q=parts'))
       await expect(composer(page)).toBeVisible()
+      await expect(page.getByText('Service bulletin', { exact: true }).first()).toBeVisible()
     })
   })
   notProvable('Plan chip', 'Only for platform superusers, which needs a platform admin fixture')
@@ -1751,7 +1748,7 @@ async function searchChecks() {
       await page.keyboard.press('Escape')
       await links.first().focus()
       await page.keyboard.press('ArrowDown')
-      await expect(page.locator('a[data-source-link]:focus')).toHaveCount(1)
+      await expect(links.nth(1)).toBeFocused()
     })
   })
   await check('Summarize moves to Assistant and sends a turn scoped to that document', async () => {
@@ -1893,7 +1890,7 @@ async function searchChecks() {
     },
     { allow: [/500 GET \/api\//] }
   )
-  await check('New search and Search draft for a query come back on return', async () => {
+  await check('a query keeps its edited draft on return', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await stubSearch(page)
       await page.goto(orgUrl('/search?mode=search&q=recall'))
@@ -3231,7 +3228,7 @@ async function peoplePhaseChecks() {
       await expect(page.getByRole('button', { name: /Import/ }).first()).toBeVisible()
     })
   })
-  await check('the directory lists the organization with paging', async () => {
+  await check('the directory lists the organization', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(orgUrl('/people?view=directory'))
       await expect(page.getByText(ADMIN.name).first()).toBeVisible()
