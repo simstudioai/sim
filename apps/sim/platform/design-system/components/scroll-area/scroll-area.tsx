@@ -9,6 +9,7 @@ interface ScrollAreaProps {
   label: string
   axis?: 'vertical' | 'horizontal'
   arrows?: boolean
+  hideScrollbar?: boolean
   startAtEnd?: boolean
   children: ReactNode
 }
@@ -17,6 +18,7 @@ export function ScrollArea({
   label,
   axis = 'vertical',
   arrows = false,
+  hideScrollbar = false,
   startAtEnd = false,
   children,
 }: ScrollAreaProps) {
@@ -27,6 +29,7 @@ export function ScrollArea({
       ref={scrollRef}
       className={styles.viewport}
       data-axis={axis}
+      data-hide-scrollbar={arrows || hideScrollbar || undefined}
       role='region'
       aria-label={label}
     >

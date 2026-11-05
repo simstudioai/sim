@@ -6,6 +6,9 @@
   overflow: auto;
   overscroll-behavior: contain;
 }
+.viewport[data-hide-scrollbar] {
+  scrollbar-width: none;
+}
 .viewport[data-axis="horizontal"] {
   overflow-y: hidden;
 }
@@ -22,7 +25,6 @@
 }
 .shell .viewport {
   flex: 1;
-  scrollbar-width: none;
 }
 .previous,
 .next {
