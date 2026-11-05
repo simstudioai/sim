@@ -1320,7 +1320,7 @@ async function sidebarChecks() {
       on conflict (id) do nothing`
   })
   await check(
-    'Help menu: Docs, Join Slack, and a support request posted with its fields',
+    'Help menu: Documentation, Join Slack, and a support request posted with its fields',
     async () => {
       await withSession(MEMBER, async ({ page, context }) => {
         await context.route(/docs\.sim\.ai|sim\.ai\/slack|slack\.com/, (route) =>
@@ -1331,7 +1331,7 @@ async function sidebarChecks() {
         await help.click()
         await expect(menuEntry(page, 'Join Slack')).toBeVisible()
         const docs = context.waitForEvent('page')
-        await menuEntry(page, 'Docs').click()
+        await menuEntry(page, 'Documentation').click()
         await (await docs).close()
         await help.click()
         await menuEntry(page, 'Contact support').click()

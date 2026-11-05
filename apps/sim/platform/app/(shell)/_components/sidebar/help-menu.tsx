@@ -19,35 +19,12 @@ export function HelpMenu() {
       disabled: desktopUpdate.disabled,
       onSelect: desktopUpdate.run,
     })
-  actions.push(
-    {
-      id: 'documentation',
-      label: 'Docs',
-      icon: 'I079',
-      trailingIcon: 'I030',
-      separatorBefore: Boolean(desktopUpdate),
-      onSelect: help.openDocumentation,
-    },
-    {
-      id: 'slack',
-      label: 'Join Slack',
-      icon: 'I123',
-      trailingIcon: 'I030',
-      onSelect: help.joinSlack,
-    },
-    {
-      id: 'support',
-      label: 'Contact support',
-      icon: 'I047',
-      onSelect: () => setContacting(true),
-    }
-  )
   if (downloadUrl)
     actions.push({
       id: 'downloads',
       label: 'Download apps',
       icon: 'I102',
-      separatorBefore: true,
+      separatorBefore: Boolean(desktopUpdate),
       children: [
         {
           id: 'macos',
@@ -58,12 +35,35 @@ export function HelpMenu() {
         },
       ],
     })
+  actions.push(
+    {
+      id: 'support',
+      label: 'Contact support',
+      icon: 'I047',
+      separatorBefore: Boolean(desktopUpdate) && !downloadUrl,
+      onSelect: () => setContacting(true),
+    },
+    {
+      id: 'documentation',
+      label: 'Documentation',
+      icon: 'I079',
+      trailingIcon: 'I030',
+      onSelect: help.openDocumentation,
+    },
+    {
+      id: 'slack',
+      label: 'Join Slack',
+      icon: 'I123',
+      trailingIcon: 'I030',
+      onSelect: help.joinSlack,
+    }
+  )
   if (changelogUrl)
     actions.push({
       id: 'changelog',
       label: 'Changelog',
       icon: 'I046',
-      separatorBefore: !downloadUrl,
+      separatorBefore: true,
       onSelect: () => openLinkInNewTab(changelogUrl),
     })
   return (
