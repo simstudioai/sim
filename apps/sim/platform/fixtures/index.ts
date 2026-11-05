@@ -1,7 +1,7 @@
 import 'server-only'
-import type { AttachmentItem } from '@/platform/design-system/components/attachment-grid'
-import type { PropertyItem } from '@/platform/design-system/components/property-list'
-import type { RecentItem } from '@/platform/design-system/components/recent-items'
+import type { AttachmentItem } from '@/platform/design-system/components/attachments/attachment-grid'
+import type { PropertyItem } from '@/platform/design-system/components/property-list/property-list'
+import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
 
 export type Scenario = 'empty' | 'full' | 'stress'
 

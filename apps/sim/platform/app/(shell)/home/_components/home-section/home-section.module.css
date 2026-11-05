@@ -1,0 +1,16 @@
+.section {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-popup-padding);
+}
+.heading,
+.heading h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-row-gap);
+}
+.heading {
+  justify-content: space-between;
+  min-block-size: var(--spacing-28);
+  margin-inline-end: calc(-1 * var(--ui-action-overhang));
+}

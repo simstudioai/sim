@@ -1,0 +1,37 @@
+@reference "../../styles/theme.css";
+
+.destinations {
+  min-inline-size: 0;
+}
+.lane {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-height: var(--spacing-app-touch-target);
+  inline-size: max-content;
+}
+.destination {
+  @apply inline-flex items-center justify-center relative flex-none;
+  min-inline-size: var(--spacing-app-touch-target);
+  min-block-size: var(--spacing-app-touch-target);
+  padding-inline: var(--spacing-8);
+  color: var(--ui-secondary);
+  white-space: nowrap;
+  isolation: isolate;
+}
+.destination::before {
+  position: absolute;
+  inset: var(--spacing-6) 0;
+  z-index: -1;
+  border-radius: var(--radius-control);
+  content: "";
+}
+.destination:hover::before {
+  background: var(--ui-hover);
+}
+.destination[aria-current="page"] {
+  color: var(--ui-ink);
+}
+.destination[aria-current="page"]::before {
+  background: var(--ui-selected);
+}

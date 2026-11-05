@@ -423,12 +423,10 @@ test('series tooltips stay beside the inspected mark at both edges of the plot',
         })
         .toBe(12)
       if (!bands) {
-        const rim = Number.parseFloat(
-          await plot.locator('circle').evaluate((el) => getComputedStyle(el).strokeWidth)
-        )
-        expect(rim).toBe(2)
-        expect(mark.width + rim).toBeCloseTo(8, 1)
-        expect(mark.height + rim).toBeCloseTo(8, 1)
+        const dot = plot.locator('circle')
+        await expect(dot).toHaveCSS('stroke', 'none')
+        await expect(dot).toHaveCSS('fill', /^rgb\(/)
+        expect(mark.width).toBeCloseTo(mark.height, 1)
       }
     }
   }

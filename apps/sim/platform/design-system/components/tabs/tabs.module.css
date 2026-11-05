@@ -1,0 +1,62 @@
+.root,
+.pane {
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.pane[hidden] {
+  display: none;
+}
+.strip {
+  display: grid;
+  min-width: 0;
+  overflow: auto;
+  scrollbar-width: none;
+}
+.tabs,
+.closes {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  grid-area: 1 / 1;
+}
+.closes {
+  pointer-events: none;
+}
+.tab,
+.slot {
+  min-width: var(--spacing-64);
+  flex: 0 1 var(--panel-tab-width);
+}
+.slot {
+  display: flex;
+  justify-content: end;
+  padding-inline-end: var(--spacing-4);
+}
+.slot button {
+  pointer-events: auto;
+}
+.tab {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  width: var(--panel-tab-width);
+  height: var(--spacing-32);
+  padding-inline: var(--spacing-10) var(--spacing-32);
+  border-radius: var(--ui-control-radius);
+  text-align: start;
+  cursor: pointer;
+}
+.tab > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tab[data-active] {
+  background: var(--ui-selected);
+}
+.tab:hover {
+  background: var(--ui-hover);
+}

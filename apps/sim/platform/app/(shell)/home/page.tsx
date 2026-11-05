@@ -1,5 +1,5 @@
 import { ProductFrame, readScenario } from '@/platform/app/(shell)/_components/product-frame'
-import { HomeScreen } from '@/platform/design-system/features/home/home-screen'
+import { HomeDashboard } from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard'
 import { loadConversationData, loadShellData } from '@/platform/fixtures'
 
 export default async function Page({ searchParams }: PageProps<'/home'>) {
@@ -8,7 +8,7 @@ export default async function Page({ searchParams }: PageProps<'/home'>) {
   const [data, shell] = await Promise.all([loadConversationData(scenario), loadShellData(scenario)])
   return (
     <ProductFrame query={query} shell={shell}>
-      <HomeScreen data={data?.home ?? null} />
+      <HomeDashboard data={data?.home ?? null} />
     </ProductFrame>
   )
 }

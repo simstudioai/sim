@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Enforces the Paper ownership boundary for the standalone Platform project.
+ * Enforces the design ownership boundary for the standalone Platform project.
  * A gallery is documentation: only a real Platform screen, or a Base used by one,
  * can establish a variant. Native layout and interactive behavior are checked in the browser.
  */
@@ -110,7 +110,6 @@ for (const [owner, props] of Object.entries(variants)) {
     for (const [value, ids] of Object.entries(values)) {
       if (
         !Array.isArray(ids) ||
-        !ids.length ||
         ids.some((id) => keys.get(id)?.owner !== owner || !reachesScreen(keys.get(id)))
       ) {
         report(
@@ -128,48 +127,46 @@ function resolveImport(file: string, specifier: string) {
   if (specifier.startsWith('.')) return path.normalize(path.join(path.dirname(file), specifier))
   return null
 }
-function checkImport(file: string, specifier: string, dynamic = false) {
+function privateRouteOwner(file: string) {
+  return /^(platform\/app\/(?:.*\/)?)_components(?:\/|$)/.exec(file)?.[1]
+}
+const privateRoute = (file: string) => Boolean(privateRouteOwner(file))
+
+function checkImport(file: string, specifier: string, dynamic = false, typesOnly = false) {
   const target = resolveImport(file, specifier)
   const inPlatform = file.startsWith(platform)
-  if (
-    inPlatform &&
-    /^@base-ui\/react(?:\/|$)/.test(specifier) &&
-    !file.startsWith(`${system}components/`)
-  ) {
+  const primitive = file.startsWith(`${system}components/`)
+  if (inPlatform && /^@base-ui\/react(?:\/|$)/.test(specifier) && !primitive)
     report('primitive-owner', file, 'Use the Platform component that owns this Base UI primitive')
-  }
+  const targetOwner = target && privateRouteOwner(target)
   if (
-    target?.startsWith(`${system}components/`) &&
-    target.endsWith('.module.css') &&
-    !file.startsWith(`${system}components/`)
+    target?.endsWith('.module.css') &&
+    (targetOwner || target.startsWith(`${system}components/`))
   ) {
-    report('private-recipe', file, `Use the component that owns ${specifier}; its CSS is private`)
+    const sameFamily = path.dirname(file) === path.dirname(target)
+    const sharedPrimitiveRecipe =
+      primitive &&
+      target.startsWith(`${system}components/`) &&
+      target.endsWith('.shared.module.css')
+    if (!sameFamily && !sharedPrimitiveRecipe)
+      report('private-recipe', file, `Use the component that owns ${specifier}; its CSS is private`)
   }
-  const privateOwner = target?.match(/^(platform\/app\/(?:.+?\/)?)_components(?:\/|$)/)?.[1]
-  if (privateOwner && !file.startsWith(privateOwner)) {
-    report('private-composition', file, `Promote ${specifier} before using it outside its route`)
+  if (targetOwner) {
+    const gallery = file.startsWith('platform/preview/')
+    const fixtureContract = typesOnly && file.startsWith('platform/fixtures/')
+    if (!file.startsWith(targetOwner) && !gallery && !fixtureContract)
+      report('private-composition', file, `Promote ${specifier} before using it outside its route`)
   }
-  const feature = target?.match(/^platform\/design-system\/features\/([^/]+)(?:\/|$)/)?.[1]
-  if (
-    feature &&
-    !file.startsWith(`${system}features/${feature}/`) &&
-    !file.startsWith('platform/preview/') &&
-    !(
-      file.startsWith('platform/app/') &&
-      file
-        .split('/')
-        .slice(2, -1)
-        .some((segment) => segment.replace(/^\(|\)$/g, '') === feature)
-    )
-  ) {
-    report('feature-owner', file, `Promote ${specifier} before using it in another feature`)
-  }
+  const workbenchDependency = target && /^platform\/(preview|app\/workbench)(?:\/|$)/.test(target)
+  const workbenchConsumer = /^(?:platform\/preview|platform\/app\/workbench)\//.test(file)
+  if (inPlatform && workbenchDependency && !workbenchConsumer)
+    report('workbench-dependency', file, 'Only the workbench may import its tooling')
   if (
     (target && (target === 'platform' || target.startsWith(platform)) !== inPlatform) ||
     (inPlatform &&
       /^@sim\/(?!utils(?:\/|$))/.test(specifier) &&
       !(
-        file === 'platform/design-system/components/desktop-host.tsx' &&
+        file === 'platform/app/(shell)/_components/desktop/desktop-host.tsx' &&
         specifier === '@sim/desktop-bridge'
       ))
   ) {
@@ -249,11 +246,14 @@ const variantProps = new Set(Object.values(variants).flatMap((props) => Object.k
 function checkCss(file: string, sheet: postcss.Root) {
   const base = file.startsWith(foundation)
   const preview = file.startsWith('platform/preview/')
-  if (!base && (!(preview || file.startsWith(system)) || !file.endsWith('.module.css'))) {
+  if (
+    !base &&
+    (!(preview || file.startsWith(system) || privateRoute(file)) || !file.endsWith('.module.css'))
+  ) {
     report('css-owner', file, 'Move the recipe into its design owner')
   }
   sheet.walkAtRules((rule) => {
-    if (rule.name === 'import') {
+    if (rule.name === 'import' || rule.name === 'reference') {
       const specifier = rule.params.match(/(?:url\()?['"]([^'"]+)['"]/)?.[1]
       if (specifier)
         checkImport(
@@ -263,7 +263,7 @@ function checkCss(file: string, sheet: postcss.Root) {
     }
     if (rule.name === 'apply') {
       if (
-        !file.startsWith(system) ||
+        (!file.startsWith(system) && !privateRoute(file)) ||
         rule.params.split(/\s+/).some((utility) => !themeUtility(utility))
       )
         report(
@@ -432,7 +432,7 @@ function checkJs(file: string, content: string) {
       true,
       /\.[jt]sx$/.test(file) ? ts.ScriptKind.TSX : ts.ScriptKind.TS
     )
-  const owner = file.startsWith(system)
+  const owner = file.startsWith(system) || privateRoute(file)
   const preview = file.startsWith('platform/preview/')
   const modules = new Map<string, string>()
   const primitives = new Set<string>()
@@ -442,7 +442,18 @@ function checkJs(file: string, content: string) {
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
       const specifier = node.moduleSpecifier
       if (specifier && ts.isStringLiteral(specifier)) {
-        checkImport(file, specifier.text)
+        const bindings = ts.isImportDeclaration(node) ? node.importClause?.namedBindings : undefined
+        const typesOnly = ts.isExportDeclaration(node)
+          ? node.isTypeOnly
+          : Boolean(
+              node.importClause?.isTypeOnly ||
+                (bindings &&
+                  ts.isNamedImports(bindings) &&
+                  bindings.elements.length &&
+                  bindings.elements.every((binding) => binding.isTypeOnly) &&
+                  !node.importClause?.name)
+            )
+        checkImport(file, specifier.text, false, typesOnly)
         if (
           specifier.text === 'next/link' &&
           ts.isImportDeclaration(node) &&
@@ -485,6 +496,14 @@ function checkJs(file: string, content: string) {
       if (specifier && ts.isStringLiteralLike(specifier))
         checkImport(file, specifier.text, node.expression.kind === ts.SyntaxKind.ImportKeyword)
     }
+    if (
+      inPlatform &&
+      !preview &&
+      !file.startsWith('platform/checks/') &&
+      (ts.isStringLiteralLike(node) || ts.isJsxText(node)) &&
+      /\b(?:in this preview|in preview mode|in this demo)\b/i.test(node.text)
+    )
+      report('product-copy', location(node), 'Keep development-mode messaging out of the product')
     if (inPlatform && ts.isJsxSpreadAttribute(node))
       report('prop-spread', location(node), 'Pass named props explicitly')
     if (inPlatform && (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))) {
@@ -530,7 +549,24 @@ function checkJs(file: string, content: string) {
               classOwners.set(key, owners)
             }
           }
-          if (!(native && attr === 'className' && (owner || preview) && localClass)) {
+          const calendarPlacement =
+            file === 'platform/app/(shell)/home/_components/calendar/calendar-day.tsx' &&
+            native &&
+            attr === 'style' &&
+            expr &&
+            ts.isObjectLiteralExpression(expr) &&
+            expr.properties.length === 1 &&
+            expr.properties.every(
+              (property) =>
+                ts.isPropertyAssignment(property) &&
+                property.name.getText(sf) === 'gridRow' &&
+                ts.isCallExpression(property.initializer) &&
+                property.initializer.expression.getText(sf) === 'timeSlot'
+            )
+          if (
+            !calendarPlacement &&
+            !(native && attr === 'className' && (owner || preview) && localClass)
+          ) {
             report('consumer-style', location(prop), `${tag}.${attr}: pass a named variant`)
           }
         }
@@ -571,6 +607,14 @@ function checkJs(file: string, content: string) {
   visit(sf)
 }
 for (const file of sourceFiles) {
+  if (file.startsWith(`${system}features/`))
+    report('feature-owner', file, 'Colocate product UI in the owning route’s _components directory')
+  if (/^platform\/design-system\/components\/[^/]+$/.test(file) && !file.endsWith('/index.ts'))
+    report(
+      'component-folder',
+      file,
+      'Colocate the component and its CSS in their owning family folder'
+    )
   const source = read(file)
   if (!file.endsWith('.css')) checkJs(file, source)
   else if (file.startsWith(platform)) {
@@ -605,19 +649,17 @@ for (const [name, props] of Object.entries(variants)) {
   }
 }
 const usage = productUsage(app, program)
-if (usage) {
-  for (const key of usage.recipes) {
-    for (const child of Object.values(recipes[key]?.slots ?? {})) {
-      if (keys.has(child)) usage.recipes.add(child)
-    }
+for (const key of usage.recipes) {
+  for (const child of Object.values(recipes[key]?.slots ?? {})) {
+    if (keys.has(child)) usage.recipes.add(child)
   }
-  for (const [name, props] of Object.entries(variants)) {
-    for (const [prop, choices] of Object.entries(props)) {
-      for (const [value, ids] of Object.entries(choices)) {
-        const id = `${name}.${prop}=${value}`
-        if (!usage.variants.has(id) && !ids.some((key) => usage.recipes.has(key))) {
-          report('code-use', variantsPath, `${id}: no consumer reachable from a product page`)
-        }
+}
+for (const [name, props] of Object.entries(variants)) {
+  for (const [prop, choices] of Object.entries(props)) {
+    for (const [value, ids] of Object.entries(choices)) {
+      const id = `${name}.${prop}=${value}`
+      if (!usage.variants.has(id) && !ids.some((key) => usage.recipes.has(key))) {
+        report('code-use', variantsPath, `${id}: no consumer reachable from a product page`)
       }
     }
   }

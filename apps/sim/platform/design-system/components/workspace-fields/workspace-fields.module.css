@@ -1,0 +1,104 @@
+.upload,
+.recipients {
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  color: var(--ui-ink);
+}
+
+.recipientViewport input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.upload {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-4);
+  width: var(--spacing-64);
+  height: var(--spacing-64);
+  color: var(--ui-secondary);
+}
+
+.uploadInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.recipients {
+  height: calc(2 * var(--spacing-56));
+  padding: var(--spacing-8);
+}
+
+.recipients[data-invalid] {
+  border-color: var(--control-danger);
+}
+
+.recipientViewport {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: flex-start;
+  gap: var(--spacing-6);
+}
+
+.recipientViewport input {
+  min-width: min(100%, var(--spacing-96));
+}
+
+.recipient {
+  display: inline-flex;
+  position: relative;
+  align-items: center;
+  max-width: 100%;
+  height: var(--spacing-24);
+  padding-inline: var(--spacing-8);
+  overflow: hidden;
+  border-radius: var(--radius-item);
+  background: var(--ui-hover);
+  white-space: nowrap;
+}
+
+.recipient[data-invalid] {
+  background: var(--control-danger-soft);
+  color: var(--control-danger);
+}
+
+.address {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.removeRecipient {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  display: flex;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.recipient:is(:hover, [data-selected]) .removeRecipient {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.recipient:has(.removeRecipient):is(:hover, [data-selected]) .address {
+  mask-image: linear-gradient(
+    to right,
+    var(--color-light-text-strong) calc(100% - var(--spacing-48)),
+    transparent calc(100% - var(--spacing-32))
+  );
+}

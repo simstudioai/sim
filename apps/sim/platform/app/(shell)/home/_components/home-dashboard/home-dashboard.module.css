@@ -1,0 +1,42 @@
+.viewport {
+  container-type: inline-size;
+  min-inline-size: 0;
+  overflow: auto;
+  block-size: 100%;
+}
+.dashboard {
+  display: grid;
+  max-inline-size: calc(var(--container-app-dashboard) + 2 * var(--spacing-48));
+  margin-inline: auto;
+  padding: var(--spacing-16) clamp(var(--spacing-16), 4cqi, var(--spacing-48)) var(--spacing-48);
+  gap: clamp(var(--spacing-20), 3cqi, var(--spacing-28));
+}
+.greeting {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+  margin-inline-end: calc(-1 * var(--ui-action-overhang));
+}
+.greeting > div {
+  display: grid;
+  gap: var(--ui-stack-gap);
+}
+.greeting p {
+  color: var(--ui-secondary);
+  text-wrap: pretty;
+}
+.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--container-440)), 1fr));
+  align-items: start;
+  gap: clamp(var(--spacing-16), 3cqi, var(--spacing-32));
+}
+.column {
+  display: grid;
+  gap: var(--spacing-24);
+  min-inline-size: 0;
+}
+.column:empty {
+  display: none;
+}

@@ -1,50 +1,46 @@
-export {
-  ActionMenu,
-  BrowserActionsMenu,
-  MenuItem,
-  VisibilityMenu,
-} from './action-menu'
-export { AttachmentGrid } from './attachment-grid'
-export { ChartTooltip } from './chart-tooltip'
-export { BarChart, DonutChart, TrendChart } from './charts'
-export { ComposerInput } from './composer-input'
+export { AttachmentGrid } from './attachments/attachment-grid'
 export {
   Avatar,
   AvatarGroup,
   AvatarImage,
   AvatarOverflow,
-  Button,
-  Chip,
-  EmptyState,
-  IconButton,
   PeoplePopover,
   PersonRow,
-} from './controls'
-export { DataTable, MetricGroup } from './data-display'
-export { DestinationTabs } from './destination-tabs'
-export { Disclosure } from './disclosure'
-export { ExecutionSteps } from './execution-steps'
-export { FieldFrame, SelectField, TextAreaField, TextField } from './fields'
-export { Icon } from './icon'
-export { Input, TextArea } from './inputs'
-export { InterfacePreferences } from './interface-preferences'
-export { MenuSearchField } from './menu-search-field'
-export { Modal, MultiStepModal } from './modal'
-export { ModalBody, ModalFooter, ModalHeader } from './modal-parts'
-export { OverflowText } from './overflow-text'
-export { PlatformSurface } from './platform-surface'
-export { PropertyList } from './property-list'
-export { RangePicker } from './range-picker'
-export { RecentItems } from './recent-items'
-export { ScrollArea } from './scroll-area'
-export { SearchField } from './search-field'
-export { SearchableSelect } from './searchable-select'
-export { SegmentedControl, SelectionItem } from './segmented-control'
-export { Select } from './select'
-export { SettingsRow, SettingsSection, SettingsSurface } from './settings-section'
-export { Switch } from './switch'
-export { TasksRunChart } from './tasks-run-chart'
-export { Tooltip } from './tooltip'
-export { TouchTarget } from './touch-target'
-export { LogoUploadField, RecipientField, RecipientTag } from './workspace-fields'
-export { SidebarWorkspaceItems, WorkspaceList } from './workspace-list'
+} from './avatar/avatar'
+export { Button, Chip, IconButton } from './button/button'
+export { ChartTooltip } from './chart/chart-tooltip'
+export { BarChart, DonutChart, TrendChart } from './chart/charts'
+export { ComposerInput } from './composer-input/composer-input'
+export { DataTable, MetricGroup } from './data-display/data-display'
+export { DestinationTabs } from './destination-tabs/destination-tabs'
+export { Disclosure } from './disclosure/disclosure'
+export { EmptyState } from './empty-state/empty-state'
+export { ExecutionSteps } from './execution-steps/execution-steps'
+export { FieldFrame, SelectField, TextAreaField, TextField } from './field/fields'
+export { Input, TextArea } from './field/inputs'
+export { Icon } from './icon/icon'
+export {
+  ActionMenu,
+  BrowserActionsMenu,
+  MenuItem,
+  VisibilityMenu,
+} from './menu/action-menu'
+export { RangePicker } from './menu/range-picker'
+export { Modal, MultiStepModal } from './modal/modal'
+export { ModalBody, ModalFooter, ModalHeader } from './modal/modal-parts'
+export { OverflowText } from './overflow-text/overflow-text'
+export { SearchableSelect } from './picker/searchable-select'
+export { Select } from './picker/select'
+export { PropertyList } from './property-list/property-list'
+export { RecentItems } from './recent-items/recent-items'
+export { ScrollArea } from './scroll-area/scroll-area'
+export { MenuSearchField } from './search-field/menu-search-field'
+export { SearchField } from './search-field/search-field'
+export { SegmentedControl, SelectionItem } from './segmented-control/segmented-control'
+export { PlatformSurface } from './surface/platform-surface'
+export { Switch } from './switch/switch'
+export { type TabItem, Tabs } from './tabs/tabs'
+export { Tooltip } from './tooltip/tooltip'
+export { TouchTarget } from './touch-target/touch-target'
+export { LogoUploadField, RecipientField, RecipientTag } from './workspace-fields/workspace-fields'
+export { SidebarWorkspaceItems, WorkspaceList } from './workspace-list/workspace-list'

@@ -1,0 +1,13 @@
+.connect {
+  display: grid;
+  gap: var(--ui-section-gap);
+  padding-block: var(--ui-row-block);
+}
+.connect p {
+  color: var(--ui-secondary);
+}
+.providers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-row-gap);
+}

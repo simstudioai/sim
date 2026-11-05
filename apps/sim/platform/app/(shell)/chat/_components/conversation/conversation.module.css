@@ -1,0 +1,58 @@
+.chat {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 0;
+  min-inline-size: 0;
+  container: conversation / inline-size;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  gap: var(--ui-row-gap);
+  height: var(--spacing-56);
+  padding-inline: max(var(--ui-navigation-inset), var(--spacing-24)) var(--spacing-16);
+}
+.header h1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reading,
+.dock {
+  padding-inline: clamp(var(--spacing-16), 5cqi, var(--spacing-48));
+}
+.reading {
+  flex: 1;
+  min-block-size: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-block: var(--spacing-24) var(--spacing-16);
+}
+.thread,
+.turn {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--spacing-24);
+  overflow-wrap: anywhere;
+}
+.thread,
+.dockInner {
+  max-inline-size: var(--container-chat-thread);
+  margin-inline: auto;
+}
+.dock {
+  flex: none;
+  position: relative;
+  min-inline-size: 0;
+  padding-block: var(--spacing-8) clamp(var(--spacing-16), 3cqi, var(--spacing-28));
+}
+.jump {
+  position: absolute;
+  inset-block-end: 100%;
+  inset-inline: 0;
+  display: flex;
+  justify-content: center;
+}

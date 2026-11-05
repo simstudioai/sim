@@ -1,0 +1,20 @@
+.composer {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-section-gap);
+}
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+}
+.wordmark {
+  display: flex;
+  inline-size: var(--spacing-40);
+  block-size: var(--spacing-28);
+}
+.wordmark svg {
+  width: 100%;
+  height: 100%;
+}

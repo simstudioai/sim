@@ -1,4 +1,10 @@
 import { Fragment, type ReactNode, useId } from 'react'
+import { HelpMenu } from '@/platform/app/(shell)/_components/sidebar/help-menu'
+import {
+  SettingsRow,
+  SettingsSection,
+  SettingsSurface,
+} from '@/platform/app/(shell)/settings/_components/settings-section/settings-section'
 import type evidence from '@/platform/design-system/catalog/evidence.json'
 import { glyphs, type IconName } from '@/platform/design-system/catalog/icon-geometry'
 import {
@@ -45,9 +51,6 @@ import {
   Select,
   SelectField,
   SelectionItem,
-  SettingsRow,
-  SettingsSection,
-  SettingsSurface,
   SidebarWorkspaceItems,
   Switch,
   TextArea,
@@ -59,7 +62,6 @@ import {
   VisibilityMenu,
   WorkspaceList,
 } from '@/platform/design-system/components'
-import { HelpMenu } from '@/platform/design-system/components/help-menu'
 import type { PreviewData } from '@/platform/fixtures'
 import { HomeChartSpecimen } from '@/platform/preview/home-chart-specimen'
 import styles from '@/platform/preview/specimen.module.css'
@@ -105,11 +107,11 @@ const views = [
 
 function AgentFilter({ data }: { data: PreviewData | null }) {
   const agents = (data?.dashboard.rows ?? []).map((row) => String(row.values.agent))
-  return <RangePicker label='Agents' options={['All agents', ...agents]} size='compact' />
+  return <RangePicker label='Agents' options={['All agents', ...agents]} />
 }
 
 const requestFilter = (
-  <RangePicker label='Requests' options={['All requests', 'Succeeded', 'Retried']} size='compact' />
+  <RangePicker label='Requests' options={['All requests', 'Succeeded', 'Retried']} />
 )
 
 function FeedbackFields({ notes }: { notes?: string }) {
@@ -235,7 +237,7 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
         <Button
           variant={
             retry
-              ? 'pill'
+              ? 'muted'
               : family.includes('destructive')
                 ? 'destructive'
                 : family.includes('primary')
@@ -365,7 +367,7 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
       return (
         <Avatar
           name={(organization ? data?.organization.name : people[0]?.name) || label}
-          organization={organization ? (family.includes('/40/') ? 'large' : 'small') : undefined}
+          organization={organization}
           src={family.includes('photo') ? sample?.avatarSrc : undefined}
         />
       )
@@ -463,16 +465,7 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
       )
     case 'Disclosure': {
       if (family.startsWith('Chat/Show'))
-        return (
-          <Disclosure
-            label='Show more'
-            expandedLabel='Show less'
-            variant='more'
-            initiallyOpen={key === 'C0288'}
-          >
-            {sample?.notes}
-          </Disclosure>
-        )
+        return <span>{key === 'C0288' ? 'Show less' : 'Show more'}</span>
       if (family.includes('ActivityDisclosure'))
         return (
           <Disclosure label='Activity' variant='activity'>
@@ -565,7 +558,6 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
           label='Range'
           options={sample?.ranges ?? ['Option one', 'Option two']}
           defaultValue={sample?.ranges.at(-1)}
-          size={key === 'C0845' || key === 'C0847' ? 'compact' : 'regular'}
         />
       )
     case 'ScrollArea':

@@ -13,12 +13,13 @@ interface Usage {
  * barrels, default props, conditionals and wrapper props. Preview modules cannot
  * establish usage. Unresolved dynamic values require an explicit mapping at the owner.
  */
-export function productUsage(app: string, program: ts.Program): Usage | null {
+export function productUsage(app: string, program: ts.Program): Usage {
   const checker = program.getTypeChecker()
   const usage: Usage = { variants: new Set(), recipes: new Set() }
   const seen = new WeakMap<ts.Node, Set<string>>()
   const preview = path.join(app, 'platform/preview/')
   const system = path.join(app, 'platform/design-system/')
+  const workbench = path.join(app, 'platform/app/workbench/')
   function declaration(node: ts.Node) {
     let symbol = checker.getSymbolAtLocation(node)
     if (symbol && symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol)
@@ -71,7 +72,8 @@ export function productUsage(app: string, program: ts.Program): Usage | null {
     return []
   }
   function walk(fn: Component, props: Props) {
-    if (!fn.body || fn.getSourceFile().fileName.startsWith(preview)) return
+    const file = fn.getSourceFile().fileName
+    if (!fn.body || file.startsWith(preview) || file.startsWith(workbench)) return
     const history = seen.get(fn) ?? new Set<string>()
     const signature = JSON.stringify(props)
     if (history.has(signature)) return
@@ -121,7 +123,10 @@ export function productUsage(app: string, program: ts.Program): Usage | null {
             if (ts.isJsxAttribute(item))
               attrs[item.name.getText()] = values(item.initializer, scope)
           }
-          if (decl.getSourceFile().fileName.startsWith(system)) {
+          if (
+            decl.getSourceFile().fileName.startsWith(system) ||
+            decl.getSourceFile().fileName.includes('/_components/')
+          ) {
             const name =
               ts.isVariableDeclaration(decl) || ts.isFunctionDeclaration(decl)
                 ? decl.name?.getText()
@@ -173,24 +178,11 @@ export function productUsage(app: string, program: ts.Program): Usage | null {
     if (decl && ts.isExportAssignment(decl)) return component(declaration(decl.expression))
     return component(decl)
   }
-  function previewOnly(fn: Component) {
-    const targets: (ts.Declaration | undefined)[] = []
-    function collect(node: ts.Node) {
-      if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))
-        targets.push(declaration(node.tagName))
-      ts.forEachChild(node, collect)
-    }
-    if (fn.body) collect(fn.body)
-    return (
-      targets.length > 0 &&
-      targets.every((target) => target?.getSourceFile().fileName.startsWith(preview))
-    )
-  }
-  let pages = 0
   for (const file of program.getRootFileNames().filter(
     (file) =>
       path.basename(file) === 'page.tsx' &&
       file.startsWith(path.join(app, 'platform/app/')) &&
+      !file.startsWith(workbench) &&
       !path
         .relative(path.join(app, 'platform/app'), file)
         .split(path.sep)
@@ -198,8 +190,7 @@ export function productUsage(app: string, program: ts.Program): Usage | null {
   )) {
     const sf = program.getSourceFile(file)
     const root = sf && entry(sf)
-    if (!root || previewOnly(root)) continue
-    pages++
+    if (!root) continue
     walk(root, {})
     for (
       let dir = path.dirname(file);
@@ -211,5 +202,5 @@ export function productUsage(app: string, program: ts.Program): Usage | null {
       if (fn) walk(fn, {})
     }
   }
-  return pages ? usage : null
+  return usage
 }

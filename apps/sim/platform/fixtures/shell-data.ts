@@ -1,5 +1,5 @@
 import 'server-only'
-import type { ShellData } from '@/platform/design-system/models/shell'
+import type { ShellData } from '@/platform/app/(shell)/_components/model'
 import type { Scenario } from '@/platform/fixtures'
 
 const full: ShellData = {

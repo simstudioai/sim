@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
-import { ProductSurface } from '@/platform/design-system/components/product-surface'
-import { PlatformShell } from '@/platform/design-system/features/shell/platform-shell'
-import type { ShellData } from '@/platform/design-system/models/shell'
+import type { ShellData } from '@/platform/app/(shell)/_components/model'
+import { PlatformShell } from '@/platform/app/(shell)/_components/platform-shell/platform-shell'
+import { ProductSurface } from '@/platform/app/(shell)/_components/session/product-surface'
 import { readAppearance } from '@/platform/design-system/navigation'
 import type { Scenario } from '@/platform/fixtures'
 

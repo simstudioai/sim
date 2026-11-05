@@ -2,12 +2,12 @@
 
 import type { ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { InterfacePreferences } from '@/platform/design-system/components'
-import { ChatChangesProvider } from '@/platform/design-system/components/chat-changes'
-import { ComposerDrafts } from '@/platform/design-system/components/composer-drafts'
-import { DesktopHost } from '@/platform/design-system/components/desktop-host'
-import { NotificationSession } from '@/platform/design-system/components/notification-tray'
-import { SidebarLayout } from '@/platform/design-system/components/sidebar-layout'
+import { DesktopHost } from '@/platform/app/(shell)/_components/desktop/desktop-host'
+import { NotificationSession } from '@/platform/app/(shell)/_components/notification-tray/notification-tray'
+import { ChatChangesProvider } from '@/platform/app/(shell)/_components/session/chat-changes'
+import { ComposerDrafts } from '@/platform/app/(shell)/_components/session/composer-drafts'
+import { InterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
+import { SidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
 
 interface ProductSessionProps {
   children: ReactNode

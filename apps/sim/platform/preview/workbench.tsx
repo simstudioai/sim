@@ -172,7 +172,7 @@ export function Workbench({ theme, scenario, data, recipe, destination }: Workbe
             {data && (
               <div className={styles.stack}>
                 <div className={styles.identity}>
-                  <Avatar name={data.organization.name} organization='large' />
+                  <Avatar name={data.organization.name} organization />
                   <p className={styles.name}>{data.organization.name}</p>
                 </div>
                 {!!data.organization.members.length && (

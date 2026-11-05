@@ -1,0 +1,64 @@
+.inbox {
+  inline-size: min(
+    calc(var(--shell-inbox-width) - var(--spacing-10)),
+    calc(100vw - var(--spacing-28))
+  );
+  padding: var(--ui-popup-padding);
+}
+.inboxHeader,
+.inboxRow {
+  display: flex;
+  align-items: center;
+  padding: var(--ui-row-block) var(--ui-row-inset);
+  gap: var(--ui-row-gap);
+}
+.inboxHeader {
+  justify-content: space-between;
+}
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.list > li {
+  position: relative;
+  padding-block: var(--ui-popup-padding);
+}
+.list > li + li::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: var(--ui-row-inset);
+  border-block-start: var(--spacing-stroke-default) solid var(--ui-divider);
+}
+.inboxRow {
+  inline-size: 100%;
+  text-align: start;
+  border-radius: var(--ui-control-radius);
+  cursor: pointer;
+}
+.inboxRow:hover {
+  background: var(--ui-hover);
+}
+.inboxRow > svg {
+  flex: none;
+  inline-size: var(--ui-icon-size);
+  block-size: var(--ui-icon-size);
+}
+.inboxRow > svg:first-child {
+  align-self: flex-start;
+}
+.copy {
+  display: grid;
+  min-inline-size: 0;
+  flex: 1;
+  gap: var(--ui-stack-gap);
+  overflow-wrap: anywhere;
+}
+.copy > span + span,
+.empty {
+  color: var(--ui-secondary);
+}
+.empty {
+  padding: var(--spacing-12) var(--ui-row-inset);
+}

@@ -1,4 +1,5 @@
-import { ChartTooltip, TasksRunChart } from '@/platform/design-system/components'
+import { TasksRunChart } from '@/platform/app/(shell)/home/_components/tasks-chart/tasks-chart'
+import { ChartTooltip } from '@/platform/design-system/components'
 import type { PreviewData } from '@/platform/fixtures'
 
 interface HomeChartSpecimenProps {
@@ -22,7 +23,6 @@ export function HomeChartSpecimen({ recipe, data }: HomeChartSpecimenProps) {
     <TasksRunChart
       title='Tasks run'
       ranges={ranges}
-      inset={recipe === 'C0160' || recipe === 'C0162' ? 'flush' : 'padded'}
       initialPoint={
         recipe === 'C0169' ? Math.floor((Math.min(points.length, 7) - 1) / 2) : undefined
       }

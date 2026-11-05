@@ -1,5 +1,5 @@
 import 'server-only'
-import type { SettingsData } from '@/platform/design-system/models/settings'
+import type { SettingsData } from '@/platform/app/(shell)/settings/_components/model'
 import type { Scenario } from '@/platform/fixtures'
 
 const owner = { id: 'emir', name: 'Emir Karabeg', email: 'emir@example.com' }

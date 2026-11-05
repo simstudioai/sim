@@ -1,5 +1,5 @@
 import 'server-only'
-import type { PanelData } from '@/platform/design-system/models/panel'
+import type { PanelData } from '@/platform/app/(shell)/chat/_components/panel/model'
 import type { Scenario } from '@/platform/fixtures'
 import linear from '@/platform/fixtures/media/linear-homepage.jpg'
 

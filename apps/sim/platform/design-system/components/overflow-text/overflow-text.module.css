@@ -1,0 +1,29 @@
+.overflowFrame,
+.overflowFrame > span,
+.overflowText {
+  display: flex;
+  min-inline-size: 0;
+  inline-size: 100%;
+}
+
+.overflowText {
+  overflow: clip;
+}
+
+.overflowText[data-clipped] {
+  mask-image: var(--fade-end);
+}
+
+.overflowLabel {
+  flex: none;
+  inline-size: max-content;
+  white-space: pre;
+}
+
+.accessibleLabel {
+  position: absolute;
+  inline-size: var(--spacing-1);
+  block-size: var(--spacing-1);
+  clip-path: inset(50%);
+  overflow: hidden;
+}

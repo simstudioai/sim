@@ -1,10 +1,7 @@
 import 'server-only'
-import type {
-  ChatAttachment,
-  ChatTurn,
-  ConversationData,
-  HomeData,
-} from '@/platform/design-system/models/conversation'
+import type { ChatAttachment, ChatTurn } from '@/platform/app/(shell)/_components/composer/model'
+import type { ConversationData } from '@/platform/app/(shell)/chat/_components/conversation/model'
+import type { HomeData } from '@/platform/app/(shell)/home/_components/model'
 import type { Scenario } from '@/platform/fixtures'
 import nina from '@/platform/fixtures/media/attendee-1.jpg'
 import alex from '@/platform/fixtures/media/attendee-2.jpg'
@@ -120,7 +117,7 @@ const fullHome: HomeData = {
     ],
   },
 }
-const renewal: ChatTurn = {
+const renewal = {
   id: 'renewal',
   time: '3:46 PM',
   prompt: {
@@ -131,31 +128,57 @@ const renewal: ChatTurn = {
     state: 'complete',
     duration: '38s',
     time: '4:04 PM',
+    thinking: 'Compared the renewal terms with account notes and open requests.',
     paragraphs: [
-      'The renewal is in good shape. There are three things worth addressing before Friday’s call.',
-      'Confirm the rollout owner. The brief names Maya, but the latest account note assigns the next phase to Alex. Clarify who will own the handoff.',
-      'Resolve the reporting request. Aster asked for a weekly summary of failed runs. The request is still open and should be included in the renewal plan.',
-      'Align on the expansion timing. The proposal assumes a November launch; the account team is planning for December.',
-      'I’d open the call with ownership and timing, then agree on a date for the reporting update.',
+      {
+        text: 'The renewal is in good shape. There are three things worth addressing before Friday’s call.',
+      },
+      {
+        lead: 'Confirm the rollout owner.',
+        text: 'The brief names Maya, but the latest account note assigns the next phase to Alex. Clarify who will own the handoff.',
+      },
+      {
+        lead: 'Resolve the reporting request.',
+        text: 'Aster asked for a weekly summary of failed runs. The request is still open and should be included in the renewal plan.',
+      },
+      {
+        lead: 'Align on the expansion timing.',
+        text: 'The proposal assumes a November launch. The account team is planning for December.',
+      },
+      {
+        text: 'I’d open the call with ownership and timing, then agree on a date for the reporting update.',
+      },
     ],
     steps: [
       {
         id: 'read',
         name: 'Read renewal-brief.pdf',
         time: '1.2s',
-        input: '{"file":"renewal-brief.pdf","pages":"1–12"}',
-        output: '{"account":"Aster Labs","rollout_owner":"Maya Ross","expansion":"November"}',
+        input: '{ "file": "renewal-brief.pdf", "pages": "1–12" }',
+        output: JSON.stringify(
+          {
+            account: 'Aster Labs',
+            renewal_date: '2026-11-30',
+            rollout_owner: 'Maya Ross',
+            expansion: 'November',
+            open_requests: ['Weekly run summary'],
+          },
+          null,
+          2
+        ),
       },
       {
         id: 'ownership',
-        name: 'Search account notes  ownership',
+        name: 'Search account notes',
+        detail: 'ownership',
         time: '0.8s',
         input: '{"query":"ownership"}',
         output: 'Alex Chen will coordinate the next phase.',
       },
       {
         id: 'timing',
-        name: 'Search account notes  rollout timing',
+        name: 'Search account notes',
+        detail: 'rollout timing',
         time: '2.6s',
         input: '{"query":"rollout timing"}',
         output: 'The account team is planning for December.',
@@ -169,7 +192,7 @@ const renewal: ChatTurn = {
       },
     ],
   },
-}
+} satisfies ChatTurn
 const files: ChatAttachment[] = [
   {
     id: 'dashboard',
@@ -211,16 +234,34 @@ function thread(
         id,
         time: '10:42 AM',
         prompt: { text, attachments },
-        response: entry && {
+        response: {
           ...entry,
           state,
+          duration: state === 'failed' ? '8s' : '12s',
+          steps:
+            state === 'failed'
+              ? [{ ...entry.steps[0], time: '8s', output: 'File unavailable.' }]
+              : entry.steps,
+          thinking: undefined,
+          failure:
+            state === 'failed'
+              ? 'I couldn’t read the renewal brief because the file is no longer available. Upload it again, or retry if access has been restored.'
+              : undefined,
           paragraphs:
-            state === 'stopped'
+            state === 'running'
               ? [
-                  'I found an ownership mismatch in the renewal brief.',
-                  'The brief lists Maya Ross, while the latest notes name Alex Chen as the owner for the next phase.',
+                  {
+                    text: 'I’m comparing the renewal terms with the latest account notes and checking for unresolved requests.',
+                  },
                 ]
-              : [],
+              : state === 'stopped'
+                ? [
+                    { text: 'I found an ownership mismatch in the renewal brief.' },
+                    {
+                      text: 'The brief lists Maya Ross, while the latest notes name Alex Chen as the owner for the next phase.',
+                    },
+                  ]
+                : [],
         },
       },
     ],

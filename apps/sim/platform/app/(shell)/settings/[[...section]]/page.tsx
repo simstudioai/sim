@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation'
 import { ProductFrame, readScenario } from '@/platform/app/(shell)/_components/product-frame'
-import { SETTINGS_DESTINATIONS } from '@/platform/design-system/features/settings/destinations'
-import { SettingsNavigation } from '@/platform/design-system/features/settings/settings-navigation'
-import { SettingsScreen } from '@/platform/design-system/features/settings/settings-screen'
+import { SETTINGS_DESTINATIONS } from '@/platform/app/(shell)/settings/_components/settings-navigation/destinations'
+import { SettingsNavigation } from '@/platform/app/(shell)/settings/_components/settings-navigation/settings-navigation'
+import { SettingsScreen } from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen'
 import { loadSettingsData, loadShellData } from '@/platform/fixtures'
 
 export default async function Page({

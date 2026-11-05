@@ -1,0 +1,24 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  min-block-size: var(--spacing-app-control-md);
+  padding: var(--ui-row-block) var(--ui-row-inset);
+  gap: var(--ui-row-gap);
+  border-radius: var(--ui-control-radius);
+  cursor: pointer;
+}
+.button:hover,
+.button[aria-expanded="true"] {
+  background: var(--ui-hover);
+}
+.button > :not(.name) {
+  flex: none;
+}
+.name {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

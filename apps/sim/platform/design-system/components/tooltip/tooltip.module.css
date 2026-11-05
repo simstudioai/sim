@@ -1,0 +1,28 @@
+.tooltipHost {
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltip,
+.tooltipPanel {
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+}
+
+.tooltip[data-positioned],
+.tooltipPanel[data-positioned] {
+  visibility: visible;
+}
+
+.tooltip {
+  width: max-content;
+  max-width: min(var(--container-app-sidebar), 90vw);
+  padding: var(--spacing-6) var(--spacing-8);
+  border-radius: var(--radius-item);
+  background: var(--control-tooltip);
+  color: var(--control-tooltip-ink);
+  overflow-wrap: anywhere;
+}

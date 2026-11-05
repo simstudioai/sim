@@ -1,0 +1,62 @@
+.menu {
+  min-inline-size: 0;
+}
+.menuItem {
+  display: flex;
+  align-items: center;
+}
+
+.menu {
+  composes: popup from "./popup.shared.module.css";
+  inline-size: var(--menu-action-width);
+}
+.menu:not([data-menu]):has(.menuItem[data-option]) {
+  inline-size: var(--menu-choice-width);
+}
+.menuItem {
+  composes: item from "./popup.shared.module.css";
+}
+.menuItem[data-popup-open],
+.menu[data-navigating] .menuItem[tabindex="0"] {
+  background: var(--ui-hover);
+}
+.trailing {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: end;
+  inline-size: var(--spacing-32);
+}
+.hint {
+  min-width: var(--spacing-32);
+  text-align: end;
+  color: var(--ui-secondary);
+}
+
+.menu[data-menu="browser"] {
+  inline-size: var(--menu-browser-width);
+  gap: var(--spacing-2);
+}
+.separator {
+  margin: var(--spacing-4) var(--spacing-8);
+  height: var(--spacing-stroke-default);
+  border: 0;
+  background: var(--ui-divider);
+}
+.menuTitle {
+  display: flex;
+  align-items: center;
+  padding-inline: var(--spacing-8);
+  min-block-size: var(--spacing-28);
+  color: var(--ui-secondary);
+}
+
+.menu[data-menu="zoom"] {
+  inline-size: var(--menu-zoom-width);
+}
+.menu:is([data-menu="browser"], [data-menu="zoom"]) [role="group"],
+.menu[data-menu="browser"] [aria-label="Browser actions"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}

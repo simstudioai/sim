@@ -1,0 +1,77 @@
+.field,
+.result,
+.footer,
+.footer > span {
+  display: flex;
+  align-items: center;
+}
+.field {
+  flex: none;
+  gap: var(--spacing-12);
+  min-block-size: var(--spacing-56);
+  padding-inline: var(--spacing-20);
+}
+.field svg,
+.result svg {
+  flex: none;
+  inline-size: var(--ui-icon-size);
+  block-size: var(--ui-icon-size);
+  color: var(--ui-secondary);
+}
+.field input {
+  flex: 1;
+  min-inline-size: 0;
+  color: var(--ui-ink);
+}
+.results {
+  min-block-size: 0;
+  max-block-size: 50dvh;
+  padding: var(--ui-row-inset);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.results:empty {
+  display: none;
+}
+.group + .group {
+  padding-block-start: var(--ui-popup-padding);
+}
+.heading {
+  display: flex;
+  align-items: flex-end;
+  min-block-size: var(--spacing-32);
+  padding: var(--ui-popup-padding) var(--spacing-12);
+  color: var(--ui-secondary);
+}
+.result {
+  min-block-size: var(--spacing-36);
+  padding: var(--ui-row-block) var(--spacing-12);
+  gap: var(--spacing-12);
+  border-radius: var(--ui-control-radius);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.result[data-highlighted] {
+  background: var(--ui-hover);
+}
+.empty:not(:empty) {
+  padding: var(--spacing-12) var(--spacing-20);
+  color: var(--ui-secondary);
+}
+.footer {
+  flex: none;
+  min-block-size: var(--spacing-40);
+  padding: var(--ui-row-block) var(--spacing-16);
+  color: var(--ui-secondary);
+  gap: var(--spacing-16);
+  border-block-start: var(--spacing-stroke-default) solid var(--ui-divider);
+}
+.footer > span {
+  gap: var(--ui-popup-padding);
+}
+.footer > span:last-child {
+  margin-inline-start: auto;
+}
+.footer kbd {
+  font: inherit;
+}

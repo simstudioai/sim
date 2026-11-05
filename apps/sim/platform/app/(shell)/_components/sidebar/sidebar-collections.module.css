@@ -1,0 +1,31 @@
+.group {
+  display: grid;
+  gap: var(--ui-stack-gap);
+}
+.chatRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-inline-size: 0;
+  border-radius: var(--ui-control-radius);
+}
+.chatRow:hover {
+  background: var(--ui-hover);
+}
+.chatRow[data-current] {
+  background: var(--ui-selected);
+}
+.rowActions {
+  display: flex;
+  align-items: center;
+  opacity: 0;
+}
+.chatRow:hover .rowActions,
+.rowActions:has([aria-expanded="true"]) {
+  opacity: 1;
+}
+@media (hover: none) {
+  .rowActions {
+    opacity: 1;
+  }
+}

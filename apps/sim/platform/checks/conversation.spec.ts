@@ -1,13 +1,17 @@
 import { expect, test } from '@playwright/test'
 
-const populated = 'http://127.0.0.1:3181'
+const populated = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
 
 test('Home can hide, undo, disconnect and reconnect widgets without losing the rest of the dashboard', async ({
   page,
 }) => {
   await page.goto(`${populated}/home?state=full`)
   const email = page.getByRole('region', { name: 'Email', exact: true })
-  await page.getByRole('button', { name: 'Customize Home' }).click()
+  const customize = page.getByRole('button', { name: 'Customize Home' })
+  await customize.hover()
+  await expect(page.getByRole('tooltip', { name: 'Customize Home' })).toBeVisible()
+  await customize.click()
+  await expect(page.getByRole('tooltip', { name: 'Customize Home' })).toHaveCount(0)
   await page.getByRole('menuitemcheckbox', { name: 'Email' }).click()
   await expect(email).toHaveCount(0)
   await page.keyboard.press('Escape')
@@ -32,6 +36,36 @@ test('Home can hide, undo, disconnect and reconnect widgets without losing the r
   await page.getByRole('button', { name: 'Previous day' }).click()
   await page.getByRole('button', { name: 'Show 2 more people' }).hover()
   await expect(page.getByRole('tooltip').getByText('Nina Patel')).toBeVisible()
+  await expect(page.getByRole('tooltip')).toHaveCount(1)
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('tooltip')).toHaveCount(0)
+  await page
+    .getByRole('region', { name: 'Calendar', exact: true })
+    .getByRole('img', { name: 'Nina Patel', exact: true })
+    .hover()
+  await expect(page.getByRole('tooltip', { name: 'Nina Patel', exact: true })).toBeVisible()
+})
+
+test('Home fills the available chart column and keeps calendar day controls on the same baseline', async ({
+  page,
+}) => {
+  await page.goto(`${populated}/home?state=full`)
+  const chart = page.getByRole('region', { name: 'Tasks run' })
+  const tasks = page.getByRole('region', { name: 'Needs your attention' })
+  const calendar = page.getByRole('region', { name: 'Calendar', exact: true })
+  for (const width of [390, 768, 1040, 1440]) {
+    await page.setViewportSize({ width, height: 900 })
+    const [chartBox, tasksBox, previous, next] = await Promise.all([
+      chart.boundingBox(),
+      tasks.boundingBox(),
+      calendar.getByRole('button', { name: 'Previous day' }).boundingBox(),
+      calendar.getByRole('button', { name: 'Next day' }).boundingBox(),
+    ])
+    if (!chartBox || !tasksBox || !previous || !next) throw new Error('Missing dashboard geometry')
+    expect.soft(chartBox.x).toBeCloseTo(tasksBox.x, 0)
+    expect.soft(chartBox.width).toBeCloseTo(tasksBox.width, 0)
+    expect.soft(previous.y + previous.height / 2).toBeCloseTo(next.y + next.height / 2, 0)
+  }
 })
 
 test('a new chat carries its local draft and attachments through navigation without putting the message in the URL', async ({
@@ -86,9 +120,17 @@ test('chat activity, recovery, and feedback controls work at intermediate and na
   await page.goto(`${populated}/chat/weekly-review?state=full`)
   await page.getByText('Worked for 38s', { exact: true }).click()
   await page.locator('summary').filter({ hasText: 'Read renewal-brief.pdf' }).click()
-  await expect(
-    page.getByText('{"file":"renewal-brief.pdf","pages":"1–12"}', { exact: true })
-  ).toBeVisible()
+  const input = page.locator('dd code').filter({ hasText: '"pages"' })
+  await expect(input).toBeVisible()
+  expect(JSON.parse(await input.innerText())).toEqual({ file: 'renewal-brief.pdf', pages: '1–12' })
+  await expect(page.getByRole('button', { name: 'Copy tool response', exact: true })).toBeVisible()
+  const answer = await page.getByText(/^The renewal is in good shape/).boundingBox()
+  const copy = await page
+    .getByRole('button', { name: 'Copy response', exact: true })
+    .locator('svg')
+    .boundingBox()
+  if (!answer || !copy) throw new Error('The response and its copy control must be visible')
+  expect(copy.x).toBeCloseTo(answer.x, 0)
   await page.getByRole('button', { name: 'Rate response' }).click()
   await page.getByRole('menuitem', { name: 'Bad response' }).click()
   const dialog = page.getByRole('dialog', { name: 'Share feedback' })
@@ -121,12 +163,19 @@ test('stress transcript keeps attachment review bounded and returns the reader t
   await expect(page.getByRole('button', { name: 'Jump to latest' })).toBeHidden()
 })
 
-test('a follow-up leaves the active run stoppable', async ({ page }) => {
+test('collapsing work preserves prose and a long follow-up leaves the active run stoppable', async ({
+  page,
+}) => {
   await page.goto(`${populated}/chat/customer-onboarding?state=full`)
   const editor = page.getByRole('textbox', { name: 'Add a follow-up…' })
-  await editor.fill('Also include the handoff')
+  const progress = page.getByText(/checking for unresolved/)
+  await expect(progress).toBeVisible()
+  await page.getByText(/^Working for /).click()
+  await expect(progress).toBeVisible()
+  const message = 'Include the handoff and its owner. '.repeat(25).trim()
+  await editor.fill(message)
   await editor.press('Enter')
-  await expect(page.getByText('Also include the handoff', { exact: true })).toBeVisible()
+  await expect(page.getByText(message, { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Stop response' }).click()
   await expect(page.getByText('Stopped', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Stop response' })).toHaveCount(0)

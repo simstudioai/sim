@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { ProductFrame, readScenario } from '@/platform/app/(shell)/_components/product-frame'
-import { ChatScreen } from '@/platform/design-system/features/chat/chat-screen'
-import { ChatPanels } from '@/platform/design-system/features/chat/panels/chat-panels'
+import { Conversation } from '@/platform/app/(shell)/chat/_components/conversation/conversation'
+import { ChatPanels } from '@/platform/app/(shell)/chat/_components/panel/chat-panels'
 import { loadConversationData, loadPanelData, loadShellData } from '@/platform/fixtures'
 
 export default async function Page({ searchParams, params }: PageProps<'/chat/[[...id]]'>) {
@@ -16,7 +16,7 @@ export default async function Page({ searchParams, params }: PageProps<'/chat/[[
   return (
     <ProductFrame query={query} shell={shell}>
       <ChatPanels workspaces={shell?.workspaces ?? []} data={panel} key={id?.[0] ?? 'new'}>
-        <ChatScreen data={data?.chat ?? null} chatId={id?.[0]} />
+        <Conversation data={data?.chat ?? null} chatId={id?.[0]} />
       </ChatPanels>
     </ProductFrame>
   )

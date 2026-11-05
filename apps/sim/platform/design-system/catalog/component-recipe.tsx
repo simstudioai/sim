@@ -3,7 +3,7 @@ import { glyphs, type IconName } from '@/platform/design-system/catalog/icon-geo
 import recipes from '@/platform/design-system/catalog/recipes.json'
 import styles from '@/platform/design-system/catalog/recipes.module.css'
 import { Icon } from '@/platform/design-system/components'
-import { ScrollArea } from '@/platform/design-system/components/scroll-area'
+import { ScrollArea } from '@/platform/design-system/components/scroll-area/scroll-area'
 
 export type RecipeKey = keyof typeof recipes
 

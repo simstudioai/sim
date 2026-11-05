@@ -1,0 +1,23 @@
+.empty,
+.empty > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-4);
+}
+
+.empty {
+  justify-content: center;
+  min-height: calc(var(--spacing-56) * 2);
+  padding: var(--spacing-16) var(--spacing-8);
+  color: var(--ui-ink);
+}
+
+.empty[data-action] {
+  min-height: var(--spacing-132);
+  gap: var(--spacing-12);
+}
+
+.empty p {
+  color: var(--ui-secondary);
+}

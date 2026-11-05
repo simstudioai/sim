@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 export const glyphs = {
   I001: {
     label: 'Chart/Grid',
+    artwork: true,
     viewBox: '0 0 472 128',
     draw: (id: string): ReactNode => (
       <>
@@ -32,6 +33,7 @@ export const glyphs = {
   },
   I003: {
     label: 'Chart/Series/zero',
+    artwork: true,
     viewBox: '0 0 472 128',
     draw: (): ReactNode => (
       <>
@@ -51,38 +53,15 @@ export const glyphs = {
     viewBox: '-1.75 -2.25 24 24',
     draw: (): ReactNode => (
       <>
-        <ellipse
-          cx='10.25'
-          cy='4.25'
-          rx='7.5'
-          ry='3.25'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M2.75 4.25V15.25C2.75 17.05 6.11 18.5 10.25 18.5C14.39 18.5 17.75 17.05 17.75 15.25V4.25'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M2.75 9.75C2.75 11.55 6.11 13 10.25 13C14.39 13 17.75 11.55 17.75 9.75'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <ellipse cx='10.25' cy='4.25' rx='7.5' ry='3.25' />
+        <path d='M2.75 4.25V15.25C2.75 17.05 6.11 18.5 10.25 18.5C14.39 18.5 17.75 17.05 17.75 15.25V4.25' />
+        <path d='M2.75 9.75C2.75 11.55 6.11 13 10.25 13C14.39 13 17.75 11.55 17.75 9.75' />
       </>
     ),
   },
   I005: {
     label: 'provider-gmail',
+    artwork: true,
     viewBox: '0 0 48 48',
     draw: (): ReactNode => (
       <>
@@ -108,37 +87,20 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <rect
-          x='8'
-          y='8'
-          width='12'
-          height='12'
-          rx='2'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <rect x='8' y='8' width='12' height='12' rx='2' />
+        <path d='M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3' />
       </>
     ),
   },
   I007: {
     label: 'Brand/linear',
+    artwork: true,
     viewBox: '0 0 100 100',
     draw: (): ReactNode => (
       <>
         <path
           d='M1.23 61.52c-.223-.949.91-1.55 1.6-.857L39.33 97.18c.689.69.09 1.82-.857 1.6C20.05 94.45 5.55 79.95 1.23 61.52ZM.002 46.89c-.176.28.89.56.29.76L52.35 99.71c.201.2.48.31.76.29 2.37-.148 4.69-.46 6.96-.926.76-.157 1.03-1.1.48-1.65L2.58 39.45c-.552-.552-1.49-.286-1.65.48-.466 2.27-.778 4.59-.926 6.96ZM4.21 29.71c-.166.37-.817.81.21 1.1l64.78 64.78c.289.29.73.37 1.1.21 1.79-.796 3.52-1.69 5.19-2.68.55-.328.64-1.9.18-1.54L8.44 24.34c-.454-.454-1.21-.369-1.54.18-.991 1.67-1.89 3.4-2.68 5.19ZM12.66 18.07c-.37-.37-.393-.964-.044-1.35C21.78 6.46 35.11 0 49.95 0 77.59 0 100 22.41 100 50.05c0 14.84-6.46 28.17-16.72 37.34-.39.35-.984.33-1.35-.044L12.66 18.07Z'
-          fill='var(--color-app-text-primary)'
+          fill='currentColor'
         />
       </>
     ),
@@ -148,14 +110,7 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M17 14V3h4v11h-4Zm0 0-5 8c-2 0-3-1.5-2.5-3.5L10 15H5a2 2 0 0 1-2-2.4l1.4-8A2 2 0 0 1 6.4 3H17'
-          fill='none'
-          stroke='var(--color-app-text-secondary)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M17 14V3h4v11h-4Zm0 0-5 8c-2 0-3-1.5-2.5-3.5L10 15H5a2 2 0 0 1-2-2.4l1.4-8A2 2 0 0 1 6.4 3H17' />
       </>
     ),
   },
@@ -164,22 +119,8 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74' />
+        <path d='M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74' />
       </>
     ),
   },
@@ -188,22 +129,8 @@ export const glyphs = {
     viewBox: '-1.75 -2.25 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M12.25 0.75H5.25C4.15 0.75 3.25 1.65 3.25 2.75V16.75C3.25 17.85 4.15 18.75 5.25 18.75H15.25C16.35 18.75 17.25 17.85 17.25 16.75V5.75L12.25 0.75Z'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M12.25 0.75V5.75H17.25'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M12.25 0.75H5.25C4.15 0.75 3.25 1.65 3.25 2.75V16.75C3.25 17.85 4.15 18.75 5.25 18.75H15.25C16.35 18.75 17.25 17.85 17.25 16.75V5.75L12.25 0.75Z' />
+        <path d='M12.25 0.75V5.75H17.25' />
       </>
     ),
   },
@@ -212,25 +139,19 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M7 10v11H3V10h4Zm0 0 5-8c2 0 3 1.5 2.5 3.5L14 9h5a2 2 0 0 1 2 2.4l-1.4 8A2 2 0 0 1 17.6 21H7'
-          fill='none'
-          stroke='var(--color-app-text-secondary)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M7 10v11H3V10h4Zm0 0 5-8c2 0 3 1.5 2.5 3.5L14 9h5a2 2 0 0 1 2 2.4l-1.4 8A2 2 0 0 1 17.6 21H7' />
       </>
     ),
   },
   I022: {
     label: 'Brand/notion',
+    artwork: true,
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
         <path
           d='M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z'
-          fill='var(--color-app-text-primary)'
+          fill='currentColor'
         />
       </>
     ),
@@ -240,22 +161,8 @@ export const glyphs = {
     viewBox: '-1.75 -1.75 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M4 9.25L10.25 3L16.5 9.25'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M10.25 3V17.5'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M4 9.25L10.25 3L16.5 9.25' />
+        <path d='M10.25 3V17.5' />
       </>
     ),
   },
@@ -264,34 +171,9 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <rect
-          x='3'
-          y='3'
-          width='18'
-          height='7'
-          rx='1.75'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-        />
-        <rect
-          x='3'
-          y='14'
-          width='18'
-          height='7'
-          rx='1.75'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-        />
-        <path
-          d='M7 6.5h.01M7 17.5h.01M11 6.5h6M11 17.5h6'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <rect x='3' y='3' width='18' height='7' rx='1.75' />
+        <rect x='3' y='14' width='18' height='7' rx='1.75' />
+        <path d='M7 6.5h.01M7 17.5h.01M11 6.5h6M11 17.5h6' />
       </>
     ),
   },
@@ -300,14 +182,7 @@ export const glyphs = {
     viewBox: '-2.25 -1.75 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M6.25 3L13.25 10.25L6.25 17.5'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M6.25 3L13.25 10.25L6.25 17.5' />
       </>
     ),
   },
@@ -316,38 +191,10 @@ export const glyphs = {
     viewBox: '-1.75 -2.25 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M0.75 3.25C0.75 1.87 1.87 0.75 3.25 0.75H17.25C18.63 0.75 19.75 1.87 19.75 3.25V16.25C19.75 17.63 18.63 18.75 17.25 18.75H3.25C1.87 18.75 0.75 17.63 0.75 16.25V3.25Z'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M0.75 6.75H19.75'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M0.75 12.75H19.75'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M10.25 6.75V18.75'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M0.75 3.25C0.75 1.87 1.87 0.75 3.25 0.75H17.25C18.63 0.75 19.75 1.87 19.75 3.25V16.25C19.75 17.63 18.63 18.75 17.25 18.75H3.25C1.87 18.75 0.75 17.63 0.75 16.25V3.25Z' />
+        <path d='M0.75 6.75H19.75' />
+        <path d='M0.75 12.75H19.75' />
+        <path d='M10.25 6.75V18.75' />
       </>
     ),
   },
@@ -356,18 +203,7 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <rect
-          x='6'
-          y='6'
-          width='12'
-          height='12'
-          rx='2'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <rect x='6' y='6' width='12' height='12' rx='2' />
       </>
     ),
   },
@@ -376,22 +212,8 @@ export const glyphs = {
     viewBox: '-2 -2 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M14.25 0.75L19.25 5.75L5.75 19.25H0.75V14.25L14.25 0.75Z'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M10.75 4.25L15.75 9.25'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M14.25 0.75L19.25 5.75L5.75 19.25H0.75V14.25L14.25 0.75Z' />
+        <path d='M10.75 4.25L15.75 9.25' />
       </>
     ),
   },
@@ -400,14 +222,7 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M15 3h6v6M10 14 21 3M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M15 3h6v6M10 14 21 3M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5' />
       </>
     ),
   },
@@ -416,17 +231,8 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <rect
-          x='3'
-          y='3'
-          width='18'
-          height='18'
-          rx='2.5'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-        />
-        <path d='M15 3v18' fill='none' stroke='var(--color-nav-link-muted)' strokeWidth='1.55' />
+        <rect x='3' y='3' width='18' height='18' rx='2.5' />
+        <path d='M15 3v18' />
       </>
     ),
   },
@@ -435,35 +241,9 @@ export const glyphs = {
     viewBox: '-1.75 -2.25 24 24',
     draw: (): ReactNode => (
       <>
-        <circle
-          cx='10.25'
-          cy='9.75'
-          r='8'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <ellipse
-          cx='10.25'
-          cy='9.75'
-          rx='3.4'
-          ry='8'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M3.32 5.75H17.18M3.32 13.75H17.18'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <circle cx='10.25' cy='9.75' r='8' />
+        <ellipse cx='10.25' cy='9.75' rx='3.4' ry='8' />
+        <path d='M3.32 5.75H17.18M3.32 13.75H17.18' />
       </>
     ),
   },
@@ -472,25 +252,19 @@ export const glyphs = {
     viewBox: '-1.75 -1.75 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M14 3L6.5 17.5'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M14 3L6.5 17.5' />
       </>
     ),
   },
   I045: {
     label: 'Brand/GitHub',
+    artwork: true,
     viewBox: '0 0 26 26',
     draw: (): ReactNode => (
       <>
         <path
           d='M13 0C11.29 0 9.6 0.34 8.03 0.99C6.45 1.64 5.01 2.6 3.81 3.81C1.37 6.25 0 9.55 0 13C0 18.75 3.73 23.62 8.89 25.35C9.54 25.45 9.75 25.05 9.75 24.7V22.5C6.15 23.28 5.38 20.76 5.38 20.76C4.78 19.25 3.94 18.85 3.94 18.85C2.76 18.04 4.03 18.07 4.03 18.07C5.33 18.16 6.02 19.41 6.02 19.41C7.15 21.39 9.06 20.8 9.8 20.49C9.92 19.64 10.26 19.07 10.62 18.75C7.74 18.42 4.71 17.3 4.71 12.35C4.71 10.91 5.2 9.75 6.05 8.83C5.92 8.5 5.46 7.15 6.18 5.4C6.18 5.4 7.27 5.04 9.75 6.72C10.78 6.44 11.9 6.29 13 6.29C14.11 6.29 15.22 6.44 16.25 6.72C18.73 5.04 19.83 5.4 19.83 5.4C20.54 7.15 20.09 8.5 19.95 8.83C20.8 9.75 21.29 10.91 21.29 12.35C21.29 17.32 18.25 18.41 15.35 18.73C15.82 19.14 16.25 19.93 16.25 21.14V24.7C16.25 25.05 16.46 25.47 17.12 25.35C22.28 23.61 26 18.75 26 13C26 11.29 25.66 9.6 25.01 8.03C24.36 6.45 23.4 5.01 22.19 3.81C20.99 2.6 19.55 1.64 17.97 0.99C16.4 0.34 14.71 0 13 0Z'
-          fill='var(--color-app-text-primary)'
+          fill='currentColor'
         />
       </>
     ),
@@ -500,24 +274,8 @@ export const glyphs = {
     viewBox: '-1.75 -2.25 24 24',
     draw: (): ReactNode => (
       <>
-        <circle
-          cx='10.25'
-          cy='9.75'
-          r='9'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M10.25 4.75V9.75L13.75 12.25'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <circle cx='10.25' cy='9.75' r='9' />
+        <path d='M10.25 4.75V9.75L13.75 12.25' />
       </>
     ),
   },
@@ -526,32 +284,9 @@ export const glyphs = {
     viewBox: '-1.75 -2.25 24 24',
     draw: (): ReactNode => (
       <>
-        <circle
-          cx='10.25'
-          cy='9.75'
-          r='9'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M7.5 7.25C7.5 5.73 8.73 4.5 10.25 4.5C11.77 4.5 13 5.73 13 7.25C13 8.68 11.75 9.05 10.95 9.85C10.5 10.3 10.25 10.75 10.25 11.5'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M10.25 14.5L10.26 14.5'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <circle cx='10.25' cy='9.75' r='9' />
+        <path d='M7.5 7.25C7.5 5.73 8.73 4.5 10.25 4.5C11.77 4.5 13 5.73 13 7.25C13 8.68 11.75 9.05 10.95 9.85C10.5 10.3 10.25 10.75 10.25 11.5' />
+        <path d='M10.25 14.5L10.26 14.5' />
       </>
     ),
   },
@@ -560,13 +295,7 @@ export const glyphs = {
     viewBox: '0 0 16 16',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M8 2.5v8m-3-3 3 3 3-3M4 13h8'
-          fill='none'
-          stroke='var(--color-control-text)'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M8 2.5v8m-3-3 3 3 3-3M4 13h8' />
       </>
     ),
   },
@@ -575,34 +304,9 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M8 4.8v2.4m0 3.2v8.8m8-14.4v8.8m0 3.2v2.4'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <circle
-          cx='8'
-          cy='8.8'
-          r='1.6'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <circle
-          cx='16'
-          cy='15.2'
-          r='1.6'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M8 4.8v2.4m0 3.2v8.8m8-14.4v8.8m0 3.2v2.4' />
+        <circle cx='8' cy='8.8' r='1.6' />
+        <circle cx='16' cy='15.2' r='1.6' />
       </>
     ),
   },
@@ -611,14 +315,7 @@ export const glyphs = {
     viewBox: '-1.75 -2.25 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M3 6.25L10.25 13.25L17.5 6.25'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M3 6.25L10.25 13.25L17.5 6.25' />
       </>
     ),
   },
@@ -627,14 +324,7 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M21 3l-7 7M14 4v6h6M3 21l7-7M4 14h6v6'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M21 3l-7 7M14 4v6h6M3 21l7-7M4 14h6v6' />
       </>
     ),
   },
@@ -643,19 +333,13 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M3 10a9 9 0 1 1 2.5 8M3 4v6h6'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M3 10a9 9 0 1 1 2.5 8M3 4v6h6' />
       </>
     ),
   },
   I056: {
     label: 'Chart/Series',
+    artwork: true,
     viewBox: '0 0 472 128',
     draw: (id: string): ReactNode => (
       <>
@@ -687,14 +371,7 @@ export const glyphs = {
     viewBox: '-2 -2.75 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M18.25 2.75L7.25 15.75L1.75 10.25'
-          fill='none'
-          stroke='var(--color-app-text-primary)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M18.25 2.75L7.25 15.75L1.75 10.25' />
       </>
     ),
   },
@@ -703,36 +380,9 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <rect
-          x='3'
-          y='3'
-          width='18'
-          height='18'
-          rx='3'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <circle
-          cx='8.5'
-          cy='8.5'
-          r='1.5'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='m21 15-5-5L5 21'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <rect x='3' y='3' width='18' height='18' rx='3' />
+        <circle cx='8.5' cy='8.5' r='1.5' />
+        <path d='m21 15-5-5L5 21' />
       </>
     ),
   },
@@ -741,14 +391,7 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7' />
       </>
     ),
   },
@@ -756,13 +399,7 @@ export const glyphs = {
     label: 'archive',
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
-      <g
-        fill='none'
-        stroke='var(--color-text-secondary)'
-        strokeWidth='1.55'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-      >
+      <g>
         <rect x='3' y='3' width='18' height='4' rx='1' />
         <path d='M5 7v13h14V7M10 11h4' />
       </g>
@@ -773,14 +410,7 @@ export const glyphs = {
     viewBox: '-1.75 -2.25 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M3 6.25L10.25 13.25L17.5 6.25'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='2.067'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M3 6.25L10.25 13.25L17.5 6.25' />
       </>
     ),
   },
@@ -789,14 +419,7 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M20 6v5h-5M20 11a8 8 0 1 0-1 6'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M20 6v5h-5M20 11a8 8 0 1 0-1 6' />
       </>
     ),
   },
@@ -805,22 +428,8 @@ export const glyphs = {
     viewBox: '-1.75 -2.25 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M0.75 3.25C0.75 1.87 1.87 0.75 3.25 0.75H17.25C18.63 0.75 19.75 1.87 19.75 3.25V16.25C19.75 17.63 18.63 18.75 17.25 18.75H3.25C1.87 18.75 0.75 17.63 0.75 16.25V3.25Z'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M8.25 0.75V18.75'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M0.75 3.25C0.75 1.87 1.87 0.75 3.25 0.75H17.25C18.63 0.75 19.75 1.87 19.75 3.25V16.25C19.75 17.63 18.63 18.75 17.25 18.75H3.25C1.87 18.75 0.75 17.63 0.75 16.25V3.25Z' />
+        <path d='M8.25 0.75V18.75' />
       </>
     ),
   },
@@ -829,14 +438,7 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M2 7h3v9H2zM5 8l3-6c.5-1 2-.5 2 1v4h3a1.4 1.4 0 0 1 1.4 1.7l-1 5A2 2 0 0 1 11.4 16H5M22 17h-3V8h3zM19 16l-3 6c-.5 1-2 .5-2-1v-3M18 8h-1'
-          fill='none'
-          stroke='var(--color-app-text-secondary)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M2 7h3v9H2zM5 8l3-6c.5-1 2-.5 2 1v4h3a1.4 1.4 0 0 1 1.4 1.7l-1 5A2 2 0 0 1 11.4 16H5M22 17h-3V8h3zM19 16l-3 6c-.5 1-2 .5-2-1v-3M18 8h-1' />
       </>
     ),
   },
@@ -845,30 +447,8 @@ export const glyphs = {
     viewBox: '-1 -1.5 24 24',
     draw: (): ReactNode => (
       <>
-        <rect
-          x='1.5'
-          y='1'
-          width='12'
-          height='12'
-          rx='2'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <rect
-          x='8.5'
-          y='8'
-          width='12'
-          height='12'
-          rx='2'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <rect x='1.5' y='1' width='12' height='12' rx='2' />
+        <rect x='8.5' y='8' width='12' height='12' rx='2' />
       </>
     ),
   },
@@ -877,14 +457,7 @@ export const glyphs = {
     viewBox: '-2 -2.75 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M18.25 2.75L7.25 15.75L1.75 10.25'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M18.25 2.75L7.25 15.75L1.75 10.25' />
       </>
     ),
   },
@@ -893,30 +466,9 @@ export const glyphs = {
     viewBox: '-1.75 -2.25 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M17.99 12.33A1.72 1.72 0 0 1 16.27 14.05H5.95L2.51 17.49V3.73A1.72 1.72 0 0 1 4.23 2.01H16.27A1.72 1.72 0 0 1 17.99 3.73Z'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M5.95 6.31H11.11'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M5.95 9.75H14.55'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M17.99 12.33A1.72 1.72 0 0 1 16.27 14.05H5.95L2.51 17.49V3.73A1.72 1.72 0 0 1 4.23 2.01H16.27A1.72 1.72 0 0 1 17.99 3.73Z' />
+        <path d='M5.95 6.31H11.11' />
+        <path d='M5.95 9.75H14.55' />
       </>
     ),
   },
@@ -925,22 +477,8 @@ export const glyphs = {
     viewBox: '-1.75 -1.75 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M10.25 3V17.5'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M3 10.25H17.5'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M10.25 3V17.5' />
+        <path d='M3 10.25H17.5' />
       </>
     ),
   },
@@ -949,22 +487,8 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M14 3v6h6M8 13h8M8 17h6'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z' />
+        <path d='M14 3v6h6M8 13h8M8 17h6' />
       </>
     ),
   },
@@ -973,22 +497,8 @@ export const glyphs = {
     viewBox: '-1.75 -2.25 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M0.75 2.75C0.75 2.75 3.25 0.75 6.25 0.75C9.25 0.75 10.25 2.75 10.25 2.75V18.75C10.25 18.75 9.25 17.25 6.25 17.25C3.25 17.25 0.75 18.75 0.75 18.75V2.75Z'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M10.25 2.75C10.25 2.75 11.25 0.75 14.25 0.75C17.25 0.75 19.75 2.75 19.75 2.75V18.75C19.75 18.75 17.25 17.25 14.25 17.25C11.25 17.25 10.25 18.75 10.25 18.75'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M0.75 2.75C0.75 2.75 3.25 0.75 6.25 0.75C9.25 0.75 10.25 2.75 10.25 2.75V18.75C10.25 18.75 9.25 17.25 6.25 17.25C3.25 17.25 0.75 18.75 0.75 18.75V2.75Z' />
+        <path d='M10.25 2.75C10.25 2.75 11.25 0.75 14.25 0.75C17.25 0.75 19.75 2.75 19.75 2.75V18.75C19.75 18.75 17.25 17.25 14.25 17.25C11.25 17.25 10.25 18.75 10.25 18.75' />
       </>
     ),
   },
@@ -997,14 +507,7 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='m8 10 4 4 4-4'
-          fill='none'
-          stroke='var(--color-app-text-secondary)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='m8 10 4 4 4-4' />
       </>
     ),
   },
@@ -1013,22 +516,8 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M12 6.5C9.7 4.4 6.5 4 3 4.5V19C6.5 18.5 9.7 19 12 21C14.3 19 17.5 18.5 21 19V4.5C17.5 4 14.3 4.4 12 6.5Z'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M12 6.5V21'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M12 6.5C9.7 4.4 6.5 4 3 4.5V19C6.5 18.5 9.7 19 12 21C14.3 19 17.5 18.5 21 19V4.5C17.5 4 14.3 4.4 12 6.5Z' />
+        <path d='M12 6.5V21' />
       </>
     ),
   },
@@ -1037,39 +526,15 @@ export const glyphs = {
     viewBox: '-1.75 -2 24 24',
     draw: (): ReactNode => (
       <>
-        <rect
-          x='7.25'
-          y='0.75'
-          width='6'
-          height='12'
-          rx='3'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M3.75 9.25V10.25C3.75 13.84 6.66 16.75 10.25 16.75C13.84 16.75 16.75 13.84 16.75 10.25V9.25'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M10.25 16.75V19.25'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <rect x='7.25' y='0.75' width='6' height='12' rx='3' />
+        <path d='M3.75 9.25V10.25C3.75 13.84 6.66 16.75 10.25 16.75C13.84 16.75 16.75 13.84 16.75 10.25V9.25' />
+        <path d='M10.25 16.75V19.25' />
       </>
     ),
   },
   I084: {
     label: 'provider-salesforce',
+    artwork: true,
     viewBox: '0 0 273 191',
     draw: (): ReactNode => (
       <>
@@ -1090,6 +555,7 @@ export const glyphs = {
   },
   I085: {
     label: 'provider-microsoft',
+    artwork: true,
     viewBox: '0 0 109 109',
     draw: (): ReactNode => (
       <>
@@ -1102,6 +568,7 @@ export const glyphs = {
   },
   I088: {
     label: 'provider-google-calenda',
+    artwork: true,
     viewBox: '0 0 200 200',
     draw: (): ReactNode => (
       <>
@@ -1147,24 +614,8 @@ export const glyphs = {
     viewBox: '-2.5 -2.5 24 24',
     draw: (): ReactNode => (
       <>
-        <circle
-          cx='8.5'
-          cy='8.5'
-          r='7.5'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M14 14L18 18'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <circle cx='8.5' cy='8.5' r='7.5' />
+        <path d='M14 14L18 18' />
       </>
     ),
   },
@@ -1173,14 +624,7 @@ export const glyphs = {
     viewBox: '-1.75 -2.25 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M6.75 2.5L13.75 9.75L6.75 17'
-          fill='none'
-          stroke='var(--color-app-text-primary)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M6.75 2.5L13.75 9.75L6.75 17' />
       </>
     ),
   },
@@ -1189,22 +633,8 @@ export const glyphs = {
     viewBox: '-1.75 -1.75 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M9.25 4L3 10.25L9.25 16.5'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M3 10.25H17.5'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M9.25 4L3 10.25L9.25 16.5' />
+        <path d='M3 10.25H17.5' />
       </>
     ),
   },
@@ -1213,14 +643,7 @@ export const glyphs = {
     viewBox: '-3 -2.25 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M3 18.25A2.25 2.25 0 0 1 0.75 16V3.5A2.25 2.25 0 0 1 3 1.25H6.5L9.5 4.75H15A2.25 2.25 0 0 1 17.25 7V16A2.25 2.25 0 0 1 15 18.25Z'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M3 18.25A2.25 2.25 0 0 1 0.75 16V3.5A2.25 2.25 0 0 1 3 1.25H6.5L9.5 4.75H15A2.25 2.25 0 0 1 17.25 7V16A2.25 2.25 0 0 1 15 18.25Z' />
       </>
     ),
   },
@@ -1229,22 +652,8 @@ export const glyphs = {
     viewBox: '-1.75 -1.75 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M4 11.25L10.25 17.5L16.5 11.25'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M10.25 3V17.5'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M4 11.25L10.25 17.5L16.5 11.25' />
+        <path d='M10.25 3V17.5' />
       </>
     ),
   },
@@ -1253,22 +662,8 @@ export const glyphs = {
     viewBox: '-1.75 -2.13 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M0.75 9.5L10.25 1L19.75 9.5V16.25C19.75 17.63 18.63 18.75 17.25 18.75H3.25C1.87 18.75 0.75 17.63 0.75 16.25V9.5Z'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M7.25 18.75V13C7.25 12.45 7.7 12 8.25 12H12.25C12.8 12 13.25 12.45 13.25 13V18.75'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M0.75 9.5L10.25 1L19.75 9.5V16.25C19.75 17.63 18.63 18.75 17.25 18.75H3.25C1.87 18.75 0.75 17.63 0.75 16.25V9.5Z' />
+        <path d='M7.25 18.75V13C7.25 12.45 7.7 12 8.25 12H12.25C12.8 12 13.25 12.45 13.25 13V18.75' />
       </>
     ),
   },
@@ -1277,22 +672,8 @@ export const glyphs = {
     viewBox: '-2 -2 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M15.25 4.75L4.75 15.25'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M4.75 4.75L15.25 15.25'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M15.25 4.75L4.75 15.25' />
+        <path d='M4.75 4.75L15.25 15.25' />
       </>
     ),
   },
@@ -1301,22 +682,8 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M10.3 21a1.94 1.94 0 0 0 3.4 0'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9' />
+        <path d='M10.3 21a1.94 1.94 0 0 0 3.4 0' />
       </>
     ),
   },
@@ -1325,52 +692,11 @@ export const glyphs = {
     viewBox: '-1.75 -2.25 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M3.75 2.75H16.75A2 2 0 0 1 18.75 4.75V14.75A2 2 0 0 1 16.75 16.75H3.75A2 2 0 0 1 1.75 14.75V4.75A2 2 0 0 1 3.75 2.75Z'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M1.75 6.75H18.75'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <circle
-          cx='4.5'
-          cy='4.75'
-          r='0.5'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <circle
-          cx='7'
-          cy='4.75'
-          r='0.5'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <circle
-          cx='9.5'
-          cy='4.75'
-          r='0.5'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M3.75 2.75H16.75A2 2 0 0 1 18.75 4.75V14.75A2 2 0 0 1 16.75 16.75H3.75A2 2 0 0 1 1.75 14.75V4.75A2 2 0 0 1 3.75 2.75Z' />
+        <path d='M1.75 6.75H18.75' />
+        <circle cx='4.5' cy='4.75' r='0.5' />
+        <circle cx='7' cy='4.75' r='0.5' />
+        <circle cx='9.5' cy='4.75' r='0.5' />
       </>
     ),
   },
@@ -1379,63 +705,37 @@ export const glyphs = {
     viewBox: '-1.75 -2.25 24 24',
     draw: (): ReactNode => (
       <>
-        <circle
-          cx='4.25'
-          cy='9.75'
-          r='0.75'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <circle
-          cx='10.25'
-          cy='9.75'
-          r='0.75'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <circle
-          cx='16.25'
-          cy='9.75'
-          r='0.75'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <circle fill='currentColor' cx='4.25' cy='9.75' r='0.75' />
+        <circle fill='currentColor' cx='10.25' cy='9.75' r='0.75' />
+        <circle fill='currentColor' cx='16.25' cy='9.75' r='0.75' />
       </>
     ),
   },
   I113: {
     label: 'simLogotype',
+    artwork: true,
     viewBox: '0 0 40 19.22',
     draw: (): ReactNode => (
       <>
         <path
           d='M0.000 14.584C0.000 14.584 2.677 14.584 2.677 14.584C2.677 15.326 2.945 15.917 3.480 16.358C4.015 16.779 4.739 16.990 5.651 16.990C6.643 16.990 7.406 16.799 7.942 16.418C8.477 16.017 8.745 15.486 8.745 14.824C8.745 14.343 8.596 13.942 8.298 13.621C8.021 13.300 7.505 13.040 6.752 12.839C6.752 12.839 4.194 12.238 4.194 12.238C2.905 11.917 1.943 11.425 1.309 10.764C0.694 10.102 0.387 9.230 0.387 8.147C0.387 7.245 0.615 6.463 1.071 5.801C1.547 5.139 2.191 4.628 3.004 4.267C3.837 3.906 4.789 3.725 5.860 3.725C6.930 3.725 7.852 3.916 8.626 4.297C9.419 4.678 10.034 5.209 10.470 5.891C10.926 6.573 11.164 7.385 11.184 8.327C11.184 8.327 8.507 8.327 8.507 8.327C8.487 7.565 8.239 6.974 7.763 6.553C7.287 6.132 6.623 5.921 5.770 5.921C4.898 5.921 4.224 6.112 3.748 6.493C3.272 6.874 3.034 7.395 3.034 8.057C3.034 9.039 3.748 9.711 5.175 10.072C5.175 10.072 7.733 10.704 7.733 10.704C8.963 10.984 9.885 11.446 10.500 12.087C11.114 12.709 11.422 13.561 11.422 14.644C11.422 15.566 11.174 16.378 10.678 17.080C10.182 17.762 9.498 18.293 8.626 18.674C7.773 19.035 6.762 19.216 5.592 19.216C3.887 19.216 2.528 18.795 1.517 17.952C0.506 17.110 0.000 15.987 0.000 14.584Z'
           fillRule='nonzero'
-          fill='#1A1A1A'
+          fill='currentColor'
         />
         <path
           d='M21.116 19.216C21.116 19.216 18.333 19.216 18.333 19.216C18.333 19.216 18.333 4.510 18.333 4.510C18.333 4.510 20.820 4.510 20.820 4.510C20.820 4.510 20.820 7.014 20.820 7.014C21.116 6.194 21.688 5.498 22.477 4.958C23.286 4.398 24.263 4.118 25.408 4.118C26.690 4.118 27.756 4.468 28.604 5.168C29.453 5.869 30.005 6.799 30.262 7.960C30.262 7.960 29.759 7.960 29.759 7.960C29.956 6.799 30.499 5.869 31.387 5.168C32.275 4.468 33.370 4.118 34.672 4.118C36.330 4.118 37.632 4.608 38.579 5.588C39.526 6.569 40.000 7.910 40.000 9.611C40.000 9.611 40.000 19.216 40.000 19.216C40.000 19.216 37.277 19.216 37.277 19.216C37.277 19.216 37.277 10.301 37.277 10.301C37.277 9.140 36.981 8.250 36.389 7.630C35.817 6.989 35.037 6.669 34.051 6.669C33.360 6.669 32.748 6.829 32.215 7.149C31.702 7.449 31.298 7.890 31.002 8.470C30.706 9.050 30.558 9.731 30.558 10.511C30.558 10.511 30.558 19.216 30.558 19.216C30.558 19.216 27.805 19.216 27.805 19.216C27.805 19.216 27.805 10.271 27.805 10.271C27.805 9.110 27.519 8.230 26.947 7.630C26.374 7.009 25.595 6.699 24.608 6.699C23.918 6.699 23.306 6.859 22.773 7.179C22.260 7.479 21.856 7.920 21.560 8.500C21.264 9.060 21.116 9.731 21.116 10.511C21.116 10.511 21.116 19.216 21.116 19.216Z'
           fillRule='nonzero'
-          fill='#1A1A1A'
+          fill='currentColor'
         />
         <path
           d='M16.765 1.863C16.765 2.892 15.931 3.725 14.902 3.725C13.873 3.725 13.039 2.892 13.039 1.863C13.039 0.834 13.873 0.000 14.902 0.000C15.931 0.000 16.765 0.834 16.765 1.863Z'
           fillRule='nonzero'
-          fill='#1A1A1A'
+          fill='currentColor'
         />
         <path
           d='M16.275 19.216C16.275 19.216 13.529 19.216 13.529 19.216C13.529 19.216 13.529 4.510 13.529 4.510C13.946 4.705 14.411 4.815 14.902 4.815C15.393 4.815 15.858 4.705 16.275 4.510C16.275 4.510 16.275 19.216 16.275 19.216Z'
           fillRule='nonzero'
-          fill='#1A1A1A'
+          fill='currentColor'
         />
       </>
     ),
@@ -1445,24 +745,8 @@ export const glyphs = {
     viewBox: '-1.75 -2.25 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M18.66 7.34A8.75 8.75 0 0 1 18.66 12.16L15.96 12.29A6.25 6.25 0 0 1 15.31 13.42L16.54 15.83A8.75 8.75 0 0 1 12.37 18.24L10.9 15.97A6.25 6.25 0 0 1 9.6 15.97L8.13 18.24A8.75 8.75 0 0 1 3.96 15.83L5.19 13.42A6.25 6.25 0 0 1 4.54 12.29L1.84 12.16A8.75 8.75 0 0 1 1.84 7.34L4.54 7.21A6.25 6.25 0 0 1 5.19 6.08L3.96 3.67A8.75 8.75 0 0 1 8.13 1.26L9.6 3.53A6.25 6.25 0 0 1 10.9 3.53L12.37 1.26A8.75 8.75 0 0 1 16.54 3.67L15.31 6.08A6.25 6.25 0 0 1 15.96 7.21Z'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <circle
-          cx='10.25'
-          cy='9.75'
-          r='3'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M18.66 7.34A8.75 8.75 0 0 1 18.66 12.16L15.96 12.29A6.25 6.25 0 0 1 15.31 13.42L16.54 15.83A8.75 8.75 0 0 1 12.37 18.24L10.9 15.97A6.25 6.25 0 0 1 9.6 15.97L8.13 18.24A8.75 8.75 0 0 1 3.96 15.83L5.19 13.42A6.25 6.25 0 0 1 4.54 12.29L1.84 12.16A8.75 8.75 0 0 1 1.84 7.34L4.54 7.21A6.25 6.25 0 0 1 5.19 6.08L3.96 3.67A8.75 8.75 0 0 1 8.13 1.26L9.6 3.53A6.25 6.25 0 0 1 10.9 3.53L12.37 1.26A8.75 8.75 0 0 1 16.54 3.67L15.31 6.08A6.25 6.25 0 0 1 15.96 7.21Z' />
+        <circle cx='10.25' cy='9.75' r='3' />
       </>
     ),
   },
@@ -1471,30 +755,9 @@ export const glyphs = {
     viewBox: '-1.75 -1.75 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M0.75 12.75V16.75C0.75 17.85 1.65 18.75 2.75 18.75H17.75C18.85 18.75 19.75 17.85 19.75 16.75V12.75'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M10.25 14.75V1.75'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M5.25 6.75L10.25 1.75L15.25 6.75'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M0.75 12.75V16.75C0.75 17.85 1.65 18.75 2.75 18.75H17.75C18.85 18.75 19.75 17.85 19.75 16.75V12.75' />
+        <path d='M10.25 14.75V1.75' />
+        <path d='M5.25 6.75L10.25 1.75L15.25 6.75' />
       </>
     ),
   },
@@ -1503,43 +766,15 @@ export const glyphs = {
     viewBox: '-1.75 -2.25 24 24',
     draw: (): ReactNode => (
       <>
-        <rect
-          x='0.75'
-          y='0.75'
-          width='7.5'
-          height='7.5'
-          rx='2'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <rect
-          x='12.25'
-          y='11.25'
-          width='7.5'
-          height='7.5'
-          rx='2'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M8.25 4.5H14C15.1 4.5 16 5.4 16 6.5V11.25'
-          fill='none'
-          stroke='var(--color-nav-link-muted)'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <rect x='0.75' y='0.75' width='7.5' height='7.5' rx='2' />
+        <rect x='12.25' y='11.25' width='7.5' height='7.5' rx='2' />
+        <path d='M8.25 4.5H14C15.1 4.5 16 5.4 16 6.5V11.25' />
       </>
     ),
   },
   I120: {
     label: 'provider-outlook',
+    artwork: true,
     viewBox: '0 0 1831.09 1703.34',
     draw: (id: string): ReactNode => (
       <>
@@ -1646,6 +881,7 @@ export const glyphs = {
   },
   I123: {
     label: 'Slack',
+    artwork: true,
     viewBox: '0 0 256 256',
     draw: (): ReactNode => (
       <>
@@ -1672,18 +908,20 @@ export const glyphs = {
   },
   I124: {
     label: 'OpenAI',
+    artwork: true,
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
         <path
           d='M22.28 9.82a5.98 5.98 0 0 0-.516-4.91 6.05 6.05 0 0 0-6.51-2.9A6.07 6.07 0 0 0 4.98 4.18a5.98 5.98 0 0 0-4 2.9 6.05 6.05 0 0 0 .743 7.1 5.98 5.98 0 0 0 .511 4.91 6.05 6.05 0 0 0 6.51 2.9A5.98 5.98 0 0 0 13.26 24a6.06 6.06 0 0 0 5.77-4.21 5.99 5.99 0 0 0 4-2.9 6.06 6.06 0 0 0-.748-7.07zm-9.02 12.61a4.48 4.48 0 0 1-2.88-1.04l.142-.08 4.78-2.76a.795.79 0 0 0 .393-.681v-6.74l2.02 1.17a.71.07 0 0 1 .38.05v5.58a4.5 4.5 0 0 1-4.49 4.49zm-9.66-4.13a4.47 4.47 0 0 1-.535-3.01l.142.09 4.78 2.76a.771.77 0 0 0 .781 0l5.84-3.37v2.33a.804.08 0 0 1-.332.06L9.74 19.95a4.5 4.5 0 0 1-6.14-1.65zM2.34 7.9a4.49 4.49 0 0 1 2.37-1.97V11.6a.766.77 0 0 0 .388.68l5.81 3.35-2.02 1.17a.757.08 0 0 1-.071 0l-4.83-2.79A4.5 4.5 0 0 1 2.34 7.87zm16.6 3.86L13.1 8.36 15.12 7.2a.757.08 0 0 1 .071 0l4.83 2.79a4.49 4.49 0 0 1-.676 8.1v-5.68a.79.79 0 0 0-.407-.667zm2.01-3.02l-.142-.085-4.77-2.78a.776.78 0 0 0-.785 0L9.41 9.23V6.9a.662.07 0 0 1 .028-.061l4.83-2.79a4.5 4.5 0 0 1 6.68 4.66zM8.31 12.86l-2.02-1.16a.804.08 0 0 1-.038-.057V6.07a4.5 4.5 0 0 1 7.38-3.45l-.142.08L8.7 5.46a.795.79 0 0 0-.393.68zm1.1-2.37l2.6-1.5 2.61 1.5v3l-2.6 1.5-2.61-1.5Z'
-          fill='var(--color-light-text-secondary)'
+          fill='currentColor'
         />
       </>
     ),
   },
   I126: {
     label: 'MCP',
+    artwork: true,
     viewBox: '0 0 16 16',
     draw: (): ReactNode => (
       <>
@@ -1703,14 +941,7 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-7.91 7.91a2.12 2.12 0 0 1-3-3l7.91-7.91a6 6 0 0 1 7.94-7.94z'
-          fill='none'
-          stroke='currentColor'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-7.91 7.91a2.12 2.12 0 0 1-3-3l7.91-7.91a6 6 0 0 1 7.94-7.94z' />
       </>
     ),
   },
@@ -1719,22 +950,8 @@ export const glyphs = {
     viewBox: '0 0 16 16',
     draw: (): ReactNode => (
       <>
-        <rect
-          x='2.5'
-          y='4'
-          width='11'
-          height='8'
-          rx='2.5'
-          fill='none'
-          stroke='currentColor'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M6 7.25V8.75M10 7.25V8.75'
-          fill='none'
-          stroke='currentColor'
-          strokeLinecap='round'
-        />
+        <rect x='2.5' y='4' width='11' height='8' rx='2.5' />
+        <path d='M6 7.25V8.75M10 7.25V8.75' />
       </>
     ),
   },
@@ -1743,38 +960,9 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='M12 3v6M6 13V9h12v4M6 17v4M18 17v4'
-          fill='none'
-          stroke='currentColor'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <rect
-          x='3.5'
-          y='13'
-          width='5'
-          height='4'
-          rx='1'
-          fill='none'
-          stroke='currentColor'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <rect
-          x='15.5'
-          y='13'
-          width='5'
-          height='4'
-          rx='1'
-          fill='none'
-          stroke='currentColor'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='M12 3v6M6 13V9h12v4M6 17v4M18 17v4' />
+        <rect x='3.5' y='13' width='5' height='4' rx='1' />
+        <rect x='15.5' y='13' width='5' height='4' rx='1' />
       </>
     ),
   },
@@ -1783,14 +971,7 @@ export const glyphs = {
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
       <>
-        <path
-          d='m17 2 4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3'
-          fill='none'
-          stroke='currentColor'
-          strokeWidth='1.55'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
+        <path d='m17 2 4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3' />
       </>
     ),
   },

@@ -1,0 +1,53 @@
+.choiceLabel {
+  display: flex;
+  align-items: center;
+}
+
+.segmented {
+  display: inline-flex;
+  align-items: stretch;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: var(--spacing-app-control-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-control-radius);
+  gap: var(--spacing-1);
+  background: var(--choice-track);
+}
+.choice {
+  display: inline-flex;
+  position: relative;
+  min-inline-size: 0;
+  min-block-size: var(--spacing-app-control-sm);
+  cursor: pointer;
+}
+.radio {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.choiceLabel {
+  min-inline-size: 0;
+  padding-inline: var(--spacing-12);
+  gap: var(--spacing-6);
+  justify-content: center;
+  border: var(--spacing-stroke-default) solid transparent;
+  border-radius: var(--ui-control-radius);
+  color: var(--ui-secondary);
+  overflow-wrap: anywhere;
+}
+.choiceLabel[data-icon] {
+  padding-inline: var(--spacing-8);
+}
+.radio:checked + .choiceLabel {
+  color: var(--ui-ink);
+  background: var(--choice-selected);
+  border-color: var(--choice-edge);
+  box-shadow: var(--choice-shadow);
+}

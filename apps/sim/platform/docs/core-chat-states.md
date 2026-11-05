@@ -1,5 +1,7 @@
 # Core and Chat: Paper state inventory
 
+These rows inventory the original Paper states. The [current product contract](../AGENTS.md) governs code-first refinements, including icon ink, disclosure behavior and row spacing.
+
 Source: [Platform: Core](https://app.paper.design/file/01M6A91A32GBA6GTN4HASVG0ER) and [Platform: Chat](https://app.paper.design/file/01M6ABW6M1BXJE1J513A6VR6TY). Read back November 4, 2026. This inventories the source examples for this slice; rows and viewport values are references, not breakpoints or a per-screen screenshot certification. Wiki and Workspace product screens are excluded.
 
 ## Settings coverage

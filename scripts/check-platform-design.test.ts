@@ -43,7 +43,7 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     }
     const style = 'platform/design-system/styles'
     const catalog = 'platform/design-system/catalog'
-    const component = 'platform/design-system/components'
+    const component = 'platform/design-system/components/button'
     const writeCatalog = (name: string, value: unknown) =>
       write(`${catalog}/${name}.json`, JSON.stringify(value))
     writeCatalog('recipes', {})
@@ -56,7 +56,7 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     )
     write(
       `${component}/button.tsx`,
-      `import styles from '@/platform/design-system/components/button.module.css'
+      `import styles from '@/platform/design-system/components/button/button.module.css'
       interface ButtonProps { variant: 'primary' }
       export function Button({variant}: ButtonProps) {
         return <button data-variant={variant} className={styles.button}>Accept</button>
@@ -64,15 +64,15 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     )
     write(
       'platform/app/page.tsx',
-      `import { Button as Action } from '@/platform/design-system/components/button'
+      `import { Button as Action } from '@/platform/design-system/components/button/button'
       export default function Page() { return <Action variant="primary"/> }`
     )
     write(
-      'platform/design-system/features/settings/panel.tsx',
-      `import classes from '@/platform/design-system/features/settings/panel.module.css'
+      'platform/app/settings/_components/panel.tsx',
+      `import classes from '@/platform/app/settings/_components/panel.module.css'
       export function Panel(){return <section className={classes.panel}/>}`
     )
-    write('platform/design-system/features/settings/panel.module.css', '.panel{padding:0}')
+    write('platform/app/settings/_components/panel.module.css', '.panel{padding:0}')
     expect(audit()).toEqual({ status: 0, output: expect.stringContaining('passed') })
 
     writeCatalog('evidence', [
@@ -92,14 +92,19 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     )
     write(
       'platform/preview/gallery.tsx',
-      `import { Button } from '@/platform/design-system/components/button'
+      `import { Button } from '@/platform/design-system/components/button/button'
       export const Specimen = () => <Button variant="ghost"/>`
     )
-    const productPage = `import { Button as Action } from '@/platform/design-system/components/button'
+    const productPage = `import { Button as Action } from '@/platform/design-system/components/button/button'
       function Unused(){return <Action variant="ghost"/>}
       function Nested({choice}:{choice:'primary'|'ghost'}) {return <Action variant={choice}/>}
       export default function Page(){return <Nested choice="primary"/>}`
     write('platform/app/page.tsx', productPage)
+    write(
+      'platform/app/workbench/page.tsx',
+      `import { Button } from '@/platform/design-system/components/button/button'
+      export default function Workbench(){return <main><Button variant="ghost"/></main>}`
+    )
     expect(audit()).toEqual({
       status: 1,
       output: expect.stringContaining('[code-use] Button.variant=ghost'),
@@ -185,33 +190,51 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       expect(injected.output).toContain(`platform/app/${file}.tsx:1 [consumer-style]`)
     }
 
-    write('platform/design-system/features/settings/index.ts', `export { Panel } from './panel'`)
+    write('platform/app/settings/_components/index.ts', `export { Panel } from './panel'`)
     write(
       'platform/app/settings/_components/section.tsx',
       'export function Section() { return null }'
     )
     write(
       'platform/app/chats/other.ts',
-      `export { Panel } from '@/platform/design-system/features/settings'`
+      `export { Panel } from '@/platform/app/settings/_components'`
+    )
+    write(
+      'platform/app/settings/_components/profile/profile.ts',
+      `import '@/platform/app/settings/_components/panel.module.css'`
+    )
+    write('platform/app/chats/gallery.ts', `export { Specimen } from '@/platform/preview/gallery'`)
+    write(
+      'platform/design-system/components/menu/chrome.ts',
+      `import '../button/button.module.css'`
     )
     write(
       'platform/app/chats/private.ts',
       `export { Section } from '@/platform/app/settings/_components/section'`
     )
-    const feature = 'platform/design-system/features/settings'
+    write('platform/design-system/features/leak/example.ts', 'export const example = true')
+    write('platform/design-system/components/flat.ts', 'export const flat = true')
+    write(
+      'platform/app/settings/_components/banner.tsx',
+      'export const Banner = () => <p>Email delivery is disabled in this preview.</p>'
+    )
+    const feature = 'platform/app/settings/_components'
     write(
       `${feature}/trigger.tsx`,
-      `import styles from '@/platform/design-system/components/button.module.css'; export const Trigger = () => <button className={styles.button}/>`
+      `import styles from '@/platform/design-system/components/button/button.module.css'; export const Trigger = () => <button className={styles.button}/>`
     )
     write(
       `${feature}/actions.module.css`,
-      '.action { composes: button from "../../components/button.module.css"; }'
+      '.action { composes: button from "@/platform/design-system/components/button/button.module.css"; }'
     )
     write(`${component}/private.ts`, `import '@/platform/preview/chrome'`)
-    write('app/legacy.ts', `export { Button } from '../platform/design-system/components/button'`)
+    write(
+      'app/legacy.ts',
+      `export { Button } from '../platform/design-system/components/button/button'`
+    )
     write(
       'platform/app/escape.tsx',
-      `import { Button } from '@/platform/design-system/components/button'
+      `import { Button } from '@/platform/design-system/components/button/button'
       import '@/platform/app/bypass.css'
       export const escape = (props: object) => <Button className="red" style={{opacity: 0.2}} {...props}/>
       export const legacy = () => import('@/components/old')
@@ -246,7 +269,7 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     write('platform/preview/chrome.css', '.catalog-row button{color:var(--color-ink)}')
     write(
       'platform/preview/gallery.tsx',
-      `import { Button } from '@/platform/design-system/components/button'
+      `import { Button } from '@/platform/design-system/components/button/button'
       export const Specimen = () => <Button variant="ghost"/>`
     )
     writeCatalog('recipes', { C9999: { slots: {}, root: {} } })
@@ -261,6 +284,14 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     expect(result.status).toBe(1)
     expect(result.output).toContain(`${feature}/trigger.tsx [private-recipe]`)
     expect(result.output).toContain(`${feature}/actions.module.css [private-recipe]`)
+    expect(result.output).toContain('platform/app/chats/other.ts [private-composition]')
+    expect(result.output).toContain(
+      'platform/app/settings/_components/profile/profile.ts [private-recipe]'
+    )
+    expect(result.output).toContain('platform/app/chats/gallery.ts [workbench-dependency]')
+    expect(result.output).toContain(
+      'platform/design-system/components/menu/chrome.ts [private-recipe]'
+    )
     for (const issue of [
       'legacy-import',
       'consumer-style',
@@ -282,6 +313,8 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       'variant-selector',
       'recipe-owner',
       'feature-owner',
+      'component-folder',
+      'product-copy',
       'private-composition',
       'paper-base',
       'design-dependency',

@@ -1,7 +1,7 @@
 [data-platform-ui] {
   --menu-zoom-width: 10.5rem;
   --menu-browser-width: 16.5rem;
-  --menu-action-width: 15rem;
+  --menu-action-width: 13.75rem;
   --menu-choice-width: 10rem;
   --choice-track: var(--color-black-4);
   --choice-selected: var(--color-tooltip-text);

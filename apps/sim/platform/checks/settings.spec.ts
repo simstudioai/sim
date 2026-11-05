@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const base = 'http://127.0.0.1:3181'
+const base = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
 
 test('preferences apply to the interface and survive settings navigation in this session', async ({
   page,
