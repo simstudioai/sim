@@ -21,6 +21,7 @@ import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
 import { OrganizationSimLinkProvider } from '@/app/o/[organizationId]/links/organization-sim-link-provider'
+import canvasStyles from '@/app/o/[organizationId]/organization-canvas.module.css'
 import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
 import { OrganizationProvider } from '@/app/o/[organizationId]/providers/organization-provider'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
@@ -133,7 +134,7 @@ export default async function OrganizationLayout({
         <OrganizationProvider context={context}>
           <OrganizationSimLinkProvider organizationId={simLinkOrganizationId}>
             <GlobalCommandsProvider>
-              <WorkspaceViewport className='workspace-root'>
+              <WorkspaceViewport className={`workspace-root ${canvasStyles.canvas}`}>
                 <ImpersonationBanner />
                 <SessionExpired />
                 <SettingsNavigationProvider>

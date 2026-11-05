@@ -760,6 +760,29 @@ async function sidebarChecks() {
       await expect(flyout.getByText('New workspace')).toHaveCount(0)
     })
   })
+  for (const theme of ['light', 'dark'] as const) {
+    await check(`Home and Links paint one canvas (${theme})`, async () => {
+      await withSession(
+        MEMBER,
+        async ({ page }) => {
+          const canvasBehind = (target: Locator) =>
+            target.evaluate((node) => {
+              for (let at: Element | null = node; at; at = at.parentElement) {
+                const color = getComputedStyle(at).backgroundColor
+                if (color !== 'rgba(0, 0, 0, 0)') return color
+              }
+              return null
+            })
+          await page.goto(orgUrl('/home'))
+          const home = await canvasBehind(page.getByRole('heading', { name: /^Good / }))
+          await page.goto(orgUrl('/links'))
+          const links = await canvasBehind(page.getByRole('heading', { level: 1, name: 'Links' }))
+          assert.equal(home, links)
+        },
+        { theme }
+      )
+    })
+  }
   await check('dragging the edge resizes the rail', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(orgUrl('/home'))

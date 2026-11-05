@@ -1,0 +1,10 @@
+/*
+ * Legacy surfaces in this view paint `--bg`, so it takes the values behind `--ui-canvas` and every
+ * page sits on one canvas. This wrapper is outside any surface and cannot read that token.
+ */
+.canvas {
+  --bg: rgb(255 255 255);
+}
+html[class~="dark"] .canvas {
+  --bg: #141414;
+}
