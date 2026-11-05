@@ -6,8 +6,8 @@ import { Icon } from '@/platform/design-system/components'
 
 /** The destination's favicon through Sim's own route, or a globe when it has none. */
 export function LinkIcon({ src }: { src: string | null }) {
-  const [failed, setFailed] = useState(false)
-  if (!src || failed) return <Icon name='I041' />
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  if (!src || failedSrc === src) return <Icon name='I041' />
   return (
     <img
       className={styles.favicon}
@@ -15,7 +15,7 @@ export function LinkIcon({ src }: { src: string | null }) {
       alt=''
       loading='lazy'
       decoding='async'
-      onError={() => setFailed(true)}
+      onError={() => setFailedSrc(src)}
     />
   )
 }

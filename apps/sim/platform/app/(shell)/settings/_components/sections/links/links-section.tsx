@@ -17,6 +17,7 @@ import {
   OverflowText,
   SearchField,
   Select,
+  TableLabel,
 } from '@/platform/design-system/components'
 import { type LinkRow, useLinksSection } from '@/platform/lib/data/links'
 import { formatCalendarDate } from '@/platform/lib/time'
@@ -37,7 +38,6 @@ export default function LinksSection({ organization }: SettingsSectionProps) {
   const links = useLinksSection(organizationId, organization.legacyOrigin)
   const [editing, setEditing] = useState<LinkRow | null>(null)
   const [deleting, setDeleting] = useState<LinkRow | null>(null)
-  const [searchKey, setSearchKey] = useState(0)
   return (
     <>
       <div className={styles.actions}>
@@ -52,7 +52,6 @@ export default function LinksSection({ organization }: SettingsSectionProps) {
       </div>
       <div className={styles.options}>
         <SearchField
-          key={searchKey}
           label='Search links'
           placeholder='Search links…'
           defaultValue={links.search}
@@ -89,17 +88,6 @@ export default function LinksSection({ organization }: SettingsSectionProps) {
           <EmptyState
             title={`No links match "${links.term}"`}
             description='Searched every link you can see.'
-            action={
-              <Button
-                variant='quiet'
-                onClick={() => {
-                  links.setSearch('')
-                  setSearchKey((key) => key + 1)
-                }}
-              >
-                Clear search
-              </Button>
-            }
           />
         ) : (
           <EmptyState
@@ -132,17 +120,23 @@ export default function LinksSection({ organization }: SettingsSectionProps) {
             },
             cells: {
               name: (
-                <span className={styles.name}>
-                  <LinkIcon src={link.faviconSrc} />
+                <TableLabel leading={<LinkIcon src={link.faviconSrc} />}>
                   <OverflowText text={link.name}>{link.name}</OverflowText>
-                </span>
+                </TableLabel>
               ),
               destination: <OverflowText text={link.url}>{link.url}</OverflowText>,
               owner: link.ownerName ? (
-                <span className={styles.name}>
-                  <Avatar size='inline' name={link.ownerName} src={link.ownerImage ?? undefined} />
+                <TableLabel
+                  leading={
+                    <Avatar
+                      size='inline'
+                      name={link.ownerName}
+                      src={link.ownerImage ?? undefined}
+                    />
+                  }
+                >
                   <OverflowText text={link.ownerName}>{link.ownerName}</OverflowText>
-                </span>
+                </TableLabel>
               ) : undefined,
             },
             onOpen: () => links.open(link.name),

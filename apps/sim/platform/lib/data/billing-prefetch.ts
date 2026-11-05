@@ -9,7 +9,7 @@ import { serverRequestJson } from '@/platform/lib/data/server-request'
 /** A slow read gives up its first-paint seat rather than hold the document; the client fetches it. */
 const PREFETCH_TIMEOUT_MS = 2_000
 
-/** The summary the legacy settings warmer fetched on intent, here for the section's first paint. */
+/** The billing summary, for the section's first paint. */
 export async function prefetchBillingSummary(organizationId: string): Promise<DehydratedState> {
   const queryClient = makeQueryClient()
   await queryClient.prefetchQuery({

@@ -1,6 +1,3 @@
-.note {
-  color: var(--ui-secondary);
-}
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -17,7 +14,7 @@
 }
 .block {
   display: grid;
-  gap: var(--spacing-16);
+  gap: var(--ui-section-gap);
   min-inline-size: 0;
 }
 .heading {
@@ -47,25 +44,14 @@
   border-radius: var(--radius-4);
   background: var(--ui-hover);
 }
-.dimmable[data-dimmed] {
+.dimmable[data-dimmed],
+.block[data-dimmed] {
   opacity: var(--opacity-disabled);
 }
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(var(--chart-donut-block), 100%), 1fr));
   gap: var(--spacing-24);
-}
-.charts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(var(--chart-donut-block), 100%), 1fr));
-  gap: var(--spacing-24);
-}
-.nameCell {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ui-row-gap);
-  min-inline-size: 0;
-  max-inline-size: 100%;
 }
 .heatmap {
   display: block;
@@ -93,5 +79,6 @@
 }
 .heatDay[data-active] {
   stroke: var(--ui-strong);
-  stroke-width: 1;
+  stroke-width: var(--ui-icon-stroke);
+  vector-effect: non-scaling-stroke;
 }

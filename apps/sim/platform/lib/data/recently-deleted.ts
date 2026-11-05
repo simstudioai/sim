@@ -1,21 +1,15 @@
 'use client'
 
 import { formatDate } from '@sim/utils/formatting'
-import { useQueryState } from 'nuqs'
-import { parseAsString } from 'nuqs/server'
 import {
   useOrganizationMothershipChats,
   useRestoreMothershipChat,
 } from '@/hooks/queries/mothership-chats'
-import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 import { toast } from '@/platform/lib/data/toast'
 
 export function useDeletedChats(organizationId: string) {
-  const [search, setSearchParam] = useQueryState(
-    'search',
-    parseAsString.withDefault('').withOptions({ history: 'replace', clearOnDefault: true })
-  )
-  const setSearch = useDebouncedSearchSetter(setSearchParam)
+  const [search, setSearch] = useSettingsSearch()
   const chats = useOrganizationMothershipChats(organizationId, 'archived')
   const term = search.trim().toLowerCase()
   const all = chats.data ?? []

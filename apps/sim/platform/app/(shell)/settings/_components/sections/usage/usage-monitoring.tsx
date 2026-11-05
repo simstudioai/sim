@@ -108,6 +108,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
           breakdown={breakdown.data}
           loading={breakdown.isLoading}
           failed={breakdown.isError}
+          onRetry={() => void breakdown.refetch()}
           dimmed={breakdown.isPlaceholderData}
           onExpandOther={expandOther('workflow')}
         />
@@ -172,6 +173,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
               breakdown={topRows(models.data)}
               loading={models.isLoading}
               failed={models.isError}
+              onRetry={() => void models.refetch()}
               dimmed={models.isPlaceholderData}
               control={
                 <Button variant='quiet' size='compact' onClick={() => view.selectTab('model')}>
@@ -185,6 +187,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
               breakdown={overview.data?.members}
               loading={overview.loading}
               failed={overview.failed}
+              onRetry={overview.retry}
               dimmed={overview.dimmed}
               control={
                 <Button variant='quiet' size='compact' onClick={() => view.selectTab('member')}>
@@ -204,6 +207,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
           breakdown={breakdown.data}
           loading={breakdown.isLoading}
           failed={breakdown.isError}
+          onRetry={() => void breakdown.refetch()}
           dimmed={breakdown.isPlaceholderData}
           onExpandOther={expandOther(dimension)}
           onSelectRow={

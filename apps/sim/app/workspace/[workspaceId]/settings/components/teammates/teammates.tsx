@@ -23,7 +23,6 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import {
   useCancelWorkspaceInvitation,
   usePendingInvitations,
@@ -37,6 +36,7 @@ import {
   useWorkspacePermissionsQuery,
   useWorkspacesQuery,
 } from '@/hooks/queries/workspace'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 import { useWorkspaceInvitePolicy } from '@/hooks/use-workspace-invite-policy'
 
 const ROLE_OPTIONS = [

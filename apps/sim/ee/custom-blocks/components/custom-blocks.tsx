@@ -19,12 +19,12 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { getCustomBlockIcon } from '@/blocks/custom/custom-block-icon'
 import { CustomBlockDetail } from '@/ee/custom-blocks/components/custom-block-detail'
 import { useOrgBrandConfig } from '@/ee/whitelabeling/components/branding-provider'
 import { useCanPublishCustomBlock, useCustomBlocks } from '@/hooks/queries/custom-blocks'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 
 export function CustomBlocks() {
   const params = useParams()

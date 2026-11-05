@@ -1,7 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { CopyField, Modal, TextField } from '@/platform/design-system/components'
+import {
+  Button,
+  CopyField,
+  InlineNotice,
+  Modal,
+  TextField,
+} from '@/platform/design-system/components'
 import { useMemberCredits } from '@/platform/lib/data/usage'
 
 export interface CreditsTarget {
@@ -34,9 +40,20 @@ export function ManageCredits({
       }}
       title={`Manage credits: ${member.name}`}
       confirmLabel='Save'
-      confirmDisabled={credits.loading || edited === null}
+      confirmDisabled={credits.loading || credits.failed || edited === null}
       onConfirm={() => credits.save(draft)}
     >
+      {credits.failed && (
+        <InlineNotice
+          intent='danger'
+          message='Couldn’t load this member’s limit.'
+          action={
+            <Button variant='quiet' size='compact' onClick={credits.retry}>
+              Retry
+            </Button>
+          }
+        />
+      )}
       <CopyField
         label={
           credits.data
@@ -50,7 +67,7 @@ export function ManageCredits({
         inputMode='numeric'
         placeholder='No limit'
         hint="Leave blank for no limit. Set in credits, Sim's usage unit (1,000 credits = $5). Caps this member's usage across this organization's workspaces each billing period."
-        disabled={credits.loading}
+        disabled={credits.loading || credits.failed}
         value={draft}
         onChange={setEdited}
       />

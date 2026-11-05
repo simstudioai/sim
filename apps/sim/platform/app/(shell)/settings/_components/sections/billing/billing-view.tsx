@@ -8,9 +8,9 @@ import {
   Button,
   DataTable,
   InlineNotice,
+  Input,
   StatusTag,
   Switch,
-  TextField,
 } from '@/platform/design-system/components'
 import {
   SettingsRow,
@@ -38,7 +38,7 @@ function UsageLimit(props: Parameters<typeof useUsageLimitField>[0]) {
         description="Max usage per month. 1,000 credits = $5. By default it's your plan's included usage, but you can set it beyond."
         field
       >
-        <TextField
+        <Input
           label='Monthly limit, in credits'
           inputMode='numeric'
           value={field.value}
@@ -158,6 +158,17 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
             </SettingsRow>
           )}
         </SettingsSection>
+      )}
+      {billing.invoicesFailed && (
+        <InlineNotice
+          intent='danger'
+          message='Couldn’t load invoices.'
+          action={
+            <Button variant='quiet' size='compact' onClick={billing.retryInvoices}>
+              Retry
+            </Button>
+          }
+        />
       )}
       {billing.invoices.length > 0 && (
         <DataTable

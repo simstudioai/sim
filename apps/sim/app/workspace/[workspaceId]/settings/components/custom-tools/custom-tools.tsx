@@ -19,8 +19,8 @@ import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useCustomTools } from '@/hooks/queries/custom-tools'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 
 /**
  * The editor reaches the code-generation and tag-dropdown tooling, which pulls in the block

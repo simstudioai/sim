@@ -1,26 +1,23 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { SIM_LINK_NAME_MAX_LENGTH } from '@sim/browser-extension-protocol'
 import { SIM_DOCS_URL } from '@sim/utils/site'
-import { truncateAtCodePoint } from '@sim/utils/string'
 import { useQueryStates } from 'nuqs'
-import { createParser, parseAsString } from 'nuqs/server'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { SimLink, SimLinkBody } from '@/lib/api/contracts/sim-links'
 import { faviconSrc } from '@/lib/favicon/url'
 import { simLinkPath, simLinkUrl } from '@/lib/navigation/paths'
+import { simLinksParsers, simLinksSortParams, simLinksUrlKeys } from '@/lib/sim-links/search-params'
 import {
   isVariableSimLinkUrl,
   SIM_LINK_DESCRIPTION_MAX_LENGTH,
-  SIM_LINK_SEARCH_MAX_LENGTH,
-  SIM_LINK_SORTS,
   SIM_LINK_VARIABLE,
   simLinkFieldsSchema,
   simLinkOrigin,
   toSimLinkName,
 } from '@/lib/sim-links/validation'
-import { createSortParams, SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
   useCreateSimLink,
   useDeleteSimLink,
@@ -36,18 +33,6 @@ const SIM_FOR_CHROME_URL =
   'https://chromewebstore.google.com/detail/sim/oanlcahddodnjpdoopcpjlcageejjpmg'
 
 const SIM_LINKS_DOCS_URL = `${SIM_DOCS_URL}/search/sim-links`
-
-const boundedSearch = (value: string) => truncateAtCodePoint(value, SIM_LINK_SEARCH_MAX_LENGTH, '')
-
-/** The same URL as the legacy page: `/sim/<unknown>` opens the editor here through `create`. */
-const LINK_VIEW_PARSERS = {
-  create: parseAsString,
-  search: createParser({ parse: boundedSearch, serialize: boundedSearch }).withDefault(''),
-} as const
-
-const LINK_SORT_PARAMS = createSortParams(SIM_LINK_SORTS, { column: 'name', direction: 'asc' })
-
-const LINK_URL_KEYS = { history: 'replace', clearOnDefault: true } as const
 
 const SORT_OPTIONS = [
   { value: 'name:asc', label: 'Name (A–Z)' },
@@ -103,21 +88,18 @@ function openInNewTab(url: string) {
 
 /** Every Sim link the viewer may browse. `sim/<name>` resolves on the main app, not in this zone. */
 export function useLinksSection(organizationId: string, legacyOrigin: string) {
-  const [{ search, create }, setView] = useQueryStates(LINK_VIEW_PARSERS, LINK_URL_KEYS)
+  const [{ search, create }, setView] = useQueryStates(simLinksParsers, simLinksUrlKeys)
   const setSearch = useDebouncedSearchSetter((value, options) =>
     setView({ search: value }, options)
   )
   const settled = useSearchFilterValue(search, SEARCH_DEBOUNCE_MS)
-  const { sort, dir, onSort } = useUrlSort(LINK_SORT_PARAMS, LINK_URL_KEYS)
+  const { sort, dir, onSort } = useUrlSort(simLinksSortParams, simLinksUrlKeys)
   const term = settled.trim()
   const links = useSimLinks(organizationId, term, sort, dir)
   const remove = useDeleteSimLink(organizationId)
   const { fetchNextPage } = links
   const onLoadMore = useCallback(() => void fetchNextPage(), [fetchNextPage])
-  const rows = useMemo(
-    () => links.data?.pages.flatMap((page) => page.links).map(toLinkRow) ?? [],
-    [links.data]
-  )
+  const rows = links.data?.pages.flatMap((page) => page.links).map(toLinkRow) ?? []
   return {
     status: links.isLoadingError ? 'error' : links.data ? 'success' : 'pending',
     error: links.error?.message,
@@ -126,7 +108,6 @@ export function useLinksSection(organizationId: string, legacyOrigin: string) {
     term,
     search,
     setSearch,
-    searchMaxLength: SIM_LINK_SEARCH_MAX_LENGTH,
     sortOptions: SORT_OPTIONS,
     sortValue: `${sort}:${dir}`,
     setSort: (value: string) => {
@@ -134,7 +115,7 @@ export function useLinksSection(organizationId: string, legacyOrigin: string) {
       if (direction === 'asc' || direction === 'desc') onSort(column, direction)
     },
     loadMore: {
-      hasMore: links.hasNextPage,
+      hasMore: links.hasNextPage && !links.isPlaceholderData,
       loading: links.isFetchingNextPage,
       error: links.isFetchNextPageError ? 'Failed to load more links' : undefined,
       onLoadMore,

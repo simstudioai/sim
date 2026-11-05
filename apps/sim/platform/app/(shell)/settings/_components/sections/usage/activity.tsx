@@ -12,6 +12,7 @@ import {
   OverflowText,
   Pagination,
   Select,
+  TableLabel,
   TrendChart,
 } from '@/platform/design-system/components'
 import {
@@ -50,7 +51,7 @@ function SummaryView({ summary }: { summary: ReturnType<typeof useActivitySummar
       ) : (
         <>
           <MetricGroup metrics={summary.metrics} />
-          <div className={styles.charts}>
+          <div className={styles.cards}>
             <BarChart
               title='Workflow runs'
               bars={summary.outcomeBars}
@@ -185,10 +186,13 @@ export function ActivityPanel({ organizationId }: { organizationId: string }) {
               },
               cells: {
                 label: (
-                  <span className={styles.nameCell}>
-                    {member && (
-                      <Avatar size='inline' name={row.label} src={row.image ?? undefined} />
-                    )}
+                  <TableLabel
+                    leading={
+                      member ? (
+                        <Avatar size='inline' name={row.label} src={row.image ?? undefined} />
+                      ) : undefined
+                    }
+                  >
                     <OverflowText
                       text={
                         activityDimension === 'workflow' && row.workspaceName
@@ -196,7 +200,7 @@ export function ActivityPanel({ organizationId }: { organizationId: string }) {
                           : row.label
                       }
                     />
-                  </span>
+                  </TableLabel>
                 ),
               },
               onOpen:

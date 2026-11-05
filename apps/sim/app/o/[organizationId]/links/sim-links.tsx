@@ -8,6 +8,7 @@ import { useQueryStates } from 'nuqs'
 import type { SimLink } from '@/lib/api/contracts/sim-links'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { simLinkPath, simLinkUrl } from '@/lib/navigation/paths'
+import { simLinksParsers, simLinksSortParams, simLinksUrlKeys } from '@/lib/sim-links/search-params'
 import { SIM_LINK_SEARCH_MAX_LENGTH, toSimLinkName } from '@/lib/sim-links/validation'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
@@ -16,11 +17,6 @@ import {
   SIM_LINK_COLUMNS,
   SIM_LINKS_SEARCH_PLACEHOLDER,
 } from '@/app/o/[organizationId]/links/columns'
-import {
-  simLinksParsers,
-  simLinksSortParams,
-  simLinksUrlKeys,
-} from '@/app/o/[organizationId]/links/search-params'
 import { SimLinkContextMenu } from '@/app/o/[organizationId]/links/sim-link-context-menu'
 import { SimLinkIcon } from '@/app/o/[organizationId]/links/sim-link-icon'
 import { SimLinkModal } from '@/app/o/[organizationId]/links/sim-link-modal'

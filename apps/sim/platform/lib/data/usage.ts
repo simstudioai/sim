@@ -297,7 +297,7 @@ export function useUsageEvents(organizationId: string, window: OrganizationUsage
       credits: formatApportionedCreditCost(event.credits, event.hasCost),
     })),
     loadMore: {
-      hasMore: events.hasNextPage,
+      hasMore: events.hasNextPage && !events.isPlaceholderData,
       loading: events.isFetchingNextPage,
       error: events.isFetchNextPageError ? 'Failed to load more usage events' : undefined,
       onLoadMore: () => void events.fetchNextPage(),
@@ -361,6 +361,8 @@ export function useMemberCredits(organizationId: string, userId: string | undefi
   return {
     data: usage.data,
     loading: usage.isLoading,
+    failed: usage.isError && !usage.data,
+    retry: () => void usage.refetch(),
     /** A blank field means no limit, so only something else typed can be invalid. */
     save: async (draft: string) => {
       if (!userId) return

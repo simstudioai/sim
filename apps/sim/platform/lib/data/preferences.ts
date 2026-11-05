@@ -102,7 +102,6 @@ export function useAppearanceSettings() {
   }
 }
 
-/** One saved boolean preference. */
 export function useBooleanSetting(key: BooleanSetting) {
   const settings = useGeneralSettings()
   const { write, pending } = useSettingWriter()

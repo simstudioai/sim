@@ -23,7 +23,7 @@ export function UsageEvents({ organizationId }: { organizationId: string }) {
           Insights
         </Button>
       </div>
-      <p className={styles.note} data-type='T067'>
+      <p className={styles.quiet} data-type='T067'>
         Every credit-consuming event across your organization’s workspaces.
       </p>
       {events.failed && events.rows.length === 0 ? (

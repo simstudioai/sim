@@ -5,11 +5,13 @@ import styles from '@/platform/app/(shell)/settings/_components/sections/usage/u
 import {
   ActionMenu,
   Avatar,
+  Button,
   DataTable,
   EmptyState,
   Icon,
+  InlineNotice,
   OverflowText,
-  Tooltip,
+  TableLabel,
 } from '@/platform/design-system/components'
 import {
   EMPTY_COPY,
@@ -34,24 +36,24 @@ function ConsumerName({
   row: BreakdownRow
   dimension: UsageBreakdownDimension
 }) {
-  const name = <OverflowText text={row.label}>{row.label}</OverflowText>
-  let content: ReactNode = name
-  if (dimension === 'workspace' && !row.id) {
-    content = (
-      <Tooltip label={UNATTRIBUTED_INFO}>
-        <span>{name}</span>
-      </Tooltip>
-    )
-  }
+  const unattributed = dimension === 'workspace' && !row.id
   return (
-    <span className={styles.nameCell}>
-      {dimension === 'member' ? (
-        <Avatar size='inline' name={row.label} src={row.image ?? undefined} />
-      ) : (
-        row.providerId && <Icon providerId={row.providerId} />
-      )}
-      {content}
-    </span>
+    <TableLabel
+      leading={
+        dimension === 'member' ? (
+          <Avatar size='inline' name={row.label} src={row.image ?? undefined} />
+        ) : row.providerId ? (
+          <Icon providerId={row.providerId} />
+        ) : undefined
+      }
+    >
+      <OverflowText
+        text={row.label}
+        fullValue={unattributed ? `${row.label}. ${UNATTRIBUTED_INFO}` : row.label}
+      >
+        {row.label}
+      </OverflowText>
+    </TableLabel>
   )
 }
 
@@ -61,6 +63,7 @@ interface UsageConsumersProps {
   breakdown?: OrganizationUsageBreakdown
   loading: boolean
   failed: boolean
+  onRetry: () => void
   dimmed?: boolean
   control?: ReactNode
   /** Set on Workspaces, where a row drills into that workspace's workflows. */
@@ -81,13 +84,25 @@ export function UsageConsumers({
   breakdown,
   loading,
   failed,
+  onRetry,
   dimmed,
   control,
   onSelectRow,
   onManageCredits,
   onExpandOther,
 }: UsageConsumersProps) {
-  if (failed) return <EmptyState title={title} description='Couldn’t load this view.' />
+  if (failed)
+    return (
+      <InlineNotice
+        intent='danger'
+        message={`Couldn’t load ${title}.`}
+        action={
+          <Button variant='quiet' size='compact' onClick={onRetry}>
+            Retry
+          </Button>
+        }
+      />
+    )
   if (loading || !breakdown)
     return <span className={styles.listPlaceholder} role='status' aria-label={`Loading ${title}`} />
   if (breakdown.rows.length === 0)

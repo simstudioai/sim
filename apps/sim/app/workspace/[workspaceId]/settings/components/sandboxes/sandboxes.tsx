@@ -38,7 +38,6 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsUpgradeNotice } from '@/app/workspace/[workspaceId]/settings/components/settings-upgrade-notice'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import {
   type Sandbox,
   useCreateSandbox,
@@ -46,6 +45,7 @@ import {
   useSandboxes,
   useUpdateSandbox,
 } from '@/hooks/queries/sandboxes'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 
 export function Sandboxes() {
   const params = useParams()

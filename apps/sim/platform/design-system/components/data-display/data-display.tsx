@@ -27,6 +27,21 @@ export function MetricGroup({ metrics }: MetricGroupProps) {
   )
 }
 
+interface TableLabelProps {
+  leading?: ReactNode
+  children: ReactNode
+}
+
+/** A table cell's name with its avatar, favicon or provider mark. */
+export function TableLabel({ leading, children }: TableLabelProps) {
+  return (
+    <span className={styles.label}>
+      {leading}
+      {children}
+    </span>
+  )
+}
+
 type TableColumn = {
   key: string
   label: string

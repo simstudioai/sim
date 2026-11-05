@@ -11,6 +11,7 @@ import {
   InlineNotice,
   Modal,
   StatusTag,
+  TableLabel,
 } from '@/platform/design-system/components'
 import { usePersonalAccountsList } from '@/platform/lib/data/account'
 
@@ -61,9 +62,9 @@ export function OrganizationAccounts() {
             values: { name: account.name, service: account.service },
             cells: {
               service: (
-                <>
-                  <Icon providerId={account.providerId} /> {account.service}
-                </>
+                <TableLabel leading={<Icon providerId={account.providerId} />}>
+                  {account.service}
+                </TableLabel>
               ),
               status: account.status ? <StatusTag label={account.status} intent='warning' /> : null,
             },

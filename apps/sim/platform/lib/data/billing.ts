@@ -35,7 +35,6 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 import { useInvoices, useOpenBillingPortal } from '@/hooks/queries/subscription'
-import { useDebounce } from '@/hooks/use-debounce'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { useUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { toast } from '@/platform/lib/data/toast'
@@ -228,6 +227,8 @@ export function useBillingSection(organization: PlatformOrganization) {
           }
         }),
     hasMoreInvoices: Boolean(invoiceList.data?.hasMore),
+    invoicesFailed: !free && invoiceList.isError && !invoiceList.data,
+    retryInvoices: () => void invoiceList.refetch(),
   }
 }
 
@@ -248,41 +249,52 @@ export function useUsageLimitField({
   const update = useUpdateOrganizationUsageLimit()
   const save = update.mutate
   const [draft, setDraft] = useState<string | null>(null)
-  const debounced = useDebounce(draft, AUTOSAVE_DELAY_MS)
-  const latest = useRef({ current, draft, pending: update.isPending })
+  const latest = useRef({ current, pending: update.isPending })
   useEffect(() => {
-    latest.current = { current, draft, pending: update.isPending }
+    latest.current = { current, pending: update.isPending }
   })
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cancelPendingSave = () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+  }
+  useEffect(() => cancelPendingSave, [])
   useUnsavedGuard({
     isDirty: canEdit && draft !== null && isUsageLimitDraftDirty(draft, current),
     navigationBlocked: update.isPending,
-    onDiscard: () => setDraft(null),
+    onDiscard: () => {
+      cancelPendingSave()
+      setDraft(null)
+    },
   })
-  useEffect(() => {
-    if (!canEdit || debounced === null) return
-    if (latest.current.draft !== debounced || latest.current.pending) return
-    const settle = () => setDraft((value) => (value === debounced ? null : value))
-    const decision = resolveUsageLimitDraft(debounced, latest.current.current, minimum)
-    if (decision.kind === 'settled') settle()
-    if (decision.kind === 'invalid') toast.error(decision.message)
-    if (decision.kind === 'save') {
-      save(
-        { organizationId, limit: decision.limitDollars },
-        {
-          onSuccess: settle,
-          onError: (error) =>
-            toast.error("Couldn't update usage limit", {
-              description: getErrorMessage(error, 'Please try again in a moment.'),
-            }),
-        }
-      )
-    }
-  }, [debounced, minimum, canEdit, organizationId, save])
+  const change = (next: string) => {
+    setDraft(next)
+    cancelPendingSave()
+    if (!canEdit) return
+    saveTimer.current = setTimeout(() => {
+      if (latest.current.pending) return
+      const settle = () => setDraft((value) => (value === next ? null : value))
+      const decision = resolveUsageLimitDraft(next, latest.current.current, minimum)
+      if (decision.kind === 'settled') settle()
+      if (decision.kind === 'invalid') toast.error(decision.message)
+      if (decision.kind === 'save') {
+        save(
+          { organizationId, limit: decision.limitDollars },
+          {
+            onSuccess: settle,
+            onError: (error) =>
+              toast.error("Couldn't update usage limit", {
+                description: getErrorMessage(error, 'Please try again in a moment.'),
+              }),
+          }
+        )
+      }
+    }, AUTOSAVE_DELAY_MS)
+  }
   const unlimited = current >= ON_DEMAND_UNLIMITED
   return {
     value: draft ?? (unlimited ? '' : String(dollarsToCredits(current))),
     placeholder: unlimited ? 'No usage limit' : String(dollarsToCredits(current)),
     disabled: !canEdit || update.isPending,
-    change: setDraft,
+    change,
   }
 }

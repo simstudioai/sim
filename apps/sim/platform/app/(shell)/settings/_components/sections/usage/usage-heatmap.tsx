@@ -25,7 +25,9 @@ const ARROWS: Record<string, number> = {
 
 /** Calendar dates stay in UTC for layout; they already describe the viewer's local days. */
 function Heatmap({ days }: { days: readonly UsageCalendarDay[] }) {
-  const [active, setActive] = useState(days.length - 1)
+  const [activeDate, setActiveDate] = useState<string | null>(null)
+  const selected = days.findIndex((day) => day.date === activeDate)
+  const active = selected === -1 ? days.length - 1 : selected
   const first = days[0]
   if (!first) return null
   const offset = (new Date(`${first.date}T00:00:00Z`).getUTCDay() + 6) % 7
@@ -93,9 +95,9 @@ function Heatmap({ days }: { days: readonly UsageCalendarDay[] }) {
                 aria-pressed={index === active}
                 aria-label={formatDayUsage(day)}
                 tabIndex={index === active ? 0 : -1}
-                onPointerEnter={() => setActive(index)}
-                onClick={() => setActive(index)}
-                onFocus={() => setActive(index)}
+                onPointerEnter={() => setActiveDate(day.date)}
+                onClick={() => setActiveDate(day.date)}
+                onFocus={() => setActiveDate(day.date)}
                 onKeyDown={(event) => {
                   const delta = ARROWS[event.key]
                   const next =

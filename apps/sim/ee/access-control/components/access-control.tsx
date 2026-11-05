@@ -38,7 +38,6 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { GroupDetail } from '@/ee/access-control/components/group-detail'
 import { WorkspaceSelect } from '@/ee/access-control/components/workspace-select'
 import {
@@ -46,6 +45,7 @@ import {
   useOrganizationWorkspaces,
   usePermissionGroups,
 } from '@/ee/access-control/hooks/permission-groups'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 
 const logger = createLogger('AccessControl')
 

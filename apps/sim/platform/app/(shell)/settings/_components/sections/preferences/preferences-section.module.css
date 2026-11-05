@@ -1,7 +1,0 @@
-.photo {
-  display: inline-flex;
-  overflow: hidden;
-  inline-size: var(--spacing-24);
-  block-size: var(--spacing-24);
-  border-radius: var(--radius-full);
-}

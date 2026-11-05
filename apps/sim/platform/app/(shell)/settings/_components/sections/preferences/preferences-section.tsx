@@ -2,10 +2,8 @@
 
 import { useState } from 'react'
 import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-skeleton/section-skeleton'
-import styles from '@/platform/app/(shell)/settings/_components/sections/preferences/preferences-section.module.css'
 import {
   Avatar,
-  AvatarImage,
   Button,
   Icon,
   InlineNotice,
@@ -63,12 +61,8 @@ function Profile() {
           label={profile.uploading ? 'Uploading profile picture' : 'Change profile picture'}
           onClick={profile.uploading ? undefined : profile.choosePicture}
           leading={
-            profile.image ? (
-              <span className={styles.photo}>
-                <AvatarImage src={profile.image} name={displayName} />
-              </span>
-            ) : displayName ? (
-              <Avatar name={displayName} />
+            displayName ? (
+              <Avatar name={displayName} src={profile.image ?? undefined} />
             ) : (
               <Icon name='I074' />
             )
@@ -86,7 +80,7 @@ function Profile() {
       </SettingsRow>
       <SettingsRow label='Name' description='Set your display name'>
         <IdentityButton
-          label={profile.name || 'Set name'}
+          label={profile.name ? `Edit display name, ${profile.name}` : 'Set name'}
           trailingIcon='I036'
           onClick={() => setEditing(true)}
         >

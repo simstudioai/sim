@@ -22,8 +22,8 @@ import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/compone
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { isValidEnvVarName } from '@/executor/constants'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 
 const logger = createLogger('SecretsManager')
 

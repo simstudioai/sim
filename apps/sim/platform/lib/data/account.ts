@@ -5,8 +5,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { sleep } from '@sim/utils/helpers'
 import { formatQuotedNameList, normalizeEmail } from '@sim/utils/string'
-import { useQueryState } from 'nuqs'
-import { parseAsString } from 'nuqs/server'
 import type { PersonalOrganizationAccount } from '@/lib/api/contracts/organization-accounts'
 import { clearBrowserUserData } from '@/lib/auth/browser-storage'
 import { signOut } from '@/lib/auth/client'
@@ -21,6 +19,7 @@ import {
   groupByOrganization,
   PERSONAL_ACCOUNT_STATUS_LABELS,
 } from '@/lib/organizations/personal-accounts'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { useAccountDeletionPlan, useDeleteAccount } from '@/hooks/queries/account-deletion'
 import { useAuthorizedApps, useRevokeAuthorizedApp } from '@/hooks/queries/oauth-provider'
 import {
@@ -28,7 +27,8 @@ import {
   usePersonalOrganizationAccounts,
 } from '@/hooks/queries/organization-accounts'
 import { useResetPassword, useUserProfile } from '@/hooks/queries/user-profile'
-import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
+import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 import { toast } from '@/platform/lib/data/toast'
 
 const logger = createLogger('PlatformAccount')
@@ -68,12 +68,8 @@ export function useResetPasswordAction() {
 }
 
 export function useAuthorizedAppsList() {
-  const [search, setSearchParam] = useQueryState(
-    'search',
-    parseAsString.withDefault('').withOptions({ history: 'replace', clearOnDefault: true })
-  )
-  const setSearch = useDebouncedSearchSetter(setSearchParam)
-  const term = search.trim()
+  const [search, setSearch] = useSettingsSearch()
+  const term = useSearchFilterValue(search, SEARCH_DEBOUNCE_MS).trim()
   const apps = useAuthorizedApps(term)
   const revoke = useRevokeAuthorizedApp()
   return {
