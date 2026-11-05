@@ -767,6 +767,82 @@ async function sidebarChecks() {
         .toBeGreaterThan(before + 30)
     })
   })
+  await check(
+    'the rail opens at its design width and moves to and from /workspace with no frame between',
+    async () => {
+      const workspaceHome = `/workspace/${MEMBER_ADMIN_WORKSPACE.id}/home`
+      const railWidths = (page: Page) =>
+        page.evaluate(() => (window as unknown as { railWidths: string[] }).railWidths)
+      const pushRoute = (page: Page, href: string) =>
+        page.evaluate((target) => {
+          ;(
+            window as unknown as { next: { router: { push: (href: string) => void } } }
+          ).next.router.push(target)
+        }, href)
+      await withSession(ADMIN, async ({ page }) => {
+        await page.addInitScript(() => {
+          const seen = new Set<string>()
+          const record = () => {
+            for (const rail of document.querySelectorAll('aside[aria-label$=" sidebar"]')) {
+              const width = Math.round(rail.getBoundingClientRect().width)
+              if (width > 0) seen.add(`${rail.getAttribute('aria-label')}:${width}`)
+            }
+            ;(window as unknown as { railWidths: string[] }).railWidths = [...seen]
+            requestAnimationFrame(record)
+          }
+          requestAnimationFrame(record)
+        })
+        await page.goto(orgUrl('/home'))
+        await expect(sidebar(page)).toBeVisible()
+        await pushRoute(page, workspaceHome)
+        await expect(page.getByRole('complementary', { name: 'Workspace sidebar' })).toBeVisible({
+          timeout: 45_000,
+        })
+        await pushRoute(page, `${root}/home`)
+        await expect(sidebar(page)).toBeVisible({ timeout: 45_000 })
+        await sleep(250)
+        assert.deepEqual((await railWidths(page)).sort(), [
+          `Organization sidebar:${SIDEBAR_WIDTH.ORGANIZATION_DEFAULT}`,
+          `Workspace sidebar:${SIDEBAR_WIDTH.DEFAULT}`,
+        ])
+      })
+    }
+  )
+  await check(
+    'a dragged organization width is kept and leaves the workspace rail alone',
+    async () => {
+      await withSession(ADMIN, async ({ page }) => {
+        await page.goto(orgUrl('/home'))
+        const edge = sidebar(page).getByRole('separator', { name: 'Resize sidebar' })
+        const box = await edge.boundingBox()
+        assert(box, 'The edge is on screen')
+        await page.mouse.move(box.x + box.width / 2, box.y + 200)
+        await page.mouse.down()
+        await page.mouse.move(340, box.y + 200, { steps: 8 })
+        await page.mouse.up()
+        const railWidth = async (rail: Locator) =>
+          Math.round((await rail.boundingBox())?.width ?? 0)
+        await expect.poll(() => railWidth(sidebar(page))).toBe(340)
+        await page.reload()
+        await expect.poll(() => railWidth(sidebar(page))).toBe(340)
+        await page.goto(url(`/workspace/${MEMBER_ADMIN_WORKSPACE.id}/home`))
+        const workspaceRail = page.getByRole('complementary', { name: 'Workspace sidebar' })
+        await expect.poll(() => railWidth(workspaceRail)).toBe(SIDEBAR_WIDTH.DEFAULT)
+      })
+    }
+  )
+  await check('a width saved before the organization default still applies', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(orgUrl('/home'))
+      await page.evaluate(() =>
+        localStorage.setItem('sidebar-state', JSON.stringify({ state: { sidebarWidth: 310 } }))
+      )
+      await page.reload()
+      await expect
+        .poll(async () => Math.round((await sidebar(page).boundingBox())?.width ?? 0))
+        .toBe(310)
+    })
+  })
   await check('on a phone the rail is a drawer that opens and closes', async () => {
     await withSession(
       MEMBER,
@@ -1398,6 +1474,13 @@ async function homeChecks() {
         await expect(
           calendar.getByRole('button', { name: 'Google Calendar', exact: true })
         ).toBeEnabled()
+        const cardHeight = async (region: Locator, title: string) =>
+          Math.round(
+            (await region.getByText(title, { exact: true }).locator('xpath=..').boundingBox())
+              ?.height ?? 0
+          )
+        assert.equal(await cardHeight(email, 'Connect your email'), 176)
+        assert.equal(await cardHeight(calendar, 'Connect your calendar'), 156)
         await expect(calendar.getByRole('button', { name: 'Outlook', exact: true })).toHaveCount(0)
         const authorization = context.waitForEvent('request', (request) =>
           request.url().startsWith('https://accounts.google.com/')
@@ -1542,6 +1625,37 @@ async function homeChecks() {
         timeout: 30_000,
       })
     })
+  })
+  await check('the resource toggle waits for a resource, then collapses and reopens', async () => {
+    const toggle = (page: Page, action: 'Expand' | 'Collapse') =>
+      page.getByRole('button', { name: `${action} resource view`, exact: true })
+    await withSession(ADMIN, async ({ page }) => {
+      await stubSearch(page)
+      await page.goto(orgUrl('/home'))
+      await expect(composer(page)).toBeVisible()
+      await expect(toggle(page, 'Expand')).toHaveCount(0)
+      await expect(toggle(page, 'Collapse')).toHaveCount(0)
+      const resource = encodeURIComponent(`search:organization:${ORGANIZATION_ID}`)
+      await page.goto(orgUrl(`/home?q=parts&resource=${resource}`))
+      await toggle(page, 'Collapse').click()
+      await toggle(page, 'Expand').click()
+      await expect(toggle(page, 'Collapse')).toBeVisible()
+    })
+  })
+  await check('on a phone neither Home nor a chat without resources has the toggle', async () => {
+    await withSession(
+      ADMIN,
+      async ({ page }) => {
+        const anyToggle = page.getByRole('button', { name: /resource view/ })
+        await page.goto(orgUrl('/home'))
+        await expect(composer(page)).toBeVisible()
+        await expect(anyToggle).toHaveCount(0)
+        await page.goto(orgUrl(`/chat/${ADMIN_CHATS.agent.id}`))
+        await expect(composer(page)).toBeVisible()
+        await expect(anyToggle).toHaveCount(0)
+      },
+      { viewport: PHONE }
+    )
   })
   await check('the handoff search params restore a results tab on Home', async () => {
     await withSession(ADMIN, async ({ page }) => {

@@ -122,7 +122,7 @@ export function ConnectedWidget<T>({
         />
       )}
       {state.status === 'not_connected' && (
-        <div className={styles.connect}>
+        <div className={styles.connect} data-widget={title}>
           <ConnectionPrompt
             title={`Connect your ${noun}`}
             options={state.options.map(({ id, label, icon: mark }) => ({

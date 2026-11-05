@@ -23,6 +23,8 @@ interface ChatResourcePanelProps {
   panel: ReturnType<typeof useChatResourcePanel>
   children: ReactNode
   header?: ReactNode
+  /** Leaves out the panel toggle while there is no resource to show and the panel is closed. */
+  hideToggleUntilResource?: boolean
   onSummarize?: (message: string, filters: WorkspaceSearchFilters) => void
 }
 
@@ -35,6 +37,7 @@ export function ChatResourcePanel({
   panel,
   children,
   header,
+  hideToggleUntilResource = false,
   onSummarize,
 }: ChatResourcePanelProps) {
   useBrowserTabResources(panel.desktopTabResourceOptions)
@@ -77,6 +80,7 @@ export function ChatResourcePanel({
       collapsed={isResourceCollapsed}
       label='resource view'
       activityCount={resourceActivityIds.size}
+      toggleHidden={hideToggleUntilResource && isResourceCollapsed && resources.length === 0}
       onToggle={isResourceCollapsed ? expandResource : collapseResource}
       onResize={handleResourceResizePointerDown}
       onResizeKeyDown={handleResourceResizeKeyDown}

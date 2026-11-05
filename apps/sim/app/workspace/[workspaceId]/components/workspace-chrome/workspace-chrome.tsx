@@ -24,6 +24,7 @@ import { useSidebarWidth } from '@/hooks/use-sidebar-width'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
+import type { SidebarSurface } from '@/stores/sidebar/types'
 
 const FULLSCREEN_SUFFIXES = ['/upgrade'] as const
 
@@ -72,6 +73,8 @@ interface WorkspaceChromeProps {
    * surface passes the design-system `Sidebar`.
    */
   sidebar: ReactNode
+  /** Which rail's saved width and default this chrome sizes itself from. */
+  sidebarSurface?: SidebarSurface
   /** Cookie-derived collapse state from the server layout; seeds the sidebar's first render. */
   initialSidebarCollapsed?: boolean
 }
@@ -167,6 +170,7 @@ function isFullscreenPath(pathname: string | null): boolean {
 export function WorkspaceChrome({
   children,
   sidebar,
+  sidebarSurface = 'workspace',
   initialSidebarCollapsed = false,
 }: WorkspaceChromeProps) {
   const pathname = usePathname()
@@ -244,7 +248,7 @@ export function WorkspaceChrome({
     isSearchModalOpen
   )
 
-  useSidebarWidth()
+  useSidebarWidth(sidebarSurface)
 
   // Remember the last non-fullscreen page so a fullscreen route's Back control
   // can return there, deterministically and for any trigger.

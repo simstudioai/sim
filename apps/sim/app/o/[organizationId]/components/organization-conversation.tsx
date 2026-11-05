@@ -538,7 +538,7 @@ function OrganizationConversationContent({
           enabled={requestMode === 'assistant'}
         >
           <MothershipChat
-            reserveResourceHeader={!header}
+            reserveResourceHeader={!header && chat.resources.length > 0}
             onNavigateToChat={panelOptions?.onNavigateToChat}
             layout={panelOptions ? 'copilot-view' : undefined}
             onViewSources={(messageId, requestId) =>
@@ -631,6 +631,7 @@ function OrganizationConversationContent({
   return (
     <ChatResourcePanel
       header={header}
+      hideToggleUntilResource
       allowBuildControls={requestMode !== 'assistant' && canBuild}
       organizationId={organization.id}
       chat={chat}
