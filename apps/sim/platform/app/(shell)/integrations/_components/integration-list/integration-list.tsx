@@ -7,13 +7,18 @@ import {
   type OrganizationIntegration,
 } from '@/platform/lib/integrations/model'
 
-const SECTIONS = ['Your accounts', 'Available to connect', 'Managed by your organization'] as const
+const SECTIONS = [
+  'Your accounts',
+  'Available to connect',
+  'Managed by your organization',
+  'Not available',
+] as const
 type Section = (typeof SECTIONS)[number]
 
 function sectionFor(item: OrganizationIntegration): Section {
   if (item.accounts.length) return 'Your accounts'
   if (isConnectable(item)) return 'Available to connect'
-  return 'Managed by your organization'
+  return item.availability === 'managed' ? 'Managed by your organization' : 'Not available'
 }
 
 interface IntegrationListProps {

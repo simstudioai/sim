@@ -258,9 +258,6 @@ export function useUpdateOrganizationAccounts() {
           queryKey: slackSearchKeys.organizationManifests(organizationId),
         }),
         queryClient.invalidateQueries({ queryKey: slackSearchKeys.list(organizationId) }),
-        queryClient.invalidateQueries({
-          queryKey: organizationAccountsKeys.detail(organizationId),
-        }),
       ]),
   })
 }

@@ -68,11 +68,11 @@
   padding-inline: var(--spacing-8);
 }
 
-:is(.button, .iconButton):enabled:hover {
+:is(.button, .iconButton):is(:enabled, a[href]):hover {
   background: var(--ui-hover);
 }
 
-:is(.button, .iconButton):enabled:active {
+:is(.button, .iconButton):is(:enabled, a[href]):active {
   background: var(--ui-selected);
 }
 
@@ -174,7 +174,7 @@
   visibility: hidden;
 }
 @media (hover: hover) {
-  .chipRow:hover .chipStatus {
+  .chipRow:hover:has(.chipAction) .chipStatus {
     visibility: hidden;
   }
 }

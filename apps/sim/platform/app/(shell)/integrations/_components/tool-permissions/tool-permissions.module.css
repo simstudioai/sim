@@ -28,6 +28,9 @@
   min-inline-size: 0;
 }
 .list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
   gap: var(--ui-list-gap);
 }
 .tool {

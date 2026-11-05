@@ -9,6 +9,7 @@ import {
   HOME_EMAIL_THREAD_LIMIT,
   HOME_TEXT_LIMITS,
 } from '@/lib/organizations/home/limits'
+import { getGmailMailboxEmail, gmailThreadUrl } from '@/connectors/gmail/mailbox'
 import { gmailGetThreadV2Tool } from '@/tools/gmail/get_thread'
 import { gmailListThreadsV2Tool } from '@/tools/gmail/list_threads'
 import { listV2Tool as googleCalendarListTool } from '@/tools/google_calendar/list'
@@ -161,6 +162,7 @@ export async function readGmailThreads({
     signal
   )
   if (!list.success) throw new HomeProviderReadError('unavailable')
+  const mailbox = await getGmailMailboxEmail(accessToken, { signal })
   const threads = await mapWithConcurrency(
     list.output.threads.slice(0, HOME_EMAIL_THREAD_LIMIT),
     GMAIL_THREAD_CONCURRENCY,
@@ -183,7 +185,7 @@ export async function readGmailThreads({
         excerpt: bounded(latest.snippet, HOME_TEXT_LIMITS.excerpt),
         receivedAt,
         ...(messages.length > 1 ? { messageCount: messages.length } : {}),
-        url: `https://mail.google.com/mail/u/0/#inbox/${encodeURIComponent(id)}`,
+        url: gmailThreadUrl(id, mailbox),
       }
     }
   )

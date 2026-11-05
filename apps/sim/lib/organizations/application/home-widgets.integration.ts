@@ -34,6 +34,10 @@ import { GET as getCalendarRoute } from '@/app/api/organizations/[id]/home/calen
 import { GET as getEmailRoute } from '@/app/api/organizations/[id]/home/email/route'
 
 vi.mock('@/lib/auth', () => authMock)
+vi.mock('@/connectors/gmail/mailbox', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/connectors/gmail/mailbox')>()),
+  getGmailMailboxEmail: async () => 'reader@example.com',
+}))
 
 vi.hoisted(() => {
   Object.assign(process.env, {

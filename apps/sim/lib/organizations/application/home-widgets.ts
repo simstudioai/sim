@@ -224,17 +224,34 @@ async function readViewerAccounts<T>(
     )
   )
 
+  const isReadable = ({
+    provider,
+    providerId,
+    status,
+    credentialId,
+  }: (typeof candidates)[number]) =>
+    allowed.includes(provider) &&
+    readable.get(providerId) === true &&
+    status !== 'needs_reauth' &&
+    ownedIds.has(credentialId)
+  const toRead = new Set(
+    candidates
+      .filter(isReadable)
+      .slice(0, HOME_WIDGET_ACCOUNT_LIMIT)
+      .map((candidate) => candidate.credentialId)
+  )
+
   const results = await Promise.all(
-    candidates.map(async (candidate, index) => {
+    candidates.map(async (candidate) => {
       const { credentialId, displayName, provider, providerId, status, read } = candidate
       const settled = (state: HomeWidgetAccount['state'], rows: T[] = []) => ({
         account: { credentialId, displayName, state },
         rows: rows.map((row) => ({ ...row, credentialId })),
       })
-      if (index >= HOME_WIDGET_ACCOUNT_LIMIT) return settled('not_read')
       if (!allowed.includes(provider) || !readable.get(providerId)) return settled('not_offered')
       if (status === 'needs_reauth') return settled('needs_reauth')
       if (!ownedIds.has(credentialId)) return settled('not_offered')
+      if (!toRead.has(credentialId)) return settled('not_read')
       try {
         return settled('ready', await readWithToken({ context, credentialId, providerId }, read))
       } catch (error) {

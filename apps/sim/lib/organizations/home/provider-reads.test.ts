@@ -22,8 +22,13 @@ import {
   readOutlookCalendarDay,
   readOutlookMessages,
 } from '@/lib/organizations/home/provider-reads'
+import { gmailThreadUrl } from '@/connectors/gmail/mailbox'
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+vi.mock('@/connectors/gmail/mailbox', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/connectors/gmail/mailbox')>()),
+  getGmailMailboxEmail: async () => 'reader@example.com',
+}))
 
 const { mockSecureFetchWithValidation: providerFetch } = inputValidationMockFns
 const signal = new AbortController().signal
@@ -112,7 +117,7 @@ describe('reading mail', () => {
         excerpt: 'Agreed',
         receivedAt: '2026-11-05T10:00:00.000Z',
         messageCount: 2,
-        url: 'https://mail.google.com/mail/u/0/#inbox/thread-1',
+        url: gmailThreadUrl('thread-1', 'reader@example.com'),
       },
     ])
   })

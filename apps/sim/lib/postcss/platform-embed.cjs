@@ -21,7 +21,7 @@ function scopeSelector(selector) {
     )
     return [selector, followsHost]
   }
-  if (selector.startsWith(SCOPE)) return [selector]
+  if (selector.includes(SCOPE)) return [selector]
   return [`:where(${SCOPE}) ${selector}`]
 }
 

@@ -60,6 +60,10 @@
   outline: none;
 }
 
+[data-platform-ui] :is(a, button, summary, [role="button"], [role="tab"]):focus-visible {
+  outline: var(--spacing-stroke-default) solid var(--ui-secondary);
+}
+
 [data-platform-ui][data-system-font] {
   --font-sans: var(--font-native);
 }

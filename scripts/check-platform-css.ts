@@ -29,7 +29,8 @@ const PLATFORM = path.join(APP, 'platform')
 const ENTRY = path.join(PLATFORM, 'design-system/styles/embedded.css')
 const HOST_GLOBALS = path.join(APP, 'app/_styles/globals.css')
 
-const SCOPED = /^(?::where\(html\.dark\) )?(?:\[data-platform-ui\]|:where\(\[data-platform-ui\]\))/
+const SCOPED =
+  /^(?::where\(html\.dark\) )?(?:\[data-sim-desktop-title-bar\] )?(?:\[data-platform-ui\]|:where\(\[data-platform-ui\]\))/
 const GLOBAL_TARGET = /(?:^|[\s>+~(,])(?::root|:host|html|body)(?![\w-])/
 const ENTRY_AT_RULES = new Set(['media', 'container', 'supports', 'font-face'])
 const MODULE_AT_RULES = new Set(['media', 'container', 'supports', 'keyframes'])
