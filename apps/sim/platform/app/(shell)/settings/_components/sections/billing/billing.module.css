@@ -1,0 +1,28 @@
+.invoices {
+  display: grid;
+  gap: var(--ui-list-gap);
+  margin-inline: calc(-1 * var(--ui-row-inset));
+  list-style: none;
+}
+
+.invoice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  padding: var(--ui-row-inset);
+  border-radius: var(--ui-control-radius);
+  color: var(--ui-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+a.invoice:hover {
+  background: var(--ui-hover);
+}
+
+.description {
+  flex: 1;
+  min-inline-size: var(--spacing-64);
+  color: var(--ui-secondary);
+  overflow-wrap: anywhere;
+}

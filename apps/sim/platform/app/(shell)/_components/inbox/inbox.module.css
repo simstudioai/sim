@@ -1,0 +1,25 @@
+.inbox {
+  inline-size: min(
+    calc(var(--shell-inbox-width) - var(--spacing-10)),
+    calc(100vw - var(--spacing-28))
+  );
+  padding: var(--ui-popup-padding);
+}
+.inboxHeader {
+  display: flex;
+  align-items: center;
+  padding: var(--ui-row-block) var(--ui-row-inset);
+  gap: var(--ui-row-gap);
+  justify-content: space-between;
+}
+.list {
+  display: grid;
+  gap: var(--ui-list-gap);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.empty {
+  color: var(--ui-secondary);
+  padding: var(--spacing-12) var(--ui-row-inset);
+}

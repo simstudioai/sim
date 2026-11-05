@@ -1,0 +1,20 @@
+{
+  "extends": "@sim/tsconfig/nextjs.json",
+  "compilerOptions": {
+    "paths": {
+      "@/platform/*": ["./*"],
+      "@/*": ["../*"],
+      "@sim/db": ["../../../packages/db"],
+      "@sim/db/*": ["../../../packages/db/*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "../types/**/*.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}

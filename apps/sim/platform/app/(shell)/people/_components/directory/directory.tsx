@@ -12,7 +12,12 @@ import {
   SearchableSelect,
   SearchField,
 } from '@/platform/design-system/components'
-import { personHref, useDepartmentOptions, usePeopleDirectory } from '@/platform/lib/data/people'
+import {
+  personHref,
+  useDepartmentOptions,
+  usePeopleDirectory,
+  usePeoplePath,
+} from '@/platform/lib/data/people'
 
 const COLUMNS = [
   { key: 'person', label: 'Person', kind: 'text', primary: true },
@@ -37,6 +42,7 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
   const directory = usePeopleDirectory(organizationId)
   const departments = useDepartmentOptions(organizationId, directory.origin)
   const { originQuery } = directory
+  const peoplePath = usePeoplePath()
   const rows = useMemo(
     () =>
       directory.rows.map((person) => ({
@@ -48,9 +54,9 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
           location: <DirectoryCell value={person.location} />,
           manager: <DirectoryCell value={person.manager?.name} />,
         },
-        href: personHref(organizationId, person.memberId, originQuery),
+        href: personHref(peoplePath, person.memberId, originQuery),
       })),
-    [directory.rows, organizationId, originQuery]
+    [directory.rows, peoplePath, originQuery]
   )
   return (
     <section className={styles.directory} aria-label='Directory'>

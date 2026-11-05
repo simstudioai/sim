@@ -5,8 +5,8 @@ import { getSession } from '@/lib/auth'
 import { getAccessibleCopilotChatAuth } from '@/lib/mothership/chat/lifecycle'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { OrganizationSearchSurface } from '@/app/o/[organizationId]/_redesign/search/search-surface'
 import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
-import { OrganizationSearchSurface } from '@/platform/app/(shell)/search/_components/search-surface/search-surface'
 
 export const metadata: Metadata = { title: 'Assistant Search' }
 

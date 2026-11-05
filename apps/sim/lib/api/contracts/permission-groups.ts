@@ -361,6 +361,50 @@ export const bulkAddPermissionGroupMembersContract = defineRouteContract({
   },
 })
 
+const permissionGroupEditorCatalogSchema = z.object({
+  /** The allowlist universe. `hidden` decides drawing only; a hidden row stays part of every save. */
+  blocks: z.array(
+    z.object({
+      type: z.string(),
+      name: z.string(),
+      description: z.string(),
+      category: z.string(),
+      hidden: z.boolean(),
+      sourceWorkspaceName: z.string().nullable(),
+      tools: z.array(z.object({ id: z.string(), label: z.string() })),
+    })
+  ),
+  /** Every provider a group can govern, before the deployment's blacklist. */
+  providerIds: z.array(z.string()),
+  dynamicProviderIds: z.array(z.string()),
+  /** Every provider definition, since a model's owner may be one the group cannot govern. */
+  providers: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      namespaced: z.boolean(),
+      modelPatterns: z.array(z.object({ source: z.string(), flags: z.string() })),
+      models: z.array(
+        z.object({
+          id: z.string(),
+          inStaticCatalog: z.boolean(),
+          sunset: z.enum(['legacy', 'deprecated']).nullable(),
+        })
+      ),
+    })
+  ),
+  knowledgeConnectors: z.array(z.object({ value: z.string(), label: z.string() })),
+})
+export type PermissionGroupEditorCatalog = z.output<typeof permissionGroupEditorCatalogSchema>
+
+/** The block and provider catalog behind the group editor, for a surface without those registries. */
+export const getPermissionGroupEditorCatalogContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/permission-groups/editor-catalog',
+  params: permissionGroupParamsSchema,
+  response: { mode: 'json', schema: permissionGroupEditorCatalogSchema },
+})
+
 /**
  * List the workspaces belonging to an organization, used to populate the
  * workspace multi-select when scoping a permission group to specific workspaces.

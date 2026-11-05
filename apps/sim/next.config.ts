@@ -25,7 +25,15 @@ const MARKDOWN_REQUEST = {
   missing: [{ type: 'header' as const, key: 'accept', value: REFUSES_MARKDOWN }],
 }
 
+/**
+ * The Platform zone, proxied under one origin so its pages share the session cookie and `/api`.
+ * Next bakes rewrites into the build, so the value must be present when the image is built.
+ */
+const PLATFORM_ORIGIN = env.SIM_PLATFORM_ORIGIN ? new URL(env.SIM_PLATFORM_ORIGIN).origin : null
+
 const nextConfig: NextConfig = {
+  /** Lets the runtime handoff check that this build actually has the Platform rewrite. */
+  env: { SIM_PLATFORM_ZONE_REWRITE: PLATFORM_ORIGIN ? '1' : '' },
   devIndicators: false,
   poweredByHeader: false,
   // Safe here since this repo's source is already fully public on GitHub -
@@ -733,6 +741,14 @@ const nextConfig: NextConfig = {
           source: '/r/:shortCode',
           destination: 'https://go.trybeluga.ai/:shortCode',
         },
+        ...(PLATFORM_ORIGIN
+          ? [
+              {
+                source: '/org/:path*',
+                destination: `${PLATFORM_ORIGIN}/org/:path*`,
+              },
+            ]
+          : []),
       ],
       /**
        * Fallback rewrites run only after every page and dynamic route has failed to match, so

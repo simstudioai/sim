@@ -76,9 +76,15 @@ interface StackPlotProps {
   /** Each column's layers, bottom-up. */
   values: readonly (readonly number[])[]
   maximum: number
+  highlighted?: number
 }
 
-export const StackPlot = memo(function StackPlot({ label, values, maximum }: StackPlotProps) {
+export const StackPlot = memo(function StackPlot({
+  label,
+  values,
+  maximum,
+  highlighted,
+}: StackPlotProps) {
   return (
     <div className={styles.columns} role='img' aria-label={label}>
       {values.map((layers, index) => {
@@ -100,7 +106,12 @@ export const StackPlot = memo(function StackPlot({ label, values, maximum }: Sta
               viewBox='0 0 32 136'
               preserveAspectRatio='none'
             >
-              <path className={styles.stackLayer} data-layer={topLayer} d={outline} />
+              <path
+                className={styles.stackLayer}
+                data-layer={topLayer}
+                data-dimmed={(highlighted !== undefined && topLayer !== highlighted) || undefined}
+                d={outline}
+              />
               {tops
                 .slice(0, topLayer)
                 .map((top, layer) => ({ top, layer }))
@@ -110,6 +121,7 @@ export const StackPlot = memo(function StackPlot({ label, values, maximum }: Sta
                     key={layer}
                     className={styles.stackLayer}
                     data-layer={layer}
+                    data-dimmed={(highlighted !== undefined && layer !== highlighted) || undefined}
                     x='0'
                     y={136 - top}
                     width='32'

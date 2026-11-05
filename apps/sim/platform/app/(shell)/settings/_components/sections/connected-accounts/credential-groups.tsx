@@ -1,0 +1,107 @@
+'use client'
+
+import { parseAsStringLiteral, useQueryState } from 'nuqs'
+import {
+  ActionRow,
+  SectionStack,
+} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { GroupAccess } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/group-access'
+import { GroupPeople } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/group-people'
+import { GroupProviders } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/group-providers'
+import type { CredentialGroupsData } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/model'
+import { Button, EmptyState, SegmentedControl } from '@/platform/design-system/components'
+import {
+  SettingsRow,
+  SettingsSection,
+} from '@/platform/design-system/components/settings-section/settings-section'
+import { useSettingsFixtureDraft } from '@/platform/lib/data/settings-providers'
+
+const VIEWS = [
+  { value: 'providers', label: 'Integrations' },
+  { value: 'people', label: 'People' },
+  { value: 'workspace-access', label: 'Access' },
+] as const
+const tabParser = parseAsStringLiteral([
+  'providers',
+  'people',
+  'workspace-access',
+] as const).withDefault('providers')
+
+interface CredentialGroupsProps {
+  data: CredentialGroupsData
+  editable: boolean
+  managementHref: string
+}
+
+export function CredentialGroups({ data, editable, managementHref }: CredentialGroupsProps) {
+  const [tab, setTab] = useQueryState('tab', tabParser.withOptions({ shallow: editable }))
+  const { data: groups, update: setDraft } = useSettingsFixtureDraft('connected-accounts', data)
+  if (!groups.canManage)
+    return <EmptyState title='An organization admin manages Credential Groups.' />
+  const manageLink = (
+    <Button size='compact' render={<a href={managementHref}>Manage Credential Groups</a>}>
+      Manage Credential Groups
+    </Button>
+  )
+  if (!groups.setup)
+    return (
+      <SettingsSection title='Setup'>
+        <SettingsRow
+          label='Shared account pool'
+          description='Workspaces have no access until you allow them.'
+        >
+          {editable ? (
+            <Button
+              size='compact'
+              onClick={() => setDraft((current) => ({ ...current, setup: true }))}
+            >
+              Set up Credential Groups
+            </Button>
+          ) : (
+            manageLink
+          )}
+        </SettingsRow>
+      </SettingsSection>
+    )
+  return (
+    <SectionStack>
+      <ActionRow>
+        <SegmentedControl
+          label='Credential Groups views'
+          options={VIEWS}
+          value={tab}
+          onSelect={(value) => void setTab(value)}
+        />
+      </ActionRow>
+      {tab === 'providers' && (
+        <GroupProviders
+          data={groups}
+          editable={editable}
+          databricks={groups.databricks}
+          onConfigure={(databricks) => setDraft((current) => ({ ...current, databricks }))}
+          onChange={(configured) => setDraft((current) => ({ ...current, configured }))}
+        />
+      )}
+      {tab === 'people' && (
+        <GroupPeople
+          people={groups.people}
+          nextCursor={groups.nextCursor}
+          editable={editable}
+          onChange={(people) => setDraft((current) => ({ ...current, people }))}
+        />
+      )}
+      {tab === 'workspace-access' && (
+        <GroupAccess
+          data={groups}
+          editable={editable}
+          onChange={(grants) => setDraft((current) => ({ ...current, grants }))}
+        />
+      )}
+      {!editable && (
+        <SettingsSection title='Management'>
+          <SettingsRow label='Organization account pool'>{manageLink}</SettingsRow>
+        </SettingsSection>
+      )}
+    </SectionStack>
+  )
+}

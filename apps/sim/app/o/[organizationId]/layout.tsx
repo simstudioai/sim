@@ -1,25 +1,24 @@
-import { createLogger } from '@sim/logger'
+import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
-import { canUseBenchmarks } from '@/lib/benchmarks/config'
-import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
-import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
-import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
-import { isMothershipModelSelectorEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
+import { resolveOrganizationSurface } from '@/lib/organizations/application/surface'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { canBrowsePeople } from '@/lib/people/feature-flag'
-import { isProjectsEnabled } from '@/lib/projects/rollout.server'
+import { isPlatformOrgUiEnabled } from '@/lib/platform/rollout'
+import { LEGACY_URL_HEADER, mapLegacyOrganizationUrl } from '@/lib/platform/routes'
 import { resolveSimLinkOrganization } from '@/lib/sim-links/application/organization'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
-import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
+import { RedesignNotices } from '@/app/o/[organizationId]/_redesign/notices'
+import { Sidebar } from '@/app/o/[organizationId]/_redesign/rail/sidebar'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
+import { PlatformRouteGuard } from '@/app/o/[organizationId]/components/platform-route-guard'
 import { SimLinkOrganizationProvider } from '@/app/o/[organizationId]/links/sim-link-organization-provider'
 import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
 import { OrganizationProvider } from '@/app/o/[organizationId]/providers/organization-provider'
@@ -31,9 +30,7 @@ import {
 } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
-import { Sidebar } from '@/platform/app/(shell)/_components/sidebar/sidebar'
-
-const logger = createLogger('OrganizationLayout')
+import { OrganizationProvider as PlatformOrganizationProvider } from '@/platform/lib/data/organization'
 
 /**
  * The organization surface: the viewer's own view of one organization, outside
@@ -67,6 +64,12 @@ export default async function OrganizationLayout({
   if (!context) {
     return <OrganizationAccessDenied />
   }
+  const platformOrgUi = await isPlatformOrgUiEnabled(organizationId)
+  if (platformOrgUi) {
+    const legacyUrl = (await headers()).get(LEGACY_URL_HEADER)
+    const platformUrl = legacyUrl && mapLegacyOrganizationUrl(legacyUrl, organizationId)
+    if (platformUrl) redirect(platformUrl)
+  }
   const peopleEnabledLookup = canBrowsePeople(organizationId, context.viewer.role)
   const simLinksEnabledLookup = isSimLinksEnabled(organizationId)
   if (
@@ -77,37 +80,14 @@ export default async function OrganizationLayout({
   )
     redirect(WORKSPACE_SETTINGS_PATH)
 
-  const [
-    ,
-    modelSelectorEnabled,
-    dashboardsEnabled,
-    benchmarkEnabled,
-    computerUseEnabled,
-    workflowTestsEnabled,
-    changelogEnabled,
-    projectsEnabled,
-    simLinksEnabled,
-    peopleEnabled,
-    simLinkOrganizationId,
-  ] = await Promise.all([
+  const [, surface, simLinkOrganizationId] = await Promise.all([
     prefetchOrganizationSidebar(
       queryClient,
       organizationId,
       { kind: 'session', userId: session.user.id, sessionId: session.session.id },
       getActiveOrganizationId(session)
     ),
-    isMothershipModelSelectorEnabled(),
-    isDashboardsEnabled(organizationId),
-    canUseBenchmarks(session.user.id).catch(() => {
-      logger.warn('Could not resolve benchmark navigation access')
-      return false
-    }),
-    isComputerUseAvailable(organizationId),
-    isWorkflowTestsEnabled(organizationId),
-    isChangelogEnabled(organizationId),
-    isProjectsEnabled(),
-    simLinksEnabledLookup,
-    peopleEnabledLookup,
+    resolveOrganizationSurface(context, session.user.id),
     resolveSimLinkOrganization({
       kind: 'session',
       userId: session.user.id,
@@ -118,41 +98,45 @@ export default async function OrganizationLayout({
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <FeatureFlagsProvider
-        flags={{
-          dashboards: dashboardsEnabled,
-          'workflow-tests': workflowTestsEnabled,
-          changelog: changelogEnabled,
-          'mothership-model-selector': modelSelectorEnabled,
-          'mothership-computer-use': computerUseEnabled,
-          'mothership-plan-mode': benchmarkEnabled,
-          'mothership-memory-spaces': benchmarkEnabled,
-          projects: projectsEnabled,
-        }}
-      >
+      <FeatureFlagsProvider flags={surface.featureFlags}>
         <OrganizationProvider context={context}>
-          <SimLinkOrganizationProvider organizationId={simLinkOrganizationId}>
-            <GlobalCommandsProvider>
-              <WorkspaceViewport className='workspace-root'>
-                <ImpersonationBanner />
-                <SessionExpired />
-                <SettingsNavigationProvider>
-                  <WorkspaceChrome
-                    sidebar={
-                      <Sidebar
-                        benchmarkEnabled={benchmarkEnabled}
-                        simLinksEnabled={simLinksEnabled}
-                        peopleEnabled={peopleEnabled}
-                      />
-                    }
-                    initialSidebarCollapsed={initialSidebarCollapsed}
-                  >
-                    {children}
-                  </WorkspaceChrome>
-                </SettingsNavigationProvider>
-              </WorkspaceViewport>
-            </GlobalCommandsProvider>
-          </SimLinkOrganizationProvider>
+          <PlatformOrganizationProvider
+            organization={{
+              ...surface,
+              legacyOrigin: '',
+              routePrefix: organizationRoutes(organizationId).root,
+            }}
+          >
+            <RedesignNotices>
+              {platformOrgUi && (
+                <Suspense fallback={null}>
+                  <PlatformRouteGuard organizationId={organizationId} />
+                </Suspense>
+              )}
+              <SimLinkOrganizationProvider organizationId={simLinkOrganizationId}>
+                <GlobalCommandsProvider>
+                  <WorkspaceViewport className='workspace-root'>
+                    <ImpersonationBanner />
+                    <SessionExpired />
+                    <SettingsNavigationProvider>
+                      <WorkspaceChrome
+                        sidebar={
+                          <Sidebar
+                            benchmarkEnabled={surface.navFlags.benchmark}
+                            simLinksEnabled={surface.navFlags.simLinks}
+                            peopleEnabled={surface.navFlags.people}
+                          />
+                        }
+                        initialSidebarCollapsed={initialSidebarCollapsed}
+                      >
+                        {children}
+                      </WorkspaceChrome>
+                    </SettingsNavigationProvider>
+                  </WorkspaceViewport>
+                </GlobalCommandsProvider>
+              </SimLinkOrganizationProvider>
+            </RedesignNotices>
+          </PlatformOrganizationProvider>
         </OrganizationProvider>
       </FeatureFlagsProvider>
     </HydrationBoundary>

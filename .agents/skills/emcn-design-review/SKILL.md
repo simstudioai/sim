@@ -1,6 +1,6 @@
 ---
 name: emcn-design-review
-description: Review UI code for alignment with the emcn design system — components, tokens, patterns, and conventions
+description: Review the existing Sim app against packages/emcn. Route isolated Platform UI in apps/sim/platform to implement-platform.
 argument-hint: "[scope] [fix=true|false]"
 ---
 
@@ -14,7 +14,7 @@ User arguments: $ARGUMENTS
 
 ## Context
 
-This codebase uses **emcn**, a custom component library built on Radix UI primitives with CVA variants and CSS variable design tokens. All UI must use emcn components and tokens.
+The existing Sim app uses `packages/emcn`, its Radix primitives, CVA variants, and CSS tokens. For `apps/sim/platform/**`, use [implement-platform](../implement-platform/SKILL.md). For mixed scopes, review each file under its owning system and preserve the requested `fix` mode for both.
 
 ## Steps
 

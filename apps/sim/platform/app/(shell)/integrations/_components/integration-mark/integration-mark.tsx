@@ -14,5 +14,11 @@ interface IntegrationMarkProps {
 export function IntegrationMark({ providerId, icon: BrandIcon }: IntegrationMarkProps) {
   if (providerId && providerMark(providerId) !== GENERIC_MARK)
     return <Icon providerId={providerId} />
-  return BrandIcon ? <BrandIcon className={styles.mark} /> : <Icon name={GENERIC_MARK} />
+  return BrandIcon ? (
+    <span className={styles.mark}>
+      <BrandIcon />
+    </span>
+  ) : (
+    <Icon name={GENERIC_MARK} />
+  )
 }

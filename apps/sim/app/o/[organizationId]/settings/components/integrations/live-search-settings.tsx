@@ -43,7 +43,6 @@ import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
 import { useOrganizationSecretSource } from '@/hooks/queries/organization-secrets'
 import {
@@ -51,6 +50,7 @@ import {
   useUpdateSearchIntegration,
 } from '@/hooks/queries/search-integrations'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 
 export function LiveSearchSettings() {
   const { organization, viewer, searchAccess } = useOrganizationContext()

@@ -5,7 +5,7 @@ import type {
   ToolPermissionChange,
   ToolPermissionsModel,
   ToolPolicy,
-} from '@/platform/lib/integrations/model'
+} from '@/platform/lib/data/integrations-types'
 
 const POLICY_LABELS: Record<ToolPolicy, string> = { allow: 'Allow', ask: 'Ask', block: 'Block' }
 const POLICIES = ['allow', 'ask', 'block'] as const

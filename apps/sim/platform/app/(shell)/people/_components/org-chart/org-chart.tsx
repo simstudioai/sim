@@ -253,7 +253,6 @@ export function OrgChart({ organizationId, firstUse, onConnect, onImport, onSync
       ) : branch ? (
         <ChartCanvas
           key={`${branch.person.memberId}/${branch.page}/${size}`}
-          organizationId={organizationId}
           branch={branch}
           profileQuery={profileQuery}
           compact={compact}

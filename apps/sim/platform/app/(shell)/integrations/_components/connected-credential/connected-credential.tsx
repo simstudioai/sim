@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import styles from '@/platform/app/(shell)/integrations/_components/connected-credential/connected-credential.module.css'
 import { ActionMenu, Button, Modal } from '@/platform/design-system/components'
-import type { IntegrationAccount } from '@/platform/lib/integrations/model'
+import type { IntegrationAccount } from '@/platform/lib/data/integrations-types'
 
 interface CredentialRow extends IntegrationAccount {
   statusLabel: string

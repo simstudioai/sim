@@ -1,13 +1,14 @@
 import type { ShellQueryStatus } from '@/platform/app/(shell)/_components/model'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar-collections.module.css'
-import { FailureNotice } from '@/platform/design-system/components/status/status'
+import { FailureNotice } from '@/platform/design-system/components'
 
 interface SectionStatusProps {
-  status: ShellQueryStatus
+  /** Absent means the rows are simply there, so nothing here applies. */
+  status?: ShellQueryStatus
   isEmpty: boolean
   emptyLabel: string
   failureLabel: string
-  onRetry: () => void
+  onRetry?: () => void
 }
 
 /** Loading stays silent, like the legacy sidebar; empty and failure each say which they are. */

@@ -13,8 +13,8 @@ const mocks = vi.hoisted(() => ({ context: vi.fn(), prefetchHome: vi.fn() }))
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/organizations/surface', () => ({ getOrganizationSurfaceContext: mocks.context }))
 vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
-vi.mock('@/platform/lib/data/prefetch', () => ({}))
-vi.mock('@/platform/lib/data/prefetch-member-inventory', () => ({
+vi.mock('@/app/o/[organizationId]/_redesign/prefetch', () => ({}))
+vi.mock('@/app/o/[organizationId]/_redesign/prefetch-member-inventory', () => ({
   prefetchHome: mocks.prefetchHome,
 }))
 vi.mock('@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton', () => ({
@@ -22,7 +22,7 @@ vi.mock('@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard-s
     <div>Home for {requestMode}</div>
   ),
 }))
-vi.mock('@/platform/app/(shell)/search/_components/search-surface/search-surface', () => ({
+vi.mock('@/app/o/[organizationId]/_redesign/search/search-surface', () => ({
   OrganizationSearchSurface: () => <div>Standalone Search</div>,
 }))
 vi.mock('@/app/o/[organizationId]/components/organization-conversation', () => ({

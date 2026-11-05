@@ -2,18 +2,29 @@
 
 import { type RefObject, useId, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
-import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
-import { InviteModal } from '@/platform/app/(shell)/_components/invite-modal/invite-modal'
-import type { ShellData } from '@/platform/app/(shell)/_components/model'
+import dynamic from 'next/dynamic'
+import type { ShellData, ShellOrganizationActions } from '@/platform/app/(shell)/_components/model'
 import styles from '@/platform/app/(shell)/_components/organization-menu/organization-menu.module.css'
-import { Avatar } from '@/platform/design-system/components/avatar/avatar'
-import { Button } from '@/platform/design-system/components/button/button'
-import { Input } from '@/platform/design-system/components/field/inputs'
+import {
+  Avatar,
+  Button,
+  Input,
+  MenuItem,
+  Modal,
+  RecipientField,
+} from '@/platform/design-system/components'
 import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
-import { MenuItem } from '@/platform/design-system/components/menu/action-menu'
 import { AnchoredPopover } from '@/platform/design-system/components/menu/anchored-popover'
-import { useOrganizationActions } from '@/platform/lib/data/shell-actions'
 import { plural } from '@/platform/lib/plural'
+
+/** Lazy because its form reads real data, which a fixture session never loads. */
+const InviteModal = dynamic(
+  () =>
+    import('@/platform/app/(shell)/_components/invite-modal/invite-modal').then(
+      (module) => module.InviteModal
+    ),
+  { ssr: false }
+)
 
 function focusNameField(frame: HTMLDivElement | null) {
   const field = frame?.querySelector('input')
@@ -23,32 +34,32 @@ function focusNameField(frame: HTMLDivElement | null) {
 
 interface OrganizationMenuProps {
   anchor: RefObject<HTMLElement | null>
-  organization: ShellData['organization']
-  onOpen: () => void
+  organization?: ShellData['organization']
+  actions?: ShellOrganizationActions
   onSettings: () => void
 }
 
 export function OrganizationMenu({
   anchor,
   organization,
-  onOpen,
+  actions,
   onSettings,
 }: OrganizationMenuProps) {
   const [open, setOpen] = useState(false)
   const [invite, setInvite] = useState(false)
   const [draftName, setDraftName] = useState<string | null>(null)
   const [renameError, setRenameError] = useState<string | null>(null)
-  const actions = useOrganizationActions()
-  const { isRenaming: renaming, isUploadingLogo: uploading } = actions
+  const [renaming, setRenaming] = useState(false)
+  const [uploading, setUploading] = useState(false)
   /** The name just saved, shown until the refreshed surface replaces the one it was saved over. */
   const [savedName, setSavedName] = useState<{ name: string; replaces: string } | null>(null)
   const opener = useRef<HTMLElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const card = useRef<HTMLDivElement>(null)
   const errorId = useId()
-  if (savedName && savedName.replaces !== organization.name) setSavedName(null)
-  const name = savedName?.name ?? organization.name
-  const logo = organization.logo ?? undefined
+  if (savedName && savedName.replaces !== organization?.name) setSavedName(null)
+  const name = savedName?.name ?? organization?.name ?? 'Organization'
+  const logo = organization?.logo ?? undefined
 
   function stopRenaming() {
     setDraftName(null)
@@ -61,12 +72,13 @@ export function OrganizationMenu({
   }
 
   async function submitRename(): Promise<boolean> {
-    if (draftName === null || renaming) return false
+    if (draftName === null || renaming || !actions || !organization) return false
     const next = draftName.trim()
     if (!next || next === name) {
       stopRenaming()
       return true
     }
+    setRenaming(true)
     try {
       await actions.rename(next)
       setSavedName({ name: next, replaces: organization.name })
@@ -75,7 +87,16 @@ export function OrganizationMenu({
     } catch (error) {
       setRenameError(getErrorMessage(error, 'Failed to rename organization'))
       return false
+    } finally {
+      setRenaming(false)
     }
+  }
+
+  async function uploadLogo(file: File | undefined) {
+    if (!file || uploading || !actions) return
+    setUploading(true)
+    await actions.uploadLogo(file)
+    setUploading(false)
   }
 
   return (
@@ -89,15 +110,13 @@ export function OrganizationMenu({
           // The field's blur saves the draft; closing now would unmount it and hide a failure.
           if (!next && draftName !== null) return
           if (next && trigger instanceof HTMLElement) opener.current = trigger
-          if (next) onOpen()
           setOpen(next)
         }}
         trigger={(button) => (
           <IdentityButton
             render={button}
             label='Organization menu'
-            leading={<Avatar name={name} src={logo} organization size='inline' />}
-            trailingIcon='I051'
+            leading={organization && <Avatar name={name} src={logo} organization size='inline' />}
           >
             {name}
           </IdentityButton>
@@ -145,11 +164,14 @@ export function OrganizationMenu({
                   {renameError}
                 </span>
               )}
-              <span data-type='T050'>{plural(organization.memberCount, 'member')}</span>
+              {organization && (
+                <span data-type='T050'>{plural(organization.memberCount, 'member')}</span>
+              )}
             </div>
-            {actions.canInvite && (
+            {(!actions || actions.canInvite) && (
               <Button
                 size='compact'
+                disabled={!organization}
                 onClick={() => {
                   opener.current?.focus({ preventScroll: true })
                   setOpen(false)
@@ -160,19 +182,19 @@ export function OrganizationMenu({
               </Button>
             )}
           </div>
-          {actions.canEditIdentity && (
+          {actions?.canEditIdentity && (
             <>
               <input
                 ref={fileInput}
                 className={styles.logoInput}
                 type='file'
-                accept={LOGO_ACCEPT_ATTRIBUTE}
+                accept={actions.logoAccept}
                 aria-label='Organization logo'
                 disabled={uploading}
                 onChange={(event) => {
                   const file = event.target.files?.[0]
                   event.target.value = ''
-                  if (file) void actions.uploadLogo(file)
+                  void uploadLogo(file)
                 }}
               />
               <MenuItem
@@ -199,7 +221,23 @@ export function OrganizationMenu({
           />
         </div>
       </AnchoredPopover>
-      {invite && <InviteModal onClose={() => setInvite(false)} />}
+      {actions ? (
+        invite && <InviteModal open={invite} onOpenChange={setInvite} />
+      ) : (
+        <Modal
+          title='Invite people'
+          open={invite}
+          onOpenChange={setInvite}
+          confirmLabel='Invite'
+          confirmDisabled
+        >
+          <RecipientField
+            label='Email addresses'
+            name='recipients'
+            placeholder='name@company.com'
+          />
+        </Modal>
+      )}
     </>
   )
 }

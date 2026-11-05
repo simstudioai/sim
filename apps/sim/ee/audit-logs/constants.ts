@@ -1,5 +1,4 @@
-import { AuditResourceType } from '@sim/audit'
-import type { ComboboxOption } from '@sim/emcn'
+import { AuditResourceType } from '@sim/audit/types'
 
 const ACRONYMS = new Set(['API', 'BYOK', 'MCP', 'OAUTH'])
 
@@ -16,7 +15,7 @@ function formatResourceLabel(key: string): string {
     .join(' ')
 }
 
-export const RESOURCE_TYPE_OPTIONS: ComboboxOption[] = (
+export const RESOURCE_TYPE_OPTIONS: { label: string; value: string }[] = (
   Object.entries(AuditResourceType) as [string, string][]
 )
   .map(([key, value]) => ({ label: formatResourceLabel(key), value }))

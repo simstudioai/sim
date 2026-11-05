@@ -1,43 +1,51 @@
-'use client'
-
+import { PLATFORM_DESTINATIONS } from '@/platform/app/(shell)/_components/destinations'
 import type {
   ShellChat,
+  ShellData,
   ShellDestination,
-  ShellWorkspace,
 } from '@/platform/app/(shell)/_components/model'
 import { CommandPalette } from '@/platform/design-system/components/command-palette/command-palette'
 import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
-import { useSearchModalStore } from '@/stores/modals/search/store'
 
 interface CommandMenuProps {
+  open: boolean
+  onClose: () => void
   navigate: (href: string) => void
   chats: readonly ShellChat[]
-  workspaces: readonly ShellWorkspace[]
-  destinations: readonly ShellDestination[]
+  workspaces: ShellData['workspaces']
+  destinations?: readonly ShellDestination[]
 }
 
-/** The same store the desktop shell's View > Search toggles. Reads it here so the rail needn't. */
-export function CommandMenu({ navigate, chats, workspaces, destinations }: CommandMenuProps) {
-  const open = useSearchModalStore((state) => state.isOpen)
-  const setOpen = useSearchModalStore((state) => state.setOpen)
-  if (!open) return null
+export function CommandMenu({
+  open,
+  onClose,
+  navigate,
+  chats,
+  workspaces,
+  destinations = PLATFORM_DESTINATIONS,
+}: CommandMenuProps) {
   return (
-    <OverlayDialog label='Search' presentation='command' open onClose={() => setOpen(false)}>
+    <OverlayDialog label='Search' presentation='command' open={open} onClose={onClose}>
       <CommandPalette
         label='Search the platform'
-        onSelect={(href) => {
-          setOpen(false)
-          navigate(href)
-        }}
+        onSelect={navigate}
         groups={[
           { items: destinations },
           {
             label: 'Workspaces',
-            items: workspaces.map((item) => ({ id: item.id, label: item.name, value: item.href })),
+            items: workspaces.map((item) => ({
+              id: item.id,
+              label: item.name,
+              value: item.href ?? '/home',
+            })),
           },
           {
             label: 'Chats',
-            items: chats.map((item) => ({ id: item.id, label: item.title, value: item.href })),
+            items: chats.map((item) => ({
+              id: item.id,
+              label: item.title,
+              value: item.href ?? `/chat/${item.id}`,
+            })),
           },
         ]}
       />

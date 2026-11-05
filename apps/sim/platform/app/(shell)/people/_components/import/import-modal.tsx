@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { ExternalLink } from '@/platform/app/(shell)/people/_components/external-link/external-link'
@@ -26,6 +25,7 @@ import {
   usePeopleViewer,
   useProvisioningConnection,
 } from '@/platform/lib/data/people'
+import { toast } from '@/platform/lib/data/toast'
 import { plural } from '@/platform/lib/plural'
 
 const ACCEPTED_FILES = '.csv,.tsv,.xlsx,.xls'

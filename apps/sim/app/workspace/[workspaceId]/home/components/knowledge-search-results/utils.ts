@@ -10,7 +10,7 @@ import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import {
   isHttpUrl,
   type SourceTagData,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/parse'
 
 /** A new query, reader or access scope starts a fresh search and rolling-date anchor. */
 export function liveSearchResultsKey(

@@ -1,80 +1,100 @@
 'use client'
 
 import { useState } from 'react'
+import type { ShellHelp } from '@/platform/app/(shell)/_components/model'
+import { SESSION_HELP } from '@/platform/app/(shell)/_components/session/shell-actions'
 import { openLinkInNewTab } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import { SupportModal } from '@/platform/app/(shell)/_components/sidebar/support-modal'
 import { ActionMenu, type MenuAction } from '@/platform/design-system/components/menu/action-menu'
-import { useHelp } from '@/platform/lib/data/shell-actions'
 
-export function HelpMenu() {
-  const help = useHelp()
+interface HelpMenuProps {
+  iconOnly?: boolean
+  help?: ShellHelp
+}
+
+export function HelpMenu({ iconOnly, help = SESSION_HELP }: HelpMenuProps) {
   const [contacting, setContacting] = useState(false)
-  const { desktopUpdate, downloadUrl, changelogUrl } = help
-  const actions: MenuAction[] = []
-  if (desktopUpdate)
-    actions.push({
-      id: 'desktop-update',
-      label: desktopUpdate.label,
-      icon: 'I049',
-      disabled: desktopUpdate.disabled,
-      onSelect: desktopUpdate.run,
-    })
-  actions.push(
-    {
-      id: 'documentation',
-      label: 'Docs',
-      icon: 'I079',
-      trailingIcon: 'I030',
-      separatorBefore: Boolean(desktopUpdate),
-      onSelect: help.openDocumentation,
-    },
-    {
-      id: 'slack',
-      label: 'Join Slack',
-      icon: 'I123',
-      trailingIcon: 'I030',
-      onSelect: help.joinSlack,
-    },
+  const { support, desktopUpdate, downloadUrl, slackUrl, changelogUrl } = help
+  const actions: MenuAction[] = [
+    ...(desktopUpdate
+      ? [
+          {
+            id: 'desktop-update',
+            label: desktopUpdate.label,
+            icon: 'I049',
+            disabled: desktopUpdate.disabled,
+            onSelect: desktopUpdate.run,
+          } satisfies MenuAction,
+        ]
+      : []),
+    ...(downloadUrl
+      ? [
+          {
+            id: 'downloads',
+            label: 'Download apps',
+            icon: 'I102',
+            children: [
+              {
+                id: 'macos',
+                label: 'Sim for macOS',
+                icon: 'I041',
+                trailingIcon: 'I030',
+                onSelect: () => openLinkInNewTab(downloadUrl),
+              },
+            ],
+          } satisfies MenuAction,
+        ]
+      : []),
     {
       id: 'support',
       label: 'Contact support',
       icon: 'I047',
-      onSelect: () => setContacting(true),
-    }
-  )
-  if (downloadUrl)
-    actions.push({
-      id: 'downloads',
-      label: 'Download apps',
-      icon: 'I102',
-      separatorBefore: true,
-      children: [
-        {
-          id: 'macos',
-          label: 'Sim for macOS',
-          icon: 'I041',
-          trailingIcon: 'I030',
-          onSelect: () => openLinkInNewTab(downloadUrl),
-        },
-      ],
-    })
-  if (changelogUrl)
-    actions.push({
-      id: 'changelog',
-      label: 'Changelog',
-      icon: 'I046',
-      separatorBefore: !downloadUrl,
-      onSelect: () => openLinkInNewTab(changelogUrl),
-    })
+      onSelect: () => {
+        if (support.submit) setContacting(true)
+        else window.location.href = `mailto:${support.email}`
+      },
+    },
+    {
+      id: 'documentation',
+      label: 'Documentation',
+      icon: 'I079',
+      trailingIcon: 'I030',
+      onSelect: () => openLinkInNewTab(help.documentationUrl),
+    },
+    ...(slackUrl
+      ? [
+          {
+            id: 'slack',
+            label: 'Join Slack',
+            icon: 'I123',
+            trailingIcon: 'I030',
+            onSelect: () => openLinkInNewTab(slackUrl),
+          } satisfies MenuAction,
+        ]
+      : []),
+    ...(changelogUrl
+      ? [
+          {
+            id: 'changelog',
+            label: 'Changelog',
+            icon: 'I046',
+            separatorBefore: true,
+            onSelect: () => openLinkInNewTab(changelogUrl),
+          } satisfies MenuAction,
+        ]
+      : []),
+  ]
   return (
     <>
       <ActionMenu
-        label={desktopUpdate ? 'Help, update available' : 'Help'}
+        label='Help'
         triggerSize='row'
-        icon={desktopUpdate ? 'I049' : 'I047'}
+        icon={iconOnly ? 'I047' : null}
         actions={actions}
       />
-      {contacting && <SupportModal onClose={() => setContacting(false)} />}
+      {support.submit && contacting && (
+        <SupportModal support={support} onClose={() => setContacting(false)} />
+      )}
     </>
   )
 }

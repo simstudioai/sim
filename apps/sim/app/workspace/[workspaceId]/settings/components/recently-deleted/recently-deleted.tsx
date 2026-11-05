@@ -35,7 +35,6 @@ import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
 import { useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useRestoreMothershipChat } from '@/hooks/queries/mothership-chats'
@@ -46,6 +45,7 @@ import { useRestoreWorkspaceFileFolder } from '@/hooks/queries/workspace-file-fo
 import { useRestoreWorkspaceFile } from '@/hooks/queries/workspace-files'
 import { useLoadMoreSentinel } from '@/hooks/use-load-more-sentinel'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 import { useUrlSort } from '@/hooks/use-url-sort'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'

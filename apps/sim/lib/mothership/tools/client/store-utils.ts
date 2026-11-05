@@ -1,10 +1,7 @@
-import type { ComponentType } from 'react'
-import { Loader } from '@sim/emcn'
-import { FileText } from '@sim/emcn/icons'
 import { Read as ReadTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/mothership/resources/types'
+import { resolveReadTargetBlockName } from '@/lib/mothership/tools/client/block-name'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
-import { getReadTargetBlock } from '@/lib/mothership/tools/client/read-block'
 import { ClientToolCallState } from '@/lib/mothership/tools/client/tool-call-state'
 import { humanizeDisplayIdentifier, humanizeToolName } from '@/lib/mothership/tools/display'
 import { decodeVfsSegmentSafe } from '@/lib/vfs/path'
@@ -15,7 +12,6 @@ const INTERNAL_RESPOND_TOOL = 'respond'
 
 interface ClientToolDisplay {
   text: string
-  icon: ComponentType<{ className?: string }>
 }
 
 export function resolveToolDisplay(
@@ -38,10 +34,7 @@ function specialToolDisplay(
   params?: Record<string, unknown>
 ): ClientToolDisplay | undefined {
   if (toolName === INTERNAL_RESPOND_TOOL || toolName.endsWith(HIDDEN_TOOL_SUFFIX)) {
-    return {
-      text: formatRespondLabel(state),
-      icon: Loader,
-    }
+    return { text: formatRespondLabel(state) }
   }
 
   if (toolName === ReadTool.id) {
@@ -51,13 +44,10 @@ function specialToolDisplay(
     // describe the mechanism.
     const validated = describeValidationReadTarget(path)
     if (validated) {
-      return { text: formatValidatingLabel(validated, state), icon: FileText }
+      return { text: formatValidatingLabel(validated, state) }
     }
     const target = describeReadTarget(path)
-    return {
-      text: formatReadingLabel(target, state),
-      icon: FileText,
-    }
+    return { text: formatReadingLabel(target, state) }
   }
 
   return undefined
@@ -121,8 +111,8 @@ function formatValidatingLabel(target: string, state: ClientToolCallState): stri
 function describeReadTarget(path: string | undefined): string | undefined {
   if (!path) return undefined
 
-  const block = getReadTargetBlock(path)
-  if (block) return block.name
+  const blockName = resolveReadTargetBlockName(path)
+  if (blockName !== undefined) return blockName
 
   const segments = path
     .split('/')
@@ -242,7 +232,7 @@ function humanizedFallback(
   const titleCaseName = humanizeToolName(toolName)
   if (state === ClientToolCallState.error) {
     const lowerCaseName = humanizeDisplayIdentifier(toolName, 'sentence')
-    return { text: `Attempted to ${lowerCaseName}`, icon: Loader }
+    return { text: `Attempted to ${lowerCaseName}` }
   }
   const stateVerb =
     state === ClientToolCallState.success
@@ -250,5 +240,5 @@ function humanizedFallback(
       : state === ClientToolCallState.rejected || state === ClientToolCallState.aborted
         ? 'Skipped'
         : 'Executing'
-  return { text: `${stateVerb} ${titleCaseName}`, icon: Loader }
+  return { text: `${stateVerb} ${titleCaseName}` }
 }

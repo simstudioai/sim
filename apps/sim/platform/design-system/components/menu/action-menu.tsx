@@ -59,7 +59,8 @@ interface ActionMenuProps {
 interface TriggeredMenuProps {
   label: string
   actions: readonly MenuAction[]
-  icon?: IconName
+  /** A row or toolbar trigger's glyph. `null` draws the label as a text button instead. */
+  icon: IconName | null
   open?: boolean
   onOpenChange?: (open: boolean) => void
   align?: 'start' | 'end'

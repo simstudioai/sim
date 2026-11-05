@@ -10,7 +10,7 @@ import {
   accountStatus,
   isConnectable,
   type OrganizationIntegration,
-} from '@/platform/lib/integrations/model'
+} from '@/platform/lib/data/integrations-types'
 
 interface IntegrationDetailsProps {
   integration: OrganizationIntegration

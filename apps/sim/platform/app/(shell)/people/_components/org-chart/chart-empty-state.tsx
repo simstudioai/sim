@@ -1,7 +1,12 @@
 import type { MouseEvent, RefCallback } from 'react'
 import Link from 'next/link'
 import { Button, EmptyState } from '@/platform/design-system/components'
-import { type PersonSummary, personHref, useChartRoots } from '@/platform/lib/data/people'
+import {
+  type PersonSummary,
+  personHref,
+  useChartRoots,
+  usePeoplePath,
+} from '@/platform/lib/data/people'
 
 interface ChartEmptyStateProps {
   organizationId: string
@@ -23,6 +28,7 @@ export function ChartEmptyState({
   currentPersonRef,
   onSync,
 }: ChartEmptyStateProps) {
+  const peoplePath = usePeoplePath()
   const { firstTeam, emptyOrganization } = useChartRoots(organizationId)
   if (emptyOrganization)
     return (
@@ -56,7 +62,7 @@ export function ChartEmptyState({
             render={
               <Link
                 ref={currentPersonRef}
-                href={personHref(organizationId, person.memberId, profileQuery)}
+                href={personHref(peoplePath, person.memberId, profileQuery)}
               />
             }
           >

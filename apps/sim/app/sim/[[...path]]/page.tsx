@@ -9,10 +9,10 @@ import {
   type SimLinkResolution,
   suggestSimLinks,
 } from '@/lib/sim-links/application/use-cases'
+import { serializeSimLinkView } from '@/lib/sim-links/search-params'
 import { parseTypedSimLink, simLinkNameSchema } from '@/lib/sim-links/validation'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { LogoShell } from '@/app/(landing)/components/logo-shell'
-import { serializeSimLinkView } from '@/app/o/[organizationId]/links/search-params'
 
 export const metadata: Metadata = {
   title: 'Link',

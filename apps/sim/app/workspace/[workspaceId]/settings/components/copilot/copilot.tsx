@@ -22,13 +22,13 @@ import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import {
   type CopilotKey,
   useCopilotKeys,
   useDeleteCopilotKey,
   useGenerateCopilotKey,
 } from '@/hooks/queries/copilot-keys'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 
 const logger = createLogger('CopilotSettings')
 

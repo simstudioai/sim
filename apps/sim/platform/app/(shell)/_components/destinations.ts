@@ -1,54 +1,32 @@
-import { organizationRoutes } from '@/lib/navigation/paths'
 import type { ShellDestination } from '@/platform/app/(shell)/_components/model'
-import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
+import { legacyRoutes, type PlatformOrganization } from '@/platform/lib/data/organization-model'
 
-type OrganizationNavRoute = 'home' | 'search' | 'people' | 'integrations' | 'simLinks' | 'benchmark'
+export const PLATFORM_DESTINATIONS = [
+  { id: 'home', label: 'Home', icon: 'I104', value: '/home' },
+  { id: 'settings', label: 'Settings', icon: 'I116', value: '/settings' },
+  { id: 'integrations', label: 'Integrations', icon: 'I070', value: '/integrations' },
+] as const
 
-interface OrganizationNavEntry {
-  id: string
-  label: string
-  icon: IconName
-  route: OrganizationNavRoute
-}
+const [HOME, SETTINGS, INTEGRATIONS] = PLATFORM_DESTINATIONS
 
-/** The pinned block at the top of the organization sidebar, in display order. */
-const ORGANIZATION_NAV_ENTRIES: readonly OrganizationNavEntry[] = [
-  { id: 'home', label: 'Home', icon: 'I104', route: 'home' },
-  { id: 'search', label: 'Search', icon: 'I089', route: 'search' },
-  { id: 'people', label: 'People', icon: 'I129', route: 'people' },
-  { id: 'integrations', label: 'Integrations', icon: 'I070', route: 'integrations' },
-  { id: 'sim-links', label: 'Links', icon: 'I041', route: 'simLinks' },
-  { id: 'benchmark', label: 'Benchmark', icon: 'I046', route: 'benchmark' },
-]
-
-interface OrganizationNavAvailability {
-  searchAvailable: boolean
-  homeAvailable: boolean
-  benchmarkEnabled?: boolean
-  simLinksEnabled?: boolean
-  peopleEnabled?: boolean
-}
-
-export function buildOrganizationNavItems(
-  organizationId: string,
-  {
-    searchAvailable,
-    homeAvailable,
-    benchmarkEnabled = false,
-    simLinksEnabled = false,
-    peopleEnabled = false,
-  }: OrganizationNavAvailability
-): ShellDestination[] {
-  const routes = organizationRoutes(organizationId)
-  const available: Record<OrganizationNavRoute, boolean> = {
-    home: homeAvailable,
-    search: searchAvailable,
-    people: peopleEnabled,
-    integrations: searchAvailable,
-    simLinks: simLinksEnabled,
-    benchmark: benchmarkEnabled,
-  }
-  return ORGANIZATION_NAV_ENTRIES.filter(({ route }) => available[route]).map(
-    ({ route, id, label, icon }) => ({ id, label, icon, value: routes[route] })
-  )
+/** The legacy navigation's gates and order. Benchmark stays on the legacy surface. */
+export function resolveLiveDestinations(organization: PlatformOrganization): ShellDestination[] {
+  const { mothershipAvailable, canBuild, searchAccess, navFlags } = organization
+  const routes = legacyRoutes(organization)
+  const search = { id: 'search', label: 'Search', icon: 'I089', value: '/search' } as const
+  const people = { id: 'people', label: 'People', icon: 'I104', value: '/people' } as const
+  const benchmark = {
+    id: 'benchmark',
+    label: 'Benchmark',
+    icon: 'I046',
+    value: routes.benchmark,
+  } as const
+  return [
+    ...(mothershipAvailable && canBuild ? [HOME] : []),
+    ...(searchAccess.memberScoped ? [search] : []),
+    ...(navFlags.people ? [people] : []),
+    ...(searchAccess.memberScoped ? [INTEGRATIONS] : []),
+    ...(navFlags.benchmark ? [benchmark] : []),
+    SETTINGS,
+  ]
 }

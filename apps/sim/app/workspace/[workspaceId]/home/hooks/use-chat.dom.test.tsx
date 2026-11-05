@@ -48,7 +48,7 @@ const {
     >(),
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => ({
+vi.mock('@/lib/core/config/feature-flags-context', () => ({
   useFeatureFlag: () => false,
 }))
 

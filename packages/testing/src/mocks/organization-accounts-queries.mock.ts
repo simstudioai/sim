@@ -7,7 +7,7 @@ const mutationHook = () => vi.fn((..._args: unknown[]): unknown => createMutatio
 /**
  * Controllable mock functions for `@/hooks/queries/organization-accounts`.
  *
- * Query hooks (`useOrganizationAccounts`, `useOrganizationDatabricksSetup`,
+ * Query hooks (`usePersonalOrganizationAccounts`, `useOrganizationAccounts`, `useOrganizationDatabricksSetup`,
  * `useWorkspaceOrganizationAccounts`, `useOrganizationAccountWorkspaceAccess`,
  * `useOrganizationAccountPeople`) return a fresh {@link createQueryResultMock} (not-yet-fetched:
  * `data: undefined`, `isPending: true`). Every mutation hook returns a fresh
@@ -25,6 +25,7 @@ const mutationHook = () => vi.fn((..._args: unknown[]): unknown => createMutatio
 export const organizationAccountsQueriesMockFns = {
   mockUseReconnectPersonalOrganizationAccount: mutationHook(),
   mockUseDisconnectPersonalOrganizationAccount: mutationHook(),
+  mockUsePersonalOrganizationAccounts: queryHook(),
   mockUseOrganizationAccounts: queryHook(),
   mockUseEnsureOrganizationAccounts: mutationHook(),
   mockUseOrganizationDatabricksSetup: queryHook(),
@@ -56,6 +57,8 @@ export const organizationAccountsQueriesMock = {
     organizationAccountsQueriesMockFns.mockUseReconnectPersonalOrganizationAccount,
   useDisconnectPersonalOrganizationAccount:
     organizationAccountsQueriesMockFns.mockUseDisconnectPersonalOrganizationAccount,
+  usePersonalOrganizationAccounts:
+    organizationAccountsQueriesMockFns.mockUsePersonalOrganizationAccounts,
   useOrganizationAccounts: organizationAccountsQueriesMockFns.mockUseOrganizationAccounts,
   useEnsureOrganizationAccounts:
     organizationAccountsQueriesMockFns.mockUseEnsureOrganizationAccounts,

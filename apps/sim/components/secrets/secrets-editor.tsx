@@ -8,7 +8,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { countPasteRows } from '@sim/utils/paste'
 import { useRouter } from 'next/navigation'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { setRecordValue } from '@/lib/core/utils/records'
 import {
   clearPendingCredentialCreateRequest,
@@ -22,8 +21,9 @@ import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/compone
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { isValidEnvVarName } from '@/executor/constants'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 
 const logger = createLogger('SecretsManager')
 

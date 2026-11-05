@@ -1,5 +1,7 @@
 # Sim App Scope
 
+For `platform/**`, use [the Platform design contract](platform/AGENTS.md) and `$implement-platform`. The existing app styling rules apply elsewhere.
+
 Applies to `apps/sim/**` on top of the root [AGENTS.md](/AGENTS.md), which holds the repo-wide rules. Before editing in an area, read its rule file under `.claude/rules/`:
 
 - API routes, contracts, route builders, boundary annotations, `requestJson`: `sim-api-contracts.md`

@@ -1,97 +1,88 @@
 'use client'
 
-import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
-import { useSession } from '@/lib/auth/client'
-import type { ResourceScope } from '@/lib/core/resource-scope'
-import { useLiveSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/use-live-search-results'
-import { useSearchFilterControls } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/use-search-filter-controls'
-import {
-  handleResultsKeyDown,
-  liveSearchResultsKey,
-  toSource,
-} from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/utils'
+import type { KeyboardEvent } from 'react'
+import Link from 'next/link'
+import type { SearchResultsData } from '@/platform/app/(shell)/_components/search/model'
 import styles from '@/platform/app/(shell)/_components/search/search.module.css'
 import { SourceRow } from '@/platform/app/(shell)/_components/search/source-row'
-import { Button, Chip } from '@/platform/design-system/components/button/button'
-import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
-import { DateRangePicker } from '@/platform/design-system/components/picker/date-picker'
-import { Select } from '@/platform/design-system/components/picker/select'
-import { InlineNotice } from '@/platform/design-system/components/status/status'
+import {
+  DateRangePicker,
+  EmptyState,
+  FailureNotice,
+  InlineNotice,
+  Select,
+} from '@/platform/design-system/components'
+import { ControlRow } from '@/platform/design-system/components/button/control-row'
 
-function SearchFilterControls({ sourceTypes }: { sourceTypes: readonly string[] }) {
-  const { source, updated, range } = useSearchFilterControls(sourceTypes)
-  return (
-    <div className={styles.filters} role='group' aria-label='Search filters'>
-      <div className={styles.filter}>
-        <Select
-          variant='quiet'
-          label={source.label}
-          value={source.value}
-          options={source.options}
-          onValueChange={source.onChange}
-        />
-      </div>
-      <div className={styles.filter}>
-        <Select
-          variant='quiet'
-          label={updated.label}
-          value={updated.value}
-          options={updated.options}
-          onValueChange={updated.onChange}
-        />
-      </div>
-      {range && (
-        <div className={styles.range}>
-          <DateRangePicker
-            label='Updated between'
-            labelHidden
-            placeholder='Updated between'
-            clearable
-            value={range.start && range.end ? { start: range.start, end: range.end } : null}
-            onValueChange={(next) =>
-              next ? range.onChange(next.start, next.end) : range.onClear()
-            }
-          />
-        </div>
-      )}
-    </div>
-  )
+function moveFocus(event: KeyboardEvent<HTMLElement>) {
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+  const links = [...event.currentTarget.querySelectorAll<HTMLAnchorElement>('[data-source-link]')]
+  const index = links.indexOf(document.activeElement as HTMLAnchorElement)
+  const next = links[index + (event.key === 'ArrowDown' ? 1 : -1)]
+  if (next) {
+    event.preventDefault()
+    next.focus()
+  }
 }
 
-interface LiveResultsProps {
-  scope: ResourceScope
-  query: string
-  onSummarize?: (prompt: string, filters: WorkspaceSearchFilters) => void
-}
-
-function LiveResults({ scope, query, onSummarize }: LiveResultsProps) {
-  const results = useLiveSearchResults({ scope, query, onSummarize })
-  const { awaitingRange, isFetching, isPending, isError } = results
+export function SearchResults({ results }: { results: SearchResultsData }) {
+  const { status, rows, filters } = results
   return (
-    <div className={styles.results} aria-busy={!awaitingRange && isFetching}>
-      {!awaitingRange && isFetching && (
-        <p className={styles.quiet} data-type='T060' role='status'>
-          {isPending ? 'Searching' : 'Updating results'}
+    <div className={styles.results} aria-busy={status === 'searching' || status === 'updating'}>
+      {status === 'searching' && (
+        <p className={styles.quiet} data-type='T048' role='status'>
+          Searching
         </p>
       )}
-      {awaitingRange && <p data-type='T060'>Choose the days to search.</p>}
-      {isError && (
-        <InlineNotice
-          intent='danger'
-          message='Search couldn’t run.'
-          action={
-            <Button variant='quiet' size='compact' onClick={() => void results.refetch()}>
-              Try again
-            </Button>
-          }
-        />
+      {status === 'updating' && (
+        <p className={styles.quiet} data-type='T048' role='status'>
+          Updating results
+        </p>
       )}
-      {results.showFilterControls && <SearchFilterControls sourceTypes={results.sourceTypes} />}
-      {results.noResults && <EmptyState title='Search found no results.' />}
-      {results.connectAppsHref && (
+      {status === 'needs-range' && <p data-type='T052'>Choose the days to search.</p>}
+      {status === 'error' && (
+        <FailureNotice message='Search couldn’t run.' onRetry={results.retry} />
+      )}
+      {filters && (
+        <div className={styles.filters} role='group' aria-label='Search filters'>
+          <Select
+            label='Filter by source'
+            value={filters.source.value}
+            options={filters.source.options.map(({ id, label }) => ({ value: id, label }))}
+            onValueChange={filters.source.onChange}
+          />
+          <Select
+            label='Filter by date'
+            value={filters.updated.value}
+            options={filters.updated.options.map(({ id, label }) => ({ value: id, label }))}
+            onValueChange={filters.updated.onChange}
+          />
+          {filters.range && (
+            <DateRangePicker
+              label='Updated between'
+              value={
+                filters.range.from && filters.range.to
+                  ? { start: filters.range.from, end: filters.range.to }
+                  : null
+              }
+              onValueChange={(range) => {
+                if (range) filters.range?.onChange(range.start, range.end)
+              }}
+            />
+          )}
+        </div>
+      )}
+      {results.empty && !results.noApps && <EmptyState title='Search found no results.' />}
+      {results.noApps && (
         <InlineNotice
           message='No connected apps are available for this search.'
-          action={<Chip href={results.connectAppsHref}>Connect apps</Chip>}
+          action={
+            <ControlRow
+              render={<Link href={results.noApps.href} />}
+              label='Connect apps'
+              trailingIcon='I030'
+            />
+          }
         />
       )}
       {results.someAppsUnavailable && (
@@ -100,7 +91,7 @@ function LiveResults({ scope, query, onSummarize }: LiveResultsProps) {
           message='Some apps couldn’t be searched. Showing available results.'
         />
       )}
-      {results.coverageIncomplete && (
+      {results.partial && (
         <InlineNotice
           intent='warning'
           message='Coverage is incomplete. Narrow the query or ask Assistant to refine it.'
@@ -110,31 +101,19 @@ function LiveResults({ scope, query, onSummarize }: LiveResultsProps) {
         className={styles.rows}
         role='region'
         aria-label='Search results'
-        aria-busy={isFetching}
-        onKeyDown={handleResultsKeyDown}
+        aria-busy={status === 'updating'}
+        onKeyDown={moveFocus}
       >
-        {results.documents.map((result) => (
+        {rows.map((row) => (
           <SourceRow
-            key={result.documentId}
-            source={toSource(result, query, scope)}
-            query={query}
-            onSummarize={results.summarizerFor(result.documentId)}
+            key={row.id}
+            row={row}
+            onOpen={results.onOpen}
+            onCopyLink={results.onCopyLink}
+            onSummarize={results.onSummarize}
           />
         ))}
       </div>
     </div>
-  )
-}
-
-/** A query's results. A new query, reader or scope remounts them, restarting the date anchor. */
-export function SearchResults({ scope, query, onSummarize }: LiveResultsProps) {
-  const { data: session } = useSession()
-  return (
-    <LiveResults
-      key={liveSearchResultsKey(scope, session?.user?.id, query)}
-      scope={scope}
-      query={query}
-      onSummarize={onSummarize}
-    />
   )
 }

@@ -1,0 +1,144 @@
+.shell {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--container-app-sidebar) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  block-size: 100dvh;
+  isolation: isolate;
+}
+.shell[data-sidebar-collapsed] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.shell[data-sidebar-collapsed] > aside {
+  display: none;
+}
+.shell:has(> [data-page-opener]) {
+  container: scrolling-shell / inline-size;
+}
+.shell[data-desktop],
+.shell[data-banner] {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.shell[data-desktop][data-banner] {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+.banner {
+  grid-column: 1 / -1;
+}
+.content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.content[data-page-opener] {
+  margin-block-start: var(--shell-page-opener-space);
+}
+.openControl {
+  position: absolute;
+  grid-row: -2 / -1;
+  z-index: 2;
+  inset-block-start: var(--shell-edge-inset);
+  inset-inline-start: var(--ui-row-inset);
+}
+.pageContent {
+  container-type: inline-size;
+}
+.desktopBar {
+  display: flex;
+  align-items: center;
+  grid-column: 1 / -1;
+  block-size: var(--spacing-48);
+  border-block-end: var(--spacing-stroke-default) solid var(--ui-divider);
+}
+.desktopSidebar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-inline: var(--ui-row-inset);
+  inline-size: var(--container-app-sidebar);
+  block-size: 100%;
+  background: var(--ui-shell);
+  border-inline-end: var(--spacing-stroke-default) solid var(--ui-divider);
+}
+.shell[data-sidebar-collapsed] .desktopSidebar {
+  inline-size: auto;
+  border: 0;
+  background: transparent;
+}
+[data-sim-desktop-title-bar="inset"] .desktopSidebar {
+  padding-inline-start: var(--spacing-80);
+}
+.desktopTitle {
+  min-inline-size: 0;
+  padding-inline: var(--spacing-20);
+  color: var(--ui-secondary);
+}
+.drawer {
+  inset: 0 auto 0 0;
+  inline-size: min(100%, var(--container-app-sidebar));
+  max-inline-size: 100%;
+  block-size: 100dvh;
+  max-block-size: none;
+  padding: 0;
+  color: var(--ui-ink);
+  background: var(--ui-canvas);
+}
+.drawer > aside {
+  block-size: 100%;
+}
+.drawer::backdrop {
+  background: var(--ui-scrim);
+}
+@media (max-width: 48rem) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .shell > aside {
+    display: none;
+  }
+  .desktopSidebar {
+    inline-size: auto;
+    border: 0;
+  }
+}
+.desktopSidebar {
+  gap: var(--ui-row-gap);
+}
+.shell[data-desktop][data-conversation] .desktopBar {
+  grid-column: 1;
+  grid-row: 1;
+  z-index: 1;
+}
+.shell[data-desktop][data-conversation] > aside {
+  grid-row: 2;
+  grid-column: 1;
+}
+.shell[data-desktop][data-conversation] > .content {
+  grid-row: 1 / -1;
+  grid-column: 2;
+}
+.shell[data-desktop][data-conversation][data-sidebar-collapsed] .desktopBar {
+  justify-self: start;
+  border-color: transparent;
+}
+.shell[data-desktop][data-conversation][data-sidebar-collapsed] > .content {
+  grid-column: 1;
+}
+@media (max-width: 48rem) {
+  .shell[data-desktop][data-conversation] .desktopBar {
+    justify-self: start;
+    border-color: transparent;
+  }
+  .shell[data-desktop][data-conversation] > .content {
+    grid-column: 1;
+  }
+}
+
+.forward {
+  display: flex;
+  transform: scaleX(-1);
+}

@@ -1,16 +1,6 @@
 'use client'
 
-import { useQueryStates } from 'nuqs'
-import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
-import { organizationRoutes } from '@/lib/navigation/paths'
-import {
-  integrationSearchParsers,
-  integrationSearchUrlKeys,
-  integrationViewParsers,
-  serializeIntegrationView,
-} from '@/app/o/[organizationId]/integrations/search-params'
-import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
-import { useDesktopOAuthConnectListener, useOAuthReturnRouter } from '@/hooks/use-oauth-return'
+import type { ReactNode } from 'react'
 import { IntegrationDetails } from '@/platform/app/(shell)/integrations/_components/integration-details/integration-details'
 import { IntegrationList } from '@/platform/app/(shell)/integrations/_components/integration-list/integration-list'
 import {
@@ -20,12 +10,15 @@ import {
 import { MemberSecrets } from '@/platform/app/(shell)/integrations/_components/member-secrets/member-secrets'
 import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
 import { QueryFailure } from '@/platform/app/(shell)/integrations/_components/query-failure/query-failure'
-import { SearchConnectionRequest } from '@/platform/app/(shell)/integrations/_components/search-connection-request/search-connection-request'
-import { SlackSearchActions } from '@/platform/app/(shell)/integrations/_components/slack-search-actions/slack-search-actions'
 import { ToolPermissionsPanel } from '@/platform/app/(shell)/integrations/_components/tool-permissions/tool-permissions-panel'
 import { EmptyState, InlineNotice } from '@/platform/design-system/components'
-import { useIntegrationActions, useMemberIntegrations } from '@/platform/lib/data/integrations'
-import { GENERIC_SECRETS_SEGMENT, integrationPath } from '@/platform/lib/integrations/model'
+import {
+  defaultIntegrationPaths,
+  useIntegrationActions,
+  useIntegrationsView,
+  useMemberIntegrations,
+} from '@/platform/lib/data/integrations'
+import { GENERIC_SECRETS_SEGMENT } from '@/platform/lib/data/integrations-types'
 
 const LOADING_CONNECTIONS = 'Loading your connections'
 const LOADING_CONNECTION = 'Loading connection'
@@ -55,34 +48,34 @@ export interface IntegrationsRouteProps {
   organizationId: string
   /** The `/integrations/[provider]` segment; absent on the index. */
   section?: string
-  connectionRequest?: { target: SearchConnectionTarget; userId: string }
-  slackOnboarding?: { token: string; userId: string }
+  /** Where this page is served. Defaults to the organization surface's route. */
+  basePath?: string
+  /** The personal secrets editor, which stays on the organization surface. */
+  memberSecretsPath?: string
+  /** The host's confirmation of a connection a link asked for. */
+  connectionRequest?: ReactNode
+  /** The host's handoff from Slack onboarding, beside the heading. */
+  handoff?: ReactNode
 }
 
 export function IntegrationsRoute({
   organizationId,
   section,
+  basePath,
+  memberSecretsPath,
   connectionRequest,
-  slackOnboarding,
+  handoff,
 }: IntegrationsRouteProps) {
-  useOAuthReturnRouter()
-  useDesktopOAuthConnectListener()
   const { integrations, genericSecrets, inventory, policies, secrets } =
     useMemberIntegrations(organizationId)
   const actions = useIntegrationActions(organizationId)
-  const [{ q: search }, setSearchParams] = useQueryStates(
-    integrationSearchParsers,
-    integrationSearchUrlKeys
-  )
-  const setSearch = useDebouncedSearchSetter((value, options) =>
-    setSearchParams({ q: value }, options)
-  )
-  const [{ account }, setParams] = useQueryStates(integrationViewParsers)
-  const routes = organizationRoutes(organizationId)
-  const integrationHref = (id: string) =>
-    serializeIntegrationView(integrationPath(organizationId, id), { q: search })
-  const indexHref = serializeIntegrationView(routes.integrations, { q: search })
-  const memberSecretsHref = serializeIntegrationView(routes.memberSecrets, { q: search })
+  const { search, setSearch, account, clearAccount, serialize } = useIntegrationsView()
+  const defaults = defaultIntegrationPaths(organizationId)
+  const indexPath = basePath ?? defaults.index
+  const pathOf = (id: string) => `${indexPath}/${encodeURIComponent(id)}`
+  const integrationHref = (id: string) => serialize(pathOf(id), { q: search })
+  const indexHref = serialize(indexPath, { q: search })
+  const memberSecretsHref = serialize(memberSecretsPath ?? defaults.memberSecrets, { q: search })
 
   const inventoryStatus = inventory.error ? (
     <QueryFailure message='Could not load your connections' query={inventory} />
@@ -103,20 +96,8 @@ export function IntegrationsRoute({
   if (!section)
     return (
       <IntegrationsPage>
-        <IntegrationsHeading
-          handoff={
-            slackOnboarding && (
-              <SlackSearchActions organizationId={organizationId} {...slackOnboarding} />
-            )
-          }
-        />
-        {connectionRequest && (
-          <SearchConnectionRequest
-            key={JSON.stringify([connectionRequest.userId, connectionRequest.target])}
-            organizationId={organizationId}
-            {...connectionRequest}
-          />
-        )}
+        <IntegrationsHeading handoff={handoff} />
+        {connectionRequest}
         {inventoryStatus ?? (
           <>
             {readFailures}
@@ -178,7 +159,7 @@ export function IntegrationsRoute({
               accountId={account}
               integrationHref={integrationHref(integration.id)}
               accountHref={(credentialId) =>
-                serializeIntegrationView(integrationPath(organizationId, integration.id), {
+                serialize(pathOf(integration.id), {
                   q: search,
                   account: credentialId,
                 })
@@ -190,7 +171,7 @@ export function IntegrationsRoute({
               onReconnect={actions.reconnect}
               onDisconnect={async (credentialId) => {
                 await actions.disconnect(credentialId)
-                if (account === credentialId) void setParams({ account: null, tools: null })
+                if (account === credentialId) clearAccount()
               }}
               renderToolPermissions={(credentialId) => (
                 <ToolPermissionsPanel

@@ -1,0 +1,82 @@
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: end;
+  gap: var(--ui-action-gap);
+}
+.block {
+  display: grid;
+  gap: var(--ui-section-gap);
+  min-inline-size: 0;
+}
+.heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+}
+.quiet {
+  color: var(--ui-secondary);
+}
+.figure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--spacing-8);
+}
+.chartPlaceholder,
+.listPlaceholder {
+  display: block;
+  block-size: var(--chart-plot-height);
+  border-radius: var(--radius-4);
+  background: var(--ui-hover);
+}
+.chartPlaceholder {
+  block-size: calc(var(--chart-plot-height) + var(--spacing-64));
+}
+.dimmable[data-dimmed],
+.block[data-dimmed] {
+  opacity: var(--opacity-disabled);
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--chart-donut-block), 100%), 1fr));
+  gap: var(--spacing-24);
+}
+.heatmap {
+  display: block;
+  inline-size: 100%;
+  min-inline-size: calc(var(--spacing-128) * 5);
+}
+.heatLabel {
+  fill: var(--ui-secondary);
+}
+.heatDay {
+  fill: var(--ui-hover);
+  outline: none;
+}
+.heatDay[data-level="1"] {
+  fill: var(--ui-plot-violet-4);
+}
+.heatDay[data-level="2"] {
+  fill: var(--ui-plot-violet-3);
+}
+.heatDay[data-level="3"] {
+  fill: var(--ui-plot-violet-2);
+}
+.heatDay[data-level="4"] {
+  fill: var(--ui-plot-violet-1);
+}
+.heatDay[data-active] {
+  stroke: var(--ui-strong);
+  stroke-width: var(--ui-icon-stroke);
+  vector-effect: non-scaling-stroke;
+}

@@ -1,41 +1,31 @@
 'use client'
 
-import { useState } from 'react'
-import { toast } from '@sim/emcn'
-import { usePathname, useRouter } from 'next/navigation'
-import { isPathOrDescendant, organizationRoutes } from '@/lib/navigation/paths'
-import { ChatNavigationLink } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/chat-navigation-link/chat-navigation-link'
-import { useChatSelection } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-chat-selection'
-import type { ShellChat, ShellQueryStatus } from '@/platform/app/(shell)/_components/model'
-import { NameModal } from '@/platform/app/(shell)/_components/sidebar/name-modal'
-import { RailFlyout } from '@/platform/app/(shell)/_components/sidebar/rail-flyout'
-import {
-  copyLinkAction,
-  openInNewTabAction,
-} from '@/platform/app/(shell)/_components/sidebar/row-links'
-import { PinnedIndicator, SectionRow } from '@/platform/app/(shell)/_components/sidebar/section-row'
+import { type MouseEvent, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import type {
+  ShellActions,
+  ShellChat,
+  ShellQueryStatus,
+} from '@/platform/app/(shell)/_components/model'
+import { linkMenuActions, readFormText } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import { SectionStatus } from '@/platform/app/(shell)/_components/sidebar/section-status'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar-collections.module.css'
-import { Disclosure } from '@/platform/design-system/components/disclosure/disclosure'
-import { ActionMenu, type MenuAction } from '@/platform/design-system/components/menu/action-menu'
-import { Modal } from '@/platform/design-system/components/modal/modal'
-import { useChatListActions } from '@/platform/lib/data/chat-list'
-import { useFolderStore } from '@/stores/folders/store'
+import { useSidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
+import {
+  ActionMenu,
+  Chip,
+  ContextActionMenu,
+  Disclosure,
+  Icon,
+  Modal,
+  TextField,
+} from '@/platform/design-system/components'
+import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
+import { platformHref } from '@/platform/design-system/navigation'
 
+const NO_SELECTION: ReadonlySet<string> = new Set()
 const CHAT_TITLE_MAX_LENGTH = 200
 
-const CHAT_ORDERS = ['Recent activity', 'Name (A–Z)', 'Name (Z–A)'] as const
-type ChatOrder = (typeof CHAT_ORDERS)[number]
-
-function sortChats(chats: readonly ShellChat[], order: ChatOrder): readonly ShellChat[] {
-  if (order === 'Recent activity') return chats
-  const direction = order === 'Name (A–Z)' ? 1 : -1
-  return [...chats].sort(
-    (a, b) => Number(b.isPinned) - Number(a.isPinned) || direction * a.title.localeCompare(b.title)
-  )
-}
-
-/** The slot fits one glyph. A dot reports what changed; a pin is already told by the row's place. */
 function chatStatus(chat: ShellChat, isCurrent: boolean) {
   if (chat.isActive)
     return (
@@ -49,212 +39,269 @@ function chatStatus(chat: ShellChat, isCurrent: boolean) {
         <span className={styles.dot} />
       </span>
     )
-  return chat.isPinned ? <PinnedIndicator /> : null
+  if (chat.isPinned)
+    return (
+      <span className={styles.indicator} role='img' aria-label='Pinned'>
+        <Icon name='I131' />
+      </span>
+    )
+  return null
 }
-
-type ChatEdit = { kind: 'rename'; chatId: string } | { kind: 'remove'; chatIds: readonly string[] }
 
 interface ChatsSectionProps {
-  organizationId: string
   chats: readonly ShellChat[]
-  status: ShellQueryStatus
-  onRetry: () => void
-  collapsed: boolean
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  status?: ShellQueryStatus
+  activeChat?: string
+  actions: ShellActions['chats']
+  navigate: (href: string) => void
 }
 
-export function ChatsSection({
-  organizationId,
-  chats,
-  status,
-  onRetry,
-  collapsed,
-  open,
-  onOpenChange,
-}: ChatsSectionProps) {
-  const pathname = usePathname()
-  const router = useRouter()
-  const actions = useChatListActions(organizationId)
+type ChatEdit = { kind: 'rename'; chatId: string } | { kind: 'remove'; chats: readonly ShellChat[] }
+
+export function ChatsSection({ chats, status, activeChat, actions, navigate }: ChatsSectionProps) {
+  const query = useSearchParams()
+  const { chatsOpen, setChatsOpen, order, setOrder } = useSidebarLayout()
   const [editing, setEditing] = useState<ChatEdit | null>(null)
-  const [order, setOrder] = useState<ChatOrder>('Recent activity')
-  const ordered = sortChats(chats, order)
-  const { selectedChats, handleChatClick } = useChatSelection({
-    chatIds: ordered.map((chat) => chat.id),
-  })
-  const isMultiSelecting = selectedChats.size > 1
+  const [selected, setSelected] = useState(NO_SELECTION)
+  const selectionAnchor = useRef<string | null>(null)
+  const cancelPrefetch = useRef<(() => void) | null>(null)
+  const selectedChats = chats.filter((chat) => selected.has(chat.id))
+  const isMultiSelecting = selectedChats.length > 1
+
+  useEffect(() => {
+    if (!isMultiSelecting) return
+    function clearOnBackgroundClick(event: globalThis.MouseEvent) {
+      if (event.target instanceof Element && event.target.closest('a, button, [role=menu], dialog'))
+        return
+      setSelected(NO_SELECTION)
+    }
+    document.addEventListener('click', clearOnBackgroundClick)
+    return () => document.removeEventListener('click', clearOnBackgroundClick)
+  }, [isMultiSelecting])
+
+  function selectOnly(id: string) {
+    selectionAnchor.current = id
+    setSelected(new Set([id]))
+  }
+
+  function extendSelection(id: string) {
+    const anchor = selectionAnchor.current
+    const ids = chats.map((chat) => chat.id)
+    if (!anchor || !ids.includes(anchor)) {
+      selectOnly(id)
+      return
+    }
+    if (anchor === id) {
+      setSelected((previous) => {
+        const next = new Set(previous)
+        if (!next.delete(id)) next.add(id)
+        return next
+      })
+      return
+    }
+    const [start, end] = [ids.indexOf(anchor), ids.indexOf(id)].sort((a, b) => a - b)
+    setSelected(new Set(ids.slice(start, end + 1)))
+  }
+
+  /** Selection is the row's job on a shift click, which `next/link` would treat as a new window. */
+  function selectOnShiftClick(event: MouseEvent, id: string) {
+    if (!event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return
+    if (event.target instanceof Element && event.target.closest('button')) return
+    event.preventDefault()
+    event.stopPropagation()
+    extendSelection(id)
+  }
 
   function rowActions(chat: ShellChat): MenuAction[] {
-    if (isMultiSelecting && selectedChats.has(chat.id)) {
-      const targets = ordered.filter((row) => selectedChats.has(row.id))
+    if (isMultiSelecting && selected.has(chat.id))
       return [
         {
           id: 'remove',
           destructive: true,
-          label: `Delete ${targets.length} chats`,
+          label: `${actions.removeLabel} ${selectedChats.length} chats`,
           icon: 'I061',
-          onSelect: () => setEditing({ kind: 'remove', chatIds: targets.map((row) => row.id) }),
+          onSelect: () => setEditing({ kind: 'remove', chats: selectedChats }),
         },
       ]
-    }
+    const { setPinned, setRead } = actions
     return [
-      openInNewTabAction(chat.href),
-      copyLinkAction(chat.href),
-      {
-        id: 'read',
-        label: chat.isUnread ? 'Mark as read' : 'Mark as unread',
-        icon: chat.isUnread ? 'I072' : 'I106',
-        onSelect: () => actions.setRead(chat.id, chat.isUnread),
-      },
-      {
-        id: 'pin',
-        label: chat.isPinned ? 'Unpin' : 'Pin',
-        icon: 'I131',
-        onSelect: () => actions.setPinned(chat.id, !chat.isPinned),
-      },
+      ...(chat.href ? linkMenuActions(chat.href) : []),
       {
         id: 'rename',
         label: 'Rename',
         icon: 'I036',
         onSelect: () => setEditing({ kind: 'rename', chatId: chat.id }),
       },
+      ...(setPinned
+        ? [
+            {
+              id: 'pin',
+              label: chat.isPinned ? 'Unpin' : 'Pin',
+              icon: 'I131',
+              onSelect: () => setPinned(chat.id, !chat.isPinned),
+            } satisfies MenuAction,
+          ]
+        : []),
+      ...(setRead
+        ? [
+            {
+              id: 'read',
+              label: chat.isUnread ? 'Mark as read' : 'Mark as unread',
+              icon: chat.isUnread ? 'I072' : 'I106',
+              onSelect: () => setRead(chat.id, Boolean(chat.isUnread)),
+            } satisfies MenuAction,
+          ]
+        : []),
       {
         id: 'remove',
         destructive: true,
-        label: 'Delete',
+        label: actions.removeLabel,
         icon: 'I061',
-        separatorBefore: true,
-        onSelect: () => setEditing({ kind: 'remove', chatIds: [chat.id] }),
+        separatorBefore: Boolean(setPinned),
+        onSelect: () => setEditing({ kind: 'remove', chats: [chat] }),
       },
     ]
   }
 
-  /** Leaving the open chat returns to where its mode lives: Search for assistant, Home for agent. */
-  function leaveIfRemoved(removed: readonly ShellChat[]) {
-    const current = removed.find((chat) => window.location.pathname === chat.href)
-    if (!current) return
-    const routes = organizationRoutes(organizationId)
-    router.push(isPathOrDescendant(current.href, routes.search) ? routes.search : routes.home)
-  }
-
-  /** A removal that only partly lands narrows the dialog to what is left and reports why. */
+  /** A removal that only partly lands narrows the dialog to what is left and reports the rest. */
   async function confirmRemoval(targets: readonly ShellChat[]) {
     const { removedIds, failure } = await actions.remove(targets.map((chat) => chat.id))
-    leaveIfRemoved(targets.filter((chat) => removedIds.includes(chat.id)))
+    if (activeChat && removedIds.includes(activeChat)) navigate('/home')
     if (!failure) {
-      useFolderStore.getState().clearChatSelection()
-      return true
+      setSelected(NO_SELECTION)
+      return
     }
-    toast.error(failure)
     setEditing({
       kind: 'remove',
-      chatIds: targets.map((chat) => chat.id).filter((id) => !removedIds.includes(id)),
+      chats: targets.filter((chat) => !removedIds.includes(chat.id)),
     })
-    return false
-  }
-
-  function renderRows(hold?: (held: boolean) => void) {
-    return (
-      <div className={styles.group}>
-        <SectionStatus
-          status={status}
-          isEmpty={chats.length === 0}
-          emptyLabel='No chats yet'
-          failureLabel='Could not load chats'
-          onRetry={onRetry}
-        />
-        {ordered.map((chat) => {
-          const isCurrent = pathname === chat.href
-          return (
-            <SectionRow
-              key={chat.id}
-              label={chat.title}
-              actions={rowActions(chat)}
-              selected={isMultiSelecting && selectedChats.has(chat.id)}
-              status={chatStatus(chat, isCurrent)}
-              onMenuOpenChange={(menuOpen) => {
-                if (menuOpen && !selectedChats.has(chat.id))
-                  useFolderStore.getState().selectChatOnly(chat.id)
-                hold?.(menuOpen)
-              }}
-              render={
-                <ChatNavigationLink
-                  href={chat.href}
-                  chatId={chat.id}
-                  isCurrentRoute={isCurrent}
-                  onSelectChat={handleChatClick}
-                  aria-current={isCurrent ? 'page' : undefined}
-                />
-              }
-            />
-          )
-        })}
-      </div>
-    )
+    throw new Error(failure)
   }
 
   const renamingChat =
     editing?.kind === 'rename' ? chats.find((chat) => chat.id === editing.chatId) : undefined
-  const removing =
-    editing?.kind === 'remove' ? chats.filter((chat) => editing.chatIds.includes(chat.id)) : []
+  const removing = editing?.kind === 'remove' ? editing.chats : []
+  const removeTitle =
+    removing.length > 1
+      ? `${actions.removeLabel} ${removing.length} chats`
+      : `${actions.removeLabel} chat`
 
   return (
     <>
-      {collapsed ? (
-        <RailFlyout label='Chats' icon='I073'>
-          {renderRows}
-        </RailFlyout>
-      ) : (
-        <Disclosure
-          variant='section'
-          label='Chats'
-          open={open}
-          onOpenChange={onOpenChange}
-          actions={
-            <ActionMenu
-              label='Sort chats'
-              triggerSize='compact'
-              icon='I050'
-              actions={CHAT_ORDERS.map((label) => ({
-                id: label,
-                label,
-                checked: label === order,
-                onSelect: () => setOrder(label),
-              }))}
-            />
-          }
-        >
-          {open && renderRows()}
-        </Disclosure>
-      )}
+      <Disclosure
+        variant='section'
+        label='Chats'
+        open={chatsOpen}
+        onOpenChange={setChatsOpen}
+        actions={
+          <ActionMenu
+            label='Sort chats'
+            triggerSize='compact'
+            icon='I050'
+            actions={['Recent activity', 'Name (A–Z)', 'Name (Z–A)'].map((label) => ({
+              id: label,
+              label,
+              checked: label === order,
+              onSelect: () => setOrder(label),
+            }))}
+          />
+        }
+      >
+        <div className={styles.group}>
+          <SectionStatus
+            status={status}
+            isEmpty={chats.length === 0}
+            emptyLabel='No chats yet'
+            failureLabel='Could not load chats'
+            onRetry={actions.retry}
+          />
+          {chats.map((item) => {
+            const href = item.href ?? `/chat/${item.id}`
+            const rows = rowActions(item)
+            const isCurrent = activeChat === item.id
+            const selectOnMenuOpen = (open: boolean) => {
+              if (open && !selected.has(item.id)) selectOnly(item.id)
+            }
+            return (
+              <ContextActionMenu
+                key={item.id}
+                label={`Actions for ${item.title}`}
+                actions={rows}
+                onOpenChange={selectOnMenuOpen}
+              >
+                <div
+                  className={styles.row}
+                  data-selected={(isMultiSelecting && selected.has(item.id)) || undefined}
+                  onClickCapture={(event) => selectOnShiftClick(event, item.id)}
+                  onClick={(event) => {
+                    if (event.target instanceof Element && event.target.closest('a'))
+                      selectOnly(item.id)
+                  }}
+                  onPointerEnter={() => {
+                    if (!isCurrent) cancelPrefetch.current = actions.prefetch?.(item) ?? null
+                  }}
+                  onPointerLeave={() => cancelPrefetch.current?.()}
+                >
+                  <Chip
+                    href={platformHref(href, query)}
+                    selected={isCurrent}
+                    status={chatStatus(item, isCurrent)}
+                    action={
+                      <ActionMenu
+                        label={`Actions for ${item.title}`}
+                        tooltip={false}
+                        icon='I108'
+                        triggerSize='compact'
+                        align='end'
+                        actions={rows}
+                        onOpenChange={selectOnMenuOpen}
+                      />
+                    }
+                  >
+                    {item.title}
+                  </Chip>
+                </div>
+              </ContextActionMenu>
+            )
+          })}
+        </div>
+      </Disclosure>
       {renamingChat && (
-        <NameModal
+        <Modal
+          open
+          onOpenChange={() => setEditing(null)}
           title='Rename chat'
           confirmLabel='Save'
-          fieldLabel='Chat name'
-          emptyMessage='Enter a chat name.'
-          maxLength={CHAT_TITLE_MAX_LENGTH}
-          initial={renamingChat.title}
-          onSubmit={(name) => actions.rename(renamingChat.id, name)}
-          onClose={() => setEditing(null)}
-        />
+          onConfirm={async (values) => {
+            const next = readFormText(values, 'title')
+            if (!next) throw new Error('Enter a chat name.')
+            if (next !== renamingChat.title) await actions.rename(renamingChat.id, next)
+          }}
+        >
+          <TextField
+            label='Chat name'
+            name='title'
+            required
+            maxLength={CHAT_TITLE_MAX_LENGTH}
+            defaultValue={renamingChat.title}
+          />
+        </Modal>
       )}
-      {removing.length > 0 && (
+      {editing?.kind === 'remove' && (
         <Modal
           open
           onOpenChange={() => setEditing(null)}
           variant='confirm'
-          title={removing.length > 1 ? `Delete ${removing.length} chats` : 'Delete chat'}
-          confirmLabel='Delete'
+          title={removeTitle}
+          confirmLabel={actions.removeLabel}
           destructive
           onConfirm={() => confirmRemoval(removing)}
         >
           <p data-type='T048'>
             {removing.length === 1
-              ? `Delete “${removing[0].title}”?`
-              : `Delete ${removing.length} chats?`}{' '}
-            You can restore {removing.length === 1 ? 'it' : 'them'} from Recently deleted in
-            Settings.
+              ? `${actions.removeLabel} “${removing[0].title}”?`
+              : `${actions.removeLabel} ${removing.length} chats?`}
+            {actions.removeDetail && ` ${actions.removeDetail(removing.length)}`}
           </p>
         </Modal>
       )}

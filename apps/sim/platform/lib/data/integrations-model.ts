@@ -8,15 +8,15 @@ import {
 } from '@/lib/credential-groups/member-integrations'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import {
-  memberSecretMetadata,
-  providerMetadata,
-} from '@/platform/lib/integrations/metadata.generated'
-import {
   type GenericSecrets,
   integrationSegment,
   type OrganizationIntegration,
   type ToolPermissionsModel,
-} from '@/platform/lib/integrations/model'
+} from '@/platform/lib/data/integrations-types'
+import {
+  memberSecretMetadata,
+  providerMetadata,
+} from '@/platform/lib/integrations/metadata.generated'
 
 const CONNECT_ACCOUNT_GUIDE = `${SIM_DOCS_URL}/search/connect-your-account`
 

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { requireIntegrationsViewer } from '@/app/o/[organizationId]/integrations/access'
 import { HydratedIntegrations } from '@/app/o/[organizationId]/integrations/hydrated-integrations'
-import { integrationPath } from '@/platform/lib/integrations/model'
+import { integrationPath } from '@/platform/lib/data/integrations-types'
 
 export const metadata: Metadata = {
   title: 'Integrations',

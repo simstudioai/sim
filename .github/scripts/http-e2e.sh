@@ -3,7 +3,7 @@
 # CI groups, which reuse the production build from `e2e-build`.
 # The job extracts it into apps/sim/.next before running these suites.
 #
-# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|org-redesign|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo>   (run from apps/sim)
+# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|org-redesign|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo|platform-live-zone|platform-live-flag-off>   (run from apps/sim)
 #
 # The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
@@ -20,7 +20,7 @@
 # telemetry flush runs detached and still writes .next/dev).
 set -euo pipefail
 
-group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|org-redesign|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo>}
+group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|org-redesign|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo|platform-live-zone|platform-live-flag-off>}
 report_dir="$RUNNER_TEMP/e2e"
 ready_timeout_seconds=600
 mkdir -p "$report_dir"
@@ -32,6 +32,9 @@ status_log=''
 realtime_pid=''
 realtime_tag=''
 realtime_log=''
+platform_pid=''
+platform_tag=''
+platform_log=''
 agent_pid=''
 browsers_pid=''
 local_app_url=''
@@ -62,6 +65,13 @@ finish() {
     wait "$realtime_pid" 2>/dev/null || true
     if [ "$status" -ne 0 ]; then
       tail -n 100 "$realtime_log"
+    fi
+  fi
+  if [ -n "$platform_pid" ]; then
+    bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$platform_pid" "$platform_tag" || status=1
+    wait "$platform_pid" 2>/dev/null || true
+    if [ "$status" -ne 0 ]; then
+      tail -n 100 "$platform_log"
     fi
   fi
   if [ -n "$agent_pid" ]; then
@@ -143,6 +153,65 @@ stop_app() {
   bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$server_pid" "$app_tag"
   wait "$server_pid" 2>/dev/null || true
   server_pid=''
+}
+
+# start_platform <port>: the production build of apps/sim/platform, behind the main app's rewrite.
+start_platform() {
+  local port=$1
+  platform_tag="platform-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
+  platform_log="$report_dir/platform-live-platform.log"
+  E2E_APP="$platform_tag" SIM_PLATFORM_API_ORIGIN="$local_app_url" SIM_PLATFORM_BASE_PATH=/org setsid node \
+    ../../node_modules/next/dist/bin/next start platform --hostname 127.0.0.1 --port "$port" \
+    > "$platform_log" 2>&1 &
+  platform_pid=$!
+  wait_ready "$platform_pid" "http://127.0.0.1:$port/org" 'Platform zone'
+}
+
+# platform_live_environment: one hosted Enterprise organization, the deterministic seed its specs
+# read, and a scripted worker in place of the model. Hosted is decided by the app's hostname, which
+# the job maps to loopback. Google and Microsoft answer only to real credentials, so those clients
+# are fixtures, and what no fixture can reach is reported by the specs as a skip.
+platform_live_environment() {
+  app_server=start
+  export REDIS_URL=redis://127.0.0.1:6379
+  export E2E_APP_PUBLIC_URL=http://platform-live.sim.ai:3027
+  export NEXT_PUBLIC_APP_URL="$E2E_APP_PUBLIC_URL"
+  export INTERNAL_API_BASE_URL=http://127.0.0.1:3027 TRUSTED_ORIGINS=http://127.0.0.1:3027
+  export BILLING_ENABLED=true NEXT_PUBLIC_BILLING_ENABLED=true
+  export ENTERPRISE_ENABLED=true NEXT_PUBLIC_ENTERPRISE_ENABLED=true
+  export SSO_ENABLED=true NEXT_PUBLIC_SSO_ENABLED=true
+  export SCIM_ENABLED=true NEXT_PUBLIC_SCIM_ENABLED=true
+  export ORGANIZATIONS_ENABLED=true NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
+  export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
+  export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true
+  export SIM_LINKS=true PEOPLE=true
+  export INTERNAL_API_SECRET=platform-live-ci-local-secret-at-least-32-characters
+  export COPILOT_API_KEY=platform-live-ci-local-copilot-key MOTHERSHIP_SIM_TRANSPORT=direct
+  export SIM_AGENT_API_URL=http://127.0.0.1:3029
+  export GOOGLE_CLIENT_ID=platform-live-google-client GOOGLE_CLIENT_SECRET=platform-live-google-secret
+  export MICROSOFT_CLIENT_ID=platform-live-microsoft-client MICROSOFT_CLIENT_SECRET=platform-live-microsoft-secret
+  export STRIPE_SECRET_KEY=sk_test_platform_live STRIPE_WEBHOOK_SECRET=whsec_platform_live
+
+  export PLATFORM_LIVE_ORIGIN="$E2E_APP_PUBLIC_URL"
+  export PLATFORM_LIVE_PASSWORD=platform-live-password-1
+  export PLATFORM_LIVE_ORGANIZATION_ID=platform-live-organization
+  export PLATFORM_LIVE_ORGANIZATION_NAME='Sim Live Org'
+  export PLATFORM_LIVE_OWNER_EMAIL=olive@platform-live.test
+  export PLATFORM_LIVE_EMAIL=ada@platform-live.test
+  export PLATFORM_LIVE_MEMBER_EMAIL=mia@platform-live.test
+  export PLATFORM_LIVE_CONNECTED_EMAIL=cory@platform-live.test
+  export PLATFORM_LIVE_ROLE_TARGET_EMAIL=rae@platform-live.test
+  export PLATFORM_LIVE_REMOVABLE_EMAIL=remy@platform-live.test
+  export PLATFORM_LIVE_REFUSED_INVITE_EMAIL=otto@platform-live.test
+  export PLATFORM_LIVE_ORCHESTRATOR=1
+  bun --no-env-file scripts/platform-live-seed.ts
+}
+
+# run_platform_live <project> <report-name>
+run_platform_live() {
+  local project=$1 name=$2
+  PLATFORM_LIVE_REPORT_PATH="$report_dir/$name/report.json" \
+    bun run test:platform:live --project="$project" ${PLATFORM_LIVE_GREP:+--grep "$PLATFORM_LIVE_GREP"}
 }
 
 # wait_ready <pid> <health-url> <label>
@@ -412,6 +481,37 @@ JS
     LANDING_SEO_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
     LANDING_SEO_E2E_REPORT_PATH="$report_dir/landing-seo-e2e-report.json" \
       bun run test:landing-seo:e2e
+    ;;
+
+  # The zone as deployed: flag on, /org rewritten to the Platform build. Then the same build
+  # with the flag off, which must put everyone back on the legacy surface. Both report, whichever
+  # fails.
+  platform-live-zone)
+    platform_live_environment
+    export SIM_PLATFORM_ORIGIN=http://127.0.0.1:3028
+    start_browser_install platform-live --only-shell chromium
+    PLATFORM_ORG_UI=true start_app platform-live 3027 'Platform main' record-http-status
+    start_platform 3028
+    bun --no-env-file platform/checks/live/support/scripted-agent.ts 3029 \
+      > "$report_dir/platform-live-agent.log" 2>&1 &
+    agent_pid=$!
+    wait_for_browsers
+    live_status=0
+    run_platform_live zone platform-live || live_status=$?
+    stop_app
+    start_app platform-live-flag-off 3027 'Platform main, flag off' record-http-status
+    run_platform_live flag-off platform-live-flag-off || live_status=$?
+    exit "$live_status"
+    ;;
+
+  # No zone at all: built without SIM_PLATFORM_ORIGIN, so even with the flag on nothing may change.
+  platform-live-flag-off)
+    platform_live_environment
+    export PLATFORM_ORG_UI=true
+    start_browser_install platform-live --only-shell chromium
+    start_app platform-live-flag-off 3027 'Main, no zone' record-http-status
+    wait_for_browsers
+    run_platform_live flag-off platform-live-flag-off
     ;;
 
   *)

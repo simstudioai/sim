@@ -98,7 +98,7 @@ button.cardBody:hover,
   background: var(--ui-hover);
 }
 
-.card[data-focused] {
+.card[data-centered] {
   border-color: var(--status-info);
   box-shadow: 0 0 0 var(--spacing-stroke-focus) var(--status-info-soft);
 }

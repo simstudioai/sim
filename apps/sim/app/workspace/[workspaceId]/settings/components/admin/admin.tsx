@@ -19,7 +19,6 @@ import {
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/client'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
@@ -46,6 +45,7 @@ import {
 import { useBenchmarkAvailability } from '@/hooks/queries/benchmarks'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useImportWorkflow } from '@/hooks/queries/workflows'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import { clearUserData } from '@/stores'
 
 const PAGE_SIZE = 20 as const

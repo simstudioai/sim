@@ -44,7 +44,7 @@ vi.mock('@sim/emcn', () => ({
 
 vi.mock('@/lib/desktop', () => libDesktopMock)
 
-vi.mock('@/app/workspace/[workspaceId]/settings/components/use-settings-search', () => ({
+vi.mock('@/hooks/use-settings-search', () => ({
   useSettingsSearch: () => [mockSearch.value, vi.fn()],
 }))
 

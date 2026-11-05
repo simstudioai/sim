@@ -1,4 +1,3 @@
-export { invalidateResourceQueries } from './resource-invalidation'
 export type { ResourceTypeConfig } from './resource-registry'
 export {
   byResourceMenuOrder,

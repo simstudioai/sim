@@ -23,7 +23,7 @@ import { getDesktopBridge } from '@/lib/desktop'
 import { isAppSurfacePath } from '@/lib/navigation/paths'
 import type { OAuthProvider } from '@/lib/oauth/types'
 import { parseProvider, providerIdsForService } from '@/lib/oauth/utils'
-import { useCredentialWorkspaceId } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/credential-workspace'
+import { useCredentialWorkspaceId } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/credential-workspace-context'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 
 const OAUTH_POPUP_WINDOW_NAME = 'sim-oauth-connect'

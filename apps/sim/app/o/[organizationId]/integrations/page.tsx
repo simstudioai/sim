@@ -19,7 +19,7 @@ import {
   GENERIC_SECRETS_SEGMENT,
   integrationPath,
   integrationSegment,
-} from '@/platform/lib/integrations/model'
+} from '@/platform/lib/data/integrations-types'
 
 export const metadata: Metadata = {
   title: 'Integrations',

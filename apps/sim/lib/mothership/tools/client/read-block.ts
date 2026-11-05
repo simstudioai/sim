@@ -1,3 +1,4 @@
+import { parseReadTarget } from '@/lib/mothership/tools/client/read-target'
 import { getBlock, getLatestBlock } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 
@@ -9,19 +10,7 @@ import type { BlockConfig } from '@/blocks/types'
  * untouched.
  */
 export function getReadTargetBlock(path: string | undefined): BlockConfig | undefined {
-  if (!path) return undefined
-  const segments = path.trim().split('/').filter(Boolean)
-
-  if (segments[0] === 'organization' && segments[1] === 'custom-blocks' && segments.length === 3) {
-    return getBlock(segments[2].replace(/\.json$/, ''))
-  }
-
-  if (segments[0] !== 'components' || segments.length < 3) return undefined
-  if (segments[1] === 'blocks' && segments.length === 3) {
-    return getBlock(segments[2].replace(/\.json$/, ''))
-  }
-  if (segments[1] === 'integrations') {
-    return getLatestBlock(segments[2])
-  }
-  return undefined
+  const target = parseReadTarget(path)
+  if (!target) return undefined
+  return target.kind === 'block' ? getBlock(target.type) : getLatestBlock(target.type)
 }

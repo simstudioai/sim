@@ -4,11 +4,11 @@ import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
+import { loadSimLinksListView } from '@/lib/sim-links/search-params'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
+import { prefetchSimLinks } from '@/app/o/[organizationId]/_redesign/prefetch'
 import { RedesignPageSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
-import { loadSimLinksListView } from '@/app/o/[organizationId]/links/search-params'
-import { LinksPage } from '@/platform/app/(shell)/links/_components/links-page/links-page'
-import { prefetchSimLinks } from '@/platform/lib/data/prefetch'
+import { LinksPage } from '@/platform/app/(shell)/_components/links-page/links-page'
 
 export const metadata: Metadata = { title: 'Links' }
 

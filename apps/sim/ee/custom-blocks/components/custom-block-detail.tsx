@@ -22,7 +22,6 @@ import { ArrowLeft, ChevronDown, X } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { compareStrings } from '@sim/utils/string'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import {
   type FlattenOutputsBlockInput,
   type FlattenOutputsEdgeInput,
@@ -32,7 +31,6 @@ import type { CustomBlockInputPlaceholder } from '@/lib/workflows/custom-blocks/
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { DropZone } from '@/app/workspace/[workspaceId]/components/drop-zone'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
 import {
   type CustomBlockInput,
   type CustomBlockOutput,
@@ -49,6 +47,8 @@ import {
 import { useDeployedWorkflowState } from '@/hooks/queries/deployments'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
+import { useProfilePictureUpload } from '@/hooks/use-profile-picture-upload'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 
 const OUTPUT_SEP = '::'
 const ICON_ACCEPT = 'image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'

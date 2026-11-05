@@ -1,0 +1,5688 @@
+[
+  {
+    "key": "C0004",
+    "family": "ActivityRow/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3YG-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y8W-0"]
+  },
+  {
+    "key": "C0006",
+    "family": "ActivityRow/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "KN-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2XFJ-0"]
+  },
+  {
+    "key": "C0008",
+    "family": "ActivityRow/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3UQ-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y8J-0"]
+  },
+  {
+    "key": "C0009",
+    "family": "ActivityRow/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "KZ-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2XF6-0"]
+  },
+  {
+    "key": "C0010",
+    "family": "ActivityRow/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1AD-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "JEZ-0"]
+  },
+  {
+    "key": "C0011",
+    "family": "ActivityRow/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3NA-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EH1-0"]
+  },
+  {
+    "key": "C0012",
+    "family": "ActivityRow/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1AO-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "JEO-0"]
+  },
+  {
+    "key": "C0013",
+    "family": "ActivityRow/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3NO-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1PR1-0"]
+  },
+  {
+    "key": "C0014",
+    "family": "ActivityRow/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "KN-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "RJT-0"]
+  },
+  {
+    "key": "C0016",
+    "family": "ActivityRow/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3BO-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EGL-0"]
+  },
+  {
+    "key": "C0017",
+    "family": "ActivityRow/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3B9-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1PQL-0"]
+  },
+  {
+    "key": "C0018",
+    "family": "ActivityRow/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "KZ-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "RJG-0"]
+  },
+  {
+    "key": "C0031",
+    "family": "Avatar/20/organization",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "Avatar",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1EN-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y3O-0"]
+  },
+  {
+    "key": "C0032",
+    "family": "Avatar/20/organization",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Avatar",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1EN-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2ENC-0"]
+  },
+  {
+    "key": "C0034",
+    "family": "Avatar/24/initials",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "Avatar",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "YO-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y71-0"]
+  },
+  {
+    "key": "C0035",
+    "family": "Avatar/24/initials",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Avatar",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "XG-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "YSP-0"]
+  },
+  {
+    "key": "C0036",
+    "family": "Avatar/24/initials",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Avatar",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "YO-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "10BP-0"]
+  },
+  {
+    "key": "C0037",
+    "family": "Avatar/24/photo",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "Avatar",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "SV-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y4C-0"]
+  },
+  {
+    "key": "C0038",
+    "family": "Avatar/24/photo",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Avatar",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "SV-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "XVO-0"]
+  },
+  {
+    "key": "C0039",
+    "family": "Avatar/24/photo",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "Avatar",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "T3-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y44-0"]
+  },
+  {
+    "key": "C0040",
+    "family": "Avatar/24/photo",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Avatar",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "T3-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "XVG-0"]
+  },
+  {
+    "key": "C0041",
+    "family": "Avatar/24/photo",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "Avatar",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "SU-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y4D-0"]
+  },
+  {
+    "key": "C0042",
+    "family": "Avatar/24/photo",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Avatar",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "SU-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "XVP-0"]
+  },
+  {
+    "key": "C0043",
+    "family": "AvatarGroup/24/overlap",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "AvatarGroup",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "T1-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y43-0"]
+  },
+  {
+    "key": "C0045",
+    "family": "AvatarGroup/24/overlap",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "AvatarGroup",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "T1-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "XVF-0"]
+  },
+  {
+    "key": "C0047",
+    "family": "AvatarGroup/24/overlap/overflow",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "AvatarGroup",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "SO-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y4B-0"]
+  },
+  {
+    "key": "C0049",
+    "family": "AvatarGroup/24/overlap/overflow",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "AvatarGroup",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "SO-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "XVN-0"]
+  },
+  {
+    "key": "C0052",
+    "family": "AvatarGroup/Overflow/rest — tooltip on hover or focus",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "AvatarOverflow",
+    "icon": "I108",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "SP-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y4E-0"]
+  },
+  {
+    "key": "C0053",
+    "family": "AvatarGroup/Overflow/rest — tooltip on hover or focus",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "AvatarOverflow",
+    "icon": "I108",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "X5-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "YEZ-0"]
+  },
+  {
+    "key": "C0054",
+    "family": "AvatarGroup/Overflow/rest — tooltip on hover or focus",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "AvatarOverflow",
+    "icon": "I108",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "SP-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "XVQ-0"]
+  },
+  {
+    "key": "C0071",
+    "family": "Browser/Start",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-4-0", "3LC-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3E20-2"]
+  },
+  {
+    "key": "C0072",
+    "family": "Browser/Start",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-4-0", "3G8-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3E3N-2"]
+  },
+  {
+    "key": "C0073",
+    "family": "Browser/Toolbar/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-4-0", "3IR-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39M8-2"]
+  },
+  {
+    "key": "C0074",
+    "family": "Browser/Toolbar/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-4-0", "3DN-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3ACQ-2"]
+  },
+  {
+    "key": "C0078",
+    "family": "Button/MD/Connect-Gmail",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Button",
+    "icon": "I005",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "9K-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "SJR-0"]
+  },
+  {
+    "key": "C0080",
+    "family": "Button/MD/Connect-Google-Calendar",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Button",
+    "icon": "I088",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "AC-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "SL0-0"]
+  },
+  {
+    "key": "C0082",
+    "family": "Button/MD/Connect-Microsoft",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Button",
+    "icon": "I085",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "9T-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "SJJ-0"]
+  },
+  {
+    "key": "C0084",
+    "family": "Button/MD/Connect-Outlook",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Button",
+    "icon": "I120",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "AR-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "SKB-0"]
+  },
+  {
+    "key": "C0086",
+    "family": "Button/md/destructive/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Button",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1PC-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "125N-0"]
+  },
+  {
+    "key": "C0092",
+    "family": "Button/md/primary/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Button",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1NY-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2Z24-0"]
+  },
+  {
+    "key": "C0093",
+    "family": "Button/md/primary/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Button",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "ZD-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1R09-0"]
+  },
+  {
+    "key": "C0100",
+    "family": "Button/md/quiet/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Button",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1O0-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2Z26-0"]
+  },
+  {
+    "key": "C0101",
+    "family": "Button/md/quiet/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Button",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "ZF-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1R07-0"]
+  },
+  {
+    "key": "C0102",
+    "family": "Button/md/secondary/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Button",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "2N2-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "12YN-0"]
+  },
+  {
+    "key": "C0103",
+    "family": "Button/md/secondary/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Button",
+    "icon": "I074",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1JO-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y37-0"]
+  },
+  {
+    "key": "C0104",
+    "family": "Button/md/secondary/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Button",
+    "icon": "I036",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "23V-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "30J7-0"]
+  },
+  {
+    "key": "C0105",
+    "family": "Button/md/quiet/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Button",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "B2-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "177M-0"]
+  },
+  {
+    "key": "C0106",
+    "family": "Button/md/secondary/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Button",
+    "icon": "I074",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "V3-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EP0-0"]
+  },
+  {
+    "key": "C0107",
+    "family": "Button/md/secondary/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Button",
+    "icon": "I036",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1JA-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "28GZ-0"]
+  },
+  {
+    "key": "C0108",
+    "family": "Button/md/quiet/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Button",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "UG-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "16VO-0"]
+  },
+  {
+    "key": "C0120",
+    "family": "Button/sm/quiet/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "IconButton",
+    "icon": "I105",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1L3-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39X6-2"]
+  },
+  {
+    "key": "C0121",
+    "family": "Button/sm/quiet/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "IconButton",
+    "icon": "I108",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1TA-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "2BHZ-0"]
+  },
+  {
+    "key": "C0122",
+    "family": "Button/sm/quiet/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "IconButton",
+    "icon": "I105",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "WI-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3D3Q-2"]
+  },
+  {
+    "key": "C0128",
+    "family": "Button/sm/quiet/hover",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "IconButton",
+    "icon": "I074",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1LB-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "PVO-0"]
+  },
+  {
+    "key": "C0129",
+    "family": "Button/sm/quiet/hover",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "IconButton",
+    "icon": "I108",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1TK-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "29PS-0"]
+  },
+  {
+    "key": "C0130",
+    "family": "Button/sm/quiet/hover",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "IconButton",
+    "icon": "I074",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "WQ-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "29MR-0"]
+  },
+  {
+    "key": "C0134",
+    "family": "Button/SM/quiet/Undo",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Button",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "CD-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "YRC-0"]
+  },
+  {
+    "key": "C0137",
+    "family": "Calendar/DayToolbar",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "S2-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2XBO-0"]
+  },
+  {
+    "key": "C0138",
+    "family": "Calendar/DayToolbar",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3RT-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y4U-0"]
+  },
+  {
+    "key": "C0139",
+    "family": "Calendar/DayToolbar",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3J7-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1PNX-0"]
+  },
+  {
+    "key": "C0140",
+    "family": "Calendar/DayToolbar",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "S2-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "XW6-0"]
+  },
+  {
+    "key": "C0141",
+    "family": "Calendar/DayToolbar",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3FT-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EDQ-0"]
+  },
+  {
+    "key": "C0143",
+    "family": "Calendar/EmptyDay",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "W9-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1191-0"]
+  },
+  {
+    "key": "C0144",
+    "family": "Calendar/Event/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "SJ-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y4A-0"]
+  },
+  {
+    "key": "C0146",
+    "family": "Calendar/Event/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "SJ-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "XVM-0"]
+  },
+  {
+    "key": "C0148",
+    "family": "Calendar/TimeGrid/3-hour-window",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "SB-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y3X-0"]
+  },
+  {
+    "key": "C0149",
+    "family": "Calendar/TimeGrid/3-hour-window",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "SB-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "XV9-0"]
+  },
+  {
+    "key": "C0160",
+    "family": "Chart/TasksRun/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "HomeActivityChart",
+    "icon": "I001",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3WV-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y9A-0"]
+  },
+  {
+    "key": "C0161",
+    "family": "Chart/TasksRun/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "HomeActivityChart",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "213-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2XFX-0"]
+  },
+  {
+    "key": "C0162",
+    "family": "Chart/TasksRun/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "HomeActivityChart",
+    "icon": "I056",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3PD-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EI6-0"]
+  },
+  {
+    "key": "C0163",
+    "family": "Chart/TasksRun/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "HomeActivityChart",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1Z9-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1C4T-0"]
+  },
+  {
+    "key": "C0165",
+    "family": "Chart/TasksRun/empty",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "HomeActivityChart",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "211-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1DQO-0"]
+  },
+  {
+    "key": "C0169",
+    "family": "Chart/TasksRun/hover",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "HomeActivityChart",
+    "icon": "I056",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "200-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1G0A-0"]
+  },
+  {
+    "key": "C0175",
+    "family": "Chart/TasksRun/range-open",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "HomeActivityChart",
+    "icon": "I056",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "23O-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1D7M-0"]
+  },
+  {
+    "key": "C0176",
+    "family": "Chart/Tooltip",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ChartTooltip",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "D1M-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "RMP-0"]
+  },
+  {
+    "key": "C0177",
+    "family": "Chart/Tooltip",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ChartTooltip",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "EFT-1"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1G1F-0"]
+  },
+  {
+    "key": "C0178",
+    "family": "Chat/Activity/running",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2AK-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2YLI-0"]
+  },
+  {
+    "key": "C0179",
+    "family": "Chat/Activity/running",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "28O-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1K19-0"]
+  },
+  {
+    "key": "C0180",
+    "family": "Chat/ActivityDisclosure/complete",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "Disclosure",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2VK-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3TXV-0"]
+  },
+  {
+    "key": "C0181",
+    "family": "Chat/ActivityDisclosure/complete",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Disclosure",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "3ZO-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3ATF-2"]
+  },
+  {
+    "key": "C0182",
+    "family": "Chat/ActivityDisclosure/complete",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Disclosure",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2QG-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S5K-0"]
+  },
+  {
+    "key": "C0183",
+    "family": "Chat/AssistantText",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2VM-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3TXP-0"]
+  },
+  {
+    "key": "C0185",
+    "family": "Chat/AssistantText",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2QI-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S5E-0"]
+  },
+  {
+    "key": "C0186",
+    "family": "Chat/AssistantTimestamp",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2KJ-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2Z3R-0"]
+  },
+  {
+    "key": "C0187",
+    "family": "Chat/AssistantTimestamp",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "4FJ-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZHU-0"]
+  },
+  {
+    "key": "C0188",
+    "family": "Chat/AssistantTimestamp",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2HA-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S55-0"]
+  },
+  {
+    "key": "C0189",
+    "family": "Chat/AssistantTimestamp",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "42R-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "27UV-0"]
+  },
+  {
+    "key": "C0190",
+    "family": "Chat/AssistantTurn/complete",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2VJ-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3TXG-0"]
+  },
+  {
+    "key": "C0191",
+    "family": "Chat/AssistantTurn/complete",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2QF-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S53-0"]
+  },
+  {
+    "key": "C0192",
+    "family": "Chat/Attachment/image/ready",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2BX-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZFD-0"]
+  },
+  {
+    "key": "C0193",
+    "family": "Chat/Attachment/image/ready",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2A1-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1RMK-0"]
+  },
+  {
+    "key": "C0194",
+    "family": "Chat/Attachment/paste/ready",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2CA-0"],
+    "use": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2XO-0"],
+    "parentKey": "C0226"
+  },
+  {
+    "key": "C0195",
+    "family": "Chat/Attachment/paste/ready",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2AE-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1P7N-0"]
+  },
+  {
+    "key": "C0199",
+    "family": "Chat/Attachment/pdf/hover",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2AP-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1RM8-0"]
+  },
+  {
+    "key": "C0200",
+    "family": "Chat/Attachment/pdf/ready",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2C2-0"],
+    "use": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2XG-0"],
+    "parentKey": "C0226"
+  },
+  {
+    "key": "C0201",
+    "family": "Chat/Attachment/pdf/ready",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2A6-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1RM0-0"]
+  },
+  {
+    "key": "C0206",
+    "family": "Chat/AttachmentBatch/collapsed",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2YM-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZFA-0"]
+  },
+  {
+    "key": "C0207",
+    "family": "Chat/AttachmentBatch/collapsed",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2TI-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1RHO-0"]
+  },
+  {
+    "key": "C0209",
+    "family": "Chat/AttachmentBatch/expanded",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2TN-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1RIQ-0"]
+  },
+  {
+    "key": "C0211",
+    "family": "Chat/AttachmentBatchGrid",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "AttachmentGrid",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2TS-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1ORV-0"]
+  },
+  {
+    "key": "C0212",
+    "family": "Chat/AttachmentBatchGrid",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "AttachmentGrid",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "3RY-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1RIS-0"]
+  },
+  {
+    "key": "C0214",
+    "family": "Chat/AttachmentBatchHeader",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2TO-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1ORR-0"]
+  },
+  {
+    "key": "C0215",
+    "family": "Chat/AttachmentBatchHeader",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "420-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1RMP-0"]
+  },
+  {
+    "key": "C0217",
+    "family": "Chat/AttachmentBatchViewport",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2TR-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1RIR-0"]
+  },
+  {
+    "key": "C0219",
+    "family": "Chat/AttachmentPreview/image",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2XR-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1KTE-0"]
+  },
+  {
+    "key": "C0221",
+    "family": "Chat/AttachmentPreview/paste",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2Z7-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1KQL-0"]
+  },
+  {
+    "key": "C0223",
+    "family": "Chat/AttachmentPreview/pdf",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2YC-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1KNM-0"]
+  },
+  {
+    "key": "C0225",
+    "family": "Chat/AttachmentTray/draft",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2SU-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1OLF-0"]
+  },
+  {
+    "key": "C0226",
+    "family": "Chat/AttachmentTray/sent",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2XA-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZF9-0"]
+  },
+  {
+    "key": "C0227",
+    "family": "Chat/AttachmentTray/sent",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2S6-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1RHN-0"]
+  },
+  {
+    "key": "C0228",
+    "family": "Chat/Composer",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "43D-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZH0-0"]
+  },
+  {
+    "key": "C0229",
+    "family": "Chat/Composer",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2FE-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3TWS-0"]
+  },
+  {
+    "key": "C0230",
+    "family": "Chat/Composer",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "44L-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3ATZ-2"]
+  },
+  {
+    "key": "C0231",
+    "family": "Chat/Composer",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "3QA-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1R5I-0"]
+  },
+  {
+    "key": "C0232",
+    "family": "Chat/Composer",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2DI-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S4F-0"]
+  },
+  {
+    "key": "C0234",
+    "family": "Chat/ComposerColumn",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2W3-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39YE-2"]
+  },
+  {
+    "key": "C0235",
+    "family": "Chat/ComposerColumn",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2QZ-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S4E-0"]
+  },
+  {
+    "key": "C0236",
+    "family": "Chat/ComposerDock",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "43B-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZGY-0"]
+  },
+  {
+    "key": "C0237",
+    "family": "Chat/ComposerDock",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "3ZS-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "38PK-2"]
+  },
+  {
+    "key": "C0238",
+    "family": "Chat/ComposerDock",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "41X-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39YD-2"]
+  },
+  {
+    "key": "C0239",
+    "family": "Chat/ComposerDock",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2W2-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2Z2Z-0"]
+  },
+  {
+    "key": "C0240",
+    "family": "Chat/ComposerDock",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "3Q8-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1R5G-0"]
+  },
+  {
+    "key": "C0241",
+    "family": "Chat/ComposerDock",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "3WM-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "38M1-2"]
+  },
+  {
+    "key": "C0242",
+    "family": "Chat/ComposerDock",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "3YQ-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S4D-0"]
+  },
+  {
+    "key": "C0243",
+    "family": "Chat/ComposerDock",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2QY-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3D4T-2"]
+  },
+  {
+    "key": "C0244",
+    "family": "Chat/Header",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "3Z1-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39JU-2"]
+  },
+  {
+    "key": "C0245",
+    "family": "Chat/Header",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2RF-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39XH-2"]
+  },
+  {
+    "key": "C0246",
+    "family": "Chat/Header",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "42N-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZIN-0"]
+  },
+  {
+    "key": "C0247",
+    "family": "Chat/Header",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "3Y1-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3TJ9-0"]
+  },
+  {
+    "key": "C0248",
+    "family": "Chat/Header",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "3ZK-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3ASZ-2"]
+  },
+  {
+    "key": "C0249",
+    "family": "Chat/Header",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2O6-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3MV4-0"]
+  },
+  {
+    "key": "C0250",
+    "family": "Chat/Header",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "3ZV-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1LAY-0"]
+  },
+  {
+    "key": "C0251",
+    "family": "Chat/Header",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "3RP-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1R6Y-0"]
+  },
+  {
+    "key": "C0252",
+    "family": "Chat/Header",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "429-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S5V-0"]
+  },
+  {
+    "key": "C0253",
+    "family": "Chat/Header/clear",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "44A-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "38PB-2"]
+  },
+  {
+    "key": "C0254",
+    "family": "Chat/Header/clear",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "40J-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "38LS-2"]
+  },
+  {
+    "key": "C0255",
+    "family": "Chat/Header/collapsed",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "3R2-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3BMS-2"]
+  },
+  {
+    "key": "C0256",
+    "family": "Chat/Header/Identity",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2V3-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "38PC-2"]
+  },
+  {
+    "key": "C0257",
+    "family": "Chat/Header/Identity",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2PZ-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "38LT-2"]
+  },
+  {
+    "key": "C0258",
+    "family": "Chat/Header/overlap",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2V1-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "389Z-2"]
+  },
+  {
+    "key": "C0259",
+    "family": "Chat/Header/overlap",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2PX-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "384V-2"]
+  },
+  {
+    "key": "C0262",
+    "family": "Chat/Header/panel-hidden",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "3WE-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3D5I-2"]
+  },
+  {
+    "key": "C0263",
+    "family": "Chat/JumpToLatest/hover",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "IconButton",
+    "icon": "I102",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2WS-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3U0R-0"]
+  },
+  {
+    "key": "C0264",
+    "family": "Chat/JumpToLatest/hover",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "IconButton",
+    "icon": "I102",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2RO-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3U0N-0"]
+  },
+  {
+    "key": "C0265",
+    "family": "Chat/MessageActions/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2KB-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3TXH-0"]
+  },
+  {
+    "key": "C0266",
+    "family": "Chat/MessageActions/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2TU-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZHT-0"]
+  },
+  {
+    "key": "C0267",
+    "family": "Chat/MessageActions/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2H2-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S54-0"]
+  },
+  {
+    "key": "C0268",
+    "family": "Chat/MessageActions/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2OQ-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1R67-0"]
+  },
+  {
+    "key": "C0271",
+    "family": "Chat/PreviewBody",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2YQ-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1KO1-0"]
+  },
+  {
+    "key": "C0272",
+    "family": "Chat/PreviewBody",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2Y6-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1KTU-0"]
+  },
+  {
+    "key": "C0275",
+    "family": "Chat/PreviewFooter",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2Y8-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1KTY-0"]
+  },
+  {
+    "key": "C0276",
+    "family": "Chat/PreviewFooter",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2YX-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1KOC-0"]
+  },
+  {
+    "key": "C0278",
+    "family": "Chat/PreviewHeader",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2XS-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1KTG-0"]
+  },
+  {
+    "key": "C0280",
+    "family": "Chat/RatingItem/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "MenuItem",
+    "icon": "I017",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2IL-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1OFA-0"]
+  },
+  {
+    "key": "C0282",
+    "family": "Chat/RatingItem/hover",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "MenuItem",
+    "icon": "I008",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2IP-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1OFE-0"]
+  },
+  {
+    "key": "C0284",
+    "family": "Chat/RatingMenu/bad-hover",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2IK-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1OF9-0"]
+  },
+  {
+    "key": "C0285",
+    "family": "Chat/RetryAction",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "Button",
+    "icon": "I055",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2X0-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2Z7I-0"]
+  },
+  {
+    "key": "C0286",
+    "family": "Chat/RetryAction",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Button",
+    "icon": "I055",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2RW-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1KW8-0"]
+  },
+  {
+    "key": "C0288",
+    "family": "Chat/ShowLess/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Disclosure",
+    "icon": "I051",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2D6-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1KEG-0"]
+  },
+  {
+    "key": "C0290",
+    "family": "Chat/ShowMore/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Disclosure",
+    "icon": "I051",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2CU-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1KCS-0"]
+  },
+  {
+    "key": "C0291",
+    "family": "Chat/SplitColumn",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "417-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39XD-2"]
+  },
+  {
+    "key": "C0292",
+    "family": "Chat/SplitColumn",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "3Y0-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3AXY-2"]
+  },
+  {
+    "key": "C0293",
+    "family": "Chat/ToolCall/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "28S-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2YPH-0"]
+  },
+  {
+    "key": "C0294",
+    "family": "Chat/ToolCall/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "26W-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1O3B-0"]
+  },
+  {
+    "key": "C0295",
+    "family": "Chat/ToolCall/error",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "29N-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2Z7N-0"]
+  },
+  {
+    "key": "C0296",
+    "family": "Chat/ToolCall/error",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "27R-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1KVR-0"]
+  },
+  {
+    "key": "C0297",
+    "family": "Chat/ToolCall/expanded",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2A1-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2YPK-0"]
+  },
+  {
+    "key": "C0298",
+    "family": "Chat/ToolCall/expanded",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "285-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1O2V-0"]
+  },
+  {
+    "key": "C0301",
+    "family": "Chat/ToolCall/hover",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "28X-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2YPX-0"]
+  },
+  {
+    "key": "C0302",
+    "family": "Chat/ToolCall/hover",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "271-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1O2W-0"]
+  },
+  {
+    "key": "C0305",
+    "family": "Chat/ToolCall/running",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "29D-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2YPB-0"]
+  },
+  {
+    "key": "C0306",
+    "family": "Chat/ToolCall/running",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "27H-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1O3H-0"]
+  },
+  {
+    "key": "C0309",
+    "family": "Chat/ToolError",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2WY-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2Z7H-0"]
+  },
+  {
+    "key": "C0310",
+    "family": "Chat/ToolError",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2RU-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1KW6-0"]
+  },
+  {
+    "key": "C0313",
+    "family": "Chat/ToolRequest",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2A9-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2YPU-0"]
+  },
+  {
+    "key": "C0314",
+    "family": "Chat/ToolRequest",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "28D-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1O30-0"]
+  },
+  {
+    "key": "C0315",
+    "family": "Chat/ToolResponse",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2A8-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2YPL-0"]
+  },
+  {
+    "key": "C0316",
+    "family": "Chat/ToolResponse",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "28C-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1O2Z-0"]
+  },
+  {
+    "key": "C0317",
+    "family": "Chat/ToolResponseBody",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2AC-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2YPM-0"]
+  },
+  {
+    "key": "C0318",
+    "family": "Chat/ToolResponseBody",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "28G-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1O33-0"]
+  },
+  {
+    "key": "C0321",
+    "family": "Chat/UserActions/resting",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2E7-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2Z49-0"]
+  },
+  {
+    "key": "C0322",
+    "family": "Chat/UserActions/resting",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "4ET-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZIE-0"]
+  },
+  {
+    "key": "C0323",
+    "family": "Chat/UserActions/resting",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2CB-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S5N-0"]
+  },
+  {
+    "key": "C0324",
+    "family": "Chat/UserActions/resting",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "42I-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1R6Q-0"]
+  },
+  {
+    "key": "C0325",
+    "family": "Chat/UserMessage/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2E5-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3TXY-0"]
+  },
+  {
+    "key": "C0326",
+    "family": "Chat/UserMessage/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "3YX-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3AT6-2"]
+  },
+  {
+    "key": "C0327",
+    "family": "Chat/UserMessage/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2C9-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S5T-0"]
+  },
+  {
+    "key": "C0328",
+    "family": "Chat/UserTurn/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2VE-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3TXX-0"]
+  },
+  {
+    "key": "C0329",
+    "family": "Chat/UserTurn/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2QA-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S5M-0"]
+  },
+  {
+    "key": "C0330",
+    "family": "Chat/WorkingHeader",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2AL-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2YQ4-0"]
+  },
+  {
+    "key": "C0331",
+    "family": "Chat/WorkingHeader",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "28P-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1O2R-0"]
+  },
+  {
+    "key": "C0332",
+    "family": "Chip/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Chip",
+    "icon": "I118",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1NB-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39VU-2"]
+  },
+  {
+    "key": "C0333",
+    "family": "Chip/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Chip",
+    "icon": "I118",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "YQ-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3D2E-2"]
+  },
+  {
+    "key": "C0338",
+    "family": "Chip/selected",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Chip",
+    "icon": "I004",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1NQ-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2ZMV-0"]
+  },
+  {
+    "key": "C0340",
+    "family": "Chip/selected",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Chip",
+    "icon": "I070",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1RM-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "H69-0"]
+  },
+  {
+    "key": "C0341",
+    "family": "ChipInput/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Input",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "24F-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "A58-0"]
+  },
+  {
+    "key": "C0343",
+    "family": "ChipInput/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Input",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1MD-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "948-0"]
+  },
+  {
+    "key": "C0345",
+    "family": "ChipInput/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Input",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "R2-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "GVO-0"]
+  },
+  {
+    "key": "C0346",
+    "family": "ChipSelect/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Select",
+    "icon": "I051",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "2C3-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "H34-0"]
+  },
+  {
+    "key": "C0347",
+    "family": "ChipSelect/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Select",
+    "icon": "I051",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1NM-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "GGC-0"]
+  },
+  {
+    "key": "C0348",
+    "family": "ChipSelect/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Select",
+    "icon": "I051",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "SN-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "GW6-0"]
+  },
+  {
+    "key": "C0350",
+    "family": "ChipTextarea/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "TextArea",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2OL-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZG8-0"]
+  },
+  {
+    "key": "C0351",
+    "family": "ChipTextarea/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "TextArea",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "2BY-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "AWI-0"]
+  },
+  {
+    "key": "C0352",
+    "family": "ChipTextarea/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "TextArea",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1NH-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "9VI-0"]
+  },
+  {
+    "key": "C0353",
+    "family": "ChipTextarea/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "TextArea",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2LC-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1R11-0"]
+  },
+  {
+    "key": "C0354",
+    "family": "ChipTextarea/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "TextArea",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "TJ-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "GW1-0"]
+  },
+  {
+    "key": "C0372",
+    "family": "Composer/Empty editor",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComposerInput",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "43E-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZHO-0"]
+  },
+  {
+    "key": "C0373",
+    "family": "Composer/Empty editor",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComposerInput",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "U6-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3TXC-0"]
+  },
+  {
+    "key": "C0375",
+    "family": "Composer/Empty editor",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComposerInput",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "3QB-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1R62-0"]
+  },
+  {
+    "key": "C0376",
+    "family": "Composer/Empty editor",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComposerInput",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "17M-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S4Z-0"]
+  },
+  {
+    "key": "C0377",
+    "family": "Composer/Heading",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "TS-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2XHA-0"]
+  },
+  {
+    "key": "C0378",
+    "family": "Composer/Heading",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "40R-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2YAR-0"]
+  },
+  {
+    "key": "C0379",
+    "family": "Composer/Heading",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "3RA-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1PTJ-0"]
+  },
+  {
+    "key": "C0380",
+    "family": "Composer/Heading",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "178-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "RKZ-0"]
+  },
+  {
+    "key": "C0381",
+    "family": "Composer/Heading",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "3VY-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EJN-0"]
+  },
+  {
+    "key": "C0382",
+    "family": "Composer/Reference",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "TR-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2WWJ-0"]
+  },
+  {
+    "key": "C0383",
+    "family": "Composer/Reference",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "177-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "RDK-0"]
+  },
+  {
+    "key": "C0385",
+    "family": "Composer/Send",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "IconButton",
+    "icon": "I023",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "UN-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3TWV-0"]
+  },
+  {
+    "key": "C0386",
+    "family": "Composer/Send/disabled",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "IconButton",
+    "icon": "I023",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "453-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3AUH-2"]
+  },
+  {
+    "key": "C0388",
+    "family": "Composer/Send",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "IconButton",
+    "icon": "I023",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2EO-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1RI7-0"]
+  },
+  {
+    "key": "C0389",
+    "family": "Composer/Send/disabled",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "IconButton",
+    "icon": "I023",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "183-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S4I-0"]
+  },
+  {
+    "key": "C0390",
+    "family": "Composer/Surface",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "459-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2YA1-0"]
+  },
+  {
+    "key": "C0391",
+    "family": "Composer/Surface",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "U5-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2XGO-0"]
+  },
+  {
+    "key": "C0392",
+    "family": "Composer/Surface",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "418-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EIX-0"]
+  },
+  {
+    "key": "C0393",
+    "family": "Composer/Surface",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "17L-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "RKD-0"]
+  },
+  {
+    "key": "C0394",
+    "family": "Composer/Toolbar",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "U8-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3TWT-0"]
+  },
+  {
+    "key": "C0395",
+    "family": "Composer/Toolbar",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "45C-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZH1-0"]
+  },
+  {
+    "key": "C0396",
+    "family": "Composer/Toolbar",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "17O-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S4G-0"]
+  },
+  {
+    "key": "C0397",
+    "family": "Composer/Toolbar",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "41B-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1R5J-0"]
+  },
+  {
+    "key": "C0399",
+    "family": "ConnectAccount/Providers",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "9J-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "SJI-0"]
+  },
+  {
+    "key": "C0404",
+    "family": "Control/TouchTarget",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "TouchTarget",
+    "parts": ["C0385"],
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1F0-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZH3-0"]
+  },
+  {
+    "key": "C0405",
+    "family": "Control/TouchTarget",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "TouchTarget",
+    "parts": ["C0517"],
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2TV-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZGP-0"]
+  },
+  {
+    "key": "C0406",
+    "family": "Control/TouchTarget",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "TouchTarget",
+    "parts": ["C0524"],
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "3SC-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1RM9-0"]
+  },
+  {
+    "key": "C0407",
+    "family": "Control/TouchTarget",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "TouchTarget",
+    "parts": ["C0389"],
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1SB-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S5W-0"]
+  },
+  {
+    "key": "C0408",
+    "family": "Control/TouchTarget",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "TouchTarget",
+    "parts": ["C0526"],
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2OR-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "27UK-0"]
+  },
+  {
+    "key": "C0409",
+    "family": "DeploymentSelect/Open",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "CU-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "6OE-0"]
+  },
+  {
+    "key": "C0410",
+    "family": "DeploymentSelect/Open",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "R7-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "6NZ-0"]
+  },
+  {
+    "key": "C0413",
+    "family": "Desktop/Toolbar/Home",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "149-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2YJB-0"]
+  },
+  {
+    "key": "C0414",
+    "family": "Desktop/Toolbar/Home",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1HM-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1ODH-0"]
+  },
+  {
+    "key": "C0416",
+    "family": "Desktop/Toolbar/Home/collapsed",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1II-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1NRX-0"]
+  },
+  {
+    "key": "C0417",
+    "family": "Desktop/Toolbar/Sidebar",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3BD-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39H6-2"]
+  },
+  {
+    "key": "C0418",
+    "family": "Desktop/Toolbar/Sidebar",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "2S0-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3A9E-2"]
+  },
+  {
+    "key": "C0419",
+    "family": "Desktop/Toolbar/Sidebar",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "38U-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3AQB-2"]
+  },
+  {
+    "key": "C0422",
+    "family": "Disclosure/collapsed/hover",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "Disclosure",
+    "icon": "I090",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "GB-0"],
+    "use": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "28Y-0"],
+    "parentKey": "C0301"
+  },
+  {
+    "key": "C0423",
+    "family": "Disclosure/collapsed/hover",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Disclosure",
+    "icon": "I090",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "GB-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "29QE-0"]
+  },
+  {
+    "key": "C0424",
+    "family": "Disclosure/expanded/hover",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "Disclosure",
+    "icon": "I051",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "F8-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2YPZ-0"]
+  },
+  {
+    "key": "C0425",
+    "family": "Disclosure/expanded/hover",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Disclosure",
+    "icon": "I051",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "F8-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1SVF-0"]
+  },
+  {
+    "key": "C0438",
+    "family": "Email/SubjectPreview/16px-fade",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "YT-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y6T-0"]
+  },
+  {
+    "key": "C0439",
+    "family": "Email/SubjectPreview/16px-fade",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "YT-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "10BJ-0"]
+  },
+  {
+    "key": "C0441",
+    "family": "EmptyState/attention",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "EmptyState",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "18V-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1G07-0"]
+  },
+  {
+    "key": "C0443",
+    "family": "EmptyState/workspaces",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "EmptyState",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "18G-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1FZX-0"]
+  },
+  {
+    "key": "C0475",
+    "family": "Header/scrolled",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3G8-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "33J1-0"]
+  },
+  {
+    "key": "C0476",
+    "family": "Header/scrolled",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2S8-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZAU-0"]
+  },
+  {
+    "key": "C0477",
+    "family": "Header/scrolled",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "2UO-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "33LM-0"]
+  },
+  {
+    "key": "C0478",
+    "family": "HeaderActions/collapsed/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "13Z-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2XS8-0"]
+  },
+  {
+    "key": "C0479",
+    "family": "HeaderActions/collapsed/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "2YC-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "30F8-0"]
+  },
+  {
+    "key": "C0480",
+    "family": "HeaderActions/collapsed/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1HC-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "H9Z-0"]
+  },
+  {
+    "key": "C0481",
+    "family": "HeaderActions/collapsed/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "241-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1Q8S-0"]
+  },
+  {
+    "key": "C0482",
+    "family": "HeaderActions/collapsed/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "248-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1Q67-0"]
+  },
+  {
+    "key": "C0484",
+    "family": "HeaderActions/desktop-collapsed/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1IO-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1NS3-0"]
+  },
+  {
+    "key": "C0485",
+    "family": "HeaderActions/expanded/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "13M-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39VG-2"]
+  },
+  {
+    "key": "C0486",
+    "family": "HeaderActions/expanded/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3HN-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "30GX-0"]
+  },
+  {
+    "key": "C0487",
+    "family": "HeaderActions/expanded/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1GZ-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3D20-2"]
+  },
+  {
+    "key": "C0488",
+    "family": "HeaderActions/expanded/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "32A-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1RDE-0"]
+  },
+  {
+    "key": "C0491",
+    "family": "Home/Attention",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "KK-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y8I-0"]
+  },
+  {
+    "key": "C0492",
+    "family": "Home/Attention",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "KK-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "RJF-0"]
+  },
+  {
+    "key": "C0494",
+    "family": "Home/Attention/empty",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "18S-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1F5W-0"]
+  },
+  {
+    "key": "C0495",
+    "family": "Home/Calendar/connected",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "RB-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y3W-0"]
+  },
+  {
+    "key": "C0496",
+    "family": "Home/Calendar/connected",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "RB-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "XV8-0"]
+  },
+  {
+    "key": "C0498",
+    "family": "Home/Calendar/disconnected",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "A1-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "SK8-0"]
+  },
+  {
+    "key": "C0501",
+    "family": "Home/Email/connected",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "Y2-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y5W-0"]
+  },
+  {
+    "key": "C0502",
+    "family": "Home/Email/connected",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "Y2-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "10AN-0"]
+  },
+  {
+    "key": "C0504",
+    "family": "Home/Email/disconnected",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "99-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "SJG-0"]
+  },
+  {
+    "key": "C0505",
+    "family": "Home/Workspaces",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "LC-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y7O-0"]
+  },
+  {
+    "key": "C0506",
+    "family": "Home/Workspaces",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "LC-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "RIG-0"]
+  },
+  {
+    "key": "C0508",
+    "family": "Home/Workspaces/empty",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "18D-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1F52-0"]
+  },
+  {
+    "key": "C0509",
+    "family": "IconButton/inline/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "IconButton",
+    "icon": "I006",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "E9-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "194T-0"]
+  },
+  {
+    "key": "C0510",
+    "family": "IconButton/inline/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "IconButton",
+    "icon": "I006",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "SU-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "17P8-0"]
+  },
+  {
+    "key": "C0514",
+    "family": "IconButton/sm/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "IconButton",
+    "icon": "I050",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1FN-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39HC-2"]
+  },
+  {
+    "key": "C0515",
+    "family": "IconButton/sm/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "IconButton",
+    "icon": "I105",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "336-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3TXL-0"]
+  },
+  {
+    "key": "C0516",
+    "family": "IconButton/sm/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "IconButton",
+    "icon": "I108",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "4V-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y7A-0"]
+  },
+  {
+    "key": "C0517",
+    "family": "IconButton/sm/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "IconButton",
+    "icon": "I050",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "2B0-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZI1-0"]
+  },
+  {
+    "key": "C0518",
+    "family": "IconButton/sm/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "IconButton",
+    "icon": "I108",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "BQ-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y75-0"]
+  },
+  {
+    "key": "C0522",
+    "family": "IconButton/sm/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "IconButton",
+    "icon": "I066",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "242-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S62-0"]
+  },
+  {
+    "key": "C0523",
+    "family": "IconButton/sm/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "IconButton",
+    "icon": "I050",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1FN-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S4V-0"]
+  },
+  {
+    "key": "C0524",
+    "family": "IconButton/sm/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "IconButton",
+    "icon": "I105",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2Y2-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S5O-0"]
+  },
+  {
+    "key": "C0525",
+    "family": "IconButton/sm/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "IconButton",
+    "icon": "I108",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "4V-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "10BX-0"]
+  },
+  {
+    "key": "C0526",
+    "family": "IconButton/sm/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "IconButton",
+    "icon": "I006",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2OS-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "27V2-0"]
+  },
+  {
+    "key": "C0527",
+    "family": "IconButton/sm/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "IconButton",
+    "icon": "I108",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "TO-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EK3-0"]
+  },
+  {
+    "key": "C0528",
+    "family": "IconButton/sm/disabled",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "IconButton",
+    "icon": "I050",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1UO-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39HG-2"]
+  },
+  {
+    "key": "C0531",
+    "family": "IconButton/sm/disabled",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "IconButton",
+    "icon": "I050",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1SU-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3A9O-2"]
+  },
+  {
+    "key": "C0532",
+    "family": "IconButton/sm/disabled",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "IconButton",
+    "icon": "I032",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2YY-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1KU1-0"]
+  },
+  {
+    "key": "C0537",
+    "family": "IconButton/sm/hover",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "IconButton",
+    "icon": "I050",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "2B3-0"],
+    "use": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2SC-0"],
+    "parentKey": "C0476"
+  },
+  {
+    "key": "C0538",
+    "family": "IconButton/sm/hover",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "IconButton",
+    "icon": "I006",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2HF-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S5X-0"]
+  },
+  {
+    "key": "C0565",
+    "family": "Inbox/Item/upcoming",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "QO-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "JED-0"]
+  },
+  {
+    "key": "C0567",
+    "family": "Inbox/Popover/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "PT-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "JEC-0"]
+  },
+  {
+    "key": "C0618",
+    "family": "Launcher/Desktop",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-4-0", "3JD-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3E31-2"]
+  },
+  {
+    "key": "C0619",
+    "family": "Launcher/Desktop",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-4-0", "3E9-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3E4O-2"]
+  },
+  {
+    "key": "C0629",
+    "family": "Menu/Attach/flat",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ActionMenu",
+    "parts": [
+      "C0697",
+      "C0691",
+      "C0691",
+      "C0691",
+      "C0691",
+      "C0691",
+      "C0691",
+      "C0691",
+      "C0691",
+      "C0691",
+      "C0691"
+    ],
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "ZP-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "BQC-0"]
+  },
+  {
+    "key": "C0633",
+    "family": "Menu/Browser actions",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "BrowserActionsMenu",
+    "icon": "I006",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-4-0", "5HE-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3UV8-0"]
+  },
+  {
+    "key": "C0634",
+    "family": "Menu/ChartRange",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ActionMenu",
+    "parts": ["C0699", "C0685", "C0688"],
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "25T-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "19QX-0"]
+  },
+  {
+    "key": "C0635",
+    "family": "Menu/ChartRange",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ActionMenu",
+    "parts": ["C0700", "C0690", "C0692"],
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "23X-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1DGL-0"]
+  },
+  {
+    "key": "C0639",
+    "family": "Menu/ChatActions",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ActionMenu",
+    "parts": ["C0691", "C0691"],
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1UQ-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "29PA-0"]
+  },
+  {
+    "key": "C0641",
+    "family": "Menu/CollectionSort",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ActionMenu",
+    "icon": "I072",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "4K-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "29P1-0"]
+  },
+  {
+    "key": "C0643",
+    "family": "Menu/CollectionSort/hover",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ActionMenu",
+    "icon": "I072",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1U4-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2ANZ-0"]
+  },
+  {
+    "key": "C0647",
+    "family": "Menu/DashboardVisibility",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "VisibilityMenu",
+    "icon": "I072",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "50-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "P7A-0"]
+  },
+  {
+    "key": "C0648",
+    "family": "Menu/group label",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "2AL-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "11TS-0"]
+  },
+  {
+    "key": "C0649",
+    "family": "Menu/group label",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "158-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "11SS-0"]
+  },
+  {
+    "key": "C0651",
+    "family": "Menu/Help/downloads-hover",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ActionMenu",
+    "parts": ["C0697", "C0691", "C0691", "C0691"],
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1V9-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2AO8-0"]
+  },
+  {
+    "key": "C0655",
+    "family": "Menu/HelpDownloads",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ActionMenu",
+    "parts": ["C0691"],
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "19A-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2B3H-0"]
+  },
+  {
+    "key": "C0656",
+    "family": "Menu/More actions",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ActionMenu",
+    "parts": ["C0687", "C0687", "C0687", "C0687"],
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "28K-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "11T9-0"]
+  },
+  {
+    "key": "C0657",
+    "family": "Menu/More actions",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ActionMenu",
+    "parts": ["C0691", "C0691", "C0691", "C0691"],
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "137-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "11SQ-0"]
+  },
+  {
+    "key": "C0660",
+    "family": "Menu/Organization/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1LK-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y2Y-0"]
+  },
+  {
+    "key": "C0661",
+    "family": "Menu/Organization/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1LK-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EOR-0"]
+  },
+  {
+    "key": "C0677",
+    "family": "Menu/Row",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "MenuItem",
+    "icon": "I057",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "34G-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "11TV-0"]
+  },
+  {
+    "key": "C0679",
+    "family": "Menu/Row",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "MenuItem",
+    "icon": "I057",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "2QM-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "11SV-0"]
+  },
+  {
+    "key": "C0682",
+    "family": "Menu/Theme/dark-selected",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ActionMenu",
+    "icon": "I072",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3C7-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "3257-0"]
+  },
+  {
+    "key": "C0685",
+    "family": "MenuItem/row/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "MenuItem",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "25Y-0"],
+    "use": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "25Y-0"],
+    "parentKey": "C0634"
+  },
+  {
+    "key": "C0687",
+    "family": "MenuItem/row/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "MenuItem",
+    "icon": "I100",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "258-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y2Z-0"]
+  },
+  {
+    "key": "C0688",
+    "family": "MenuItem/row/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "MenuItem",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "260-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "19R4-0"]
+  },
+  {
+    "key": "C0690",
+    "family": "MenuItem/row/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "MenuItem",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "242-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1DGO-0"]
+  },
+  {
+    "key": "C0691",
+    "family": "MenuItem/row/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "MenuItem",
+    "icon": "I116",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1LZ-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "29PK-0"]
+  },
+  {
+    "key": "C0692",
+    "family": "MenuItem/row/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "MenuItem",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "244-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1DGM-0"]
+  },
+  {
+    "key": "C0697",
+    "family": "MenuItem/row/hover",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "MenuItem",
+    "icon": "I116",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1NT-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2AOZ-0"]
+  },
+  {
+    "key": "C0699",
+    "family": "MenuItem/row/selected",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "MenuItem",
+    "icon": "I072",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "25U-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "19QZ-0"]
+  },
+  {
+    "key": "C0700",
+    "family": "MenuItem/row/selected",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "MenuItem",
+    "icon": "I072",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "23Y-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1DGQ-0"]
+  },
+  {
+    "key": "C0702",
+    "family": "MessageRow",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "YN-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2XDD-0"]
+  },
+  {
+    "key": "C0703",
+    "family": "MessageRow",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "ZD-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2XCO-0"]
+  },
+  {
+    "key": "C0705",
+    "family": "MessageRow",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "404-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1PPM-0"]
+  },
+  {
+    "key": "C0706",
+    "family": "MessageRow",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "YN-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "10BD-0"]
+  },
+  {
+    "key": "C0707",
+    "family": "MessageRow",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "40U-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1POX-0"]
+  },
+  {
+    "key": "C0708",
+    "family": "MessageRow",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "ZD-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "10AO-0"]
+  },
+  {
+    "key": "C0709",
+    "family": "MessageRow/mobile",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1FP-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y6O-0"]
+  },
+  {
+    "key": "C0710",
+    "family": "MessageRow/mobile",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "3Z5-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y5X-0"]
+  },
+  {
+    "key": "C0711",
+    "family": "MessageRow/mobile",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1T0-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EFK-0"]
+  },
+  {
+    "key": "C0712",
+    "family": "MessageRow/mobile",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "3ZG-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EET-0"]
+  },
+  {
+    "key": "C0741",
+    "family": "Modal/Body",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ModalBody",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "24C-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2Z28-0"]
+  },
+  {
+    "key": "C0742",
+    "family": "Modal/Body",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ModalBody",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1MA-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1QZP-0"]
+  },
+  {
+    "key": "C0743",
+    "family": "Modal/Field/input",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "TextField",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "24D-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "A55-0"]
+  },
+  {
+    "key": "C0744",
+    "family": "Modal/Field/input",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "TextField",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1MB-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "HAO-0"]
+  },
+  {
+    "key": "C0745",
+    "family": "Modal/Field/response-quality",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2O8-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2Z2E-0"]
+  },
+  {
+    "key": "C0746",
+    "family": "Modal/Field/response-quality",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2KZ-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1QZQ-0"]
+  },
+  {
+    "key": "C0747",
+    "family": "Modal/Field/select",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "SelectField",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "2C1-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "H33-0"]
+  },
+  {
+    "key": "C0748",
+    "family": "Modal/Field/select",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "SelectField",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1NK-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "HAY-0"]
+  },
+  {
+    "key": "C0749",
+    "family": "Modal/Field/textarea",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "TextAreaField",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "2BW-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2Z29-0"]
+  },
+  {
+    "key": "C0750",
+    "family": "Modal/Field/textarea",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "TextAreaField",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1NF-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1R01-0"]
+  },
+  {
+    "key": "C0751",
+    "family": "Modal/Footer",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ModalFooter",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "24I-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2Z23-0"]
+  },
+  {
+    "key": "C0752",
+    "family": "Modal/Footer",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ModalFooter",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1GY-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZFZ-0"]
+  },
+  {
+    "key": "C0753",
+    "family": "Modal/Footer",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ModalFooter",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1MG-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1R06-0"]
+  },
+  {
+    "key": "C0754",
+    "family": "Modal/Footer",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ModalFooter",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1U9-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1R14-0"]
+  },
+  {
+    "key": "C0755",
+    "family": "Modal/Header",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ModalHeader",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "243-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2Z2P-0"]
+  },
+  {
+    "key": "C0756",
+    "family": "Modal/Header",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ModalHeader",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1G6-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZGO-0"]
+  },
+  {
+    "key": "C0757",
+    "family": "Modal/Header",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ModalHeader",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1M1-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1QZG-0"]
+  },
+  {
+    "key": "C0758",
+    "family": "Modal/Header",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ModalHeader",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1TH-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1R0E-0"]
+  },
+  {
+    "key": "C0761",
+    "family": "Modal/MD/Form",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Modal",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "2BG-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "H2U-0"]
+  },
+  {
+    "key": "C0762",
+    "family": "Modal/MD/Form",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Modal",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1MZ-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "GG2-0"]
+  },
+  {
+    "key": "C0763",
+    "family": "Modal/MD/ResponseFeedback/negative",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "Modal",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2NX-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2Z22-0"]
+  },
+  {
+    "key": "C0764",
+    "family": "Modal/MD/ResponseFeedback/negative",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Modal",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2KO-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1QZF-0"]
+  },
+  {
+    "key": "C0770",
+    "family": "Modal/SM/DisconnectCalendar",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Modal",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "13L-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "126L-0"]
+  },
+  {
+    "key": "C0772",
+    "family": "Modal/SM/DisconnectEmail",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Modal",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "134-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "125L-0"]
+  },
+  {
+    "key": "C0775",
+    "family": "Modal/Touch/ResponseFeedback/negative",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Modal",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1G5-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZFY-0"]
+  },
+  {
+    "key": "C0776",
+    "family": "Modal/Touch/ResponseFeedback/negative",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Modal",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1TG-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1R0D-0"]
+  },
+  {
+    "key": "C0779",
+    "family": "Name editor/Backdrop",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3AD-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1KTD-0"]
+  },
+  {
+    "key": "C0780",
+    "family": "Name editor/Backdrop",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3MC-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "125I-0"]
+  },
+  {
+    "key": "C0789",
+    "family": "Notification/with-action",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "14J-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "YR5-0"]
+  },
+  {
+    "key": "C0791",
+    "family": "NotificationStack/expanded",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "14D-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "Z1X-0"]
+  },
+  {
+    "key": "C0793",
+    "family": "NotificationStack/minimized",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "16J-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "YRZ-0"]
+  },
+  {
+    "key": "C0798",
+    "family": "Organization/Summary",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1LL-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y36-0"]
+  },
+  {
+    "key": "C0799",
+    "family": "Organization/Summary",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1LL-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EOZ-0"]
+  },
+  {
+    "key": "C0806",
+    "family": "OverflowText/16px",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "OverflowText",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "14P-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y4L-0"]
+  },
+  {
+    "key": "C0807",
+    "family": "OverflowText/16px",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "OverflowText",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "14P-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "29PX-0"]
+  },
+  {
+    "key": "C0810",
+    "family": "Panel/WorkspaceStart",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-4-0", "3SU-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3E8O-2"]
+  },
+  {
+    "key": "C0811",
+    "family": "Panel/WorkspaceStart",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-4-0", "3NQ-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3EFG-2"]
+  },
+  {
+    "key": "C0812",
+    "family": "Panel/WorkspaceStart/mobile",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "4KH-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3EIU-2"]
+  },
+  {
+    "key": "C0815",
+    "family": "PanelContent/Browser",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "4II-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3BIW-2"]
+  },
+  {
+    "key": "C0816",
+    "family": "PanelContent/Browser",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "4BA-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3BD7-2"]
+  },
+  {
+    "key": "C0818",
+    "family": "PanelContent/File",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "464-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3BF3-2"]
+  },
+  {
+    "key": "C0819",
+    "family": "PanelContent/File",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "48N-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3BH1-2"]
+  },
+  {
+    "key": "C0828",
+    "family": "PanelStart/no-recents",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-4-0", "3E7-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3MOA-0"]
+  },
+  {
+    "key": "C0845",
+    "family": "RangeControl/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "RangePicker",
+    "icon": "I080",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "C6-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y9T-0"]
+  },
+  {
+    "key": "C0846",
+    "family": "RangeControl/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "RangePicker",
+    "icon": "I080",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "218-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2XGG-0"]
+  },
+  {
+    "key": "C0847",
+    "family": "RangeControl/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "RangePicker",
+    "icon": "I080",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "TD-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EIP-0"]
+  },
+  {
+    "key": "C0848",
+    "family": "RangeControl/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "RangePicker",
+    "icon": "I080",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1ZE-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1C60-0"]
+  },
+  {
+    "key": "C0854",
+    "family": "RangeControl/open",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "RangePicker",
+    "icon": "I080",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "23T-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1DGU-0"]
+  },
+  {
+    "key": "C0866",
+    "family": "Recents/1-items/fits",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "RecentItems",
+    "icon": "I015",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-4-0", "3LD-0"],
+    "use": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-4-0", "3LD-0"],
+    "parentKey": "C0071"
+  },
+  {
+    "key": "C0867",
+    "family": "Recents/1-items/fits",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "RecentItems",
+    "icon": "I015",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-4-0", "3G9-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3NDB-0"]
+  },
+  {
+    "key": "C0869",
+    "family": "Recents/2-items/fits",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "RecentItems",
+    "icon": "I015",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-4-0", "3IL-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3NYK-0"]
+  },
+  {
+    "key": "C0898",
+    "family": "Recents/Strip/end",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "RecentItems",
+    "icon": "I032",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "28O-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3GC1-2"]
+  },
+  {
+    "key": "C0899",
+    "family": "Recents/Strip/middle",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "RecentItems",
+    "icon": "I032",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "4HH-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3GSD-2"]
+  },
+  {
+    "key": "C0902",
+    "family": "Recents/Strip/start",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "RecentItems",
+    "icon": "I045",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "48H-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3GK7-2"]
+  },
+  {
+    "key": "C0903",
+    "family": "Recents/Strip/start",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "RecentItems",
+    "icon": "I045",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "2MM-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3GG4-2"]
+  },
+  {
+    "key": "C0904",
+    "family": "Recents/Strip/touch",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "RecentItems",
+    "icon": "I045",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "4KI-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3IER-2"]
+  },
+  {
+    "key": "C0922",
+    "family": "ScrollViewport/top-bottom-fade",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ScrollArea",
+    "parts": ["C0328", "C0190", "C0328", "C0183", "C0328", "C0190"],
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "4EO-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3TQW-0"]
+  },
+  {
+    "key": "C0924",
+    "family": "ScrollViewport/top-bottom-fade",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ScrollArea",
+    "parts": ["C0329", "C0191", "C0329", "C0185", "C0329", "C0191"],
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "44Z-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3TH2-0"]
+  },
+  {
+    "key": "C0925",
+    "family": "SearchInput/md",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "SearchField",
+    "icon": "I089",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "2IB-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "177S-0"]
+  },
+  {
+    "key": "C0926",
+    "family": "SearchInput/md",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "SearchField",
+    "icon": "I089",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "2QW-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "XYU-0"]
+  },
+  {
+    "key": "C0928",
+    "family": "SearchInput/md",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "SearchField",
+    "icon": "I089",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "204-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "XXM-0"]
+  },
+  {
+    "key": "C0934",
+    "family": "Section/ConnectedAccountActions",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "5W-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2XDR-0"]
+  },
+  {
+    "key": "C0935",
+    "family": "Section/ConnectedAccountActions",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3PJ-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y73-0"]
+  },
+  {
+    "key": "C0936",
+    "family": "Section/ConnectedAccountActions",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "5W-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "10BR-0"]
+  },
+  {
+    "key": "C0937",
+    "family": "Section/ConnectedAccountActions",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3HZ-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EE2-0"]
+  },
+  {
+    "key": "C0938",
+    "family": "Section/ProviderHeading",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "5O-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y7F-0"]
+  },
+  {
+    "key": "C0939",
+    "family": "Section/ProviderHeading",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "5O-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "10C2-0"]
+  },
+  {
+    "key": "C0953",
+    "family": "Select/Theme/dark-selected",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Select",
+    "icon": "I051",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "BJ-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2ZKO-0"]
+  },
+  {
+    "key": "C0954",
+    "family": "Select/Theme/system-selected",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Select",
+    "icon": "I051",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1UN-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "B8P-0"]
+  },
+  {
+    "key": "C0955",
+    "family": "Selection/Item/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "SelectionItem",
+    "icon": "I017",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1EP-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZGJ-0"]
+  },
+  {
+    "key": "C0956",
+    "family": "Selection/Item/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "SelectionItem",
+    "icon": "I017",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2OB-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2Z2K-0"]
+  },
+  {
+    "key": "C0957",
+    "family": "Selection/Item/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "SelectionItem",
+    "icon": "I017",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1S0-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1SWI-0"]
+  },
+  {
+    "key": "C0958",
+    "family": "Selection/Item/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "SelectionItem",
+    "icon": "I017",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2L2-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1SW8-0"]
+  },
+  {
+    "key": "C0963",
+    "family": "Selection/Item/selected",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "SelectionItem",
+    "icon": "I008",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1ET-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZGF-0"]
+  },
+  {
+    "key": "C0964",
+    "family": "Selection/Item/selected",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "SelectionItem",
+    "icon": "I008",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2OF-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2Z2G-0"]
+  },
+  {
+    "key": "C0965",
+    "family": "Selection/Item/selected",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "SelectionItem",
+    "icon": "I008",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1S4-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1SWM-0"]
+  },
+  {
+    "key": "C0966",
+    "family": "Selection/Item/selected",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "SelectionItem",
+    "icon": "I008",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2L6-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1SWC-0"]
+  },
+  {
+    "key": "C0967",
+    "family": "Selection/SM/ResponseQuality/Bad-selected",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "SegmentedControl",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-3-0", "2OA-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2Z2F-0"]
+  },
+  {
+    "key": "C0968",
+    "family": "Selection/SM/ResponseQuality/Bad-selected",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "SegmentedControl",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1EO-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2ZGE-0"]
+  },
+  {
+    "key": "C0969",
+    "family": "Selection/SM/ResponseQuality/Bad-selected",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "SegmentedControl",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2L1-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1SW7-0"]
+  },
+  {
+    "key": "C0970",
+    "family": "Selection/SM/ResponseQuality/Bad-selected",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "SegmentedControl",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1RZ-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1SWH-0"]
+  },
+  {
+    "key": "C0979",
+    "family": "Selection/sm/selected",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "SegmentedControl",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "PW-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2XHB-0"]
+  },
+  {
+    "key": "C0980",
+    "family": "Selection/sm/selected",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "SegmentedControl",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1EI-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2YAT-0"]
+  },
+  {
+    "key": "C0981",
+    "family": "Selection/sm/selected",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "SegmentedControl",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "PW-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "RL0-0"]
+  },
+  {
+    "key": "C0982",
+    "family": "Selection/sm/selected",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "SegmentedControl",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1RT-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EJP-0"]
+  },
+  {
+    "key": "C0985",
+    "family": "Settings/Sidebar",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3SN-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "30FF-0"]
+  },
+  {
+    "key": "C0986",
+    "family": "Settings/Sidebar",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3V5-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2ZQC-0"]
+  },
+  {
+    "key": "C0987",
+    "family": "Settings/Sidebar",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1GR-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2ZLV-0"]
+  },
+  {
+    "key": "C0988",
+    "family": "Settings/Sidebar",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "37G-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "EBP-0"]
+  },
+  {
+    "key": "C0989",
+    "family": "Settings/Sidebar",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1GR-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "B5C-0"]
+  },
+  {
+    "key": "C0990",
+    "family": "Settings/Sidebar",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3DQ-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1RFC-0"]
+  },
+  {
+    "key": "C0999",
+    "family": "SettingsRow/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "SettingsRow",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3QN-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "30HS-0"]
+  },
+  {
+    "key": "C1000",
+    "family": "SettingsRow/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "SettingsRow",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1IY-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "308Q-0"]
+  },
+  {
+    "key": "C1002",
+    "family": "SettingsRow/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "SettingsRow",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3C4-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "28FK-0"]
+  },
+  {
+    "key": "C1003",
+    "family": "SettingsRow/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "SettingsRow",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1IY-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1Q6P-0"]
+  },
+  {
+    "key": "C1004",
+    "family": "SettingsRow/stacked",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "SettingsRow",
+    "icon": "I051",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1FF-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "30IM-0"]
+  },
+  {
+    "key": "C1005",
+    "family": "SettingsRow/stacked",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "SettingsRow",
+    "icon": "I051",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1SQ-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "28GE-0"]
+  },
+  {
+    "key": "C1006",
+    "family": "SettingsSection/group",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "SettingsSection",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1IV-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2ZKX-0"]
+  },
+  {
+    "key": "C1007",
+    "family": "SettingsSection/group",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "SettingsSection",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1IV-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "B7H-0"]
+  },
+  {
+    "key": "C1008",
+    "family": "SettingsSection/Surface",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "SettingsSurface",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3QM-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "30HK-0"]
+  },
+  {
+    "key": "C1009",
+    "family": "SettingsSection/Surface",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "SettingsSurface",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1IX-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "308I-0"]
+  },
+  {
+    "key": "C1010",
+    "family": "SettingsSection/Surface",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "SettingsSurface",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3C3-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "28FC-0"]
+  },
+  {
+    "key": "C1011",
+    "family": "SettingsSection/Surface",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "SettingsSurface",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1IX-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1Q6H-0"]
+  },
+  {
+    "key": "C1012",
+    "family": "Sidebar/Back action",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "Button",
+    "icon": "I093",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1GT-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2ZNQ-0"]
+  },
+  {
+    "key": "C1013",
+    "family": "Sidebar/Back action",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Button",
+    "icon": "I093",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1GT-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "B5E-0"]
+  },
+  {
+    "key": "C1014",
+    "family": "Sidebar/Expanded",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3GR-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y10-0"]
+  },
+  {
+    "key": "C1015",
+    "family": "Sidebar/Expanded",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3KH-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39V7-2"]
+  },
+  {
+    "key": "C1017",
+    "family": "Sidebar/Expanded",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3EF-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39HZ-2"]
+  },
+  {
+    "key": "C1018",
+    "family": "Sidebar/Expanded",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "31S-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "2Z4J-0"]
+  },
+  {
+    "key": "C1019",
+    "family": "Sidebar/Expanded",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3KG-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39V4-2"]
+  },
+  {
+    "key": "C1020",
+    "family": "Sidebar/Expanded",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3MO-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3AFE-2"]
+  },
+  {
+    "key": "C1021",
+    "family": "Sidebar/Expanded",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "2SI-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3AR4-2"]
+  },
+  {
+    "key": "C1022",
+    "family": "Sidebar/Expanded",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "2E4-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3MSX-0"]
+  },
+  {
+    "key": "C1024",
+    "family": "Sidebar/Expanded",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "2SS-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3AA7-2"]
+  },
+  {
+    "key": "C1025",
+    "family": "Sidebar/Expanded",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "262-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3D1R-2"]
+  },
+  {
+    "key": "C1026",
+    "family": "Sidebar/Expanded",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "31E-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1RD5-0"]
+  },
+  {
+    "key": "C1027",
+    "family": "Sidebar/Expanded",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "2RZ-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3A9B-2"]
+  },
+  {
+    "key": "C1028",
+    "family": "Sidebar/Footer",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1IL-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2ZLW-0"]
+  },
+  {
+    "key": "C1029",
+    "family": "Sidebar/Footer",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1GF-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39X2-2"]
+  },
+  {
+    "key": "C1030",
+    "family": "Sidebar/Footer",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3UH-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "30FG-0"]
+  },
+  {
+    "key": "C1031",
+    "family": "Sidebar/Footer",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3J8-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y11-0"]
+  },
+  {
+    "key": "C1032",
+    "family": "Sidebar/Footer",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1IL-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "B6Y-0"]
+  },
+  {
+    "key": "C1033",
+    "family": "Sidebar/Footer",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1GF-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3D3M-2"]
+  },
+  {
+    "key": "C1034",
+    "family": "Sidebar/Footer",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3FK-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1RH6-0"]
+  },
+  {
+    "key": "C1035",
+    "family": "Sidebar/Footer",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "33V-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1RF0-0"]
+  },
+  {
+    "key": "C1036",
+    "family": "Sidebar/Header",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1GS-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2ZNC-0"]
+  },
+  {
+    "key": "C1037",
+    "family": "Sidebar/Header",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3SO-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "30GW-0"]
+  },
+  {
+    "key": "C1038",
+    "family": "Sidebar/Header",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1GS-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "B5D-0"]
+  },
+  {
+    "key": "C1039",
+    "family": "Sidebar/Header",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3DR-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1RFD-0"]
+  },
+  {
+    "key": "C1050",
+    "family": "Sidebar/LongName/open",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "2DU-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "29PR-0"]
+  },
+  {
+    "key": "C1051",
+    "family": "Sidebar/NavItem/Workspace/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1G6-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3TYN-0"]
+  },
+  {
+    "key": "C1052",
+    "family": "Sidebar/NavItem/Workspace/default",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "H-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3AH2-2"]
+  },
+  {
+    "key": "C1054",
+    "family": "Sidebar/NavItem/Workspace/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "2TQ-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3AH0-2"]
+  },
+  {
+    "key": "C1055",
+    "family": "Sidebar/NavItem/Workspace/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1G6-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3D3D-2"]
+  },
+  {
+    "key": "C1056",
+    "family": "Sidebar/NavItem/Workspace/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "H-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3D2X-2"]
+  },
+  {
+    "key": "C1057",
+    "family": "Sidebar/NavItem/Workspace/default",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "GI-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "29Q8-0"]
+  },
+  {
+    "key": "C1058",
+    "family": "Sidebar/Organization identity",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1EM-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39V9-2"]
+  },
+  {
+    "key": "C1059",
+    "family": "Sidebar/Organization identity",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1EM-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3D1T-2"]
+  },
+  {
+    "key": "C1060",
+    "family": "Sidebar/Organization identity/open",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1LC-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2XJU-0"]
+  },
+  {
+    "key": "C1061",
+    "family": "Sidebar/Organization identity/open",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1LC-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2ENA-0"]
+  },
+  {
+    "key": "C1064",
+    "family": "Sidebar/Organization",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1IB-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2ZM4-0"]
+  },
+  {
+    "key": "C1065",
+    "family": "Sidebar/Organization",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1EL-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39V8-2"]
+  },
+  {
+    "key": "C1066",
+    "family": "Sidebar/Organization",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "31J-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39I0-2"]
+  },
+  {
+    "key": "C1067",
+    "family": "Sidebar/Organization",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3U7-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "30FO-0"]
+  },
+  {
+    "key": "C1068",
+    "family": "Sidebar/Organization",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3GS-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y2J-0"]
+  },
+  {
+    "key": "C1069",
+    "family": "Sidebar/Organization",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1IB-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "B6O-0"]
+  },
+  {
+    "key": "C1070",
+    "family": "Sidebar/Organization",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "2CI-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EN0-0"]
+  },
+  {
+    "key": "C1071",
+    "family": "Sidebar/Organization",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1EL-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3D1S-2"]
+  },
+  {
+    "key": "C1072",
+    "family": "Sidebar/Organization",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "2YW-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3AA8-2"]
+  },
+  {
+    "key": "C1073",
+    "family": "Sidebar/Organization",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3FA-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1RGW-0"]
+  },
+  {
+    "key": "C1074",
+    "family": "Sidebar/Organization",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "31F-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1RD6-0"]
+  },
+  {
+    "key": "C1075",
+    "family": "Sidebar/Personal",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1HL-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2ZMD-0"]
+  },
+  {
+    "key": "C1076",
+    "family": "Sidebar/Personal",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1HL-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "B5X-0"]
+  },
+  {
+    "key": "C1077",
+    "family": "Sidebar/Primary navigation",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "1F6-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39VT-2"]
+  },
+  {
+    "key": "C1078",
+    "family": "Sidebar/Primary navigation",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1F6-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3D2D-2"]
+  },
+  {
+    "key": "C1080",
+    "family": "Sidebar/ScrollableItems",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "SidebarWorkspaceItems",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1F-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "W0U-0"]
+  },
+  {
+    "key": "C1082",
+    "family": "Sidebar/ScrollViewport",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ScrollArea",
+    "parts": ["C1080"],
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1E-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "W0T-0"]
+  },
+  {
+    "key": "C1083",
+    "family": "Sidebar/Search/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "SearchField",
+    "icon": "I089",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "12Z-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2ZN3-0"]
+  },
+  {
+    "key": "C1084",
+    "family": "Sidebar/Search/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "SearchField",
+    "icon": "I089",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1GC-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "B5P-0"]
+  },
+  {
+    "key": "C1086",
+    "family": "Sidebar/Search/focus",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "SearchField",
+    "icon": "I089",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1WP-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2859-0"]
+  },
+  {
+    "key": "C1088",
+    "family": "Sidebar/Search/query",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "SearchField",
+    "icon": "I089",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1X0-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "29QI-0"]
+  },
+  {
+    "key": "C1090",
+    "family": "Sidebar/SearchEmpty",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1XM-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "29R2-0"]
+  },
+  {
+    "key": "C1091",
+    "family": "Sidebar/Section heading",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "13G-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2ZN1-0"]
+  },
+  {
+    "key": "C1092",
+    "family": "Sidebar/Section heading",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3TI-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "30GL-0"]
+  },
+  {
+    "key": "C1093",
+    "family": "Sidebar/Section heading",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1GT-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "B5Y-0"]
+  },
+  {
+    "key": "C1094",
+    "family": "Sidebar/Section heading",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3EL-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1RG7-0"]
+  },
+  {
+    "key": "C1095",
+    "family": "Sidebar/Section/Chats",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "R-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39WN-2"]
+  },
+  {
+    "key": "C1097",
+    "family": "Sidebar/Section/Chats",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "R-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3D37-2"]
+  },
+  {
+    "key": "C1098",
+    "family": "Sidebar/Section/Chats",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "2L-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "VB6-0"]
+  },
+  {
+    "key": "C1099",
+    "family": "Sidebar/Section/Workspaces",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "B-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39W7-2"]
+  },
+  {
+    "key": "C1101",
+    "family": "Sidebar/Section/Workspaces",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "B-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3D2R-2"]
+  },
+  {
+    "key": "C1102",
+    "family": "Sidebar/Section/Workspaces",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "18-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "VBK-0"]
+  },
+  {
+    "key": "C1103",
+    "family": "Sidebar/Sections",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "A-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39W6-2"]
+  },
+  {
+    "key": "C1104",
+    "family": "Sidebar/Sections",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3ID-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y1B-0"]
+  },
+  {
+    "key": "C1106",
+    "family": "Sidebar/Sections",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "A-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3D2Q-2"]
+  },
+  {
+    "key": "C1107",
+    "family": "Sidebar/Sections",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "2F3-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1RE4-0"]
+  },
+  {
+    "key": "C1109",
+    "family": "Sidebar/Shortcut slot",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "135-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2ZN4-0"]
+  },
+  {
+    "key": "C1110",
+    "family": "Sidebar/Shortcut slot",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "2R2-0"],
+    "use": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "2R2-0"],
+    "parentKey": "C0926"
+  },
+  {
+    "key": "C1111",
+    "family": "Sidebar/Shortcut slot",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "1GI-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "E58-0"]
+  },
+  {
+    "key": "C1112",
+    "family": "Sidebar/Shortcut slot",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "20A-0"],
+    "use": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "20A-0"],
+    "parentKey": "C0928"
+  },
+  {
+    "key": "C1113",
+    "family": "SidePanel/browser/expanded",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "49S-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3ABZ-2"]
+  },
+  {
+    "key": "C1116",
+    "family": "SidePanel/browser/split",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "4RM-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39LH-2"]
+  },
+  {
+    "key": "C1117",
+    "family": "SidePanel/browser/split",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "4H0-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3AUM-2"]
+  },
+  {
+    "key": "C1118",
+    "family": "SidePanel/browser/split",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "42Y-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3DAB-2"]
+  },
+  {
+    "key": "C1119",
+    "family": "SidePanel/Header/compact",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "4GW-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3D05-2"]
+  },
+  {
+    "key": "C1120",
+    "family": "SidePanel/TabStrip/desktop",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-4-0", "3I0-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39LI-2"]
+  },
+  {
+    "key": "C1121",
+    "family": "SidePanel/TabStrip/desktop",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-4-0", "3CW-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3TH4-0"]
+  },
+  {
+    "key": "C1122",
+    "family": "SidePanel/TabStrip/expanded",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "49T-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3BL0-2"]
+  },
+  {
+    "key": "C1123",
+    "family": "SidePanel/TabStrip/expanded",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "4QP-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3BE9-2"]
+  },
+  {
+    "key": "C1124",
+    "family": "SidePanel/TabStrip/multiple",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "4H1-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3BLW-2"]
+  },
+  {
+    "key": "C1125",
+    "family": "SidePanel/TabStrip/multiple",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "47Q-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3BG7-2"]
+  },
+  {
+    "key": "C1126",
+    "family": "SidePanel/TabStrip/web",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-4-0", "3OV-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39Z3-2"]
+  },
+  {
+    "key": "C1127",
+    "family": "SidePanel/TabStrip/web",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-4-0", "3JR-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3AZO-2"]
+  },
+  {
+    "key": "C1128",
+    "family": "SidePanel/web/expanded",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "4JW-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3AHK-2"]
+  },
+  {
+    "key": "C1129",
+    "family": "SidePanel/web/expanded",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "4GV-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3B20-2"]
+  },
+  {
+    "key": "C1130",
+    "family": "SidePanel/web/split",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "47O-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "39Z2-2"]
+  },
+  {
+    "key": "C1131",
+    "family": "SidePanel/web/split",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "4DC-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3AZN-2"]
+  },
+  {
+    "key": "C1171",
+    "family": "Switch/off",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Switch",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1OG-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2ZJN-0"]
+  },
+  {
+    "key": "C1173",
+    "family": "Switch/off",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Switch",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "167-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "B9U-0"]
+  },
+  {
+    "key": "C1180",
+    "family": "Switch/on",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Switch",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "1OK-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2ZJU-0"]
+  },
+  {
+    "key": "C1181",
+    "family": "Switch/on",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Switch",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "16B-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "B9M-0"]
+  },
+  {
+    "key": "C1214",
+    "family": "Tab/Label clip",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-4-0", "5MC-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3DF0-2"]
+  },
+  {
+    "key": "C1215",
+    "family": "Tab/Label clip",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-4-0", "5KM-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3DFF-2"]
+  },
+  {
+    "key": "C1258",
+    "family": "Tooltip/label",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "PeoplePopover",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "XC-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "YSD-0"]
+  },
+  {
+    "key": "C1259",
+    "family": "Tooltip/label",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Tooltip",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "425-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3S6J-0"]
+  },
+  {
+    "key": "C1260",
+    "family": "Tooltip/label",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "Tooltip",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-3-0", "2HO-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "1O8U-0"]
+  },
+  {
+    "key": "C1265",
+    "family": "Tooltip/PersonRow",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "PersonRow",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "XF-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "YSN-0"]
+  },
+  {
+    "key": "C1266",
+    "family": "Wiki/CreateModal",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "4CD-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "HAD-0"]
+  },
+  {
+    "key": "C1281",
+    "family": "WorkspaceList/Row/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "4CE-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3TF8-0"]
+  },
+  {
+    "key": "C1282",
+    "family": "WorkspaceList/Row/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "4EA-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3FEX-2"]
+  },
+  {
+    "key": "C1283",
+    "family": "WorkspaceList/Scrollable",
+    "theme": "D",
+    "scope": "platform",
+    "owner": "WorkspaceList",
+    "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-4-0", "3PO-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3E9P-2"]
+  },
+  {
+    "key": "C1284",
+    "family": "WorkspaceList/Scrollable",
+    "theme": "L",
+    "scope": "platform",
+    "owner": "WorkspaceList",
+    "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-4-0", "3KK-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3ED3-2"]
+  },
+  {
+    "key": "C1286",
+    "family": "WorkspaceList/scrolled",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "WorkspaceList",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-C-0", "4LA-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3FET-2"]
+  },
+  {
+    "key": "C1288",
+    "family": "WorkspaceList/touch",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "WorkspaceList",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-9-0", "4OA-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3EJX-2"]
+  },
+  {
+    "key": "C1292",
+    "family": "MultiStepModal/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "MultiStepModal",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "AUT-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "GG1-0"]
+  },
+  {
+    "key": "C1293",
+    "family": "MultiStepModal/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "MultiStepModal",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "9HT-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "H2T-0"]
+  },
+  {
+    "key": "C1294",
+    "family": "SearchableSelect/creatable",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "SearchableSelect",
+    "icon": "I072",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "AW7-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "9VR-0"]
+  },
+  {
+    "key": "C1295",
+    "family": "SearchableSelect/creatable",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "SearchableSelect",
+    "icon": "I072",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "9J7-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "AWR-0"]
+  },
+  {
+    "key": "C1296",
+    "family": "CollectionHeader/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "AZV-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3D2S-2"]
+  },
+  {
+    "key": "C1297",
+    "family": "CollectionHeader/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "9KJ-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3AGF-2"]
+  },
+  {
+    "key": "C1298",
+    "family": "LogoUpload",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "LogoUploadField",
+    "icon": "I117",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "B79-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "B87-0"]
+  },
+  {
+    "key": "C1299",
+    "family": "LogoUpload",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "LogoUploadField",
+    "icon": "I117",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "9XL-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "B8E-0"]
+  },
+  {
+    "key": "C1300",
+    "family": "Button/xs/quiet/default",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "IconButton",
+    "icon": "I074",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "BCJ-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-O-0", "3D2U-2"]
+  },
+  {
+    "key": "C1301",
+    "family": "Button/xs/quiet/default",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "IconButton",
+    "icon": "I074",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "A2V-0"],
+    "use": ["01M6ABW6M1BXJE1J513A6VR6TY", "p-1B-0", "3AGX-2"]
+  },
+  {
+    "key": "C1302",
+    "family": "Button/md/quiet/hover",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Button",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "BCO-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "BHL-0"]
+  },
+  {
+    "key": "C1303",
+    "family": "Button/md/quiet/hover",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Button",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "A30-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "BSA-0"]
+  },
+  {
+    "key": "C1304",
+    "family": "EmailTag",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "RecipientTag",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "BD4-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "H25-0"]
+  },
+  {
+    "key": "C1305",
+    "family": "EmailTag",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "RecipientTag",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "A3G-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "HOX-0"]
+  },
+  {
+    "key": "C1306",
+    "family": "EmailInput",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "RecipientField",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "BDA-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "GGK-0"]
+  },
+  {
+    "key": "C1307",
+    "family": "EmailInput",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "RecipientField",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "A3M-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "H3C-0"]
+  },
+  {
+    "key": "C1308",
+    "family": "SearchInput/menu",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "MenuSearchField",
+    "icon": "I089",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "AWJ-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "4RM-0"]
+  },
+  {
+    "key": "C1309",
+    "family": "SearchInput/menu",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "MenuSearchField",
+    "icon": "I089",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "9JJ-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "4T1-0"]
+  },
+  {
+    "key": "C1310",
+    "family": "DestinationTabs",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "DestinationTabs",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "CB3-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "HVP-0"]
+  },
+  {
+    "key": "C1311",
+    "family": "DestinationTabs",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "DestinationTabs",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "AXH-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "HWY-0"]
+  },
+  {
+    "key": "C1312",
+    "family": "OverflowAction",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "CJ9-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "I4O-0"]
+  },
+  {
+    "key": "C1313",
+    "family": "OverflowAction",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "B5L-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "IEV-0"]
+  },
+  {
+    "key": "C1314",
+    "family": "Avatar/40/organization",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "Avatar",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "31R-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EPB-0"]
+  },
+  {
+    "key": "C1315",
+    "family": "Avatar/40/organization",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "Avatar",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3H4-0"],
+    "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y3I-0"]
+  },
+  {
+    "key": "C1316",
+    "family": "WorkspaceControlBar",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "CKZ-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "JGT-0"]
+  },
+  {
+    "key": "C1317",
+    "family": "WorkspaceControlBar",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "B76-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "P8U-0"]
+  },
+  {
+    "key": "C1318",
+    "family": "DashboardMetrics",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "MetricGroup",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "CNA-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "JHG-0"]
+  },
+  {
+    "key": "C1319",
+    "family": "DashboardMetrics",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "MetricGroup",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "B9H-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "P8C-0"]
+  },
+  {
+    "key": "C1320",
+    "family": "DashboardTrend",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "TrendChart",
+    "icon": "I080",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "COY-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "JI8-0"]
+  },
+  {
+    "key": "C1321",
+    "family": "DashboardTrend",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "TrendChart",
+    "icon": "I080",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "BB5-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "P7Q-0"]
+  },
+  {
+    "key": "C1322",
+    "family": "DashboardBars",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "BarChart",
+    "icon": "I080",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "CRB-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "KIQ-0"]
+  },
+  {
+    "key": "C1323",
+    "family": "DashboardBars",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "BarChart",
+    "icon": "I080",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "BE3-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "PD2-0"]
+  },
+  {
+    "key": "C1324",
+    "family": "DashboardDonut",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "DonutChart",
+    "icon": "I080",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "CVG-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "KKB-0"]
+  },
+  {
+    "key": "C1325",
+    "family": "DashboardDonut",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "DonutChart",
+    "icon": "I080",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "BIM-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "P6Q-0"]
+  },
+  {
+    "key": "C1326",
+    "family": "DashboardText",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "CZ2-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "JMZ-0"]
+  },
+  {
+    "key": "C1327",
+    "family": "DashboardText",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "BM8-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "P5D-0"]
+  },
+  {
+    "key": "C1330",
+    "family": "DashboardTable",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "DataTable",
+    "icon": "I080",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "D4E-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "JKM-0"]
+  },
+  {
+    "key": "C1331",
+    "family": "DashboardTable",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "DataTable",
+    "icon": "I080",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "BRK-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "P5G-0"]
+  },
+  {
+    "key": "C1332",
+    "family": "IssueGroup",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "EIU-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "SBB-0"]
+  },
+  {
+    "key": "C1333",
+    "family": "IssueGroup",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "D4N-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "VUS-0"]
+  },
+  {
+    "key": "C1334",
+    "family": "IssueRow",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "EJ6-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "SBN-0"]
+  },
+  {
+    "key": "C1335",
+    "family": "IssueRow",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "D4Z-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "VUK-0"]
+  },
+  {
+    "key": "C1336",
+    "family": "IssueHeader",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "EI6-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "T2Q-0"]
+  },
+  {
+    "key": "C1337",
+    "family": "IssueHeader",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "D3Z-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "12XF-0"]
+  },
+  {
+    "key": "C1340",
+    "family": "IssueSteps",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ExecutionSteps",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "EK1-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "T4S-0"]
+  },
+  {
+    "key": "C1341",
+    "family": "IssueSteps",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ExecutionSteps",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "D5U-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "12W9-0"]
+  },
+  {
+    "key": "C1342",
+    "family": "WorkspaceChanges",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "EKP-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "T5M-0"]
+  },
+  {
+    "key": "C1343",
+    "family": "WorkspaceChanges",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "D6I-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "12VJ-0"]
+  },
+  {
+    "key": "C1360",
+    "family": "ChangeEntry",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "EN2-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "TZ3-0"]
+  },
+  {
+    "key": "C1361",
+    "family": "ChangeEntry",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "D7Q-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "UIL-0"]
+  },
+  {
+    "key": "C1362",
+    "family": "PropertyList",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "PropertyList",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "EUX-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "XSO-0"]
+  },
+  {
+    "key": "C1363",
+    "family": "PropertyList",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "PropertyList",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "DGQ-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "12VU-0"]
+  },
+  {
+    "key": "C1366",
+    "family": "DocumentChange",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "F33-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "12FV-0"]
+  },
+  {
+    "key": "C1367",
+    "family": "DocumentChange",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "DOW-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "12WR-0"]
+  },
+  {
+    "key": "C1368",
+    "family": "TicketControlBar",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "F49-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "12FE-0"]
+  },
+  {
+    "key": "C1369",
+    "family": "TicketControlBar",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "DQ2-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "12XI-0"]
+  },
+  {
+    "key": "C1370",
+    "family": "RunRow",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "FCN-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "16WG-0"]
+  },
+  {
+    "key": "C1371",
+    "family": "RunRow",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "DYG-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "178E-0"]
+  },
+  {
+    "key": "C1372",
+    "family": "TraceRow",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "FDY-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "17KV-0"]
+  },
+  {
+    "key": "C1373",
+    "family": "TraceRow",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "DZR-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "198S-0"]
+  },
+  {
+    "key": "C1374",
+    "family": "TracePayload",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "FEZ-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "17P3-0"]
+  },
+  {
+    "key": "C1375",
+    "family": "TracePayload",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "E0S-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "194O-0"]
+  },
+  {
+    "key": "C1378",
+    "family": "MetadataField",
+    "theme": "L",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "FJ5-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "19UA-0"]
+  },
+  {
+    "key": "C1379",
+    "family": "MetadataField",
+    "theme": "D",
+    "scope": "shared",
+    "owner": "ComponentRecipe",
+    "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "E3K-0"],
+    "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "19WZ-0"]
+  }
+]

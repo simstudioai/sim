@@ -11,7 +11,6 @@ import {
 } from '@sim/emcn'
 import { Download, Trash } from '@sim/emcn/icons'
 import { useQueryStates } from 'nuqs'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type {
   BenchmarkCase,
   RunBenchmarkComparisonBody,
@@ -42,6 +41,7 @@ import {
   useRunBenchmarkStage,
   useUpdateBenchmark,
 } from '@/hooks/queries/benchmarks'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 interface BenchmarkDetailProps {

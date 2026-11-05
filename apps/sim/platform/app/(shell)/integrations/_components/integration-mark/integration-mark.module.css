@@ -1,4 +1,7 @@
 .mark {
+  display: contents;
+}
+.mark svg {
   flex: none;
   width: var(--ui-glyph-size);
   height: var(--ui-glyph-size);

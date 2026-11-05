@@ -2,7 +2,7 @@ import { RedesignPageSurface } from '@/app/o/[organizationId]/_redesign/redesign
 import {
   LinkRowsSkeleton,
   LinksFrame,
-} from '@/platform/app/(shell)/links/_components/links-page/links-frame'
+} from '@/platform/app/(shell)/_components/links-page/links-frame'
 
 export default function SimLinksLoading() {
   return (

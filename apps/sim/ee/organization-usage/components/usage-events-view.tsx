@@ -6,23 +6,11 @@ import { formatDateTime } from '@sim/utils/formatting'
 import { useRouter } from 'next/navigation'
 import type { OrganizationUsageEvent } from '@/lib/api/contracts/organization-usage'
 import { formatApportionedCreditCost } from '@/lib/billing/credits/conversion'
-import {
-  BILLING_USAGE_LOG_SOURCE_LABELS,
-  type InternalUsageLogSource,
-  toBillingUsageLogSource,
-} from '@/lib/billing/usage-sources'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { usageEventLabel } from '@/ee/organization-usage/format'
 import { useUsageWindow } from '@/ee/organization-usage/hooks/use-usage-window'
 import { useOrganizationUsageEvents } from '@/hooks/queries/organization-usage'
-
-/** A workflow row names its workflow; everything else reads as its product surface. */
-function eventLabel(event: OrganizationUsageEvent): string {
-  if (event.source === 'workflow' && event.workflowName) return `Workflow: ${event.workflowName}`
-  return BILLING_USAGE_LOG_SOURCE_LABELS[
-    toBillingUsageLogSource(event.source as InternalUsageLogSource)
-  ]
-}
 
 function UsageEventRow({ event }: { event: OrganizationUsageEvent }) {
   return (
@@ -31,7 +19,7 @@ function UsageEventRow({ event }: { event: OrganizationUsageEvent }) {
         {formatDateTime(new Date(event.createdAt))}
       </span>
       <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>
-        {eventLabel(event)}
+        {usageEventLabel(event)}
       </span>
       <span className='min-w-0 max-w-[180px] shrink truncate text-[var(--text-muted)] text-caption'>
         {event.description}

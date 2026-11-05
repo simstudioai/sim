@@ -2,34 +2,19 @@
 
 import { type RefObject, useState } from 'react'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar.module.css'
-import { Avatar } from '@/platform/design-system/components/avatar/avatar'
+import { Avatar, MenuItem } from '@/platform/design-system/components'
 import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
-import { MenuItem } from '@/platform/design-system/components/menu/action-menu'
 import { AnchoredPopover } from '@/platform/design-system/components/menu/anchored-popover'
-import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
 
 interface AccountMenuProps {
   anchor: RefObject<HTMLElement | null>
   name: string
-  image: string | null
-  /** The rail shows the photo alone, and names the account in a tooltip. */
-  iconOnly: boolean
-  canSignOut: boolean
-  onOpen: () => void
+  image?: string | null
   onSettings: () => void
   onSignOut: () => void
 }
 
-export function AccountMenu({
-  anchor,
-  name,
-  image,
-  iconOnly,
-  canSignOut,
-  onOpen,
-  onSettings,
-  onSignOut,
-}: AccountMenuProps) {
+export function AccountMenu({ anchor, name, image, onSettings, onSignOut }: AccountMenuProps) {
   const [open, setOpen] = useState(false)
   return (
     <AnchoredPopover
@@ -37,20 +22,15 @@ export function AccountMenu({
       label='Account menu'
       anchor={anchor}
       open={open}
-      onOpenChange={(next) => {
-        if (next) onOpen()
-        setOpen(next)
-      }}
+      onOpenChange={(next) => setOpen(next)}
       trigger={(button) => (
-        <Tooltip label={name} enabled={iconOnly}>
-          <IdentityButton
-            render={button}
-            label={name}
-            leading={<Avatar name={name} src={image ?? undefined} size='inline' />}
-          >
-            {iconOnly ? undefined : name}
-          </IdentityButton>
-        </Tooltip>
+        <IdentityButton
+          render={button}
+          label={name}
+          leading={<Avatar name={name} src={image ?? undefined} size='inline' />}
+        >
+          {name}
+        </IdentityButton>
       )}
     >
       <div className={styles.accountMenu}>
@@ -62,16 +42,14 @@ export function AccountMenu({
             onSettings()
           }}
         />
-        {canSignOut && (
-          <MenuItem
-            label='Sign out'
-            icon='I132'
-            onSelect={() => {
-              setOpen(false)
-              onSignOut()
-            }}
-          />
-        )}
+        <MenuItem
+          label='Sign out'
+          icon='I132'
+          onSelect={() => {
+            setOpen(false)
+            onSignOut()
+          }}
+        />
       </div>
     </AnchoredPopover>
   )

@@ -42,10 +42,10 @@ import {
   resolveDeploymentShape,
   seedDeploymentShape,
 } from '@/lib/core/config/deployment-shape'
+import { SearchHistory } from '@/app/o/[organizationId]/_redesign/search/search-history'
+import { OrganizationSearchSurface } from '@/app/o/[organizationId]/_redesign/search/search-surface'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { searchHistoryKeys } from '@/hooks/queries/utils/search-history-keys'
-import { SearchHistory } from '@/platform/app/(shell)/search/_components/search-surface/search-history'
-import { OrganizationSearchSurface } from '@/platform/app/(shell)/search/_components/search-surface/search-surface'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 
 nextNavigationMockFns.mockUsePathname.mockReturnValue('/o/organization/search')

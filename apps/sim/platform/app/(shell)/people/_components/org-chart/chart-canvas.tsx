@@ -17,7 +17,12 @@ import {
 import Link from 'next/link'
 import styles from '@/platform/app/(shell)/people/_components/org-chart/org-chart.module.css'
 import { Avatar, Icon, IconButton, OverflowText } from '@/platform/design-system/components'
-import { type ChartBranch, type PersonSummary, personHref } from '@/platform/lib/data/people'
+import {
+  type ChartBranch,
+  type PersonSummary,
+  personHref,
+  usePeoplePath,
+} from '@/platform/lib/data/people'
 import { plural } from '@/platform/lib/plural'
 
 import '@xyflow/react/dist/style.css'
@@ -70,16 +75,18 @@ function PersonCard({ data }: NodeProps<PersonCardNode>) {
       {hasReportLine && <Handle type='source' position={Position.Bottom} className={styles.port} />}
     </>
   )
-  const explore = {
-    type: 'button',
-    'aria-label': `Explore ${person.name}`,
-    onClick: (event: MouseEvent<HTMLButtonElement>) => data.onFocus(person.memberId, event),
-  } as const
+  const exploreLabel = `Explore ${person.name}`
+  const explore = (event: MouseEvent<HTMLButtonElement>) => data.onFocus(person.memberId, event)
   if (compact)
     return (
       <>
         {lines}
-        <button {...explore} className={`${styles.compactCard} nodrag nopan`}>
+        <button
+          type='button'
+          aria-label={exploreLabel}
+          onClick={explore}
+          className={`${styles.compactCard} nodrag nopan`}
+        >
           <Avatar name={person.name} src={person.image ?? undefined} size='row' />
           {copy}
           <Icon name='I032' />
@@ -93,12 +100,17 @@ function PersonCard({ data }: NodeProps<PersonCardNode>) {
     </>
   )
   return (
-    <div className={styles.card} data-focused={focused || undefined}>
+    <div className={styles.card} data-centered={focused || undefined}>
       {lines}
       {focused ? (
         <div className={styles.cardBody}>{body}</div>
       ) : (
-        <button {...explore} className={`${styles.cardBody} nodrag nopan`}>
+        <button
+          type='button'
+          aria-label={exploreLabel}
+          onClick={explore}
+          className={`${styles.cardBody} nodrag nopan`}
+        >
           {body}
         </button>
       )}
@@ -170,7 +182,7 @@ function ChartControls({ compact }: ChartControlsProps) {
 
 function chartGraph(
   { person, chain, reports, totalReports }: ChartBranch,
-  organizationId: string,
+  peoplePath: string,
   profileQuery: string,
   compact: boolean,
   onFocus: ChartFocus
@@ -195,7 +207,7 @@ function chartGraph(
         person: member,
         footer,
         ...lines,
-        profileHref: personHref(organizationId, member.memberId, profileQuery),
+        profileHref: personHref(peoplePath, member.memberId, profileQuery),
         onFocus,
       },
     })
@@ -234,7 +246,6 @@ function chartGraph(
 }
 
 interface ChartCanvasProps {
-  organizationId: string
   branch: ChartBranch
   profileQuery: string
   compact: boolean
@@ -247,17 +258,11 @@ interface ChartCanvasProps {
  * The manager, the person in focus and a page of their reports, on a canvas a viewer can pan and
  * zoom. Remount it per branch: the first fit is what centers each new set of cards.
  */
-export function ChartCanvas({
-  organizationId,
-  branch,
-  profileQuery,
-  compact,
-  onFocus,
-  pager,
-}: ChartCanvasProps) {
+export function ChartCanvas({ branch, profileQuery, compact, onFocus, pager }: ChartCanvasProps) {
+  const peoplePath = usePeoplePath()
   const { nodes, edges } = useMemo(
-    () => chartGraph(branch, organizationId, profileQuery, compact, onFocus),
-    [branch, organizationId, profileQuery, compact, onFocus]
+    () => chartGraph(branch, peoplePath, profileQuery, compact, onFocus),
+    [branch, peoplePath, profileQuery, compact, onFocus]
   )
   return (
     <ReactFlowProvider>

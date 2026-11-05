@@ -16,8 +16,8 @@ import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useAuthorizedApps, useRevokeAuthorizedApp } from '@/hooks/queries/oauth-provider'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 
 interface AuthorizedAppsProps {
   onBack: () => void

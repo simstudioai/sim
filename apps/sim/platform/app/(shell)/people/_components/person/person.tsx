@@ -9,12 +9,14 @@ import { PersonModal } from '@/platform/app/(shell)/people/_components/person/pe
 import { PersonIdentity } from '@/platform/app/(shell)/people/_components/person-identity/person-identity'
 import { Avatar, Button, FailureNotice, Icon } from '@/platform/design-system/components'
 import { useClipboard } from '@/platform/design-system/components/feedback/use-clipboard'
+import { publicAssetPath } from '@/platform/design-system/navigation'
 import {
   isRefusal,
   type Person,
   type PersonSummary,
   personHref,
   SYNC_SOURCE_NAMES,
+  usePeoplePath,
   usePeopleViewer,
   usePersonProfile,
 } from '@/platform/lib/data/people'
@@ -100,18 +102,18 @@ function About({ person, departmentHref }: AboutProps) {
 }
 
 interface PersonRowsProps {
-  organizationId: string
   originQuery: string
   people: readonly PersonSummary[]
 }
 
-function PersonRows({ organizationId, originQuery, people }: PersonRowsProps) {
+function PersonRows({ originQuery, people }: PersonRowsProps) {
+  const peoplePath = usePeoplePath()
   return (
     <ul className={styles.list}>
       {people.map((person) => (
         <li key={person.memberId}>
           <Link
-            href={personHref(organizationId, person.memberId, originQuery)}
+            href={personHref(peoplePath, person.memberId, originQuery)}
             className={styles.row}
             aria-label={`Open ${person.name}`}
           >
@@ -130,6 +132,7 @@ interface PersonProfileProps {
 }
 
 export function PersonProfile({ organizationId, memberId }: PersonProfileProps) {
+  const peoplePath = usePeoplePath()
   const { isAdmin } = usePeopleViewer()
   const profile = usePersonProfile(organizationId, memberId)
   const { copied, copy } = useClipboard()
@@ -151,7 +154,9 @@ export function PersonProfile({ organizationId, memberId }: PersonProfileProps) 
           <Button
             icon={copied ? 'I072' : 'I006'}
             onClick={() =>
-              void copy(`${window.location.origin}${personHref(organizationId, memberId)}`)
+              void copy(
+                `${window.location.origin}${publicAssetPath(personHref(peoplePath, memberId))}`
+              )
             }
           >
             {copied ? 'Copied' : 'Copy profile link'}
@@ -204,11 +209,7 @@ export function PersonProfile({ organizationId, memberId }: PersonProfileProps) 
                   Reports to
                 </h2>
                 {data.chain.length > 0 ? (
-                  <PersonRows
-                    organizationId={organizationId}
-                    originQuery={profile.originQuery}
-                    people={data.chain.slice(0, 1)}
-                  />
+                  <PersonRows originQuery={profile.originQuery} people={data.chain.slice(0, 1)} />
                 ) : (
                   <p className={styles.secondary} data-type='T043'>
                     {data.person.managerMemberId
@@ -229,11 +230,7 @@ export function PersonProfile({ organizationId, memberId }: PersonProfileProps) 
                   )}
                 </div>
                 {data.reports.length > 0 ? (
-                  <PersonRows
-                    organizationId={organizationId}
-                    originQuery={profile.originQuery}
-                    people={data.reports}
-                  />
+                  <PersonRows originQuery={profile.originQuery} people={data.reports} />
                 ) : (
                   <p className={styles.secondary} data-type='T043'>
                     No one reports to this person.

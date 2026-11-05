@@ -15,6 +15,7 @@ import { useMutation } from '@tanstack/react-query'
 import Image from 'next/image'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { HELP_REQUEST_TYPES } from '@/lib/api/contracts/common'
 import {
   ACCEPTED_HELP_IMAGE_TYPES,
   compressHelpImage,
@@ -32,7 +33,7 @@ const SUCCESS_RESET_DELAY_MS = 2000
 const formSchema = z.object({
   subject: z.string().min(1, 'Subject is required'),
   message: z.string().min(1, 'Message is required'),
-  type: z.enum(['bug', 'feedback', 'feature_request', 'other'], {
+  type: z.enum(HELP_REQUEST_TYPES, {
     error: 'Please select a request type',
   }),
 })

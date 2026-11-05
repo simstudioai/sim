@@ -214,10 +214,14 @@
       ]
     },
     "build": {
-      "env": ["NEXT_BUILD_SKIP_TYPE_CHECK"],
+      // next.config bakes the Platform rewrite from SIM_PLATFORM_ORIGIN, and the main app imports
+      // nothing from its separate `platform/` zone or the seed of its live checks.
+      "env": ["NEXT_BUILD_SKIP_TYPE_CHECK", "SIM_PLATFORM_ORIGIN"],
       "inputs": [
         "$TURBO_DEFAULT$",
         ".env*",
+        "!platform/**",
+        "!scripts/platform-live-*",
         "!**/*.test.*",
         "!**/*.spec.*",
         "!**/*.integration.ts",

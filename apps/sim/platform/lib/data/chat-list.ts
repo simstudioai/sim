@@ -1,10 +1,10 @@
 'use client'
 
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { organizationRoutes } from '@/lib/navigation/paths'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   MothershipChatDeleteError,
+  mothershipChatHistoryQueryOptions,
   useDeleteMothershipChat,
   useDeleteMothershipChats,
   useMarkMothershipChatRead,
@@ -12,23 +12,16 @@ import {
   useRenameMothershipChat,
   useSetMothershipChatPinned,
 } from '@/hooks/queries/mothership-chats'
+import { prefetchQueryOnIntent } from '@/hooks/queries/utils/prefetch-query-on-intent'
+import type { ShellChatActions } from '@/platform/app/(shell)/_components/model'
+import { toast } from '@/platform/lib/data/toast'
 
-export function organizationChatHref(
-  chat: { id: string; mode?: string },
-  routes: ReturnType<typeof organizationRoutes>
-) {
-  return chat.mode === 'assistant' ? routes.searchChat(chat.id) : routes.chat(chat.id)
-}
+const CHAT_PREFETCH_DWELL_MS = 80
 
-/** A partial bulk failure still reports which chats went, so the view can narrow what is left. */
-interface ChatRemoval {
-  removedIds: readonly string[]
-  failure?: string
-}
-
-/** Failures of a fire-and-forget action report through a toast. */
-export function useChatListActions(organizationId: string) {
+/** The legacy sidebar's chat mutations, for one organization's list. */
+export function useChatListActions(organizationId: string): ShellChatActions {
   const owner = { organizationId }
+  const queryClient = useQueryClient()
   const { mutateAsync: deleteChat } = useDeleteMothershipChat(owner)
   const { mutateAsync: deleteChats } = useDeleteMothershipChats(owner)
   const { mutateAsync: renameChat } = useRenameMothershipChat(owner)
@@ -37,10 +30,11 @@ export function useChatListActions(organizationId: string) {
   const { mutate: unreadChat } = useMarkMothershipChatUnread(owner)
   const reportFailure = { onError: (error: Error) => void toast.error(error.message) }
   return {
-    rename: async (chatId: string, title: string) => {
-      await renameChat({ chatId, title })
-    },
-    async remove(ids: readonly string[]): Promise<ChatRemoval> {
+    removeLabel: 'Delete',
+    removeDetail: (count) =>
+      `You can restore ${count === 1 ? 'it' : 'them'} from Recently deleted in Settings.`,
+    rename: (chatId, title) => renameChat({ chatId, title }),
+    async remove(ids) {
       try {
         if (ids.length === 1) await deleteChat(ids[0])
         else await deleteChats([...ids])
@@ -52,8 +46,17 @@ export function useChatListActions(organizationId: string) {
         }
       }
     },
-    setPinned: (chatId: string, pinned: boolean) => pinChat({ chatId, pinned }, reportFailure),
-    setRead: (chatId: string, read: boolean) =>
+    setPinned: (chatId, pinned) => pinChat({ chatId, pinned }, reportFailure),
+    setRead: (chatId, read) =>
       read ? readChat(chatId, reportFailure) : unreadChat(chatId, reportFailure),
+    prefetch({ id, mode }) {
+      if (mode === 'assistant') return () => {}
+      const options = mothershipChatHistoryQueryOptions(id)
+      const timer = setTimeout(() => {
+        if (queryClient.getQueryData(options.queryKey) === undefined)
+          prefetchQueryOnIntent(queryClient, options)
+      }, CHAT_PREFETCH_DWELL_MS)
+      return () => clearTimeout(timer)
+    },
   }
 }

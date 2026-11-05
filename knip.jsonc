@@ -24,6 +24,15 @@
         // Container bootstrap and Trigger's directory-discovered task graph.
         "bootstrap.ts",
         "trigger.config.ts",
+        // The nested Platform project loads its PostCSS config and Playwright discovers its specs.
+        "platform/postcss.config.mjs",
+        "platform/checks/**/*.spec.ts",
+        // Started by .github/scripts/http-e2e.sh as the live suite's scripted worker.
+        "platform/checks/live/support/scripted-agent.ts",
+        // Only webpack reaches this, through the `@sim/emcn` alias in platform/next.config.ts.
+        "platform/lib/data/emcn-shim.ts",
+        // Same, through `canvasShims` in platform/next.config.ts.
+        "platform/lib/data/shims/*.ts",
         "background/**/*.ts",
         "scripts/**/*.{ts,tsx}",
         "**/*.integration.ts",

@@ -16,6 +16,7 @@ import {
   isReactGrabEnabled,
   isReactScanEnabled,
 } from '@/lib/core/config/env-flags'
+import { publicEnvHtmlAttributes } from '@/lib/core/config/public-env'
 import { ConsentProvider } from '@/app/_shell/consent/consent-provider'
 import { DesktopUpdateGate } from '@/app/_shell/desktop-update-gate'
 import { DesktopUpdateNotification } from '@/app/_shell/desktop-update-notification'
@@ -24,11 +25,7 @@ import { QueryProvider } from '@/app/_shell/providers/query-provider'
 import { SessionProvider } from '@/app/_shell/providers/session-provider'
 import { ThemeProvider } from '@/app/_shell/providers/theme-provider'
 import { TooltipProvider } from '@/app/_shell/providers/tooltip-provider'
-import {
-  PublicEnvScript,
-  publicEnvHtmlAttributes,
-  RuntimePublicEnvScript,
-} from '@/app/_shell/public-env-script'
+import { PublicEnvScript, RuntimePublicEnvScript } from '@/app/_shell/public-env-script'
 import { season } from '@/app/_styles/fonts/season/season'
 
 export const viewport: Viewport = {

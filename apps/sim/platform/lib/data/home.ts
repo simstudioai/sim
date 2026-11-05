@@ -1,13 +1,8 @@
 'use client'
 
 import { useState, useSyncExternalStore } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
-import {
-  isOrganizationSettingsSectionAvailable,
-  resolveOrganizationSectionAccess,
-} from '@/components/settings/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/client'
 import { addCalendarDays, getBrowserTimezone } from '@/lib/core/utils/timezone'
@@ -15,12 +10,10 @@ import {
   canReadMemberIntegrations,
   memberIntegrationEntries,
 } from '@/lib/credential-groups/member-integrations'
-import { organizationRoutes } from '@/lib/navigation/paths'
-import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
-import { useGetStartedSteps } from '@/app/o/[organizationId]/home/components/get-started/use-get-started-steps'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { hasSearchIntegrationReady } from '@/lib/credential-groups/search-readiness'
 import { useOrganizationAccessRequests } from '@/hooks/queries/access-requests'
 import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
+import { useHasSearchAuthorization } from '@/hooks/queries/oauth-provider'
 import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
 import { useOrganizationActivitySummary } from '@/hooks/queries/organization-activity'
 import {
@@ -29,6 +22,8 @@ import {
 } from '@/hooks/queries/organization-home'
 import { useRemoveSearchHistorySource, useSearchHistory } from '@/hooks/queries/search-history'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
+import { useHydrated } from '@/hooks/use-hydrated'
+import type { HomeWidget } from '@/platform/app/(shell)/_components/model'
 import type {
   AttentionItem,
   EmailItem,
@@ -36,14 +31,13 @@ import type {
   HomeActions,
   HomeActivityState,
   HomeCalendarDay,
+  HomeGetStartedStep,
   HomeListState,
   HomeView,
   HomeWidgetActions,
   HomeWidgetState,
 } from '@/platform/app/(shell)/home/_components/model'
-import { homeDayParam } from '@/platform/app/(shell)/home/search-params'
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
-import { organizationChatHref } from '@/platform/lib/data/chat-list'
 import {
   greetingAt,
   HOME_CALENDAR_SOURCES,
@@ -61,17 +55,20 @@ import {
   toTaskPoints,
   wallClockMinute,
 } from '@/platform/lib/data/home-model'
+import { homeDayParam } from '@/platform/lib/data/home-params'
 import { useIntegrationActions } from '@/platform/lib/data/integrations'
-import { MINUTE_MS } from '@/platform/lib/time'
+import { useOrganization } from '@/platform/lib/data/organization'
 import {
-  type OrganizationHomeWidget,
-  useOrganizationHomeStore,
-} from '@/stores/organization-home/store'
+  legacyRoutes,
+  type PlatformOrganization,
+  surfaceHref,
+} from '@/platform/lib/data/organization-model'
+import { toast } from '@/platform/lib/data/toast'
+import { MINUTE_MS } from '@/platform/lib/time'
 
 /** Long enough to fit the 7, 30 and 90 day chart windows in one read of daily buckets. */
 const ACTIVITY_DAYS = 90
 const REFUSAL_STATUSES: ReadonlySet<number> = new Set([401, 403, 404, 409])
-const NO_WIDGETS: readonly OrganizationHomeWidget[] = []
 
 function subscribeToMinutes(onChange: () => void) {
   const interval = setInterval(onChange, MINUTE_MS)
@@ -86,7 +83,7 @@ function currentMinute() {
   return Math.floor(Date.now() / MINUTE_MS) * MINUTE_MS
 }
 
-/** Home mounts only after hydration, behind the conversation's own gate, so no markup can disagree. */
+/** Home mounts only after hydration, behind its host's gate, so no markup can disagree. */
 function useMinuteClock(): number {
   return useSyncExternalStore(subscribeToMinutes, currentMinute, currentMinute)
 }
@@ -96,7 +93,7 @@ function isRefusal(error: unknown) {
   return isApiClientError(error) && REFUSAL_STATUSES.has(error.status)
 }
 
-function useHomeIntegrations(organization: OrganizationSurfaceContext) {
+function useHomeIntegrations(organization: PlatformOrganization) {
   const organizationId = organization.organization.id
   const allowed = canReadMemberIntegrations(organization)
   const accounts = useOrganizationAccounts(allowed ? organizationId : undefined)
@@ -215,18 +212,12 @@ function useHomeCalendar(
 
 /** Tasks run, behind the same gates as the settings section that shows them. */
 function useHomeActivity(
-  organization: OrganizationSurfaceContext,
+  organization: PlatformOrganization,
   today: string,
   timeZone: string,
   hidden: boolean
 ): { state: HomeActivityState; retry: () => void } {
-  const allowed =
-    resolveOrganizationSectionAccess({
-      section: 'usage',
-      isTargetOrganizationMember: true,
-      isTargetOrganizationAdmin: organization.viewer.isAdmin,
-    }) !== 'unavailable' &&
-    isOrganizationSettingsSectionAvailable('usage', organization.settingsFeatures)
+  const allowed = organization.settingsSections.includes('usage')
   const summary = useOrganizationActivitySummary(
     organization.organization.id,
     {
@@ -244,7 +235,7 @@ function useHomeActivity(
   return { state: withoutResult(summary), retry }
 }
 
-function useHomeRecents(organization: OrganizationSurfaceContext, userId: string | undefined) {
+function useHomeRecents(organization: PlatformOrganization, userId: string | undefined) {
   const organizationId = organization.organization.id
   const allowed = organization.searchAccess.memberScoped
   const history = useSearchHistory(allowed ? organizationId : undefined, userId)
@@ -266,13 +257,12 @@ function useHomeRecents(organization: OrganizationSurfaceContext, userId: string
 }
 
 function useHomeAttention(
-  organization: OrganizationSurfaceContext,
+  organization: PlatformOrganization,
   integrations: ReturnType<typeof useHomeIntegrations>,
   reconnect: HomeWidgetActions['reconnect'],
   readAccounts: readonly HomeAccountView[]
 ): { state: HomeListState<AttentionItem>; retry: () => void } {
   const organizationId = organization.organization.id
-  const routes = organizationRoutes(organizationId)
   const canReview = organization.viewer.isAdmin
   const chats = useOrganizationMothershipChats(organizationId)
   const requests = useOrganizationAccessRequests(canReview ? organizationId : '')
@@ -283,13 +273,16 @@ function useHomeAttention(
     chats: (chats.data ?? []).map((chat) => ({
       id: chat.id,
       title: chat.name,
-      href: organizationChatHref(chat, routes),
+      href: surfaceHref(
+        organization,
+        chat.mode === 'assistant' ? `/search/chat/${chat.id}` : `/chat/${chat.id}`
+      ),
       isUnread: chat.isUnread,
       updatedAt: chat.updatedAt.getTime(),
     })),
     requests: requests.data?.requests ?? [],
     reconnect,
-    requestsHref: routes.settingsSection('requests'),
+    requestsHref: legacyRoutes(organization).settingsSection('requests'),
   })
   const failed = integrations.failure === 'failed' || chats.isError || reviewFailed
   const pending =
@@ -315,6 +308,46 @@ function useHomeAttention(
   }
 }
 
+/** Get started: the onboarding steps a search-only member starts Home with. */
+function useHomeGetStarted(
+  organization: PlatformOrganization,
+  integrations: ReturnType<typeof useHomeIntegrations>,
+  enabled: boolean
+): HomeGetStartedStep[] {
+  const { viewer, connectedAccountsAvailable } = organization
+  const shown = enabled && organization.searchAccess.memberScoped
+  const canUseSearchMcp = shown && viewer.canUseSearchMcp
+  const authorized = useHasSearchAuthorization(canUseSearchMcp)
+  const routes = legacyRoutes(organization)
+  const steps: HomeGetStartedStep[] = []
+  if (shown && viewer.canConnectSearchIntegrations && connectedAccountsAvailable) {
+    steps.push({
+      id: 'connect-integration',
+      title: 'Connect an integration',
+      detail: 'Choose what Sim can search for you',
+      href: viewer.isAdmin
+        ? routes.settingsSection('integrations')
+        : surfaceHref(organization, '/integrations'),
+      complete: hasSearchIntegrationReady(integrations.accounts.data, integrations.policies.data),
+    })
+  }
+  if (canUseSearchMcp) {
+    steps.push({
+      id: 'connect-sim-search',
+      title: 'Connect Sim Search MCP',
+      detail: 'Use your company’s knowledge from your other AI tools',
+      href: routes.settingsSection('search-mcp'),
+      complete: authorized,
+    })
+  }
+  return steps
+}
+
+/** Whether this render is past hydration, which Home's clock-dependent markup waits for. */
+export function useHomeHydrated(): boolean {
+  return useHydrated()
+}
+
 function firstNameOf(user: { name?: string | null; email?: string | null } | null | undefined) {
   return user?.name && user.name !== user.email ? user.name.split(/\s/u)[0] : undefined
 }
@@ -322,17 +355,15 @@ function firstNameOf(user: { name?: string | null; email?: string | null } | nul
 /**
  * Home's view and actions. Every widget reads the same member inventory the Integrations page reads,
  * so the two cannot disagree on what is offered. `assistant` is whether the viewer searches rather
- * than builds here, which decides whether Get started is theirs.
+ * than builds here, which decides whether Get started is theirs. A hidden widget reads nothing.
  */
-export function useLiveHome(assistant: boolean): { view: HomeView; actions: HomeActions } {
-  const organization = useOrganizationContext()
+export function useLiveHome(
+  assistant: boolean,
+  hiddenWidgets: readonly HomeWidget[]
+): { view: HomeView; actions: HomeActions } {
+  const organization = useOrganization()
   const { data: session } = useSession()
   const organizationId = organization.organization.id
-  const viewer = `${session?.user?.id}:${organizationId}`
-  const hiddenWidgets = useOrganizationHomeStore(
-    (state) => state.hiddenWidgets[viewer] ?? NO_WIDGETS
-  )
-  const setWidgetHidden = useOrganizationHomeStore((state) => state.setWidgetHidden)
   const nowMs = useMinuteClock()
   const [timeZone] = useState(getBrowserTimezone)
   const [selectedDay, setSelectedDay] = useQueryState(homeDayParam.key, homeDayParam.parser)
@@ -372,7 +403,7 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
     [email.state, calendar.state].flatMap((state) => ('accounts' in state ? state.accounts : []))
   )
   // Search-only members start here, so their onboarding comes with the Assistant composer.
-  const getStarted = useGetStartedSteps(assistant && organization.searchAccess.memberScoped)
+  const getStarted = useHomeGetStarted(organization, integrations, assistant)
 
   const showDay = (day: string | null) =>
     void setSelectedDay(day === today ? null : day, { history: 'replace', scroll: false })
@@ -383,18 +414,18 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
       greeting: greetingAt(nowMs, timeZone),
       firstName: firstNameOf(session?.user),
       attention: attention.state,
-      activity: activity.state,
+      /** Search has no daily count anywhere to read, so its chart is hidden rather than estimated. */
+      activity: { Build: activity.state, Search: { status: 'hidden' } },
       email: email.state,
       calendar: calendar.state,
       recents: recents.state,
       getStarted,
-      hiddenWidgets,
     },
     actions: {
       email: { ...connectionActions, retry: email.retry },
       calendar: { ...connectionActions, retry: calendar.retry },
       openEmail: (mail) => {
-        window.open(mail.url, '_blank', 'noopener,noreferrer')
+        if (mail.url) window.open(mail.url, '_blank', 'noopener,noreferrer')
       },
       changeDay: (delta) => {
         showDay(addCalendarDays(selectedDay ?? today, delta))
@@ -404,7 +435,6 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
       retryActivity: activity.retry,
       retryRecents: recents.retry,
       removeRecent: recents.remove,
-      setWidgetHidden: (widget, hidden) => setWidgetHidden(viewer, widget, hidden),
     },
   }
 }

@@ -1,11 +1,10 @@
 import { ChipDropdown } from '@sim/emcn'
+import {
+  accessStateLabel,
+  accessStateOptions,
+  bulkAccessOptions,
+} from '@/ee/access-control/lib/editor'
 import type { PermissionGroupAccessState } from '@/ee/access-requests/lib/targets'
-
-const ACCESS_OPTIONS = [
-  { value: 'allowed', label: 'Allowed' },
-  { value: 'requestable', label: 'Can request' },
-  { value: 'unavailable', label: 'Unavailable' },
-] as const
 
 interface AccessStateSelectProps {
   label: string
@@ -25,16 +24,10 @@ export function AccessStateSelect({
 }: AccessStateSelectProps) {
   return (
     <ChipDropdown
-      aria-label={`${label}: ${ACCESS_OPTIONS.find((option) => option.value === value)?.label}`}
+      aria-label={`${label}: ${accessStateLabel(value)}`}
       value={value}
       onChange={(next) => onChange(next as PermissionGroupAccessState)}
-      options={
-        canRequest
-          ? ACCESS_OPTIONS
-          : ACCESS_OPTIONS.filter(
-              (option) => option.value !== 'requestable' || (disabled && value === 'requestable')
-            )
-      }
+      options={accessStateOptions(canRequest, value, disabled)}
       disabled={disabled}
       matchTriggerWidth={false}
       className='w-[132px] shrink-0'
@@ -56,11 +49,7 @@ export function BulkAccessSelect({ onChange, disabled, canRequest = true }: Bulk
       placeholder='Set shown to…'
       value=''
       onChange={(next) => onChange(next as PermissionGroupAccessState)}
-      options={
-        canRequest
-          ? ACCESS_OPTIONS
-          : ACCESS_OPTIONS.filter((option) => option.value !== 'requestable')
-      }
+      options={bulkAccessOptions(canRequest)}
       disabled={disabled}
       matchTriggerWidth={false}
       className='w-[140px] shrink-0 max-sm:min-w-0 max-sm:flex-1'

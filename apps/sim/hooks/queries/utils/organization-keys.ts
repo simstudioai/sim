@@ -1,3 +1,5 @@
+export const ORGANIZATION_ROSTER_STALE_TIME = 30 * 1000
+
 export const organizationKeys = {
   all: ['organizations'] as const,
   lists: () => [...organizationKeys.all, 'list'] as const,

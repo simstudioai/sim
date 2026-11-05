@@ -1,26 +1,32 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { writeTextToClipboard } from '@sim/emcn'
+import { SIM_LINK_NAME_MAX_LENGTH } from '@sim/browser-extension-protocol'
 import { createLogger } from '@sim/logger'
 import { SIM_DOCS_URL } from '@sim/utils/site'
 import { useQueryStates } from 'nuqs'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
 import type { SimLink, SimLinkBody } from '@/lib/api/contracts/sim-links'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { faviconSrc } from '@/lib/favicon/url'
 import { simLinkPath, simLinkUrl } from '@/lib/navigation/paths'
-import {
-  isVariableSimLinkUrl,
-  simLinkFieldsSchema,
-  toSimLinkName,
-} from '@/lib/sim-links/validation'
-import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
   boundedSearch,
   simLinksParsers,
   simLinksSortParams,
   simLinksUrlKeys,
-} from '@/app/o/[organizationId]/links/search-params'
+} from '@/lib/sim-links/search-params'
+import { SIM_FOR_CHROME_URL } from '@/lib/sim-links/urls'
+import {
+  isVariableSimLinkUrl,
+  SIM_LINK_DESCRIPTION_MAX_LENGTH,
+  SIM_LINK_VARIABLE,
+  simLinkFieldsSchema,
+  simLinkOrigin,
+  toSimLinkName,
+} from '@/lib/sim-links/validation'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
   useCreateSimLink,
   useDeleteSimLink,
@@ -30,16 +36,13 @@ import {
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
-import { usePlatformNotices } from '@/platform/app/(shell)/_components/notification-tray/notification-tray'
-import { openLinkInNewTab } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
+import { toast } from '@/platform/lib/data/toast'
 
 const logger = createLogger('SimLinks')
-
-const SIM_FOR_CHROME_URL =
-  'https://chromewebstore.google.com/detail/sim/oanlcahddodnjpdoopcpjlcageejjpmg'
-const SIM_LINKS_DOCS_URL = `${SIM_DOCS_URL}/search/sim-links`
 const COPY_NOTICE_ID = 'sim-link-copy'
+
+const SIM_LINKS_DOCS_URL = `${SIM_DOCS_URL}/search/sim-links`
 
 const SORT_OPTIONS = [
   { id: 'name', label: 'Name' },
@@ -47,6 +50,10 @@ const SORT_OPTIONS = [
 ] as const
 
 type LinkField = 'name' | 'url' | 'defaultUrl' | 'description'
+
+function openLinkInNewTab(href: string) {
+  window.open(href, '_blank', 'noopener,noreferrer')
+}
 
 export function openChromeStore() {
   openLinkInNewTab(SIM_FOR_CHROME_URL)
@@ -71,7 +78,6 @@ export function useLinksPage(organizationId: string) {
   const term = settled.trim()
   const links = useSimLinks(organizationId, term, sort, dir)
   const remove = useDeleteSimLink(organizationId)
-  const notices = usePlatformNotices()
 
   const rows = useMemo(() => links.data?.pages.flatMap((page) => page.links) ?? [], [links.data])
   // Placeholder rows belong to the previous search, and asking for a page cancels a running refetch.
@@ -86,18 +92,15 @@ export function useLinksPage(organizationId: string) {
     }),
     [hasMore, isFetchingNextPage, isFetchNextPageError, fetchNextPage]
   )
-  const copy = useCallback(
-    async (name: string) => {
-      try {
-        await writeTextToClipboard(simLinkUrl(window.location.origin, name))
-        notices.notify({ id: COPY_NOTICE_ID, title: 'Link copied', variant: 'success' })
-      } catch (error) {
-        logger.error('Failed to copy Sim link', { error })
-        notices.notify({ id: COPY_NOTICE_ID, title: 'Unable to copy link', variant: 'error' })
-      }
-    },
-    [notices]
-  )
+  const copy = useCallback(async (name: string) => {
+    try {
+      await navigator.clipboard.writeText(simLinkUrl(window.location.origin, name))
+      toast.success('Link copied', { noticeId: COPY_NOTICE_ID })
+    } catch (error) {
+      logger.error('Failed to copy Sim link', { error })
+      toast.error('Unable to copy link', { noticeId: COPY_NOTICE_ID })
+    }
+  }, [])
 
   const sortActions: MenuAction[] = [
     ...(activeSort
@@ -201,4 +204,23 @@ export function useLinkEditor(organizationId: string, link?: SimLink, initialNam
       }
     },
   }
+}
+
+/** A link as this page reads it; its contract, named once for the views. */
+export type LinkRecord = SimLink
+
+export const LINK_LIMITS = {
+  name: SIM_LINK_NAME_MAX_LENGTH,
+  description: SIM_LINK_DESCRIPTION_MAX_LENGTH,
+  variable: SIM_LINK_VARIABLE,
+} as const
+
+/** The destination's favicon through Sim's own route; null when it has no host to ask about. */
+export function linkFaviconSrc(link: Pick<SimLink, 'url'>): string | null {
+  const origin = simLinkOrigin(link.url)
+  return origin ? faviconSrc(new URL(origin).hostname) : null
+}
+
+export function useLinksHosted(): boolean {
+  return useDeploymentShape().hosted
 }

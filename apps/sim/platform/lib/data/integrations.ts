@@ -1,5 +1,13 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { useQueryStates } from 'nuqs'
 import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
+import { organizationRoutes } from '@/lib/navigation/paths'
+import {
+  integrationSearchParsers,
+  integrationSearchUrlKeys,
+  integrationViewParsers,
+  serializeIntegrationView,
+} from '@/app/o/[organizationId]/integrations/search-params'
 import {
   useAssistantToolPermissions,
   useUpdateAssistantToolPermissions,
@@ -12,7 +20,8 @@ import {
 } from '@/hooks/queries/organization-accounts'
 import { useOrganizationSecretSource } from '@/hooks/queries/organization-secrets'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
-import { usePlatformNotices } from '@/platform/app/(shell)/_components/notification-tray/notification-tray'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
+import { useDesktopOAuthConnectListener, useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import {
   toGenericSecrets,
   toOrganizationIntegrations,
@@ -21,18 +30,15 @@ import {
 import type {
   OrganizationIntegration,
   ToolPermissionChange,
-} from '@/platform/lib/integrations/model'
+} from '@/platform/lib/data/integrations-types'
+import { toast } from '@/platform/lib/data/toast'
 
 const ACTION_NOTICE_ID = 'integrations-action'
 
-function useActionFailureNotice() {
-  const notices = usePlatformNotices()
-  return (error: unknown) =>
-    notices.notify({
-      id: ACTION_NOTICE_ID,
-      title: getErrorMessage(error, 'That did not work. Try again.'),
-      variant: 'error',
-    })
+function reportActionFailure(error: unknown) {
+  toast.error(getErrorMessage(error, 'That did not work. Try again.'), {
+    noticeId: ACTION_NOTICE_ID,
+  })
 }
 
 /** The member inventory and its reads, each failing and retrying on its own. */
@@ -55,7 +61,7 @@ export function useIntegrationActions(organizationId: string) {
   const connect = useConnectOrganizationAccount()
   const reconnect = useReconnectPersonalOrganizationAccount()
   const disconnect = useDisconnectPersonalOrganizationAccount()
-  const onError = useActionFailureNotice()
+  const onError = reportActionFailure
   const connecting = connect.isPending || reconnect.isPending
   return {
     connecting,
@@ -70,7 +76,7 @@ export function useIntegrationActions(organizationId: string) {
 export function useToolPermissions(organizationId: string, credentialId: string) {
   const query = useAssistantToolPermissions(organizationId, credentialId)
   const update = useUpdateAssistantToolPermissions(organizationId, credentialId)
-  const onError = useActionFailureNotice()
+  const onError = reportActionFailure
   const data = query.data
   const display = data && resolveCredentialDisplay({ ...data.account, type: 'managed_oauth' })
   return {
@@ -90,4 +96,39 @@ export function useToolPermissions(organizationId: string, credentialId: string)
       update.mutate({ revision: data.revision, change }, { onError })
     },
   }
+}
+
+export function defaultIntegrationPaths(organizationId: string) {
+  const routes = organizationRoutes(organizationId)
+  return { index: routes.integrations, memberSecrets: routes.memberSecrets }
+}
+
+/** The page's URL state, and where an OAuth round trip returns to it. */
+export function useIntegrationsView() {
+  useOAuthReturnRouter()
+  useDesktopOAuthConnectListener()
+  const [{ q: search }, setSearchParams] = useQueryStates(
+    integrationSearchParsers,
+    integrationSearchUrlKeys
+  )
+  const setSearch = useDebouncedSearchSetter((value, options) =>
+    setSearchParams({ q: value }, options)
+  )
+  const [{ account }, setParams] = useQueryStates(integrationViewParsers)
+  return {
+    search,
+    setSearch,
+    account,
+    clearAccount: () => void setParams({ account: null, tools: null }),
+    serialize: serializeIntegrationView,
+  }
+}
+
+/** The tool filter on an account's permissions, kept in the URL. */
+export function useToolPermissionsSearch() {
+  const [{ tools: search }, setParams] = useQueryStates(integrationViewParsers)
+  const setSearch = useDebouncedSearchSetter((value, options) =>
+    setParams({ tools: value }, options)
+  )
+  return { search, setSearch }
 }

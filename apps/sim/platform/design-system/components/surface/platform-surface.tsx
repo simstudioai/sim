@@ -1,22 +1,25 @@
-import type { ReactNode } from 'react'
+'use client'
+
+import { createContext, type ReactNode, useContext } from 'react'
 import type { Appearance } from '@/platform/design-system/navigation'
+
+const InsideSurface = createContext(false)
 
 interface PlatformSurfaceProps {
   theme: Appearance
-  systemFont?: boolean
-  systemMono?: boolean
   children: ReactNode
 }
 
-export function PlatformSurface({ theme, children, systemFont, systemMono }: PlatformSurfaceProps) {
+/**
+ * Selects the theme for the tree. A surface inside a surface adds nothing, so a view that alternates
+ * with legacy chrome when embedded can wrap its parts and render plainly inside this app's own shell.
+ */
+export function PlatformSurface({ theme, children }: PlatformSurfaceProps) {
+  const nested = useContext(InsideSurface)
+  if (nested) return children
   return (
-    <div
-      data-platform-ui=''
-      data-theme={theme}
-      data-system-font={systemFont || undefined}
-      data-system-mono={systemMono || undefined}
-    >
-      {children}
+    <div data-platform-ui='' data-theme={theme}>
+      <InsideSurface.Provider value>{children}</InsideSurface.Provider>
     </div>
   )
 }

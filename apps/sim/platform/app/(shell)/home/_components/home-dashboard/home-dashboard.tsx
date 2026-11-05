@@ -1,8 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
-import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
+import type { HomeMode, HomeWidget } from '@/platform/app/(shell)/_components/model'
 import { usePlatformNotices } from '@/platform/app/(shell)/_components/notification-tray/notification-tray'
 import { HomeActivityChart } from '@/platform/app/(shell)/home/_components/activity-chart/activity-chart'
 import {
@@ -17,60 +16,68 @@ import type { HomeActions, HomeView } from '@/platform/app/(shell)/home/_compone
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { SkeletonLane } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import { ActionMenu, Icon, InlineNotice, RecentItems } from '@/platform/design-system/components'
-import type { OrganizationHomeWidget } from '@/stores/organization-home/store'
+import { PlatformSurface } from '@/platform/design-system/components/surface/platform-surface'
 
-const WIDGETS: readonly OrganizationHomeWidget[] = ['Activity', 'Email', 'Calendar']
-const WIDGET_LABELS: Record<OrganizationHomeWidget, string> = {
-  Activity: 'Tasks run',
-  Email: 'Email',
-  Calendar: 'Calendar',
-}
-
-const COMPOSER_PROMPTS: Record<ChatRequestMode, string> = {
-  agent: 'What should we get done?',
-  plan: 'What should we understand and plan?',
-  assistant: 'Ask about your company’s knowledge.',
-}
+const WIDGETS: readonly HomeWidget[] = ['Activity', 'Email', 'Calendar']
+const ACTIVITY_METRIC_TITLES: Record<HomeMode, string> = { Build: 'Tasks run', Search: 'Searches' }
 
 interface HomeDashboardProps {
   view: HomeView
   actions: HomeActions
-  requestMode: ChatRequestMode
-  /** The real composer. It sits between surfaces: legacy chrome never renders inside one. */
+  /** Which activity metric the chart shows. */
+  mode: HomeMode
+  prompt: string
+  /** The host's composer. It sits between surfaces: legacy chrome never renders inside one. */
   composer: ReactNode
+  hiddenWidgets: readonly HomeWidget[]
+  onWidgetHiddenChange: (widget: HomeWidget, hidden: boolean) => void
 }
 
-export function HomeDashboard({ view, actions, requestMode, composer }: HomeDashboardProps) {
+/**
+ * Home's arrangement, filled by its host: this app's shell, or the organization surface it is embedded
+ * in. Everything that differs between the two arrives through these props.
+ */
+export function HomeDashboard({
+  view,
+  actions,
+  mode,
+  prompt,
+  composer,
+  hiddenWidgets,
+  onWidgetHiddenChange,
+}: HomeDashboardProps) {
   const { notify, dismiss } = usePlatformNotices()
-  const { activity, hiddenWidgets } = view
+  const metricTitle = ACTIVITY_METRIC_TITLES[mode]
+  const activity = view.activity[mode]
+  const widgetLabel = (widget: HomeWidget) => (widget === 'Activity' ? metricTitle : widget)
   const customizable = WIDGETS.filter(
     (widget) => widget !== 'Activity' || activity.status !== 'hidden'
   )
-  function setVisible(widget: OrganizationHomeWidget, visible: boolean) {
+  function setVisible(widget: HomeWidget, visible: boolean) {
     const id = `hide-${widget}`
-    actions.setWidgetHidden(widget, !visible)
+    onWidgetHiddenChange(widget, !visible)
     if (visible) {
       dismiss(id)
     } else {
       notify({
         id,
-        title: `${WIDGET_LABELS[widget]} hidden`,
+        title: `${widgetLabel(widget)} hidden`,
         action: 'Undo',
-        onAction: () => actions.setWidgetHidden(widget, false),
+        onAction: () => onWidgetHiddenChange(widget, false),
       })
     }
   }
   return (
     <div className={styles.scroller}>
       <div className={styles.dashboard}>
-        <RedesignSurface>
+        <PlatformSurface theme='system'>
           <div className={styles.lead}>
             <header className={styles.greeting}>
               <div>
                 <h1 data-type='T076'>
                   {view.firstName ? `${view.greeting}, ${view.firstName}` : view.greeting}
                 </h1>
-                <p data-type='T048'>{COMPOSER_PROMPTS[requestMode]}</p>
+                <p data-type='T048'>{prompt}</p>
               </div>
               <ActionMenu
                 label='Customize Home'
@@ -79,7 +86,7 @@ export function HomeDashboard({ view, actions, requestMode, composer }: HomeDash
                 align='end'
                 actions={customizable.map((widget) => ({
                   id: widget,
-                  label: WIDGET_LABELS[widget],
+                  label: widgetLabel(widget),
                   checked: !hiddenWidgets.includes(widget),
                   onSelect: () => setVisible(widget, hiddenWidgets.includes(widget)),
                 }))}
@@ -89,11 +96,11 @@ export function HomeDashboard({ view, actions, requestMode, composer }: HomeDash
               <Icon name='I113' label='Sim' />
             </span>
           </div>
-        </RedesignSurface>
+        </PlatformSurface>
         <section className={styles.composer} aria-label='Start a conversation'>
           {composer}
         </section>
-        <RedesignSurface>
+        <PlatformSurface theme='system'>
           <div className={styles.sections}>
             {view.recents.status === 'loading' && <SkeletonLane label='Loading recents' />}
             {view.recents.status === 'error' && (
@@ -117,13 +124,12 @@ export function HomeDashboard({ view, actions, requestMode, composer }: HomeDash
             {view.getStarted.length > 0 && <GetStarted steps={view.getStarted} />}
             <div className={styles.columns}>
               <div className={styles.column}>
-                {!hiddenWidgets.includes('Activity') && (
-                  <HomeActivityChart
-                    title={WIDGET_LABELS.Activity}
-                    state={activity}
-                    onRetry={actions.retryActivity}
-                  />
-                )}
+                <HomeActivityChart
+                  title={metricTitle}
+                  state={activity}
+                  onRetry={actions.retryActivity}
+                  hidden={hiddenWidgets.includes('Activity')}
+                />
                 {!hiddenWidgets.includes('Email') && (
                   <ConnectedWidget
                     title='Email'
@@ -163,7 +169,7 @@ export function HomeDashboard({ view, actions, requestMode, composer }: HomeDash
               </div>
             </div>
           </div>
-        </RedesignSurface>
+        </PlatformSurface>
       </div>
     </div>
   )

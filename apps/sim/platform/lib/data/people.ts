@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react'
 import { useQueryStates } from 'nuqs'
-import { isOrganizationSettingsSectionAvailable } from '@/components/settings/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type {
   ChartBranch as ContractChartBranch,
@@ -19,7 +18,6 @@ import {
 } from '@/lib/api/contracts/people-sync'
 import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { organizationRoutes } from '@/lib/navigation/paths'
 import { readPeopleSheet } from '@/lib/people/read-sheet'
 import {
   boundedSearch,
@@ -30,7 +28,6 @@ import {
 import { memberProfileFieldsSchema } from '@/lib/people/validation'
 import { saveBlob } from '@/lib/uploads/client/download'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { useScimConnection } from '@/ee/scim/hooks/scim'
 import { serializeSsoSettings } from '@/ee/sso/search-params'
 import {
@@ -50,6 +47,8 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
+import { useOrganization } from '@/platform/lib/data/organization'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 
 export type ChartBranch = ContractChartBranch
 export type PeopleImportResult = ContractImportResult
@@ -66,22 +65,27 @@ export const SYNC_SOURCE_NAMES: Record<SyncSource, string> = {
 
 /** Who is viewing, and which of the page's administration they may reach. */
 export function usePeopleViewer() {
-  const { organization, viewer, settingsFeatures } = useOrganizationContext()
+  const surface = useOrganization()
+  const { organization, viewer, settingsFeatures } = surface
   const { features, hosted } = useDeploymentShape()
   return {
     organizationName: organization.name,
     isAdmin: viewer.isAdmin,
     canProvision: features.scim && (!hosted || settingsFeatures.hasEnterprisePlan),
-    canOpenProvisioningSettings: isOrganizationSettingsSectionAvailable('sso', settingsFeatures),
-    provisioningSettingsHref: serializeSsoSettings(
-      organizationRoutes(organization.id).settingsSection('sso'),
-      { tab: 'provisioning' }
-    ),
+    canOpenProvisioningSettings: surface.settingsSections.includes('sso'),
+    provisioningSettingsHref: serializeSsoSettings(surfaceHref(surface, '/settings/sso'), {
+      tab: 'provisioning',
+    }),
   }
 }
 
-export function personHref(organizationId: string, memberId: string, originQuery = ''): string {
-  return `${organizationRoutes(organizationId).person(memberId)}${originQuery}`
+/** Where People lives on this host. */
+export function usePeoplePath(): string {
+  return surfaceHref(useOrganization(), '/people')
+}
+
+export function personHref(peoplePath: string, memberId: string, originQuery = ''): string {
+  return `${peoplePath}/${encodeURIComponent(memberId)}${originQuery}`
 }
 
 export function isApiConflict(error: unknown): boolean {
@@ -107,11 +111,11 @@ function profileOriginQuery(origin: PeopleUrl, overrides: PeopleUrlOverrides): s
 }
 
 function peopleViewHref(
-  organizationId: string,
+  peoplePath: string,
   origin: PeopleUrl,
   overrides: PeopleUrlOverrides
 ): string {
-  return serializePeopleView(organizationRoutes(organizationId).people, {
+  return serializePeopleView(peoplePath, {
     ...origin,
     panel: null,
     ...overrides,
@@ -300,6 +304,7 @@ export function useChartRoots(organizationId: string, enabled = true) {
 }
 
 export function usePersonProfile(organizationId: string, memberId: string) {
+  const peoplePath = usePeoplePath()
   const [origin] = usePeopleUrl()
   const query = usePerson(organizationId, memberId)
   const loadError = query.data && !isRefusal(query.error) ? null : query.error
@@ -312,19 +317,19 @@ export function usePersonProfile(organizationId: string, memberId: string) {
     retry: () => void query.refetch(),
     originView,
     originQuery: profileOriginQuery(origin, { view: originView }),
-    chartHref: peopleViewHref(organizationId, origin, {
+    chartHref: peopleViewHref(peoplePath, origin, {
       view: 'chart',
       focus: data?.person.memberId ?? memberId,
       page: origin.focus === data?.person.memberId ? origin.page : 1,
     }),
-    departmentHref: peopleViewHref(organizationId, origin, {
+    departmentHref: peopleViewHref(peoplePath, origin, {
       view: 'directory',
       search: '',
       department: data?.person.departmentKey ? null : data?.person.department,
       departmentKey: data?.person.departmentKey ?? null,
     }),
-    backHref: peopleViewHref(organizationId, origin, { view: originView }),
-    directoryHref: peopleViewHref(organizationId, origin, { view: 'directory' }),
+    backHref: peopleViewHref(peoplePath, origin, { view: originView }),
+    directoryHref: peopleViewHref(peoplePath, origin, { view: 'directory' }),
   }
 }
 

@@ -4,11 +4,6 @@ import { useState } from 'react'
 import { Chip, ChipConfirmModal, ChipSelect, ChipTag, toast } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
-import type {
-  ScimGroupMappingBody,
-  ScimGroupMappingView,
-} from '@/lib/api/contracts/organization-scim'
 import type { PermissionGroup } from '@/lib/api/contracts/permission-groups'
 import {
   SettingsEmptyState,
@@ -30,23 +25,14 @@ import {
   useScimGroupMappings,
   useUpsertScimGroupMapping,
 } from '@/ee/scim/hooks/scim'
-
-function describeMapping(
-  mapping: ScimGroupMappingView,
-  names: { permissionGroups: Map<string, string>; workspaces: Map<string, string> }
-): string {
-  switch (mapping.targetKind) {
-    case 'permission_group':
-      return names.permissionGroups.get(mapping.permissionGroupId ?? '') ?? 'Permission group'
-    case 'workspace': {
-      const name = names.workspaces.get(mapping.workspaceId ?? '') ?? 'Workspace'
-      const level = PERMISSION_OPTIONS.find((o) => o.value === mapping.permissionType)?.label
-      return level ? `${name} · ${level}` : name
-    }
-    case 'org_role':
-      return 'Organization admin'
-  }
-}
+import {
+  automaticMatchWouldRemain,
+  buildScimMappingBody,
+  describeScimMapping,
+  mappingChangesAllMembersPolicy,
+  removeMappingConsequence,
+} from '@/ee/scim/lib/group-mapping-view'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 
 interface AddMappingProps {
   organizationId: string
@@ -71,28 +57,12 @@ function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: A
     onDiscard: discardMapping,
   })
 
-  function buildBody(): ScimGroupMappingBody | null {
-    switch (targetKind) {
-      case 'permission_group':
-        return targetId ? { groupId, targetKind, permissionGroupId: targetId } : null
-      case 'workspace':
-        return targetId
-          ? { groupId, targetKind, workspaceId: targetId, permissionType: permission }
-          : null
-      case 'org_role':
-        return { groupId, targetKind, role: 'admin' }
-    }
-  }
-
-  const body = buildBody()
+  const body = buildScimMappingBody(groupId, targetKind, targetId, permission)
   const selectedPermissionGroup =
     targetKind === 'permission_group'
       ? permissionGroups.find((group) => group.id === targetId)
       : undefined
-  const changesAllMembersPolicy =
-    selectedPermissionGroup?.membershipMode === 'inherit' &&
-    selectedPermissionGroup.memberCount === 0 &&
-    selectedPermissionGroup.workspaces.length > 0
+  const changesAllMembersPolicy = mappingChangesAllMembersPolicy(selectedPermissionGroup)
 
   async function handleAdd() {
     if (!body || upsertMapping.isPending) return
@@ -201,12 +171,7 @@ export function GroupMappings({
     permissionGroups: new Map(permissionGroups.map((group) => [group.id, group.name])),
     workspaces: new Map(workspaces.map((workspace) => [workspace.id, workspace.name])),
   }
-  const automaticMatchRemains =
-    pendingRemove?.targetKind === 'permission_group' &&
-    autoMapByName &&
-    (pendingRemove.source === 'automatic' ||
-      names.permissionGroups.get(pendingRemove.permissionGroupId ?? '') ===
-        pendingRemove.groupDisplayName)
+  const automaticMatchRemains = automaticMatchWouldRemain(pendingRemove, autoMapByName, names)
 
   async function handleRemove() {
     if (!pendingRemove || deleteMapping.isPending) return
@@ -262,11 +227,11 @@ export function GroupMappings({
                         key={mapping.id}
                         variant='gray'
                         rightIcon={X}
-                        rightIconLabel={`Remove ${describeMapping(mapping, names)} mapping`}
+                        rightIconLabel={`Remove ${describeScimMapping(mapping, names)} mapping`}
                         rightIconDisabled={deleteMapping.isPending}
                         onRightIconClick={() => setPendingRemoveId(mapping.id)}
                       >
-                        {describeMapping(mapping, names)}
+                        {describeScimMapping(mapping, names)}
                         {mapping.source === 'automatic' ? ' · Automatic' : ''}
                       </ChipTag>
                     ))}
@@ -276,7 +241,8 @@ export function GroupMappings({
                   <div className='flex flex-col gap-2'>
                     {unassignedMappings.map((mapping) => (
                       <p key={mapping.id} className='text-[var(--text-error)] text-caption'>
-                        {describeMapping(mapping, names)}: {mapping.unassignedMemberCount} directory
+                        {describeScimMapping(mapping, names)}: {mapping.unassignedMemberCount}{' '}
+                        directory
                         {mapping.unassignedMemberCount === 1 ? ' member is' : ' members are'} not
                         assigned.
                       </p>
@@ -309,16 +275,9 @@ export function GroupMappings({
         title='Remove mapping'
         text={[
           'Remove the mapping to ',
-          { text: pendingRemove ? describeMapping(pendingRemove, names) : '', bold: true },
+          { text: pendingRemove ? describeScimMapping(pendingRemove, names) : '', bold: true },
           '? ',
-          pendingRemove?.targetKind === 'permission_group'
-            ? 'Members may keep workspace access under a different permission policy.'
-            : 'Directory-managed access from this mapping will be withdrawn unless another mapping grants it. Existing manual access may remain.',
-          ...(automaticMatchRemains
-            ? [
-                ' Name matching is enabled and can recreate this mapping. Turn off Match permission groups by name first to keep it removed.',
-              ]
-            : []),
+          removeMappingConsequence(pendingRemove, automaticMatchRemains),
         ]}
         confirm={{
           label: 'Remove',
