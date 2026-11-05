@@ -10,6 +10,12 @@ conversation persistence, streaming recovery, tool permissions, and organization
 or workspace authorization. The panel keeps Fast mode and omits the model selector.
 A conversation can continue in the full app.
 
+Voice input uses the existing microphone control beside Send. The browser asks for
+microphone permission on first use. Transcription updates the editable draft and
+never sends it automatically. Stop ends recording; Send and conversation changes
+discard unfinished transcription. The iframe delegates microphone access only to
+the configured Sim origin, and blocked access offers the browser's microphone settings.
+
 The user signs in in a normal Sim tab and lands in their organization chat. Choosing
 a workspace is optional; members without Build access use Assistant. They can open
 or create a conversation and explicitly attach the current page or highlighted text.

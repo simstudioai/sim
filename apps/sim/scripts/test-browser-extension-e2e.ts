@@ -188,9 +188,9 @@ const checkNavigation = (name: string, run: () => Promise<void>) => check('navig
 const checkComposer = (name: string, run: () => Promise<void>) => check('composer', name, run)
 const checkAccess = (name: string, run: () => Promise<void>) => check('access', name, run)
 
-async function screenshot(name: string) {
-  if (!panel) return
-  for (const frame of panel.frames()) {
+async function screenshot(name: string, target = panel) {
+  if (!target) return
+  for (const frame of target.frames()) {
     await frame.evaluate(() =>
       Promise.all(
         document
@@ -217,7 +217,7 @@ async function screenshot(name: string) {
     }
   }
   const path = `${report}.${name}.png`
-  await panel.screenshot({ path, fullPage: true, animations: 'disabled' })
+  await target.screenshot({ path, fullPage: true, animations: 'disabled' })
   screenshots.push(path)
 }
 
@@ -507,6 +507,14 @@ try {
     await login.waitForURL('**/login**')
     assert.equal(new URL(login.url()).origin, base.origin)
     await login.close()
+    const draft = await openPage()
+    try {
+      await draft.goto(`${base.origin}/extension/create-link`)
+      await expect(draft.getByRole('heading', { name: 'Sign in to create a link' })).toBeVisible()
+      await screenshot('create-link-sign-in', draft)
+    } finally {
+      await draft.close()
+    }
   })
   const signInAndSeed = async () => {
     const signup = await browserContext.request.post(`${base.origin}/api/auth/sign-up/email`, {
@@ -1330,8 +1338,70 @@ try {
       await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('')
     }
   )
+  await checkNavigation(
+    'A sanitized link draft saves in the current organization and opens its destination',
+    async () => {
+      const draft = await openPage()
+      await setPageViewport(draft, 1280, 900)
+      const endpoint = `/api/organizations/${organizationId}/sim-links`
+      let writes = 0
+      draft.on('request', (request) => {
+        if (new URL(request.url()).pathname === endpoint && request.method() === 'POST') writes++
+      })
+      try {
+        await draft.goto(`${base.origin}/extension/create-link`)
+        await expect(
+          draft.getByRole('heading', { name: 'Links unavailable', exact: true })
+        ).toBeVisible()
+        await screenshot('create-link-unavailable', draft)
+        await seedViewerOrganization()
+        const destination = `${fixtureOrigin}/page`
+        const hash = new URLSearchParams({
+          url: `${destination}?private=QUERY_SECRET#FRAGMENT_SECRET`,
+        })
+        await draft.goto(`${base.origin}/extension/create-link#${hash}`)
+        const dialog = draft.getByRole('dialog', { name: 'New link', exact: true })
+        await expect(dialog.getByLabel('Destination URL', { exact: true })).toHaveValue(destination)
+        await expect.poll(() => new URL(draft.url()).hash).toBe('')
+        await screenshot('create-link-draft', draft)
+        await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+        await expect(dialog.getByLabel('Name', { exact: true })).toHaveAttribute(
+          'aria-invalid',
+          'true'
+        )
+        assert.equal(writes, 0, 'An invalid draft reached the create boundary')
+        await screenshot('create-link-validation', draft)
+        await dialog.getByLabel('Name', { exact: true }).fill('qa-draft')
+        const saved = draft.waitForResponse(
+          (response) =>
+            new URL(response.url()).pathname === endpoint && response.request().method() === 'POST'
+        )
+        await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+        assert.equal((await saved).status(), 200)
+        await draft.waitForURL(`${base.origin}/o/${organizationId}/links`)
+        const [row] =
+          await sql`select name, url from sim_link where organization_id=${organizationId}`
+        assert.equal(row?.name, 'qa-draft')
+        assert.equal(row?.url, destination)
+        const link = draft.getByRole('row').filter({ hasText: 'qa-draft' })
+        await expect(link).toBeVisible()
+        await screenshot('create-link-saved', draft)
+        const opened = browserContext.waitForEvent('page')
+        await link.click()
+        const resolved = await opened
+        try {
+          await resolved.waitForURL(destination)
+        } finally {
+          await resolved.close()
+        }
+      } finally {
+        await draft.close()
+        await sql`delete from organization where id=${organizationId}`
+      }
+    }
+  )
   await checkComposer(
-    'Voice input captures only on click, preserves drafts, and survives a rapid restart',
+    'Voice input recovers permission, preserves drafts, and stops on Send or restart',
     async () => {
       const input = frame().getByRole('textbox', { name: 'Message', exact: true })
       const mic = frame().getByRole('button', { name: 'Voice input', exact: true })
@@ -1354,24 +1424,46 @@ try {
               session.chunks++
             }
           })
-          socket.onClose(() => {
+          socket.onClose(async () => {
+            await socket.close()
             session.closed = true
-            void socket.close()
           })
         }
       )
       const microphone = await browserContext.newCDPSession(shell)
-      await microphone.send('Browser.setPermission', {
-        permission: { name: 'microphone' },
-        setting: 'granted',
-        origin: `chrome-extension://${extensionId}`,
-        embeddedOrigin: base.origin,
+      const setMicrophonePermission = (setting: 'granted' | 'denied') =>
+        microphone.send('Browser.setPermission', {
+          permission: { name: 'microphone' },
+          setting,
+          origin: `chrome-extension://${extensionId}`,
+          embeddedOrigin: base.origin,
+        })
+      const submitted: Record<string, unknown>[] = []
+      await shell.route('**/api/mothership/chat', (route) => {
+        if (route.request().method() !== 'POST') return route.continue()
+        submitted.push(toRecord(route.request().postDataJSON()))
+        injectedRequests.add(route.request())
+        return route.fulfill({ status: 403, json: { error: 'QA admission rejected' } })
       })
       try {
         await expect(mic).toBeVisible()
         await input.fill('Keep my draft')
         assert.equal(sessions.length, 0, 'Voice started before an explicit click')
         await screenshot('microphone-ready')
+        await setMicrophonePermission('denied')
+        await mic.click()
+        const settings = frame().getByRole('button', { name: 'Open settings', exact: true })
+        await expect(settings).toBeVisible()
+        await expect(input).toHaveValue('Keep my draft')
+        assert.equal(sessions.length, 0, 'Denied microphone started transcription')
+        await screenshot('microphone-blocked')
+        const opened = browserContext.waitForEvent('page')
+        await settings.click()
+        const settingsPage = await opened
+        await settingsPage.waitForURL('chrome://settings/content/microphone')
+        await settingsPage.close()
+        await shell.bringToFront()
+        await setMicrophonePermission('granted')
         await mic.click()
         await expect(stop).toBeVisible()
         await expect.poll(() => sessions[0]?.chunks ?? 0).toBeGreaterThan(0)
@@ -1390,19 +1482,45 @@ try {
         )
         await expect.poll(() => sessions[0].closed).toBe(true)
         await expect(stop).toBeVisible()
+        await expect(input).toHaveValue('Keep my draft first thought')
         const chunks = sessions[1].chunks
         await expect.poll(() => sessions[1].chunks).toBeGreaterThan(chunks)
         sessions[1].socket.send(
           JSON.stringify({ message_type: 'partial_transcript', text: 'second thought' })
         )
         await expect(input).toHaveValue('Keep my draft first thought second thought')
-        await stop.click()
+        await input.press('Enter')
+        await expect.poll(() => submitted.length).toBe(1)
+        assert.equal(submitted[0].message, 'Keep my draft first thought second thought')
+        await expect(input).toHaveValue('')
         await expect(mic).toBeVisible()
-        await screenshot('microphone-transcribed')
         await expect.poll(() => sessions[1].closed).toBe(true)
-        await input.fill('')
+        await expect(
+          frame().getByRole('button', { name: 'Send message', exact: true })
+        ).toBeVisible()
+        await input.fill('Another draft')
+        await mic.click()
+        await expect(stop).toBeVisible()
+        await expect.poll(() => sessions[2]?.chunks ?? 0).toBeGreaterThan(0)
+        sessions[2].socket.send(
+          JSON.stringify({ message_type: 'partial_transcript', text: 'ready to send' })
+        )
+        await expect(input).toHaveValue('Another draft ready to send')
+        await screenshot('microphone-dictated-draft')
+        await stop.click()
+        await input.press('Enter')
+        await expect(input).toHaveValue('')
+        assert.equal(sessions[2].closed, false, 'Final-transcript grace must still be open')
+        sessions[2].socket.send(
+          JSON.stringify({ message_type: 'partial_transcript', text: 'late words' })
+        )
+        await expect.poll(() => sessions[2].closed).toBe(true)
+        await expect(input).toHaveValue('')
+        assert.equal(submitted.length, 2, 'Dictation submitted a message without Send')
+        await screenshot('microphone-after-send')
       } finally {
         await shell.unroute('**/api/speech/token')
+        await shell.unroute('**/api/mothership/chat')
         await microphone.send('Browser.resetPermissions')
         await microphone.detach()
       }
@@ -1806,7 +1924,11 @@ try {
         .poll(() => new URL(frame().url()).pathname)
         .toBe(`/extension/o/${organizationId}`)
       await expect(frame().getByRole('textbox', { name: 'Ask Sim', exact: true })).toBeVisible()
+      await expect(frame().getByRole('button', { name: 'Voice input', exact: true })).toBeVisible()
       await screenshot('organization-new-chat')
+      await setPanelViewport(320, 844)
+      await screenshot('organization-microphone-320')
+      await setPanelViewport(390, 844)
       await capture()
       await expect(attachments()).toHaveCount(1)
       let submitted: unknown
@@ -2640,7 +2762,11 @@ try {
             frame().getByRole('heading', { name: 'How can I help?', exact: true })
           )
         : undefined
+      await expect(frame().getByRole('button', { name: 'Voice input', exact: true })).toBeVisible()
       await screenshot('organization-assistant-page')
+      await setPanelViewport(320, 844)
+      await screenshot('assistant-microphone-320')
+      await setPanelViewport(390, 844)
       if (!liveChat)
         await shell.route('**/api/mothership/chat', (route) =>
           route.fulfill({ status: 403, json: { error: 'QA submission boundary' } })

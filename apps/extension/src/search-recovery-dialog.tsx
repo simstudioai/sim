@@ -140,8 +140,7 @@ export function SearchRecoveryDialog({ onClose }: SearchRecoveryDialogProps) {
             </ChipModalField>
           ))}
           <p className='px-2 text-[var(--text-muted)] text-caption'>
-            Chrome asks for access to the sites shown above. Page reference stays unchanged. Turning
-            a shortcut off keeps site access.
+            Turning shortcuts off keeps browser site access.
           </p>
           {loadError && (
             <div className='flex flex-wrap items-center gap-2 px-2'>

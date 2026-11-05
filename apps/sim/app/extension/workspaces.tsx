@@ -11,14 +11,17 @@ import {
 } from '@sim/emcn'
 import { isApiClientError } from '@/lib/api/client/errors'
 import ExtensionLoading from '@/app/extension/loading'
+import { useExtensionIdentity } from '@/app/extension/providers'
 import { ExtensionSignIn } from '@/app/extension/sign-in'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
 export function ExtensionWorkspaces() {
+  const { userId } = useExtensionIdentity()
   const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null)
   const scrollEdges = useScrollEdges(scrollElement)
   const { data: workspaces, isPending, error, refetch } = useWorkspacesQuery()
-  if (isApiClientError(error) && error.status === 401) return <ExtensionSignIn />
+  if (isApiClientError(error) && error.status === 401)
+    return <ExtensionSignIn expectedUserId={userId} />
   if (isPending) return <ExtensionLoading />
   const transientError =
     !isApiClientError(error) || error.status === 408 || error.status === 429 || error.status >= 500

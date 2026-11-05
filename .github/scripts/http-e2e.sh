@@ -279,6 +279,7 @@ case "$group" in
     export REDIS_URL=redis://127.0.0.1:6379
     export NEXT_PUBLIC_FORCE_HOSTED=false
     export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
+    export SIM_LINKS=true
     export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true
     export API_ENCRYPTION_KEY="$ENCRYPTION_KEY"
     start_browser_install "$group" --no-shell chromium

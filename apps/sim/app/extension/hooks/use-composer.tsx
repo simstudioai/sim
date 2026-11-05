@@ -152,7 +152,12 @@ export function useExtensionComposer(scopeKey: string) {
       ) : undefined,
     [connected, requestAction, referenceEnabled]
   )
+  const openMicrophoneSettings = useCallback(
+    () => requestAction('microphone-settings'),
+    [requestAction]
+  )
   return {
+    openMicrophoneSettings,
     attachments,
     resourceActions,
     toolbarActions,

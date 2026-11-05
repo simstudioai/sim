@@ -806,6 +806,12 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
+            'Versions 0.1.4 and later support voice input. When You click the microphone and grant browser permission, Sim streams microphone audio to ElevenLabs for transcription into Your editable message draft. Opening the panel does not start recording, and this feature does not capture tab audio. Stopping voice input ends microphone capture; sending a message or changing conversations cancels unfinished transcription. Submitted transcripts become conversation content under the retention and processing rules below.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
             'When You ask Sim to attach a page or selection, the browser extension reads the requested text from the top frame of that page and transfers it, the page title, and a normalized page address to the hosted Sim composer. URL credentials, query parameters, and fragments are removed. The extractor skips form inputs, editable fields, scripts, embedded frames, and elements it detects as hidden. Page text, including text in collapsed sections, may still contain personal or sensitive information, such as personal communications or health, financial, or authentication information.'
           ),
         },

@@ -121,6 +121,7 @@ export function useSpeechToText({
   const organizationIdRef = useRef(organizationId)
   const mountedRef = useRef(true)
   const startingRef = useRef(false)
+  const generationRef = useRef(0)
 
   const wsRef = useRef<WebSocket | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -221,6 +222,7 @@ export function useSpeechToText({
   const startStreaming = useCallback(async () => {
     if (startingRef.current) return false
     startingRef.current = true
+    const generation = ++generationRef.current
 
     try {
       let tokenData: Awaited<ReturnType<typeof requestJson<typeof speechTokenContract>>>
@@ -231,6 +233,7 @@ export function useSpeechToText({
             : { workspaceId: workspaceIdRef.current },
         })
       } catch (err) {
+        if (!mountedRef.current || generation !== generationRef.current) return false
         if (isApiClientError(err) && err.status === 402) {
           const isMemberLimit = (err.body as { scope?: string } | null)?.scope === 'member'
           onUsageLimitExceededRef.current?.(err.message, isMemberLimit)
@@ -241,7 +244,7 @@ export function useSpeechToText({
 
       const token = typeof tokenData.token === 'string' ? tokenData.token : undefined
       if (!token) throw new Error('Failed to get speech token')
-      if (!mountedRef.current) return false
+      if (!mountedRef.current || generation !== generationRef.current) return false
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -253,7 +256,7 @@ export function useSpeechToText({
         },
       })
 
-      if (!mountedRef.current) {
+      if (!mountedRef.current || generation !== generationRef.current) {
         stream.getTracks().forEach((track) => track.stop())
         return false
       }
@@ -278,6 +281,7 @@ export function useSpeechToText({
         ws.onerror = () => reject(new Error('WebSocket connection failed'))
 
         ws.onmessage = (event) => {
+          if (!mountedRef.current || generation !== generationRef.current) return
           try {
             const msg = JSON.parse(event.data)
 
@@ -312,6 +316,8 @@ export function useSpeechToText({
         }
 
         ws.onclose = () => {
+          reject(new Error('Voice connection closed before it was ready'))
+          if (wsRef.current !== ws || generation !== generationRef.current) return
           if (mountedRef.current) {
             setIsListening(false)
           }
@@ -319,7 +325,7 @@ export function useSpeechToText({
         }
       })
 
-      if (!mountedRef.current) {
+      if (!mountedRef.current || generation !== generationRef.current) {
         ws.close()
         stream.getTracks().forEach((track) => track.stop())
         return false
@@ -352,6 +358,7 @@ export function useSpeechToText({
 
       return true
     } catch (error) {
+      if (generation !== generationRef.current) return false
       logger.error('Failed to start speech streaming', error)
       cleanup()
       if (mountedRef.current) {
@@ -359,7 +366,7 @@ export function useSpeechToText({
       }
       return false
     } finally {
-      startingRef.current = false
+      if (generation === generationRef.current) startingRef.current = false
     }
   }, [cleanup, flushAudioBuffer])
 
@@ -424,9 +431,12 @@ export function useSpeechToText({
   stopStreamingRef.current = stopStreaming
 
   const resetTranscript = useCallback(() => {
+    generationRef.current++
+    startingRef.current = false
+    cleanup()
+    setIsListening(false)
     committedTextRef.current = ''
-    isFirstChunkRef.current = true
-  }, [])
+  }, [cleanup])
 
   const toggleListening = useCallback(() => {
     if (isListening) {
@@ -440,6 +450,8 @@ export function useSpeechToText({
     mountedRef.current = true
     return () => {
       mountedRef.current = false
+      generationRef.current++
+      startingRef.current = false
       cleanup()
     }
   }, [cleanup])

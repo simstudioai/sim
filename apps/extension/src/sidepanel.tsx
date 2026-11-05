@@ -349,6 +349,8 @@ function SidePanel({ origin }: SidePanelProps) {
         if (!navigator.userActivation.isActive) return
         if (parsed.data.action === 'site-access') setAccessOpen(true)
         else if (parsed.data.action === 'browser-shortcuts') setShortcutsOpen(true)
+        else if (parsed.data.action === 'microphone-settings')
+          void chrome.tabs.create({ url: 'chrome://settings/content/microphone' })
         else void capture(parsed.data.action === 'capture-page' ? 'page' : 'selection')
       } else if (pendingRef.current?.id === parsed.data.snapshotId) {
         pendingRef.current = null
