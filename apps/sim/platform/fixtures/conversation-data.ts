@@ -3,6 +3,7 @@ import type { ChatAttachment, ChatTurn } from '@/platform/app/(shell)/_component
 import type { ConversationData } from '@/platform/app/(shell)/chat/_components/conversation/model'
 import type { HomeData } from '@/platform/app/(shell)/home/_components/model'
 import type { Scenario } from '@/platform/fixtures'
+import { FIXTURE_NOW } from '@/platform/fixtures/clock'
 import nina from '@/platform/fixtures/media/attendee-1.jpg'
 import alex from '@/platform/fixtures/media/attendee-2.jpg'
 import maya from '@/platform/fixtures/media/attendee-3.jpg'
@@ -12,31 +13,39 @@ const people = ['Nina Patel', 'Alex Chen', 'Maya Ross', 'Daniel Kim'].map((name,
   name,
   src: [nina, alex, maya][index]?.src,
 }))
-const weekly = [7000, 10500, 9000, 14000, 11500, 17000, 15739]
+const TASKS = [7000, 10500, 9000, 14000, 11500, 17000, 15739]
+const SEARCHES = [1846, 2139, 2562, 1281, 1115, 2784, 3168]
+const activity: HomeData['activity'] = Array.from({ length: 90 }, (_, index) => {
+  const daysAgo = 89 - index
+  const weeksAgo = Math.floor(daysAgo / 7)
+  const day = 6 - (daysAgo % 7)
+  const date = new Date(FIXTURE_NOW)
+  date.setUTCDate(date.getUTCDate() - daysAgo)
+  return {
+    date: date.toISOString().slice(0, 10),
+    tasks: TASKS[day] - weeksAgo * 143,
+    searches: SEARCHES[day] - weeksAgo * 37,
+  }
+})
 const fullHome: HomeData = {
+  asOf: FIXTURE_NOW,
   firstName: 'Emir',
   address: 'emir@example.test',
   connected: true,
-  ranges: [7, 30, 90].map((days) => ({
-    label: `Last ${days} days`,
-    points: Array.from({ length: days }, (_, i) => ({
-      label: days === 7 ? `Oct ${7 + i}` : `Day ${i + 1}`,
-      value: weekly[i % weekly.length],
-    })),
-  })),
+  activity,
   attention: [
     {
       id: 'onboarding',
       title: 'Review the onboarding process',
       detail: 'Approval requested in Wiki',
-      meta: '13h ago',
+      occurredAt: FIXTURE_NOW - 17 * 60 * 60_000,
       icon: 'I082',
     },
     {
       id: 'salesforce',
       title: 'Reconnect Salesforce',
       detail: 'Connection expired',
-      meta: '12m ago',
+      occurredAt: FIXTURE_NOW - 12 * 60_000,
       icon: 'I084',
     },
   ],
@@ -49,7 +58,7 @@ const fullHome: HomeData = {
       subject: 'Updated onboarding checklist',
       excerpt:
         'I’ve added the new handoff steps, linked the implementation brief, and marked the owners for each checkpoint. Could you review the customer-facing notes before the kickoff on Thursday?',
-      received: '12m ago',
+      receivedAt: FIXTURE_NOW - 12 * 60_000,
     },
     {
       id: 'q4',
@@ -59,7 +68,7 @@ const fullHome: HomeData = {
       subject: 'Q4 customer review',
       excerpt:
         'Can you review the agenda before Friday? I’ve included the latest pipeline report, the decisions from our last review, and the accounts that still need an owner.',
-      received: '38m ago',
+      receivedAt: FIXTURE_NOW - 60 * 60_000,
     },
     {
       id: 'invoice',
@@ -68,89 +77,89 @@ const fullHome: HomeData = {
       subject: 'Invoice approval for October',
       excerpt:
         'The final invoices are ready for approval. I reconciled the vendor totals against the October ledger and added notes about the two adjustments we discussed.',
-      received: '1d ago',
+      receivedAt: FIXTURE_NOW - 86_400_000,
     },
-    ...[
+    ...(
       [
-        'field-notes',
-        'Daniel Kim',
-        'Field notes from the pilot',
-        'The support team collected feedback from all four pilot accounts. I grouped the requests by owner and marked the ones blocking rollout.',
-        '1d ago',
-      ],
-      [
-        'brand',
-        'Jo Bell',
-        'New brand assets',
-        'The final icons and presentation templates are ready for the partner launch. Let me know if you need any additional formats.',
-        '2d ago',
-      ],
-      [
-        'research',
-        'Amara Okafor',
-        'Research interviews',
-        'The interview guide is ready for review. I left space for the questions we discussed during the last research session.',
-        '2d ago',
-      ],
-      [
-        'handoff',
-        'Leo Martin',
-        'Implementation handoff',
-        'Could you review the checklist before I send it to the implementation team?',
-        '3d ago',
-      ],
-      [
-        'forecast',
-        'Priya Singh',
-        'Forecast for November',
-        'The latest model reflects the enterprise renewals and the revised account opening dates.',
-        '3d ago',
-      ],
-      [
-        'training',
-        'Jordan Lee',
-        'Training next week',
-        'I added the new material to the agenda and shared the practice worksheet with everyone attending.',
-        '4d ago',
-      ],
-      [
-        'launch',
-        'Sam Rivera',
-        'Launch checklist',
-        'The last remaining dependency is approved. We can now book the final launch review.',
-        '4d ago',
-      ],
-      [
-        'budget',
-        'Leah Park',
-        'Budget review',
-        'The revised budget is ready. Each department has confirmed their allocation for the next quarter.',
-        '5d ago',
-      ],
-      [
-        'feedback',
-        'Owen Reed',
-        'Customer feedback roundup',
-        'Here are the themes from the latest customer conversations, together with the owners and follow-up dates we agreed on.',
-        '6d ago',
-      ],
-    ].map(([id, sender, subject, excerpt, received]) => ({
+        [
+          'field-notes',
+          'Daniel Kim',
+          'Field notes from the pilot',
+          'The support team collected feedback from all four pilot accounts. I grouped the requests by owner and marked the ones blocking rollout.',
+          1,
+        ],
+        [
+          'brand',
+          'Jo Bell',
+          'New brand assets',
+          'The final icons and presentation templates are ready for the partner launch. Let me know if you need any additional formats.',
+          2,
+        ],
+        [
+          'research',
+          'Amara Okafor',
+          'Research interviews',
+          'The interview guide is ready for review. I left space for the questions we discussed during the last research session.',
+          2,
+        ],
+        [
+          'handoff',
+          'Leo Martin',
+          'Implementation handoff',
+          'Could you review the checklist before I send it to the implementation team?',
+          3,
+        ],
+        [
+          'forecast',
+          'Priya Singh',
+          'Forecast for November',
+          'The latest model reflects the enterprise renewals and the revised account opening dates.',
+          3,
+        ],
+        [
+          'training',
+          'Jordan Lee',
+          'Training next week',
+          'I added the new material to the agenda and shared the practice worksheet with everyone attending.',
+          4,
+        ],
+        [
+          'launch',
+          'Sam Rivera',
+          'Launch checklist',
+          'The last remaining dependency is approved. We can now book the final launch review.',
+          4,
+        ],
+        [
+          'budget',
+          'Leah Park',
+          'Budget review',
+          'The revised budget is ready. Each department has confirmed their allocation for the next quarter.',
+          5,
+        ],
+        [
+          'feedback',
+          'Owen Reed',
+          'Customer feedback roundup',
+          'Here are the themes from the latest customer conversations, together with the owners and follow-up dates we agreed on.',
+          6,
+        ],
+      ] as const
+    ).map(([id, sender, subject, excerpt, daysAgo]) => ({
       id,
       sender,
       subject,
       excerpt,
-      received,
+      receivedAt: FIXTURE_NOW - daysAgo * 86_400_000,
     })),
   ],
   calendar: {
     date: '2026-10-13',
-    now: '11:24 AM',
     nowMinute: 11 * 60 + 24,
     meetings: [
       {
         id: 'customer',
         title: 'Customer operations review',
-        time: '10:30–11:15 AM',
         startMinute: 10 * 60 + 30,
         duration: 45,
         people,
@@ -158,7 +167,6 @@ const fullHome: HomeData = {
       {
         id: 'product',
         title: 'Product & revenue sync',
-        time: '12:00–12:45 PM',
         startMinute: 12 * 60,
         duration: 45,
         people: people.slice(1, 3),
@@ -168,7 +176,7 @@ const fullHome: HomeData = {
 }
 const renewal = {
   id: 'renewal',
-  time: '3:46 PM',
+  sentAt: Date.UTC(2026, 9, 12, 15, 46),
   prompt: {
     text: 'Review the renewal brief for Aster Labs. Compare it with the latest account notes and highlight anything I should address before Friday’s call.',
     attachments: [],
@@ -176,7 +184,7 @@ const renewal = {
   response: {
     state: 'complete',
     duration: '38s',
-    time: '4:04 PM',
+    sentAt: Date.UTC(2026, 9, 12, 16, 4),
     thinking: 'Compared the renewal terms with account notes and open requests.',
     paragraphs: [
       {
@@ -279,7 +287,7 @@ function thread(
     turns: [
       {
         id,
-        time: '10:42 AM',
+        sentAt: Date.UTC(2026, 9, 12, 10, 42),
         prompt: { text, attachments },
         response: {
           ...entry,
@@ -410,14 +418,14 @@ const threads: ConversationData['threads'] = [
     turns: [
       {
         id,
-        time: '9:15 AM',
+        sentAt: Date.UTC(2026, 9, 12, 9, 15),
         prompt: { text: prompt, attachments: [] },
         response: {
           state: 'complete' as const,
           duration: '6s',
           paragraphs: [{ text: answer }],
           steps: [],
-          time: '9:15 AM',
+          sentAt: Date.UTC(2026, 9, 12, 9, 15),
         },
       },
     ],
@@ -442,10 +450,7 @@ const emptyHome: HomeData = {
   attention: [],
   email: [],
   calendar: { date: '2026-10-14', meetings: [] },
-  ranges: fullHome.ranges.map((range) => ({
-    ...range,
-    points: range.points.map((point) => ({ ...point, value: 0 })),
-  })),
+  activity: activity.map(({ date }) => ({ date, tasks: 0, searches: 0 })),
 }
 const batch = Array.from({ length: 20 }, (_, i) => ({
   ...files[i % files.length],
@@ -458,6 +463,7 @@ export const conversationScenarios: Record<Scenario, { home: HomeData; chat: Con
   stress: {
     home: {
       ...fullHome,
+      activity: activity.filter((day) => new Date(day.date).getUTCDay() !== 0),
       references: chat.references,
       attention: Array.from({ length: 12 }, (_, i) => ({
         ...fullHome.attention[i % 2],

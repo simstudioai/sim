@@ -63,7 +63,7 @@
 }
 
 .lines i {
-  border-block-start: var(--spacing-stroke-default) solid var(--task-chart-grid);
+  border-block-start: var(--spacing-stroke-default) solid var(--activity-chart-grid);
 }
 
 .ticks {

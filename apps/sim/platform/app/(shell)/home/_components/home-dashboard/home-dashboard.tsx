@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import type { HomeWidget } from '@/platform/app/(shell)/_components/model'
 import { usePlatformNotices } from '@/platform/app/(shell)/_components/notification-tray/notification-tray'
 import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
+import { HomeActivityChart } from '@/platform/app/(shell)/home/_components/activity-chart/activity-chart'
 import {
   AttentionList,
   EmailList,
@@ -13,11 +14,14 @@ import { ConnectedWidget } from '@/platform/app/(shell)/home/_components/connect
 import { HomeComposer } from '@/platform/app/(shell)/home/_components/home-composer/home-composer'
 import styles from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css'
 import type { HomeData } from '@/platform/app/(shell)/home/_components/model'
-import { TasksRunChart } from '@/platform/app/(shell)/home/_components/tasks-chart/tasks-chart'
 import { ActionMenu } from '@/platform/design-system/components'
 import { platformHref } from '@/platform/design-system/navigation'
 
-const WIDGETS: readonly HomeWidget[] = ['Tasks run', 'Email', 'Calendar']
+const WIDGETS: readonly HomeWidget[] = ['Activity', 'Email', 'Calendar']
+const ACTIVITY_METRICS = {
+  Build: { field: 'tasks', title: 'Tasks run' },
+  Search: { field: 'searches', title: 'Searches made' },
+} as const
 
 interface HomeDashboardProps {
   data: HomeData | null
@@ -39,6 +43,8 @@ export function HomeDashboard({ data }: HomeDashboardProps) {
     setConnections,
   } = preferences
   const firstName = profileName?.split(/\s/u)[0] || data?.firstName
+  const metric = ACTIVITY_METRICS[homeMode]
+  const widgetLabel = (widget: HomeWidget) => (widget === 'Activity' ? metric.title : widget)
   function setVisible(widget: HomeWidget, visible: boolean) {
     const reveal = () => setHiddenWidgets((current) => current.filter((item) => item !== widget))
     const id = `hide-${widget}`
@@ -47,7 +53,13 @@ export function HomeDashboard({ data }: HomeDashboardProps) {
       dismiss(id)
     } else {
       setHiddenWidgets((current) => (current.includes(widget) ? current : [...current, widget]))
-      notify({ id, title: `${widget} hidden`, icon: 'I072', action: 'Undo', onAction: reveal })
+      notify({
+        id,
+        title: `${widgetLabel(widget)} hidden`,
+        icon: 'I072',
+        action: 'Undo',
+        onAction: reveal,
+      })
     }
   }
   const goHome = () => router.push(platformHref('/home', search))
@@ -64,7 +76,7 @@ export function HomeDashboard({ data }: HomeDashboardProps) {
         onHide={() => setVisible(widget, false)}
       >
         {widget === 'Email' ? (
-          <EmailList messages={data?.email ?? []} onOpen={goHome} />
+          <EmailList data={data} onOpen={goHome} />
         ) : (
           <CalendarDay calendar={data?.calendar} />
         )}
@@ -83,24 +95,26 @@ export function HomeDashboard({ data }: HomeDashboardProps) {
           heading='Customize Home'
           icon='I108'
           align='end'
-          actions={WIDGETS.map((label) => ({
-            id: label,
-            label,
-            checked: !hiddenWidgets.includes(label),
-            onSelect: () => setVisible(label, hiddenWidgets.includes(label)),
+          actions={WIDGETS.map((widget) => ({
+            id: widget,
+            label: widgetLabel(widget),
+            checked: !hiddenWidgets.includes(widget),
+            onSelect: () => setVisible(widget, hiddenWidgets.includes(widget)),
           }))}
         />
       </header>
       <HomeComposer mode={homeMode} onModeChange={setHomeMode} references={data?.references} />
       <div className={styles.columns}>
         <div className={styles.column}>
-          {!hiddenWidgets.includes('Tasks run') && (
-            <TasksRunChart title='Tasks run' ranges={data?.ranges ?? []} />
-          )}
+          <HomeActivityChart
+            title={metric.title}
+            points={data?.activity.map((day) => ({ date: day.date, value: day[metric.field] }))}
+            hidden={hiddenWidgets.includes('Activity')}
+          />
           {connectedWidget('Email')}
         </div>
         <div className={styles.column}>
-          <AttentionList rows={data?.attention ?? []} onOpen={goHome} />
+          <AttentionList data={data} onOpen={goHome} />
           {connectedWidget('Calendar')}
         </div>
       </div>

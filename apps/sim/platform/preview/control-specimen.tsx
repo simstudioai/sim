@@ -63,6 +63,7 @@ import {
   WorkspaceList,
 } from '@/platform/design-system/components'
 import type { PreviewData } from '@/platform/fixtures'
+import { formatCalendarDate } from '@/platform/lib/time'
 import { HomeChartSpecimen } from '@/platform/preview/home-chart-specimen'
 import styles from '@/platform/preview/specimen.module.css'
 
@@ -184,7 +185,7 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
     }
     case 'ExecutionSteps':
       return <ExecutionSteps title='Plan' steps={data?.collections.steps ?? []} />
-    case 'TasksRunChart':
+    case 'HomeActivityChart':
     case 'ChartTooltip':
       return <HomeChartSpecimen recipe={key} data={data} />
     case 'WorkspaceList':
@@ -288,7 +289,12 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
         <TrendChart
           title='Workflow runs'
           maximum={data?.charts.maximum}
-          points={data?.charts.trend ?? []}
+          points={
+            data?.charts.trend.map(({ date, value }) => ({
+              label: formatCalendarDate(date),
+              value,
+            })) ?? []
+          }
           control={requestFilter}
         />
       )

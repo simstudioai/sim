@@ -1,6 +1,7 @@
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 
-export type HomeWidget = 'Tasks run' | 'Email' | 'Calendar'
+export type HomeMode = 'Build' | 'Search'
+export type HomeWidget = 'Activity' | 'Email' | 'Calendar'
 
 export interface ShellItem {
   id: string

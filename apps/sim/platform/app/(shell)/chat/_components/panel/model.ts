@@ -9,10 +9,11 @@ export type PanelRecent = {
 )
 
 export interface PanelData {
+  asOf: number
   recents: PanelRecent[]
   file: {
     title: string
-    updated: string
+    updatedAt: number
     properties: { label: string; value: string }[]
     sections: { title: string; text: string }[]
   }

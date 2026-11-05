@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import styles from '@/platform/app/(shell)/chat/_components/message/message.module.css'
+import { MessageTime } from '@/platform/app/(shell)/chat/_components/message/message-time'
 import {
   ActionMenu,
   CopyButton,
@@ -13,9 +14,9 @@ import { Modal } from '@/platform/design-system/components/modal/modal'
 
 interface ResponseActionsProps {
   text: string
-  time: string
+  sentAt: number
 }
-export function ResponseActions({ text, time }: ResponseActionsProps) {
+export function ResponseActions({ text, sentAt }: ResponseActionsProps) {
   const [feedback, setFeedback] = useState<'Good response' | 'Bad response' | null>(null)
   const [rating, setRating] = useState<'Good response' | 'Bad response' | null>(null)
   return (
@@ -32,7 +33,7 @@ export function ResponseActions({ text, time }: ResponseActionsProps) {
             onSelect: () => setFeedback(label),
           }))}
         />
-        <time data-type='T052'>{time}</time>
+        <MessageTime sentAt={sentAt} />
       </div>
       <Modal
         variant='feedback'

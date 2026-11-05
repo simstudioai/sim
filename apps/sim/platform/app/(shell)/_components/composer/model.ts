@@ -16,7 +16,8 @@ export interface ComposerDraft {
 export interface ChatTurn {
   id: string
   prompt: ComposerDraft
-  time: string
+  sentAt: number
+  timeZone?: string
   response?: {
     state: 'complete' | 'running' | 'failed' | 'stopped'
     duration: string
@@ -31,7 +32,7 @@ export interface ChatTurn {
       input: string
       output: string
     }[]
-    time: string
+    sentAt: number
   }
 }
 

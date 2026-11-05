@@ -11,22 +11,13 @@ import {
 } from '@/platform/design-system/components'
 import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
+import { formatCalendarDate, formatClockTime, formatTimeRange } from '@/platform/lib/time'
 
 interface CalendarDayProps {
   calendar?: HomeData['calendar']
 }
 
-const DAY_LABEL = new Intl.DateTimeFormat('en-US', {
-  weekday: 'long',
-  month: 'long',
-  day: 'numeric',
-  timeZone: 'UTC',
-})
-
-const HOURS = Array.from(
-  { length: 24 },
-  (_, hour) => `${hour % 12 || 12}:00 ${hour < 12 ? 'AM' : 'PM'}`
-)
+const HOURS = Array.from({ length: 24 }, (_, hour) => formatClockTime(hour * 3_600_000))
 
 function timeSlot(startMinute: number, duration = 1) {
   return `${startMinute + 1} / span ${duration}`
@@ -49,10 +40,11 @@ export function CalendarDay({ calendar }: CalendarDayProps) {
 
   const date = calendar ? new Date(`${calendar.date}T12:00:00Z`) : new Date()
   date.setUTCDate(date.getUTCDate() + offset)
+  const dayLabel = formatCalendarDate(date.toISOString().slice(0, 10), 'weekday')
   return (
     <>
       <div className={styles.toolbar}>
-        <span data-type='T052'>{DAY_LABEL.format(date)}</span>
+        <span data-type='T052'>{dayLabel}</span>
         <div className={styles.dayControls}>
           <IconButton
             icon='I032'
@@ -99,19 +91,21 @@ export function CalendarDay({ calendar }: CalendarDayProps) {
                   <strong data-type='T059'>
                     <OverflowText text={event.title} />
                   </strong>
-                  <small data-type='T050'>{event.time}</small>
+                  <small data-type='T050'>
+                    {formatTimeRange(event.startMinute, event.startMinute + event.duration)}
+                  </small>
                 </button>
                 <AvatarGroup people={event.people} label='People in this meeting' />
               </article>
             ))}
-          {offset === 0 && calendar?.now && calendar.nowMinute !== undefined && (
+          {offset === 0 && calendar?.nowMinute !== undefined && (
             <span
               className={styles.now}
               aria-label='Current time'
               data-type='T021'
               style={{ gridRow: timeSlot(calendar.nowMinute) }}
             >
-              {calendar.now}
+              {formatClockTime(calendar.nowMinute * 60_000)}
             </span>
           )}
         </div>
@@ -119,7 +113,11 @@ export function CalendarDay({ calendar }: CalendarDayProps) {
       <OverlayDialog
         open={selected !== null}
         title={selected?.title ?? 'Calendar event'}
-        description={selected ? `${DAY_LABEL.format(date)} · ${selected.time}` : undefined}
+        description={
+          selected
+            ? `${dayLabel} · ${formatTimeRange(selected.startMinute, selected.startMinute + selected.duration)}`
+            : undefined
+        }
         onClose={() => setSelected(null)}
       >
         {selected && selected.people.length > 0 && (

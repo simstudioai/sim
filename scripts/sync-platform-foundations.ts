@@ -86,10 +86,7 @@ for (const { key, base } of typography) {
   recipes.set(recipe, keys)
 }
 function typeSelector(key: string) {
-  const base = `[data-platform-ui] [data-type="${key}"]`
-  return key === 'T094'
-    ? `${base},\n[data-platform-ui][data-theme="light"] [data-type-light="${key}"]`
-    : base
+  return `[data-platform-ui] [data-type="${key}"]`
 }
 
 emit(

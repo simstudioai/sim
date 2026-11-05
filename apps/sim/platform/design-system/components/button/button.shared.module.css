@@ -3,7 +3,7 @@
 .button,
 .iconButton,
 .chip {
-  @apply inline-flex flex-none items-center justify-center gap-control-gap;
+  @apply inline-flex items-center justify-center gap-control-gap;
   border: 0;
   background: transparent;
   color: var(--ui-ink);
@@ -11,9 +11,13 @@
   border-radius: var(--ui-control-radius);
 }
 
-.button {
+.button,
+.chip {
   max-inline-size: 100%;
   min-inline-size: 0;
+}
+
+.button {
   min-height: var(--spacing-app-control-md);
   padding-inline: var(--spacing-control-inline);
 }
@@ -24,6 +28,7 @@
 }
 
 .iconButton {
+  flex: none;
   width: var(--spacing-app-control-sm);
   height: var(--spacing-app-control-sm);
   padding: 0;
@@ -40,9 +45,6 @@
 }
 
 .chip {
-  flex: 0 1 auto;
-  min-inline-size: 0;
-  max-inline-size: 100%;
   min-height: var(--spacing-app-chip);
   padding-inline: var(--ui-row-inset);
   gap: var(--ui-row-gap);

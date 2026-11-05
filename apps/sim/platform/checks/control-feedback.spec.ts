@@ -22,8 +22,17 @@ test('either half of a binary mode control switches the composer without breakin
 test('a notice stays actionable while hovered and can be reopened after its feedback period', async ({
   page,
 }) => {
-  await page.clock.install()
   await page.goto(`${origin}/home?state=full`)
+  await expect(page.getByRole('region', { name: 'Home dashboard' })).toHaveAttribute(
+    'data-edges',
+    'end'
+  )
+  await page.getByRole('button', { name: 'Organization menu' }).click()
+  const inviteShadow = await page
+    .getByRole('button', { name: 'Invite', exact: true })
+    .evaluate((button) => getComputedStyle(button).boxShadow)
+  await page.keyboard.press('Escape')
+  await page.clock.install()
   await page.getByRole('button', { name: 'Customize Home' }).click()
   await page.getByRole('menuitemcheckbox', { name: 'Email', exact: true }).click()
   await page.keyboard.press('Escape')
@@ -32,10 +41,35 @@ test('a notice stays actionable while hovered and can be reopened after its feed
   await undo.hover()
   await page.clock.fastForward(5000)
   await expect(undo).toBeVisible()
+  await expect(tray.getByRole('article')).toHaveCSS('box-shadow', 'none')
   await page.getByRole('heading', { name: 'Tasks run' }).hover()
   await page.clock.fastForward(5000)
   await expect(undo).toBeHidden()
-  await tray.getByRole('button', { name: /notifications?$/ }).click()
+  const count = tray.getByRole('button', { name: /^Notifications? \d+$/ })
+  await count.click()
+  await page.setViewportSize({ width: 1140, height: 230 })
+  const viewport = tray.locator('[data-scroll-axis="vertical"]')
+  await expect(viewport).toHaveAttribute('data-edges', 'end')
+  for (const card of await tray.getByRole('article').all()) {
+    await expect(card).toHaveCSS('box-shadow', 'none')
+  }
+  const surface = viewport.locator('..')
+  await expect(surface).toHaveCSS('box-shadow', inviteShadow)
+
+  // Sample just below the scrolling edge, where the shadow falls on the page.
+  const clip = await viewport.evaluate((element) => {
+    const rect = element.getBoundingClientRect()
+    return {
+      x: Math.round(rect.x + rect.width / 2),
+      y: Math.ceil(rect.bottom),
+      width: 8,
+      height: 1,
+    }
+  })
+  const shadow = await page.screenshot({ clip })
+  await count.click()
+  expect(await page.screenshot({ clip })).not.toEqual(shadow)
+  await count.click()
   await undo.click()
   await expect(page.getByRole('region', { name: 'Email', exact: true })).toBeVisible()
 })
@@ -181,4 +215,21 @@ test('long feedback scrolls inside the field and dragging its corner leaves the 
   expect(await details.boundingBox()).toEqual(before)
   await dialog.getByRole('button', { name: 'Cancel' }).click()
   await expect(dialog).toBeHidden()
+})
+
+test('the composer keeps its reading size through reflow and respects a larger root text size', async ({
+  page,
+}) => {
+  await page.goto(`${origin}/home?theme=light&state=full`)
+  const editor = page.getByRole('textbox', { name: /Ask about your business/ })
+  const desktop = await editor.evaluate((el) => getComputedStyle(el).fontSize)
+  await editor.fill('Continue the conversation')
+  for (const width of [768, 640, 390]) {
+    await page.setViewportSize({ width, height: 780 })
+    await expect(editor).toBeFocused()
+    await expect(editor).toHaveCSS('font-size', desktop)
+    await expect(editor).toHaveValue('Continue the conversation')
+  }
+  await page.addStyleTag({ content: 'html { font-size: 125%; }' })
+  await expect(editor).toHaveCSS('font-size', `${Number.parseFloat(desktop) * 1.25}px`)
 })

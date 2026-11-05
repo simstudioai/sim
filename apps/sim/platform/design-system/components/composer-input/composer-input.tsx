@@ -69,7 +69,6 @@ export function ComposerInput({
       className={styles.composerInput}
       data-density={density}
       data-type='T048'
-      data-type-light={density === 'compact' ? 'T094' : undefined}
       rows={1}
       placeholder={placeholder}
       defaultValue={defaultValue}

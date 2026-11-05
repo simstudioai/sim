@@ -11,10 +11,17 @@
 .row:hover {
   background: var(--ui-hover);
 }
+.body {
+  display: flex;
+  align-items: start;
+  flex: 1;
+  gap: var(--ui-row-gap);
+  min-inline-size: 0;
+}
 .leading {
-  align-self: start;
   display: grid;
-  place-items: center start;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
   flex: none;
   inline-size: var(--ui-icon-size);
   block-size: var(--leading-app-control);
@@ -26,12 +33,8 @@
   min-inline-size: 0;
   gap: var(--ui-stack-gap);
 }
-.title small {
-  margin-inline-start: var(--ui-popup-padding);
-}
 .detail,
-.meta,
-.title small {
+.meta {
   color: var(--ui-secondary);
 }
 .detail strong {

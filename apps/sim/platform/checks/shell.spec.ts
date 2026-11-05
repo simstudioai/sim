@@ -230,7 +230,7 @@ test('the inbox filters unread items and each notification can be dismissed sepa
   await expect(notices.getByRole('article', { name: 'Email hidden' })).toBeVisible()
   await page.getByRole('menuitemcheckbox', { name: 'Calendar', exact: true }).click()
   await page.keyboard.press('Escape')
-  await notices.getByRole('button', { name: '4 notifications' }).click()
+  await notices.getByRole('button', { name: 'Notifications 4' }).click()
   await notices.getByRole('button', { name: 'Dismiss Syncing knowledge' }).click()
   const chats = page.getByRole('region', { name: 'Chats', exact: true })
   const names = await chats.getByRole('link').allTextContents()
@@ -239,15 +239,47 @@ test('the inbox filters unread items and each notification can be dismissed sepa
   await page.getByRole('button', { name: 'Emir Karabeg' }).click()
   await page.getByRole('button', { name: 'Back to app' }).click()
   await expect(chats.getByRole('link')).toHaveText([...names].sort((a, b) => a.localeCompare(b)))
-  await expect(notices.getByRole('button', { name: '3 notifications' })).toBeVisible()
+  await expect(notices.getByRole('button', { name: 'Notifications 3' })).toBeVisible()
   await notices
     .getByRole('article', { name: 'Email hidden' })
     .getByRole('button', { name: 'Undo' })
     .click()
   await expect(page.getByRole('heading', { name: 'Email', exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Calendar', exact: true })).toHaveCount(0)
-  await notices.getByRole('button', { name: '2 notifications' }).click()
+  await notices.getByRole('button', { name: 'Notifications 2' }).click()
   await expect(notices.getByRole('button', { name: 'Dismiss Workspace updated' })).toHaveCount(0)
-  await notices.getByRole('button', { name: '2 notifications' }).click()
+  await notices.getByRole('button', { name: 'Notifications 2' }).click()
   await expect(notices.getByRole('button', { name: 'Dismiss Workspace updated' })).toBeVisible()
+})
+
+test('an open menu stays actionable above expanded notifications as the viewport changes', async ({
+  page,
+}) => {
+  await page.goto(`${origin}/home?state=full`)
+  const customize = page.getByRole('button', { name: 'Customize Home' })
+  const calendar = page.getByRole('menuitemcheckbox', { name: 'Calendar', exact: true })
+  const notices = page.getByRole('region', { name: 'Notification stack' })
+  await customize.click()
+  await page.getByRole('menuitemcheckbox', { name: 'Email', exact: true }).click()
+  await calendar.click()
+  await page.keyboard.press('Escape')
+  await notices.getByRole('button', { name: 'Notifications 4' }).click()
+  await customize.click()
+  for (const [width, height] of [
+    [1280, 800],
+    [667, 375],
+    [844, 390],
+    [320, 520],
+  ]) {
+    await page.setViewportSize({ width, height })
+    await calendar.click({ trial: true, timeout: 5000 })
+  }
+  await calendar.click()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('region', { name: 'Calendar', exact: true })).toBeVisible()
+  await notices
+    .getByRole('article', { name: 'Email hidden' })
+    .getByRole('button', { name: 'Undo' })
+    .click()
+  await expect(page.getByRole('region', { name: 'Email', exact: true })).toBeVisible()
 })

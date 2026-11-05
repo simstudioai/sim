@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import { MessageComposer } from '@/platform/app/(shell)/_components/composer/message-composer'
 import { userTurn } from '@/platform/app/(shell)/_components/composer/user-turn'
+import type { HomeMode } from '@/platform/app/(shell)/_components/model'
 import { useChatChanges } from '@/platform/app/(shell)/_components/session/chat-changes'
 import styles from '@/platform/app/(shell)/home/_components/home-composer/home-composer.module.css'
 import type { HomeData } from '@/platform/app/(shell)/home/_components/model'
@@ -11,8 +12,8 @@ import { platformHref } from '@/platform/design-system/navigation'
 
 interface HomeComposerProps {
   references?: HomeData['references']
-  mode: string
-  onModeChange: (mode: string) => void
+  mode: HomeMode
+  onModeChange: (mode: HomeMode) => void
 }
 
 export function HomeComposer({ references, mode, onModeChange }: HomeComposerProps) {
@@ -31,7 +32,7 @@ export function HomeComposer({ references, mode, onModeChange }: HomeComposerPro
             { value: 'Build', label: 'Build' },
             { value: 'Search', label: 'Search' },
           ]}
-          defaultValue={mode}
+          value={mode}
           onSelect={onModeChange}
         />
       </header>

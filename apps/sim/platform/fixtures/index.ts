@@ -29,7 +29,7 @@ export interface PreviewData {
   }
   charts: {
     maximum?: number
-    trend: { label: string; value: number }[]
+    trend: { date: string; value: number }[]
     bars: { label: string; values: [number, number] }[]
     distribution: { label: string; value: number }[]
   }

@@ -50,7 +50,7 @@ export function ResponseMessage({ response, onRetry }: ResponseMessageProps) {
       {paragraphs.length > 0 && (state === 'complete' || state === 'stopped') && (
         <ResponseActions
           text={paragraphs.map(({ lead, text }) => (lead ? `${lead} ${text}` : text)).join('\n\n')}
-          time={response.time}
+          sentAt={response.sentAt}
         />
       )}
     </div>

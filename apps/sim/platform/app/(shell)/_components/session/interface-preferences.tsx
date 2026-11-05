@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, type ReactNode, useContext, useEffect, useState } from 'react'
-import type { HomeWidget } from '@/platform/app/(shell)/_components/model'
+import type { HomeMode, HomeWidget } from '@/platform/app/(shell)/_components/model'
 
 function usePreferenceState() {
   const [profileName, setProfileName] = useState<string>()
@@ -15,7 +15,7 @@ function usePreferenceState() {
   function updatePicture(file?: File) {
     if (file?.type.startsWith('image/')) setPicture(URL.createObjectURL(file))
   }
-  const [homeMode, setHomeMode] = useState('Build')
+  const [homeMode, setHomeMode] = useState<HomeMode>('Build')
   const [hiddenWidgets, setHiddenWidgets] = useState<HomeWidget[]>([])
   const [connections, setConnections] = useState<Partial<Record<'Email' | 'Calendar', boolean>>>({})
 

@@ -5,8 +5,7 @@ export function userTurn(prompt: ComposerDraft): ChatTurn {
   return {
     id: generateId(),
     prompt,
-    time: new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(
-      new Date()
-    ),
+    sentAt: Date.now(),
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   }
 }

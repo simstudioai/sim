@@ -5,8 +5,8 @@ import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import styles from '@/platform/design-system/components/segmented-control/segmented-control.module.css'
 
-interface Choice {
-  value: string
+interface Choice<Value extends string = string> {
+  value: Value
   label: string
   icon?: IconName
 }
@@ -58,24 +58,25 @@ export function SelectionItem({
   )
 }
 
-interface SegmentedControlProps {
+type SegmentedControlProps<Value extends string> = {
   label: string
-  options: readonly Choice[]
-  defaultValue: string
-  onSelect?: (value: string) => void
-}
+  options: readonly Choice<Value>[]
+  onSelect?: (value: Value) => void
+} & ({ value: Value; defaultValue?: never } | { value?: never; defaultValue: Value })
 
-export function SegmentedControl({
+export function SegmentedControl<Value extends string>({
   label,
   options,
+  value,
   defaultValue,
   onSelect,
-}: SegmentedControlProps) {
+}: SegmentedControlProps<Value>) {
   const group = useId()
-  const [selected, setSelected] = useState(defaultValue)
-  function select(value: string) {
-    setSelected(value)
-    onSelect?.(value)
+  const [localValue, setLocalValue] = useState(defaultValue)
+  const selected = value ?? localValue
+  function select(next: Value) {
+    if (value === undefined) setLocalValue(next)
+    onSelect?.(next)
   }
   return (
     <fieldset className={styles.segmented} aria-label={label}>
@@ -87,7 +88,7 @@ export function SegmentedControl({
           label={option.label}
           icon={option.icon}
           checked={selected === option.value}
-          onSelect={select}
+          onSelect={() => select(option.value)}
           onReselect={
             options.length === 2 && selected === option.value
               ? () => select(options[1 - index].value)

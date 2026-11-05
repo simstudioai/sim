@@ -8,19 +8,20 @@ import {
   Icon,
   ScrollArea,
 } from '@/platform/design-system/components'
+import { formatRelativeTime } from '@/platform/lib/time'
 
-interface EmailListProps {
-  messages: HomeData['email']
+interface ActivityListProps {
+  data: HomeData | null
   onOpen: () => void
 }
 
-export function EmailList({ messages, onOpen }: EmailListProps) {
-  if (!messages.length) return <EmptyState title='No email yet' />
+export function EmailList({ data, onOpen }: ActivityListProps) {
+  if (!data?.email.length) return <EmptyState title='No email yet' />
   return (
     <div className={styles.inbox}>
       <ScrollArea label='Email messages'>
         <ul className={styles.mailEntries}>
-          {messages.map((mail) => (
+          {data.email.map((mail) => (
             <ActivityRow
               key={mail.id}
               leading={<Avatar size='inline' name={mail.sender} src={mail.avatar} />}
@@ -28,7 +29,7 @@ export function EmailList({ messages, onOpen }: EmailListProps) {
               count={mail.count}
               detailLead={mail.subject}
               detail={mail.excerpt}
-              metadata={mail.received}
+              metadata={formatRelativeTime(mail.receivedAt, data.asOf)}
               onOpen={onOpen}
             />
           ))}
@@ -38,23 +39,18 @@ export function EmailList({ messages, onOpen }: EmailListProps) {
   )
 }
 
-interface AttentionListProps {
-  rows: HomeData['attention']
-  onOpen: () => void
-}
-
-export function AttentionList({ rows, onOpen }: AttentionListProps) {
+export function AttentionList({ data, onOpen }: ActivityListProps) {
   return (
     <HomeSection title='Needs your attention'>
-      {rows.length ? (
+      {data?.attention.length ? (
         <ul className={styles.entries}>
-          {rows.map((row) => (
+          {data.attention.map((row) => (
             <ActivityRow
               key={row.id}
               leading={<Icon name={row.icon} />}
               title={row.title}
               detail={row.detail}
-              metadata={row.meta}
+              metadata={formatRelativeTime(row.occurredAt, data.asOf)}
               onOpen={onOpen}
             />
           ))}

@@ -218,6 +218,13 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       expect(injected.output).toContain(`platform/app/${file}.tsx:1 [consumer-style]`)
     }
 
+    write('platform/app/chats/ages.ts', "export const updated = '17hrs ago'")
+    write('platform/app/chats/axis.ts', 'export const day = new Intl.DateTimeFormat("en-US")')
+    write(
+      'platform/app/chats/stamp.ts',
+      'export const stamp = (date: Date) => date.toLocaleString()'
+    )
+    write('platform/app/chats/total.ts', 'export const total = (n: number) => n.toLocaleString()')
     write('platform/app/settings/_components/index.ts', `export { Panel } from './panel'`)
     write(
       'platform/app/settings/_components/section.tsx',
@@ -364,6 +371,10 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     expect(result.output).toContain(
       'platform/design-system/components/menu/chrome.ts [private-recipe]'
     )
+    expect(result.output).toContain('platform/app/chats/ages.ts:1 [time-format]')
+    expect(result.output).toContain('platform/app/chats/axis.ts:1 [time-format]')
+    expect(result.output).toContain('platform/app/chats/stamp.ts:1 [time-format]')
+    expect(result.output).not.toContain('platform/app/chats/total.ts:1 [time-format]')
     expect(result.output).toContain(`${feature}/icon.tsx:1 [icon-owner]`)
     expect(result.output).toContain(`${feature}/ink.module.css:1 [icon-owner]`)
     for (const issue of [

@@ -3,6 +3,7 @@
 import { createContext, type ReactNode, useContext, useState } from 'react'
 import type { ShellNotice } from '@/platform/app/(shell)/_components/model'
 import styles from '@/platform/app/(shell)/_components/notification-tray/notification-tray.module.css'
+import { ActivityBody } from '@/platform/design-system/components/activity-row/activity-body'
 import { Button, IconButton } from '@/platform/design-system/components/button/button'
 import { useFeedbackExpiry } from '@/platform/design-system/components/feedback/use-feedback-expiry'
 import { Icon } from '@/platform/design-system/components/icon/icon'
@@ -45,7 +46,7 @@ interface NotificationTrayProps {
   navigate: (href: string) => void
 }
 export function NotificationTray({ history, navigate }: NotificationTrayProps) {
-  const scrollEdges = useScrollEdges<HTMLElement>()
+  const scrollEdges = useScrollEdges<HTMLDivElement>()
   const { edits, display, setDisplay, dismiss } = usePlatformNotices()
   const items = [
     ...history.filter((item) => !edits.has(item.id)),
@@ -60,7 +61,6 @@ export function NotificationTray({ history, navigate }: NotificationTrayProps) {
   if (display === 'hidden' || !items.length) return null
   return (
     <section
-      ref={scrollEdges}
       onPointerEnter={() => setEngaged(latest)}
       onPointerLeave={(event) =>
         setEngaged(event.currentTarget.matches(':focus-within') ? latest : undefined)
@@ -78,57 +78,69 @@ export function NotificationTray({ history, navigate }: NotificationTrayProps) {
       aria-live='polite'
     >
       {display !== 'latest' && (
-        <button
-          type='button'
-          aria-expanded={display === 'expanded'}
-          className={styles.count}
-          data-material='floating'
-          data-type={display === 'minimized' ? 'T060' : 'T052'}
+        <Button
+          size='compact'
+          count={items.length}
+          render={<button type='button' aria-expanded={display === 'expanded'} />}
           onClick={() => setDisplay(display === 'expanded' ? 'minimized' : 'expanded')}
         >
-          {display === 'minimized' && <Icon name='I106' />}
-          {items.length} {items.length === 1 ? 'notification' : 'notifications'}
-          <Icon name='I051' />
-        </button>
+          {items.length === 1 ? 'Notification' : 'Notifications'}
+        </Button>
       )}
-      {shown.map((item) => (
-        <article
-          key={item.id}
-          aria-label={item.title}
-          className={styles.notice}
-          data-material='floating'
-          data-elevation='menu'
-        >
-          {display === 'latest' && items.length > 1 ? (
-            <IconButton
-              label='View all notifications'
-              icon={item.icon}
-              onClick={() => setDisplay('expanded')}
-            />
-          ) : (
-            <Icon name={item.icon} />
-          )}
-          <span className={styles.copy}>
-            <span data-type='T059'>{item.title}</span>
-            {item.description && <span data-type='T052'>{item.description}</span>}
-          </span>
-          <Button
-            size='compact'
-            onClick={() => {
-              dismiss(item.id)
-              if ('onAction' in item) item.onAction()
-              else if (item.href) navigate(item.href)
-            }}
-          >
-            {item.action}
-          </Button>
-          <IconButton
-            label={`Dismiss ${item.title}`}
-            icon='I105'
-            onClick={() => dismiss(item.id)}
-          />
-        </article>
-      ))}
+      {shown.length > 0 && (
+        <div className={styles.surface} data-elevation='control'>
+          <div ref={scrollEdges} className={styles.notices}>
+            {shown.map((item) => (
+              <article
+                key={item.id}
+                aria-label={item.title}
+                className={styles.notice}
+                data-material='floating'
+              >
+                <ActivityBody
+                  leading={
+                    display === 'latest' && items.length > 1 ? (
+                      <IconButton
+                        label='View all notifications'
+                        icon={item.icon}
+                        size='compact'
+                        onClick={() => setDisplay('expanded')}
+                      />
+                    ) : (
+                      <Icon name={item.icon} />
+                    )
+                  }
+                >
+                  <span data-type='T059'>{item.title}</span>
+                  {item.description && (
+                    <span className={styles.description} data-type='T052'>
+                      {item.description}
+                    </span>
+                  )}
+                </ActivityBody>
+                <div className={styles.actions}>
+                  <Button
+                    size='compact'
+                    onClick={() => {
+                      dismiss(item.id)
+                      if ('onAction' in item) item.onAction()
+                      else if (item.href) navigate(item.href)
+                    }}
+                  >
+                    {item.action}
+                  </Button>
+                  <IconButton
+                    size='compact'
+                    label={`Dismiss ${item.title}`}
+                    icon='I105'
+                    onClick={() => dismiss(item.id)}
+                  />
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   )
 }

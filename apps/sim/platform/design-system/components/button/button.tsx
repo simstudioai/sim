@@ -7,12 +7,13 @@ import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import styles from '@/platform/design-system/components/button/button.shared.module.css'
 import { ControlRow } from '@/platform/design-system/components/button/control-row'
 import { Icon } from '@/platform/design-system/components/icon/icon'
-import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
+import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
 
 interface ButtonProps {
   render?: ReactElement
   children: string
+  count?: number
   variant?: 'primary' | 'secondary' | 'quiet' | 'destructive' | 'muted'
   size?: 'regular' | 'compact'
   submit?: boolean
@@ -25,6 +26,7 @@ interface ButtonProps {
 export function Button({
   render,
   children,
+  count,
   variant = 'secondary',
   size = 'regular',
   submit,
@@ -49,7 +51,7 @@ export function Button({
       children: (
         <>
           {icon && <Icon name={icon} />}
-          <OverflowText text={children}>{children}</OverflowText>
+          <CountedLabel label={children} count={count} />
           {trailingIcon && <Icon name={trailingIcon} />}
         </>
       ),

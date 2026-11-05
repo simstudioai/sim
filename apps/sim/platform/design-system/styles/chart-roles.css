@@ -5,10 +5,10 @@
   --chart-tooltip-shadow:
     inset 0 var(--spacing-1) 0 var(--ui-highlight), 0 var(--spacing-10) var(--spacing-15)
     calc(-1 * var(--spacing-3)) var(--ui-shadow-menu);
-  --task-chart-grid: var(--color-chart-grid);
+  --activity-chart-grid: var(--color-chart-grid);
 }
 
-[data-platform-ui] [data-plot="tasks-run"] {
+[data-platform-ui] [data-plot="home-activity"] {
   --ui-plot-primary: var(--color-chart-series);
   --plot-gradient-ink: var(--color-chart-area);
   --ui-plot-area-opacity: var(--opacity-chart-area);
@@ -16,13 +16,13 @@
 }
 
 [data-platform-ui][data-theme="dark"] {
-  --task-chart-grid: var(--color-dark-chart-grid);
+  --activity-chart-grid: var(--color-dark-chart-grid);
   --chart-tooltip-fill: var(--color-dark-tooltip-surface);
   --chart-tooltip-blur: none;
   --chart-tooltip-shadow: var(--ui-elevation-tooltip);
 }
 
-[data-platform-ui][data-theme="dark"] [data-plot="tasks-run"] {
+[data-platform-ui][data-theme="dark"] [data-plot="home-activity"] {
   --ui-plot-primary: var(--color-app-dark-chart-series);
   --plot-gradient-ink: var(--color-app-dark-chart-area);
 }

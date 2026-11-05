@@ -1,6 +1,7 @@
 import { MessageAttachments } from '@/platform/app/(shell)/_components/composer/message-attachments'
 import type { ChatTurn } from '@/platform/app/(shell)/_components/composer/model'
 import styles from '@/platform/app/(shell)/chat/_components/message/message.module.css'
+import { MessageTime } from '@/platform/app/(shell)/chat/_components/message/message-time'
 import { CopyButton } from '@/platform/design-system/components/button/copy-button'
 
 interface UserMessageProps {
@@ -16,7 +17,7 @@ export function UserMessage({ turn }: UserMessageProps) {
         </p>
       )}
       <div className={styles.userActions} data-type='T060'>
-        <time data-type='T052'>{turn.time}</time>
+        <MessageTime sentAt={turn.sentAt} timeZone={turn.timeZone} />
         <CopyButton label='Copy message' text={turn.prompt.text} />
       </div>
     </div>

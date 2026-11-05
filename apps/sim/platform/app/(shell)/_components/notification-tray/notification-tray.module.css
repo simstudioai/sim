@@ -1,12 +1,8 @@
-.stack,
-.copy {
+.stack {
   display: flex;
   flex-direction: column;
   min-inline-size: 0;
-}
-.stack {
   position: fixed;
-  z-index: 2;
   inset-block-end: calc(var(--spacing-20) + env(safe-area-inset-bottom));
   inset-inline-end: calc(var(--spacing-20) + env(safe-area-inset-right));
   inline-size: min(
@@ -19,45 +15,41 @@
     env(safe-area-inset-top) -
     env(safe-area-inset-bottom)
   );
-  overflow-y: auto;
-  gap: var(--spacing-8);
+  gap: var(--ui-row-gap);
   pointer-events: none;
 }
-.notice,
-.count {
-  display: flex;
-  gap: var(--spacing-8);
-  border: var(--spacing-stroke-default) solid var(--ui-divider);
+.stack > button {
+  align-self: flex-end;
   pointer-events: auto;
 }
+.surface,
+.notices {
+  display: grid;
+  min-block-size: 0;
+}
+.surface {
+  border-radius: var(--radius-dialog);
+}
+.notices {
+  overflow-y: auto;
+  gap: var(--ui-row-gap);
+}
+.notice,
+.actions {
+  display: flex;
+  align-items: center;
+}
 .notice {
-  align-items: flex-start;
+  gap: var(--ui-row-gap);
+  border: var(--spacing-stroke-default) solid var(--ui-divider);
   border-radius: var(--radius-dialog);
   padding: var(--spacing-12);
-}
-.notice > svg {
-  margin-block: var(--spacing-6);
-  flex: none;
-}
-.copy {
-  flex: 1;
-  gap: var(--ui-stack-gap);
-  align-self: center;
-  text-align: start;
   overflow-wrap: anywhere;
+  pointer-events: auto;
 }
-.copy > span + span {
+.actions {
+  gap: var(--ui-action-gap);
+}
+.description {
   color: var(--ui-secondary);
-}
-.count {
-  align-items: center;
-  align-self: flex-end;
-  gap: var(--spacing-6);
-  min-block-size: var(--spacing-32);
-  padding-inline: var(--spacing-12) var(--spacing-6);
-  border-radius: var(--ui-control-radius);
-  cursor: pointer;
-}
-.count:hover {
-  background: var(--ui-hover);
 }

@@ -13,6 +13,7 @@ import {
   WorkspaceList,
 } from '@/platform/design-system/components'
 import { useCompactViewport } from '@/platform/design-system/components/layout/use-compact-viewport'
+import { formatRelativeTime } from '@/platform/lib/time'
 
 interface PanelContentProps {
   view: PanelDestination
@@ -57,7 +58,7 @@ export function PanelContent({
           <article className={styles.article}>
             <div>
               <h2 data-type='T074'>{data.file.title}</h2>
-              <p data-type='T052'>{data.file.updated}</p>
+              <p data-type='T052'>Updated {formatRelativeTime(data.file.updatedAt, data.asOf)}</p>
             </div>
             <dl>
               {data.file.properties.map((field) => (

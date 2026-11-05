@@ -73,6 +73,7 @@ export function SidebarCollections({ data, activeChat, navigate }: SidebarCollec
               action={
                 <ActionMenu
                   label={`Actions for ${item.name}`}
+                  tooltip={false}
                   icon='I108'
                   triggerSize='compact'
                   align='end'
@@ -115,6 +116,7 @@ export function SidebarCollections({ data, activeChat, navigate }: SidebarCollec
               action={
                 <ActionMenu
                   label={`Actions for ${item.title}`}
+                  tooltip={false}
                   icon='I108'
                   triggerSize='compact'
                   align='end'

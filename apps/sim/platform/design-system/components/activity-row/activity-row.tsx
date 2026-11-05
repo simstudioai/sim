@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
+import { ActivityBody } from '@/platform/design-system/components/activity-row/activity-body'
 import styles from '@/platform/design-system/components/activity-row/activity-row.module.css'
 import { Icon } from '@/platform/design-system/components/icon/icon'
+import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 
 interface ActivityRowProps {
@@ -27,17 +29,9 @@ export function ActivityRow({
   return (
     <li>
       <button type='button' className={styles.row} onClick={onOpen}>
-        {leading && (
-          <span className={styles.leading} aria-hidden='true'>
-            {leading}
-          </span>
-        )}
-        <span className={styles.copy}>
-          <span className={styles.title} data-type='T059'>
-            <OverflowText text={count ? `${title} ${count}` : title}>
-              {title}
-              {count ? <small data-type='T036'>{count}</small> : null}
-            </OverflowText>
+        <ActivityBody leading={leading} decorativeLeading>
+          <span data-type='T059'>
+            <CountedLabel label={title} count={count} />
           </span>
           <span className={styles.detail} data-type='T050'>
             <OverflowText text={detailLead ? `${detailLead} ${detail}` : detail}>
@@ -49,7 +43,7 @@ export function ActivityRow({
               {detail}
             </OverflowText>
           </span>
-        </span>
+        </ActivityBody>
         {(metadata || showChevron) && (
           <span className={styles.meta} data-type='T052'>
             {metadata}

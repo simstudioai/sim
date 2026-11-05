@@ -186,6 +186,7 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
     target &&
     /^platform\/fixtures\/(?!index(?:\.|$)|types(?:\.|$))/.test(target) &&
     !(file === 'platform/fixtures/index.ts' && dynamic) &&
+    !(file.startsWith('platform/fixtures/') && target === 'platform/fixtures/clock') &&
     !(
       /^platform\/fixtures\/[\w-]+-data\.ts$/.test(file) &&
       target.startsWith('platform/fixtures/media/') &&
@@ -544,11 +545,41 @@ function checkJs(file: string, content: string) {
     )
   const owner = file.startsWith(system) || privateRoute(file)
   const preview = file.startsWith('platform/preview/')
+  const ownsTimeLabels =
+    file === 'platform/lib/time.ts' ||
+    file.startsWith('platform/checks/') ||
+    /\.test\.[jt]sx?$/.test(file)
   const modules = new Map<string, string>()
   const primitives = new Set<string>()
   const location = (node: ts.Node) =>
     `${file}:${sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1}`
   function visit(node: ts.Node) {
+    if (inPlatform && !ownsTimeLabels) {
+      const factory =
+        ts.isNewExpression(node) || ts.isCallExpression(node) ? node.expression : undefined
+      const readingZone =
+        factory &&
+        ts.isPropertyAccessExpression(node.parent) &&
+        node.parent.name.text === 'resolvedOptions'
+      if (
+        (factory &&
+          !readingZone &&
+          (/^Intl\.(?:DateTimeFormat|RelativeTimeFormat)$/.test(factory.getText(sf)) ||
+            (ts.isPropertyAccessExpression(factory) &&
+              (/^toLocale(?:Date|Time)String$/.test(factory.name.text) ||
+                (factory.name.text === 'toLocaleString' &&
+                  checker.getNonNullableType(checker.getTypeAtLocation(factory.expression)).symbol
+                    ?.name === 'Date'))))) ||
+        ((ts.isStringLiteralLike(node) || ts.isTemplateTail(node)) &&
+          /(?:\d+\s*|^)(?:m|mins?|minutes?|h|hrs?|hours?|d|days?) ago$/i.test(node.text.trim()))
+      ) {
+        report(
+          'time-format',
+          location(node),
+          'Use the shared Platform time formatter and supply raw dates'
+        )
+      }
+    }
     if (
       inPlatform &&
       (owner || file.startsWith('platform/app/')) &&

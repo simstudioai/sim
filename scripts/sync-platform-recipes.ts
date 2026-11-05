@@ -124,7 +124,7 @@ const nativeOwners = {
   SettingsSection: ['C1006', 'C1007'],
   SettingsSurface: ['C1008', 'C1009', 'C1010', 'C1011'],
   Switch: ['C1171', 'C1173', 'C1180', 'C1181'],
-  TasksRunChart: ['C0160', 'C0161', 'C0162', 'C0163', 'C0165', 'C0169', 'C0175'],
+  HomeActivityChart: ['C0160', 'C0161', 'C0162', 'C0163', 'C0165', 'C0169', 'C0175'],
   ChartTooltip: ['C0176', 'C0177'],
   WorkspaceList: ['C1283', 'C1284', 'C1286', 'C1288'],
   SidebarWorkspaceItems: ['C1080'],

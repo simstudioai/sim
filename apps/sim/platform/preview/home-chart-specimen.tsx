@@ -1,6 +1,7 @@
-import { TasksRunChart } from '@/platform/app/(shell)/home/_components/tasks-chart/tasks-chart'
+import { HomeActivityChart } from '@/platform/app/(shell)/home/_components/activity-chart/activity-chart'
 import { ChartTooltip } from '@/platform/design-system/components'
 import type { PreviewData } from '@/platform/fixtures'
+import { formatCalendarDate } from '@/platform/lib/time'
 
 interface HomeChartSpecimenProps {
   recipe: string
@@ -12,17 +13,16 @@ export function HomeChartSpecimen({ recipe, data }: HomeChartSpecimenProps) {
   if (recipe === 'C0176' || recipe === 'C0177') {
     const point = points[0]
     return point ? (
-      <ChartTooltip heading={point.label} entries={[{ label: 'Tasks run', value: point.value }]} />
+      <ChartTooltip
+        heading={formatCalendarDate(point.date, 'full')}
+        entries={[{ label: 'Tasks run', value: point.value }]}
+      />
     ) : null
   }
-  const ranges = [7, 30, 90].map((days) => ({
-    label: `Last ${days} days`,
-    points: recipe === 'C0165' ? [] : points.slice(-days),
-  }))
   return (
-    <TasksRunChart
+    <HomeActivityChart
       title='Tasks run'
-      ranges={ranges}
+      points={recipe === 'C0165' ? [] : data?.charts.trend}
       initialPoint={
         recipe === 'C0169' ? Math.floor((Math.min(points.length, 7) - 1) / 2) : undefined
       }

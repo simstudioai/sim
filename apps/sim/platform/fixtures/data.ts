@@ -1,5 +1,11 @@
 import 'server-only'
 import type { PreviewData, Scenario } from '@/platform/fixtures'
+import { FIXTURE_NOW } from '@/platform/fixtures/clock'
+import { formatCalendarDate, formatClockTime, formatRelativeTime } from '@/platform/lib/time'
+
+function datedClock(instant: string) {
+  return `${formatCalendarDate(instant.slice(0, 10))}, ${formatClockTime(Date.parse(instant))}`
+}
 
 const recordLabels = {
   metadataLabel: 'Version',
@@ -7,7 +13,7 @@ const recordLabels = {
   activity: 'Working for 12s',
   stepName: 'Review request',
   message: 'Review the incoming workspace requests.',
-  time: '09:42',
+  time: formatClockTime(Date.UTC(2026, 9, 13, 9, 42)),
   subject: 'Release notes',
   excerpt: 'The weekly review is ready.',
   payload: '{"task":"review","attempt":1}',
@@ -23,7 +29,10 @@ const panelLabels = {
 }
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 function trend(values: number[]) {
-  return values.map((value, index) => ({ label: `Jan ${index + 1}`, value }))
+  return values.map((value, index) => ({
+    date: new Date(Date.UTC(2026, 0, index + 1)).toISOString().slice(0, 10),
+    value,
+  }))
 }
 function bars(values: [number, number][]) {
   return values.map((pair, index) => ({
@@ -45,15 +54,25 @@ const samples: PreviewData['samples'] = {
   labels: ['Weekly review', 'Operations', 'Incoming requests', 'Release notes', 'Review assistant'],
   captions: [
     'Today',
-    'Last updated yesterday',
+    `Last updated ${formatRelativeTime(FIXTURE_NOW - 86_400_000, FIXTURE_NOW)}`,
     'Ready for review',
     '3 requests',
     'Workspace activity',
   ],
   properties: [
     { id: 'status', label: 'Status', kind: 'text', value: 'Needs review' },
-    { id: 'created', label: 'Created', kind: 'metadata', value: 'Nov 3, 10:24' },
-    { id: 'updated', label: 'Updated', kind: 'metadata', value: '12 minutes ago' },
+    {
+      id: 'created',
+      label: 'Created',
+      kind: 'metadata',
+      value: datedClock('2026-11-03T10:24:00Z'),
+    },
+    {
+      id: 'updated',
+      label: 'Updated',
+      kind: 'metadata',
+      value: formatRelativeTime(FIXTURE_NOW - 12 * 60_000, FIXTURE_NOW),
+    },
   ],
   avatarSrc,
   media: {
@@ -178,7 +197,7 @@ export const scenarios: Record<Scenario, PreviewData> = {
       contributor: 'Jo Bell',
       ticket: 'OPS-12',
       units: '28',
-      started: '09:42',
+      started: recordLabels.time,
     },
     organization: {
       name: 'Sample studio',
@@ -237,7 +256,12 @@ export const scenarios: Record<Scenario, PreviewData> = {
       ...samples,
       properties: [
         { id: 'status', label: 'Status', kind: 'text', value: 'Merged' },
-        { id: 'applied', label: 'Applied', kind: 'text', value: 'Nov 3, 10:42 AM' },
+        {
+          id: 'applied',
+          label: 'Applied',
+          kind: 'text',
+          value: datedClock('2026-11-03T10:42:00Z'),
+        },
         {
           id: 'contributor',
           label: 'Applied by',
@@ -299,7 +323,7 @@ export const scenarios: Record<Scenario, PreviewData> = {
       contributor: 'Alex Rowan',
       ticket: 'OPS-1042',
       units: '1,240',
-      started: '14:15',
+      started: formatClockTime(Date.UTC(2026, 9, 12, 14, 15)),
     },
     organization: {
       name: 'Sample studio for international operations and research',

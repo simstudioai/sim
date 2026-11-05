@@ -1,9 +1,11 @@
 import 'server-only'
 import type { PanelData } from '@/platform/app/(shell)/chat/_components/panel/model'
 import type { Scenario } from '@/platform/fixtures'
+import { FIXTURE_NOW } from '@/platform/fixtures/clock'
 import linear from '@/platform/fixtures/media/linear-homepage.jpg'
 
 const full: PanelData = {
+  asOf: FIXTURE_NOW,
   recents: [
     { id: 'github', label: 'GitHub', icon: 'I045', destination: 'website', address: 'github.com' },
     {
@@ -31,7 +33,7 @@ const full: PanelData = {
   ],
   file: {
     title: 'Aster Labs renewal brief',
-    updated: 'Updated 12m ago',
+    updatedAt: FIXTURE_NOW - 12 * 60_000,
     properties: [
       { label: 'Owner', value: 'Alex Chen' },
       { label: 'Renewal', value: 'November 13' },

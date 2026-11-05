@@ -1,33 +1,35 @@
 'use client'
 
 import { useState } from 'react'
-import styles from '@/platform/app/(shell)/home/_components/tasks-chart/tasks-chart.module.css'
+import styles from '@/platform/app/(shell)/home/_components/activity-chart/activity-chart.module.css'
 import { TrendPlot } from '@/platform/design-system/catalog/plots'
 import { chartNumber, chartTick } from '@/platform/design-system/components/chart/chart-format'
 import { ChartTooltip } from '@/platform/design-system/components/chart/chart-tooltip'
 import { usePlotInspection } from '@/platform/design-system/components/chart/use-plot-inspection'
 import { RangePicker } from '@/platform/design-system/components/menu/range-picker'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
+import { formatCalendarDate } from '@/platform/lib/time'
 
-interface TaskPoint {
-  label: string
+interface ActivityPoint {
+  date: string
   value: number
 }
 
-interface TasksRunChartProps {
+interface HomeActivityChartProps {
   title: string
-  ranges: readonly { label: string; points: readonly TaskPoint[] }[]
+  points?: readonly ActivityPoint[]
+  hidden?: boolean
   initialPoint?: number
   initiallyOpen?: boolean
 }
 
-interface TaskSeriesProps {
+interface ActivitySeriesProps {
   title: string
-  points: readonly TaskPoint[]
+  points: readonly ActivityPoint[]
   initialPoint?: number
 }
 
-function TaskSeries({ title, points, initialPoint }: TaskSeriesProps) {
+function ActivitySeries({ title, points, initialPoint }: ActivitySeriesProps) {
   const tickEdges = useScrollEdges<HTMLLIElement>('horizontal')
   const inspection = usePlotInspection(points.length, { initialIndex: initialPoint })
   const active = inspection.active
@@ -48,7 +50,7 @@ function TaskSeries({ title, points, initialPoint }: TaskSeriesProps) {
       </div>
       <div
         className={styles.plot}
-        data-plot='tasks-run'
+        data-plot='home-activity'
         role='group'
         aria-label={`${title} data`}
         aria-describedby={point ? inspection.tooltipId : undefined}
@@ -69,7 +71,7 @@ function TaskSeries({ title, points, initialPoint }: TaskSeriesProps) {
           <div ref={inspection.tooltipAnchor} className={styles.tooltipPosition}>
             <ChartTooltip
               id={inspection.tooltipId}
-              heading={point.label}
+              heading={formatCalendarDate(point.date, 'full')}
               entries={[{ label: title, value: point.value }]}
             />
           </div>
@@ -77,8 +79,8 @@ function TaskSeries({ title, points, initialPoint }: TaskSeriesProps) {
       </div>
       <ul className={styles.ticks} aria-label='Chart periods' data-type='T034'>
         {labels.map((label) => (
-          <li ref={tickEdges} key={label.label}>
-            {label.label}
+          <li ref={tickEdges} key={label.date}>
+            {formatCalendarDate(label.date)}
           </li>
         ))}
       </ul>
@@ -86,12 +88,35 @@ function TaskSeries({ title, points, initialPoint }: TaskSeriesProps) {
   )
 }
 
-export function TasksRunChart({ title, ranges, initialPoint, initiallyOpen }: TasksRunChartProps) {
-  const [selection, setSelection] = useState(ranges[0]?.label)
-  const range = ranges.find((item) => item.label === selection) ?? ranges[0]
-  const points = (range?.points ?? []).filter(
-    (point) => Number.isFinite(point.value) && point.value >= 0
-  )
+const WINDOW_DAYS = [7, 30, 90] as const
+const RANGE_LABELS = WINDOW_DAYS.map((days) => `Last ${days} days`)
+const DAY_MS = 86_400_000
+
+function calendarWindow(history: readonly ActivityPoint[] | undefined, days: number) {
+  if (!history?.length) return []
+  const end = Date.parse(history[history.length - 1].date)
+  const start = Math.max(Date.parse(history[0].date), end - (days - 1) * DAY_MS)
+  const counts = new Map(history.map(({ date, value }) => [date, value]))
+  const points: ActivityPoint[] = []
+  for (let day = start; day <= end; day += DAY_MS) {
+    const date = new Date(day).toISOString().slice(0, 10)
+    const count = counts.get(date) ?? 0
+    points.push({ date, value: Number.isFinite(count) && count > 0 ? count : 0 })
+  }
+  return points
+}
+
+export function HomeActivityChart({
+  title,
+  points: history,
+  hidden = false,
+  initialPoint,
+  initiallyOpen,
+}: HomeActivityChartProps) {
+  const [range, setRange] = useState(RANGE_LABELS[0])
+  if (hidden) return null
+  const days = WINDOW_DAYS[RANGE_LABELS.indexOf(range)]
+  const points = calendarWindow(history, days)
   const total = points.reduce((sum, point) => sum + point.value, 0)
   return (
     <section className={styles.chart} aria-label={title}>
@@ -104,13 +129,13 @@ export function TasksRunChart({ title, ranges, initialPoint, initiallyOpen }: Ta
         </div>
         <RangePicker
           label='Range'
-          options={ranges.map((item) => item.label)}
-          defaultValue={range?.label}
+          options={history ? RANGE_LABELS : []}
+          value={range}
           defaultOpen={initiallyOpen}
-          onValueChange={setSelection}
+          onValueChange={setRange}
         />
       </header>
-      <TaskSeries key={range?.label} title={title} points={points} initialPoint={initialPoint} />
+      <ActivitySeries key={range} title={title} points={points} initialPoint={initialPoint} />
     </section>
   )
 }

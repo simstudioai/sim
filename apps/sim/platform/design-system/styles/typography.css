@@ -307,8 +307,7 @@
 [data-platform-ui] [data-type="T093"] {
   font: var(--font-weight-medium) var(--text-reading) / var(--leading-24) var(--font-sans);
 }
-[data-platform-ui] [data-type="T094"],
-[data-platform-ui][data-theme="light"] [data-type-light="T094"] {
+[data-platform-ui] [data-type="T094"] {
   font: var(--font-weight-regular) var(--text-reading) / var(--leading-24) var(--font-sans);
 }
 [data-platform-ui] [data-type="T095"] {

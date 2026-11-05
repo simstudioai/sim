@@ -5,32 +5,32 @@ interface AttentionItem {
   id: string
   title: string
   detail: string
-  meta: string
+  occurredAt: number
   icon: IconName
 }
 
 export interface HomeData {
+  asOf: number
   firstName: string
   address: string
   attention: AttentionItem[]
-  ranges: { label: string; points: { label: string; value: number }[] }[]
+  /** Sorted UTC day buckets. Days omitted between the first and last bucket have zero activity. */
+  activity: { date: string; tasks: number; searches: number }[]
   email: {
     id: string
     avatar?: string
     sender: string
     subject: string
     excerpt: string
-    received: string
+    receivedAt: number
     count?: number
   }[]
   calendar: {
     date: string
-    now?: string
     nowMinute?: number
     meetings: {
       id: string
       title: string
-      time: string
       startMinute: number
       duration: number
       people: { name: string; src?: string }[]

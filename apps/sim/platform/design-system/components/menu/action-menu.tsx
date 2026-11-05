@@ -64,6 +64,7 @@ interface TriggeredMenuProps {
   align?: 'start' | 'end'
   heading?: string
   triggerSize?: 'small' | 'row' | 'compact'
+  tooltip?: boolean
   children?: never
   defaultValue?: never
 }
@@ -80,6 +81,7 @@ export function ActionMenu(props: ActionMenuProps | TriggeredMenuProps) {
         align={props.align}
         heading={props.heading}
         triggerSize={props.triggerSize}
+        tooltip={props.tooltip}
       />
     )
   return (
@@ -122,13 +124,14 @@ function TriggeredMenu({
   align,
   heading,
   triggerSize = 'small',
+  tooltip = true,
 }: TriggeredMenuProps) {
   const { trigger, container } = usePopoverContainer()
   return (
     <Menu.Root modal={false} open={open} onOpenChange={onOpenChange}>
       {icon ? (
         <IconButton
-          tooltip
+          tooltip={tooltip}
           render={<Menu.Trigger ref={trigger} />}
           size={triggerSize}
           label={label}

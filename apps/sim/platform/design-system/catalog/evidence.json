@@ -624,7 +624,7 @@
     "family": "Chart/TasksRun/default",
     "theme": "D",
     "scope": "shared",
-    "owner": "TasksRunChart",
+    "owner": "HomeActivityChart",
     "icon": "I001",
     "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-8-0", "3WV-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y9A-0"]
@@ -634,7 +634,7 @@
     "family": "Chart/TasksRun/default",
     "theme": "D",
     "scope": "platform",
-    "owner": "TasksRunChart",
+    "owner": "HomeActivityChart",
     "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "213-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2XFX-0"]
   },
@@ -643,7 +643,7 @@
     "family": "Chart/TasksRun/default",
     "theme": "L",
     "scope": "shared",
-    "owner": "TasksRunChart",
+    "owner": "HomeActivityChart",
     "icon": "I056",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-B-0", "3PD-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EI6-0"]
@@ -653,7 +653,7 @@
     "family": "Chart/TasksRun/default",
     "theme": "L",
     "scope": "platform",
-    "owner": "TasksRunChart",
+    "owner": "HomeActivityChart",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1Z9-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1C4T-0"]
   },
@@ -662,7 +662,7 @@
     "family": "Chart/TasksRun/empty",
     "theme": "L",
     "scope": "platform",
-    "owner": "TasksRunChart",
+    "owner": "HomeActivityChart",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "211-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1DQO-0"]
   },
@@ -671,7 +671,7 @@
     "family": "Chart/TasksRun/hover",
     "theme": "L",
     "scope": "platform",
-    "owner": "TasksRunChart",
+    "owner": "HomeActivityChart",
     "icon": "I056",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "200-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1G0A-0"]
@@ -681,7 +681,7 @@
     "family": "Chart/TasksRun/range-open",
     "theme": "L",
     "scope": "platform",
-    "owner": "TasksRunChart",
+    "owner": "HomeActivityChart",
     "icon": "I056",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "23O-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1D7M-0"]

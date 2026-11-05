@@ -23,3 +23,13 @@
   clip-path: inset(50%);
   overflow: hidden;
 }
+
+.counted {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  vertical-align: top;
+}
+.counted small {
+  color: var(--ui-secondary);
+}
