@@ -1,45 +1,37 @@
 import { expect, type Page, test } from '@playwright/test'
-
-function requireEnv(name: string): string {
-  const value = process.env[name]
-  if (!value) throw new Error(`${name} is required: the live checks use a real seeded member`)
-  return value
-}
+import {
+  adminEmail,
+  memberEmail,
+  organizationId,
+  organizationName,
+  signIn,
+  signInThroughForm,
+} from '@/platform/checks/live/session'
 
 test('signing in through the zone lands on a shell showing the real organization', async ({
   page,
 }) => {
-  const email = requireEnv('PLATFORM_LIVE_EMAIL')
-  const password = requireEnv('PLATFORM_LIVE_PASSWORD')
-  const organization = requireEnv('PLATFORM_LIVE_ORGANIZATION_NAME')
-
   await page.goto('/platform')
   await expect(page).toHaveURL(/\/login\?.*callbackUrl=%2Fplatform/)
-
-  await page.locator('#email').fill(email)
-  await page.locator('#password').fill(password)
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await signInThroughForm(page, adminEmail(), '/platform')
 
   await expect(page).toHaveURL(/\/platform(?:\/|$)/)
-  await expect(page.getByRole('button', { name: 'Organization menu' })).toContainText(organization)
+  await expect(page.getByRole('button', { name: 'Organization menu' })).toContainText(
+    organizationName()
+  )
 })
 
-async function signIn(page: Page, email: string, password: string) {
-  await page.goto('/platform')
-  await page.locator('#email').fill(email)
-  await page.locator('#password').fill(password)
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+async function open(page: Page, email: string) {
+  await signIn(page, email, '/platform')
   await expect(page.getByRole('button', { name: 'Organization menu' })).toBeVisible()
 }
 
-function signInAsAdmin(page: Page) {
-  return signIn(page, requireEnv('PLATFORM_LIVE_EMAIL'), requireEnv('PLATFORM_LIVE_PASSWORD'))
-}
+const signInAsAdmin = (page: Page) => open(page, adminEmail())
 
 test('an organization admin can rename the organization inline, and the name survives a reload', async ({
   page,
 }) => {
-  const original = requireEnv('PLATFORM_LIVE_ORGANIZATION_NAME')
+  const original = organizationName()
   const renamed = `${original} renamed`
   await signInAsAdmin(page)
   const menu = page.getByRole('button', { name: 'Organization menu' })
@@ -62,10 +54,7 @@ test('an organization admin can rename the organization inline, and the name sur
 test('a member sees no identity controls, and the server refuses the rename anyway', async ({
   page,
 }) => {
-  const email = process.env.PLATFORM_LIVE_MEMBER_EMAIL
-  const password = process.env.PLATFORM_LIVE_MEMBER_PASSWORD
-  test.skip(!email || !password, 'Needs a seeded non-admin member')
-  await signIn(page, email as string, password as string)
+  await open(page, memberEmail())
 
   await page.getByRole('button', { name: 'Organization menu' }).click()
   const card = page.getByRole('dialog', { name: 'Organization menu' })
@@ -74,9 +63,7 @@ test('a member sees no identity controls, and the server refuses the rename anyw
   await expect(card.getByRole('button', { name: 'Rename organization' })).toHaveCount(0)
   await expect(card.getByRole('button', { name: 'Change organization logo' })).toHaveCount(0)
 
-  const surface = await page.request.get('/api/organizations/surface')
-  const { organization } = (await surface.json()) as { organization: { id: string } }
-  const rename = await page.request.put(`/api/organizations/${organization.id}`, {
+  const rename = await page.request.put(`/api/organizations/${organizationId()}`, {
     data: { name: 'Not allowed' },
   })
   expect(rename.status()).toBe(403)
@@ -125,10 +112,8 @@ test('creating a workspace opens it on the legacy surface', async ({ page }) => 
 
 test('a chat renames and deletes through the real API', async ({ page }) => {
   await signInAsAdmin(page)
-  const surfaceResponse = await page.request.get('/api/organizations/surface')
-  const { organization } = (await surfaceResponse.json()) as { organization: { id: string } }
   const created = await page.request.post('/api/mothership/chats', {
-    data: { organizationId: organization.id },
+    data: { organizationId: organizationId() },
   })
   expect(created.ok()).toBe(true)
   const { id } = (await created.json()) as { id: string }
@@ -160,7 +145,7 @@ test('a chat renames and deletes through the real API', async ({ page }) => {
 })
 
 test('sign out ends the session and the zone returns to login', async ({ page }) => {
-  await signInAsAdmin(page)
+  await signInThroughForm(page, adminEmail(), '/platform')
   const footer = page.getByRole('complementary', { name: 'Platform sidebar' }).locator('footer')
   await footer.getByRole('button').first().click()
   await page

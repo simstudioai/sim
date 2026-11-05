@@ -1,24 +1,10 @@
-import { expect, type Page, test } from '@playwright/test'
-
-function requireEnv(name: string): string {
-  const value = process.env[name]
-  if (!value) throw new Error(`${name} is required: the live checks use a real seeded member`)
-  return value
-}
-
-async function signIn(page: Page, callback: string) {
-  await page.goto(callback)
-  await expect(page).toHaveURL(/\/login\?/)
-  await page.locator('#email').fill(requireEnv('PLATFORM_LIVE_EMAIL'))
-  await page.locator('#password').fill(requireEnv('PLATFORM_LIVE_PASSWORD'))
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-  await expect(page).toHaveURL(/\/platform(?:\/|$)/)
-}
+import { expect, test } from '@playwright/test'
+import { adminEmail, signInAsAdmin } from '@/platform/checks/live/session'
 
 const settings = (path = '') => `/platform/settings${path}`
 
 test.beforeEach(async ({ page }) => {
-  await signIn(page, '/platform')
+  await signInAsAdmin(page, '/platform')
 })
 
 test('a theme chosen here persists across a reload and repaints the shell', async ({ page }) => {
@@ -78,7 +64,7 @@ test('account deletion holds confirm until the retyped email matches', async ({ 
   if (await field.count()) {
     await field.fill('not-the-account@example.com')
     await expect(confirm).toBeDisabled()
-    await field.fill(requireEnv('PLATFORM_LIVE_EMAIL').toUpperCase())
+    await field.fill(adminEmail().toUpperCase())
     await expect(confirm).toBeEnabled()
   }
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()

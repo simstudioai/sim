@@ -1,22 +1,10 @@
 import { expect, type Page, test } from '@playwright/test'
-
-function requireEnv(name: string): string {
-  const value = process.env[name]
-  if (!value) throw new Error(`${name} is required: the live checks use a real seeded admin`)
-  return value
-}
+import { organizationId, signInAsAdmin } from '@/platform/checks/live/session'
 
 /** A seeded admin of an Enterprise organization, or a self-hosted deployment with these features on. */
-async function signIn(page: Page, section: string) {
-  await page.goto(`/platform/settings/${section}`)
-  await expect(page).toHaveURL(/\/login\?/)
-  await page.locator('#email').fill(requireEnv('PLATFORM_LIVE_ADMIN_EMAIL'))
-  await page.locator('#password').fill(requireEnv('PLATFORM_LIVE_ADMIN_PASSWORD'))
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-  await expect(page).toHaveURL(new RegExp(`/platform/settings/${section}`))
+function signIn(page: Page, section: string) {
+  return signInAsAdmin(page, `/platform/settings/${section}`)
 }
-
-const organizationId = () => requireEnv('PLATFORM_LIVE_ORGANIZATION_ID')
 
 test.describe('governance settings', () => {
   test('audit logs fail closed on a workspace that is not the organization’s', async ({ page }) => {

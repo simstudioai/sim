@@ -10,7 +10,17 @@ on:
       - 'scripts/sync-platform-*.ts'
       - '.github/workflows/platform-design.yml'
       - 'bun.lock'
+      - '.github/scripts/http-e2e.sh'
   workflow_dispatch:
+    inputs:
+      live_only:
+        description: Run only the live jobs, skipping the fixture suites.
+        type: boolean
+        default: false
+      grep:
+        description: Narrow the live suite to the specs matching this pattern.
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -21,6 +31,7 @@ concurrency:
 
 jobs:
   browser:
+    if: ${{ !inputs.live_only }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -44,6 +55,7 @@ jobs:
           retention-days: 7
 
   desktop:
+    if: ${{ !inputs.live_only }}
     runs-on: macos-26
     timeout-minutes: 25
     steps:
@@ -68,4 +80,86 @@ jobs:
         with:
           name: platform-desktop
           path: ${{ runner.temp }}/platform-desktop
+          retention-days: 7
+
+  # The Platform against the real stack: Postgres, Redis, migrations, the production main app and
+  # the production Platform. `zone` is the deployed topology, and then that same build with the flag
+  # off. `flag-off` builds with no zone at all, so it is the only proof /platform is truly absent.
+  # Group environment and seed: `.github/scripts/http-e2e.sh`.
+  live:
+    name: live (${{ matrix.topology }})
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        topology: [zone, flag-off]
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sim_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sim_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:8.2-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
+      BETTER_AUTH_SECRET: http-e2e-ci-secret-at-least-32-characters
+      ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+      PLATFORM_LIVE_GREP: ${{ inputs.grep }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          turbo-cache-key: turbo-cache-platform-live-${{ matrix.topology }}
+      - name: Provision the database through migrations
+        working-directory: packages/db
+        run: bun run db:migrate
+      - name: Build the main app
+        env:
+          NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
+          NEXT_PUBLIC_APP_URL: 'http://localhost:3000'
+          STRIPE_SECRET_KEY: 'dummy_key_for_ci_only'
+          STRIPE_WEBHOOK_SECRET: 'dummy_secret_for_ci_only'
+          RESEND_API_KEY: 'dummy_key_for_ci_only'
+          AWS_REGION: 'us-west-2'
+          TURBO_CACHE_DIR: .turbo
+          NEXT_BUILD_SKIP_TYPE_CHECK: 'true'
+        run: |
+          if [ "${{ matrix.topology }}" = zone ]; then export SIM_PLATFORM_ORIGIN=http://127.0.0.1:3028; fi
+          bunx turbo run build --filter=@sim/app
+      - name: Build the Platform under its base path
+        if: matrix.topology == 'zone'
+        env:
+          SIM_PLATFORM_BASE_PATH: /platform
+        run: bun run --cwd apps/sim build:platform
+      - name: Map the hosted app to loopback
+        run: printf '127.0.0.1 platform-live.sim.ai\n' | sudo tee -a /etc/hosts
+      - name: Run the live suite
+        working-directory: apps/sim
+        run: bash ../../.github/scripts/http-e2e.sh platform-live-${{ matrix.topology }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: platform-live-${{ matrix.topology }}
+          path: ${{ runner.temp }}/e2e/
+          if-no-files-found: warn
           retention-days: 7

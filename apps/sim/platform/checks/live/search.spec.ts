@@ -1,20 +1,10 @@
 import { expect, test } from '@playwright/test'
-
-function requireEnv(name: string): string {
-  const value = process.env[name]
-  if (!value) throw new Error(`${name} is required: the live checks use a real seeded member`)
-  return value
-}
+import { signInAsAdmin } from '@/platform/checks/live/session'
 
 test('A query lands in the URL, searches under the viewer, and a filter narrows it', async ({
   page,
 }) => {
-  await page.goto('/platform/search')
-  await page.locator('#email').fill(requireEnv('PLATFORM_LIVE_EMAIL'))
-  await page.locator('#password').fill(requireEnv('PLATFORM_LIVE_PASSWORD'))
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-  await expect(page).toHaveURL(/\/platform/)
-  await page.goto('/platform/search')
+  await signInAsAdmin(page, '/platform/search')
 
   const searched = page.waitForRequest(
     (request) => request.method() === 'POST' && request.url().includes('/api/knowledge/search')
@@ -36,11 +26,7 @@ test('A query lands in the URL, searches under the viewer, and a filter narrows 
 })
 
 test('Home’s Search segment opens Search with the query', async ({ page }) => {
-  await page.goto('/platform/home')
-  await page.locator('#email').fill(requireEnv('PLATFORM_LIVE_EMAIL'))
-  await page.locator('#password').fill(requireEnv('PLATFORM_LIVE_PASSWORD'))
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-  await expect(page).toHaveURL(/\/platform\/home/)
+  await signInAsAdmin(page, '/platform/home')
   await page.getByRole('radio', { name: 'Search' }).click()
   await page.getByRole('textbox', { name: /Search your company/ }).fill('renewal')
   await page.getByRole('button', { name: 'Send message' }).click()

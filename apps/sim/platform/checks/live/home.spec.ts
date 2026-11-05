@@ -1,30 +1,9 @@
-import { expect, type Page, test } from '@playwright/test'
-
-function requireEnv(name: string): string {
-  const value = process.env[name]
-  if (!value) throw new Error(`${name} is required: the live checks use a real seeded member`)
-  return value
-}
-
-async function signIn(page: Page) {
-  await page.goto('/platform/home')
-  await page.locator('#email').fill(requireEnv('PLATFORM_LIVE_EMAIL'))
-  await page.locator('#password').fill(requireEnv('PLATFORM_LIVE_PASSWORD'))
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-  await expect(page).toHaveURL(/\/platform(?:\/|$)/)
-}
-
-async function organizationId(page: Page): Promise<string> {
-  const surface = await page.request.get('/api/organizations/surface')
-  expect(surface.status()).toBe(200)
-  const { organization } = (await surface.json()) as { organization: { id: string } }
-  return organization.id
-}
+import { expect, test } from '@playwright/test'
+import { organizationId, signInAsAdmin } from '@/platform/checks/live/session'
 
 test.describe('Home on real data', () => {
   test.beforeEach(async ({ page }) => {
-    await signIn(page)
-    await page.goto('/platform/home')
+    await signInAsAdmin(page, '/platform/home')
   })
 
   test('the Email and Calendar widgets each settle in a state the member can act on', async ({
@@ -53,7 +32,7 @@ test.describe('Home on real data', () => {
 
   test('a widget’s connect options are exactly what the organization offers', async ({ page }) => {
     const accounts = await page.request.get(
-      `/api/organizations/${await organizationId(page)}/connected-accounts`
+      `/api/organizations/${organizationId()}/connected-accounts`
     )
     expect(accounts.status()).toBe(200)
     const { credentialGroup, viewerAccounts } = (await accounts.json()) as {
@@ -76,7 +55,7 @@ test.describe('Home on real data', () => {
     page,
   }) => {
     const summary = await page.request.get(
-      `/api/organizations/${await organizationId(page)}/usage/activity/summary?preset=7d&timezone=UTC`
+      `/api/organizations/${organizationId()}/usage/activity/summary?preset=7d&timezone=UTC`
     )
     const chart = page.getByRole('region', { name: 'Tasks run', exact: true })
     if (summary.status() === 200) await expect(chart).toBeVisible()

@@ -1,5 +1,10 @@
 import { expect, type Page, test } from '@playwright/test'
-import { requireEnv, signIn } from '@/platform/checks/live/session'
+import {
+  memberEmail,
+  signInAsAdmin as openAsAdmin,
+  requireEnv,
+  signIn,
+} from '@/platform/checks/live/session'
 
 /**
  * Mutates the seeded organization. `PLATFORM_LIVE_EMAIL` is an administrator,
@@ -8,10 +13,9 @@ import { requireEnv, signIn } from '@/platform/checks/live/session'
  * `PLATFORM_LIVE_REFUSED_INVITE_EMAIL` an address the batch invite always refuses.
  */
 const MEMBERS = '/platform/settings/members'
-const password = () => requireEnv('PLATFORM_LIVE_PASSWORD')
 
 async function signInAsAdmin(page: Page) {
-  await signIn(page, requireEnv('PLATFORM_LIVE_EMAIL'), password(), MEMBERS)
+  await openAsAdmin(page, MEMBERS)
   await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible()
 }
 
@@ -95,7 +99,7 @@ test('removal holds on its disclosure, keeps the dialog on failure, then removes
 })
 
 test('a plain member sees no controls the server would refuse', async ({ page }) => {
-  await signIn(page, requireEnv('PLATFORM_LIVE_MEMBER_EMAIL'), password(), MEMBERS)
+  await signIn(page, memberEmail(), MEMBERS)
   await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Invite', exact: true })).toHaveCount(0)
   await expect(page.getByRole('combobox', { name: /^Role for/ })).toHaveCount(0)
