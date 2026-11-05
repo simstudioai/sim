@@ -3,6 +3,7 @@
 import { ANONYMOUS_USER_ID } from '@sim/auth/principal'
 import type { Workspace } from '@/lib/api/contracts'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { canUseOrganizationChat } from '@/app/o/[organizationId]/home/home-redirect'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import type { UserProfile } from '@/hooks/queries/current-user-data'
 import type { MothershipChatMetadata } from '@/hooks/queries/mothership-chats'
@@ -66,12 +67,13 @@ export interface OrganizationNavFlags {
  * says nothing: only a list that never loaded reports a failure.
  */
 export function useOrganizationShell(flags: OrganizationNavFlags) {
-  const { organization, searchAccess, mothershipAvailable, canBuild } = useOrganizationContext()
+  const context = useOrganizationContext()
+  const { organization, searchAccess } = context
   const routes = organizationRoutes(organization.id)
   const workspaces = useOrderedWorkspacesQuery()
   const pinnedIds = usePinnedWorkspaceIds()
   const { data: policy } = useWorkspaceCreationPolicy()
-  const chatsAvailable = mothershipAvailable && (canBuild || searchAccess.memberScoped)
+  const chatsAvailable = canUseOrganizationChat(context)
   const chats = useOrganizationMothershipChats(organization.id, 'active', {
     enabled: chatsAvailable,
   })
@@ -94,7 +96,7 @@ export function useOrganizationShell(flags: OrganizationNavFlags) {
     chatsAvailable,
     destinations: buildOrganizationNavItems(organization.id, {
       searchAvailable: searchAccess.memberScoped,
-      homeAvailable: (mothershipAvailable && canBuild) || searchAccess.memberScoped,
+      homeAvailable: chatsAvailable,
       ...flags,
     }),
   }

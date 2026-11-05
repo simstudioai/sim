@@ -6,6 +6,15 @@ type OrganizationRedirectContext = Pick<
   'mothershipAvailable' | 'canBuild' | 'searchAccess'
 >
 
+/** Whether the viewer can hold a conversation here: an agent to build, or an Assistant to search. */
+export function canUseOrganizationChat({
+  mothershipAvailable,
+  canBuild,
+  searchAccess,
+}: OrganizationRedirectContext): boolean {
+  return mothershipAvailable && (canBuild || searchAccess.memberScoped)
+}
+
 /** Where an agent conversation sends a viewer who cannot build. */
 export function getOrganizationBuildRedirect(
   context: OrganizationRedirectContext,
@@ -17,11 +26,11 @@ export function getOrganizationBuildRedirect(
     : WORKSPACE_SETTINGS_PATH
 }
 
-/** Home serves whoever can hold a conversation here: an agent to build, or an Assistant to search. */
+/** Home serves whoever can hold a conversation here; the sidebar offers it by the same rule. */
 export function getOrganizationHomeRedirect(
   context: OrganizationRedirectContext,
   organizationId: string
 ): string | null {
-  if (context.mothershipAvailable && context.searchAccess.memberScoped) return null
+  if (canUseOrganizationChat(context)) return null
   return getOrganizationBuildRedirect(context, organizationId)
 }
