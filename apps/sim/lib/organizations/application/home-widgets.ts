@@ -8,7 +8,7 @@ import type {
 } from '@/lib/api/contracts/organization-home'
 import {
   loadAssistantIntegrationTools,
-  requireAssistantProviderAccess,
+  loadAssistantProviderAccess,
 } from '@/lib/assistant-actions/catalog'
 import type { OrganizationMembershipContext } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
@@ -67,17 +67,6 @@ export const organizationHomeOperations = {
     capability: 'integrations.manage',
   }),
 } as const
-
-/** The boundary the assistant's direct tools answer to, which a widget must not sidestep. */
-async function isProviderContentReadable(organizationId: string, providerId: string) {
-  try {
-    await requireAssistantProviderAccess(organizationId, providerId)
-    return true
-  } catch (error) {
-    if (error instanceof OrchestrationError && error.code === 'forbidden') return false
-    throw error
-  }
-}
 
 interface ProviderTokenInput {
   context: OrganizationMembershipContext
@@ -215,13 +204,14 @@ async function readViewerAccounts<T>(
     .sort((left, right) => compareStrings(left.credentialId, right.credentialId))
   if (candidates.length === 0) return { accounts: [], rows: [] }
   const ownedIds = new Set(owned.map((credential) => credential.id))
+  // The boundary the assistant's direct tools answer to, which a widget must not sidestep. Read
+  // fresh on each widget read, so a revoked approval or a tightened policy applies on the next one.
+  const isProviderContentReadable = await loadAssistantProviderAccess(organizationId)
   const readable = new Map(
-    await Promise.all(
-      [...new Set(candidates.map((candidate) => candidate.providerId))].map(
-        async (providerId) =>
-          [providerId, await isProviderContentReadable(organizationId, providerId)] as const
-      )
-    )
+    [...new Set(candidates.map((candidate) => candidate.providerId))].map((providerId) => [
+      providerId,
+      isProviderContentReadable(providerId),
+    ])
   )
 
   const isReadable = ({
