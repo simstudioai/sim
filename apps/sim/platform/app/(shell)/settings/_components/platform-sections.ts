@@ -18,6 +18,7 @@ const PLATFORM_SETTINGS_SECTIONS = [
   'search-mcp',
   'search-slack',
   'admin',
+  'mothership',
 ] as const
 
 /** A section the organization view's Settings renders. */

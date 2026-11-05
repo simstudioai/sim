@@ -117,6 +117,11 @@ const PLATFORM_SECTIONS: Record<PlatformSettingsSection, ComponentType<SettingsS
     () => import('@/platform/app/(shell)/settings/_components/sections/admin/admin-section'),
     { loading }
   ),
+  mothership: dynamic(
+    () =>
+      import('@/platform/app/(shell)/settings/_components/sections/mothership/mothership-section'),
+    { loading }
+  ),
   'search-mcp': dynamic(
     () =>
       import('@/platform/app/(shell)/settings/_components/sections/search-mcp/search-mcp-section'),

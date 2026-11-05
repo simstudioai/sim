@@ -1,14 +1,12 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
-import { AccountSettingsRenderer } from '@/components/settings/account-settings-renderer'
 import {
   getOrganizationSettingsHref,
   getSettingsSectionMeta,
   ORGANIZATION_SETTINGS_ITEMS,
 } from '@/components/settings/navigation'
 import { prefetchStandaloneGeneral } from '@/components/settings/prefetch-standalone-general'
-import { SettingsSectionProvider } from '@/components/settings/settings-panel'
 import { getSession } from '@/lib/auth'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
@@ -42,8 +40,7 @@ export async function generateMetadata({
 
 /**
  * One settings surface for the organization view. An organization section runs
- * through the organization gate; account sections use the account renderer,
- * with platform administration restricted to platform admins.
+ * through the organization gate; platform administration is restricted to platform admins.
  */
 export default async function OrganizationSettingsSectionPage({
   params,
@@ -101,17 +98,12 @@ export default async function OrganizationSettingsSectionPage({
     if (!(await isPlatformAdmin(session.user.id))) notFound()
   }
 
+  if (!isPlatformSettingsSection(resolved.section)) notFound()
   /**
    * No Suspense boundary: a fallback mounted with the section puts React's 300ms reveal floor
    * under every switch (see the workspace section layout).
    */
-  const content = isPlatformSettingsSection(resolved.section) ? (
-    <PlatformSettingsSectionHost section={resolved.section} />
-  ) : (
-    <SettingsSectionProvider plane='account' section={resolved.section}>
-      <AccountSettingsRenderer section={resolved.section} />
-    </SettingsSectionProvider>
-  )
+  const content = <PlatformSettingsSectionHost section={resolved.section} />
 
   if (resolved.section === 'general') {
     const queryClient = getQueryClient()

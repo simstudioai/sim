@@ -12,63 +12,31 @@ import {
   Label,
   Skeleton,
 } from '@sim/emcn'
-import { formatDateTime } from '@sim/utils/formatting'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
+import {
+  defaultTimeRange,
+  ENV_OPTIONS,
+  formatCost,
+  formatDate,
+  TABS,
+  toRFC3339,
+} from '@/app/workspace/[workspaceId]/settings/components/mothership/format'
 import {
   type MothershipTab,
   mothershipParsers,
   mothershipUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/mothership/search-params'
+import { useLicenseForm } from '@/app/workspace/[workspaceId]/settings/components/mothership/use-license-form'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   type MothershipEnv,
-  useGenerateLicense,
   useMothershipLicenses,
   useMothershipRequests,
   useMothershipUserBreakdown,
 } from '@/hooks/queries/mothership-admin'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
-
-const TABS: { id: MothershipTab; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'licenses', label: 'Licenses' },
-  { id: 'byok', label: 'BYOK' },
-]
-
-const ENV_OPTIONS: { value: MothershipEnv; label: string }[] = [
-  { value: 'dev', label: 'Dev' },
-  { value: 'staging', label: 'Staging' },
-  { value: 'prod', label: 'Prod' },
-]
-
-function defaultTimeRange() {
-  const end = new Date()
-  const start = new Date()
-  start.setDate(start.getDate() - 7)
-  return {
-    start: start.toISOString().slice(0, 16),
-    end: end.toISOString().slice(0, 16),
-  }
-}
-
-function toRFC3339(local: string) {
-  if (!local) return ''
-  return new Date(local).toISOString()
-}
-
-function formatCost(cost: number) {
-  return `$${cost.toFixed(4)}`
-}
-
-function formatDate(d: string | null | undefined) {
-  if (!d) return '—'
-  const date = new Date(d)
-  if (Number.isNaN(date.getTime())) return '—'
-  return formatDateTime(date)
-}
 
 function Divider() {
   return <div className='h-px bg-[var(--border)]' />
@@ -357,42 +325,18 @@ function OverviewTab({
 
 function LicensesTab({ environment }: { environment: MothershipEnv }) {
   const { data, isLoading } = useMothershipLicenses(environment)
-  const generateLicense = useGenerateLicense(environment)
-  const [newName, setNewName] = useState('')
-  const [newExpiry, setNewExpiry] = useState('')
-  const [approvalReference, setApprovalReference] = useState('')
-  const [generatedKey, setGeneratedKey] = useState<string | null>(null)
-  const resetForm = () => {
-    setNewName('')
-    setNewExpiry('')
-    setApprovalReference('')
-  }
-  useSettingsUnsavedGuard({
-    isDirty: Boolean(newName.trim() || newExpiry || approvalReference.trim() || generatedKey),
-    navigationBlocked: generateLicense.isPending,
-    onDiscard: () => {
-      resetForm()
-      setGeneratedKey(null)
-    },
-  })
-
-  const handleGenerate = () => {
-    if (!newName.trim() || !approvalReference.trim() || generateLicense.isPending || generatedKey)
-      return
-    generateLicense.mutate(
-      {
-        name: newName.trim(),
-        approvalReference: approvalReference.trim(),
-        ...(newExpiry ? { expirationDate: newExpiry } : {}),
-      },
-      {
-        onSuccess: (result) => {
-          setGeneratedKey(result.license_key)
-          resetForm()
-        },
-      }
-    )
-  }
+  const {
+    approvalReference,
+    generateLicense,
+    generatedKey,
+    handleGenerate,
+    newExpiry,
+    newName,
+    setApprovalReference,
+    setGeneratedKey,
+    setNewExpiry,
+    setNewName,
+  } = useLicenseForm(environment)
 
   return (
     <div className='flex flex-col gap-5'>
