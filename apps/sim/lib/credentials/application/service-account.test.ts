@@ -54,9 +54,13 @@ const mocks = {
   resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
   loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
   capture: posthogServerMockFns.mockCaptureServerEvent,
-  environment: environmentUtilsMockFns.mockGetEffectiveDecryptedEnv,
+  environment: environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables,
 }
 
+const SECRET_FIELDS: Record<string, string[]> = {
+  'slack-custom-bot': ['signingSecret', 'botToken'],
+  'claude-platform-service-account': ['apiToken'],
+}
 const WORKSPACE_ID = 'workspace-1'
 const workspace = {
   workspaceId: WORKSPACE_ID,
@@ -100,12 +104,16 @@ describe('credential service-account application operations', () => {
     })
     mocks.listCatalog.mockResolvedValue([{ providerId: 'zoom-service-account' }])
     mocks.deleteRecord.mockResolvedValue(true)
-    mocks.requireProvider.mockReturnValue({
+    mocks.requireProvider.mockImplementation((_catalog: unknown, providerId: string) => ({
       type: 'service_account',
-      providerId: 'zoom-service-account',
+      providerId,
       available: true,
+      fields: (SECRET_FIELDS[providerId] ?? []).map((id) => ({ id, secret: true })),
+    }))
+    mocks.environment.mockResolvedValue({
+      SIGNING: { value: 'secret-signing', scope: 'workspace', visible: true },
+      BOT: { value: 'secret-bot', scope: 'workspace', visible: true },
     })
-    mocks.environment.mockResolvedValue({ SIGNING: 'secret-signing', BOT: 'secret-bot' })
   })
 
   it('rejects workspace keys before canonical loading on create', async () => {
@@ -129,7 +137,9 @@ describe('credential service-account application operations', () => {
   const storedInput = {
     workspaceId: WORKSPACE_ID,
     displayName: 'Support bot',
-    storedSlackSecrets: { signingSecretEnvVar: 'SIGNING', botTokenEnvVar: 'BOT' },
+    providerId: 'slack-custom-bot',
+    signingSecret: '{{SIGNING}}',
+    botToken: '{{BOT}}',
   }
   const copilotContext = {
     userId: 'user-1',
@@ -142,7 +152,7 @@ describe('credential service-account application operations', () => {
 
   it('resolves stored Slack secrets as the delegated user and audits only credential metadata', async () => {
     await connectStored()
-    expect(mocks.environment).toHaveBeenCalledWith('user-1', WORKSPACE_ID)
+    expect(mocks.environment).toHaveBeenCalledWith('user-1', WORKSPACE_ID, ['SIGNING', 'BOT'])
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
         workspaceId: WORKSPACE_ID,
@@ -153,7 +163,6 @@ describe('credential service-account application operations', () => {
         displayName: 'Support bot',
       })
     )
-    expect(mocks.create.mock.calls[0][0]).not.toHaveProperty('storedSlackSecrets')
     expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         actorId: 'user-1',
@@ -197,7 +206,9 @@ describe('credential service-account application operations', () => {
   })
 
   it('reports missing names without sending any partial credential to the provider', async () => {
-    mocks.environment.mockResolvedValue({ SIGNING: 'secret-signing' })
+    mocks.environment.mockResolvedValue({
+      SIGNING: { value: 'secret-signing', scope: 'workspace', visible: true },
+    })
     await expect(connectStored()).rejects.toThrow('Stored secrets unavailable: BOT')
     expect(mocks.create).not.toHaveBeenCalled()
     expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
@@ -214,6 +225,46 @@ describe('credential service-account application operations', () => {
     ).rejects.toThrow('must reference existing Sim secrets')
     expect(mocks.environment).not.toHaveBeenCalled()
     expect(mocks.create).not.toHaveBeenCalled()
+  })
+
+  it('resolves a referenced API token for any token provider', async () => {
+    mocks.environment.mockResolvedValue({
+      ANTHROPIC_API_KEY: { value: 'sk-ant-secret', scope: 'workspace', visible: true },
+    })
+    await connectStored(copilotContext, {
+      workspaceId: WORKSPACE_ID,
+      providerId: 'claude-platform-service-account',
+      displayName: 'Claude',
+      apiToken: '{{ANTHROPIC_API_KEY}}',
+    })
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'claude-platform-service-account',
+        apiToken: 'sk-ant-secret',
+      })
+    )
+  })
+
+  it('refuses a delegated mix of referenced and raw secret fields', async () => {
+    await expect(
+      connectStored(copilotContext, { ...storedInput, botToken: 'xoxb-raw' })
+    ).rejects.toThrow('must reference existing Sim secrets as {{NAME}} for: botToken')
+    expect(mocks.environment).not.toHaveBeenCalled()
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
+
+  it('resolves stored secret names that workflows can reference', async () => {
+    mocks.environment.mockResolvedValue({
+      '1-ANTHROPIC-KEY': { value: 'sk-ant-secret', scope: 'workspace', visible: true },
+    })
+    await connectStored(copilotContext, {
+      workspaceId: WORKSPACE_ID,
+      providerId: 'claude-platform-service-account',
+      apiToken: '{{1-ANTHROPIC-KEY}}',
+    })
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({ apiToken: 'sk-ant-secret' })
+    )
   })
 
   it('does not duplicate creation audit or analytics when the primitive reuses a credential', async () => {
