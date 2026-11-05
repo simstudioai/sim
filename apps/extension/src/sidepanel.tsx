@@ -21,7 +21,9 @@ import '@/shell.css'
 
 const BLOCKED_SELECTION =
   'Select readable text again, attach the page explicitly, or turn off Reference current page.'
-const KEYBOARD_FOCUS_HINT = 'Click the message field to type.'
+const KEYBOARD_FOCUS_HINT = navigator.platform.startsWith('Mac')
+  ? 'Click the message field, or press ⌘⌥↑ to move focus.'
+  : 'Click the message field, or press F6 to move focus.'
 
 interface SidePanelProps {
   origin: string

@@ -157,7 +157,7 @@ export function useExtensionComposer(scopeKey: string) {
     [requestAction]
   )
   return {
-    openMicrophoneSettings,
+    openMicrophoneSettings: connected ? openMicrophoneSettings : null,
     attachments,
     resourceActions,
     toolbarActions,
