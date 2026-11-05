@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
@@ -13,7 +14,6 @@ import {
   ActionMenu,
   Avatar,
   Button,
-  Chip,
   FieldFrame,
   Modal,
   SegmentedControl,
@@ -95,7 +95,11 @@ export function GenericSecretSourceRow({ organizationId, source }: GenericSecret
         }
       >
         <ActionRow>
-          {source.mode === 'organization' && <Chip href={routes.organizationSecrets}>Secrets</Chip>}
+          {source.mode === 'organization' && (
+            <Button size='compact' render={<Link href={routes.organizationSecrets} />}>
+              Secrets
+            </Button>
+          )}
           <Button size='compact' onClick={() => setEditing(true)}>
             Configure
           </Button>

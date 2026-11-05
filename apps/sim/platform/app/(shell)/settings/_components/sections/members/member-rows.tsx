@@ -42,7 +42,15 @@ function RowFrame({ name, email, image, status, control, menuLabel, actions }: R
   return (
     <SettingsRow
       label={name}
-      description={`${email} · ${status}`}
+      description={
+        <span className={styles.contact}>
+          <span title={email}>{email}</span>
+          <span aria-hidden='true' className={styles.separator}>
+            {' · '}
+          </span>
+          <span>{status}</span>
+        </span>
+      }
       leading={<Avatar name={name} src={image} />}
     >
       <span className={styles.controls}>

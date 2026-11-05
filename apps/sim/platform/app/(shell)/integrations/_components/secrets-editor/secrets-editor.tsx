@@ -280,6 +280,7 @@ export function SecretsEditor({ mode, backHref }: SecretsEditorProps) {
           backLabel={back.text}
           onBack={() => router.push(back.href)}
           title='Generic Secrets'
+          pageHeading={mode === 'member'}
         />
         {secrets.error ? (
           <FailureNotice
@@ -297,7 +298,7 @@ export function SecretsEditor({ mode, backHref }: SecretsEditorProps) {
     <SecretRows
       key={data.source.id}
       back={back}
-      sectionLabel={mode === 'organization' ? 'Organization' : 'Personal'}
+      mode={mode}
       variables={data.variables}
       save={(changes) => save.mutateAsync({ ...changes, sourceId: data.source.id, mode })}
       isSaving={save.isPending}
@@ -307,13 +308,14 @@ export function SecretsEditor({ mode, backHref }: SecretsEditorProps) {
 
 interface SecretRowsProps {
   back: { text: string; href: string }
-  sectionLabel: string
+  mode: SecretSourceMode
   variables: Record<string, string>
   save: (changes: { upsert: Record<string, string>; remove: string[] }) => Promise<unknown>
   isSaving: boolean
 }
 
-function SecretRows({ back, sectionLabel, variables, save, isSaving }: SecretRowsProps) {
+function SecretRows({ back, mode, variables, save, isSaving }: SecretRowsProps) {
+  const sectionLabel = mode === 'organization' ? 'Organization' : 'Personal'
   const router = useRouter()
   const [draft, setDraft] = useState<{
     variables: Record<string, string>
@@ -494,6 +496,7 @@ function SecretRows({ back, sectionLabel, variables, save, isSaving }: SecretRow
         backLabel={back.text}
         onBack={() => guard.guardBack(() => router.push(back.href))}
         title='Generic Secrets'
+        pageHeading={mode === 'member'}
       >
         {hasChanges && (
           <Button size='compact' disabled={isSaving} onClick={resetToSaved}>

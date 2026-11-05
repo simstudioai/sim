@@ -81,6 +81,8 @@ interface DetailHeaderContent {
   backLabel: string
   title: string
   description?: string
+  /** The page's own heading, for a page with no section heading above it. */
+  pageHeading?: boolean
   children?: ReactNode
 }
 
@@ -94,6 +96,7 @@ export function DetailHeader({
   onBack,
   title,
   description,
+  pageHeading,
   children,
 }: DetailHeaderProps) {
   return (
@@ -110,7 +113,7 @@ export function DetailHeader({
       </div>
       <div className={styles.detailTitleRow}>
         <div className={styles.detailTitle}>
-          <h2 data-type='T093'>{title}</h2>
+          {pageHeading ? <h1 data-type='T076'>{title}</h1> : <h2 data-type='T093'>{title}</h2>}
           {description && (
             <p className={styles.muted} data-type='T060'>
               {description}

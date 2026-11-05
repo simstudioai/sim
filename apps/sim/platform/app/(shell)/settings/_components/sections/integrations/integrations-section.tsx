@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
@@ -27,7 +28,6 @@ import { SlackAccountSetup } from '@/platform/app/(shell)/settings/_components/s
 import {
   ActionMenu,
   Button,
-  Chip,
   EmptyState,
   FailureNotice,
   Modal,
@@ -239,13 +239,13 @@ export default function IntegrationsSection({ organization: context }: SettingsS
               >
                 <ActionRow>
                   {serviceAccount && (
-                    <Chip href={routes.searchProvider(type)}>
+                    <Button size='compact' render={<Link href={routes.searchProvider(type)} />}>
                       {type === 'gitlab'
                         ? 'Projects'
                         : type === 'github'
                           ? 'Repositories'
                           : 'Connections'}
-                    </Chip>
+                    </Button>
                   )}
                   {type === 'slack' && (
                     <Button size='compact' onClick={() => void setConnectedAccounts('slack')}>
