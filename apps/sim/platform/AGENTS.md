@@ -56,7 +56,7 @@ Use [the shared Platform time formatters](lib/time.ts) for displayed ages, clock
 
 ## Phase 3 data seam
 
-Only `lib/data/**` may import from outside this project: query hooks under `@/hooks/queries`, contracts and clients under `@/lib/api`, and the named helpers listed in `scripts/check-platform-design.ts`. `@/app`, `@/components` and `@sim/emcn` stay banned there too. Add a helper to that list only after reading its runtime import closure.
+Only `lib/data/**` may import from outside this project: query hooks under `@/hooks/queries/<domain>`, contracts and clients under `@/lib/api/<module>`, and the named helpers listed in `scripts/check-platform-design.ts`. `@/app/<route>`, `@/components/<name>` and the legacy `@sim/emcn` barrel stay banned there too. Add a helper to that list only after reading its runtime import closure.
 
 Each `lib/data/<domain>.ts` wraps the existing hook and maps its contract shape to a Platform view model with a pure adapter. Never fork a hook, key factory, invalidation or contract; a hook that lacks a needed option gains it additively. A module's first import of a query hook that toasts resolves through `lib/data/emcn-shim.ts`, which webpack substitutes for `@sim/emcn` and which exports only `toast`, bridged to the notification tray. Any other name from that package fails the build, which is what proves no legacy UI entered.
 

@@ -35,7 +35,11 @@ const config: NextConfig = {
         ]
       : []
   },
-  webpack(webpackConfig) {
+  webpack(webpackConfig, { isServer, webpack }) {
+    // `@sim/logger` requires this behind a runtime Node check, so browsers never evaluate it.
+    if (!isServer) {
+      webpackConfig.plugins.push(new webpack.IgnorePlugin({ resourceRegExp: /^node:async_hooks$/ }))
+    }
     // No `$`, so `@sim/emcn/icons` resolves beneath the shim file and fails the build as missing.
     webpackConfig.resolve.alias['@sim/emcn'] = emcnShim
     // A named import the shim lacks is an error in our sources, not webpack's default warning.
