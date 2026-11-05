@@ -2,17 +2,17 @@
 
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { AccountAuthorization } from '@/platform/app/(shell)/integrations/_components/account-authorization/account-authorization'
+import { ConnectionAccess } from '@/platform/app/(shell)/integrations/_components/connection-access/connection-access'
 import styles from '@/platform/app/(shell)/integrations/_components/integration-details/integration-details.module.css'
 import { ToolPermissions } from '@/platform/app/(shell)/integrations/_components/tool-permissions/tool-permissions'
 import {
   ActionMenu,
   ActivityRow,
-  Button,
   Chip,
   EmptyState,
   Modal,
 } from '@/platform/design-system/components'
+import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
 import {
   SettingsRow,
   SettingsSurface,
@@ -24,10 +24,6 @@ interface IntegrationDetailsProps {
   onChange: (next: OrganizationIntegration) => void
 }
 
-type AccountAction =
-  | { kind: 'connect' }
-  | { kind: 'reconnect' | 'disconnect'; account: IntegrationAccount }
-
 function accountStatus(account: IntegrationAccount) {
   return account.status === 'active' ? 'Connected' : 'Reconnect needed'
 }
@@ -35,7 +31,7 @@ function accountStatus(account: IntegrationAccount) {
 export function IntegrationDetails({ integration, onChange }: IntegrationDetailsProps) {
   const router = useRouter()
   const search = useSearchParams()
-  const [action, setAction] = useState<AccountAction | null>(null)
+  const [removing, setRemoving] = useState<IntegrationAccount | null>(null)
   const { accounts, providerId, connectableMethod } = integration
   const requested = search.get('account')
   const selected = requested
@@ -43,7 +39,8 @@ export function IntegrationDetails({ integration, onChange }: IntegrationDetails
     : accounts.length === 1
       ? accounts[0]
       : undefined
-  const canConnect = integration.availability === 'ready' && connectableMethod !== null
+  const canConnect =
+    !accounts.length && integration.availability === 'ready' && connectableMethod !== null
   const candidate = integration.connectionCandidate
   const canAttach =
     integration.fixtureAuthorization &&
@@ -57,6 +54,26 @@ export function IntegrationDetails({ integration, onChange }: IntegrationDetails
     if (id) next.set('account', id)
     else next.delete('account')
     return `/integrations/${encodeURIComponent(providerId)}${next.size ? `?${next}` : ''}`
+  }
+
+  function connect() {
+    if (!canAttach || !candidate) return
+    onChange({
+      ...integration,
+      accounts: [candidate],
+      connectableMethod: null,
+      connectionCandidate: undefined,
+    })
+  }
+
+  function reconnect(account: IntegrationAccount) {
+    if (!integration.fixtureAuthorization || !account.canReconnect) return
+    onChange({
+      ...integration,
+      accounts: accounts.map((item) =>
+        item.id === account.id ? { ...item, status: 'active' } : item
+      ),
+    })
   }
 
   function disconnect(account: IntegrationAccount) {
@@ -95,27 +112,16 @@ export function IntegrationDetails({ integration, onChange }: IntegrationDetails
     )
   }
   if (integration.availability === 'managed' && !accounts.length) {
-    return (
-      <EmptyState
-        title='Organization managed'
-        description='Your access follows your GitLab project permissions.'
-      />
-    )
+    return <EmptyState title='Organization managed' description={integration.accessDescription} />
   }
 
+  const accountHeading = !selected && accounts.length > 1 ? 'Accounts' : 'Account'
   return (
     <div className={styles.sections}>
-      <section className={styles.account} aria-label={selected ? 'Account' : 'Accounts'}>
+      <section className={styles.account} aria-label={accountHeading}>
         <header className={styles.header}>
-          <h2 data-type='T093'>{selected ? 'Account' : 'Accounts'}</h2>
-          <div className={styles.actions}>
-            {selected && accounts.length > 1 && <Chip href={accountHref()}>All accounts</Chip>}
-            {canConnect && accounts.length > 0 && (
-              <Button size='compact' onClick={() => setAction({ kind: 'connect' })}>
-                Add account
-              </Button>
-            )}
-          </div>
+          <h2 data-type='T093'>{accountHeading}</h2>
+          {selected && accounts.length > 1 && <Chip href={accountHref()}>All accounts</Chip>}
         </header>
         {selected ? (
           <SettingsSurface>
@@ -131,7 +137,8 @@ export function IntegrationDetails({ integration, onChange }: IntegrationDetails
                         {
                           id: 'reconnect',
                           label: 'Reconnect account',
-                          onSelect: () => setAction({ kind: 'reconnect', account: selected }),
+                          disabled: !integration.fixtureAuthorization,
+                          onSelect: () => reconnect(selected),
                         },
                       ]
                     : []),
@@ -140,7 +147,7 @@ export function IntegrationDetails({ integration, onChange }: IntegrationDetails
                     label: 'Disconnect account',
                     destructive: true,
                     separatorBefore: selected.canReconnect,
-                    onSelect: () => setAction({ kind: 'disconnect', account: selected }),
+                    onSelect: () => setRemoving(selected),
                   },
                 ]}
               />
@@ -157,18 +164,21 @@ export function IntegrationDetails({ integration, onChange }: IntegrationDetails
               />
             ))}
           </ul>
-        ) : (
-          <EmptyState
-            title='No accounts connected'
-            action={
-              canConnect ? (
-                <Button size='compact' onClick={() => setAction({ kind: 'connect' })}>
-                  Connect account
-                </Button>
-              ) : undefined
-            }
+        ) : canConnect ? (
+          <ConnectionPrompt
+            title={`Connect your ${integration.name} account`}
+            options={[
+              {
+                label: integration.name,
+                icon: { providerId: integration.providerId },
+                onConnect: canAttach ? connect : undefined,
+              },
+            ]}
           />
+        ) : (
+          <EmptyState title='No accounts connected' description={integration.accessDescription} />
         )}
+        <ConnectionAccess integration={integration} />
       </section>
       {selected?.permissions && (
         <ToolPermissions
@@ -185,56 +195,16 @@ export function IntegrationDetails({ integration, onChange }: IntegrationDetails
           }
         />
       )}
-      {action?.kind === 'disconnect' && (
+      {removing && (
         <Modal
           open
-          onOpenChange={() => setAction(null)}
+          onOpenChange={() => setRemoving(null)}
           title='Disconnect account?'
           variant='confirm'
           destructive
-          description={`Sim will lose access to ${action.account.label}.`}
+          description={`Sim will lose access to ${removing.label}.`}
           confirmLabel='Disconnect'
-          onConfirm={() => disconnect(action.account)}
-        />
-      )}
-      {action?.kind === 'connect' && canConnect && connectableMethod && (
-        <AccountAuthorization
-          provider={integration.name}
-          method={connectableMethod}
-          candidateLabel={candidate?.label}
-          onClose={() => setAction(null)}
-          onAuthorize={
-            canAttach && candidate
-              ? () => {
-                  onChange({
-                    ...integration,
-                    accounts: [...accounts, candidate],
-                    connectableMethod: null,
-                    connectionCandidate: undefined,
-                  })
-                  router.replace(accountHref(candidate.id), { scroll: false })
-                }
-              : undefined
-          }
-        />
-      )}
-      {action?.kind === 'reconnect' && action.account.canReconnect && (
-        <AccountAuthorization
-          provider={integration.name}
-          method={action.account.method}
-          account={action.account}
-          onClose={() => setAction(null)}
-          onAuthorize={
-            integration.fixtureAuthorization
-              ? () =>
-                  onChange({
-                    ...integration,
-                    accounts: accounts.map((entry) =>
-                      entry.id === action.account.id ? { ...entry, status: 'active' } : entry
-                    ),
-                  })
-              : undefined
-          }
+          onConfirm={() => disconnect(removing)}
         />
       )}
     </div>

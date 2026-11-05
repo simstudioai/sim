@@ -45,6 +45,9 @@
 .choiceLabel[data-icon] {
   padding-inline: var(--spacing-8);
 }
+.segmented:has(> .choice:nth-child(3)) .choiceLabel:not([data-icon]) {
+  padding-inline: min(var(--spacing-12), 4cqi);
+}
 .radio:checked + .choiceLabel {
   color: var(--ui-ink);
   background: var(--choice-selected);

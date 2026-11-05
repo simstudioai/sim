@@ -1,0 +1,15 @@
+.scopes,
+.scope {
+  display: grid;
+  min-inline-size: 0;
+}
+.scopes {
+  gap: var(--ui-section-gap);
+}
+.scope {
+  gap: var(--ui-stack-gap);
+  overflow-wrap: anywhere;
+}
+.scope > span + span {
+  color: var(--ui-secondary);
+}

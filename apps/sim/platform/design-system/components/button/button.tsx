@@ -17,7 +17,7 @@ interface ButtonProps {
   variant?: 'primary' | 'secondary' | 'quiet' | 'destructive' | 'muted'
   size?: 'regular' | 'compact'
   submit?: boolean
-  icon?: IconName
+  icon?: IconName | { providerId: string }
   trailingIcon?: IconName
   disabled?: boolean
   onClick?: MouseEventHandler<HTMLButtonElement>
@@ -50,7 +50,12 @@ export function Button({
       onClick,
       children: (
         <>
-          {icon && <Icon name={icon} />}
+          {icon &&
+            (typeof icon === 'string' ? (
+              <Icon name={icon} />
+            ) : (
+              <Icon providerId={icon.providerId} />
+            ))}
           <CountedLabel label={children} count={count} />
           {trailingIcon && <Icon name={trailingIcon} />}
         </>

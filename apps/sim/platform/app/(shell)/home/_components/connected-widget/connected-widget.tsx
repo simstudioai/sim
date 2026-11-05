@@ -3,7 +3,8 @@
 import { type ReactNode, useState } from 'react'
 import styles from '@/platform/app/(shell)/home/_components/connected-widget/connected-widget.module.css'
 import { HomeSection } from '@/platform/app/(shell)/home/_components/home-section/home-section'
-import { ActionMenu, Button } from '@/platform/design-system/components'
+import { ActionMenu } from '@/platform/design-system/components'
+import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { Modal } from '@/platform/design-system/components/modal/modal'
 
@@ -53,20 +54,15 @@ export function ConnectedWidget({
       {connected ? (
         children
       ) : (
-        <div className={styles.connect} data-material='shell'>
-          <p data-type='T060'>Connect your {title.toLowerCase()}</p>
-          <div className={styles.providers}>
-            {integrations[title].map(({ name, icon }) => (
-              <Button
-                key={name}
-                disabled={!onConnectionChange}
-                icon={icon}
-                onClick={() => onConnectionChange?.(true)}
-              >
-                {name}
-              </Button>
-            ))}
-          </div>
+        <div className={styles.connect}>
+          <ConnectionPrompt
+            title={`Connect your ${title.toLowerCase()}`}
+            options={integrations[title].map(({ name, icon }) => ({
+              label: name,
+              icon,
+              onConnect: onConnectionChange ? () => onConnectionChange(true) : undefined,
+            }))}
+          />
         </div>
       )}
       <Modal

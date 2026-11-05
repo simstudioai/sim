@@ -33,7 +33,9 @@ export function IntegrationList({ integrations, secrets }: IntegrationListProps)
     name: item.name,
     detail: memberStatus(item),
     section: sectionFor(item),
-    searchable: [item.name, ...item.accounts.map(({ label }) => label)].join(' ').toLowerCase(),
+    searchable: [item.name, item.description, ...item.accounts.map(({ label }) => label)]
+      .join(' ')
+      .toLowerCase(),
   }))
   if (secrets) {
     const managed = secrets.mode === 'organization'

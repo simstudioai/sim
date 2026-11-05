@@ -34,7 +34,7 @@ export function IntegrationsPage({ data, section }: IntegrationsPageProps) {
             </span>
             <div className={styles.heading}>
               <h1 data-type='T076'>{item?.name ?? 'Generic Secrets'}</h1>
-              {item && <p data-type='T048'>{item.accessDescription}</p>}
+              {item && <p data-type='T048'>{item.description}</p>}
             </div>
           </header>
           {item && <IntegrationDetails key={item.providerId} integration={item} onChange={save} />}

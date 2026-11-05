@@ -63,12 +63,14 @@ export function SelectionItem({
 
 type SegmentedControlProps<Value extends string> = {
   label: string
+  description?: string
   options: readonly Choice<Value>[]
   onSelect?: (value: Value) => void
 } & ({ value: Value; defaultValue?: never } | { value?: never; defaultValue: Value })
 
 export function SegmentedControl<Value extends string>({
   label,
+  description,
   options,
   value,
   defaultValue,
@@ -82,7 +84,7 @@ export function SegmentedControl<Value extends string>({
     onSelect?.(next)
   }
   return (
-    <fieldset className={styles.segmented} aria-label={label}>
+    <fieldset className={styles.segmented} aria-label={label} aria-description={description}>
       {options.map((option, index) => (
         <SelectionItem
           key={option.value}

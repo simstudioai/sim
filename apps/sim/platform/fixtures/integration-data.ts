@@ -1,12 +1,16 @@
 import 'server-only'
 import type { Scenario } from '@/platform/fixtures'
+import { gmailToolMetadata, providerMetadata } from '@/platform/lib/integrations/metadata.generated'
 import type {
   AccountMethod,
   IntegrationAccount,
   OrganizationIntegration,
 } from '@/platform/lib/integrations/model'
 
-type Connection = Omit<OrganizationIntegration, 'providerId' | 'name'>
+type Connection = Omit<
+  OrganizationIntegration,
+  'providerId' | 'name' | 'description' | 'requestedScopes' | 'accessDescription'
+> & { accessDescription?: string }
 
 function account(id: string, label: string, method: AccountMethod): IntegrationAccount {
   return { id, label, method, status: 'active', canReconnect: true }
@@ -17,29 +21,7 @@ gmail.permissions = {
   read: 'allow',
   write: 'ask',
   canAutoApprove: true,
-  tools: [
-    {
-      id: 'gmail_list_labels_v2',
-      label: 'Gmail List Labels',
-      description: 'List labels in your mailbox.',
-      kind: 'read',
-      override: null,
-    },
-    {
-      id: 'gmail_send_v2',
-      label: 'Gmail Send',
-      description: 'Send an email from this account.',
-      kind: 'write',
-      override: null,
-    },
-    {
-      id: 'gmail_draft_v2',
-      label: 'Gmail Draft',
-      description: 'Create a draft in this mailbox.',
-      kind: 'write',
-      override: null,
-    },
-  ],
+  tools: gmailToolMetadata.map((tool) => ({ ...tool, override: null })),
 }
 
 function ready(
@@ -50,20 +32,19 @@ function ready(
     accounts,
     connectableMethod,
     availability: 'ready',
-    accessDescription: 'All accessible content',
   }
 }
 
 const full: Record<string, Connection> = {
-  fireflies: ready([account('fireflies', 'Emir', 'mcp')]),
+  fireflies: ready([account('fireflies', 'Fireflies', 'mcp')]),
   github: {
-    ...ready([account('github', 'emirkarabeg', 'oauth')]),
+    ...ready([account('github', 'emir@sim.ai', 'oauth')]),
     accessDescription: 'Selected repositories you can access',
   },
   gmail: ready([gmail]),
   google_calendar: ready([account('calendar', 'emir@sim.ai', 'oauth')]),
   google_drive: ready([account('drive', 'emir@sim.ai', 'oauth')]),
-  hubspot: ready([account('hubspot', 'Sim', 'mcp')]),
+  hubspot: ready([account('hubspot', 'HubSpot', 'mcp')]),
   linear: ready([], 'oauth'),
   notion: ready([], 'mcp'),
   salesforce: ready([{ ...account('crm', 'emir@sim.ai', 'oauth'), status: 'needs_reauth' }]),
@@ -74,10 +55,7 @@ const full: Record<string, Connection> = {
   },
 }
 
-export function memberIntegrations(
-  scenario: Scenario,
-  providers: readonly { id: string; name: string }[]
-): OrganizationIntegration[] {
+export function memberIntegrations(scenario: Scenario): OrganizationIntegration[] {
   if (scenario === 'empty') return []
   const selected: Record<string, Connection> =
     scenario === 'full'
@@ -85,9 +63,8 @@ export function memberIntegrations(
       : {
           ...full,
           gmail: ready([
-            gmail,
             {
-              ...account('gmail-secondary', 'Customer operations and research', 'oauth'),
+              ...gmail,
               permissions: {
                 read: 'ask',
                 write: 'ask',
@@ -105,7 +82,9 @@ export function memberIntegrations(
             accessDescription: 'Zoom is currently unavailable.',
           },
           confluence: {
-            ...ready([{ ...account('confluence', 'Engineering', 'oauth'), canReconnect: false }]),
+            ...ready([
+              { ...account('confluence', 'engineering@sim.ai', 'oauth'), canReconnect: false },
+            ]),
             availability: 'disabled',
             accessDescription: 'Disabled by your organization',
           },
@@ -121,17 +100,28 @@ export function memberIntegrations(
             accessDescription: 'Access follows project permissions',
           },
         }
-  return providers.flatMap(({ id, name }) => {
+  return providerMetadata.flatMap(({ id, name, description, requestedScopes, searchResource }) => {
     const config = selected[id]
     if (!config) return []
     const candidate = config.connectableMethod
-      ? account(`${id}-available`, 'emir@sim.ai', config.connectableMethod)
+      ? account(
+          `${id}-available`,
+          config.connectableMethod === 'mcp' ? name : 'emir@sim.ai',
+          config.connectableMethod
+        )
       : undefined
     return [
       {
         providerId: id,
         name,
+        description,
+        requestedScopes,
         ...config,
+        accessDescription:
+          config.accessDescription ??
+          (searchResource
+            ? `All accessible ${searchResource === 'CRM records' ? searchResource : searchResource.toLowerCase()}`
+            : 'Access follows your account permissions'),
         connectionCandidate: candidate,
         fixtureAuthorization: true,
       },

@@ -85,14 +85,12 @@ export const loadConversationData = fixture(
 )
 export const loadIntegrationsData = fixture(
   async (scenario, secrets?: string | string[]): Promise<IntegrationsData> => {
-    const [{ memberIntegrations }, { integrationProviders }, { memberSecretSource }] =
-      await Promise.all([
-        import('@/platform/fixtures/integration-data'),
-        import('@/platform/fixtures/integration-providers'),
-        import('@/platform/fixtures/member-secret-source'),
-      ])
+    const [{ memberIntegrations }, { memberSecretSource }] = await Promise.all([
+      import('@/platform/fixtures/integration-data'),
+      import('@/platform/fixtures/member-secret-source'),
+    ])
     return {
-      integrations: memberIntegrations(scenario, integrationProviders),
+      integrations: memberIntegrations(scenario),
       genericSecrets: memberSecretSource(scenario, secrets),
     }
   }

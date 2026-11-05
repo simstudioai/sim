@@ -28,6 +28,8 @@ export interface IntegrationAccount {
 export interface OrganizationIntegration {
   providerId: string
   name: string
+  description: string
+  requestedScopes: readonly { id: string; label: string }[] | null
   accessDescription: string
   availability: 'ready' | 'managed' | 'unconfigured' | 'disabled' | 'paused' | 'unavailable'
   connectableMethod: AccountMethod | null

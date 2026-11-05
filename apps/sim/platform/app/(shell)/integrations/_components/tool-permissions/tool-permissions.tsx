@@ -2,17 +2,11 @@
 
 import { useState } from 'react'
 import styles from '@/platform/app/(shell)/integrations/_components/tool-permissions/tool-permissions.module.css'
-import {
-  Button,
-  EmptyState,
-  SearchField,
-  SegmentedControl,
-} from '@/platform/design-system/components'
-import { ChoiceMenu } from '@/platform/design-system/components/menu/choice-menu'
+import { EmptyState, SearchField, SegmentedControl } from '@/platform/design-system/components'
+import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 import type { IntegrationAccount, ToolPolicy } from '@/platform/lib/integrations/model'
 
 type Permissions = NonNullable<IntegrationAccount['permissions']>
-type Effect = Permissions['tools'][number]['kind']
 
 const ACTIONS = [
   { value: 'allow', label: 'Allow' },
@@ -42,20 +36,12 @@ export function ToolPermissions({ account, permissions, onChange }: ToolPermissi
     `${tool.label} ${tool.description ?? ''}`.toLowerCase().includes(filter)
   )
 
-  function updateGroup(kind: Effect, policy: ToolPolicy) {
+  function updateTool(id: string, value: ToolPolicy, defaultValue: ToolPolicy) {
     onChange({
       ...permissions,
-      [kind]: policy === 'allow' ? 'ask' : policy,
       tools: permissions.tools.map((tool) =>
-        kind === tool.kind ? { ...tool, override: policy === 'allow' ? 'allow' : null } : tool
+        tool.id === id ? { ...tool, override: value === defaultValue ? null : value } : tool
       ),
-    })
-  }
-
-  function updateTool(id: string, override: ToolPolicy | null) {
-    onChange({
-      ...permissions,
-      tools: permissions.tools.map((tool) => (tool.id === id ? { ...tool, override } : tool)),
     })
   }
 
@@ -76,23 +62,15 @@ export function ToolPermissions({ account, permissions, onChange }: ToolPermissi
         const matching = matches.filter((tool) => tool.kind === kind)
         if (!matching.length) return null
         const tools = permissions.tools.filter((item) => item.kind === kind)
-        const first = tools[0].override ?? permissions[kind]
-        const group = tools.every((item) => (item.override ?? permissions[kind]) === first)
-          ? first
-          : null
+        const defaultValue = permissions[kind]
+        const defaultLabel =
+          ACTIONS.find((action) => action.value === defaultValue)?.label ?? defaultValue
         return (
           <section key={kind} className={styles.group} aria-label={label}>
             <div className={styles.groupTitle}>
               <h3 data-type='T059'>
-                {label} ({tools.length})
+                <CountedLabel label={label} count={tools.length} />
               </h3>
-              <ChoiceMenu
-                label={`${label} permission`}
-                placeholder='Mixed'
-                value={group}
-                options={choices}
-                onValueChange={(policy) => updateGroup(kind, policy)}
-              />
             </div>
             <ul className={styles.list}>
               {matching.map((tool) => (
@@ -106,21 +84,16 @@ export function ToolPermissions({ account, permissions, onChange }: ToolPermissi
                     )}
                   </div>
                   <div className={styles.actions}>
-                    {tool.override && (
-                      <Button
-                        size='compact'
-                        variant='quiet'
-                        render={<button aria-label={`Use default for ${tool.label}`} />}
-                        onClick={() => updateTool(tool.id, null)}
-                      >
-                        Use default
-                      </Button>
-                    )}
                     <SegmentedControl
                       label={`${tool.label} permission`}
+                      description={
+                        tool.override
+                          ? `Choose ${defaultLabel} to inherit the default for ${label.toLowerCase()}.`
+                          : `Inherits ${defaultLabel} from ${label.toLowerCase()}.`
+                      }
                       options={choices}
-                      value={tool.override ?? permissions[kind]}
-                      onSelect={(change) => updateTool(tool.id, change)}
+                      value={tool.override ?? defaultValue}
+                      onSelect={(change) => updateTool(tool.id, change, defaultValue)}
                     />
                   </div>
                 </li>
