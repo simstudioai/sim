@@ -969,21 +969,18 @@ try {
     await policy.getByRole('radio', { name: 'Ask', exact: true }).click()
     await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeChecked()
     await capture('tool-permissions-desktop')
-    const toolDescription = page
-      .getByRole('button', { name: 'More information', exact: true })
-      .first()
-    await toolDescription.hover()
-    await expect(page.getByRole('tooltip')).toBeVisible()
+    const toolPermissions = await context.request.get(
+      `${baseUrl.origin}/api/organizations/${organizationId}/connected-accounts/personal/${credentialId}/tool-permissions`
+    )
+    const jiraWrite = readAssistantToolPermissionsContract.response.schema
+      .parse(await toolPermissions.json())
+      .tools.find((tool) => tool.toolId === 'jira_write')
+    assert(jiraWrite?.description)
+    await expect(page.getByText(jiraWrite.description, { exact: true })).toBeVisible()
+    await expect(policy).toHaveAccessibleDescription('Inherits Ask from write tools.')
     await capture('tool-permission-description')
-    await page.mouse.move(0, 0)
-    await expect(page.getByRole('tooltip')).toBeHidden()
-    await toolDescription.focus()
-    await page.keyboard.press('Tab')
-    await page.keyboard.press('Shift+Tab')
-    await expect(toolDescription).toBeFocused()
-    await expect(page.getByRole('tooltip')).toBeVisible()
-    await page.keyboard.press('Tab')
-    await expect(page.getByRole('tooltip')).toBeHidden()
+    await policy.getByRole('radio', { name: 'Ask', exact: true }).focus()
+    await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeFocused()
     await page.setViewportSize({ width: 390, height: 844 })
     await capture('tool-permissions-mobile')
     assert(
