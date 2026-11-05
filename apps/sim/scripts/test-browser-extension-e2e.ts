@@ -1368,17 +1368,19 @@ try {
         })
         await draft.goto(`${base.origin}/extension/create-link#${hash}`)
         const dialog = draft.getByRole('dialog', { name: 'New link', exact: true })
-        await expect(dialog.getByLabel('Destination URL', { exact: true })).toHaveValue(destination)
+        await expect(
+          dialog.getByRole('textbox', { name: 'Destination URL', exact: true })
+        ).toHaveValue(destination)
         await expect.poll(() => new URL(draft.url()).hash).toBe('')
         await screenshot('create-link-draft', draft)
         await dialog.getByRole('button', { name: 'Create', exact: true }).click()
-        await expect(dialog.getByLabel('Name', { exact: true })).toHaveAttribute(
+        await expect(dialog.getByRole('textbox', { name: 'Name', exact: true })).toHaveAttribute(
           'aria-invalid',
           'true'
         )
         assert.equal(writes, 0, 'An invalid draft reached the create boundary')
         await screenshot('create-link-validation', draft)
-        await dialog.getByLabel('Name', { exact: true }).fill('qa-draft')
+        await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill('qa-draft')
         const saved = draft.waitForResponse(
           (response) =>
             new URL(response.url()).pathname === endpoint && response.request().method() === 'POST'
@@ -1401,6 +1403,9 @@ try {
         } finally {
           await resolved.close()
         }
+      } catch (error) {
+        await screenshot('create-link-failure', draft)
+        throw error
       } finally {
         await draft.close()
         await sql`delete from organization where id=${organizationId}`
@@ -1416,7 +1421,6 @@ try {
       const sessions: { socket: WebSocketRoute; chunks: number; closed: boolean }[] = []
       await shell.route('**/api/speech/token', (route) => {
         injectedRequests.add(route.request())
-        voiceDiagnostics.push({ event: 'token-request' })
         return route.fulfill({ json: { token: 'synthetic-extension-voice' } })
       })
       await shell.routeWebSocket(
@@ -1438,11 +1442,6 @@ try {
           })
         }
       )
-      const voiceConsole = (message: { text: () => string }) => {
-        const text = message.text()
-        if (text.includes('useSpeechToText')) voiceDiagnostics.push({ event: 'console', text })
-      }
-      shell.on('console', voiceConsole)
       const microphone = await browserContext.newCDPSession(shell)
       const setMicrophonePermission = async (setting: 'granted' | 'denied') => {
         await microphone.send('Browser.setPermission', {
@@ -1485,29 +1484,9 @@ try {
         await shell.bringToFront()
         const viewport = shell.viewportSize()
         assert(viewport)
-        const { windowId } = await microphone.send('Browser.getWindowForTarget')
-        const before = await microphone.send('Browser.getWindowBounds', { windowId })
         await setPanelViewport(viewport.width, viewport.height)
-        const after = await microphone.send('Browser.getWindowBounds', { windowId })
-        voiceDiagnostics.push({ event: 'settings-return', viewport, before, after })
         await setMicrophonePermission('granted')
-        const retryClick = await mic.evaluateHandle((button) => {
-          let clicked = false
-          button.addEventListener(
-            'click',
-            (event) => {
-              clicked = event.isTrusted
-            },
-            { once: true }
-          )
-          return () => clicked
-        })
         await mic.click()
-        voiceDiagnostics.push({
-          event: 'retry-click',
-          trusted: await retryClick.evaluate((read) => read()),
-        })
-        await retryClick.dispose()
         await expect(stop).toBeVisible()
         await expect.poll(() => sessions[0]?.chunks ?? 0).toBeGreaterThan(0)
         sessions[0].socket.send(
@@ -1566,7 +1545,6 @@ try {
           event: 'finally',
           sessions: sessions.map(({ chunks, closed }) => ({ chunks, closed })),
         })
-        shell.off('console', voiceConsole)
         await shell.unroute('**/api/speech/token')
         await shell.unroute('**/api/mothership/chat')
         await microphone.send('Browser.resetPermissions')
