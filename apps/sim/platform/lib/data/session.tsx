@@ -35,22 +35,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
  * navigating when sign-out fails: the cookies survive, so login would bounce straight back. Leaving
  * the document is what resets this app's in-memory state, which the legacy reset cannot reach.
  */
-async function recoverSession(legacyOrigin: string): Promise<boolean> {
+export async function signOutAndLeave(loginUrl: string): Promise<boolean> {
   try {
     await signOut()
   } catch (error) {
-    logger.error('Failed to sign out while recovering from a stale session', { error })
+    logger.error('Failed to sign out', { error })
     return false
   }
   clearBrowserUserData()
-  window.location.assign(`${legacyOrigin}/login`)
+  window.location.assign(loginUrl)
   return true
 }
 
 /** The shared expiry rule, recovering through this app's sign-out. */
 export function useSessionRecovery() {
   const { legacyOrigin } = useOrganization()
-  const recover = useCallback(() => recoverSession(legacyOrigin), [legacyOrigin])
+  const recover = useCallback(() => signOutAndLeave(`${legacyOrigin}/login`), [legacyOrigin])
   return useSessionExpiry(recover)
 }
 

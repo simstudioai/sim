@@ -20,17 +20,24 @@ interface ProductSessionProps {
   fixtures: Record<Scenario, ShellData> | null
   /** Above the shell, inside the theme: session states only a live session has. */
   banner?: ReactNode
+  /** The `sidebar_collapsed` cookie the server read. Absent means collapse is session state. */
+  sidebarCollapsed?: boolean
   children: ReactNode
 }
 
-export function ProductSession({ children, fixtures, banner }: ProductSessionProps) {
+export function ProductSession({
+  children,
+  fixtures,
+  banner,
+  sidebarCollapsed,
+}: ProductSessionProps) {
   const search = useSearchParams()
   const scenario = readScenario(search.get('state'))
   const live = useLiveShellData()
   return (
     <InterfacePreferences key={scenario}>
       <DesktopHost />
-      <SidebarLayout>
+      <SidebarLayout initialCollapsed={sidebarCollapsed}>
         <NotificationSession>
           <ChatChangesProvider>
             <ComposerDrafts>

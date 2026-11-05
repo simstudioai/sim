@@ -20,6 +20,12 @@
   overflow-wrap: anywhere;
   gap: var(--ui-stack-gap);
 }
-.copy > span + span {
+.copy > [data-type="T050"] {
   color: var(--ui-secondary);
+}
+.logoInput {
+  display: none;
+}
+.error {
+  color: var(--control-danger);
 }

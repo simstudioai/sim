@@ -53,3 +53,9 @@
 .group {
   gap: var(--ui-list-gap);
 }
+.accountMenu {
+  inline-size: min(
+    calc(var(--shell-org-menu-width) - 2 * var(--ui-popup-padding)),
+    calc(100vw - var(--spacing-32))
+  );
+}

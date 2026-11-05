@@ -1,8 +1,8 @@
 import { PLATFORM_DESTINATIONS } from '@/platform/app/(shell)/_components/destinations'
 import type {
+  ShellChat,
   ShellData,
   ShellDestination,
-  ShellItem,
 } from '@/platform/app/(shell)/_components/model'
 import { CommandPalette } from '@/platform/design-system/components/command-palette/command-palette'
 import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
@@ -11,7 +11,7 @@ interface CommandMenuProps {
   open: boolean
   onClose: () => void
   navigate: (href: string) => void
-  chats: readonly ShellItem[]
+  chats: readonly ShellChat[]
   workspaces: ShellData['workspaces']
   destinations?: readonly ShellDestination[]
 }
@@ -36,7 +36,7 @@ export function CommandMenu({
             items: workspaces.map((item) => ({
               id: item.id,
               label: item.name,
-              value: '/home',
+              value: item.href ?? '/home',
             })),
           },
           {
@@ -44,7 +44,7 @@ export function CommandMenu({
             items: chats.map((item) => ({
               id: item.id,
               label: item.title,
-              value: `/chat/${item.id}`,
+              value: item.href ?? `/chat/${item.id}`,
             })),
           },
         ]}

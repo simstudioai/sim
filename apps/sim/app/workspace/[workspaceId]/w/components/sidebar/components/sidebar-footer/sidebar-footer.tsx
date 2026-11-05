@@ -2,7 +2,6 @@
 
 import type { ComponentType } from 'react'
 import { ANONYMOUS_USER_ID } from '@sim/auth/principal'
-import type { DesktopUpdateState } from '@sim/desktop-bridge'
 import {
   Chip,
   chipContentLabelClass,
@@ -32,21 +31,12 @@ import {
   SIDEBAR_RAIL_CHIP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { useUserProfile } from '@/hooks/queries/user-profile'
-import { useDesktopUpdateState } from '@/hooks/use-desktop-update-state'
+import {
+  desktopUpdateActionLabel,
+  hasAvailableDesktopUpdate,
+  useDesktopUpdateState,
+} from '@/hooks/use-desktop-update-state'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
-
-function hasAvailableDesktopUpdate(state: DesktopUpdateState): boolean {
-  return state.status === 'available' || state.status === 'downloading' || state.status === 'ready'
-}
-
-function desktopUpdateActionLabel(state: DesktopUpdateState): string {
-  if (state.status === 'downloading') {
-    return state.percent === undefined
-      ? 'Downloading update…'
-      : `Downloading update ${state.percent}%`
-  }
-  return state.status === 'ready' ? 'Restart to update' : 'Update'
-}
 
 /** Compact primary update circle using the same footprint as the surrounding sidebar icons. */
 function DesktopUpdateIcon({ className }: { className?: string }) {

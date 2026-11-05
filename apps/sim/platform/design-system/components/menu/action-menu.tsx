@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { ContextMenu } from '@base-ui/react/context-menu'
 import { Menu } from '@base-ui/react/menu'
 import { Toolbar } from '@base-ui/react/toolbar'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
@@ -159,6 +160,33 @@ function TriggeredMenu({
         {actionRows(actions)}
       </ActionMenuPopup>
     </Menu.Root>
+  )
+}
+
+interface ContextActionMenuProps {
+  label: string
+  actions: readonly MenuAction[]
+  onOpenChange?: (open: boolean) => void
+  children: ReactNode
+}
+
+/** The same rows as `ActionMenu`, opened at the pointer by a secondary click on `children`. */
+export function ContextActionMenu({
+  label,
+  actions,
+  onOpenChange,
+  children,
+}: ContextActionMenuProps) {
+  const { trigger, container } = usePopoverContainer()
+  return (
+    <ContextMenu.Root onOpenChange={(open) => onOpenChange?.(open)}>
+      <ContextMenu.Trigger ref={trigger} className={styles.contextTrigger}>
+        {children}
+      </ContextMenu.Trigger>
+      <ActionMenuPopup label={label} container={container}>
+        {actionRows(actions)}
+      </ActionMenuPopup>
+    </ContextMenu.Root>
   )
 }
 

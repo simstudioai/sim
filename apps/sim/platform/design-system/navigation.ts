@@ -1,3 +1,8 @@
+/** A route on the legacy surface is named by its absolute URL; Next's router must not handle it. */
+export function isAbsoluteHref(href: string): boolean {
+  return /^https?:\/\//.test(href)
+}
+
 export type Appearance = 'system' | 'light' | 'dark'
 
 export function readAppearance(value: string | string[] | null | undefined): Appearance {
