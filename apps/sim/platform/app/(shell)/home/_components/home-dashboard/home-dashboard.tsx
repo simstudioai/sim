@@ -36,7 +36,7 @@ interface HomeDashboardProps {
   view: HomeView
   actions: HomeActions
   requestMode: ChatRequestMode
-  /** The real composer and its shortcuts. They sit between surfaces: legacy chrome never renders inside one. */
+  /** The real composer. It sits between surfaces: legacy chrome never renders inside one. */
   composer: ReactNode
 }
 

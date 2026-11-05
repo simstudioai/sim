@@ -82,7 +82,6 @@ export interface OrganizationSummaryRequest {
 export interface OrganizationLandingSlot {
   requestMode: ChatRequestMode
   composer: ReactNode
-  shortcuts: ReactNode
 }
 
 const serializeSearchConversation = createSerializer({
@@ -581,7 +580,7 @@ function OrganizationConversationContent({
           <ComposerScrollArea className='px-3 pb-3'>{composer}</ComposerScrollArea>
         </>
       ) : landing ? (
-        landing.render({ requestMode, composer, shortcuts })
+        landing.render({ requestMode, composer })
       ) : (
         <OrganizationLanding
           heading={

@@ -26,16 +26,9 @@ const LiveDashboard = memo(function LiveDashboard({
   )
 })
 
-export function LiveHome({ requestMode, composer, shortcuts }: OrganizationLandingSlot) {
+export function LiveHome({ requestMode, composer }: OrganizationLandingSlot) {
   return (
-    <ComposerSlot.Provider
-      value={
-        <>
-          {composer}
-          {requestMode !== 'assistant' && shortcuts}
-        </>
-      }
-    >
+    <ComposerSlot.Provider value={composer}>
       <LiveDashboard requestMode={requestMode} />
     </ComposerSlot.Provider>
   )

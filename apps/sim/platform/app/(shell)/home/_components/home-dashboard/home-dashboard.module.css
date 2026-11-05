@@ -93,8 +93,7 @@
 .placeholderGreeting,
 .placeholderWordmark,
 .placeholderComposer,
-.placeholderGetStarted,
-.placeholderSuggestedActions {
+.placeholderGetStarted {
   border-radius: var(--ui-control-radius);
   background: var(--control-muted-fill);
 }
@@ -108,10 +107,6 @@
 }
 .placeholderGetStarted {
   block-size: var(--spacing-132);
-}
-.placeholderSuggestedActions {
-  block-size: var(--spacing-132);
-  margin-block-start: var(--ui-product-section-gap);
 }
 /* The real composer's first-paint heights: the Assistant's pill, the agent's field and toolbar. */
 .placeholderComposer {

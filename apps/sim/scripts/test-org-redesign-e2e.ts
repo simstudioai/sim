@@ -1508,7 +1508,7 @@ async function homeChecks() {
 
   section('3 Home: admin')
   await check(
-    'the agent composer with its tools, Suggested actions, and the Tasks run chart',
+    'the agent composer with its tools and the Tasks run chart, without Suggested actions',
     async () => {
       await withSession(ADMIN, async ({ page }) => {
         await page.goto(orgUrl('/home'))
@@ -1518,7 +1518,7 @@ async function homeChecks() {
         await expect(page.getByRole('button', { name: 'Add resources' })).toBeVisible()
         await expect(page.getByRole('button', { name: 'Attach file' })).toBeVisible()
         await expect(page.getByRole('button', { name: /Skills/ }).first()).toBeVisible()
-        await expect(page.getByText('Suggested actions', { exact: true })).toBeVisible()
+        await expect(page.getByText('Suggested actions', { exact: true })).toHaveCount(0)
         await expect(homeRegion(page, 'Tasks run')).toBeVisible()
         await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeDisabled()
       })

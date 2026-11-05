@@ -23,7 +23,6 @@ export function HomeDashboardSkeleton({ requestMode }: HomeDashboardSkeletonProp
         <RedesignSurface>
           <div className={styles.composer}>
             <div className={styles.placeholderComposer} data-mode={requestMode} />
-            {requestMode === 'agent' && <div className={styles.placeholderSuggestedActions} />}
           </div>
         </RedesignSurface>
         <RedesignSurface>
