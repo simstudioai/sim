@@ -179,6 +179,19 @@
     display: none;
   }
 }
+/* Without hover nothing reveals these, and an invisible target would take the card's tap. */
+@media (hover: none) {
+  @container event (inline-size < 21rem) {
+    .event[data-density="compact"] .people {
+      display: none;
+    }
+  }
+  @container event (inline-size < 15rem) {
+    .event[data-density="full"] .people {
+      display: none;
+    }
+  }
+}
 .overflow {
   display: flex;
   justify-self: end;

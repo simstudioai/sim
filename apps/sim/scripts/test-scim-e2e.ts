@@ -574,10 +574,6 @@ async function run() {
             .getByRole('dialog', { name: 'Disconnect directory' })
             .getByRole('button', { name: 'Disconnect', exact: true })
             .click()
-          await expect(
-            modal.getByRole('button', { name: 'Connect SCIM provisioning' })
-          ).toBeVisible()
-          await modal.getByRole('button', { name: 'Connect SCIM provisioning' }).click()
           await page
             .getByRole('dialog', { name: 'Connect SCIM provisioning' })
             .getByRole('button', { name: 'Connect and sync' })
