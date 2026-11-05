@@ -99,6 +99,13 @@ const PLATFORM_SECTIONS: Record<PlatformSettingsSection, ComponentType<SettingsS
       ),
     { loading }
   ),
+  integrations: dynamic(
+    () =>
+      import(
+        '@/platform/app/(shell)/settings/_components/sections/integrations/integrations-section'
+      ),
+    { loading }
+  ),
   'search-mcp': dynamic(
     () =>
       import('@/platform/app/(shell)/settings/_components/sections/search-mcp/search-mcp-section'),

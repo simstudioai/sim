@@ -11,17 +11,13 @@ vi.mock('@/lib/settings/application/organization-section-access', () => ({
   authorizeOrganizationSettingsSection: mocks.authorize,
 }))
 vi.mock('next/navigation', () => nextNavigationMock)
-vi.mock('@/components/settings/settings-header', () => ({
-  SettingsHeaderProvider: 'header-provider',
-  SettingsHeaderShell: 'header-shell',
+vi.mock('@/platform/app/(shell)/settings/_components/sections/integrations/source-detail', () => ({
+  SourceDetail: 'source-detail',
 }))
-vi.mock(
-  '@/app/o/[organizationId]/settings/integrations/sources/[connectorId]/source-detail',
-  () => ({ OrganizationSourceDetail: 'source-detail' })
-)
+vi.mock('@/platform/app/(shell)/settings/_components/settings-subpage-host', () => ({
+  SettingsSubpageHost: 'settings-subpage-host',
+}))
 
-import OrganizationSourceLayout from '@/app/o/[organizationId]/settings/integrations/sources/[connectorId]/layout'
-import OrganizationSourceLoading from '@/app/o/[organizationId]/settings/integrations/sources/[connectorId]/loading'
 import OrganizationSourcePage from '@/app/o/[organizationId]/settings/integrations/sources/[connectorId]/page'
 
 const mockRedirect = nextNavigationMockFns.mockRedirect
@@ -36,23 +32,13 @@ describe('organization source page authorization', () => {
   })
   it('gates the source page with the existing target-organization integration policy', async () => {
     const page = await OrganizationSourcePage(props)
-    expect(page.type).toBe(Suspense)
-    expect(page.props.fallback.type).toBe(OrganizationSourceLoading)
+    expect(page.type).toBe('settings-subpage-host')
+    expect(page.props.children.type).toBe(Suspense)
     expect(mocks.authorize).toHaveBeenCalledWith({
       organizationId: 'org-one',
       userId: 'admin-one',
       section: 'integrations',
     })
-  })
-  it('renders the persistent heading without waiting for page authorization', () => {
-    const layout = OrganizationSourceLayout({ children: <OrganizationSourceLoading /> })
-    expect(layout.type).toBe('header-provider')
-    expect(layout.props.children).toMatchObject({
-      type: 'header-shell',
-      props: { meta: { title: 'Search source' } },
-    })
-    expect(mockGetSession).not.toHaveBeenCalled()
-    expect(mocks.authorize).not.toHaveBeenCalled()
   })
   it('does not render when the admin or feature gate denies access', async () => {
     mocks.authorize.mockResolvedValue(false)

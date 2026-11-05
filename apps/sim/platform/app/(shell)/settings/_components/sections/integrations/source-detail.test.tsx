@@ -32,15 +32,6 @@ vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
 vi.mock('@/hooks/queries/search-integrations', () => ({
   useSearchIntegrations: mocks.integrations,
 }))
-vi.mock('@/connectors/registry', () => ({
-  CONNECTOR_META_REGISTRY: {
-    google_drive: {
-      name: 'Google Drive',
-      configFields: [],
-      searchDocsUrl: 'https://example.com/guide',
-    },
-  },
-}))
 vi.mock(
   '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions',
   () => ({
@@ -48,22 +39,15 @@ vi.mock(
   })
 )
 vi.mock(
-  '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-actions',
-  () => ({
-    ConnectorActionFeedback: () => null,
-  })
-)
-vi.mock(
   '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form',
   () => ({ useConnectorSettingsForm: mocks.form })
 )
 vi.mock(
-  '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/connector-settings-fields',
+  '@/platform/app/(shell)/settings/_components/sections/integrations/connector-settings-fields',
   () => ({ ConnectorSettingsFields: () => <p>Source configuration</p> })
 )
 
-import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
-import { OrganizationSourceDetail } from '@/app/o/[organizationId]/settings/integrations/sources/[connectorId]/source-detail'
+import { SourceDetail } from '@/platform/app/(shell)/settings/_components/sections/integrations/source-detail'
 
 const mockPush = nextNavigationMockFns.router.push
 nextNavigationMockFns.mockUsePathname.mockReturnValue(
@@ -109,6 +93,20 @@ describe('organization source detail navigation', () => {
   let container: HTMLDivElement
   beforeEach(() => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    HTMLDialogElement.prototype.showModal = function showModal() {
+      this.open = true
+    }
+    HTMLDialogElement.prototype.close = function close() {
+      this.open = false
+    }
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
     mocks.admin = true
     mocks.dirty = false
     mocks.saving = false
@@ -129,6 +127,7 @@ describe('organization source detail navigation', () => {
         { id: 'pause', text: 'Pause syncing', disabled: options.disabled, onSelect: vi.fn() },
         { id: 'delete', text: 'Remove connection', disabled: options.disabled, onSelect: vi.fn() },
       ],
+      removal: { open: false, onOpenChange: vi.fn(), onConfirm: vi.fn() },
     }))
     mocks.form.mockImplementation(() => ({
       dirty: mocks.dirty,
@@ -147,22 +146,14 @@ describe('organization source detail navigation', () => {
     container.remove()
   })
   async function render() {
-    await act(async () =>
-      root.render(
-        <SettingsHeaderProvider>
-          <SettingsHeaderShell>
-            <OrganizationSourceDetail connectorId='source-one' />
-          </SettingsHeaderShell>
-        </SettingsHeaderProvider>
-      )
-    )
+    await act(async () => root.render(<SourceDetail connectorId='source-one' />))
   }
   async function click(text: string) {
     const button = Array.from(document.querySelectorAll('button')).find(
       (item) => item.textContent?.trim() === text
     )
     expect(button, `Missing ${text}`).toBeTruthy()
-    await act(async () => button!.click())
+    await act(async () => button?.click())
   }
 
   it('does not load protected source data for non-admins', async () => {
@@ -225,7 +216,7 @@ describe('organization source detail navigation', () => {
     expect(mocks.save).toHaveBeenCalledOnce()
 
     const saved = { ...connector, sourceConfig: { folderId: 'saved-folder' } }
-    await act(async () => mocks.form.mock.calls.at(-1)![0].onSaved(saved))
+    await act(async () => mocks.form.mock.calls.at(-1)?.[0].onSaved(saved))
     expect(mocks.form).toHaveBeenLastCalledWith(expect.objectContaining({ connector: saved }))
     expect(mockPush).not.toHaveBeenCalled()
     expect(container.textContent).toContain('Source configuration')

@@ -848,7 +848,6 @@
   "apps/sim/ee/access-requests/lib/targets.ts#AccessRequestPolicyValue",
   "apps/sim/ee/audit-logs/hooks/audit-logs.ts#AUDIT_LOG_LIST_STALE_TIME",
   "apps/sim/ee/audit-logs/hooks/audit-logs.ts#auditLogKeys",
-  "apps/sim/ee/credential-groups/components/slack-managed-users-modal.tsx#getSlackManagedUsersFailureNotification",
   "apps/sim/ee/data-drains/hooks/data-drains.ts#DATA_DRAIN_LIST_STALE_TIME",
   "apps/sim/ee/data-drains/hooks/data-drains.ts#DATA_DRAIN_RUNS_STALE_TIME",
   "apps/sim/ee/data-drains/hooks/data-drains.ts#dataDrainKeys",

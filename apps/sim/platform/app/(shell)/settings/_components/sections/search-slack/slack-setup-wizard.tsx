@@ -69,7 +69,7 @@ export function SlackSetupWizard(props: SlackSetupWizardProps) {
       <Modal
         open
         onOpenChange={(open) => {
-          if (!open) setup.close()
+          if (!open && !setup.dismissBlocked) setup.close()
         }}
         title='Install the Sim Search app'
         confirmLabel={busy ? 'Connecting…' : 'Continue with Slack'}
@@ -106,7 +106,7 @@ export function SlackSetupWizard(props: SlackSetupWizardProps) {
     <Modal
       open
       onOpenChange={(open) => {
-        if (!open) setup.close()
+        if (!open && !setup.dismissBlocked) setup.close()
       }}
       title={setup.title}
       confirmLabel={busy ? 'Connecting…' : step === 'credentials' ? 'Connect app' : 'Continue'}

@@ -9,7 +9,7 @@ import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/ne
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
-import { LiveSearchPolicyModal } from '@/app/o/[organizationId]/settings/components/integrations/live-search-policy-modal'
+import { PolicyModal } from '@/platform/app/(shell)/settings/_components/sections/integrations/policy-modal'
 
 const mocks = vi.hoisted(() => ({ save: vi.fn() }))
 vi.mock('next/navigation', () => nextNavigationMock)
@@ -24,6 +24,21 @@ let container: HTMLDivElement
 beforeEach(() => {
   mockSources.mockReturnValue({ data: [], hasNextPage: false })
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  Element.prototype.checkVisibility = () => true
+  HTMLDialogElement.prototype.showModal = function showModal() {
+    this.open = true
+  }
+  HTMLDialogElement.prototype.close = function close() {
+    this.open = false
+  }
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  )
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -43,7 +58,7 @@ describe('live search policy source preservation', () => {
   it('switches to member mode without carrying service-account filters or credentials', async () => {
     await act(async () =>
       root.render(
-        <LiveSearchPolicyModal
+        <PolicyModal
           organizationId='org'
           integration={{
             connectorType: 'gmail',
@@ -61,7 +76,9 @@ describe('live search policy source preservation', () => {
         />
       )
     )
-    await act(async () => button('Member accounts').click())
+    await act(async () =>
+      document.querySelector<HTMLInputElement>('input[type="radio"][value="member"]')?.click()
+    )
     await act(async () => button('Save settings').click())
     expect(mocks.save).toHaveBeenCalledWith(
       {
@@ -88,7 +105,7 @@ describe('live search policy source preservation', () => {
     })
     await act(async () =>
       root.render(
-        <LiveSearchPolicyModal
+        <PolicyModal
           organizationId='org'
           integration={{
             connectorType: 'gmail',
@@ -120,7 +137,7 @@ describe('live search policy source preservation', () => {
     mockSources.mockReturnValue({ isPending: true, hasNextPage: false })
     await act(async () =>
       root.render(
-        <LiveSearchPolicyModal
+        <PolicyModal
           organizationId='org'
           integration={{
             connectorType: 'gmail',

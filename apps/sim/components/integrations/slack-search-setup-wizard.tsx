@@ -15,7 +15,6 @@ import {
   type SlackSearchSetupOptions,
   useSlackSearchSetup,
 } from '@/components/integrations/use-slack-search-setup'
-import { isDesktopApp } from '@/lib/desktop'
 
 /** App creation, credentials, and consent are one organization-specific setup flow. */
 export function SlackSearchSetupWizard(props: SlackSearchSetupOptions) {
@@ -30,6 +29,7 @@ export function SlackSearchSetupWizard(props: SlackSearchSetupOptions) {
     configuredAppId,
     connect,
     continueDisabled,
+    dismissBlocked,
     error,
     installShared,
     oauth,
@@ -88,7 +88,7 @@ export function SlackSearchSetupWizard(props: SlackSearchSetupOptions) {
     return (
       <ChipModal
         open
-        dismissDisabled={connect.isPending || (oauth.isPending && !isDesktopApp())}
+        dismissDisabled={dismissBlocked}
         onOpenChange={(open) => {
           if (!open) close()
         }}
@@ -135,7 +135,7 @@ export function SlackSearchSetupWizard(props: SlackSearchSetupOptions) {
   return (
     <ChipModal
       open
-      dismissDisabled={connect.isPending || (oauth.isPending && !isDesktopApp())}
+      dismissDisabled={dismissBlocked}
       onOpenChange={(open) => {
         if (!open) close()
       }}

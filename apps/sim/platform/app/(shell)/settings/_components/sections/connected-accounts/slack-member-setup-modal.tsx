@@ -7,7 +7,7 @@ import {
   FailureNotice,
   FieldFrame,
   Modal,
-  SelectField,
+  SearchableSelect,
 } from '@/platform/design-system/components'
 import { useSlackManagedUsersSetup } from '@/platform/lib/data/credential-groups'
 
@@ -110,10 +110,12 @@ export function SlackMemberSetupModal({
         ) : (
           <>
             {availableApps.length > 1 ? (
-              <SelectField
+              <SearchableSelect
                 label='Sim Search app'
-                value={selectedApp?.appId}
-                onValueChange={setAppId}
+                searchLabel='Search Slack workspaces'
+                placeholder='Select the Slack workspace'
+                value={selectedApp?.appId ?? null}
+                onValueChange={(value) => setAppId(value ?? '')}
                 disabled={pending}
                 options={availableApps.map((app) => ({ value: app.appId, label: app.teamName }))}
               />

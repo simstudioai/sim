@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { isDesktopApp } from '@/lib/desktop'
 import {
   SLACK_SEARCH_DEFAULT_DESCRIPTION,
   SLACK_SEARCH_DEFAULT_NAME,
@@ -117,6 +118,8 @@ export function useSlackSearchSetup({
       !installationId &&
       (!clientId.trim() || !clientSecret.trim() || !signingSecret.trim()))
   return {
+    /** A running connect, or a browser OAuth start, finishes before its dialog can be dismissed. */
+    dismissBlocked: connect.isPending || (oauth.isPending && !isDesktopApp()),
     advance,
     botToken,
     busy,

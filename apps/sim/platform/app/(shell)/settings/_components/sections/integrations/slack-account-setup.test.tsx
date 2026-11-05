@@ -4,10 +4,6 @@ import {
   organizationAccountsQueriesMock,
   organizationAccountsQueriesMockFns,
 } from '@sim/testing/mocks/organization-accounts-queries.mock'
-import {
-  organizationProviderMock,
-  organizationProviderMockFns,
-} from '@sim/testing/mocks/organization-provider.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,15 +22,14 @@ vi.mock('nuqs', () => ({
     throw new Error(`Unexpected query key: ${key}`)
   },
 }))
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 vi.mock('@/hooks/queries/organization-accounts', () => organizationAccountsQueriesMock)
-vi.mock('@/ee/credential-groups/components/slack-managed-users-modal', () => ({
-  SlackManagedUsersModal: mocks.modal,
-}))
+vi.mock(
+  '@/platform/app/(shell)/settings/_components/sections/connected-accounts/slack-member-setup-modal',
+  () => ({ SlackMemberSetupModal: mocks.modal })
+)
 
-import { OrganizationSlackAccountSetup } from '@/app/o/[organizationId]/settings/components/integrations/slack-account-setup'
+import { SlackAccountSetup } from '@/platform/app/(shell)/settings/_components/sections/integrations/slack-account-setup'
 
-const mockUseOrganizationContext = organizationProviderMockFns.mockUseOrganizationContext
 const mockUseOrganizationAccounts = organizationAccountsQueriesMockFns.mockUseOrganizationAccounts
 const mockUseEnsureOrganizationAccounts =
   organizationAccountsQueriesMockFns.mockUseEnsureOrganizationAccounts
@@ -45,10 +40,20 @@ describe('organization Slack setup continuation', () => {
 
   beforeEach(() => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-    mockUseOrganizationContext.mockReturnValue({
-      organization: { id: 'org-a' },
-      viewer: { isAdmin: true },
-    })
+    HTMLDialogElement.prototype.showModal = function showModal() {
+      this.open = true
+    }
+    HTMLDialogElement.prototype.close = function close() {
+      this.open = false
+    }
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
     mockUseOrganizationAccounts.mockReturnValue({
       isSuccess: true,
       data: { credentialGroup: null },
@@ -71,8 +76,10 @@ describe('organization Slack setup continuation', () => {
     container.remove()
   })
 
-  async function render() {
-    await act(async () => root.render(<OrganizationSlackAccountSetup />))
+  async function render(isAdmin = true) {
+    await act(async () =>
+      root.render(<SlackAccountSetup organizationId='org-a' isAdmin={isAdmin} />)
+    )
   }
 
   it('prepares a missing container without asking the admin to make an extra choice', async () => {
@@ -127,7 +134,7 @@ describe('organization Slack setup continuation', () => {
     await render()
     expect(document.body.textContent).toContain('Set up Slack app')
     const retryButton = Array.from(document.querySelectorAll('button')).find(
-      (button) => button.textContent === 'Try again'
+      (button) => button.textContent === 'Retry'
     )
     expect(retryButton).toBeDefined()
     await act(async () => retryButton?.click())
@@ -136,11 +143,7 @@ describe('organization Slack setup continuation', () => {
   })
 
   it('does not prepare accounts or open admin setup for an ordinary member', async () => {
-    mockUseOrganizationContext.mockReturnValue({
-      organization: { id: 'org-a' },
-      viewer: { isAdmin: false },
-    })
-    await render()
+    await render(false)
     expect(mocks.ensure).not.toHaveBeenCalled()
     expect(mocks.modal).not.toHaveBeenCalled()
     expect(mockUseOrganizationAccounts).toHaveBeenCalledWith(undefined)
@@ -157,8 +160,6 @@ describe('organization Slack setup continuation', () => {
     expect(mocks.ensure).not.toHaveBeenCalled()
     const props = mocks.modal.mock.calls[0][0]
     expect(props).toMatchObject({ organizationId: 'org-a', credentialGroupId: 'group-a' })
-    expect(props).not.toHaveProperty('workspaceId')
-    expect(props.bots).toEqual([])
     props.onOpenChange(false)
     expect(mocks.setProvider).toHaveBeenCalledExactlyOnceWith(null)
     expect(mocks.setReturnSource).toHaveBeenCalledExactlyOnceWith(null, { history: 'replace' })
