@@ -61,10 +61,17 @@ interface FailureNoticeProps {
   title?: string
   retrying?: boolean
   onRetry?: () => void
+  retryLabel?: string
 }
 
 /** A read that failed, with its way back. It stays distinct from an empty list or an absent setting. */
-export function FailureNotice({ message, title, retrying, onRetry }: FailureNoticeProps) {
+export function FailureNotice({
+  message,
+  title,
+  retrying,
+  onRetry,
+  retryLabel = 'Retry',
+}: FailureNoticeProps) {
   return (
     <InlineNotice
       intent='danger'
@@ -73,7 +80,7 @@ export function FailureNotice({ message, title, retrying, onRetry }: FailureNoti
       action={
         onRetry && (
           <Button variant='quiet' size='compact' disabled={retrying} onClick={onRetry}>
-            {retrying ? 'Retrying…' : 'Retry'}
+            {retrying ? 'Retrying…' : retryLabel}
           </Button>
         )
       }

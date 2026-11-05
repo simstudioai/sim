@@ -376,6 +376,7 @@ export function DirectorySyncModal({ organization, onClose }: DirectorySyncModal
           message={directory.loadError.message}
           retrying={directory.fetching}
           onRetry={directory.retry}
+          retryLabel='Retry connection'
         />
       ) : mode === 'disconnect' && sync ? (
         <>

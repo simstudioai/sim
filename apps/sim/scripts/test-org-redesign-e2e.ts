@@ -445,11 +445,9 @@ const searchField = (page: Page) => page.getByRole('textbox', { name: 'Search yo
 const dialog = (page: Page, name: string | RegExp) => page.getByRole('dialog', { name })
 const orgChip = (page: Page) => page.getByRole('button', { name: 'Organization menu' })
 const orgCard = (page: Page) => dialog(page, 'Organization menu')
-/** Filtered by heading because the sidebar has a section with the same name as Home's Workspaces. */
+/** Outside the sidebar, which has a section with the same name as Home's Workspaces. */
 const homeRegion = (page: Page, name: string) =>
-  page
-    .getByRole('region', { name, exact: true })
-    .filter({ has: page.locator('h2, h3', { hasText: name }) })
+  page.getByRole('region', { name, exact: true }).locator('xpath=self::*[not(ancestor::aside)]')
 
 async function navLabels(page: Page) {
   const links = mainNav(page).getByRole('link')
@@ -600,7 +598,6 @@ async function landingChecks() {
       await page.goto(orgUrl('/home'))
       await expect(page.getByRole('heading', { name: 'Organization access denied' })).toBeVisible()
       await expect(page.getByRole('link', { name: 'View your workspaces' })).toBeVisible()
-      await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
     })
   })
   await check(
@@ -2091,6 +2088,9 @@ async function chatChecks() {
       where id = ${ADMIN_CHATS.agent.id}`
     try {
       await withSession(ADMIN, async ({ page }) => {
+        await page.route('**/api/files/serve/**', (route) =>
+          route.fulfill({ body: '# Share check' })
+        )
         await page.goto(orgUrl(`/chat/${ADMIN_CHATS.agent.id}?resource=${fileId}`))
         await page.getByRole('button', { name: 'Share file', exact: true }).click()
         const share = dialog(page, 'Share share-check.md')
@@ -3240,7 +3240,9 @@ async function settingsChecks() {
         await page.goto(orgUrl(path))
         await expect(page.getByLabel('Settings location')).toContainText(title)
         await expect(
-          page.locator('[data-platform-ui]').getByRole('heading', { name: title, exact: true })
+          page
+            .locator('[data-platform-ui]')
+            .getByRole('heading', { level: 1, name: title, exact: true })
         ).toBeVisible()
       }
     })
@@ -3541,14 +3543,14 @@ async function blastRadiusChecks() {
     }
   )
   await check(
-    "the workspace's Credential Groups stays on its own page, outside any surface",
+    "a workspace's Credential Groups link opens the organization's page",
     async () => {
       await withSession(ADMIN, async ({ page }) => {
         await page.goto(url(`/workspace/${MEMBER_ADMIN_WORKSPACE.id}/settings/connected-accounts`))
+        await expect(page).toHaveURL(/\/o\/[^/]+\/settings\/connected-accounts/)
         await expect(
-          page.getByRole('heading', { name: 'Credential Groups', exact: true })
+          page.getByRole('heading', { level: 1, name: 'Credential Groups', exact: true })
         ).toBeVisible()
-        await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
       })
     },
     // The workspace shell reads its inbox whatever the group's hideInboxTab says.

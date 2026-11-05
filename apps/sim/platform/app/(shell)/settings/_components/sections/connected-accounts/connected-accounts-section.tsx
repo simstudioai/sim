@@ -50,12 +50,7 @@ export default function ConnectedAccountsSection({ organization }: SettingsSecti
         }}
       />
     )
-  if (!accounts.data)
-    return (
-      <SettingsSection title='Credential Groups'>
-        <LoadingState label='Loading Credential Groups…' />
-      </SettingsSection>
-    )
+  if (!accounts.data) return <LoadingState label='Loading Credential Groups…' />
   if (!accounts.data.canManage)
     return <EmptyState title='An organization admin manages Credential Groups.' />
   const group = accounts.data.credentialGroup

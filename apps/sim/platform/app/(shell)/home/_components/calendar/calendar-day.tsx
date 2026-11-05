@@ -166,7 +166,7 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
                   gridRow: timeSlot(index * 60, 60),
                   visibility:
                     calendar.nowMinute !== null &&
-                    Math.abs(index * 60 - calendar.nowMinute) < NOW_LABEL_CLEARANCE_MINUTES
+                    Math.abs(index * 60 - calendar.nowMinute) <= NOW_LABEL_CLEARANCE_MINUTES
                       ? 'hidden'
                       : undefined,
                 }}

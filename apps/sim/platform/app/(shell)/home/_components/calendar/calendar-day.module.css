@@ -141,6 +141,10 @@
 .event[data-density="full"] .people {
   margin-block-start: var(--spacing-5);
 }
+/* Avatars are taller than a one-line card's text, and stay inside its padding. */
+.event[data-density="compact"] .people {
+  margin-block: calc(-1 * var(--spacing-4));
+}
 /* The title outranks the time, and the time the people, who stay a hover or a tab away. */
 @container event (inline-size < 21rem) {
   .event[data-density="compact"] .people {

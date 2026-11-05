@@ -173,13 +173,11 @@ export default function IntegrationsSection({ organization: context }: SettingsS
           }}
         />
       ) : !policies.data || !secrets.data ? (
-        <SettingsSection title='Sources'>
-          <LoadingState label='Loading sources' />
-        </SettingsSection>
+        <LoadingState label='Loading sources' />
       ) : added.length === 0 && !secretSource && !search && !assistantVisible ? (
         <EmptyState title='No sources yet. Add a source to get started.' />
       ) : (
-        <SettingsSection title='Sources'>
+        <SettingsSection title='Added sources'>
           {showSecrets && (
             <GenericSecretSourceRow organizationId={organization.id} source={secretSource} />
           )}
