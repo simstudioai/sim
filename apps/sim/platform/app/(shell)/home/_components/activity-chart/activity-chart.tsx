@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
 import styles from '@/platform/app/(shell)/home/_components/activity-chart/activity-chart.module.css'
-import type {
-  ActivityPoint,
-  HomeActivityState,
+import {
+  ACTIVITY_WINDOW_DAYS,
+  type ActivityPoint,
+  type ActivityWindowDays,
+  type HomeActivityState,
 } from '@/platform/app/(shell)/home/_components/model'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { SkeletonBlock } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
@@ -20,6 +21,8 @@ import { formatCalendarDate } from '@/platform/lib/time'
 interface HomeActivityChartProps {
   title: string
   state: HomeActivityState
+  days: ActivityWindowDays
+  onDaysChange: (days: ActivityWindowDays) => void
   onRetry: () => void
 }
 
@@ -87,15 +90,19 @@ function ActivitySeries({ title, points }: ActivitySeriesProps) {
   )
 }
 
-const WINDOW_DAYS = [7, 30, 90] as const
-const RANGE_LABELS = WINDOW_DAYS.map((days) => `Last ${days} days`)
+const RANGE_LABELS = ACTIVITY_WINDOW_DAYS.map((days) => `Last ${days} days`)
 
-export function HomeActivityChart({ title, state, onRetry }: HomeActivityChartProps) {
-  const [range, setRange] = useState(RANGE_LABELS[0])
+export function HomeActivityChart({
+  title,
+  state,
+  days,
+  onDaysChange,
+  onRetry,
+}: HomeActivityChartProps) {
   const scrollEdges = useScrollEdges<HTMLElement>('vertical', { tabStop: true })
   if (state.status === 'hidden') return null
   const ready = state.status === 'ready'
-  const days = WINDOW_DAYS[RANGE_LABELS.indexOf(range)]
+  const range = RANGE_LABELS[ACTIVITY_WINDOW_DAYS.indexOf(days)]
   const points = ready ? state.points.slice(-days) : []
   const total = points.reduce((sum, point) => sum + point.value, 0)
   return (
@@ -109,12 +116,14 @@ export function HomeActivityChart({ title, state, onRetry }: HomeActivityChartPr
             </span>
           )}
         </div>
-        {ready && (
+        {(ready || days !== ACTIVITY_WINDOW_DAYS[0]) && (
           <RangePicker
             label='Range'
             options={RANGE_LABELS}
             value={range}
-            onValueChange={setRange}
+            onValueChange={(label) =>
+              onDaysChange(ACTIVITY_WINDOW_DAYS[RANGE_LABELS.indexOf(label)])
+            }
           />
         )}
       </header>

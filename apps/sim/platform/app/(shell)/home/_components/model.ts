@@ -75,6 +75,10 @@ export interface ActivityPoint {
   value: number
 }
 
+/** The chart's windows, narrowest first. All are daily buckets. */
+export const ACTIVITY_WINDOW_DAYS = [7, 30, 90] as const
+export type ActivityWindowDays = (typeof ACTIVITY_WINDOW_DAYS)[number]
+
 export type HomeActivityState =
   | { status: 'hidden' }
   | { status: 'loading' }
@@ -106,6 +110,7 @@ export interface HomeView {
   firstName?: string
   attention: HomeListState<AttentionItem>
   activity: HomeActivityState
+  activityDays: ActivityWindowDays
   email: HomeWidgetState<readonly EmailItem[]>
   calendar: HomeWidgetState<HomeCalendarDay>
   /** The viewer's workspaces, the sidebar's rows. Nothing renders for a viewer with none. */
@@ -132,6 +137,7 @@ export interface HomeActions {
   returnToToday: () => void
   retryAttention: () => void
   retryActivity: () => void
+  setActivityDays: (days: ActivityWindowDays) => void
   retryWorkspaces: () => void
   retryRecents: () => void
   removeRecent: (id: string) => void

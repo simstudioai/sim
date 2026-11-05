@@ -125,6 +125,8 @@ export function HomeDashboard({ view, actions, requestMode, composer }: HomeDash
                   <HomeActivityChart
                     title={WIDGET_LABELS.Activity}
                     state={activity}
+                    days={view.activityDays}
+                    onDaysChange={actions.setActivityDays}
                     onRetry={actions.retryActivity}
                   />
                 )}

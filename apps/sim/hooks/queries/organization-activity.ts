@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   getOrganizationActivityBreakdownContract,
@@ -42,12 +42,14 @@ export const organizationActivityKeys = {
 interface ActivityQueryOptions {
   enabled?: boolean
   workspaceId?: string
+  /** Holds the last window's data while a wider one loads, for a caller that can use part of it. */
+  keepPreviousWindow?: boolean
 }
 
 export function useOrganizationActivitySummary(
   organizationId: string,
   window: OrganizationUsageWindowKey,
-  { enabled = true, workspaceId }: ActivityQueryOptions = {}
+  { enabled = true, workspaceId, keepPreviousWindow = false }: ActivityQueryOptions = {}
 ) {
   return useQuery({
     queryKey: organizationActivityKeys.summary(organizationId, window, workspaceId),
@@ -59,6 +61,7 @@ export function useOrganizationActivitySummary(
       }),
     enabled: Boolean(organizationId) && enabled,
     staleTime: ORGANIZATION_ACTIVITY_STALE_TIME,
+    placeholderData: keepPreviousWindow ? keepPreviousData : undefined,
   })
 }
 
