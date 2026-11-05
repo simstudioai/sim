@@ -9,9 +9,8 @@ interface Usage {
 }
 
 /**
- * Follow JSX from actual App Router pages and their layouts, resolving imports,
- * barrels, default props, conditionals and wrapper props. Preview modules cannot
- * establish usage. Unresolved dynamic values require an explicit mapping at the owner.
+ * Trace JSX from product route entries through components and local render helpers.
+ * Preview modules cannot establish usage. Unresolved dynamic values need a mapping at the owner.
  */
 export function productUsage(app: string, program: ts.Program): Usage {
   const checker = program.getTypeChecker()
@@ -19,15 +18,17 @@ export function productUsage(app: string, program: ts.Program): Usage {
   const seen = new WeakMap<ts.Node, Set<string>>()
   const preview = path.join(app, 'platform/preview/')
   const system = path.join(app, 'platform/design-system/')
-  const workbench = path.join(app, 'platform/app/workbench/')
+  const appDir = path.join(app, 'platform/app')
+  const workbench = path.join(appDir, 'workbench/')
   function declaration(node: ts.Node) {
     let symbol = checker.getSymbolAtLocation(node)
     if (symbol && symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol)
     return symbol?.valueDeclaration
   }
-  function component(decl: ts.Declaration | undefined): Component | undefined {
+  function component(decl: ts.Node | undefined): Component | undefined {
     if (!decl) return
-    if (ts.isFunctionDeclaration(decl)) return decl
+    if (ts.isFunctionDeclaration(decl) || ts.isArrowFunction(decl) || ts.isFunctionExpression(decl))
+      return decl
     if (
       ts.isVariableDeclaration(decl) &&
       decl.initializer &&
@@ -71,24 +72,63 @@ export function productUsage(app: string, program: ts.Program): Usage {
     }
     return []
   }
-  function walk(fn: Component, props: Props) {
+  function bindObject(pattern: ts.ObjectBindingPattern, fields: Props, scope: Props) {
+    for (const item of pattern.elements) {
+      const key = (item.propertyName ?? item.name).getText()
+      scope[item.name.getText()] = fields[key] ?? values(item.initializer, scope)
+    }
+  }
+  function walkComponent(fn: Component, props: Props) {
+    const scope = { ...props }
+    const param = fn.parameters[0]?.name
+    if (param && ts.isObjectBindingPattern(param)) bindObject(param, props, scope)
+    walk(fn, scope)
+  }
+  function walkHelper(helper: Component, call: ts.CallExpression, caller: Props) {
+    const scope: Props = ts.findAncestor(helper.parent, ts.isFunctionLike) ? { ...caller } : {}
+    for (const [i, parameter] of helper.parameters.entries()) {
+      const arg = call.arguments[i]
+      const supplied =
+        arg &&
+        !(checker.getTypeAtLocation(arg).flags & (ts.TypeFlags.Undefined | ts.TypeFlags.Void))
+      const source = supplied ? arg : parameter.initializer
+      const environment = supplied ? caller : scope
+      if (ts.isIdentifier(parameter.name)) {
+        scope[parameter.name.text] = values(source, environment)
+      } else if (ts.isObjectBindingPattern(parameter.name)) {
+        const fields: Props = {}
+        if (source && ts.isObjectLiteralExpression(source)) {
+          for (const prop of source.properties) {
+            if (ts.isPropertyAssignment(prop))
+              fields[prop.name.getText()] = values(prop.initializer, environment)
+            if (ts.isShorthandPropertyAssignment(prop))
+              fields[prop.name.text] = values(prop.name, environment)
+          }
+          bindObject(parameter.name, fields, scope)
+        } else {
+          for (const item of parameter.name.elements) scope[item.name.getText()] = []
+        }
+      }
+    }
+    walk(helper, scope)
+  }
+  function walk(fn: Component, scope: Props) {
     const file = fn.getSourceFile().fileName
     if (!fn.body || file.startsWith(preview) || file.startsWith(workbench)) return
     const history = seen.get(fn) ?? new Set<string>()
-    const signature = JSON.stringify(props)
+    const signature = JSON.stringify(scope)
     if (history.has(signature)) return
     history.add(signature)
     seen.set(fn, history)
-    const scope = { ...props }
-    const param = fn.parameters[0]?.name
-    if (param && ts.isObjectBindingPattern(param)) {
-      for (const item of param.elements) {
-        const prop = (item.propertyName ?? item.name).getText()
-        scope[item.name.getText()] = props[prop] ?? values(item.initializer, scope)
-      }
-    }
+    const visitedValues = new Set<ts.VariableDeclaration>()
     function visit(node: ts.Node) {
-      if (ts.isFunctionDeclaration(node) || ts.isVariableDeclaration(node)) return
+      if (
+        ts.isFunctionDeclaration(node) ||
+        ts.isVariableDeclaration(node) ||
+        ts.isExpressionStatement(node) ||
+        ts.isVoidExpression(node)
+      )
+        return
       if (ts.isConditionalExpression(node) || ts.isIfStatement(node)) {
         const [condition, yes, no] = ts.isConditionalExpression(node)
           ? ([node.condition, node.whenTrue, node.whenFalse] as const)
@@ -113,6 +153,10 @@ export function productUsage(app: string, program: ts.Program): Usage {
             : left !== true
         if (evaluatesRight) visit(node.right)
         return
+      }
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+        const helper = component(declaration(node.expression))
+        if (helper && helper.getSourceFile() === fn.getSourceFile()) walkHelper(helper, node, scope)
       }
       if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
         const decl = declaration(node.tagName)
@@ -143,7 +187,7 @@ export function productUsage(app: string, program: ts.Program): Usage {
               }
             }
           }
-          walk(owner, attrs)
+          walkComponent(owner, attrs)
         }
       } else if (
         ts.isIdentifier(node) &&
@@ -156,11 +200,11 @@ export function productUsage(app: string, program: ts.Program): Usage {
           decl &&
           ts.isVariableDeclaration(decl) &&
           decl.initializer &&
-          !ts.isArrowFunction(decl.initializer) &&
+          !component(decl) &&
           decl.getSourceFile().fileName.startsWith(path.join(app, 'platform/')) &&
-          !seen.has(decl)
+          !visitedValues.has(decl)
         ) {
-          seen.set(decl, new Set())
+          visitedValues.add(decl)
           visit(decl.initializer)
         }
       }
@@ -175,31 +219,37 @@ export function productUsage(app: string, program: ts.Program): Usage {
     if (!symbol) return
     const decl = (symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol)
       .valueDeclaration
-    if (decl && ts.isExportAssignment(decl)) return component(declaration(decl.expression))
+    if (decl && ts.isExportAssignment(decl))
+      return component(decl.expression) ?? component(declaration(decl.expression))
     return component(decl)
   }
-  for (const file of program.getRootFileNames().filter(
-    (file) =>
-      path.basename(file) === 'page.tsx' &&
-      file.startsWith(path.join(app, 'platform/app/')) &&
-      !file.startsWith(workbench) &&
-      !path
-        .relative(path.join(app, 'platform/app'), file)
-        .split(path.sep)
-        .some((segment) => segment.startsWith('_'))
-  )) {
+  function walkEntry(file: string) {
     const sf = program.getSourceFile(file)
     const root = sf && entry(sf)
-    if (!root) continue
-    walk(root, {})
-    for (
-      let dir = path.dirname(file);
-      dir.startsWith(path.join(app, 'platform/app'));
-      dir = path.dirname(dir)
-    ) {
-      const layout = program.getSourceFile(path.join(dir, 'layout.tsx'))
-      const fn = layout && entry(layout)
-      if (fn) walk(fn, {})
+    if (root) walkComponent(root, {})
+  }
+  const segments = new Set<string>()
+  for (const file of program.getRootFileNames()) {
+    if (
+      path.basename(file) !== 'page.tsx' ||
+      !file.startsWith(appDir + path.sep) ||
+      file.startsWith(workbench) ||
+      path
+        .relative(appDir, file)
+        .split(path.sep)
+        .some((segment) => segment.startsWith('_'))
+    )
+      continue
+    walkEntry(file)
+    for (let dir = path.dirname(file); !segments.has(dir); dir = path.dirname(dir)) {
+      segments.add(dir)
+      for (const boundary of ['layout', 'template', 'error', 'loading', 'not-found']) {
+        walkEntry(path.join(dir, `${boundary}.tsx`))
+      }
+      if (dir === appDir) {
+        walkEntry(path.join(appDir, 'global-error.tsx'))
+        break
+      }
     }
   }
   return usage

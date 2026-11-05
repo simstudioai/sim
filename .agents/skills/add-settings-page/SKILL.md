@@ -1,9 +1,11 @@
 ---
 name: add-settings-page
-description: Add a new Sim settings page, or audit existing settings pages for design-system compliance with the shared SettingsPanel layout. Use when creating a settings tab, or when asked to check/clean up settings pages so they match the design system (consistent title, header, search, spacing).
+description: Add or audit settings pages that use SettingsPanel in the existing Sim app. Use implement-platform for isolated Platform settings.
 ---
 
 # Settings Page (add / audit)
+
+For `apps/sim/platform/**`, use [implement-platform](../implement-platform/SKILL.md). In a mixed request, apply the steps below only to the existing app's settings.
 
 Settings page chrome (header bar, scroll region, content column, nav-driven
 title + description) is owned by the `settings/[section]/layout.tsx` shell. Each
@@ -45,7 +47,7 @@ For each page component, confirm the checklist in `.claude/rules/sim-settings-pa
 Each grep lists candidates; review every match against the expected ones named below.
 
 1. Find hand-rolled shells that should be `SettingsPanel`:
-   `git grep -n "flex h-full flex-col bg-\[var(--bg)\]" -- 'apps/sim/**/settings/**' 'apps/sim/ee/'`
+   `git grep -n "flex h-full flex-col bg-\[var(--bg)\]" -- 'apps/sim/**/settings/**' 'apps/sim/ee/' ':(exclude)apps/sim/platform/**'`
    — expected matches: the workspace and organization `settings/layout.tsx` shells and the
    shared header shell (`components/settings/settings-header.tsx`); an entitlement/loading gate
    is also fine. `CredentialDetailLayout` (the `settings/secrets/[credentialId]` exception) is
@@ -53,12 +55,12 @@ Each grep lists candidates; review every match against the expected ones named b
    passes `back={{ text, icon: ArrowLeft, onSelect }}` to `SettingsPanel`. Anything else is a
    violation: render it through `SettingsPanel`.
 2. Find hand-rolled title blocks:
-   `git grep -n "text-\[var(--text-body)\] text-lg" -- 'apps/sim/**/settings/**' 'apps/sim/ee/'`
+   `git grep -n "text-\[var(--text-body)\] text-lg" -- 'apps/sim/**/settings/**' 'apps/sim/ee/' ':(exclude)apps/sim/platform/**'`
    — the only title is the `<h1>` in `settings-header.tsx`; a non-heading value at that size
    (e.g. the credit balance in `ee/organization-usage/components/usage-credits.tsx`) is fine.
 3. Find literal pixel text sizes (should be 0 — see "Text Scale" in
    `.claude/rules/sim-styling.md`):
-   `git grep -nE "text-\[1[0-8]px\]" -- 'apps/sim/**/settings/**' 'apps/sim/ee/'`.
+   `git grep -nE "text-\[1[0-8]px\]" -- 'apps/sim/**/settings/**' 'apps/sim/ee/' ':(exclude)apps/sim/platform/**'`.
    Display type above the scale (`text-[40px]` hero headings) is deliberate and out of
    scope.
 4. Confirm each page imports `SettingsPanel` and that its registry entry has an
@@ -66,7 +68,7 @@ Each grep lists candidates; review every match against the expected ones named b
    - Editable pages: confirm Save/Discard go through `saveDiscardActions()` and
      dirty is wired via `useSettingsUnsavedGuard` (called before early-return
      gates) — flag any hand-rolled Save button, `beforeunload`, or unsaved modal.
-     `git grep -n "beforeunload" -- 'apps/sim/**/settings/**' 'apps/sim/ee/' 'apps/sim/components/settings/' ':(exclude,glob)**/*.test.*'`
+     `git grep -n "beforeunload" -- 'apps/sim/**/settings/**' 'apps/sim/ee/' 'apps/sim/components/settings/' ':(exclude)apps/sim/platform/**' ':(exclude,glob)**/*.test.*'`
      should only hit the centralized `use-settings-browser-navigation.ts`.
 5. Fix each finding with the smallest structural change that satisfies the checklist;
    do not touch handlers, state, queries, or gate returns. A pixel-size fix swaps

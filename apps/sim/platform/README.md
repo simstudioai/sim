@@ -2,6 +2,8 @@
 
 The new Platform starts here as a standalone Next.js App Router project inside `apps/sim`. Its root opens the product Home screen. Home, Chat and Settings use the new EMCN library. These routes share installed dependencies with Sim and have no database, API, authentication or legacy app providers. The existing Sim app continues to start and build as before.
 
+To start or resume work in a new Sim chat, say “Use `$implement-platform` to [add, change, consolidate, or remove the UI] on [route].” The [implementation skill](../../../.agents/skills/implement-platform/SKILL.md) reads the [contract](AGENTS.md) and [ownership map](docs/component-ownership.md) for the checkout containing that route. Name the Paper section when implementing an existing design. For a code-first change, describe the desired behavior, where it should apply, and what you want to see on the live page.
+
 From the repository root:
 
 ```sh
@@ -80,6 +82,6 @@ The Platform type check generates Next.js route types and checks the isolated pr
 
 The browser suite starts separate production servers with fixtures enabled and disabled. Supply `PLATFORM_REPORT_PATH` to save JSON, failure screenshots and traces. Next uses webpack for this nested app: the installed Turbopack also discovers the parent Sim project's proxy and instrumentation. Watch for that boundary when upgrading Next.
 
-The static check covers ownership, styling props, evidence, tokens, code usage and dependency direction. It cannot establish that a browser rendering matches Paper. Compare both themes, keyboard and pointer states, actual overflow, text scaling and widths between approved artboards. Build the standalone app before running the browser suite to test the current sources.
+The static check covers ownership, styling props, evidence, tokens, variant use and dependency direction. If it flags a variant used on a real route, verify the call path and add that case to the checker. A workbench example cannot establish product usage. Use the rendered route to verify visual alignment. Compare both themes, keyboard and pointer states, actual overflow, text scaling and widths between approved artboards. Build the standalone app before running the browser suite to test the current sources.
 
 References: [Next project structure](https://nextjs.org/docs/app/getting-started/project-structure), [Next styling](https://nextjs.org/docs/app/getting-started/css), [Tailwind theme variables](https://tailwindcss.com/docs/theme), [shadcn/ui composition](https://ui.shadcn.com/docs), [Playwright assertions](https://playwright.dev/docs/test-assertions).

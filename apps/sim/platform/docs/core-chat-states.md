@@ -4,6 +4,12 @@ These rows inventory the original Paper states. The [current product contract](.
 
 Source: [Platform: Core](https://app.paper.design/file/01M6A91A32GBA6GTN4HASVG0ER) and [Platform: Chat](https://app.paper.design/file/01M6ABW6M1BXJE1J513A6VR6TY). Read back November 4, 2026. This inventories the source examples for this slice; rows and viewport values are references, not breakpoints or a per-screen screenshot certification. Wiki and Workspace product screens are excluded.
 
+## Current Home composition
+
+Below the composer, the first column contains the activity chart and Email. The second contains Needs your attention and Calendar. On narrow screens the columns stack in that order. The Home Workspaces card was retired. Workspaces remain available in the sidebar and chat panel.
+
+Hide Email or Calendar from the widget menu or Customize Home. Email and calendar rows reserve hover for selection. Widget visibility belongs to the section controls. An empty calendar day keeps its scrollable hours. The activity chart’s inspected point uses the line’s opaque color without an outline.
+
 ## Settings coverage
 
 Core contains 19 Settings specimens in fourteen rows across the two themes. Each shows Preferences, its sidebar, or a state of one of its controls. The central Settings rows accept the actual trailing control: an editable profile picture or name, account email, theme or font picker, or notification switch. At narrow widths a long selector moves below its label. The mobile drawer supports the empty query, matching results, no matches and clear action. Desktop uses the host toolbar.

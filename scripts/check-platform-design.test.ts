@@ -127,24 +127,73 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       function Unused(){return <Action variant="ghost"/>}
       function Nested({choice}:{choice:'primary'|'ghost'}) {return <Action variant={choice}/>}
       export default function Page(){return <Nested choice="primary"/>}`
-    write('platform/app/page.tsx', productPage)
+    write(
+      'platform/app/page.tsx',
+      productPage.replace(
+        'function Page(){return',
+        'function Page(){function discarded(){return <Nested choice="ghost"/>} (discarded()); return'
+      )
+    )
     write(
       'platform/app/workbench/page.tsx',
       `import { Button } from '@/platform/design-system/components/button/button'
       export default function Workbench(){return <main><Button variant="ghost"/></main>}`
     )
+    for (const file of ['workbench/loading', '_draft/error', 'orphan/error', '@unused/default']) {
+      write(`platform/app/${file}.tsx`, productPage.replace('choice="primary"', 'choice="ghost"'))
+    }
     expect(audit()).toEqual({
       status: 1,
       output: expect.stringContaining('[code-use] Button.variant=ghost'),
     })
+
+    const boundaries = {
+      'platform/app/template.tsx': 'template',
+      'platform/app/account/error.tsx': 'error',
+      'platform/app/account/loading.tsx': 'loading',
+      'platform/app/account/not-found.tsx': 'not-found',
+      'platform/app/global-error.tsx': 'global-error',
+    }
+    write('platform/app/account/details/page.tsx', 'export default function Page(){return null}')
+    const choices = ['primary', 'ghost', 'shadow', 'defaulted', ...Object.values(boundaries)]
+    writeCatalog('variants', {
+      Button: { variant: Object.fromEntries(choices.map((choice) => [choice, []])) },
+    })
+    write(
+      `${component}/button.tsx`,
+      `export function Button({variant}:{variant:${choices.map((choice) => JSON.stringify(choice)).join('|')}}) {
+        return <button data-variant={variant}/>;
+      }`
+    )
+    for (const [file, variant] of Object.entries(boundaries)) {
+      write(
+        file,
+        `import {Button} from '@/${component}/button';
+         export default function State(){return <Button variant="${variant}"/>}`
+      )
+    }
     write(
       'platform/app/page.tsx',
-      productPage.replace(
-        '<Nested choice="primary"/>',
-        '<><Nested choice="primary"/><Nested choice="ghost"/></>'
-      )
+      `import {Button} from '@/${component}/button';
+       function Row({choice}:{choice:'primary'|'ghost'}) {
+         const render = (kind = choice) => <Button variant={kind}/>;
+         function shadow({choice = 'shadow'} = {}){return <Button variant={choice}/>}
+         const withDefault = (choice = 'defaulted') => <Button variant={choice}/>;
+         return <>{render()}{shadow({})}{withDefault(undefined)}</>;
+       }
+       function renderRow(choice:'primary'|'ghost'){return <Row choice={choice}/>}
+       export default function Page(){return <>{renderRow('primary')}{renderRow('ghost')}</>}`
     )
-    expect(audit()).toEqual({ status: 0, output: expect.stringContaining('passed') })
+    const reachable = audit()
+    expect(reachable.output).toContain('Platform design passed')
+    expect(reachable.status).toBe(0)
+    for (const file of Object.keys(boundaries)) rmSync(path.join(APP, file))
+    writeCatalog('variants', { Button: { variant: { primary: ['C0092'], ghost: ['C0111'] } } })
+    write(
+      `${component}/button.tsx`,
+      `interface ButtonProps {variant:'primary' | 'ghost'}
+       export function Button({variant}: ButtonProps) {return <button data-variant={variant}/>}`
+    )
 
     const inactive = [
       'false && <Nested choice="ghost"/>',
