@@ -16,9 +16,11 @@
 }
 .items {
   gap: var(--ui-list-gap);
+  list-style: disc outside;
+  padding-inline-start: var(--spacing-16);
   overflow-wrap: anywhere;
 }
-.items,
+.items li::marker,
 .heading p {
   color: var(--ui-secondary);
 }

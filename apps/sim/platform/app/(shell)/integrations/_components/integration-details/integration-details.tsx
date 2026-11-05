@@ -84,20 +84,19 @@ export function IntegrationDetails({ integration, onChange }: IntegrationDetails
         titleRef={titleRef}
         description={integration.description}
         providerId={providerId}
-      >
-        {account && !staleCredential && (
-          <ConnectedCredential
-            account={account}
-            status={memberStatus(integration)}
-            canAuthorize={canAuthorize}
-            onReconnect={() => {
-              if (canAuthorize && account.canReconnect)
-                onChange({ ...integration, account: { ...account, status: 'active' } })
-            }}
-            onDisconnect={disconnect}
-          />
-        )}
-      </ProviderHeading>
+      />
+      {account && !staleCredential && (
+        <ConnectedCredential
+          account={account}
+          status={memberStatus(integration)}
+          canAuthorize={canAuthorize}
+          onReconnect={() => {
+            if (canAuthorize && account.canReconnect)
+              onChange({ ...integration, account: { ...account, status: 'active' } })
+          }}
+          onDisconnect={disconnect}
+        />
+      )}
       {staleCredential ? (
         <EmptyState
           title='This credential is no longer connected'

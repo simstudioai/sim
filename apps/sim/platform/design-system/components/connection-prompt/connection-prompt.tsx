@@ -19,25 +19,19 @@ export function ConnectionPrompt({ title, options, setupGuideUrl }: ConnectionPr
     <div className={styles.prompt} data-material='shell'>
       <p data-type='T060'>{title}</p>
       <div className={styles.providers}>
+        {setupGuideUrl && (
+          <ControlRow
+            render={<Link href={setupGuideUrl} target='_blank' rel='noopener noreferrer' />}
+            icon='I079'
+            label='Docs'
+            accessibleLabel='Docs (opens in a new tab)'
+          />
+        )}
         {options.map(({ label, icon, onConnect }) => (
           <Button key={label} icon={icon} onClick={onConnect} disabled={!onConnect}>
             {label}
           </Button>
         ))}
-        {setupGuideUrl && (
-          <ControlRow
-            render={
-              <Link
-                href={setupGuideUrl}
-                target='_blank'
-                rel='noopener noreferrer'
-                aria-label='Setup guide (opens in a new tab)'
-              />
-            }
-            label='Setup guide'
-            trailingIcon='I030'
-          />
-        )}
       </div>
     </div>
   )

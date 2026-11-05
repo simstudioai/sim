@@ -67,11 +67,9 @@ export function ToolPermissions({ account, permissions, onChange }: ToolPermissi
           ACTIONS.find((action) => action.value === defaultValue)?.label ?? defaultValue
         return (
           <section key={kind} className={styles.group} aria-label={label}>
-            <div className={styles.groupTitle}>
-              <h3 data-type='T059'>
-                <CountedLabel label={label} count={tools.length} />
-              </h3>
-            </div>
+            <h3 data-type='T059'>
+              <CountedLabel label={label} count={tools.length} />
+            </h3>
             <ul className={styles.list}>
               {matching.map((tool) => (
                 <li className={styles.tool} key={tool.id}>

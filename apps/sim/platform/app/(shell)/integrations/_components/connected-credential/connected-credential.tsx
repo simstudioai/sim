@@ -22,44 +22,44 @@ export function ConnectedCredential({
 }: ConnectedCredentialProps) {
   const [confirming, setConfirming] = useState(false)
   return (
-    <section aria-label='Connected credential' className={styles.credential}>
-      <div className={styles.identity}>
-        <h2 className={styles.muted} data-type='T050'>
-          Connected credential
-        </h2>
-        <p data-type='T059'>{account.label}</p>
-        {status && (
-          <p className={styles.muted} data-type='T050'>
-            {status}
-          </p>
-        )}
+    <section aria-label='Connected credential' className={styles.section}>
+      <h2 data-type='T042'>Connected credential</h2>
+      <div className={styles.row}>
+        <div className={styles.identity}>
+          <p data-type='T059'>{account.label}</p>
+          {status && (
+            <p className={styles.muted} data-type='T050'>
+              {status}
+            </p>
+          )}
+        </div>
+        <ActionMenu
+          label={`Manage ${account.label}`}
+          icon='I108'
+          triggerSize='row'
+          align='end'
+          tooltip={false}
+          actions={[
+            ...(account.canReconnect
+              ? [
+                  {
+                    id: 'reconnect',
+                    label: 'Reconnect account',
+                    disabled: !canAuthorize,
+                    onSelect: onReconnect,
+                  },
+                ]
+              : []),
+            {
+              id: 'disconnect',
+              label: 'Disconnect account',
+              destructive: true,
+              separatorBefore: account.canReconnect,
+              onSelect: () => setConfirming(true),
+            },
+          ]}
+        />
       </div>
-      <ActionMenu
-        label={`Manage ${account.label}`}
-        icon='I108'
-        triggerSize='row'
-        align='end'
-        tooltip={false}
-        actions={[
-          ...(account.canReconnect
-            ? [
-                {
-                  id: 'reconnect',
-                  label: 'Reconnect account',
-                  disabled: !canAuthorize,
-                  onSelect: onReconnect,
-                },
-              ]
-            : []),
-          {
-            id: 'disconnect',
-            label: 'Disconnect account',
-            destructive: true,
-            separatorBefore: account.canReconnect,
-            onSelect: () => setConfirming(true),
-          },
-        ]}
-      />
       {confirming && (
         <Modal
           open

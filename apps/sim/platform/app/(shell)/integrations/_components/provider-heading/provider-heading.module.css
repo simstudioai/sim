@@ -9,16 +9,10 @@
   place-items: center;
   block-size: var(--leading-32);
 }
-.content,
 .copy {
   display: grid;
   min-inline-size: 0;
   overflow-wrap: anywhere;
-}
-.content {
-  gap: var(--ui-section-gap);
-}
-.copy {
   gap: var(--ui-stack-gap);
 }
 .copy p {

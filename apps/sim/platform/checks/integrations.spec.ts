@@ -9,7 +9,7 @@ test('an approved app can connect and disconnect a sample account during the sam
   const list = page.getByRole('main')
   await list.getByRole('searchbox', { name: 'Search integrations' }).fill('Linear issues')
   await list.getByRole('link', { name: /^Linear / }).click()
-  const guide = list.getByRole('link', { name: /Setup guide/ })
+  const guide = list.getByRole('link', { name: 'Docs (opens in a new tab)', exact: true })
   await expect(guide).toHaveAttribute('href', 'https://docs.sim.ai/search/linear')
   await expect(guide).toHaveAttribute('target', '_blank')
   await list.getByRole('button', { name: 'Linear', exact: true }).click()
