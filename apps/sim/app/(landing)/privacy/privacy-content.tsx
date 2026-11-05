@@ -812,7 +812,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'When You ask Sim to attach a page or selection, or open Sim from its toolbar button with Reference current page off, the browser extension reads the requested text from the top frame of that page and transfers it, the page title, and a normalized page address to the hosted Sim composer. URL credentials, query parameters, and fragments are removed. The extractor skips form inputs, editable fields, scripts, embedded frames, and elements it detects as hidden. Page text, including text in collapsed sections, may still contain personal or sensitive information, such as personal communications or health, financial, or authentication information.'
+            'When You ask Sim to attach a page or selection, or open Sim from its toolbar button or keyboard shortcut with Reference current page off, the browser extension reads the requested text from the top frame of that page and transfers it, the page title, and a normalized page address to the hosted Sim composer. URL credentials, query parameters, and fragments are removed. The extractor skips form inputs, editable fields, scripts, embedded frames, and elements it detects as hidden. Page text, including text in collapsed sections, may still contain personal or sensitive information, such as personal communications or health, financial, or authentication information.'
           ),
         },
         {
