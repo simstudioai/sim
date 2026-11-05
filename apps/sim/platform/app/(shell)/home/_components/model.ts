@@ -81,6 +81,17 @@ export type HomeActivityState =
   | { status: 'error'; retrying: boolean }
   | { status: 'ready'; points: readonly ActivityPoint[] }
 
+export interface HomeWorkspaceItem {
+  id: string
+  name: string
+  href: string
+  /** Absent while the viewer's activity read has nothing to say about this workspace. */
+  detail?: string
+  status?: 'review' | 'running'
+  /** Shown in place of a status, as when the newest run started. */
+  lastRunAt?: number
+}
+
 export interface HomeGetStartedStep {
   id: string
   title: string
@@ -97,6 +108,9 @@ export interface HomeView {
   activity: HomeActivityState
   email: HomeWidgetState<readonly EmailItem[]>
   calendar: HomeWidgetState<HomeCalendarDay>
+  /** The viewer's workspaces, the sidebar's rows. Nothing renders for a viewer with none. */
+  workspaces: HomeListState<HomeWorkspaceItem>
+  workspaceCount: number
   recents: HomeListState<RecentItem>
   getStarted: readonly HomeGetStartedStep[]
   hiddenWidgets: readonly OrganizationHomeWidget[]
@@ -118,6 +132,7 @@ export interface HomeActions {
   returnToToday: () => void
   retryAttention: () => void
   retryActivity: () => void
+  retryWorkspaces: () => void
   retryRecents: () => void
   removeRecent: (id: string) => void
   setWidgetHidden: (widget: OrganizationHomeWidget, hidden: boolean) => void

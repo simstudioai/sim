@@ -13,15 +13,17 @@ import { CalendarDay } from '@/platform/app/(shell)/home/_components/calendar/ca
 import { ConnectedWidget } from '@/platform/app/(shell)/home/_components/connected-widget/connected-widget'
 import { GetStarted } from '@/platform/app/(shell)/home/_components/get-started/get-started'
 import styles from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css'
+import { HomeWorkspaces } from '@/platform/app/(shell)/home/_components/home-workspaces/home-workspaces'
 import type { HomeActions, HomeView } from '@/platform/app/(shell)/home/_components/model'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { SkeletonLane } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import { ActionMenu, Icon, InlineNotice, RecentItems } from '@/platform/design-system/components'
 import type { OrganizationHomeWidget } from '@/stores/organization-home/store'
 
-const WIDGETS: readonly OrganizationHomeWidget[] = ['Activity', 'Email', 'Calendar']
+const WIDGETS: readonly OrganizationHomeWidget[] = ['Activity', 'Workspaces', 'Email', 'Calendar']
 const WIDGET_LABELS: Record<OrganizationHomeWidget, string> = {
   Activity: 'Tasks run',
+  Workspaces: 'Workspaces',
   Email: 'Email',
   Calendar: 'Calendar',
 }
@@ -44,7 +46,9 @@ export function HomeDashboard({ view, actions, requestMode, composer }: HomeDash
   const { notify, dismiss } = usePlatformNotices()
   const { activity, hiddenWidgets } = view
   const customizable = WIDGETS.filter(
-    (widget) => widget !== 'Activity' || activity.status !== 'hidden'
+    (widget) =>
+      (widget !== 'Activity' || activity.status !== 'hidden') &&
+      (widget !== 'Workspaces' || view.workspaceCount > 0)
   )
   function setVisible(widget: OrganizationHomeWidget, visible: boolean) {
     const id = `hide-${widget}`
@@ -124,6 +128,21 @@ export function HomeDashboard({ view, actions, requestMode, composer }: HomeDash
                     onRetry={actions.retryActivity}
                   />
                 )}
+                <AttentionList
+                  state={view.attention}
+                  asOf={view.asOf}
+                  onRetry={actions.retryAttention}
+                />
+                {!hiddenWidgets.includes('Workspaces') && (
+                  <HomeWorkspaces
+                    state={view.workspaces}
+                    count={view.workspaceCount}
+                    asOf={view.asOf}
+                    onRetry={actions.retryWorkspaces}
+                  />
+                )}
+              </div>
+              <div className={styles.column}>
                 {!hiddenWidgets.includes('Email') && (
                   <ConnectedWidget
                     title='Email'
@@ -136,13 +155,6 @@ export function HomeDashboard({ view, actions, requestMode, composer }: HomeDash
                     )}
                   </ConnectedWidget>
                 )}
-              </div>
-              <div className={styles.column}>
-                <AttentionList
-                  state={view.attention}
-                  asOf={view.asOf}
-                  onRetry={actions.retryAttention}
-                />
                 {!hiddenWidgets.includes('Calendar') && (
                   <ConnectedWidget
                     title='Calendar'

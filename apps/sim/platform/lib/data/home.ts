@@ -26,9 +26,11 @@ import { useOrganizationActivitySummary } from '@/hooks/queries/organization-act
 import {
   useOrganizationHomeCalendar,
   useOrganizationHomeEmail,
+  useOrganizationHomeWorkspaceActivity,
 } from '@/hooks/queries/organization-home'
 import { useRemoveSearchHistorySource, useSearchHistory } from '@/hooks/queries/search-history'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
+import { useOrderedWorkspacesQuery } from '@/hooks/queries/workspace'
 import type {
   AttentionItem,
   EmailItem,
@@ -40,6 +42,7 @@ import type {
   HomeView,
   HomeWidgetActions,
   HomeWidgetState,
+  HomeWorkspaceItem,
 } from '@/platform/app/(shell)/home/_components/model'
 import { homeDayParam } from '@/platform/app/(shell)/home/search-params'
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
@@ -55,6 +58,7 @@ import {
   toCalendarDay,
   toEmailItems,
   toHomeConnection,
+  toHomeWorkspaceItems,
   toReadAccounts,
   toReadableProviders,
   toRecentItems,
@@ -62,6 +66,7 @@ import {
   wallClockMinute,
 } from '@/platform/lib/data/home-model'
 import { useIntegrationActions } from '@/platform/lib/data/integrations'
+import { workspaceHref } from '@/platform/lib/data/workspaces'
 import { MINUTE_MS } from '@/platform/lib/time'
 import {
   type OrganizationHomeWidget,
@@ -315,6 +320,42 @@ function useHomeAttention(
   }
 }
 
+/**
+ * The sidebar's list, from the same cache entry, so the rows cost no request and the two cannot
+ * disagree. A viewer with no workspaces never asks for activity. A failed activity read keeps the
+ * rows and says so, because a row with no status must not pass for an idle one.
+ */
+function useHomeWorkspaces(organizationId: string, hidden: boolean) {
+  const list = useOrderedWorkspacesQuery()
+  const workspaces = (list.data ?? [])
+    .filter((workspace) => workspace.organizationId === organizationId)
+    .map(({ id, name }) => ({ id, name, href: workspaceHref(id) }))
+  const activity = useOrganizationHomeWorkspaceActivity(organizationId, {
+    enabled: workspaces.length > 0 && !hidden,
+  })
+  const state = ((): HomeListState<HomeWorkspaceItem> => {
+    if (!list.data)
+      return list.isError
+        ? { status: 'error', retrying: list.isFetching }
+        : { status: 'ready', items: [] }
+    if (workspaces.length === 0) return { status: 'ready', items: [] }
+    if (!activity.data && !activity.isError) return { status: 'loading' }
+    return {
+      status: 'ready',
+      items: toHomeWorkspaceItems(workspaces, activity.data),
+      partial: !activity.data || activity.isRefetchError,
+    }
+  })()
+  return {
+    state,
+    count: workspaces.length,
+    retry: () => {
+      if (!list.data) void list.refetch()
+      else void activity.refetch()
+    },
+  }
+}
+
 function firstNameOf(user: { name?: string | null; email?: string | null } | null | undefined) {
   return user?.name && user.name !== user.email ? user.name.split(/\s/u)[0] : undefined
 }
@@ -364,6 +405,7 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
     timeZone,
     hiddenWidgets.includes('Activity')
   )
+  const workspaces = useHomeWorkspaces(organizationId, hiddenWidgets.includes('Workspaces'))
   const recents = useHomeRecents(organization, session?.user?.id)
   const attention = useHomeAttention(
     organization,
@@ -386,6 +428,8 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
       activity: activity.state,
       email: email.state,
       calendar: calendar.state,
+      workspaces: workspaces.state,
+      workspaceCount: workspaces.count,
       recents: recents.state,
       getStarted,
       hiddenWidgets,
@@ -402,6 +446,7 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
       returnToToday: () => showDay(null),
       retryAttention: attention.retry,
       retryActivity: activity.retry,
+      retryWorkspaces: workspaces.retry,
       retryRecents: recents.retry,
       removeRecent: recents.remove,
       setWidgetHidden: (widget, hidden) => setWidgetHidden(viewer, widget, hidden),
