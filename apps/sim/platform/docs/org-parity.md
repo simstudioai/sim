@@ -173,7 +173,7 @@ Every row runs on live data through `lib/data/members.ts`. Proof quotes a test i
 | Section access, aliases `organization` and `team` | `O/settings/[section]`, `O/settings/navigation.ts` | Unverified | No live check yet. Section gate from `settingsSections`; aliases resolved by `lib/platform/routes.ts` before arrival |
 | Viewer role from the viewer's roster row, falling back to the server-read surface, never Better Auth's capped list | `TM/team-management.tsx` | Done | "plain member sees no controls" |
 | Roster, name and email, avatar, joined date, directory deactivation, empty, loading and error with retry, prefetch for first paint | `organization-member-lists.tsx`, `settings-query-warmers.ts` | Done | "a role change persists", "a plain member sees no controls". Failure with retry has no live check |
-| Search across every section in `?search=`, sections collapse, no-match copy | `organization-member-lists.tsx` | Unverified | No live check yet. Needs a spec |
+| Search across every section in `?search=`, sections collapse, no-match copy | `organization-member-lists.tsx` | Done | "member search lives in the URL" |
 | Change role, with row controls matching the server's guards | `organization-member-lists.tsx` | Done | "a role change persists" |
 | Role, resend, revoke and workspace mutation failures reach the viewer. Legacy only logged them | `organization-member-lists.tsx` | Done, not copied | "a failed one is reported" for the role. Resend, revoke and workspace mutations have no live check |
 | Remove member. Path parameter is the user id | `TM/team-management.tsx`, `remove-member-dialog.tsx` | Done | "removal holds on its disclosure" |
@@ -183,7 +183,7 @@ Every row runs on live data through `lib/data/members.ts`. Proof quotes a test i
 | Manage credits, gated on hosted. Legacy offered it self-hosted, where the API answers 404, and showed no error | `manage-credits-modal.tsx` | Unverified | No live check yet. Load failure shows a retry |
 | Seats: none with View plans, Team count with pending, Enterprise meter and over limit, error with retry | `team-seats-overview.tsx` | Unverified | No live check yet. Needs billing seed |
 | Per-workspace sections, permission select, lock reason, remove from workspace. Legacy offered removal of the billed account, which the server refuses | `organization-member-lists.tsx`, `components/permissions/role-lock.tsx` | Unverified | No live check yet. Needs workspace seed |
-| Pending invites: role, grant, resend, revoke | `organization-member-lists.tsx` | Unverified | No live check yet. Invite created by "partial invite failure" |
+| Pending invites: role, grant, resend, revoke | `organization-member-lists.tsx` | Done | "a pending invite resends and revokes". Role and grant edits have no live check |
 | Invite from Members and the org menu, role choice, format and self rejection, advisory seat check, success summary | `invite-modal.tsx` | Done | "a partial invite failure" |
 | Partial invite failure retains only the failed addresses, with reasons | `invite-modal.tsx` | Done | "a partial invite failure" |
 | Invite's workspace picker and External membership | `invite-modal.tsx` | Legacy | Only offered from a workspace entry, and none exists on this surface |
@@ -197,7 +197,7 @@ Every row runs on live data through `lib/data/requests.ts`, with the legacy quer
 
 | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- |
-| View switch, default review for administrators | `AR/access-requests-settings.tsx` | Unverified | No live check yet |
+| View switch, default review for administrators | `AR/access-requests-settings.tsx` | Done | "Requests opens for an administrator" |
 | Legacy query parameters, including `view=admin` and `request-id` | `AR/search-params.ts`, `ee/access-requests/lib/navigation.ts` | Unverified | No live check yet. `requests-section.tsx` normalizes through the legacy function |
 | My requests, paging, status, empty and error states | `AR/access-requests-settings.tsx` | Unverified | No live check yet |
 | Browse access, search, available and pending states, paused notice | `AR/access-requests-settings.tsx` | Unverified | No live check yet |
@@ -208,7 +208,7 @@ Every row runs on live data through `lib/data/requests.ts`, with the legacy quer
 | Review: preview, policy changes and details, credit limit, decline reason, `expectedFingerprint` on apply | `AR/access-request-review.tsx`, `AR/policy-changes.tsx` | Unverified | No live check yet. Description helpers shared through `ee/access-requests/lib/policy-description.ts` |
 | Cross-surface prompts: `PermissionAccessBoundary`, `MemberLimitRequestAction` | `AR/permission-access-boundary.tsx` | Legacy | Read `workspaceId` from a workspace route; no such surface here |
 
-No Requests spec exists yet: it needs a seeded requester, a governing permission group and a reviewer. Every row here is Unverified until one exists.
+`flows.spec.ts` opens the section and switches its view. Nothing else here is exercised: it needs a seeded requester, a governing permission group and a reviewer.
 
 ## People
 
@@ -256,8 +256,8 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Branded metadata and whitelabel theme | `app/layout.tsx` | Open | Settings owner, with White-labeling |
 | Analytics and telemetry, including `docs_opened` and `slack_community_opened` | `app/layout.tsx`, `organization-sidebar.tsx` | Open | No PostHog provider is mounted here, so the help menu sends no events |
 | Error and success toasts | `@sim/emcn` `toast` | Unverified | No live check yet. Foundation: `lib/data/toast.ts`, `useToastNotices` |
-| Collapse toggle | `organization-sidebar.tsx` | Unverified | No live check yet. `platform-shell.tsx` |
-| Collapse persisted, no flash | `stores/sidebar/store.ts` | Unverified | No live check yet. `sidebar_collapsed` read in `live-shell.tsx`, written in `sidebar-layout.tsx` |
+| Collapse toggle | `organization-sidebar.tsx` | Done | "Mod+B collapses the sidebar" |
+| Collapse persisted, no flash | `stores/sidebar/store.ts` | Done | "Mod+B collapses the sidebar" |
 | Collapsed icon rail with flyouts | `organization-sidebar.tsx` | Hidden | Product decision: the Platform collapses to its opener control, with no rail |
 | Drag to resize | `useSidebarResize` | Hidden | Product decision: the Platform sidebar has one width |
 | Desktop hover peek | `useSidebarPeek` | Hidden | Product decision: follows the rail decision |
@@ -265,9 +265,9 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Phone viewport containment | `workspace-viewport.tsx` | Open | Shell owner: needs a device check, and none has been possible yet. The shell uses `100dvh` |
 | Desktop titlebar insets | `workspace-chrome.tsx` | Unverified | No live check yet. Existing `desktop-host.tsx` |
 | Desktop menu commands | `workspace-chrome.tsx` | Unverified | No live check yet. `useDesktopCommands` in `desktop-host.tsx` |
-| `Mod+B` toggles the sidebar | `commands.ts` | Unverified | No live check yet. `platform-shell.tsx`, skips editable fields |
+| `Mod+B` toggles the sidebar | `commands.ts` | Done | "Mod+B collapses the sidebar" |
 | Global command registry semantics | `global-commands-provider.tsx` | Unverified | No live check yet. Editable guard ported for `Mod+B`. The Platform has two commands and nothing claims `Mod+B` through `data-owned-shortcuts`, so no registry |
-| `Mod+K` palette | Platform only | Unverified | No live check yet. `command-menu.tsx`: gated destinations, real workspace and chat links |
+| `Mod+K` palette | Platform only | Done | "Mod+K opens the palette" |
 | Home, Search, People, Integrations, Benchmark entries | `navigation.ts` | Done | "navigation lists what the surface grants". Integrations links to Emir's empty live page: see Integrations |
 | Sim Links entry | `navigation.ts` | Unverified | No live check yet. Settings section `links`, gated by `navFlags.simLinks` |
 | Nav right click: new tab, copy link | `organization-sidebar.tsx` | Done | "navigation lists what the surface grants" |
@@ -283,15 +283,15 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Settings entry | `organization-header.tsx` | Unverified | No live check yet. Existing `organization-menu.tsx` |
 | Invite entry | `organization-header.tsx` | Done | "a member sees no identity controls" |
 | Invite form | `invite-modal.tsx` | Unverified | No live check yet. `_components/invite-modal/invite-modal.tsx` |
-| Workspace list, pinned then by visits | `use-organization-workspaces.ts` | Unverified | No live check yet. `lib/data/shell.ts`, `workspaces-section.tsx` |
+| Workspace list, pinned then by visits | `use-organization-workspaces.ts` | Done | "a workspace pins and renames" |
 | Workspace logo tile | `workspace-list.tsx` | Hidden | Design contract: workspace names are text-only |
 | No workspaces yet, silent while loading, retry on failure | `workspace-list.tsx` | Unverified | No live check yet. `section-status.tsx` |
 | See more and See less | `workspace-list.tsx` | Unverified | No live check yet. `workspaces-section.tsx` |
 | Switch workspace | `workspace-list.tsx` | Done | "creating a workspace opens it" |
 | Row options and right click | `workspace-list.tsx` | Unverified | No live check yet. `workspaces-section.tsx` |
 | Open in new tab | `workspace-list.tsx` | Unverified | No live check yet. `row-links.ts` |
-| Rename | `workspace-list.tsx` | Unverified | No live check yet. Admin only. A dialog here, as the design contract asks for forms |
-| Pin and unpin | `workspace-list.tsx` | Unverified | No live check yet. `lib/data/workspaces.ts` |
+| Rename | `workspace-list.tsx` | Done | "a workspace pins and renames". Admin only |
+| Pin and unpin | `workspace-list.tsx` | Done | "a workspace pins and renames" |
 | New workspace button with disabled reason | `workspaces-section.tsx` | Unverified | No live check yet. `workspaces-section.tsx` |
 | Create workspace, then enter it | `create-workspace-modal.tsx` | Done | "creating a workspace opens it" |
 | Section open and closed | `sidebar-section.tsx` | Unverified | No live check yet. Existing `sidebar-layout.tsx` |
@@ -304,8 +304,8 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Row options and right click | `use-organization-chat-actions.ts` | Done | "a chat renames and deletes" |
 | Shift multi-select, background click clears | `use-chat-selection.ts` | Unverified | No live check yet. Local to `chats-section.tsx` |
 | Rename | `use-organization-chat-actions.ts` | Done | "a chat renames and deletes" |
-| Pin and unpin | `use-organization-chat-actions.ts` | Unverified | No live check yet. `lib/data/chat-list.ts` |
-| Mark read and unread | `use-organization-chat-actions.ts` | Unverified | No live check yet. `lib/data/chat-list.ts` |
+| Pin and unpin | `use-organization-chat-actions.ts` | Done | "a chat pins and marks unread" |
+| Mark read and unread | `use-organization-chat-actions.ts` | Done | "a chat pins and marks unread" |
 | Open in new tab, copy link | `use-organization-chat-actions.ts` | Unverified | No live check yet. `row-links.ts` |
 | Delete one or many, partial failure, redirect if current | `use-organization-chat-actions.ts` | Done | "a chat renames and deletes" for one. Bulk and partial failure have no live check |
 | Prefetch chat on hover | `chat-navigation-link.tsx` | Unverified | No live check yet. `lib/data/chat-list.ts`, on pointer dwell only. Legacy also reads on focus and press |
