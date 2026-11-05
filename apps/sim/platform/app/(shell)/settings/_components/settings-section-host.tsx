@@ -11,8 +11,13 @@ import { LoadingState } from '@/platform/app/(shell)/settings/_components/sectio
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { SettingsScreen } from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen'
 
-/** Sections that link their docs from inside, per tab or as a row. */
-const OWN_DOCS_LINK: ReadonlySet<PlatformSettingsSection> = new Set(['sso', 'search-mcp'])
+/** A tab with its own guide, in the section's one Docs position. */
+const TAB_DOCS: Partial<Record<PlatformSettingsSection, Readonly<Record<string, string>>>> = {
+  sso: {
+    domains: 'https://docs.sim.ai/platform/enterprise/verified-domains',
+    provisioning: 'https://docs.sim.ai/platform/enterprise/scim',
+  },
+}
 
 const loading = () => <LoadingState label='Loading settings' />
 
@@ -161,7 +166,7 @@ export function PlatformSettingsSectionHost({
         <SettingsScreen
           title={meta?.title ?? 'Settings'}
           description={meta?.description}
-          docsHref={OWN_DOCS_LINK.has(section) ? undefined : meta?.docsLink}
+          docsHref={TAB_DOCS[section]?.[params.get('tab') ?? ''] ?? meta?.docsLink}
         >
           <Section organization={organization} subpath={subpath} query={query} />
         </SettingsScreen>

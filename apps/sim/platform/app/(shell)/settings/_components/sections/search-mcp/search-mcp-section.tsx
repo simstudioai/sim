@@ -8,7 +8,7 @@ import {
   Preformatted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
-import { Button, CopyButton, CopyField, Select } from '@/platform/design-system/components'
+import { CopyButton, CopyField, Select } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
@@ -112,23 +112,6 @@ export default function SearchMcpSection({ organization }: SettingsSectionProps)
           to enable it.
         </Muted>
       )}
-      <SettingsRow label='Setup guide'>
-        <Button
-          size='compact'
-          render={
-            <a
-              aria-label='Search MCP documentation'
-              href='https://docs.sim.ai/search/mcp'
-              target='_blank'
-              rel='noreferrer'
-            >
-              Docs
-            </a>
-          }
-        >
-          Docs
-        </Button>
-      </SettingsRow>
     </SettingsSection>
   )
 }

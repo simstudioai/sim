@@ -155,6 +155,9 @@
 .meterFill[data-over] {
   background: var(--control-danger);
 }
+.edgeAction {
+  margin-inline-end: calc(-1 * var(--ui-action-overhang));
+}
 .tableHeading {
   display: flex;
   align-items: center;

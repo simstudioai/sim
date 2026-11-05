@@ -37,28 +37,6 @@ import {
   useSsoSettingsParams,
 } from '@/platform/lib/data/sso'
 
-const DOCS_LINKS = {
-  'sign-in': 'https://docs.sim.ai/platform/enterprise/sso',
-  domains: 'https://docs.sim.ai/platform/enterprise/verified-domains',
-  provisioning: 'https://docs.sim.ai/platform/enterprise/scim',
-} as const
-
-function DocsLink({ href }: { href: string }) {
-  return (
-    <Button
-      variant='quiet'
-      size='compact'
-      render={
-        <a href={href} target='_blank' rel='noreferrer'>
-          Docs
-        </a>
-      }
-    >
-      Docs
-    </Button>
-  )
-}
-
 export default function SsoSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id
   const { billingEnabled, features } = organization.deployment
@@ -137,9 +115,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
             onSelect={(next) => void setParams({ tab: next })}
           />
         }
-      >
-        <DocsLink href={DOCS_LINKS[tab]} />
-      </SectionToolbar>
+      />
 
       {/* Hidden tabs stay mounted, so a draft survives switching to Domains to verify one. */}
       <div hidden={tab !== 'sign-in'}>

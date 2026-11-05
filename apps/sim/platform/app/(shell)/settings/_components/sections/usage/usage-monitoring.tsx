@@ -165,9 +165,11 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
               dimension='model'
               list={{ ...models, data: topRows(models.data) }}
               control={
-                <Button variant='quiet' size='compact' onClick={() => view.selectTab('model')}>
-                  View all
-                </Button>
+                <span className={styles.edgeAction}>
+                  <Button variant='quiet' size='compact' onClick={() => view.selectTab('model')}>
+                    View all
+                  </Button>
+                </span>
               }
             />
             <UsageConsumers
@@ -175,9 +177,11 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
               dimension='member'
               list={{ ...overview, data: overview.data?.members }}
               control={
-                <Button variant='quiet' size='compact' onClick={() => view.selectTab('member')}>
-                  View all
-                </Button>
+                <span className={styles.edgeAction}>
+                  <Button variant='quiet' size='compact' onClick={() => view.selectTab('member')}>
+                    View all
+                  </Button>
+                </span>
               }
             />
           </div>

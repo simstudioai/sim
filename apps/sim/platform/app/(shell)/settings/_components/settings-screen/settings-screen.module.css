@@ -15,18 +15,23 @@
 }
 .heading {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: start;
   justify-content: space-between;
   gap: var(--spacing-12);
 }
 .title {
   display: grid;
+  flex: 1;
   gap: var(--ui-stack-gap);
   min-inline-size: 0;
 }
 .title p {
   color: var(--ui-secondary);
+}
+.docs {
+  flex: none;
+  margin-inline-end: calc(-1 * var(--ui-action-overhang));
 }
 .breadcrumb {
   display: flex;

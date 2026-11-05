@@ -44,17 +44,19 @@ export function SettingsScreen({ title, description, docsHref, children }: Setti
             {description && <p data-type='T060'>{description}</p>}
           </div>
           {docsHref && (
-            <Button
-              variant='quiet'
-              size='compact'
-              render={
-                <a href={docsHref} target='_blank' rel='noopener noreferrer'>
-                  Docs
-                </a>
-              }
-            >
-              Docs
-            </Button>
+            <span className={styles.docs}>
+              <Button
+                variant='quiet'
+                size='compact'
+                render={
+                  <a href={docsHref} target='_blank' rel='noopener noreferrer'>
+                    Docs
+                  </a>
+                }
+              >
+                Docs
+              </Button>
+            </span>
           )}
         </header>
         {children}
