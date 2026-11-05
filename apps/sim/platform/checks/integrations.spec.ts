@@ -9,19 +9,25 @@ test('an approved app can connect and disconnect a sample account during the sam
   const list = page.getByRole('main')
   await list.getByRole('searchbox', { name: 'Search integrations' }).fill('Linear issues')
   await list.getByRole('link', { name: 'Linear Not connected' }).click()
+  const guide = list.getByRole('link', { name: /Setup guide/ })
+  await expect(guide).toHaveAttribute('href', 'https://docs.sim.ai/search/linear')
+  await expect(guide).toHaveAttribute('target', '_blank')
   await list.getByRole('button', { name: 'Linear', exact: true }).click()
+  const title = list.getByRole('heading', { name: 'Linear', exact: true })
+  await expect(title).toBeFocused()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(list.getByRole('button', { name: 'Add account' })).toHaveCount(0)
   await expect(list.getByText('emir@sim.ai', { exact: true })).toBeVisible()
   await list.getByRole('link', { name: 'Integrations', exact: true }).click()
   await expect(list.getByRole('searchbox')).toHaveValue('Linear issues')
   await list.getByRole('link', { name: 'Linear 1 account' }).click()
-  await list.getByRole('button', { name: 'Manage emir@sim.ai' }).click()
+  await list.locator('header').getByRole('button', { name: 'Manage emir@sim.ai' }).click()
   await page.getByRole('menuitem', { name: 'Disconnect account' }).click()
   await page
     .getByRole('dialog', { name: 'Disconnect account?' })
     .getByRole('button', { name: 'Disconnect', exact: true })
     .click()
+  await expect(title).toBeFocused()
   await list.getByRole('link', { name: 'Integrations', exact: true }).click()
   await expect(
     list
@@ -34,6 +40,14 @@ test('individual permissions inherit their default without changing other tools'
   page,
 }) => {
   await page.goto(`${origin}/integrations/gmail?state=full`)
+  const access = page.getByRole('region', { name: 'Requested permissions' })
+  const writeScopes = access.getByRole('list', { name: 'Write and manage' })
+  const sendScope = 'https://www.googleapis.com/auth/gmail.send'
+  await expect(writeScopes.getByText('Send emails', { exact: true })).toBeVisible()
+  await access.getByRole('button', { name: 'Show scope IDs' }).click()
+  await expect(writeScopes.getByText(sendScope, { exact: true })).toBeVisible()
+  await access.getByRole('button', { name: 'Hide scope IDs' }).click()
+  await expect(writeScopes.getByText(sendScope, { exact: true })).toHaveCount(0)
   const tools = page.getByRole('region', { name: 'Tool permissions' })
   const send = tools.getByRole('group', { name: 'Gmail Send permission' })
   const draft = tools.getByRole('group', { name: 'Gmail Draft permission' })

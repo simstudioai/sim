@@ -29,6 +29,7 @@ export interface OrganizationIntegration {
   providerId: string
   name: string
   description: string
+  setupGuideUrl: string
   requestedScopes: readonly { id: string; label: string }[] | null
   accessDescription: string
   availability: 'ready' | 'managed' | 'unconfigured' | 'disabled' | 'paused' | 'unavailable'

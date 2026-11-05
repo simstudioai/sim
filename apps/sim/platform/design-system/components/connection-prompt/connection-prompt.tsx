@@ -1,9 +1,12 @@
+import Link from 'next/link'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import { Button } from '@/platform/design-system/components/button/button'
+import { ControlRow } from '@/platform/design-system/components/button/control-row'
 import styles from '@/platform/design-system/components/connection-prompt/connection-prompt.module.css'
 
 interface ConnectionPromptProps {
   title: string
+  setupGuideUrl?: string
   options: readonly {
     label: string
     icon: IconName | { providerId: string }
@@ -11,7 +14,7 @@ interface ConnectionPromptProps {
   }[]
 }
 
-export function ConnectionPrompt({ title, options }: ConnectionPromptProps) {
+export function ConnectionPrompt({ title, options, setupGuideUrl }: ConnectionPromptProps) {
   return (
     <div className={styles.prompt} data-material='shell'>
       <p data-type='T060'>{title}</p>
@@ -21,6 +24,20 @@ export function ConnectionPrompt({ title, options }: ConnectionPromptProps) {
             {label}
           </Button>
         ))}
+        {setupGuideUrl && (
+          <ControlRow
+            render={
+              <Link
+                href={setupGuideUrl}
+                target='_blank'
+                rel='noopener noreferrer'
+                aria-label='Setup guide (opens in a new tab)'
+              />
+            }
+            label='Setup guide'
+            trailingIcon='I030'
+          />
+        )}
       </div>
     </div>
   )

@@ -6,7 +6,8 @@ import { IntegrationDetails } from '@/platform/app/(shell)/integrations/_compone
 import { IntegrationList } from '@/platform/app/(shell)/integrations/_components/integration-list/integration-list'
 import styles from '@/platform/app/(shell)/integrations/_components/integrations-page/integrations-page.module.css'
 import { MemberSecrets } from '@/platform/app/(shell)/integrations/_components/member-secrets/member-secrets'
-import { Chip, Icon } from '@/platform/design-system/components'
+import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
+import { Chip } from '@/platform/design-system/components'
 import { type IntegrationsData, memberIntegrationHref } from '@/platform/lib/integrations/model'
 
 interface IntegrationsPageProps {
@@ -28,17 +29,13 @@ export function IntegrationsPage({ data, section }: IntegrationsPageProps) {
               Integrations
             </Chip>
           </nav>
-          <header className={styles.providerHeading}>
-            <span className={styles.mark}>
-              {item ? <Icon providerId={item.providerId} /> : <Icon name='I070' />}
-            </span>
-            <div className={styles.heading}>
-              <h1 data-type='T076'>{item?.name ?? 'Generic Secrets'}</h1>
-              {item && <p data-type='T048'>{item.description}</p>}
-            </div>
-          </header>
           {item && <IntegrationDetails key={item.providerId} integration={item} onChange={save} />}
-          {secrets && <MemberSecrets source={secrets} />}
+          {secrets && (
+            <>
+              <ProviderHeading name='Generic Secrets' />
+              <MemberSecrets source={secrets} />
+            </>
+          )}
         </>
       ) : (
         <>

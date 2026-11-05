@@ -7,9 +7,9 @@ import type {
   OrganizationIntegration,
 } from '@/platform/lib/integrations/model'
 
-type Connection = Omit<
+type Connection = Pick<
   OrganizationIntegration,
-  'providerId' | 'name' | 'description' | 'requestedScopes' | 'accessDescription'
+  'accounts' | 'availability' | 'connectableMethod'
 > & { accessDescription?: string }
 
 function account(id: string, label: string, method: AccountMethod): IntegrationAccount {
@@ -100,22 +100,20 @@ export function memberIntegrations(scenario: Scenario): OrganizationIntegration[
             accessDescription: 'Access follows project permissions',
           },
         }
-  return providerMetadata.flatMap(({ id, name, description, requestedScopes, searchResource }) => {
+  return providerMetadata.flatMap(({ id, searchResource, ...metadata }) => {
     const config = selected[id]
     if (!config) return []
     const candidate = config.connectableMethod
       ? account(
           `${id}-available`,
-          config.connectableMethod === 'mcp' ? name : 'emir@sim.ai',
+          config.connectableMethod === 'mcp' ? metadata.name : 'emir@sim.ai',
           config.connectableMethod
         )
       : undefined
     return [
       {
         providerId: id,
-        name,
-        description,
-        requestedScopes,
+        ...metadata,
         ...config,
         accessDescription:
           config.accessDescription ??

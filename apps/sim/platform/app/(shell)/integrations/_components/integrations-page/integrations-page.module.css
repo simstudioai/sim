@@ -6,22 +6,12 @@
   padding-block: var(--shell-home-row-start) var(--ui-page-inset-block);
   gap: var(--ui-product-section-gap);
 }
-.providerHeading {
-  display: flex;
-  align-items: start;
-  gap: var(--ui-row-gap);
-}
 .heading {
   display: grid;
   gap: var(--ui-stack-gap);
 }
 .heading p {
   color: var(--ui-secondary);
-}
-.mark {
-  display: grid;
-  place-items: center;
-  block-size: var(--leading-32);
 }
 .back {
   margin-inline: calc(-1 * var(--ui-row-inset));

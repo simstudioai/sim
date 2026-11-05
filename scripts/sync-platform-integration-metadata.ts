@@ -5,7 +5,9 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import catalog from '@sim/deployment-config/integrations.json'
+import { SIM_DOCS_URL } from '@sim/utils/site'
 import ts from '@typescript/typescript6'
+import searchDocs from '../apps/docs/content/docs/search/meta.json'
 import { GmailV2Block } from '../apps/sim/blocks/blocks/gmail'
 import { getManagedOAuthConnectorPolicy } from '../apps/sim/lib/auth/connectors/managed-oauth'
 import { getManagedMcpConnector } from '../apps/sim/lib/credential-groups/managed-mcp-connectors'
@@ -80,13 +82,15 @@ function requestedScopes(id: LiveSearchProviderId | 'salesforce') {
 
 const ids: (LiveSearchProviderId | 'salesforce')[] = [...LIVE_SEARCH_PROVIDER_IDS, 'salesforce']
 const providers = ids.sort().map((id) => {
-  const block = catalog.integrations.find((entry) => entry.slug === id.replaceAll('_', '-'))
+  const slug = id.replaceAll('_', '-')
+  const block = catalog.integrations.find((entry) => entry.slug === slug)
   const source = block ?? (id === 'lucid' ? getManagedMcpConnector('lucid') : undefined)
   if (!source) throw new Error(`No canonical integration description for ${id}`)
   return {
     id,
     name: source.name,
     description: source.description,
+    setupGuideUrl: `${SIM_DOCS_URL}/search/${searchDocs.pages.includes(slug) ? slug : 'connect-your-account'}`,
     searchResource: LIVE_SEARCH_SCOPE_FIELDS[id]?.label ?? null,
     requestedScopes: requestedScopes(id),
   }

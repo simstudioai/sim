@@ -1,0 +1,25 @@
+.header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--ui-stack-gap) var(--ui-row-gap);
+}
+.mark {
+  display: grid;
+  place-items: center;
+  block-size: var(--leading-32);
+}
+.title {
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  justify-self: end;
+}
+.copy {
+  display: grid;
+  grid-column: 2 / -1;
+  gap: var(--ui-row-block);
+  overflow-wrap: anywhere;
+  color: var(--ui-secondary);
+}

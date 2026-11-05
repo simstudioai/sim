@@ -4,6 +4,7 @@ export const providerMetadata = [
     id: 'coda',
     name: 'Coda',
     description: 'Read and write Coda docs, pages, tables, and rows',
+    setupGuideUrl: 'https://docs.sim.ai/search/coda',
     searchResource: 'Documents',
     requestedScopes: null,
   },
@@ -11,6 +12,7 @@ export const providerMetadata = [
     id: 'confluence',
     name: 'Confluence',
     description: 'Manage Confluence pages, comments, and attachments',
+    setupGuideUrl: 'https://docs.sim.ai/search/confluence',
     searchResource: 'Spaces',
     requestedScopes: [
       { id: 'read:confluence-content.all', label: 'Read all Confluence content' },
@@ -65,6 +67,7 @@ export const providerMetadata = [
     id: 'fireflies',
     name: 'Fireflies',
     description: 'Interact with Fireflies.ai meeting transcripts and recordings',
+    setupGuideUrl: 'https://docs.sim.ai/search/fireflies',
     searchResource: 'Meetings',
     requestedScopes: null,
   },
@@ -72,6 +75,7 @@ export const providerMetadata = [
     id: 'github',
     name: 'GitHub',
     description: 'Interact with GitHub or trigger workflows from GitHub events',
+    setupGuideUrl: 'https://docs.sim.ai/search/github',
     searchResource: 'Repositories',
     requestedScopes: [],
   },
@@ -79,6 +83,7 @@ export const providerMetadata = [
     id: 'gitlab',
     name: 'GitLab',
     description: 'Interact with GitLab projects, issues, merge requests, and pipelines',
+    setupGuideUrl: 'https://docs.sim.ai/search/gitlab',
     searchResource: 'Projects',
     requestedScopes: [],
   },
@@ -87,6 +92,7 @@ export const providerMetadata = [
     name: 'Gmail',
     description:
       'Send, read, search, and move Gmail messages or trigger workflows from Gmail events',
+    setupGuideUrl: 'https://docs.sim.ai/search/gmail',
     searchResource: 'Labels',
     requestedScopes: [
       { id: 'https://www.googleapis.com/auth/userinfo.email', label: 'View email address' },
@@ -104,6 +110,7 @@ export const providerMetadata = [
     id: 'google_calendar',
     name: 'Google Calendar',
     description: 'Manage Google Calendar events',
+    setupGuideUrl: 'https://docs.sim.ai/search/google-calendar',
     searchResource: 'Calendars',
     requestedScopes: [
       { id: 'https://www.googleapis.com/auth/userinfo.email', label: 'View email address' },
@@ -116,6 +123,7 @@ export const providerMetadata = [
     id: 'google_drive',
     name: 'Google Drive',
     description: 'Manage files, folders, and permissions',
+    setupGuideUrl: 'https://docs.sim.ai/search/google-drive',
     searchResource: 'Folders and shared drives',
     requestedScopes: [
       { id: 'https://www.googleapis.com/auth/userinfo.email', label: 'View email address' },
@@ -135,6 +143,7 @@ export const providerMetadata = [
     id: 'google_meet',
     name: 'Google Meet',
     description: 'Create and manage Google Meet meetings',
+    setupGuideUrl: 'https://docs.sim.ai/search/google-meet',
     searchResource: 'Meetings',
     requestedScopes: [
       { id: 'https://www.googleapis.com/auth/userinfo.email', label: 'View email address' },
@@ -154,6 +163,7 @@ export const providerMetadata = [
     id: 'granola',
     name: 'Granola',
     description: 'Access meeting notes, transcripts, and audit events from Granola',
+    setupGuideUrl: 'https://docs.sim.ai/search/granola',
     searchResource: 'Meetings',
     requestedScopes: null,
   },
@@ -161,6 +171,7 @@ export const providerMetadata = [
     id: 'hubspot',
     name: 'HubSpot',
     description: 'Interact with HubSpot CRM or trigger workflows from HubSpot events',
+    setupGuideUrl: 'https://docs.sim.ai/search/hubspot',
     searchResource: 'CRM records',
     requestedScopes: null,
   },
@@ -168,6 +179,7 @@ export const providerMetadata = [
     id: 'jira',
     name: 'Jira',
     description: 'Manage Jira issues, comments, attachments, and worklogs',
+    setupGuideUrl: 'https://docs.sim.ai/search/jira',
     searchResource: 'Projects',
     requestedScopes: [
       { id: 'read:jira-user', label: 'View Jira user profiles, including email addresses' },
@@ -281,6 +293,7 @@ export const providerMetadata = [
     id: 'linear',
     name: 'Linear',
     description: 'Interact with Linear issues, projects, and more',
+    setupGuideUrl: 'https://docs.sim.ai/search/linear',
     searchResource: 'Projects',
     requestedScopes: [
       { id: 'read', label: 'Read issues, projects, teams, and other workspace data' },
@@ -294,6 +307,7 @@ export const providerMetadata = [
     id: 'lucid',
     name: 'Lucid',
     description: 'Search Lucidchart diagrams and Lucidspark boards using your Lucid account',
+    setupGuideUrl: 'https://docs.sim.ai/search/lucid',
     searchResource: 'Documents',
     requestedScopes: null,
   },
@@ -301,6 +315,7 @@ export const providerMetadata = [
     id: 'notion',
     name: 'Notion',
     description: 'Manage Notion pages',
+    setupGuideUrl: 'https://docs.sim.ai/search/notion',
     searchResource: 'Pages',
     requestedScopes: null,
   },
@@ -308,6 +323,7 @@ export const providerMetadata = [
     id: 'salesforce',
     name: 'Salesforce',
     description: 'Interact with Salesforce CRM',
+    setupGuideUrl: 'https://docs.sim.ai/search/connect-your-account',
     searchResource: null,
     requestedScopes: [
       { id: 'api', label: 'Access Salesforce API' },
@@ -320,6 +336,7 @@ export const providerMetadata = [
     name: 'Slack',
     description:
       'Manage Slack messages, channels, users, files, Lists, canvases, and Agent Sessions',
+    setupGuideUrl: 'https://docs.sim.ai/search/slack',
     searchResource: 'Channels',
     requestedScopes: [
       { id: 'channels:history', label: 'Read public channel messages' },
@@ -344,6 +361,7 @@ export const providerMetadata = [
     id: 'zoom',
     name: 'Zoom',
     description: 'Create and manage Zoom meetings and recordings',
+    setupGuideUrl: 'https://docs.sim.ai/search/zoom',
     searchResource: 'Meetings',
     requestedScopes: [
       { id: 'meeting:read:search', label: 'Search past meetings' },

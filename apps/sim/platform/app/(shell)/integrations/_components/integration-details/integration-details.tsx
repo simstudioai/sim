@@ -1,38 +1,42 @@
 'use client'
 
-import { useState } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ConnectionAccess } from '@/platform/app/(shell)/integrations/_components/connection-access/connection-access'
+import { CredentialActions } from '@/platform/app/(shell)/integrations/_components/credential-actions/credential-actions'
 import styles from '@/platform/app/(shell)/integrations/_components/integration-details/integration-details.module.css'
+import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
 import { ToolPermissions } from '@/platform/app/(shell)/integrations/_components/tool-permissions/tool-permissions'
-import {
-  ActionMenu,
-  ActivityRow,
-  Chip,
-  EmptyState,
-  Modal,
-} from '@/platform/design-system/components'
+import { ActivityRow, Chip, EmptyState } from '@/platform/design-system/components'
 import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
 import {
-  SettingsRow,
-  SettingsSurface,
-} from '@/platform/design-system/components/settings-section/settings-section'
-import type { IntegrationAccount, OrganizationIntegration } from '@/platform/lib/integrations/model'
+  type IntegrationAccount,
+  memberStatus,
+  type OrganizationIntegration,
+} from '@/platform/lib/integrations/model'
 
 interface IntegrationDetailsProps {
   integration: OrganizationIntegration
   onChange: (next: OrganizationIntegration) => void
 }
 
-function accountStatus(account: IntegrationAccount) {
+function accountStatus(integration: OrganizationIntegration, account: IntegrationAccount) {
+  if (integration.availability !== 'ready') return memberStatus(integration)
   return account.status === 'active' ? 'Connected' : 'Reconnect needed'
 }
 
 export function IntegrationDetails({ integration, onChange }: IntegrationDetailsProps) {
   const router = useRouter()
   const search = useSearchParams()
-  const [removing, setRemoving] = useState<IntegrationAccount | null>(null)
   const { accounts, providerId, connectableMethod } = integration
+  const titleRef = useRef<HTMLHeadingElement>(null)
+  const returnToTitle = useRef(false)
+  useLayoutEffect(() => {
+    if (returnToTitle.current) {
+      titleRef.current?.focus({ preventScroll: true })
+      returnToTitle.current = false
+    }
+  }, [accounts.length])
   const requested = search.get('account')
   const selected = requested
     ? accounts.find((entry) => entry.id === requested)
@@ -43,10 +47,7 @@ export function IntegrationDetails({ integration, onChange }: IntegrationDetails
     !accounts.length && integration.availability === 'ready' && connectableMethod !== null
   const candidate = integration.connectionCandidate
   const canAttach =
-    integration.fixtureAuthorization &&
-    canConnect &&
-    candidate?.method === connectableMethod &&
-    !accounts.some((account) => account.id === candidate?.id)
+    integration.fixtureAuthorization && canConnect && candidate?.method === connectableMethod
 
   function accountHref(id?: string) {
     const next = new URLSearchParams(search)
@@ -58,6 +59,7 @@ export function IntegrationDetails({ integration, onChange }: IntegrationDetails
 
   function connect() {
     if (!canAttach || !candidate) return
+    returnToTitle.current = true
     onChange({
       ...integration,
       accounts: [candidate],
@@ -77,6 +79,7 @@ export function IntegrationDetails({ integration, onChange }: IntegrationDetails
   }
 
   function disconnect(account: IntegrationAccount) {
+    returnToTitle.current = true
     const restore = integration.availability === 'ready' && account.canReconnect
     onChange({
       ...integration,
@@ -103,83 +106,77 @@ export function IntegrationDetails({ integration, onChange }: IntegrationDetails
     if (requested === account.id) router.replace(accountHref(), { scroll: false })
   }
 
-  if (requested && !selected) {
-    return (
-      <EmptyState
-        title='This account is no longer connected'
-        action={<Chip href={accountHref()}>View accounts</Chip>}
-      />
-    )
-  }
-  if (integration.availability === 'managed' && !accounts.length) {
-    return <EmptyState title='Organization managed' description={integration.accessDescription} />
-  }
-
-  const accountHeading = !selected && accounts.length > 1 ? 'Accounts' : 'Account'
-  return (
-    <div className={styles.sections}>
-      <section className={styles.account} aria-label={accountHeading}>
-        <header className={styles.header}>
-          <h2 data-type='T093'>{accountHeading}</h2>
-          {selected && accounts.length > 1 && <Chip href={accountHref()}>All accounts</Chip>}
-        </header>
-        {selected ? (
-          <SettingsSurface>
-            <SettingsRow label={selected.label} description={accountStatus(selected)}>
-              <ActionMenu
-                label={`Manage ${selected.label}`}
-                icon='I108'
-                triggerSize='compact'
-                tooltip={false}
-                actions={[
-                  ...(selected.canReconnect
-                    ? [
-                        {
-                          id: 'reconnect',
-                          label: 'Reconnect account',
-                          disabled: !integration.fixtureAuthorization,
-                          onSelect: () => reconnect(selected),
-                        },
-                      ]
-                    : []),
-                  {
-                    id: 'disconnect',
-                    label: 'Disconnect account',
-                    destructive: true,
-                    separatorBefore: selected.canReconnect,
-                    onSelect: () => setRemoving(selected),
-                  },
-                ]}
-              />
-            </SettingsRow>
-          </SettingsSurface>
-        ) : accounts.length ? (
+  function accountContent() {
+    if (requested && !selected)
+      return (
+        <EmptyState
+          title='This account is no longer connected'
+          action={<Chip href={accountHref()}>View accounts</Chip>}
+        />
+      )
+    if (selected) return accounts.length > 1 ? <Chip href={accountHref()}>All accounts</Chip> : null
+    if (accounts.length)
+      return (
+        <section className={styles.account} aria-label='Accounts'>
+          <h2 data-type='T093'>Accounts</h2>
           <ul className={styles.list}>
             {accounts.map((item) => (
               <ActivityRow
                 key={item.id}
                 title={item.label}
-                detail={accountStatus(item)}
+                detail={accountStatus(integration, item)}
                 href={accountHref(item.id)}
               />
             ))}
           </ul>
-        ) : canConnect ? (
-          <ConnectionPrompt
-            title={`Connect your ${integration.name} account`}
-            options={[
-              {
-                label: integration.name,
-                icon: { providerId: integration.providerId },
-                onConnect: canAttach ? connect : undefined,
-              },
-            ]}
-          />
-        ) : (
-          <EmptyState title='No accounts connected' description={integration.accessDescription} />
-        )}
-        <ConnectionAccess integration={integration} />
-      </section>
+        </section>
+      )
+    if (canConnect)
+      return (
+        <ConnectionPrompt
+          title={`Connect your ${integration.name} account`}
+          setupGuideUrl={integration.setupGuideUrl}
+          options={[
+            {
+              label: integration.name,
+              icon: { providerId },
+              onConnect: canAttach ? connect : undefined,
+            },
+          ]}
+        />
+      )
+    return (
+      <EmptyState
+        title={
+          integration.availability === 'managed' ? 'Organization managed' : 'No accounts connected'
+        }
+        description={integration.accessDescription}
+      />
+    )
+  }
+
+  return (
+    <>
+      <ProviderHeading
+        name={integration.name}
+        titleRef={titleRef}
+        description={integration.description}
+        providerId={providerId}
+        credential={
+          selected && { label: selected.label, status: accountStatus(integration, selected) }
+        }
+        action={
+          selected && (
+            <CredentialActions
+              account={selected}
+              canAuthorize={Boolean(integration.fixtureAuthorization)}
+              onReconnect={() => reconnect(selected)}
+              onDisconnect={() => disconnect(selected)}
+            />
+          )
+        }
+      />
+      {accountContent()}
       {selected?.permissions && (
         <ToolPermissions
           key={selected.id}
@@ -195,18 +192,7 @@ export function IntegrationDetails({ integration, onChange }: IntegrationDetails
           }
         />
       )}
-      {removing && (
-        <Modal
-          open
-          onOpenChange={() => setRemoving(null)}
-          title='Disconnect account?'
-          variant='confirm'
-          destructive
-          description={`Sim will lose access to ${removing.label}.`}
-          confirmLabel='Disconnect'
-          onConfirm={() => disconnect(removing)}
-        />
-      )}
-    </div>
+      {(!requested || selected) && <ConnectionAccess integration={integration} />}
+    </>
   )
 }

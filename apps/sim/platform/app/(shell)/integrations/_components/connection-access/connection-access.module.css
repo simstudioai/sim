@@ -1,15 +1,25 @@
+.section,
 .scopes,
 .scope {
   display: grid;
   min-inline-size: 0;
 }
-.scopes {
+.section {
   gap: var(--ui-section-gap);
+}
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+}
+.scopes {
+  gap: var(--ui-list-gap);
+  margin-block-start: var(--ui-row-gap);
 }
 .scope {
   gap: var(--ui-stack-gap);
   overflow-wrap: anywhere;
-}
-.scope > span + span {
   color: var(--ui-secondary);
 }

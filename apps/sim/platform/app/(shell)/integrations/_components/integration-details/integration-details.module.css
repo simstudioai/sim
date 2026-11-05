@@ -1,21 +1,10 @@
-.sections,
 .account,
 .list {
   display: grid;
   min-inline-size: 0;
 }
-.sections {
-  gap: var(--ui-product-section-gap);
-}
 .account {
   gap: var(--ui-section-gap);
-}
-.header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ui-row-gap);
 }
 .list {
   gap: var(--ui-list-gap);
