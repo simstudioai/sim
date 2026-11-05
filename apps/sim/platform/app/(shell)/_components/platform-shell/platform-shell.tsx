@@ -75,7 +75,9 @@ export function PlatformShell({ data, children }: PlatformShellProps) {
       )
         return
       event.preventDefault()
-      setCommand((previous) => !previous)
+      const modal = event.target instanceof Element ? event.target.closest('dialog:modal') : null
+      const canOpen = !modal || modal === drawerRef.current
+      setCommand((open) => !open && canOpen)
     }
     document.addEventListener('keydown', shortcut)
     return () => document.removeEventListener('keydown', shortcut)

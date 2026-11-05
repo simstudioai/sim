@@ -61,6 +61,33 @@ test('the sidebar keeps its reading position across route changes and a Settings
   await expect.poll(() => nav.evaluate((element) => element.scrollTop)).toBe(offset)
 })
 
+test('command search respects an open form and toggles within the navigation drawer', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 800 })
+  await page.goto(`${origin}/home?state=full`)
+  await page.getByRole('button', { name: 'Expand sidebar' }).click()
+  const drawer = page.getByRole('dialog', { name: 'Navigation drawer' })
+  const organization = drawer.getByRole('button', { name: 'Organization menu', exact: true })
+  await organization.click()
+  await drawer.getByRole('button', { name: 'Invite', exact: true }).click()
+  const input = page.getByRole('textbox', { name: 'Email addresses' })
+  const search = page.getByRole('combobox', { name: 'Search the platform' })
+  await input.fill('member')
+  await input.press('ControlOrMeta+k')
+  await expect(search).toBeHidden()
+  await expect(input).toBeFocused()
+  await page.keyboard.type('@example.test')
+  await expect(input).toHaveValue('member@example.test')
+  await page.keyboard.press('Escape')
+  await expect(organization).toBeFocused()
+  await page.keyboard.press('ControlOrMeta+k')
+  await expect(search).toBeFocused()
+  await search.press('ControlOrMeta+k')
+  await expect(search).toBeHidden()
+  await expect(organization).toBeFocused()
+})
+
 test('a keyboard search navigates to the matching chat and shell edits survive the return trip', async ({
   page,
 }) => {

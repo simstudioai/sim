@@ -20,7 +20,7 @@ function timeSlot(startMinute: number, duration = 1) {
 export function CalendarDay({ calendar }: CalendarDayProps) {
   const [offset, setOffset] = useState(0)
   const [returnCount, setReturnCount] = useState(0)
-  const [timeVisible, setTimeVisible] = useState(true)
+  const [atNow, setAtNow] = useState(true)
   const viewport = useRef<HTMLDivElement>(null)
   const now = useRef<HTMLSpanElement>(null)
   const scrollEdges = useScrollEdges('vertical', { viewport, tabStop: true })
@@ -29,12 +29,25 @@ export function CalendarDay({ calendar }: CalendarDayProps) {
     const marker = now.current
     const root = viewport.current
     if (!marker || !root) return
-    root.scrollTop = marker.offsetTop + (marker.offsetHeight - root.clientHeight) / 2
-    const observer = new IntersectionObserver(([entry]) => setTimeVisible(entry.isIntersecting), {
-      root,
-    })
-    observer.observe(marker)
-    return () => observer.disconnect()
+    let restingTop = root.scrollTop
+    const atRest = () => Math.abs(root.scrollTop - restingTop) <= 1
+    const updatePosition = () => setAtNow(atRest())
+    const measure = () => {
+      const keepCentered = atRest()
+      const centered = marker.offsetTop + (marker.offsetHeight - root.clientHeight) / 2
+      restingTop = Math.max(0, Math.min(centered, root.scrollHeight - root.clientHeight))
+      if (keepCentered) root.scrollTop = restingTop
+      updatePosition()
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(root)
+    if (marker.parentElement) observer.observe(marker.parentElement)
+    root.addEventListener('scroll', updatePosition, { passive: true })
+    return () => {
+      observer.disconnect()
+      root.removeEventListener('scroll', updatePosition)
+    }
   }, [calendar.date, calendar.nowMinute, offset, returnCount])
 
   useLayoutEffect(() => {
@@ -55,7 +68,7 @@ export function CalendarDay({ calendar }: CalendarDayProps) {
       <div className={styles.toolbar}>
         <span data-type='T052'>{dayLabel}</span>
         <div className={styles.dayControls}>
-          {(offset !== 0 || !timeVisible) && (
+          {(offset !== 0 || !atNow) && (
             <Button variant='quiet' size='compact' onClick={returnToNow}>
               Now
             </Button>
