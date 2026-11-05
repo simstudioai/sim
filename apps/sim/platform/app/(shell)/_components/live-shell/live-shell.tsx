@@ -1,4 +1,5 @@
 import { type ReactNode, Suspense } from 'react'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { AccessDenied, SurfaceUnavailable } from '@/platform/app/_components/shell-gate/shell-gate'
 import { resolveLiveDestinations } from '@/platform/app/(shell)/_components/destinations'
@@ -24,6 +25,7 @@ export async function LiveShell({ children }: { children: ReactNode }) {
   }
 
   const { organization } = surface
+  const cookieStore = await cookies()
   if (!hasOrganizationSurface(organization)) redirect(legacyRoutes(organization).workspaceSettings)
 
   return (
@@ -36,7 +38,11 @@ export async function LiveShell({ children }: { children: ReactNode }) {
       dehydratedState={await prefetchShell(organization)}
     >
       <Suspense fallback={null}>
-        <ProductSession fixtures={null} banner={<SessionState />}>
+        <ProductSession
+          fixtures={null}
+          banner={<SessionState />}
+          sidebarCollapsed={cookieStore.get('sidebar_collapsed')?.value === '1'}
+        >
           {children}
         </ProductSession>
       </Suspense>

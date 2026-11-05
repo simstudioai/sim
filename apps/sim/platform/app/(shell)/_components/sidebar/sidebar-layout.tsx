@@ -2,13 +2,21 @@
 
 import { createContext, type ReactNode, useContext, useState } from 'react'
 
-function useLayoutState() {
-  const [collapsed, setCollapsed] = useState(false)
+const COLLAPSED_COOKIE_MAX_AGE_SECONDS = 31536000
+
+/** `initialCollapsed` is the cookie the server read; without one, collapse lasts for this session. */
+function useLayoutState(initialCollapsed: boolean | undefined) {
+  const [collapsed, setCollapsedState] = useState(initialCollapsed ?? false)
   const [order, setOrder] = useState('Recent activity')
   const [workspacesOpen, setWorkspacesOpen] = useState(true)
   const [chatsOpen, setChatsOpen] = useState(true)
   const [filter, setFilter] = useState('all')
   const [read, setRead] = useState<ReadonlySet<string>>(() => new Set())
+  function setCollapsed(next: boolean) {
+    setCollapsedState(next)
+    if (initialCollapsed !== undefined)
+      document.cookie = `sidebar_collapsed=${next ? '1' : '0'}; path=/; max-age=${COLLAPSED_COOKIE_MAX_AGE_SECONDS}; samesite=lax`
+  }
   return {
     collapsed,
     setCollapsed,
@@ -27,8 +35,13 @@ function useLayoutState() {
 
 const SidebarContext = createContext<ReturnType<typeof useLayoutState> | null>(null)
 
-export function SidebarLayout({ children }: { children: ReactNode }) {
-  const state = useLayoutState()
+interface SidebarLayoutProps {
+  initialCollapsed?: boolean
+  children: ReactNode
+}
+
+export function SidebarLayout({ initialCollapsed, children }: SidebarLayoutProps) {
+  const state = useLayoutState(initialCollapsed)
   return <SidebarContext.Provider value={state}>{children}</SidebarContext.Provider>
 }
 

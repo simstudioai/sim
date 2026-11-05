@@ -127,6 +127,7 @@ const dataSeam = 'platform/lib/data/'
 const seamRoots = ['hooks/queries', 'lib/api']
 /** Named pure helpers the seam needs. Their import closures reach no `@/app` or `@/components`. */
 const seamHelpers = new Set([
+  'hooks/use-desktop-update-state',
   'hooks/use-seed-deployment-shape',
   'lib/auth/browser-storage',
   'lib/auth/client',
@@ -135,7 +136,12 @@ const seamHelpers = new Set([
   'lib/core/config/env',
   'lib/core/config/public-env',
   'lib/core/utils/urls',
+  'lib/desktop',
+  'lib/help-links',
+  'lib/help/request',
   'lib/navigation/paths',
+  'lib/uploads/client/logo-file',
+  'stores/settings/dirty/store',
 ])
 const seamPackages = /^@sim\/(?:utils|logger)(?:\/|$)/
 function resolveImport(file: string, specifier: string) {

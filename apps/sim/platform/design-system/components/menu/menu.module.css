@@ -16,6 +16,10 @@
 .menuItem {
   composes: item from "./popup.shared.module.css";
 }
+.contextTrigger {
+  display: grid;
+  min-inline-size: 0;
+}
 .menuItem[data-popup-open],
 .menu[data-navigating] .menuItem[tabindex="0"] {
   background: var(--ui-hover);

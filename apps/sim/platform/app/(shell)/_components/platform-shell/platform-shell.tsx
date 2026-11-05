@@ -1,15 +1,20 @@
 'use client'
 
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CommandMenu } from '@/platform/app/(shell)/_components/command-menu/command-menu'
-import { useDesktopHost } from '@/platform/app/(shell)/_components/desktop/desktop-host'
-import type { ShellData } from '@/platform/app/(shell)/_components/model'
+import {
+  useDesktopCommands,
+  useDesktopHost,
+} from '@/platform/app/(shell)/_components/desktop/desktop-host'
+import type { ShellChat, ShellData } from '@/platform/app/(shell)/_components/model'
 import { NotificationTray } from '@/platform/app/(shell)/_components/notification-tray/notification-tray'
 import styles from '@/platform/app/(shell)/_components/platform-shell/platform-shell.module.css'
 import { WindowHistoryButtons } from '@/platform/app/(shell)/_components/platform-shell/window-history'
 import { useChatChanges } from '@/platform/app/(shell)/_components/session/chat-changes'
+import { useSessionShellActions } from '@/platform/app/(shell)/_components/session/shell-actions'
 import { SETTINGS_DESTINATIONS } from '@/platform/app/(shell)/_components/settings-navigation/destinations'
+import { LEGACY_DESTINATION } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import { Sidebar } from '@/platform/app/(shell)/_components/sidebar/sidebar'
 import { useSidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
 import { SidebarToolbar } from '@/platform/app/(shell)/_components/sidebar/sidebar-toolbar'
@@ -17,9 +22,26 @@ import { IconButton, OverflowText, ScrollArea, Tooltip } from '@/platform/design
 import { useCompactViewport } from '@/platform/design-system/components/layout/use-compact-viewport'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { platformHref } from '@/platform/design-system/navigation'
+import { useLiveShellActions } from '@/platform/lib/data/shell-context'
 
-/** Live navigation names a route on the legacy surface by its absolute URL. */
-const LEGACY_DESTINATION = /^https?:\/\//
+function isEditableTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    (target instanceof HTMLElement && target.isContentEditable)
+  )
+}
+
+/** A focused editor can claim a shortcut through `data-owned-shortcuts`, as on the legacy surface. */
+function ownsShortcut(target: EventTarget | null, shortcut: string): boolean {
+  const owner = target instanceof Element ? target.closest('[data-owned-shortcuts]') : null
+  return Boolean(
+    owner
+      ?.getAttribute('data-owned-shortcuts')
+      ?.split(',')
+      .some((entry) => entry.trim() === shortcut)
+  )
+}
 
 interface PlatformShellProps {
   data: ShellData | null
@@ -40,6 +62,9 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
   const desktop = useDesktopHost()
   const drawerRef = useRef<HTMLDialogElement>(null)
   const chat = useChatChanges()
+  const sessionActions = useSessionShellActions()
+  const actions = useLiveShellActions() ?? sessionActions
+  const settingsEntry = useRef<string | null>(null)
   const settings = pathname.startsWith('/settings')
   const settingsDestinations: readonly { key: string; title: string }[] =
     data?.settingsNavigation?.flatMap((group) => group.items) ?? SETTINGS_DESTINATIONS
@@ -54,8 +79,11 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
   const chats = [...chat.created, ...(data?.chats ?? [])]
     .filter((item) => !chat.isRemoved(item.id))
     .map((item) => ({ ...item, title: chat.titleFor(item.id, item.title) }))
-  if (order === 'Name (A–Z)') chats.sort((a, b) => a.title.localeCompare(b.title))
-  if (order === 'Name (Z–A)') chats.sort((a, b) => b.title.localeCompare(a.title))
+  const pinnedFirst = (a: ShellChat, b: ShellChat) => Number(b.isPinned) - Number(a.isPinned)
+  if (order === 'Name (A–Z)')
+    chats.sort((a, b) => pinnedFirst(a, b) || a.title.localeCompare(b.title))
+  if (order === 'Name (Z–A)')
+    chats.sort((a, b) => pinnedFirst(a, b) || b.title.localeCompare(a.title))
   const chatTitle = activeChat && (chats.find((item) => item.id === activeChat)?.title ?? 'Chat')
   const pageTitle = settings
     ? section
@@ -65,7 +93,9 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
       ? chatTitle || 'New chat'
       : integrations
         ? 'Integrations'
-        : 'Home'
+        : pathname === '/people' || pathname.startsWith('/people/')
+          ? 'People'
+          : 'Home'
   const drawerOpen = compact && drawer
 
   useEffect(() => {
@@ -75,36 +105,60 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
   }, [drawerOpen])
 
   useEffect(() => {
+    if (!settings) settingsEntry.current = `${pathname}${search.size ? `?${search}` : ''}`
+  }, [settings, pathname, search])
+
+  const toggleOnShortcut = useEffectEvent(() => toggle())
+
+  useEffect(() => {
     function shortcut(event: KeyboardEvent) {
       if (
         event.defaultPrevented ||
         event.isComposing ||
         event.altKey ||
         event.shiftKey ||
-        !(event.metaKey || event.ctrlKey) ||
-        event.key.toLowerCase() !== 'k'
+        !(event.metaKey || event.ctrlKey)
       )
         return
-      event.preventDefault()
+      const key = event.key.toLowerCase()
       const modal = event.target instanceof Element ? event.target.closest('dialog:modal') : null
       const canOpen = !modal || modal === drawerRef.current
-      setCommand((open) => !open && canOpen)
+      if (key === 'k') {
+        event.preventDefault()
+        setCommand((open) => !open && canOpen)
+      }
+      if (
+        key === 'b' &&
+        canOpen &&
+        !isEditableTarget(event.target) &&
+        !ownsShortcut(event.target, 'Mod+B')
+      ) {
+        event.preventDefault()
+        toggleOnShortcut()
+      }
     }
     document.addEventListener('keydown', shortcut)
     return () => document.removeEventListener('keydown', shortcut)
   }, [])
 
+  useDesktopCommands((command) => {
+    if (command === 'toggle-sidebar') toggle()
+    if (command === 'open-search') setCommand((open) => !open)
+  })
+
   function navigate(path: string) {
     setCommand(false)
     setDrawer(false)
-    if (LEGACY_DESTINATION.test(path)) window.location.assign(path)
-    else router.push(platformHref(path, search))
+    actions.requestLeave(() => {
+      if (LEGACY_DESTINATION.test(path)) window.location.assign(path)
+      else router.push(platformHref(path, search))
+    })
   }
   function toggle() {
     if (compact) setDrawer((previous) => !previous)
-    else setCollapsed((previous) => !previous)
+    else setCollapsed(!collapsed)
   }
-  const actions = (
+  const toolbar = (
     <SidebarToolbar
       items={data?.inbox ?? []}
       showInbox={!data?.unbacked?.includes('inbox')}
@@ -116,11 +170,13 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
   const sidebar = (
     <Sidebar
       data={data}
+      actions={actions}
       chats={chats}
       activeChat={activeChat}
       pathname={pathname}
       settingsSection={section?.key}
-      actions={(!desktop || compact) && actions}
+      toolbar={(!desktop || compact) && toolbar}
+      onBack={() => navigate(actions.settingsReturn(settingsEntry.current))}
       navigate={navigate}
       onNavigate={() => setDrawer(false)}
     />
@@ -147,7 +203,7 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
           <header className={styles.desktopBar} data-desktop-drag=''>
             <div className={styles.desktopSidebar}>
               <WindowHistoryButtons />
-              {!compact && !collapsed ? actions : openControl}
+              {!compact && !collapsed ? toolbar : openControl}
             </div>
             {!conversation && !(scrollingPage && compact) && (
               <span className={styles.desktopTitle} data-type='T067'>

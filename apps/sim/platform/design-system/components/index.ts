@@ -27,6 +27,7 @@ export { Icon } from './icon/icon'
 export {
   ActionMenu,
   BrowserActionsMenu,
+  ContextActionMenu,
   MenuItem,
   VisibilityMenu,
 } from './menu/action-menu'

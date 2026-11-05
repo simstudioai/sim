@@ -12,33 +12,28 @@ import {
 import { X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useMutation } from '@tanstack/react-query'
-import imageCompression from 'browser-image-compression'
 import Image from 'next/image'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
+import {
+  ACCEPTED_HELP_IMAGE_TYPES,
+  compressHelpImage,
+  DEFAULT_HELP_REQUEST_TYPE,
+  HELP_REQUEST_TYPE_OPTIONS,
+  HELP_REQUEST_TYPES,
+  MAX_HELP_IMAGE_BYTES,
+  submitHelpRequest,
+} from '@/lib/help/request'
 
 const logger = createLogger('HelpModal')
-
-const MAX_FILE_SIZE = 20 * 1024 * 1024
-const TARGET_SIZE_MB = 2
-const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
 
 const SCROLL_DELAY_MS = 100
 const SUCCESS_RESET_DELAY_MS = 2000
 
-const DEFAULT_REQUEST_TYPE = 'bug'
-
-const REQUEST_TYPE_OPTIONS = [
-  { label: 'Bug report', value: 'bug' },
-  { label: 'Feedback', value: 'feedback' },
-  { label: 'Feature request', value: 'feature_request' },
-  { label: 'Other', value: 'other' },
-]
-
 const formSchema = z.object({
   subject: z.string().min(1, 'Subject is required'),
   message: z.string().min(1, 'Message is required'),
-  type: z.enum(['bug', 'feedback', 'feature_request', 'other'], {
+  type: z.enum(HELP_REQUEST_TYPES, {
     error: 'Please select a request type',
   }),
 })
@@ -63,58 +58,6 @@ interface SubmitHelpVariables {
   workspaceId?: string
 }
 
-async function compressImage(file: File): Promise<File> {
-  if (file.size < TARGET_SIZE_MB * 1024 * 1024 || file.type === 'image/gif') {
-    return file
-  }
-
-  try {
-    const compressedFile = await imageCompression(file, {
-      maxSizeMB: TARGET_SIZE_MB,
-      maxWidthOrHeight: 1920,
-      useWebWorker: true,
-      fileType: file.type,
-      initialQuality: 0.8,
-      alwaysKeepResolution: true,
-    })
-
-    return new File([compressedFile], file.name, {
-      type: file.type,
-      lastModified: Date.now(),
-    })
-  } catch (error) {
-    logger.warn('Image compression failed, using original file:', { error })
-    return file
-  }
-}
-
-async function submitHelpRequest({ data, images, workflowId, workspaceId }: SubmitHelpVariables) {
-  const formData = new FormData()
-  formData.append('subject', data.subject)
-  formData.append('message', data.message)
-  formData.append('type', data.type)
-  if (workspaceId) formData.append('workspaceId', workspaceId)
-  formData.append('userAgent', navigator.userAgent)
-  if (workflowId) {
-    formData.append('workflowId', workflowId)
-  }
-
-  images.forEach((image, index) => {
-    formData.append(`image_${index}`, image)
-  })
-
-  // boundary-raw-fetch: multipart/form-data submission with image attachments, requestJson only supports JSON bodies
-  const response = await fetch('/api/help', {
-    method: 'POST',
-    body: formData,
-  })
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => null)
-    throw new Error(errorData?.error || 'Failed to submit help request')
-  }
-}
-
 export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpModalProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const imagesRef = useRef<ImageWithPreview[]>([])
@@ -128,13 +71,13 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
     defaultValues: {
       subject: '',
       message: '',
-      type: DEFAULT_REQUEST_TYPE,
+      type: DEFAULT_HELP_REQUEST_TYPE,
     },
     mode: 'onSubmit',
   })
 
   const helpMutation = useMutation({
-    mutationFn: submitHelpRequest,
+    mutationFn: (variables: SubmitHelpVariables) => submitHelpRequest(variables),
     onSuccess: (_data, variables) => {
       setSubmitStatus('success')
       reset()
@@ -159,7 +102,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
       reset({
         subject: '',
         message: '',
-        type: DEFAULT_REQUEST_TYPE,
+        type: DEFAULT_HELP_REQUEST_TYPE,
       })
     } else {
       const previewsToRevoke = imagesRef.current
@@ -208,17 +151,17 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
       let hasError = false
 
       for (const file of Array.from(files)) {
-        if (file.size > MAX_FILE_SIZE) {
+        if (file.size > MAX_HELP_IMAGE_BYTES) {
           hasError = true
           continue
         }
 
-        if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+        if (!ACCEPTED_HELP_IMAGE_TYPES.includes(file.type)) {
           hasError = true
           continue
         }
 
-        const compressedFile = await compressImage(file)
+        const compressedFile = await compressHelpImage(file)
         const imageWithPreview = Object.assign(compressedFile, {
           preview: URL.createObjectURL(compressedFile),
         }) as ImageWithPreview
@@ -265,7 +208,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
                 title='Request'
                 value={field.value}
                 onChange={field.onChange}
-                options={REQUEST_TYPE_OPTIONS}
+                options={HELP_REQUEST_TYPE_OPTIONS}
                 placeholder='Select a request type'
                 error={fieldState.error?.message}
               />
@@ -305,7 +248,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
             title='Attach images (optional)'
             label='Drop images here or click to browse'
             description='PNG, JPEG, WebP, GIF (max 20MB each)'
-            accept={ACCEPTED_IMAGE_TYPES.join(',')}
+            accept={ACCEPTED_HELP_IMAGE_TYPES.join(',')}
             multiple
             onChange={processFiles}
           />

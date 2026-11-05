@@ -23,3 +23,29 @@
 .copy > span + span {
   color: var(--ui-secondary);
 }
+.logoInput {
+  display: none;
+}
+.logoButton,
+.nameButton {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.logoButton {
+  display: inline-flex;
+  flex: none;
+}
+.logoButton:disabled {
+  cursor: progress;
+}
+.logoButton:hover,
+.nameButton:hover {
+  color: var(--ui-secondary);
+}
+.error {
+  color: var(--control-danger);
+}

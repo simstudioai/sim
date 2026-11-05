@@ -14,20 +14,29 @@ import type {
   ShellDestination,
   ShellWorkspace,
 } from '@/platform/app/(shell)/_components/model'
+import { useChatListActions } from '@/platform/lib/data/chat-list'
 import { useOrganization } from '@/platform/lib/data/organization'
 import {
   canListOrganizationChats,
   legacyRoutes,
   type PlatformOrganization,
 } from '@/platform/lib/data/organization-model'
+import { useLiveAccountActions } from '@/platform/lib/data/shell-actions'
+import type { LiveShell } from '@/platform/lib/data/shell-context'
+import { useWorkspaceActions } from '@/platform/lib/data/workspaces'
+
+/** The legacy sidebar's page size for its Workspaces section. */
+const WORKSPACE_PAGE_SIZE = 5
 
 function toShellWorkspace(
   workspace: Workspace,
-  pinnedIds: ReadonlySet<string> | undefined
+  pinnedIds: ReadonlySet<string> | undefined,
+  organization: PlatformOrganization
 ): ShellWorkspace {
   return {
     id: workspace.id,
     name: workspace.name,
+    href: legacyRoutes(organization).workspace(workspace.id),
     logoUrl: workspace.logoUrl ?? null,
     permissions: workspace.permissions,
     isPinned: pinnedIds?.has(workspace.id) ?? false,
@@ -77,10 +86,11 @@ export interface ShellNavigation {
 }
 
 /**
- * The viewer's real shell, shaped as the prop fixtures fill. The inbox and tray history stay empty
- * because neither has a backend, and `unbacked` hides what an empty value alone would misrepresent.
+ * The viewer's real shell: data shaped as the prop fixtures fill, and actions backed by mutations.
+ * The inbox and tray history stay empty because neither has a backend, and `unbacked` hides what an
+ * empty value alone would misrepresent.
  */
-export function useShellData(navigation: ShellNavigation): ShellData {
+export function useShellData(navigation: ShellNavigation): LiveShell {
   const organization = useOrganization()
   const { id: organizationId } = organization.organization
   const workspaces = useOrderedWorkspacesQuery()
@@ -91,24 +101,38 @@ export function useShellData(navigation: ShellNavigation): ShellData {
     enabled: chatsAvailable,
   })
   const profile = useUserProfile()
+  const chatActions = useChatListActions(organizationId)
+  const workspaceActions = useWorkspaceActions((workspaceId) =>
+    legacyRoutes(organization).workspace(workspaceId)
+  )
+  const accountActions = useLiveAccountActions(organization, navigation.destinations)
   return {
-    organization: organization.organization,
-    user: toShellUser(profile.data),
-    workspaces: (workspaces.data ?? [])
-      .filter((workspace) => workspace.organizationId === organizationId)
-      .map((workspace) => toShellWorkspace(workspace, pinnedIds.data)),
-    chats: (chats.data ?? []).map((chat) => toShellChat(chat, organization)),
-    inbox: [],
-    notifications: [],
-    unbacked: ['inbox', 'sortWorkspaces'],
-    status: {
-      workspaces: workspaces.status,
-      chats: chatsAvailable ? chats.status : 'success',
-      profile: profile.status,
+    data: {
+      organization: organization.organization,
+      user: toShellUser(profile.data),
+      workspaces: (workspaces.data ?? [])
+        .filter((workspace) => workspace.organizationId === organizationId)
+        .map((workspace) => toShellWorkspace(workspace, pinnedIds.data, organization)),
+      chats: (chats.data ?? []).map((chat) => toShellChat(chat, organization)),
+      inbox: [],
+      notifications: [],
+      unbacked: ['inbox', 'sortWorkspaces'],
+      status: {
+        workspaces: workspaces.status,
+        chats: chatsAvailable ? chats.status : 'success',
+        profile: profile.status,
+      },
+      workspaceCreation: toWorkspaceCreation(creationPolicy.data),
+      workspacePageSize: WORKSPACE_PAGE_SIZE,
+      chatsAvailable,
+      surface: organization,
+      destinations: navigation.destinations,
+      settingsNavigation: navigation.settingsNavigation,
     },
-    workspaceCreation: toWorkspaceCreation(creationPolicy.data),
-    surface: organization,
-    destinations: navigation.destinations,
-    settingsNavigation: navigation.settingsNavigation,
+    actions: {
+      ...accountActions,
+      chats: { ...chatActions, retry: () => void chats.refetch() },
+      workspaces: { ...workspaceActions, retry: () => void workspaces.refetch() },
+    },
   }
 }
