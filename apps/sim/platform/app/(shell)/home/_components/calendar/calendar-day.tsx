@@ -2,6 +2,11 @@
 
 import { useLayoutEffect, useRef, useState } from 'react'
 import styles from '@/platform/app/(shell)/home/_components/calendar/calendar-day.module.css'
+import {
+  layoutDay,
+  MAX_MEETING_LANES,
+  maxLanesForWidth,
+} from '@/platform/app/(shell)/home/_components/calendar/day-layout'
 import type {
   CalendarMeeting,
   HomeCalendarDay,
@@ -9,6 +14,7 @@ import type {
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { SkeletonBlock } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import {
+  ActionMenu,
   AvatarGroup,
   Button,
   IconButton,
@@ -32,60 +38,31 @@ function externalUrl(url: string | undefined) {
 /** An hour label this close to the current time would sit under it. */
 const NOW_LABEL_CLEARANCE_MINUTES = 15
 const HOURS = Array.from({ length: 24 }, (_, hour) => formatClockTime(hour * 3_600_000))
-/** A short meeting still needs room for its name and time. */
-const MIN_MEETING_ROWS = 30
-const MAX_MEETING_LANES = 3
-
 function timeSlot(startMinute: number, duration = 1) {
   return `${startMinute + 1} / span ${duration}`
 }
 
-/**
- * Places meetings that overlap side by side, in as few lanes as each overlapping run needs. Past
- * the lanes the width can show, later meetings share a lane rather than shrink out of reading.
- */
-function meetingLanes(meetings: readonly CalendarMeeting[]) {
-  const placed = new Map<string, { lane: number; lanes: number }>()
-  const ordered = [...meetings].sort((a, b) => a.startMinute - b.startMinute)
-  let run: CalendarMeeting[] = []
-  let laneEnds: number[] = []
-  let runEnd = -1
-  const closeRun = () => {
-    for (const meeting of run) {
-      const position = placed.get(meeting.id)
-      if (position) position.lanes = Math.min(laneEnds.length, MAX_MEETING_LANES)
-    }
-    run = []
-    laneEnds = []
-  }
-  for (const meeting of ordered) {
-    if (meeting.startMinute >= runEnd) closeRun()
-    const end = meeting.startMinute + Math.max(meeting.duration, MIN_MEETING_ROWS)
-    const free = laneEnds.findIndex((laneEnd) => laneEnd <= meeting.startMinute)
-    const lane = free === -1 ? laneEnds.length : free
-    laneEnds[lane] = end
-    placed.set(meeting.id, { lane: lane % MAX_MEETING_LANES, lanes: 1 })
-    run.push(meeting)
-    runEnd = Math.max(runEnd, end)
-  }
-  closeRun()
-  return placed
+/** A meeting running past this day's edges reads its own clock, not where its card is cut off. */
+function meetingTime({ clock, startMinute, duration }: CalendarMeeting) {
+  return formatTimeRange(
+    clock?.startMinute ?? startMinute,
+    clock?.endMinute ?? startMinute + duration
+  )
 }
 
 export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }: CalendarDayProps) {
   const today = calendar.nowMinute !== null
   const [returnCount, setReturnCount] = useState(0)
   const [atNow, setAtNow] = useState(true)
+  const [maxLanes, setMaxLanes] = useState(MAX_MEETING_LANES)
   const viewport = useRef<HTMLDivElement>(null)
   const now = useRef<HTMLSpanElement>(null)
   const firstMeeting = useRef<HTMLElement>(null)
   const restingTop = useRef<number | null>(null)
   const focusOnReturn = useRef(false)
   const scrollEdges = useScrollEdges('vertical', { viewport, tabStop: true })
-  const earliest = calendar.meetings.reduce<CalendarMeeting | undefined>(
-    (first, event) => (!first || event.startMinute < first.startMinute ? event : first),
-    undefined
-  )?.id
+  const { cards, overflows } = layoutDay(calendar.meetings, maxLanes)
+  const earliest = cards[0]?.meeting.id
 
   // Forgets the reading position only when the viewport changes: the clock ticks underneath it.
   useLayoutEffect(() => {
@@ -100,8 +77,13 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
       restingTop.current === null || Math.abs(root.scrollTop - restingTop.current) <= 1
     const updatePosition = () => setAtNow(atRest())
     const measure = () => {
+      setMaxLanes(maxLanesForWidth(root.clientWidth))
       const keepCentered = atRest()
-      const centered = marker.offsetTop + (marker.offsetHeight - root.clientHeight) / 2
+      // A meeting taller than the viewport opens at its title rather than its middle.
+      const centered = Math.min(
+        marker.offsetTop,
+        marker.offsetTop + (marker.offsetHeight - root.clientHeight) / 2
+      )
       restingTop.current = Math.max(0, Math.min(centered, root.scrollHeight - root.clientHeight))
       if (keepCentered) root.scrollTop = restingTop.current
       updatePosition()
@@ -131,7 +113,6 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
     setReturnCount((count) => count + 1)
   }
 
-  const lanes = meetingLanes(calendar.meetings)
   return (
     <>
       <div className={styles.toolbar}>
@@ -154,6 +135,22 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
           action={<RetryButton onRetry={onRetry} />}
         />
       )}
+      {calendar.status === 'ready' && calendar.allDay.length > 0 && (
+        <ul className={styles.allDay} aria-label='All-day events'>
+          {calendar.allDay.map((event) => (
+            <li key={event.id} className={styles.allDayEvent} data-type='T059'>
+              <a
+                className={styles.eventName}
+                href={externalUrl(event.providerUrl)}
+                target='_blank'
+                rel='noopener noreferrer'
+              >
+                <OverflowText text={event.title} />
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
       {calendar.status === 'ready' && (
         <div
           key={returnCount}
@@ -162,22 +159,6 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
           aria-label='Calendar schedule'
           className={styles.viewport}
         >
-          {calendar.allDay.length > 0 && (
-            <ul className={styles.allDay} aria-label='All-day events'>
-              {calendar.allDay.map((event) => (
-                <li key={event.id} className={styles.allDayEvent} data-type='T059'>
-                  <a
-                    className={styles.eventName}
-                    href={externalUrl(event.providerUrl)}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                  >
-                    <OverflowText text={event.title} />
-                  </a>
-                </li>
-              ))}
-            </ul>
-          )}
           <div className={styles.timeline}>
             {HOURS.map((time, index) => (
               <span
@@ -196,32 +177,71 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
                 {time}
               </span>
             ))}
-            {calendar.meetings.map((event) => (
-              <article
-                key={event.id}
-                ref={event.id === earliest ? firstMeeting : undefined}
-                className={styles.event}
-                data-lane={lanes.get(event.id)?.lane}
-                data-lanes={lanes.get(event.id)?.lanes}
+            {cards.map(
+              ({ meeting, startMinute, endMinute, lane, lanes, reservesOverflow, density }) => {
+                const time = meetingTime(meeting)
+                return (
+                  <article
+                    key={meeting.id}
+                    ref={meeting.id === earliest ? firstMeeting : undefined}
+                    className={styles.event}
+                    data-lane={lane}
+                    data-lanes={lanes}
+                    data-reserves-overflow={reservesOverflow || undefined}
+                    data-density={density}
+                    style={{ gridRow: timeSlot(startMinute, endMinute - startMinute) }}
+                  >
+                    <a
+                      className={styles.eventName}
+                      href={externalUrl(meeting.providerUrl)}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                    >
+                      <strong data-type='T059'>
+                        <OverflowText
+                          text={meeting.title}
+                          fullValue={lanes > 1 ? `${meeting.title}, ${time}` : meeting.title}
+                        />
+                      </strong>
+                      <small data-type='T035' aria-hidden={lanes > 1 || undefined}>
+                        {time}
+                      </small>
+                    </a>
+                    {meeting.people.length > 0 && (
+                      <span className={styles.people}>
+                        <AvatarGroup people={meeting.people} label='People in this meeting' />
+                      </span>
+                    )}
+                  </article>
+                )
+              }
+            )}
+            {overflows.map((overflow) => (
+              <div
+                key={overflow.id}
+                className={styles.overflow}
                 style={{
-                  gridRow: timeSlot(event.startMinute, Math.max(event.duration, MIN_MEETING_ROWS)),
+                  gridRow: timeSlot(
+                    overflow.startMinute,
+                    overflow.endMinute - overflow.startMinute
+                  ),
                 }}
               >
-                <a
-                  className={styles.eventName}
-                  href={externalUrl(event.providerUrl)}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                >
-                  <strong data-type='T059'>
-                    <OverflowText text={event.title} />
-                  </strong>
-                  <small data-type='T050'>
-                    {formatTimeRange(event.startMinute, event.startMinute + event.duration)}
-                  </small>
-                </a>
-                <AvatarGroup people={event.people} label='People in this meeting' />
-              </article>
+                <ActionMenu
+                  label={`${overflow.meetings.length} more meetings`}
+                  triggerText={`+${overflow.meetings.length}`}
+                  align='end'
+                  actions={overflow.meetings.map((meeting) => {
+                    const url = externalUrl(meeting.providerUrl)
+                    return {
+                      id: meeting.id,
+                      label: `${meeting.title}, ${meetingTime(meeting)}`,
+                      disabled: !url,
+                      onSelect: () => window.open(url, '_blank', 'noopener,noreferrer'),
+                    }
+                  })}
+                />
+              </div>
             ))}
             {calendar.nowMinute !== null && (
               <span

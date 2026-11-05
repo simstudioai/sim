@@ -193,7 +193,12 @@ export function toCalendarDay(
   const allDay: HomeCalendarDay['allDay'][number][] = []
   for (const event of calendar.events) {
     const id = `${event.credentialId}:${event.id}`
-    if (event.allDay) {
+    const runsBefore = event.startAt < calendar.window.startAt
+    const runsAfter = event.endAt > calendar.window.endAt
+    // A timed event filling the whole day would only be a card too tall to read.
+    const fillsDay =
+      event.startAt <= calendar.window.startAt && event.endAt >= calendar.window.endAt
+    if (event.allDay || fillsDay) {
       allDay.push({ id, title: event.title, providerUrl: event.url })
       continue
     }
@@ -202,7 +207,15 @@ export function toCalendarDay(
       id,
       title: event.title,
       startMinute,
-      duration: Math.max(1, minuteOfDay(event.endAt, calendar.window, day.timeZone) - startMinute),
+      duration: Math.max(0, minuteOfDay(event.endAt, calendar.window, day.timeZone) - startMinute),
+      ...(runsBefore || runsAfter
+        ? {
+            clock: {
+              startMinute: wallClockMinute(Date.parse(event.startAt), day.timeZone),
+              endMinute: wallClockMinute(Date.parse(event.endAt), day.timeZone),
+            },
+          }
+        : {}),
       providerUrl: event.url,
       people: event.people,
     })

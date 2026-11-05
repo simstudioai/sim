@@ -213,6 +213,24 @@ describe('placing a meeting on the day', () => {
     expect(after).toMatchObject({ startMinute: 23 * 60, duration: 60 })
   })
 
+  it('keeps the true clock of a meeting cut off by midnight, for its label', () => {
+    const [before] = day([event('2026-11-05T06:00:00.000Z', '2026-11-05T09:00:00.000Z')]).meetings
+    expect(before?.clock).toEqual({ startMinute: 22 * 60, endMinute: 60 })
+    const [within] = day([event('2026-11-05T17:00:00.000Z', '2026-11-05T17:30:00.000Z')]).meetings
+    expect(within?.clock).toBeUndefined()
+  })
+
+  it('moves a timed event filling the whole day to the all-day row', () => {
+    const calendar = day([event('2026-11-04T08:00:00.000Z', '2026-11-07T08:00:00.000Z')])
+    expect(calendar.meetings).toEqual([])
+    expect(calendar.allDay).toHaveLength(1)
+  })
+
+  it('keeps a zero-length meeting at zero, so its label names one moment', () => {
+    const [meeting] = day([event('2026-11-05T17:00:00.000Z', '2026-11-05T17:00:00.000Z')]).meetings
+    expect(meeting?.duration).toBe(0)
+  })
+
   it('keeps an all-day event off the timeline without dropping it', () => {
     const calendar = day([event(window.startAt, window.endAt, true)])
     expect(calendar.meetings).toEqual([])
