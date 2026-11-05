@@ -19,7 +19,7 @@
   gap: var(--spacing-8);
 }
 .actions {
-  gap: var(--ui-action-gap);
+  gap: var(--spacing-8);
 }
 .options {
   gap: var(--spacing-8);
@@ -29,8 +29,14 @@
   min-inline-size: 0;
 }
 .nameLeading {
-  display: inline-flex;
+  display: grid;
   flex: none;
+  place-items: center;
+  inline-size: var(--spacing-16);
+  block-size: var(--spacing-16);
+}
+.nameLeading > * {
+  grid-area: 1 / 1;
 }
 .nameCell {
   display: grid;

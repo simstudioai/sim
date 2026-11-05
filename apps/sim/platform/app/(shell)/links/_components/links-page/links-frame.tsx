@@ -39,7 +39,7 @@ export function LinksFrame({
         <h1 data-type='T076'>Links</h1>
         <div className={styles.actions}>
           {hosted && (
-            <Button icon='I041' onClick={openChromeStore}>
+            <Button icon='I049' onClick={openChromeStore}>
               Install Sim for Chrome
             </Button>
           )}

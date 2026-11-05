@@ -106,6 +106,22 @@ function LinkRowContextMenu({ links, children, ...actions }: LinkRowContextMenuP
   )
 }
 
+/** Holds the favicon's box with the globe until the image paints, so a row never shows a gap. */
+function LinkMark({ host }: { host: string | null }) {
+  const [loaded, setLoaded] = useState(false)
+  return (
+    <span className={styles.nameLeading}>
+      {!loaded && <Icon name='I041' />}
+      <Favicon
+        host={host}
+        fallback={null}
+        className={styles.favicon}
+        onLoad={() => setLoaded(true)}
+      />
+    </span>
+  )
+}
+
 interface LinkSummaryProps {
   link: SimLink
   updated: string
@@ -158,15 +174,7 @@ const LinksTable = memo(function LinksTable({
         cells: {
           name: (
             <TableLabel
-              leading={
-                <span className={styles.nameLeading}>
-                  <Favicon
-                    host={origin ? new URL(origin).hostname : null}
-                    fallback={<Icon name='I041' />}
-                    className={styles.favicon}
-                  />
-                </span>
-              }
+              leading={<LinkMark key={origin} host={origin ? new URL(origin).hostname : null} />}
             >
               <span className={styles.nameCell}>
                 <OverflowText text={link.name}>{link.name}</OverflowText>
