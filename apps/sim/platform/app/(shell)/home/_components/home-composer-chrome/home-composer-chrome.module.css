@@ -1,0 +1,64 @@
+/*
+ * The frame holds legacy components, so it sits outside any surface and cannot read design-system
+ * tokens. Its literal values are those of `--ui-ink`, `--ui-muted`, `--radius-composer`, and the
+ * `T048` type role, set on the host tokens the legacy field reads; the host's own theme class
+ * switches them, as it switches a `system` surface.
+ *
+ * The toolbar row holds 30px legacy controls around 28px design-system ones. The gap and the bottom
+ * inset each give back that row's 1px of centering, so the controls land where the design puts them.
+ */
+.frame {
+  --text-primary: rgb(10 10 10 / 80%);
+  --text-muted: rgb(10 10 10 / 60%);
+  padding: 1.0625rem 0.8125rem 0.75rem;
+  font-family: "Geist", sans-serif;
+  letter-spacing: normal;
+  -webkit-font-smoothing: antialiased;
+}
+html[class~="dark"] .frame {
+  --text-primary: #e6e6e6;
+  --text-muted: #a8a8a8;
+}
+.frame div:has(> textarea) > * {
+  padding-block: 0;
+  font-family: "Geist", sans-serif;
+  font-weight: 400;
+  line-height: 1.375rem;
+  letter-spacing: normal;
+}
+.field {
+  min-block-size: 3rem;
+  margin-block-end: 0.9375rem;
+}
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.backdrop > [data-platform-ui] {
+  block-size: 100%;
+  background: transparent;
+}
+.material {
+  block-size: 100%;
+  border-radius: var(--radius-composer);
+}
+.island > [data-platform-ui] {
+  background: transparent;
+}
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+.controls button {
+  border-radius: var(--radius-full);
+}
+
+@media (max-width: 40rem) {
+  .field {
+    min-block-size: 2.5rem;
+    margin-block-end: 0.6875rem;
+  }
+}

@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useEffect, useRef } from 'react'
+import { type MouseEventHandler, type ReactNode, useEffect, useRef } from 'react'
 import {
   Chip,
   ComposerActionButton,
@@ -45,7 +45,37 @@ import type {
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import type { ChatContext } from '@/stores/panel'
 
+/** The composer's own toolbar actions, for a chrome to draw. Absent when the mode has none. */
+interface ComposerLeadingActions {
+  addResources?: { label: string; onClick: MouseEventHandler<HTMLButtonElement> }
+  attachFile?: { label: string; onClick: () => void }
+  skills?: { label: string; onClick: () => void }
+  plan?: { active: boolean; onToggle: () => void }
+}
+
+type ComposerSubmitAction =
+  | { kind: 'send'; label: string; disabled: boolean; onClick: () => void }
+  | { kind: 'stop'; label: string; onClick: () => void }
+
+/**
+ * Another design language's look for the composer, supplied by its host so this module (which the
+ * extension also bundles) imports none of it. Editing, submission, drag and drop, voice, the model
+ * selector, and the toolbar's layout stay here. The panel's `resourceActions` and `toolbarActions`
+ * are legacy chrome, so a host using this does not pass them.
+ */
+export interface ComposerChrome {
+  /** Replaces the frame's classes and font, and carries what the field inside it inherits. */
+  frameClassName: string
+  /** Sizes the editing field, replacing its first-view height. */
+  fieldClassName: string
+  /** Painted behind the frame's content. */
+  backdrop: ReactNode
+  renderLeadingControls: (actions: ComposerLeadingActions) => ReactNode
+  renderSubmitControl: (action: ComposerSubmitAction) => ReactNode
+}
+
 interface ComposerProps {
+  chrome?: ComposerChrome
   requestMode?: ChatRequestMode
   onPlanChange?: () => void
   value: string
@@ -73,6 +103,7 @@ interface ComposerProps {
 
 /** Organization composer with scoped resources, attachments, voice, and draft restoration. */
 export function Composer({
+  chrome,
   requestMode = 'assistant',
   onPlanChange,
   value,
@@ -208,6 +239,10 @@ export function Composer({
     )
   }
 
+  const openResourceMenu = (event: { currentTarget: Element }) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    editor.openResourceMenu({ left: rect.left, top: rect.top })
+  }
   const contextPicker = (kind: 'resources' | 'skills', icon: typeof Plus, label: string) => (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
@@ -217,10 +252,7 @@ export function Composer({
           aria-label={label}
           onClick={(event) => {
             if (kind === 'skills') editor.insertSlashTrigger()
-            else {
-              const rect = event.currentTarget.getBoundingClientRect()
-              editor.openResourceMenu({ left: rect.left, top: rect.top })
-            }
+            else openResourceMenu(event)
           }}
         />
       </Tooltip.Trigger>
@@ -243,12 +275,27 @@ export function Composer({
       onArrowUpOnEmpty={recallQueuedTail}
       className={cn(
         'max-h-[200px] max-md:max-h-[min(200px,calc(var(--mobile-viewport-height,100dvh)*0.25))]',
-        isInitialView && !compact && 'min-h-[56px] max-md:min-h-0'
+        chrome ? chrome.fieldClassName : isInitialView && !compact && 'min-h-[56px] max-md:min-h-0'
       )}
     />
   )
 
-  const leadingControls = (
+  const leadingControls = chrome ? (
+    chrome.renderLeadingControls({
+      addResources: imagesOnly ? undefined : { label: 'Add resources', onClick: openResourceMenu },
+      attachFile:
+        !imagesOnly || compact
+          ? {
+              label: imagesOnly ? 'Attach image' : 'Attach file',
+              onClick: files.handleFileSelect,
+            }
+          : undefined,
+      skills: imagesOnly
+        ? undefined
+        : { label: 'Skills', onClick: () => editor.insertSlashTrigger() },
+      plan: onPlanChange ? { active: requestMode === 'plan', onToggle: onPlanChange } : undefined,
+    })
+  ) : (
     <>
       {searchInput && <Search className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
       {imagesOnly && resourceActions && (
@@ -297,7 +344,13 @@ export function Composer({
       onToggle={voice.toggleListening}
     />
   )
-  const submitControl = isSending ? (
+  const submitControl = chrome ? (
+    chrome.renderSubmitControl(
+      isSending
+        ? { kind: 'stop', label: 'Stop generation', onClick: onStop }
+        : { kind: 'send', label: 'Send', disabled: !canSubmit, onClick: submit }
+    )
+  ) : isSending ? (
     <ComposerActionButton type='button' onClick={onStop} aria-label='Stop generation' active>
       <StopFilled className='block size-[14px] fill-white dark:fill-black' />
     </ComposerActionButton>
@@ -332,19 +385,26 @@ export function Composer({
       onDragOver={files.handleDragOver}
       onDrop={files.handleDrop}
       className={cn(
-        inter.className,
         'relative z-10 mx-auto w-full max-w-chat',
-        !searchInput &&
-          'rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
-        !searchInput && !compact && isInitialView && 'shadow-ambient'
+        chrome
+          ? chrome.frameClassName
+          : [
+              inter.className,
+              !searchInput &&
+                'rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
+              !searchInput && !compact && isInitialView && 'shadow-ambient',
+            ]
       )}
     >
+      {chrome?.backdrop}
       {!searchInput && attachmentList}
       {!searchInput && promptEditor}
 
       {searchInput ? (
         <SearchInputBar
           floating={isInitialView}
+          frameless={Boolean(chrome)}
+          fieldClassName={chrome?.fieldClassName}
           attachments={attachmentList}
           inputRef={textareaRef}
           value={editor.value}

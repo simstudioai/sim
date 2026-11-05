@@ -22,7 +22,7 @@ export function HomeDashboardSkeleton({ requestMode }: HomeDashboardSkeletonProp
         </RedesignSurface>
         <RedesignSurface>
           <div className={styles.composer}>
-            <div className={styles.placeholderComposer} data-mode={requestMode} />
+            <div className={styles.placeholderComposer} />
           </div>
         </RedesignSurface>
         <RedesignSurface>
