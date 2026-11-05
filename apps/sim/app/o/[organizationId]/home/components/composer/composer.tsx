@@ -72,6 +72,8 @@ export interface ComposerChrome {
   backdrop: ReactNode
   renderLeadingControls: (actions: ComposerLeadingActions) => ReactNode
   renderSubmitControl: (action: ComposerSubmitAction) => ReactNode
+  /** The blocked-microphone help, shown only while it is open. */
+  renderMicrophoneHelp: (onClose: () => void) => ReactNode
 }
 
 interface ComposerProps {
@@ -443,10 +445,15 @@ export function Composer({
         multiple
       />
       {files.isDragging && <DropOverlay imagesOnly={imagesOnly} />}
-      <MicrophonePermissionHelp
-        open={voice.permissionHelpOpen}
-        onOpenChange={voice.setPermissionHelpOpen}
-      />
+      {chrome ? (
+        voice.permissionHelpOpen &&
+        chrome.renderMicrophoneHelp(() => voice.setPermissionHelpOpen(false))
+      ) : (
+        <MicrophonePermissionHelp
+          open={voice.permissionHelpOpen}
+          onOpenChange={voice.setPermissionHelpOpen}
+        />
+      )}
     </div>
   )
 }

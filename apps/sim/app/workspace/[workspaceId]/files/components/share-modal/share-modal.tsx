@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import {
   Chip,
   ChipButtonGroup,
@@ -32,6 +32,36 @@ interface ShareModalProps {
   fileName: string
   /** Share state already known from the file row, used as the initial value to avoid flicker. */
   initialShare?: ShareRecord | null
+  /** Draws the dialog in another design language, in place of this one's. The behavior stays here. */
+  renderDialog?: (dialog: ShareDialogModel) => ReactNode
+}
+
+/** Everything a share dialog shows and does, whichever design language draws it. */
+export interface ShareDialogModel {
+  fileName: string
+  saved: ShareRecord | null
+  accessHint: string
+  accessModes: { value: ShareAuthType; label: string }[]
+  mode: ShareAuthType
+  onModeChange: (mode: ShareAuthType) => void
+  password: string
+  onPasswordChange: (password: string) => void
+  emails: string[]
+  onEmailsChange: (emails: string[]) => void
+  emailValidator: (entry: string) => string | null
+  /** The last save's failure, which a dialog over the page's toasts has to show itself. */
+  error: string | null
+  pending: boolean
+  primaryLabel: string
+  primaryDisabled: boolean
+  isUnshareAction: boolean
+  onPrimaryAction: () => void
+  copied: boolean
+  onCopyLink: (url: string) => void
+  unshareConfirmOpen: boolean
+  onUnshareConfirmOpenChange: (open: boolean) => void
+  onConfirmUnshare: () => void
+  onClose: () => void
 }
 
 const ACCESS_LABELS: Record<ShareAuthType, string> = {
@@ -67,6 +97,7 @@ export function ShareModal({
   fileId,
   fileName,
   initialShare,
+  renderDialog,
 }: ShareModalProps) {
   const {
     data: share,
@@ -193,6 +224,39 @@ export function ShareModal({
       : `${saved?.isActive ? 'Update' : 'Share'} to make this file accessible to anyone with the link.`
   })()
 
+  const primaryDisabled =
+    upsertShare.isPending ||
+    !shareReadReady ||
+    (!isUnshareAction && (passwordMissing || emailsMissing || enableBlockedByPolicy))
+
+  if (renderDialog) {
+    return renderDialog({
+      fileName,
+      saved,
+      accessHint,
+      accessModes: accessModes.map((value) => ({ value, label: ACCESS_LABELS[value] })),
+      mode: effectiveMode,
+      onModeChange: setDraftMode,
+      password: draftPassword,
+      onPasswordChange: setDraftPassword,
+      emails: effectiveEmails,
+      onEmailsChange: setDraftEmails,
+      emailValidator: validateAllowlistEntry,
+      error: upsertShare.error?.message ?? null,
+      pending: upsertShare.isPending,
+      primaryLabel,
+      primaryDisabled,
+      isUnshareAction,
+      onPrimaryAction: handlePrimaryAction,
+      copied,
+      onCopyLink: (url) => void copy(url),
+      unshareConfirmOpen,
+      onUnshareConfirmOpenChange: setUnshareConfirmOpen,
+      onConfirmUnshare: submitPrimaryAction,
+      onClose: handleClose,
+    })
+  }
+
   return (
     <>
       <ChipModal
@@ -277,10 +341,7 @@ export function ShareModal({
             label: primaryLabel,
             onClick: handlePrimaryAction,
             variant: isUnshareAction ? 'destructive' : 'primary',
-            disabled:
-              upsertShare.isPending ||
-              !shareReadReady ||
-              (!isUnshareAction && (passwordMissing || emailsMissing || enableBlockedByPolicy)),
+            disabled: primaryDisabled,
           }}
         />
       </ChipModal>

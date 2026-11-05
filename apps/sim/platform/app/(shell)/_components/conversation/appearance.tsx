@@ -3,6 +3,9 @@
 import type { OrganizationConversationAppearance } from '@/app/o/[organizationId]/components/organization-conversation'
 import { COMPOSER_CHROME } from '@/platform/app/(shell)/_components/conversation/composer-chrome'
 import styles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
+import { PageContextDialog } from '@/platform/app/(shell)/_components/conversation/dialogs'
+import { ResponseActions } from '@/platform/app/(shell)/_components/conversation/response-actions'
+import { ShareDialog } from '@/platform/app/(shell)/_components/conversation/share-dialog'
 import {
   ComposerPlaceholder,
   TranscriptPlaceholder,
@@ -16,6 +19,8 @@ export const CONVERSATION_APPEARANCE: OrganizationConversationAppearance = {
     userBubbleClassName: styles.userBubble,
     responseActionsClassName: styles.responseActions,
     sourcesPopoverClassName: styles.sourcesPopover,
+    renderResponseActions: (actions) => <ResponseActions {...actions} />,
+    renderPageContextDialog: (dialog) => <PageContextDialog {...dialog} />,
     loadingTranscript: <TranscriptPlaceholder />,
     loadingComposer: <ComposerPlaceholder />,
   },
@@ -23,5 +28,6 @@ export const CONVERSATION_APPEARANCE: OrganizationConversationAppearance = {
     panelClassName: styles.panel,
     tabsClassName: styles.tabs,
     sourcesClassName: `${styles.palette} ${styles.sources}`,
+    renderShareDialog: (dialog) => <ShareDialog {...dialog} />,
   },
 }

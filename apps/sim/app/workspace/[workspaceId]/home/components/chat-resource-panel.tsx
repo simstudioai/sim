@@ -3,6 +3,7 @@
 import { lazy, type ReactNode, Suspense, useCallback } from 'react'
 import { cn } from '@sim/emcn'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
+import type { ShareDialogModel } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import { ChatPanelLayout } from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
 import { MothershipResourcesProvider } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { useBrowserTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-browser-tab-resources'
@@ -21,6 +22,7 @@ export interface ChatPanelAppearance {
   panelClassName?: string
   tabsClassName?: string
   sourcesClassName?: string
+  renderShareDialog?: (dialog: ShareDialogModel) => ReactNode
 }
 
 interface ChatResourcePanelProps {
@@ -126,6 +128,7 @@ export function ChatResourcePanel({
               )}
               tabsClassName={appearance?.tabsClassName}
               sourcesClassName={appearance?.sourcesClassName}
+              renderShareDialog={appearance?.renderShareDialog}
             />
           </Suspense>
         </MothershipResourcesProvider>

@@ -5,6 +5,7 @@ import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-hos
 import type { ComposerChrome } from '@/app/o/[organizationId]/home/components/composer'
 import styles from '@/platform/app/(shell)/_components/conversation/composer-chrome.module.css'
 import conversationStyles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
+import { MicrophoneHelp } from '@/platform/app/(shell)/_components/conversation/dialogs'
 import { IconButton, SegmentedControl } from '@/platform/design-system/components'
 
 const PLAN_OPTIONS = [
@@ -56,6 +57,11 @@ export const COMPOSER_CHROME: ComposerChrome = {
         />
       )}
     </ControlIsland>
+  ),
+  renderMicrophoneHelp: (onClose) => (
+    <RedesignSurface>
+      <MicrophoneHelp onClose={onClose} />
+    </RedesignSurface>
   ),
   renderSubmitControl: (action) => (
     <ControlIsland>
