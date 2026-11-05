@@ -9,16 +9,16 @@ import {
 const legacy = (path: string) => `/o/${organizationId()}${path}`
 
 const REDIRECTS: readonly (readonly [string, string])[] = [
-  ['', '/platform/home'],
-  ['/home', '/platform/home'],
-  ['/people', '/platform/people'],
-  ['/settings', '/platform/settings'],
-  ['/settings/members', '/platform/settings/members'],
-  ['/settings/team', '/platform/settings/members'],
-  ['/settings/subscription?from=mail', '/platform/settings/billing?from=mail'],
-  ['/settings/general?view=privacy', '/platform/settings/privacy'],
-  ['/links?search=hand', '/platform/settings/links?search=hand'],
-  ['/search?q=renewal', '/platform/search?q=renewal'],
+  ['', '/org/home'],
+  ['/home', '/org/home'],
+  ['/people', '/org/people'],
+  ['/settings', '/org/settings'],
+  ['/settings/members', '/org/settings/members'],
+  ['/settings/team', '/org/settings/members'],
+  ['/settings/subscription?from=mail', '/org/settings/billing?from=mail'],
+  ['/settings/general?view=privacy', '/org/settings/privacy'],
+  ['/links?search=hand', '/org/settings/links?search=hand'],
+  ['/search?q=renewal', '/org/search?q=renewal'],
 ]
 
 for (const [from, to] of REDIRECTS) {
@@ -43,25 +43,25 @@ test('a client navigation into a mapped legacy route also reaches the Platform',
   await signIn(page, adminEmail(), legacy('/skills'))
   await page.goto(legacy('/skills'))
   await page.getByRole('link', { name: 'People', exact: true }).first().click()
-  await expect(page).toHaveURL(/\/platform\/people/)
+  await expect(page).toHaveURL(/\/org\/people/)
 })
 
 test('signing in from a deep Platform link returns to it', async ({ page }) => {
-  await page.goto('/platform/settings/members?search=rae')
+  await page.goto('/org/settings/members?search=rae')
   await expect(page).toHaveURL(/\/login\?.*callbackUrl=/)
   expect(new URL(page.url()).searchParams.get('callbackUrl')).toBe(
-    '/platform/settings/members?search=rae'
+    '/org/settings/members?search=rae'
   )
-  await signInThroughForm(page, adminEmail(), '/platform/settings/members?search=rae')
-  await expect(page).toHaveURL(/\/platform\/settings\/members\?search=rae$/)
+  await signInThroughForm(page, adminEmail(), '/org/settings/members?search=rae')
+  await expect(page).toHaveURL(/\/org\/settings\/members\?search=rae$/)
   await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible()
 })
 
 test('zone pages carry the security headers and load their assets under the base path', async ({
   page,
 }) => {
-  await signIn(page, adminEmail(), '/platform/home')
-  const response = await page.goto('/platform/home')
+  await signIn(page, adminEmail(), '/org/home')
+  const response = await page.goto('/org/home')
   const headers = response?.headers() ?? {}
   expect(headers['content-security-policy']).toBeTruthy()
   expect(headers['x-content-type-options']).toBe('nosniff')
@@ -73,7 +73,7 @@ test('zone pages carry the security headers and load their assets under the base
   const local = assets.filter((asset) => asset.includes('/_next/'))
   expect(local.length).toBeGreaterThan(0)
   for (const asset of local) {
-    expect(new URL(asset, page.url()).pathname).toMatch(/^\/platform\/_next\//)
+    expect(new URL(asset, page.url()).pathname).toMatch(/^\/org\/_next\//)
   }
 })
 

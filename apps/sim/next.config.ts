@@ -32,6 +32,8 @@ const MARKDOWN_REQUEST = {
 const PLATFORM_ORIGIN = env.SIM_PLATFORM_ORIGIN ? new URL(env.SIM_PLATFORM_ORIGIN).origin : null
 
 const nextConfig: NextConfig = {
+  /** Lets the runtime handoff check that this build actually has the Platform rewrite. */
+  env: { SIM_PLATFORM_ZONE_REWRITE: PLATFORM_ORIGIN ? '1' : '' },
   devIndicators: false,
   poweredByHeader: false,
   // Safe here since this repo's source is already fully public on GitHub -
@@ -728,8 +730,8 @@ const nextConfig: NextConfig = {
         ...(PLATFORM_ORIGIN
           ? [
               {
-                source: '/platform/:path*',
-                destination: `${PLATFORM_ORIGIN}/platform/:path*`,
+                source: '/org/:path*',
+                destination: `${PLATFORM_ORIGIN}/org/:path*`,
               },
             ]
           : []),

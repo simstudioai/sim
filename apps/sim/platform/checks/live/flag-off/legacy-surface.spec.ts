@@ -33,9 +33,9 @@ test('a client navigation stays on the legacy surface too', async ({ page }) => 
   await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
 })
 
-test('with no zone built, /platform is absent', async ({ page }) => {
-  test.skip(zoneBuilt, 'This build has a zone; its /platform is exercised by the zone project')
-  for (const path of ['/platform', '/platform/home', '/platform/settings/members']) {
+test('with no zone built, /org is absent', async ({ page }) => {
+  test.skip(zoneBuilt, 'This build has a zone; its /org is exercised by the zone project')
+  for (const path of ['/org', '/org/home', '/org/settings/members']) {
     await signIn(page, adminEmail(), `/o/${organizationId()}/home`)
     const response = await page.goto(path)
     expect(response?.status(), path).toBe(404)

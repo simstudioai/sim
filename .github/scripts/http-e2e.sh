@@ -164,7 +164,7 @@ start_platform() {
     ../../node_modules/next/dist/bin/next start platform --hostname 127.0.0.1 --port "$port" \
     > "$platform_log" 2>&1 &
   platform_pid=$!
-  wait_ready "$platform_pid" "http://127.0.0.1:$port/platform" 'Platform zone'
+  wait_ready "$platform_pid" "http://127.0.0.1:$port/org" 'Platform zone'
 }
 
 # platform_live_environment: one hosted Enterprise organization, the deterministic seed its specs
@@ -432,7 +432,7 @@ JS
       bun run test:landing-seo:e2e
     ;;
 
-  # The zone as deployed: flag on, /platform rewritten to the Platform build. Then the same build
+  # The zone as deployed: flag on, /org rewritten to the Platform build. Then the same build
   # with the flag off, which must put everyone back on the legacy surface. Both report, whichever
   # fails.
   platform-live-zone)

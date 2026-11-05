@@ -84,7 +84,7 @@ jobs:
 
   # The Platform against the real stack: Postgres, Redis, migrations, the production main app and
   # the production Platform. `zone` is the deployed topology, and then that same build with the flag
-  # off. `flag-off` builds with no zone at all, so it is the only proof /platform is truly absent.
+  # off. `flag-off` builds with no zone at all, so it is the only proof /org is truly absent.
   # Group environment and seed: `.github/scripts/http-e2e.sh`.
   live:
     name: live (${{ matrix.topology }})
@@ -149,7 +149,7 @@ jobs:
       - name: Build the Platform under its base path
         if: matrix.topology == 'zone'
         env:
-          SIM_PLATFORM_BASE_PATH: /platform
+          SIM_PLATFORM_BASE_PATH: /org
         run: bun run --cwd apps/sim build:platform
       - name: Map the hosted app to loopback
         run: printf '127.0.0.1 platform-live.sim.ai\n' | sudo tee -a /etc/hosts

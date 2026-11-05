@@ -5,7 +5,7 @@ const report = process.env.PLATFORM_LIVE_REPORT_PATH ?? 'test-results/platform-l
 
 /**
  * Runs against a real main app, Platform zone and database you have already started; it starts no
- * servers. Point `PLATFORM_LIVE_ORIGIN` at the main app, which proxies `/platform`.
+ * servers. Point `PLATFORM_LIVE_ORIGIN` at the main app, which proxies `/org`.
  * `.github/scripts/http-e2e.sh` boots that stack and picks a project:
  *
  * - `zone`: the flag is on and `SIM_PLATFORM_ORIGIN` was set when the main app was built.

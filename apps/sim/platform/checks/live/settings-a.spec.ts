@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test'
 import { adminEmail, signInAsAdmin } from '@/platform/checks/live/session'
 
-const settings = (path = '') => `/platform/settings${path}`
+const settings = (path = '') => `/org/settings${path}`
 
 test.beforeEach(async ({ page }) => {
-  await signInAsAdmin(page, '/platform')
+  await signInAsAdmin(page, '/org')
 })
 
 test('a theme chosen here persists across a reload and repaints the shell', async ({ page }) => {

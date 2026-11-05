@@ -3,7 +3,7 @@ import { organizationId, signInAsAdmin } from '@/platform/checks/live/session'
 
 test.describe('Home on real data', () => {
   test.beforeEach(async ({ page }) => {
-    await signInAsAdmin(page, '/platform/home')
+    await signInAsAdmin(page, '/org/home')
   })
 
   test('the Email and Calendar widgets each settle in a state the member can act on', async ({
