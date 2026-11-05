@@ -28,6 +28,7 @@ const materializeLargeValueRefMock = executionPayloadStoreMockFns.mockMaterializ
 const storeExecutionTraceArchiveMock = executionPayloadStoreMockFns.mockStoreExecutionTraceArchive
 
 const mockLogger = getMockLogger('TraceStore')
+const projectionLogger = getMockLogger('TraceSecretProjection')
 
 const decryptSecretMock = encryptionMockFns.mockDecryptSecret
 
@@ -555,6 +556,17 @@ describe('projectExecutionDataForDisplay envelope isolation', () => {
     expect(displayData.error).toBe('Request failed with {{OPENAI_API_KEY}}')
     expect(displayData.message).toBe('Run failed')
     expect(displayData).not.toHaveProperty('blockExecutions')
+    expect(projectionLogger.warn).toHaveBeenCalledWith(
+      'Omitting trace content that could not be sanitized',
+      {
+        executionId: CONTEXT.executionId,
+        workflowId: CONTEXT.workflowId,
+        workspaceId: CONTEXT.workspaceId,
+        phase: 'read',
+        displayField: 'blockExecutions',
+        failure: expect.objectContaining({ name: 'TraceSecretProjectionError' }),
+      }
+    )
     expect(displayData.traceSpans).toEqual([
       expect.objectContaining({ id: 'span-1', output: { result: '{{OPENAI_API_KEY}}' } }),
     ])
@@ -600,6 +612,14 @@ describe('projectExecutionDataForDisplay envelope isolation', () => {
 
     expect(displayData.error).toBe('Request failed with {{OPENAI_API_KEY}}')
     expect(displayData).not.toHaveProperty('blockExecutions')
+    expect(projectionLogger.warn).toHaveBeenCalledWith(
+      'Trace content exceeded the projection budget; withholding the remaining content',
+      expect.objectContaining({
+        retainedSpanCount: 1,
+        withheldSpanCount: 0,
+        withheldDisplayFields: ['blockExecutions'],
+      })
+    )
     const [span] = displayData.traceSpans as TraceSpan[]
     expect(span.output?.result).toBe('{{OPENAI_API_KEY}}')
     expect(span).not.toHaveProperty('contentWithheld')
