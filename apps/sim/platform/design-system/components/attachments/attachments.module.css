@@ -1,65 +1,17 @@
 .attachmentItems {
-  display: grid;
-  gap: var(--spacing-8);
-  grid-template-columns: repeat(
-      auto-fill,
-      minmax(min(100%, var(--collection-attachment-track)), 1fr)
-    );
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-action-gap);
 }
 .attachmentItems[data-layout="list"] {
+  display: grid;
   grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+  gap: var(--ui-list-gap);
 }
 .attachmentItem {
-  display: flex;
-  align-items: stretch;
   min-inline-size: 0;
-  min-block-size: var(--spacing-64);
-  border: var(--spacing-stroke-default) solid var(--ui-divider);
-  border-radius: var(--radius-menu-shared);
-  background: var(--ui-reading);
-}
-.tile {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: var(--ui-row-gap);
-  min-inline-size: 0;
-  padding: var(--ui-row-inset);
-  border-radius: inherit;
-  text-align: start;
-}
-button.tile {
-  cursor: pointer;
-}
-.attachmentItem:has(> button.tile:hover) {
-  background: var(--ui-hover);
-}
-.media {
-  display: grid;
-  flex: none;
-  place-items: center;
-  inline-size: var(--spacing-36);
-  block-size: var(--spacing-44);
-}
-.media[data-kind="image"] {
-  inline-size: var(--spacing-44);
-  border-radius: var(--radius-item);
-  overflow: clip;
-}
-.copy {
-  display: grid;
-  flex: 1;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--ui-stack-gap);
-  min-inline-size: 0;
-}
-.caption {
-  color: var(--ui-secondary);
-}
-.removeFile {
-  align-self: start;
-  margin-block-start: var(--ui-popup-padding);
-  margin-inline-end: var(--ui-popup-padding);
+  max-inline-size: 100%;
 }
 .attachmentViewport {
   display: grid;
@@ -68,7 +20,9 @@ button.tile {
   max-inline-size: min(100%, var(--container-560));
 }
 .thumbnail {
-  width: 100%;
-  height: 100%;
+  flex: none;
+  inline-size: var(--spacing-20);
+  block-size: var(--spacing-20);
+  border-radius: var(--radius-item);
   object-fit: cover;
 }

@@ -94,7 +94,7 @@
 }
 .steps {
   display: grid;
-  gap: var(--ui-list-gap);
+  gap: var(--ui-section-gap);
 }
 .runRule {
   border: 0;
@@ -104,7 +104,6 @@
 .step summary {
   color: var(--ui-secondary);
   justify-content: space-between;
-  min-block-size: var(--spacing-app-control-sm);
   padding-inline: var(--ui-row-inset);
   margin-inline: calc(-1 * var(--ui-row-inset));
   cursor: pointer;
@@ -131,7 +130,8 @@
   transform: rotate(90deg);
 }
 .result {
-  margin-block-start: var(--ui-row-gap);
+  margin-block-start: var(--ui-section-gap);
+  padding-block: var(--ui-row-gap);
   padding-inline-start: var(--spacing-16);
   border-inline-start: var(--ui-conversation-rule);
   color: var(--ui-ink);

@@ -1,7 +1,6 @@
 'use client'
 
 import styles from '@/platform/design-system/components/avatar/avatar.module.css'
-import { avatarInitials } from '@/platform/design-system/components/avatar/avatar-initials'
 import { IconButton } from '@/platform/design-system/components/button/button'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
@@ -19,12 +18,10 @@ interface AvatarProps {
   name: string
   src?: string
   organization?: boolean
-  singleInitial?: boolean
   size?: 'inline'
 }
 
-export function Avatar({ name, src, organization, singleInitial, size }: AvatarProps) {
-  const initials = avatarInitials(name, organization || singleInitial ? 1 : 2)
+export function Avatar({ name, src, organization, size }: AvatarProps) {
   return (
     <span
       className={styles.avatar}
@@ -34,7 +31,7 @@ export function Avatar({ name, src, organization, singleInitial, size }: AvatarP
       aria-label={name}
       data-type={size ? 'T021' : organization ? 'T034' : 'T050'}
     >
-      {src ? <AvatarImage src={src} /> : initials}
+      {src ? <AvatarImage src={src} /> : Array.from(name.trim().toUpperCase())[0]}
     </span>
   )
 }

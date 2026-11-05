@@ -27,8 +27,12 @@
   inset-block-start: calc((var(--spacing-56) - var(--spacing-app-chip)) / 2);
   inset-inline-start: var(--ui-row-inset);
 }
-.shell[data-home] > .openControl {
-  inset-block-start: var(--ui-page-inset-block);
+.homeContent {
+  position: relative;
+  container-type: inline-size;
+}
+.homeContent > .openControl {
+  inset-block-start: var(--shell-home-row-start);
 }
 .desktopBar {
   display: flex;

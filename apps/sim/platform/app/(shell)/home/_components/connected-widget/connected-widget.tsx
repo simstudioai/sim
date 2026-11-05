@@ -4,6 +4,7 @@ import { type ReactNode, useState } from 'react'
 import styles from '@/platform/app/(shell)/home/_components/connected-widget/connected-widget.module.css'
 import { HomeSection } from '@/platform/app/(shell)/home/_components/home-section/home-section'
 import { ActionMenu, Button } from '@/platform/design-system/components'
+import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { Modal } from '@/platform/design-system/components/modal/modal'
 
 const integrations = {
@@ -35,10 +36,11 @@ export function ConnectedWidget({
   children,
 }: ConnectedWidgetProps) {
   const [disconnecting, setDisconnecting] = useState(false)
-  const actions = [{ id: 'hide', label: `Hide ${title}`, onSelect: onHide }]
+  const actions: MenuAction[] = [{ id: 'hide', label: `Hide ${title}`, onSelect: onHide }]
   if (connected)
     actions.push({
       id: 'disconnect',
+      destructive: true,
       label: `Disconnect ${title}`,
       onSelect: () => setDisconnecting(true),
     })

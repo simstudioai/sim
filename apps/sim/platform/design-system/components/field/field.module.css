@@ -58,7 +58,6 @@ textarea.input {
   height: calc(var(--spacing-76) - 2 * var(--spacing-stroke-default));
   min-height: calc(var(--spacing-76) - 2 * var(--spacing-stroke-default));
   padding-block: var(--spacing-8);
-  resize: vertical;
 }
 
 textarea.input[data-density="expanded"] {

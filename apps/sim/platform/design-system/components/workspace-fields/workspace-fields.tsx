@@ -49,6 +49,7 @@ export function RecipientTag({ address, invalid, selected, onRemove }: Recipient
         <span className={styles.removeRecipient}>
           <IconButton
             size='compact'
+            variant='destructive'
             label={`Remove ${address}`}
             icon='I105'
             onClick={() => onRemove(address)}

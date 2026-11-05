@@ -40,6 +40,7 @@ export function RecentItems({ label, title = label, items, onSelect, onRemove }:
                     <IconButton
                       icon='I105'
                       size='compact'
+                      variant='destructive'
                       label={`Remove ${item.label} from recents`}
                       onClick={() => onRemove(item.id)}
                     />

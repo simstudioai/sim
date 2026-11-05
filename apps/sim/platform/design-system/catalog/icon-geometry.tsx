@@ -161,6 +161,11 @@ export const glyphs = {
       </>
     ),
   },
+  I030: {
+    label: 'arrow-up-right',
+    viewBox: '0 0 16 16',
+    draw: (): ReactNode => <path d='m5 11 6-6H6.5M11 5v4.5' />,
+  },
   I032: {
     label: 'chevron-right',
     viewBox: '-2.25 -1.75 24 24',

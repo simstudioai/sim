@@ -43,6 +43,7 @@ export type MenuAction = {
       trailingIcon?: IconName
       checked?: boolean
       disabled?: boolean
+      destructive?: boolean
       shortcut?: string
     }
 )
@@ -103,6 +104,7 @@ function actionRows(actions: readonly MenuAction[]): ReactNode {
           trailingIcon={action.trailingIcon}
           checked={action.checked}
           disabled={action.disabled}
+          destructive={action.destructive}
           shortcut={action.shortcut}
           onSelect={action.onSelect}
         />
@@ -318,6 +320,7 @@ function MenuSurface({ label, children, defaultValue, layout }: MenuSurfaceProps
 }
 
 interface MenuItemProps {
+  destructive?: boolean
   label: string
   icon?: IconName
   shortcut?: string
@@ -334,6 +337,7 @@ export function MenuItem({
   label,
   icon,
   shortcut,
+  destructive,
   detail,
   trailingIcon,
   value,
@@ -404,6 +408,7 @@ export function MenuItem({
       )
     return (
       <Menu.Item
+        data-destructive-quiet={destructive || undefined}
         disabled={disabled}
         className={styles.menuItem}
         label={label}
@@ -430,6 +435,7 @@ export function MenuItem({
         type='button'
         className={styles.menuItem}
         data-menu-row=''
+        data-destructive-quiet={destructive || undefined}
         disabled={disabled}
         aria-pressed={checked !== undefined || choice ? Boolean(active) : undefined}
         data-type={type}
@@ -440,6 +446,7 @@ export function MenuItem({
     )
   return (
     <Toolbar.Button
+      data-destructive-quiet={destructive || undefined}
       disabled={disabled}
       className={styles.menuItem}
       data-type={type}

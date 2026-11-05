@@ -1,14 +1,8 @@
-.viewport {
-  container-type: inline-size;
-  min-inline-size: 0;
-  min-block-size: 0;
-  flex: 1;
-}
 .dashboard {
   display: grid;
   inline-size: min(var(--ui-page-max-size), calc(100% - 2 * var(--ui-page-inline-gutter)));
   margin-inline: auto;
-  padding-block: var(--ui-page-inset-block);
+  padding-block: var(--shell-home-row-start) var(--ui-page-inset-block);
   gap: var(--ui-product-section-gap);
 }
 .greeting {

@@ -3,7 +3,13 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import styles from '@/platform/app/(shell)/home/_components/calendar/calendar-day.module.css'
 import type { HomeData } from '@/platform/app/(shell)/home/_components/model'
-import { AvatarGroup, IconButton, OverflowText } from '@/platform/design-system/components'
+import {
+  AvatarGroup,
+  IconButton,
+  OverflowText,
+  PersonRow,
+} from '@/platform/design-system/components'
+import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 interface CalendarDayProps {
@@ -28,6 +34,7 @@ function timeSlot(startMinute: number, duration = 1) {
 
 export function CalendarDay({ calendar }: CalendarDayProps) {
   const [offset, setOffset] = useState(0)
+  const [selected, setSelected] = useState<HomeData['calendar']['meetings'][number] | null>(null)
   const viewport = useRef<HTMLDivElement>(null)
   const initialHour = useRef<HTMLSpanElement>(null)
   const scrollEdges = useScrollEdges('vertical', { viewport, tabStop: true })
@@ -83,12 +90,17 @@ export function CalendarDay({ calendar }: CalendarDayProps) {
                 className={styles.event}
                 style={{ gridRow: timeSlot(event.startMinute, event.duration) }}
               >
-                <div className={styles.eventName}>
+                <button
+                  type='button'
+                  className={styles.eventName}
+                  aria-haspopup='dialog'
+                  onClick={() => setSelected(event)}
+                >
                   <strong data-type='T059'>
                     <OverflowText text={event.title} />
                   </strong>
                   <small data-type='T050'>{event.time}</small>
-                </div>
+                </button>
                 <AvatarGroup people={event.people} label='People in this meeting' />
               </article>
             ))}
@@ -104,6 +116,20 @@ export function CalendarDay({ calendar }: CalendarDayProps) {
           )}
         </div>
       </div>
+      <OverlayDialog
+        open={selected !== null}
+        title={selected?.title ?? 'Calendar event'}
+        description={selected ? `${DAY_LABEL.format(date)} · ${selected.time}` : undefined}
+        onClose={() => setSelected(null)}
+      >
+        {selected && selected.people.length > 0 && (
+          <section aria-label='Attendees'>
+            {selected.people.map((person) => (
+              <PersonRow key={person.name} name={person.name} src={person.src} />
+            ))}
+          </section>
+        )}
+      </OverlayDialog>
     </>
   )
 }

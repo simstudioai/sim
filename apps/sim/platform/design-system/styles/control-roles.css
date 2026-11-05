@@ -1,12 +1,9 @@
 [data-platform-ui] {
   --control-people-width: 15rem;
   --control-on-solid: var(--color-tooltip-text);
-  --control-primary-hover: var(--color-button-primary-hover);
-  --control-primary-pressed: var(--color-light-text-strong);
+  --control-solid-shade: var(--color-light-text-strong);
   --control-danger: var(--color-light-danger);
   --control-danger-soft: var(--color-red-soft);
-  --control-danger-hover: var(--color-light-danger);
-  --control-danger-pressed: var(--color-light-danger);
   --control-hover-border: var(--color-ink-20);
   --control-avatar: var(--color-surface-muted);
   --control-retry-fill: var(--color-surface-muted);
@@ -16,12 +13,9 @@
 
 [data-platform-ui][data-theme="dark"] {
   --control-on-solid: var(--color-dark-canvas);
-  --control-primary-hover: var(--color-dark-button-primary-hover);
-  --control-primary-pressed: var(--color-dark-button-primary-pressed);
+  --control-solid-shade: var(--color-dark-canvas);
   --control-danger: var(--color-dark-red);
   --control-danger-soft: var(--color-dark-red-soft);
-  --control-danger-hover: var(--color-dark-danger-hover);
-  --control-danger-pressed: var(--color-dark-danger-pressed);
   --control-hover-border: var(--color-white-20);
   --control-avatar: var(--color-dark-selected);
   --control-retry-fill: var(--color-dark-raised);
@@ -39,7 +33,24 @@
   --color-chart-area: var(--color-app-dark-chart-area);
 }
 
-[data-platform-ui] button:is([data-variant="primary"], [data-variant="destructive"]) svg {
+[data-platform-ui] [data-solid] {
+  --control-solid-fill: var(--ui-ink);
+}
+[data-platform-ui] [data-solid][data-variant="destructive"] {
+  --control-solid-fill: var(--control-danger);
+}
+[data-platform-ui] [data-destructive-quiet] {
+  --ui-hover: color-mix(in srgb, var(--control-danger) 6%, transparent);
+  --ui-selected: color-mix(in srgb, var(--control-danger) 8%, transparent);
+  --ui-icon-active: var(--control-danger);
+}
+[data-platform-ui]
+  [data-destructive-quiet]:not(:disabled, [data-disabled]):is(:hover, [data-highlighted]) {
+  --ui-icon-ink: var(--control-danger);
+  color: var(--control-danger);
+}
+
+[data-platform-ui] [data-solid] svg {
   --color-nav-link-muted: currentColor;
   --color-app-text-secondary: currentColor;
 }

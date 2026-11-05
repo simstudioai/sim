@@ -1,6 +1,33 @@
-import { expect, test } from '@playwright/test'
+import { expect, type Locator, test } from '@playwright/test'
 
 const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+
+async function expectSidebarInsets(sidebar: Locator) {
+  const scroll = sidebar.getByRole('region', { name: 'Platform navigation' })
+  const [frame, header, navigation, footer] = await Promise.all([
+    sidebar.boundingBox(),
+    sidebar.getByRole('button', { name: 'Organization menu' }).boundingBox(),
+    scroll.boundingBox(),
+    sidebar.locator('footer').boundingBox(),
+  ])
+  if (!frame || !header || !navigation || !footer) throw new Error('The sidebar must be visible')
+  expect(header.y - frame.y).toBe(12)
+  expect(footer.y - (navigation.y + navigation.height)).toBe(12)
+  expect(frame.y + frame.height - (footer.y + footer.height)).toBe(12)
+  await scroll.evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
+  const lastChat = await scroll
+    .getByRole('region', { name: 'Chats', exact: true })
+    .getByRole('link')
+    .last()
+    .boundingBox()
+  if (!lastChat) throw new Error('The populated sidebar needs a final chat')
+  expect(footer.y - (lastChat.y + lastChat.height)).toBe(12)
+  await scroll.evaluate((element) => {
+    element.scrollTop = 0
+  })
+}
 
 test('a keyboard search navigates to the matching chat and shell edits survive the return trip', async ({
   page,
@@ -79,6 +106,7 @@ test('the narrow drawer returns focus on Escape, routes through settings, and ke
     await toggle.click()
     const drawer = page.getByRole('dialog', { name: 'Navigation drawer' })
     await expect(drawer).toBeVisible()
+    await expectSidebarInsets(drawer.getByRole('complementary', { name: 'Platform sidebar' }))
     const org = drawer.getByRole('button', { name: 'Organization menu' })
     const rowHeight = (await org.boundingBox())?.height
     for (const name of ['Search', 'Notifications', 'Collapse sidebar', 'Help']) {
@@ -120,6 +148,7 @@ test('sidebar and panel row actions share a hit area and act independently of th
   await page.setViewportSize({ width: 1600, height: 900 })
   await page.goto(`${origin}/chat/weekly-review?state=full`)
   const sidebar = page.getByRole('complementary', { name: 'Platform sidebar' })
+  await expectSidebarInsets(sidebar)
   const panel = page.getByRole('complementary', { name: 'Chat panel' })
   await page.getByRole('button', { name: 'Open chat panel' }).click()
   const workspace = sidebar.getByRole('link', { name: 'Customer operations', exact: true })

@@ -49,6 +49,7 @@
   background: var(--ui-divider);
 }
 .event {
+  position: relative;
   grid-column: 2;
   min-inline-size: 0;
   padding: var(--ui-row-block) var(--ui-row-inset);
@@ -56,8 +57,22 @@
   border-radius: var(--ui-control-radius);
   background: linear-gradient(var(--control-avatar) 0 0), var(--ui-canvas);
 }
+.event:has(.eventName:hover) {
+  background: linear-gradient(var(--ui-hover) 0 0), var(--ui-canvas);
+  border-color: var(--control-hover-border);
+}
+.event > :last-child {
+  position: relative;
+}
+.eventName::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
 .eventName {
   display: grid;
+  text-align: start;
+  cursor: pointer;
   grid-template-columns: minmax(0, 1fr);
   flex: 1;
   min-inline-size: 0;

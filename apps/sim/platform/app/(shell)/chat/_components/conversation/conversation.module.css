@@ -36,6 +36,9 @@
   inline-size: min(var(--ui-page-max-size), calc(100% - 2 * var(--ui-page-inline-gutter)));
   margin-inline: auto;
 }
+.turn:last-child {
+  margin-block-end: var(--ui-product-section-gap);
+}
 .dock {
   flex: none;
   position: relative;

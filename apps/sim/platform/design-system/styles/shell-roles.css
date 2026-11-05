@@ -2,6 +2,12 @@
   --shell-inbox-width: 27rem;
   --shell-notice-width: 22.5rem;
   --shell-org-menu-width: 16.5rem;
+  --shell-edge-inset: var(--spacing-12);
+  --shell-home-row-start: calc(
+    var(--shell-edge-inset) +
+    var(--spacing-app-chip) +
+    var(--ui-product-section-gap)
+  );
   --ui-navigation-inset: 0px;
 }
 [data-platform-ui] [data-sidebar-collapsed] {

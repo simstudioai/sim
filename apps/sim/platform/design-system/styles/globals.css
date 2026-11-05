@@ -42,6 +42,10 @@
   color-scheme: dark;
 }
 
+[data-platform-ui] textarea {
+  resize: none;
+}
+
 [data-platform-ui] :focus {
   outline: none;
 }

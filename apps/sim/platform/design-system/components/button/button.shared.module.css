@@ -23,16 +23,6 @@
   background: var(--ui-reading);
 }
 
-.button[data-variant="primary"] {
-  background: var(--ui-ink);
-  color: var(--control-on-solid);
-}
-
-.button[data-variant="destructive"] {
-  background: var(--control-danger);
-  color: var(--control-on-solid);
-}
-
 .iconButton {
   width: var(--spacing-app-control-sm);
   height: var(--spacing-app-control-sm);
@@ -70,13 +60,6 @@
 .button[data-variant="muted"] {
   background: var(--control-retry-fill);
 }
-.iconButton[data-variant="solid"] {
-  background: var(--ui-ink);
-  color: var(--control-on-solid);
-}
-.iconButton[data-variant="solid"]:enabled:hover {
-  background: var(--control-primary-hover);
-}
 
 :is(.button, .iconButton):enabled:hover {
   background: var(--ui-hover);
@@ -86,20 +69,17 @@
   background: var(--ui-selected);
 }
 
-.button[data-variant="primary"]:enabled:hover {
-  background: var(--control-primary-hover);
+:is(.button, .iconButton)[data-solid] {
+  background: var(--control-solid-fill);
+  color: var(--control-on-solid);
 }
 
-.button[data-variant="primary"]:enabled:active {
-  background: var(--control-primary-pressed);
+:is(.button, .iconButton)[data-solid]:enabled:hover {
+  background: color-mix(in srgb, var(--control-solid-fill) 84%, var(--control-solid-shade));
 }
 
-.button[data-variant="destructive"]:enabled:hover {
-  background: var(--control-danger-hover);
-}
-
-.button[data-variant="destructive"]:enabled:active {
-  background: var(--control-danger-pressed);
+:is(.button, .iconButton)[data-solid]:enabled:active {
+  background: color-mix(in srgb, var(--control-solid-fill) 72%, var(--control-solid-shade));
 }
 
 .button:disabled,

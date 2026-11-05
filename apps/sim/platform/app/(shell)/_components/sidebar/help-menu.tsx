@@ -25,7 +25,7 @@ export function HelpMenu({ iconOnly }: HelpMenuProps) {
               id: 'macos',
               label: 'Sim for macOS',
               icon: 'I041',
-              trailingIcon: 'I037',
+              trailingIcon: 'I030',
               onSelect: () => visit('https://www.sim.ai/api/desktop/update/download'),
             },
           ],
@@ -42,7 +42,7 @@ export function HelpMenu({ iconOnly }: HelpMenuProps) {
           id: 'documentation',
           label: 'Documentation',
           icon: 'I079',
-          trailingIcon: 'I037',
+          trailingIcon: 'I030',
           onSelect: () => visit('https://docs.sim.ai'),
         },
         {

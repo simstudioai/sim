@@ -127,6 +127,7 @@ export function SidebarCollections({ data, activeChat, navigate }: SidebarCollec
                     },
                     {
                       id: 'archive',
+                      destructive: true,
                       label: 'Archive',
                       icon: 'I061',
                       onSelect: () => setEditing({ action: 'Archive', chat: item }),

@@ -521,7 +521,7 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
       if (family === 'Menu/HelpDownloads')
         return (
           <ActionMenu label='Download apps'>
-            <MenuItem label={download} icon='I041' trailingIcon='I037' />
+            <MenuItem label={download} icon='I041' trailingIcon='I030' />
           </ActionMenu>
         )
       if (family === 'Menu/Help/downloads-hover') return <HelpMenu />

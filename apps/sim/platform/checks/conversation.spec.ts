@@ -48,7 +48,14 @@ test('Home can hide, undo, disconnect and reconnect widgets without losing the r
     await expect(schedule.getByText(time, { exact: true })).toBeInViewport()
   }
   await page.getByRole('button', { name: 'Previous day' }).click()
+  const meeting = schedule.getByRole('button', { name: /Customer operations review/ })
+  await meeting.press('Enter')
+  const details = page.getByRole('dialog', { name: 'Customer operations review' })
+  await expect(details).toContainText('10:30–11:15 AM')
+  await page.keyboard.press('Escape')
+  await expect(meeting).toBeFocused()
   await page.getByRole('button', { name: 'Show 2 more people' }).hover()
+  await expect(details).not.toBeVisible()
   await expect(page.getByRole('tooltip').getByText('Nina Patel')).toBeVisible()
   await expect(page.getByRole('tooltip')).toHaveCount(1)
   await page.keyboard.press('Escape')
@@ -65,31 +72,75 @@ test('Home fills the available chart column and keeps calendar day controls on t
 }) => {
   await page.goto(`${populated}/home?state=full`)
   const chart = page.getByRole('region', { name: 'Tasks run' })
+  const email = page.getByRole('region', { name: 'Email', exact: true })
   const tasks = page.getByRole('region', { name: 'Needs your attention' })
   const calendar = page.getByRole('region', { name: 'Calendar', exact: true })
   await expect(chart).toBeVisible()
   for (const width of [390, 768, 1040, 1440]) {
     await page.setViewportSize({ width, height: 900 })
-    const sections = await chart.or(tasks).evaluateAll((elements) =>
-      elements.map((el) => {
-        const { x, width } = el.getBoundingClientRect()
-        return { x, width }
-      })
-    )
-    const buttons = calendar.getByRole('button', { name: /^(Previous|Next) day$/ })
-    const centers = await buttons.evaluateAll((elements) =>
-      elements.map((el) => {
-        const { y, height } = el.getBoundingClientRect()
-        return y + height / 2
-      })
-    )
-    expect(sections).toHaveLength(2)
-    expect(centers).toHaveLength(2)
-    expect(sections[0].width).toBeGreaterThan(0)
-    expect(sections[0].x).toBeCloseTo(sections[1].x, 0)
-    expect(sections[0].width).toBeCloseTo(sections[1].width, 0)
-    expect(centers[0]).toBeCloseTo(centers[1], 0)
+    await expect(async () => {
+      const sections = await chart
+        .or(email)
+        .or(tasks)
+        .or(calendar)
+        .evaluateAll((elements) =>
+          elements.map((el) => {
+            const { x, y, width } = el.getBoundingClientRect()
+            return { x, y, width, label: el.getAttribute('aria-label') }
+          })
+        )
+      const buttons = calendar.getByRole('button', { name: /^(Previous|Next) day$/ })
+      const centers = await buttons.evaluateAll((elements) =>
+        elements.map((el) => {
+          const { y, height } = el.getBoundingClientRect()
+          return y + height / 2
+        })
+      )
+      expect(sections.map((section) => section.label)).toEqual([
+        'Tasks run',
+        'Email',
+        'Needs your attention',
+        'Calendar',
+      ])
+      if (width < 1440) expect(sections[1].y).toBeLessThan(sections[2].y)
+      else {
+        expect(sections[0].y).toBeCloseTo(sections[2].y, 0)
+        expect(sections[1].x).toBeLessThan(sections[3].x)
+      }
+      expect(centers).toHaveLength(2)
+      expect(sections[0].width).toBeGreaterThan(0)
+      expect(sections[0].x).toBeCloseTo(sections[1].x, 0)
+      expect(sections[0].width).toBeCloseTo(sections[1].width, 0)
+      expect(centers[0]).toBeCloseTo(centers[1], 0)
+    }).toPass({ timeout: 5000 })
   }
+})
+
+test('scrolling Home leaves the composer accessible where the drawer opener was resting', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 700 })
+  await page.goto(`${populated}/home?state=full`)
+  const home = page.getByRole('region', { name: 'Home dashboard' })
+  const opener = page.getByRole('button', { name: 'Expand sidebar' })
+  const attachment = page.getByRole('button', { name: 'Add attachment' })
+  const [navigation, button] = await Promise.all([opener.boundingBox(), attachment.boundingBox()])
+  if (!navigation || !button)
+    throw new Error('The navigation and attachment controls must be visible')
+  await home.evaluate(
+    (el, offset) => {
+      el.scrollTop = offset
+    },
+    button.y + button.height / 2 - navigation.y - navigation.height / 2
+  )
+  await page.mouse.click(button.x + button.width / 4, navigation.y + navigation.height / 2)
+  await expect(page.getByRole('menuitem', { name: 'Upload files' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await home.evaluate((el) => {
+    el.scrollTop = 0
+  })
+  await opener.click()
+  await expect(page.getByRole('dialog', { name: 'Navigation drawer' })).toBeVisible()
 })
 
 test('clipped mail fades sideways inside the scrolling Home dashboard', async ({ page }) => {
@@ -200,7 +251,20 @@ test('chat activity, recovery, and feedback controls work at intermediate and na
   }
   const regular = await linePlacement(page.getByText(/^The renewal is in good shape/))
   await page.getByText('Worked for 38s', { exact: true }).click()
-  expect(await linePlacement(page.getByText(/^Compared the renewal terms/))).toEqual(regular)
+  const thinking = page.getByText(/^Compared the renewal terms/)
+  expect(await linePlacement(thinking)).toEqual(regular)
+  const gaps = await thinking.evaluate((first) => {
+    const turn = first.closest('article')
+    if (!turn) throw new Error('Missing chat turn')
+    const lines = Array.from(turn.querySelectorAll('p, summary')).filter(
+      (line) => line.getClientRects().length > 0
+    )
+    const bounds = lines.slice(lines.indexOf(first)).map((line) => line.getBoundingClientRect())
+    return bounds.slice(1).map((next, index) => next.top - bounds[index].bottom)
+  })
+  expect(gaps.length).toBeGreaterThan(1)
+  expect(Math.min(...gaps)).toBeGreaterThan(0)
+  expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThan(1)
   await page.locator('summary').filter({ hasText: 'Read renewal-brief.pdf' }).click()
   const input = page.locator('dd code').filter({ hasText: '"pages"' })
   await expect(input).toBeVisible()

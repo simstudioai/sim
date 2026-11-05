@@ -7,7 +7,6 @@
   border: 0;
   background: transparent;
   color: var(--ui-ink);
-  resize: none;
   field-sizing: content;
   overflow-wrap: anywhere;
 }

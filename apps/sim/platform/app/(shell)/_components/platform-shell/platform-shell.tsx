@@ -12,7 +12,7 @@ import { useChatChanges } from '@/platform/app/(shell)/_components/session/chat-
 import { Sidebar } from '@/platform/app/(shell)/_components/sidebar/sidebar'
 import { useSidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
 import { SidebarToolbar } from '@/platform/app/(shell)/_components/sidebar/sidebar-toolbar'
-import { IconButton, OverflowText, Tooltip } from '@/platform/design-system/components'
+import { IconButton, OverflowText, ScrollArea, Tooltip } from '@/platform/design-system/components'
 import { useCompactViewport } from '@/platform/design-system/components/layout/use-compact-viewport'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { platformHref } from '@/platform/design-system/navigation'
@@ -110,12 +110,14 @@ export function PlatformShell({ data, children, navigation, desktopTitle }: Plat
       <IconButton label='Expand sidebar' icon='I066' size='row' onClick={toggle} />
     </Tooltip>
   )
+  const webOpener = !desktop && (compact || collapsed) && (
+    <div className={styles.openControl}>{openControl}</div>
+  )
   return (
     <>
       <div
         className={styles.shell}
         data-desktop={desktop || undefined}
-        data-home={home || undefined}
         data-conversation={conversation || undefined}
         data-sidebar-collapsed={collapsed || undefined}
       >
@@ -133,11 +135,18 @@ export function PlatformShell({ data, children, navigation, desktopTitle }: Plat
           </header>
         )}
         {!compact && !collapsed && sidebar}
-        {!desktop && (compact || collapsed) && (
-          <div className={styles.openControl}>{openControl}</div>
-        )}
+        {!home && webOpener}
         <div ref={scrollEdges} className={styles.content}>
-          {children}
+          {home ? (
+            <ScrollArea label='Home dashboard'>
+              <div className={styles.homeContent}>
+                {webOpener}
+                {children}
+              </div>
+            </ScrollArea>
+          ) : (
+            children
+          )}
         </div>
         <dialog
           ref={drawerRef}

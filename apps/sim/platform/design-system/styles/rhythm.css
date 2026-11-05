@@ -48,8 +48,7 @@
 [data-platform-ui] :is([aria-current="page"], [role="tab"][aria-selected="true"]) {
   --ui-icon-ink: var(--ui-icon-active);
 }
-[data-platform-ui]
-  :is([data-variant="primary"], [data-variant="solid"], [data-variant="destructive"]) {
+[data-platform-ui] [data-solid] {
   --ui-icon-ink: var(--control-on-solid);
 }
 
