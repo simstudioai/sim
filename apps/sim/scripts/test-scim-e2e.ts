@@ -575,6 +575,11 @@ async function run() {
             .getByRole('button', { name: 'Disconnect', exact: true })
             .click()
           await page
+            .getByRole('dialog', { name: /^Connect / })
+            .getByRole('combobox', { name: 'Source' })
+            .click()
+          await page.getByRole('option', { name: 'SCIM provisioning' }).click()
+          await page
             .getByRole('dialog', { name: 'Connect SCIM provisioning' })
             .getByRole('button', { name: 'Connect and sync' })
             .click()
