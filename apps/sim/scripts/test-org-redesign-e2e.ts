@@ -2131,14 +2131,14 @@ async function integrationChecks() {
         const saved = page.waitForRequest(
           (request) => request.method() !== 'GET' && request.url().includes('permissions')
         )
-        await group.getByRole('radio', { name: 'Block', exact: true }).check({ force: true })
+        await group.getByRole('radio', { name: 'Block', exact: true }).click({ force: true })
         const body = (await saved).postDataJSON()
         assert(
           JSON.stringify(body).includes('revision') || body.expectedRevision !== undefined,
           'The save carries a revision'
         )
         await expect(group.getByRole('radio', { name: 'Block', exact: true })).toBeChecked()
-        await group.getByRole('radio', { name: 'Ask', exact: true }).check({ force: true })
+        await group.getByRole('radio', { name: 'Ask', exact: true }).click({ force: true })
       })
     }
   )
@@ -2168,10 +2168,7 @@ async function integrationChecks() {
           address.pathname === `${root}/integrations/secrets` &&
           address.searchParams.get('q') === 'secret'
       )
-      await page
-        .getByRole('link', { name: /Integrations/ })
-        .first()
-        .click()
+      await page.locator(`a[href$="${root}/integrations?q=secret"]`).first().click()
       await expect(page).toHaveURL(
         (address) =>
           address.pathname === `${root}/integrations` && address.searchParams.get('q') === 'secret'

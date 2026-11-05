@@ -602,7 +602,7 @@ try {
       assert.equal(data.account.credentialId, account.credentialId)
       assert.equal(data.tools.length > 0, account.supported, account.name)
       await integrationRow(account.name).click()
-      const permissions = page.getByRole('textbox', { name: 'Search tools', exact: true })
+      const permissions = page.getByRole('searchbox', { name: 'Search tools', exact: true })
       if (account.supported) {
         await expect(permissions).toBeVisible()
         await expect(page.getByRole('radio').first()).toBeVisible()
@@ -629,7 +629,9 @@ try {
       })
       await expect(firstAccount).toBeVisible()
       await expect(secondAccount).toBeVisible()
-      await expect(page.getByRole('textbox', { name: 'Search tools', exact: true })).toHaveCount(0)
+      await expect(page.getByRole('searchbox', { name: 'Search tools', exact: true })).toHaveCount(
+        0
+      )
       await capture('integration-multiple-accounts')
       await expect(
         page.getByRole('button', { name: 'Jira integration actions', exact: true })
@@ -694,7 +696,9 @@ try {
       await expect(
         page.getByText('This account is no longer connected.', { exact: true })
       ).toBeVisible()
-      await expect(page.getByRole('textbox', { name: 'Search tools', exact: true })).toHaveCount(0)
+      await expect(page.getByRole('searchbox', { name: 'Search tools', exact: true })).toHaveCount(
+        0
+      )
       const states =
         await sql`select id, managed_oauth_status from credential where id in (${credentialId}, ${secondCredentialId})`
       assert.equal(
@@ -740,7 +744,9 @@ try {
         page.getByText('This account is no longer connected.', { exact: true })
       ).toBeVisible()
       await expect(page.getByRole('button', { name: /^Manage / })).toHaveCount(0)
-      await expect(page.getByRole('textbox', { name: 'Search tools', exact: true })).toHaveCount(0)
+      await expect(page.getByRole('searchbox', { name: 'Search tools', exact: true })).toHaveCount(
+        0
+      )
       await sql`update organization_search_integration set approved = false where organization_id = ${organizationId} and connector_type = 'coda'`
       try {
         await page.goto(`${baseUrl.origin}${root}/integrations`)
