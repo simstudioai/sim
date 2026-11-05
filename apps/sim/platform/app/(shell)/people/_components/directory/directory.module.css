@@ -20,3 +20,34 @@
   inline-size: var(--spacing-224);
   max-inline-size: 100%;
 }
+
+.nameCell {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.summary,
+.summaryRole {
+  display: none;
+  min-inline-size: 0;
+}
+
+.summary {
+  gap: var(--spacing-2);
+  margin-block-start: var(--spacing-2);
+  padding-inline-start: calc(var(--spacing-16) + var(--ui-row-gap));
+  color: var(--ui-secondary);
+}
+
+/* The breakpoints where the table hides its columns: what leaves the row joins the name's cell. */
+@container (width < 48rem) {
+  .summary {
+    display: grid;
+  }
+}
+
+@container (width < 30rem) {
+  .summaryRole {
+    display: grid;
+  }
+}

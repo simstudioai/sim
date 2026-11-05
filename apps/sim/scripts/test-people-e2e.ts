@@ -783,6 +783,12 @@ async function run() {
           )
           await mobile.getByRole('button', { name: 'Previous reports' }).tap()
         }
+        await mobile.goto(new URL(`${path}?view=directory`, baseUrl).href)
+        const amaraRow = mobile
+          .getByRole('row')
+          .filter({ has: mobile.getByText('Amara Cole', { exact: true }) })
+        await expect(amaraRow.getByText(new RegExp(`^${longTitle}`))).toBeVisible()
+        await mobile.goto(new URL(path, baseUrl).href)
         await mobile.getByRole('button', { name: 'Explore Amara Cole' }).tap()
         await mobile.getByRole('button', { name: 'Explore June Evans' }).tap()
         const trail = mobile.getByRole('navigation', { name: 'Reporting path' })

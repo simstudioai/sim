@@ -23,6 +23,8 @@ import {
   usePeopleDirectory,
 } from '@/platform/lib/data/people'
 
+type PersonSummaryRow = ReturnType<typeof usePeopleDirectory>['rows'][number]
+
 const COLUMNS = [
   { key: 'name', label: 'Name', kind: 'text' },
   { key: 'title', label: 'Title', kind: 'text', showFrom: 'compact' },
@@ -40,6 +42,26 @@ function PersonLabel({ person }: { person: { name: string; image: string | null 
     >
       <OverflowText text={person.name}>{person.name}</OverflowText>
     </TableLabel>
+  )
+}
+
+function joinFacts(facts: readonly (string | null | undefined)[]) {
+  return facts.filter(Boolean).join(' · ')
+}
+
+/** What the table's hidden columns would say, under the name, so a narrow table loses nothing. */
+function PersonSummary({ person }: { person: PersonSummaryRow }) {
+  const role = joinFacts([person.title, person.department])
+  const place = joinFacts([person.location, person.manager && `Reports to ${person.manager.name}`])
+  return (
+    <span className={styles.summary} data-type='T052'>
+      {role && (
+        <span className={styles.summaryRole}>
+          <OverflowText text={role}>{role}</OverflowText>
+        </span>
+      )}
+      {place && <OverflowText text={place}>{place}</OverflowText>}
+    </span>
   )
 }
 
@@ -63,7 +85,12 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
           location: person.location,
         },
         cells: {
-          name: <PersonLabel person={person} />,
+          name: (
+            <span className={styles.nameCell}>
+              <PersonLabel person={person} />
+              <PersonSummary person={person} />
+            </span>
+          ),
           manager: person.manager ? <PersonLabel person={person.manager} /> : undefined,
         },
         href: personHref(organizationId, person.memberId, originQuery),
