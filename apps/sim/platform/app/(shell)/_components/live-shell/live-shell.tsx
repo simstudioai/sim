@@ -16,9 +16,12 @@ import { legacyUrl, loginUrl, readOrganizationSurface } from '@/platform/lib/dat
  */
 export async function LiveShell({ children }: { children: ReactNode }) {
   const surface = await readOrganizationSurface()
-  if (surface.status === 'unauthenticated') redirect(loginUrl())
-  if (surface.status === 'denied') return <AccessDenied workspacesHref={legacyUrl('/workspace')} />
-  if (surface.status === 'unavailable') return <SurfaceUnavailable />
+  if (surface.status !== 'ok') {
+    if (surface.status === 'unauthenticated') redirect(loginUrl())
+    if (surface.status === 'denied')
+      return <AccessDenied workspacesHref={legacyUrl('/workspace')} />
+    return <SurfaceUnavailable />
+  }
 
   const { organization } = surface
   if (!hasOrganizationSurface(organization)) redirect(legacyRoutes(organization).workspaceSettings)

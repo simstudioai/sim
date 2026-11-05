@@ -153,7 +153,7 @@ export function NotificationTray({ history, navigate }: NotificationTrayProps) {
                       onClick={() => {
                         dismiss(item.id)
                         if ('onAction' in item) item.onAction?.()
-                        else if (item.href) navigate(item.href)
+                        else if ('href' in item && item.href) navigate(item.href)
                       }}
                     >
                       {item.action}
