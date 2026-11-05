@@ -57,7 +57,7 @@ export function ProviderCatalogModal({
     >
       <SearchField
         label='Search providers'
-        placeholder='Search providers'
+        placeholder='Search providers…'
         value={search}
         onValueChange={setSearch}
       />

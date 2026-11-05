@@ -41,12 +41,11 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
   const { params, setParams } = useRequestsUrl(true)
   const { settings } = list
   const reviewId = params['request-id']
-  const heading = list.statusLabel ? `${list.statusLabel} requests` : 'Requests'
   return (
     <>
       <SearchField
         label='Search requests'
-        placeholder='Search requests...'
+        placeholder='Search requests…'
         value={list.search}
         onValueChange={list.setSearch}
         maxLength={ACCESS_REQUEST_MAX_SEARCH_LENGTH}
@@ -84,7 +83,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
         </SettingsSurface>
       )}
       <div className={styles.listHeading}>
-        <h2 data-type='T042'>{list.count === undefined ? heading : `${heading} ${list.count}`}</h2>
+        <h2 data-type='T042'>{list.count === undefined ? 'Requests' : `Requests ${list.count}`}</h2>
         <span className={styles.filter}>
           <Select
             variant='quiet'
@@ -111,18 +110,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
           onRetry={list.retry}
         />
       ) : list.rows.length === 0 ? (
-        <EmptyState
-          title={emptyTitle(list.query, list.status, list.statusLabel)}
-          description={
-            list.query
-              ? undefined
-              : list.status === 'pending'
-                ? 'Requests that need your review will appear here.'
-                : list.status === 'all'
-                  ? 'Requests will appear here once someone sends one.'
-                  : undefined
-          }
-        />
+        <EmptyState title={emptyTitle(list.query, list.status, list.statusLabel)} />
       ) : (
         <SettingsSurface>
           {list.rows.map((row) => (

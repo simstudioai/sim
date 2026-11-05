@@ -134,7 +134,7 @@ export function UsageCalendar({ organizationId, timezone, workspaceId }: UsageCa
   return (
     <section className={styles.block} aria-label='Usage heatmap'>
       <div className={styles.heading}>
-        <h2 data-type='T093'>Usage heatmap</h2>
+        <h2 data-type='T042'>Usage heatmap</h2>
         <span className={styles.quiet} data-type='T060'>
           Last 365 days
         </span>

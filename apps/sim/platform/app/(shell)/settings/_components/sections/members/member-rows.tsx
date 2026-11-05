@@ -42,11 +42,19 @@ function RowFrame({ name, email, image, status, control, menuLabel, actions }: R
   return (
     <SettingsRow
       label={name}
-      description={`${email} · ${status}`}
+      description={
+        <span className={styles.contact}>
+          <span title={email}>{email}</span>
+          <span aria-hidden='true' className={styles.separator}>
+            {' · '}
+          </span>
+          <span>{status}</span>
+        </span>
+      }
       leading={<Avatar name={name} src={image} />}
     >
       <span className={styles.controls}>
-        {control}
+        <span className={styles.role}>{control}</span>
         <ActionMenu label={menuLabel} icon='I108' align='end' actions={actions} />
       </span>
     </SettingsRow>
@@ -173,15 +181,21 @@ export function InvitationRow({ row, canManage, actions }: InvitationRowProps) {
 interface WorkspaceMemberRowProps {
   row: WorkspaceMemberRowModel
   workspaceId: string
+  workspaceName: string
   actions: MembersActions
 }
 
-export function WorkspaceMemberRow({ row, workspaceId, actions }: WorkspaceMemberRowProps) {
+export function WorkspaceMemberRow({
+  row,
+  workspaceId,
+  workspaceName,
+  actions,
+}: WorkspaceMemberRowProps) {
   const copyEmail = useCopyEmail(row.email)
   const select = (
     <Select
       variant='quiet'
-      label={`Workspace access for ${row.name}`}
+      label={`Access to ${workspaceName} for ${row.name}`}
       options={WORKSPACE_ROLES}
       value={row.permission}
       disabled={!row.canEditPermission || actions.permissionPending}
@@ -196,7 +210,7 @@ export function WorkspaceMemberRow({ row, workspaceId, actions }: WorkspaceMembe
       email={row.email}
       image={row.image}
       status={row.status}
-      menuLabel={`Actions for ${row.name}`}
+      menuLabel={`Actions for ${row.name} in ${workspaceName}`}
       control={
         row.lockReason ? (
           <Tooltip label={row.lockReason}>
@@ -227,6 +241,7 @@ export function WorkspaceMemberRow({ row, workspaceId, actions }: WorkspaceMembe
 interface WorkspaceInvitationRowProps {
   row: WorkspaceInvitationRowModel
   workspaceId: string
+  workspaceName: string
   canManage: boolean
   actions: MembersActions
 }
@@ -234,6 +249,7 @@ interface WorkspaceInvitationRowProps {
 export function WorkspaceInvitationRow({
   row,
   workspaceId,
+  workspaceName,
   canManage,
   actions,
 }: WorkspaceInvitationRowProps) {
@@ -244,12 +260,12 @@ export function WorkspaceInvitationRow({
       email={row.email}
       image={row.image}
       status='Invite pending'
-      menuLabel={`Actions for ${row.email}`}
+      menuLabel={`Actions for ${row.email} in ${workspaceName}`}
       actions={menu}
       control={
         <Select
           variant='quiet'
-          label={`Workspace access for ${row.email}`}
+          label={`Access to ${workspaceName} for ${row.email}`}
           options={WORKSPACE_ROLES}
           value={row.permission}
           disabled={!canManage || actions.invitationPending}

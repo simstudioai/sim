@@ -223,7 +223,7 @@ function DynamicProviderModels({ provider, controls }: ControlsProps & { provide
       items={(data?.models ?? []).map((id) => ({ id, label: id }))}
       kind='model'
       loading={isPending}
-      searchLabel='Search models...'
+      searchLabel='Search models…'
       emptyLabel='No models available for this provider.'
       controls={controls}
     />
@@ -256,7 +256,7 @@ export function ProviderRow({ providerId, model, controls }: ProviderRowProps) {
         <PermissionGrid
           items={model.providerModels(providerId).map((id) => ({ id, label: id }))}
           kind='model'
-          searchLabel='Search models...'
+          searchLabel='Search models…'
           emptyLabel='No models available for this provider.'
           controls={childControls}
         />
@@ -289,7 +289,7 @@ export function BlockToolRow({ block, controls }: BlockToolRowProps) {
         <PermissionGrid
           items={block.tools}
           kind='tool'
-          searchLabel='Search tools...'
+          searchLabel='Search tools…'
           emptyLabel='This integration exposes no configurable tools.'
           controls={childControls}
         />

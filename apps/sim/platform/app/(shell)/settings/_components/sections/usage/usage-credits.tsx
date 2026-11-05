@@ -15,7 +15,7 @@ export function UsageCredits({
   const { chart } = overview
   return (
     <section className={styles.block} aria-label={label} data-dimmed={overview.dimmed || undefined}>
-      <h2 data-type='T093'>{label}</h2>
+      <h2 data-type='T042'>{label}</h2>
       <div className={styles.figure}>
         <span data-type='T102'>{chart.loaded ? chart.used.toLocaleString() : '—'}</span>
         <span className={styles.quiet} data-type='T060'>
@@ -53,7 +53,7 @@ export function UsageCredits({
         <span className={styles.chartPlaceholder} role='status' aria-label='Loading credits' />
       ) : (
         <BarChart
-          title='Credits'
+          title='Credits by source'
           bars={chart.bars}
           series={chart.series}
           seriesTotals={chart.seriesTotals}

@@ -66,6 +66,7 @@ export function useAuthorizedAppsList() {
     setSearch,
     ...queryView(apps),
     error: apps.error?.message,
+    refreshFailed: apps.isError && apps.data !== undefined && !apps.isFetchNextPageError,
     apps: (apps.data?.pages.flatMap((page) => page.apps) ?? []).map((app) => ({
       id: app.clientId,
       name: app.name,
@@ -96,6 +97,8 @@ export function usePersonalAccountsList() {
   return {
     ...queryView(accounts),
     error: accounts.error?.message,
+    refreshFailed:
+      accounts.isError && accounts.data !== undefined && !accounts.isFetchNextPageError,
     groups: groupByOrganization(list).map(([id, group]) => ({
       id,
       name: group.name,

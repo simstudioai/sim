@@ -72,6 +72,10 @@
   padding-block: var(--spacing-4);
 }
 
+.list > li > :is(a, button) {
+  min-block-size: var(--spacing-64);
+}
+
 .rows {
   display: grid;
   gap: var(--ui-list-gap);

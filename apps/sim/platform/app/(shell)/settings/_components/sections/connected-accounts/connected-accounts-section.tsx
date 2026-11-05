@@ -28,7 +28,7 @@ import {
 } from '@/platform/lib/data/credential-groups'
 
 const VIEWS = [
-  { value: 'providers', label: 'Integrations' },
+  { value: 'providers', label: 'Providers' },
   { value: 'people', label: 'People' },
   { value: 'workspace-access', label: 'Access' },
 ] as const
@@ -42,7 +42,7 @@ export default function ConnectedAccountsSection({ organization }: SettingsSecti
   if (error)
     return (
       <FailureNotice
-        message={getErrorMessage(error, 'Could not load Credential Groups')}
+        message={getErrorMessage(error, 'Could not load credential groups')}
         retrying={accounts.isFetching || ensure.isPending}
         onRetry={() => {
           ensure.reset()
@@ -50,9 +50,9 @@ export default function ConnectedAccountsSection({ organization }: SettingsSecti
         }}
       />
     )
-  if (!accounts.data) return <LoadingState label='Loading Credential Groups…' />
+  if (!accounts.data) return <LoadingState label='Loading credential groups…' />
   if (!accounts.data.canManage)
-    return <EmptyState title='An organization admin manages Credential Groups.' />
+    return <EmptyState title='An organization admin manages credential groups.' />
   const group = accounts.data.credentialGroup
   if (!group)
     return (
@@ -67,7 +67,7 @@ export default function ConnectedAccountsSection({ organization }: SettingsSecti
             disabled={ensure.isPending}
             onClick={() => ensure.mutate({ organizationId })}
           >
-            Set up Credential Groups
+            Set up credential groups
           </Button>
         </SettingsRow>
       </SettingsSection>
@@ -76,7 +76,7 @@ export default function ConnectedAccountsSection({ organization }: SettingsSecti
     <SectionStack>
       <ActionRow>
         <SegmentedControl
-          label='Credential Groups views'
+          label='Credential groups views'
           options={VIEWS}
           value={tab}
           onSelect={(value) => void setView({ tab: value })}

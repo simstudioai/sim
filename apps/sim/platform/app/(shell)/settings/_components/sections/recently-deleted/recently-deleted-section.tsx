@@ -40,7 +40,7 @@ export default function RecentlyDeletedSection({ organization }: SettingsSection
     <>
       <SearchField
         label='Search deleted chats'
-        placeholder='Search deleted chats'
+        placeholder='Search deleted chats…'
         value={deleted.search}
         onValueChange={deleted.setSearch}
       />

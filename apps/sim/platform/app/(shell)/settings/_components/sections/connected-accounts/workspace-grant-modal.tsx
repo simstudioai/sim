@@ -61,6 +61,7 @@ export function WorkspaceGrantModal(props: WorkspaceGrantModalProps) {
       }}
       title={props.mode === 'create' ? 'Add workspace' : `Edit ${props.workspaceName} access`}
       confirmLabel={props.mode === 'create' ? 'Add workspace' : 'Save access'}
+      pending={disabled}
       confirmDisabled={
         disabled || !workspaceId || (access.mode === 'selected' && !access.credentialTypes.length)
       }

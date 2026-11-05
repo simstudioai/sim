@@ -102,12 +102,21 @@ function ActivityList({ organizationId, active }: { organizationId: string; acti
 }
 
 interface ConnectionDetailsProps {
+  /** Held by the panel, so a draft survives turning provisioning off and on. */
+  expiry: CredentialExpiry
+  setExpiry: (expiry: CredentialExpiry) => void
   organizationId: string
   active: boolean
   connection: ScimConnectionView
 }
 
-function ConnectionDetails({ organizationId, active, connection }: ConnectionDetailsProps) {
+function ConnectionDetails({
+  organizationId,
+  active,
+  connection,
+  expiry,
+  setExpiry,
+}: ConnectionDetailsProps) {
   const configure = useConfigureScimConnection()
   const issueCredential = useIssueScimCredential()
   const revokeCredential = useRevokeScimCredential()
@@ -115,7 +124,6 @@ function ConnectionDetails({ organizationId, active, connection }: ConnectionDet
   const [showRules, setShowRules] = useState(false)
   /** The one moment the token exists outside its digest. Held only in this state, never persisted. */
   const [issuedSecret, setIssuedSecret] = useState<string | null>(null)
-  const [expiry, setExpiry] = useState<CredentialExpiry>('never')
   const [pendingRevokeId, setPendingRevokeId] = useState<string | null>(null)
   const pendingRevoke =
     connection.credentials.find((credential) => credential.id === pendingRevokeId) ?? null
@@ -332,6 +340,7 @@ export function ScimPanel({ organizationId, active, onOpenDomains }: ScimPanelPr
   )
   const configure = useConfigureScimConnection()
   const navigationBlocked = useSettingsNavigationBlocked()
+  const [expiry, setExpiry] = useState<CredentialExpiry>('never')
 
   if (data === undefined && isError) {
     return (
@@ -387,6 +396,8 @@ export function ScimPanel({ organizationId, active, onOpenDomains }: ScimPanelPr
           organizationId={organizationId}
           active={active}
           connection={connection}
+          expiry={expiry}
+          setExpiry={setExpiry}
         />
       )}
     </SectionStack>

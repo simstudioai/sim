@@ -1,6 +1,14 @@
 'use client'
 
-import { type ClipboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
+import {
+  type ClipboardEvent,
+  type ReactNode,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -273,13 +281,15 @@ export function SecretsEditor({ mode, backHref }: SecretsEditorProps) {
     mode === 'organization'
       ? { text: 'Sources', href: routes.settingsSection('integrations') }
       : { text: 'Integrations', href: backHref ?? routes.integrations }
-  if (!secrets.data || secrets.error)
+  /** A failed refetch keeps the editor mounted with its drafts; only a first load shows failure. */
+  if (!secrets.data)
     return (
       <SectionStack>
         <DetailHeader
           backLabel={back.text}
           onBack={() => router.push(back.href)}
           title='Generic Secrets'
+          pageHeading={mode === 'member'}
         />
         {secrets.error ? (
           <FailureNotice
@@ -297,7 +307,16 @@ export function SecretsEditor({ mode, backHref }: SecretsEditorProps) {
     <SecretRows
       key={data.source.id}
       back={back}
-      sectionLabel={mode === 'organization' ? 'Organization' : 'Personal'}
+      mode={mode}
+      refreshFailure={
+        secrets.error ? (
+          <FailureNotice
+            message={getErrorMessage(secrets.error, 'Could not refresh secrets')}
+            retrying={secrets.isFetching}
+            onRetry={() => void secrets.refetch()}
+          />
+        ) : undefined
+      }
       variables={data.variables}
       save={(changes) => save.mutateAsync({ ...changes, sourceId: data.source.id, mode })}
       isSaving={save.isPending}
@@ -307,13 +326,15 @@ export function SecretsEditor({ mode, backHref }: SecretsEditorProps) {
 
 interface SecretRowsProps {
   back: { text: string; href: string }
-  sectionLabel: string
+  mode: SecretSourceMode
+  refreshFailure?: ReactNode
   variables: Record<string, string>
   save: (changes: { upsert: Record<string, string>; remove: string[] }) => Promise<unknown>
   isSaving: boolean
 }
 
-function SecretRows({ back, sectionLabel, variables, save, isSaving }: SecretRowsProps) {
+function SecretRows({ back, mode, refreshFailure, variables, save, isSaving }: SecretRowsProps) {
+  const sectionLabel = mode === 'organization' ? 'Organization' : 'Personal'
   const router = useRouter()
   const [draft, setDraft] = useState<{
     variables: Record<string, string>
@@ -494,6 +515,7 @@ function SecretRows({ back, sectionLabel, variables, save, isSaving }: SecretRow
         backLabel={back.text}
         onBack={() => guard.guardBack(() => router.push(back.href))}
         title='Generic Secrets'
+        pageHeading={mode === 'member'}
       >
         {hasChanges && (
           <Button size='compact' disabled={isSaving} onClick={resetToSaved}>
@@ -513,6 +535,7 @@ function SecretRows({ back, sectionLabel, variables, save, isSaving }: SecretRow
           </span>
         </Tooltip>
       </DetailHeader>
+      {refreshFailure}
       <SearchField
         label='Search secrets'
         placeholder='Search secrets...'

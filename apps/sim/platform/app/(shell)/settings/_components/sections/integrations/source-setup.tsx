@@ -125,6 +125,7 @@ export function SourceSetupForm({
           credentialId={form.contentCredentialId}
           onChange={form.setContentCredentialId}
           options={accountOptions}
+          loading={credentialsLoading}
           disabled={isCreating}
         />
         <ActionRow>
@@ -254,7 +255,7 @@ export function SourceSetupForm({
                               ? 'Account'
                               : 'Service account'
                         }
-                        searchLabel='Search accounts'
+                        searchLabel='Search accounts…'
                         placeholder={
                           form.canConnectOAuth
                             ? `Select ${connectorConfig.name} account`
@@ -323,7 +324,7 @@ export function SourceSetupForm({
                   <GitLabCsvUploads form={gitlabPermissions} disabled={isCreating} />
                 )}
                 {hasOptions && (
-                  <Disclosure label='More options'>
+                  <Disclosure chevron label='More options'>
                     <FieldStack>
                       {!form.canSetUpGitHubInstallation && contentCredentialField}
                       {configFieldsProps && form.hasOptionalSetupFields && (

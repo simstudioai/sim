@@ -51,6 +51,7 @@ export function ReviewModal({ organizationId, requestId, onClose }: ReviewModalP
       onOpenChange={(open) => !open && onClose()}
       title={model?.title ?? 'Review access request'}
       cancelLabel='Close'
+      submitOnEnter={false}
       confirmLabel={label}
       destructive={pending && declining}
       confirmDisabled={
@@ -106,7 +107,7 @@ export function ReviewModal({ organizationId, requestId, onClose }: ReviewModalP
                       </li>
                     ))}
                   </ul>
-                  <Disclosure label='Change details'>
+                  <Disclosure chevron label='Change details'>
                     <div className={styles.changeDetails}>
                       {model.workspaces && (
                         <RequestText label='Workspaces'>{model.workspaces}</RequestText>

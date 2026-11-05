@@ -4,7 +4,6 @@ import { useId } from 'react'
 import {
   ActionRow,
   FieldStack,
-  Muted,
   SectionSkeleton,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -114,6 +113,7 @@ function WhitelabelForm({ organizationId, settings, uploadWorkspaceId }: Whitela
   const { text } = form
   return (
     <form
+      noValidate
       aria-label='White-labeling'
       onSubmit={(event) => {
         event.preventDefault()
@@ -121,10 +121,6 @@ function WhitelabelForm({ organizationId, settings, uploadWorkspaceId }: Whitela
       }}
     >
       <SectionStack>
-        <Muted>
-          These overrides apply to this organization’s workspaces. Clear a field to restore its
-          default.
-        </Muted>
         <SettingsSection title='Brand identity'>
           <FieldStack>
             <TextField

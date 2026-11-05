@@ -96,7 +96,7 @@ function ConnectorSelector({ label, hint, optional, ...options }: SelectorProps)
           onClick={() => void (selector.error ? selector.refetch() : selector.loadAll())}
         >
           {selector.isFetchingMore
-            ? 'Searching options...'
+            ? 'Searching options…'
             : selector.error
               ? 'Try again'
               : 'Search all options'}
@@ -378,6 +378,7 @@ interface ContentCredentialFieldProps {
   credentialId: string | null
   onChange: (credentialId: string | null) => void
   options: readonly { value: string; label: string }[]
+  loading?: boolean
   disabled?: boolean
 }
 
@@ -388,17 +389,19 @@ export function ContentCredentialField({
   credentialId,
   onChange,
   options,
+  loading,
   disabled,
 }: ContentCredentialFieldProps) {
   return (
     <SearchableSelect
       label='Sync documents with'
-      searchLabel='Search accounts'
+      searchLabel='Search accounts…'
       placeholder='Choose an account'
       value={credentialId ?? CONNECTED_MEMBERS}
       options={[{ value: CONNECTED_MEMBERS, label: 'Connected members' }, ...options]}
       onValueChange={(value) => onChange(value === CONNECTED_MEMBERS ? null : value)}
-      disabled={disabled}
+      disabled={disabled || loading}
+      hint={loading ? 'Loading accounts…' : undefined}
     />
   )
 }

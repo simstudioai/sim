@@ -45,6 +45,12 @@ export function OrganizationAccounts() {
   const last = list.groups.length - 1
   return (
     <>
+      {list.refreshFailed && (
+        <FailureNotice
+          message={list.error ?? 'Failed to refresh connected accounts'}
+          onRetry={list.retry}
+        />
+      )}
       {list.groups.map((group, index) => (
         <DataTable
           key={group.id}

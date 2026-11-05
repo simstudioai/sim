@@ -15,6 +15,7 @@ import {
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 interface MultiSelectProps {
+  variant?: 'quiet'
   label: string
   labelHidden?: boolean
   options: readonly PickerOption[]
@@ -32,6 +33,7 @@ interface MultiSelectProps {
 }
 
 export function MultiSelect({
+  variant,
   label,
   labelHidden,
   options,
@@ -81,7 +83,8 @@ export function MultiSelect({
           aria-describedby={fieldDescription(id, error, hint)}
           className={picker.trigger}
           data-empty={value.length === 0 ? true : undefined}
-          data-type='T043'
+          data-variant={variant}
+          data-type={variant === 'quiet' ? 'T057' : 'T043'}
         >
           <span ref={valueEdges} className={picker.value}>
             {summary}

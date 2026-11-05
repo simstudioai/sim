@@ -16,7 +16,7 @@ const TITLE = 'Authorized apps'
 const COLUMNS = [
   { key: 'name', label: 'App', kind: 'text' },
   { key: 'access', label: 'Access', kind: 'text', showFrom: 'compact' },
-  { key: 'authorized', label: 'Authorized', kind: 'text', showFrom: 'wide' },
+  { key: 'authorized', label: 'Authorized', kind: 'text' },
 ] as const
 
 /**
@@ -26,13 +26,6 @@ const COLUMNS = [
 export function AuthorizedApps() {
   const list = useAuthorizedAppsList()
   const [revoking, setRevoking] = useState<{ id: string; name: string } | null>(null)
-  if (list.status === 'error')
-    return (
-      <FailureNotice
-        message={list.error ?? 'Failed to load authorized apps'}
-        onRetry={list.retry}
-      />
-    )
   return (
     <>
       <SearchField
@@ -41,7 +34,18 @@ export function AuthorizedApps() {
         value={list.search}
         onValueChange={list.setSearch}
       />
-      {list.status === 'pending' ? (
+      {list.refreshFailed && (
+        <FailureNotice
+          message={list.error ?? 'Failed to refresh authorized apps'}
+          onRetry={list.retry}
+        />
+      )}
+      {list.status === 'error' ? (
+        <FailureNotice
+          message={list.error ?? 'Failed to load authorized apps'}
+          onRetry={list.retry}
+        />
+      ) : list.status === 'pending' ? (
         <SectionSkeleton title={TITLE} rows={2} />
       ) : list.apps.length === 0 ? (
         <EmptyState

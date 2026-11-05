@@ -296,12 +296,13 @@ function SourceSettingsForm({
     .filter((action) => action.id !== 'sync')
     .map((action) => ({
       id: action.id ?? action.text,
-      label:
+      label: `${
         action.id === 'pause'
           ? connector.status === 'paused'
             ? 'Resume search'
             : 'Pause search'
-          : action.text,
+          : action.text
+      }${action.disabled && action.tooltip ? ` (${action.tooltip})` : ''}`,
       disabled: action.disabled,
       destructive: action.id === 'delete',
       separatorBefore: action.id === 'delete',
@@ -342,7 +343,7 @@ function SourceSettingsForm({
               disabled={!form.dirty || !form.canSave || form.saving}
               onClick={form.save}
             >
-              {form.saving ? 'Saving...' : 'Save'}
+              {form.saving ? 'Saving…' : 'Save'}
             </Button>
           </span>
         </Tooltip>
@@ -373,6 +374,7 @@ function SourceSettingsForm({
         }
         confirmLabel={removal.pending ? 'Removing…' : 'Remove'}
         confirmDisabled={removal.disabled}
+        pending={removal.pending}
         onConfirm={() => {
           removal.onConfirm()
           return false

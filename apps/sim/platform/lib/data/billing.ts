@@ -142,8 +142,7 @@ export function useBillingSection(organization: PlatformOrganization) {
     error: summary.error
       ? getErrorMessage(summary.error, 'Failed to load billing information')
       : '',
-    planTitle:
-      state === 'lapsed' ? `Organization ${planName} plan ended` : `Organization ${planName} plan`,
+    planTitle: state === 'lapsed' ? `${planName} plan ended` : `${planName} plan`,
     priceText:
       state === 'free'
         ? 'No active organization subscription'
@@ -180,6 +179,9 @@ export function useBillingSection(organization: PlatformOrganization) {
     weeklyRefresh: paid && weeklyRefresh > 0 ? `+${formatCreditCost(weeklyRefresh)}` : null,
     canManage,
     canOpenPortal: canManage,
+    portalDisabledReason: enterprise
+      ? 'Enterprise billing is handled by your account team.'
+      : 'Only organization owners and admins can manage payment.',
     portalPending: portal.isPending,
     openPortal,
     showCancellation: !enterprise,

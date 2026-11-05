@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { InviteModal } from '@/platform/app/(shell)/_components/invite-modal/invite-modal'
 import { ManageCreditsModal } from '@/platform/app/(shell)/settings/_components/section-parts/manage-credits-modal'
+import { SectionToolbar } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
   InvitationRow,
   MemberRow,
@@ -65,48 +66,51 @@ export function MembersPanel({ organization }: MembersPanelProps) {
 
   return (
     <div className={styles.panel}>
-      <SearchField
-        label='Search members'
-        placeholder='Search members…'
-        value={search}
-        onValueChange={setSearch}
-      />
-
-      {(members.canManage || members.canLeave) && (
-        <SettingsSection title='Membership'>
-          {members.canManage && (
-            <SettingsRow label='Invite people'>
-              <Tooltip label='Invitations are disabled' enabled={!members.canInvite}>
-                <span>
-                  <Button
-                    size='compact'
-                    disabled={!members.canInvite}
-                    onClick={() => setInviting(true)}
-                  >
-                    Invite
-                  </Button>
-                </span>
-              </Tooltip>
-            </SettingsRow>
-          )}
-          {members.canLeave && members.viewerId && (
-            <SettingsRow label='Organization membership'>
+      <SectionToolbar
+        grow={
+          <SearchField
+            label='Search members'
+            placeholder='Search members…'
+            value={search}
+            onValueChange={setSearch}
+          />
+        }
+      >
+        {members.canManage && (
+          <Tooltip label='Invitations are disabled' enabled={!members.canInvite}>
+            <span>
               <Button
+                variant='primary'
                 size='compact'
-                variant='destructive'
-                onClick={() =>
-                  setRemoval({
-                    userId: members.viewerId ?? '',
-                    name: 'yourself',
-                    isSelf: true,
-                    isExternal: false,
-                  })
-                }
+                icon='I074'
+                disabled={!members.canInvite}
+                onClick={() => setInviting(true)}
               >
-                Leave organization
+                Invite
               </Button>
-            </SettingsRow>
-          )}
+            </span>
+          </Tooltip>
+        )}
+      </SectionToolbar>
+
+      {members.canLeave && members.viewerId && (
+        <SettingsSection title='Membership'>
+          <SettingsRow label='Organization membership'>
+            <Button
+              size='compact'
+              variant='destructive'
+              onClick={() =>
+                setRemoval({
+                  userId: members.viewerId ?? '',
+                  name: 'yourself',
+                  isSelf: true,
+                  isExternal: false,
+                })
+              }
+            >
+              Leave organization
+            </Button>
+          </SettingsRow>
         </SettingsSection>
       )}
 
@@ -168,6 +172,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
                   key={row.key}
                   row={row}
                   workspaceId={workspace.id}
+                  workspaceName={workspace.name}
                   actions={actions}
                 />
               ))}
@@ -176,6 +181,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
                   key={row.key}
                   row={row}
                   workspaceId={workspace.id}
+                  workspaceName={workspace.name}
                   canManage={members.canManage}
                   actions={actions}
                 />

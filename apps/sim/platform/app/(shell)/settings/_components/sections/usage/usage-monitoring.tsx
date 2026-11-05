@@ -91,7 +91,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
             <Button render={<Link href={view.auditLogsHref(workspace)} />}>Open logs</Button>
           )}
         </DetailHeader>
-        <UsageCredits label={periodLabel} overview={workspaceOverview} />
+        <UsageCredits label={`Credits · ${periodLabel}`} overview={workspaceOverview} />
         <UsageCalendar
           organizationId={organizationId}
           timezone={window.timezone}
@@ -157,7 +157,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
       </div>
       {isOverview ? (
         <>
-          <UsageCredits label={periodLabel} overview={overview} />
+          <UsageCredits label='Credits' overview={overview} />
           <UsageCalendar organizationId={organizationId} timezone={window.timezone} />
           <div className={styles.cards}>
             <UsageConsumers
@@ -165,9 +165,11 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
               dimension='model'
               list={{ ...models, data: topRows(models.data) }}
               control={
-                <Button variant='quiet' size='compact' onClick={() => view.selectTab('model')}>
-                  View all
-                </Button>
+                <span className={styles.edgeAction}>
+                  <Button variant='quiet' size='compact' onClick={() => view.selectTab('model')}>
+                    View all
+                  </Button>
+                </span>
               }
             />
             <UsageConsumers
@@ -175,9 +177,11 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
               dimension='member'
               list={{ ...overview, data: overview.data?.members }}
               control={
-                <Button variant='quiet' size='compact' onClick={() => view.selectTab('member')}>
-                  View all
-                </Button>
+                <span className={styles.edgeAction}>
+                  <Button variant='quiet' size='compact' onClick={() => view.selectTab('member')}>
+                    View all
+                  </Button>
+                </span>
               }
             />
           </div>

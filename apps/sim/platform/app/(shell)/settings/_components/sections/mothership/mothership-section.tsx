@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
+import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 import {
   ActionRow,
   FieldStack,
@@ -45,6 +46,11 @@ import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 const REQUEST_LIMIT = 100
 
 export default function MothershipSection() {
+  useCaptureWhenReady(
+    'settings_tab_viewed',
+    { plane: 'account', section: 'mothership' },
+    'mothership'
+  )
   const [{ tab: activeTab, env: environment }, setParams] = useQueryStates(
     mothershipParsers,
     mothershipUrlKeys
@@ -128,7 +134,7 @@ const USER_COLUMNS = [
   { key: 'user', label: 'User ID', kind: 'text' },
   { key: 'requests', label: 'Requests', kind: 'number' },
   { key: 'cost', label: 'Cost', kind: 'text' },
-  { key: 'last', label: 'Last Request', kind: 'text' },
+  { key: 'last', label: 'Last request', kind: 'text' },
 ] as const
 
 const REQUEST_COLUMNS = [
@@ -161,14 +167,14 @@ function Overview({ environment, start, end }: OverviewProps) {
     <>
       <MetricGroup
         metrics={[
-          { label: 'Total Requests', value: metric(breakdown?.total_requests) },
-          { label: 'Unique Users', value: metric(breakdown?.total_users) },
+          { label: 'Total requests', value: metric(breakdown?.total_requests) },
+          { label: 'Unique users', value: metric(breakdown?.total_users) },
           {
-            label: 'Total Cost',
+            label: 'Total cost',
             value: metric(totalCost === undefined ? undefined : formatCost(totalCost)),
           },
           {
-            label: 'Avg Cost/Request',
+            label: 'Avg. cost per request',
             value: metric(
               breakdown?.total_requests && totalCost !== undefined
                 ? formatCost(totalCost / breakdown.total_requests)
@@ -178,13 +184,13 @@ function Overview({ environment, start, end }: OverviewProps) {
         ]}
       />
       {breakdownLoading && (
-        <SettingsSection title='User Breakdown'>
+        <SettingsSection title='User breakdown'>
           <LoadingState label='Loading user breakdown' rows={5} />
         </SettingsSection>
       )}
       {breakdown?.users && (
         <DataTable
-          title='User Breakdown'
+          title='User breakdown'
           columns={USER_COLUMNS}
           rows={breakdown.users.map(
             (user: {
@@ -205,13 +211,13 @@ function Overview({ environment, start, end }: OverviewProps) {
         />
       )}
       {requestsLoading && (
-        <SettingsSection title='Recent Requests'>
+        <SettingsSection title='Recent requests'>
           <LoadingState label='Loading recent requests' rows={5} />
         </SettingsSection>
       )}
       {requests?.requests && (
         <DataTable
-          title={`Recent Requests (${requests.count ?? '…'})`}
+          title={`Recent requests (${requests.count ?? '…'})`}
           columns={REQUEST_COLUMNS}
           rows={requests.requests
             .slice(0, REQUEST_LIMIT)
@@ -272,10 +278,10 @@ function Licenses({ environment }: LicensesProps) {
   const { generateLicense, generatedKey } = form
   return (
     <>
-      <SettingsSection title='Generate License'>
+      <SettingsSection title='Generate license'>
         <FieldStack>
           <TextField
-            label='Enterprise Name'
+            label='Enterprise name'
             placeholder='e.g. Acme Corp'
             disabled={generateLicense.isPending}
             value={form.newName}
@@ -308,7 +314,7 @@ function Licenses({ environment }: LicensesProps) {
               }
               onClick={form.handleGenerate}
             >
-              {generateLicense.isPending ? 'Generating...' : 'Generate'}
+              {generateLicense.isPending ? 'Generating…' : 'Generate'}
             </Button>
           </ActionRow>
           {generatedKey && (
@@ -327,18 +333,18 @@ function Licenses({ environment }: LicensesProps) {
         </FieldStack>
       </SettingsSection>
       {isLoading && (
-        <SettingsSection title='All Licenses'>
+        <SettingsSection title='All licenses'>
           <LoadingState label='Loading licenses' />
         </SettingsSection>
       )}
       {data?.licenses &&
         (data.licenses.length === 0 ? (
-          <SettingsSection title='All Licenses'>
+          <SettingsSection title='All licenses'>
             <EmptyState title='No licenses found.' />
           </SettingsSection>
         ) : (
           <DataTable
-            title='All Licenses'
+            title='All licenses'
             columns={LICENSE_COLUMNS}
             rows={data.licenses.map(
               (license: {

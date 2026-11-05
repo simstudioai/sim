@@ -9,9 +9,9 @@ import {
   Preformatted,
   RowStack,
   SectionStack,
-  SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
+import styles from '@/platform/app/(shell)/settings/_components/sections/audit-logs/audit-logs-section.module.css'
 import {
   Button,
   DateRangePicker,
@@ -43,7 +43,15 @@ import {
 } from '@/platform/lib/data/audit-logs'
 import { formatTimestamp } from '@/platform/lib/time'
 
+const ALL_TYPES = '__all_types__'
+
 type AuditEntry = ReturnType<typeof useAuditLogFeed>['entries'][number]
+
+/** Sentence-cases the stored action for reading; the stored value and filters stay as they are. */
+function auditActionLabel(action: string) {
+  const label = formatAuditAction(action)
+  return label.charAt(0).toUpperCase() + label.slice(1)
+}
 
 function AuditEntryDetails({ entry }: { entry: AuditEntry }) {
   const metadata = getAuditMetadataEntries(entry.metadata).map(
@@ -105,7 +113,7 @@ function AuditEntryRow({ entry }: { entry: AuditEntry }) {
       introduction={
         <ActionRow>
           <StatusTag
-            label={formatAuditAction(entry.action)}
+            label={auditActionLabel(entry.action)}
             intent={isDestructiveAuditAction(entry.action) ? 'danger' : 'neutral'}
           />
           <Muted>
@@ -159,30 +167,30 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
 
   return (
     <SectionStack>
-      <SectionToolbar
-        grow={
+      <div className={styles.toolbar}>
+        <span className={styles.search}>
           <SearchField
             label='Search audit logs'
-            placeholder='Search audit logs...'
+            placeholder='Search audit logs…'
             value={feed.search}
             onValueChange={feed.setSearch}
           />
-        }
-      />
-      <SettingsSection title='Filters'>
-        <SettingsRow label='Resource type' field>
+        </span>
+        <span className={styles.filter}>
           <MultiSelect
-            label='Type'
+            variant='quiet'
+            label='Resource type'
             labelHidden
-            options={RESOURCE_TYPE_OPTIONS}
+            options={[{ value: ALL_TYPES, label: 'All types' }, ...RESOURCE_TYPE_OPTIONS]}
             value={feed.types}
-            onValueChange={feed.setTypes}
+            onValueChange={(types) => feed.setTypes(types.includes(ALL_TYPES) ? [] : types)}
             placeholder='All types'
             searchLabel='Search types'
           />
-        </SettingsRow>
-        <SettingsRow label='Time range' field>
+        </span>
+        <span className={styles.filter}>
           <Select
+            variant='quiet'
             id={timeRangeId}
             label='Time range'
             options={AUDIT_TIME_RANGE_OPTIONS}
@@ -196,9 +204,9 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
               feed.selectPreset(value as Parameters<typeof feed.selectPreset>[0])
             }}
           />
-        </SettingsRow>
+        </span>
         {showCustomRange && (
-          <SettingsRow label='Custom time range' field>
+          <span className={styles.filter}>
             <DateRangePicker
               label='Custom time range'
               labelHidden
@@ -214,21 +222,19 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
                 feed.applyCustomRange(range.start, range.end)
               }}
             />
-          </SettingsRow>
+          </span>
         )}
         {scope.chipLabel && (
-          <SettingsRow label='Workspace'>
-            <Button
-              variant='secondary'
-              size='compact'
-              onClick={feed.clearWorkspaceScope}
-              trailingIcon='I105'
-            >
-              {scope.chipLabel}
-            </Button>
-          </SettingsRow>
+          <Button
+            variant='secondary'
+            size='compact'
+            onClick={feed.clearWorkspaceScope}
+            trailingIcon='I105'
+          >
+            {scope.chipLabel}
+          </Button>
         )}
-      </SettingsSection>
+      </div>
 
       <SettingsSection title='Audit events'>
         <SettingsRow label='Filtered events'>
@@ -259,11 +265,11 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
         </SettingsRow>
         {feed.entries.length > 0 ? (
           <>
-            <RowStack>
+            <div className={styles.rows}>
               {feed.entries.map((entry) => (
                 <AuditEntryRow key={entry.id} entry={entry} />
               ))}
-            </RowStack>
+            </div>
             <LoadMoreFooter
               state={{
                 hasMore: feed.hasNextPage,

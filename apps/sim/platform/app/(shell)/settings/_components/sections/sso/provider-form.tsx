@@ -254,6 +254,7 @@ export function ProviderForm({
         />
       ) : null}
       <form
+        noValidate
         autoComplete='off'
         onSubmit={(event) => {
           event.preventDefault()
@@ -299,9 +300,10 @@ export function ProviderForm({
                   onValueChange={(value) => set('providerId', value ?? '')}
                   search={{
                     query: providerIdQuery,
-                    onQueryChange: (query) => {
+                    onQueryChange: (query, { reason }) => {
                       setProviderIdQuery(query)
-                      if (query.trim()) set('providerId', query.trim())
+                      if (reason === 'input-change' || reason === 'input-clear')
+                        set('providerId', query.trim())
                     },
                   }}
                 />
@@ -372,6 +374,7 @@ export function ProviderForm({
                 </>
               )}
               <Disclosure
+                chevron
                 label='Advanced options'
                 open={showAdvanced}
                 onOpenChange={setShowAdvanced}
@@ -472,6 +475,7 @@ export function ProviderForm({
                 />
               )}
               <Disclosure
+                chevron
                 label='Attribute mapping'
                 open={showMapping}
                 onOpenChange={setShowMapping}
@@ -526,15 +530,9 @@ export function ProviderForm({
             </FieldStack>
           </SettingsSection>
           <ActionRow>
-            {/* Never disabled on validation errors: errors show only once a save is attempted. */}
-            <Button variant='primary' submit disabled={configure.isPending}>
-              {configure.isPending
-                ? isEditing
-                  ? 'Updating…'
-                  : 'Saving…'
-                : isEditing
-                  ? 'Update'
-                  : 'Save'}
+            {/* Enabled by an edit, never by validity: errors show only once a save is attempted. */}
+            <Button variant='primary' submit disabled={!dirty || configure.isPending}>
+              {configure.isPending ? 'Saving…' : 'Save'}
             </Button>
             {dirty && (
               <Button variant='quiet' disabled={configure.isPending} onClick={discard}>

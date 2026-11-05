@@ -16,13 +16,17 @@ export function SettingsBreadcrumb({ title }: SettingsBreadcrumbProps) {
       <span aria-hidden='true' className={styles.parent} data-type='T057'>
         /
       </span>
-      <span className={styles.fullTitle} data-type='T057'>
-        {title}
-      </span>
-      <span className={styles.compactTitle} data-type='T042'>
-        {title}
-      </span>
+      <span data-type='T057'>{title}</span>
     </header>
+  )
+}
+
+/** The section's name, for the phone top bar that replaces the breadcrumb. */
+export function SettingsMobileTitle({ title }: SettingsBreadcrumbProps) {
+  return (
+    <span className={styles.mobileTitle} data-type='T057'>
+      {title}
+    </span>
   )
 }
 
@@ -44,17 +48,19 @@ export function SettingsScreen({ title, description, docsHref, children }: Setti
             {description && <p data-type='T060'>{description}</p>}
           </div>
           {docsHref && (
-            <Button
-              variant='quiet'
-              size='compact'
-              render={
-                <a href={docsHref} target='_blank' rel='noopener noreferrer'>
-                  Docs
-                </a>
-              }
-            >
-              Docs
-            </Button>
+            <span className={styles.docs}>
+              <Button
+                variant='quiet'
+                size='compact'
+                render={
+                  <a href={docsHref} target='_blank' rel='noopener noreferrer'>
+                    Docs
+                  </a>
+                }
+              >
+                Docs
+              </Button>
+            </span>
           )}
         </header>
         {children}

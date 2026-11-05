@@ -23,10 +23,7 @@ import {
   Modal,
   SegmentedControl,
 } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
+import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   canMakeProviderPrimary,
   nextSignInProvider,
@@ -36,28 +33,6 @@ import {
   useSSOProviders,
   useSsoSettingsParams,
 } from '@/platform/lib/data/sso'
-
-const DOCS_LINKS = {
-  'sign-in': 'https://docs.sim.ai/platform/enterprise/sso',
-  domains: 'https://docs.sim.ai/platform/enterprise/verified-domains',
-  provisioning: 'https://docs.sim.ai/platform/enterprise/scim',
-} as const
-
-function DocsLink({ href }: { href: string }) {
-  return (
-    <Button
-      variant='quiet'
-      size='compact'
-      render={
-        <a href={href} target='_blank' rel='noreferrer'>
-          Docs
-        </a>
-      }
-    >
-      Docs
-    </Button>
-  )
-}
 
 export default function SsoSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id
@@ -138,7 +113,16 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
           />
         }
       >
-        <DocsLink href={DOCS_LINKS[tab]} />
+        {tab === 'sign-in' && !creating && !selectedProvider && !providers.isLoading && (
+          <Button
+            variant='primary'
+            size='compact'
+            icon='I074'
+            onClick={() => void setParams({ provider: null, createProvider: true })}
+          >
+            Add identity provider
+          </Button>
+        )}
       </SectionToolbar>
 
       {/* Hidden tabs stay mounted, so a draft survives switching to Domains to verify one. */}
@@ -174,14 +158,6 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
                     )
                   })}
                 </ResourceList>
-                <SettingsRow label='New identity provider'>
-                  <Button
-                    size='compact'
-                    onClick={() => void setParams({ provider: null, createProvider: true })}
-                  >
-                    Add identity provider
-                  </Button>
-                </SettingsRow>
               </SettingsSection>
               <RequireSso organizationId={organizationId} />
             </>

@@ -17,7 +17,8 @@ export type PickerOption =
 /** Hand searching to the caller: `options` becomes the current server result, unfiltered. */
 export interface PickerServerSearch extends LoadMoreState {
   query: string
-  onQueryChange: (query: string) => void
+  /** `reason` tells an edit from the picker restoring its text as it opens or closes. */
+  onQueryChange: (query: string, details: { reason: string }) => void
   /** Replaces "No matches", for a list that may hold more than it has loaded. */
   emptyMessage?: string
   /** Beneath the list: a way to reach what paging has not, or a note that the list is partial. */

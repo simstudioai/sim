@@ -31,7 +31,7 @@ const SETTINGS_SEARCH_INDEX: Partial<Record<SettingsSectionKey, readonly Setting
     { label: 'Sign out', terms: 'log out logout' },
     { label: 'Reset password', terms: 'change password credentials' },
     {
-      label: 'Privacy settings',
+      label: 'Privacy',
       terms: 'telemetry cookies consent tracking analytics',
       query: 'view=privacy',
     },

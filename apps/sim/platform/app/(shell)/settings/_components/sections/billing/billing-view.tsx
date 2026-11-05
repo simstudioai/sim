@@ -99,7 +99,7 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
         </SettingsSection>
       )}
       {billing.showSubscription && (
-        <SettingsSection title='Subscription'>
+        <SettingsSection title='Billing details'>
           {billing.periodEnd && (
             <SettingsRow label={billing.periodEndLabel}>
               <span data-type='T067'>{billing.periodEnd}</span>
@@ -111,13 +111,17 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
             </SettingsRow>
           )}
           <SettingsRow label='Payment method'>
-            <Button
-              size='compact'
-              disabled={!billing.canOpenPortal || billing.portalPending}
-              onClick={billing.openPortal}
-            >
-              Manage in Stripe
-            </Button>
+            <Tooltip enabled={!billing.canOpenPortal} label={billing.portalDisabledReason}>
+              <span>
+                <Button
+                  size='compact'
+                  disabled={!billing.canOpenPortal || billing.portalPending}
+                  onClick={billing.openPortal}
+                >
+                  Manage in Stripe
+                </Button>
+              </span>
+            </Tooltip>
           </SettingsRow>
           {billing.showCancellation && (
             <SettingsRow

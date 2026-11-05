@@ -14,6 +14,7 @@ import { Chip, cn } from '@sim/emcn'
 import { ArrowLeft, ArrowRight, PanelLeft, X } from '@sim/emcn/icons'
 import { usePathname } from 'next/navigation'
 import { getDesktopBridge } from '@/lib/desktop'
+import { MOBILE_TITLE_SLOT_ID } from '@/app/workspace/[workspaceId]/components/workspace-chrome/mobile-title-slot'
 import { SidebarChromeProvider } from '@/app/workspace/[workspaceId]/components/workspace-chrome/sidebar-chrome-context'
 import { useSidebarPeek } from '@/app/workspace/[workspaceId]/components/workspace-chrome/use-sidebar-peek'
 import { ChatPlanModal } from '@/app/workspace/[workspaceId]/home/components/chat-plan-modal'
@@ -336,6 +337,7 @@ export function WorkspaceChrome({
           >
             {mobileNavigationOpen ? 'Close navigation' : 'Navigation'}
           </Chip>
+          <div id={MOBILE_TITLE_SLOT_ID} className='min-w-0 flex-1 px-2' />
         </div>
       )}
       <div

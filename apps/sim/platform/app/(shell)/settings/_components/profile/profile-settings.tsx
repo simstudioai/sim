@@ -1,8 +1,8 @@
 'use client'
 
 import { type ChangeEventHandler, useRef, useState } from 'react'
-import { Avatar, Icon, Modal, TextField } from '@/platform/design-system/components'
-import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
+import styles from '@/platform/app/(shell)/settings/_components/profile/profile-settings.module.css'
+import { Avatar, Button, Icon, Modal, TextField } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
@@ -33,17 +33,19 @@ export function ProfileForm({
   return (
     <SettingsSection title='Profile'>
       <SettingsRow label='Picture' description='PNG or JPEG, up to 5MB'>
-        <IdentityButton
-          label={uploading ? 'Uploading profile picture' : 'Change profile picture'}
-          onClick={uploading ? undefined : () => picker.current?.click()}
-          leading={
-            displayName ? (
-              <Avatar name={displayName} src={picture ?? undefined} />
-            ) : (
-              <Icon name='I074' />
-            )
-          }
-        />
+        <button
+          type='button'
+          className={styles.picture}
+          aria-label={uploading ? 'Uploading profile picture' : 'Change profile picture'}
+          disabled={uploading}
+          onClick={() => picker.current?.click()}
+        >
+          {displayName ? (
+            <Avatar name={displayName} src={picture ?? undefined} />
+          ) : (
+            <Icon name='I074' />
+          )}
+        </button>
         <input
           ref={picker}
           hidden
@@ -55,13 +57,9 @@ export function ProfileForm({
         />
       </SettingsRow>
       <SettingsRow label='Name' description='Set your display name'>
-        <IdentityButton
-          label={name || 'Set name'}
-          trailingIcon='I036'
-          onClick={() => setEditing(true)}
-        >
+        <Button size='compact' trailingIcon='I036' onClick={() => setEditing(true)}>
           {name || 'Set name'}
-        </IdentityButton>
+        </Button>
         <Modal
           open={editing}
           onOpenChange={setEditing}

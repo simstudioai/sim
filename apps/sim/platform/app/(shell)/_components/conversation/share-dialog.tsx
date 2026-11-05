@@ -249,6 +249,7 @@ export function ShareDialog(dialog: ShareDialogModel) {
         description='Are you sure you want to unshare this file? Anyone with the link will lose access.'
         confirmLabel={pending ? 'Unsharing...' : 'Unshare'}
         confirmDisabled={pending}
+        pending={pending}
         onConfirm={() => {
           dialog.onConfirmUnshare()
           return false

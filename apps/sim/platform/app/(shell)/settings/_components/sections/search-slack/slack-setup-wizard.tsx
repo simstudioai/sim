@@ -74,6 +74,7 @@ export function SlackSetupWizard(props: SlackSetupWizardProps) {
         title='Install the Sim Search app'
         confirmLabel={busy ? 'Connecting…' : 'Continue with Slack'}
         confirmDisabled={busy || unavailable || Boolean(prepare.error)}
+        pending={setup.dismissBlocked}
         onConfirm={() => {
           setup.installShared()
           return false
@@ -111,6 +112,7 @@ export function SlackSetupWizard(props: SlackSetupWizardProps) {
       title={setup.title}
       confirmLabel={busy ? 'Connecting…' : step === 'credentials' ? 'Connect app' : 'Continue'}
       confirmDisabled={setup.continueDisabled}
+      pending={busy}
       onBack={
         step === 'manifest'
           ? undefined
@@ -276,7 +278,7 @@ function SlackManifest({ manifest, createAppUrl, disabled }: SlackManifestProps)
           message='Could not copy the manifest. Allow clipboard access and try again.'
         />
       )}
-      <Disclosure label='View manifest'>
+      <Disclosure chevron label='View manifest'>
         <Preformatted>{manifest}</Preformatted>
       </Disclosure>
     </>

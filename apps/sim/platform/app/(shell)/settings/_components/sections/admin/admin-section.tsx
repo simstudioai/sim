@@ -1,6 +1,7 @@
 'use client'
 
 import { getErrorMessage } from '@sim/utils/errors'
+import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 import {
   ActionRow,
   FieldStack,
@@ -47,6 +48,7 @@ const USER_COLUMNS = [
 ] as const
 
 export default function AdminSection() {
+  useCaptureWhenReady('settings_tab_viewed', { plane: 'account', section: 'admin' }, 'admin')
   const admin = useAdminConsole()
   const { settings, importWorkflow, usersData, searchQuery, pendingUserIds } = admin
   const superUser = settings?.superUserModeEnabled ?? false
@@ -83,7 +85,7 @@ export default function AdminSection() {
               }
               onClick={() => admin.handleImpersonate(user.id, user.email)}
             >
-              {admin.impersonatingUserId === user.id ? 'Switching...' : 'Impersonate'}
+              {admin.impersonatingUserId === user.id ? 'Switching…' : 'Impersonate'}
             </Button>
             <ActionMenu
               label={`${user.email} actions`}
@@ -126,7 +128,7 @@ export default function AdminSection() {
     admin.impersonationGuardError ??
     (admin.unbanUser.error || admin.impersonateUser.error
       ? ((admin.unbanUser.error ?? admin.impersonateUser.error)?.message ??
-        'Action failed. Please try again.')
+        'Action failed. Try again.')
       : null)
   const pendingEmail = admin.pendingUser?.email ?? 'this user'
 
@@ -148,12 +150,12 @@ export default function AdminSection() {
         )}
         {superUser && (
           <SettingsRow
-            label='Mothership Environment'
+            label='Mothership environment'
             description='Default uses the configured Sim agent URL.'
             field
           >
             <SelectField
-              label='Mothership Environment'
+              label='Mothership environment'
               value={settings?.mothershipEnvironment ?? 'default'}
               options={MOTHERSHIP_ENV_OPTIONS}
               disabled={admin.updateSetting.isPending}
@@ -200,7 +202,7 @@ export default function AdminSection() {
               }
               onClick={admin.handleImport}
             >
-              {importWorkflow.isPending ? 'Importing...' : 'Import'}
+              {importWorkflow.isPending ? 'Importing…' : 'Import'}
             </Button>
           </ActionRow>
           {importWorkflow.error && (
@@ -209,7 +211,7 @@ export default function AdminSection() {
           {importWorkflow.isSuccess && (
             <InlineNotice
               intent='success'
-              message={`Workflow imported successfully (new ID: ${importWorkflow.data.newWorkflowId}, ${importWorkflow.data.copilotChatsImported ?? 0} copilot chats imported)`}
+              message={`Workflow imported (new ID: ${importWorkflow.data.newWorkflowId}, ${importWorkflow.data.copilotChatsImported ?? 0} copilot chats imported)`}
             />
           )}
         </FieldStack>
@@ -226,12 +228,12 @@ export default function AdminSection() {
             <ActionRow>
               <SearchField
                 label='Search users'
-                placeholder='Search by email or paste a user ID...'
+                placeholder='Search by email or paste a user ID…'
                 value={admin.searchInput}
                 onValueChange={admin.setSearchInput}
               />
               <Button size='compact' submit disabled={admin.usersLoading}>
-                {admin.usersLoading ? 'Searching...' : 'Search'}
+                {admin.usersLoading ? 'Searching…' : 'Search'}
               </Button>
               <Button size='compact' icon='I074' onClick={() => admin.setIsAddUserOpen(true)}>
                 Add user
@@ -254,34 +256,34 @@ export default function AdminSection() {
             </Muted>
           )}
           {searchQuery.length > 0 && usersData ? (
-            usersData.users.length === 0 ? (
-              <EmptyState title='No users found.' />
-            ) : (
-              <>
+            <>
+              {usersData.users.length === 0 ? (
+                <EmptyState title='No users found.' />
+              ) : (
                 <DataTable
                   title='Users'
                   titleHidden
                   columns={USER_COLUMNS}
                   rows={userRows(usersData.users)}
                 />
-                {admin.totalPages > 1 && (
-                  <>
-                    <Muted>
-                      {`Page ${admin.currentPage} of ${admin.totalPages} (${usersData.total} users)`}
-                    </Muted>
-                    <Pagination
-                      label='Users pages'
-                      page={admin.currentPage}
-                      pageCount={admin.totalPages}
-                      disabled={admin.usersLoading}
-                      onPageChange={(page) =>
-                        void admin.setAdminParams({ offset: (page - 1) * ADMIN_PAGE_SIZE })
-                      }
-                    />
-                  </>
-                )}
-              </>
-            )
+              )}
+              {admin.totalPages > 1 && (
+                <>
+                  <Muted>
+                    {`Page ${admin.currentPage} of ${admin.totalPages} (${usersData.total} users)`}
+                  </Muted>
+                  <Pagination
+                    label='Users pages'
+                    page={admin.currentPage}
+                    pageCount={admin.totalPages}
+                    disabled={admin.usersLoading}
+                    onPageChange={(page) =>
+                      void admin.setAdminParams({ offset: (page - 1) * ADMIN_PAGE_SIZE })
+                    }
+                  />
+                </>
+              )}
+            </>
           ) : (
             searchQuery.length === 0 &&
             admin.recentUsers &&
@@ -305,8 +307,9 @@ export default function AdminSection() {
             if (!open) admin.closePendingAction()
           }}
           title='Ban user'
-          confirmLabel={admin.banUser.isPending ? 'Banning...' : 'Ban'}
+          confirmLabel={admin.banUser.isPending ? 'Banning…' : 'Ban'}
           confirmDisabled={admin.banUser.isPending}
+          pending={admin.banUser.isPending}
           onConfirm={() => {
             admin.handleConfirmBan()
             return false
@@ -339,13 +342,14 @@ export default function AdminSection() {
           confirmLabel={
             admin.setUserRole.isPending
               ? admin.isDemotion
-                ? 'Demoting...'
-                : 'Promoting...'
+                ? 'Demoting…'
+                : 'Promoting…'
               : admin.isDemotion
                 ? 'Demote'
                 : 'Promote'
           }
           confirmDisabled={admin.setUserRole.isPending}
+          pending={admin.setUserRole.isPending}
           onConfirm={() => {
             admin.handleConfirmRoleChange()
             return false
@@ -391,8 +395,9 @@ function AddUserModal({ onClose, onCreated }: AddUserModalProps) {
         if (!open) form.handleClose()
       }}
       title='Add user'
-      confirmLabel={isSubmissionPending ? 'Adding...' : 'Add user'}
+      confirmLabel={isSubmissionPending ? 'Adding…' : 'Add user'}
       confirmDisabled={!form.canSubmit}
+      pending={isSubmissionPending}
       onConfirm={() => {
         form.handleAddUser()
         return false

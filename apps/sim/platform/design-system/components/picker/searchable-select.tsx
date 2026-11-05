@@ -16,6 +16,7 @@ import { usePickerValue } from '@/platform/design-system/components/picker/use-p
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 interface SearchableSelectProps {
+  variant?: 'quiet'
   label: string
   labelHidden?: boolean
   options: readonly PickerOption[]
@@ -42,6 +43,7 @@ interface SearchableSelectProps {
 }
 
 export function SearchableSelect({
+  variant,
   label,
   labelHidden,
   options,
@@ -94,7 +96,8 @@ export function SearchableSelect({
           aria-describedby={fieldDescription(id, error, hint)}
           className={picker.trigger}
           data-empty={current === null && placeholder ? true : undefined}
-          data-type='T043'
+          data-variant={variant}
+          data-type={variant === 'quiet' ? 'T057' : 'T043'}
         >
           {selectedLeading}
           <span ref={valueEdges} className={picker.value}>

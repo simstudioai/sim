@@ -16,6 +16,7 @@ import { createLogger } from '@sim/logger'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { toRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
@@ -362,6 +363,16 @@ async function withSession(
     throw error
   } finally {
     await session.context.close().catch(() => {})
+  }
+}
+
+/** Admin and Mothership are for platform admins, which no persona is outside this scope. */
+async function asPlatformAdmin<T>(run: () => Promise<T>) {
+  await sql`update "user" set role = 'admin' where email = ${ADMIN.email}`
+  try {
+    return await run()
+  } finally {
+    await sql`update "user" set role = 'user' where email = ${ADMIN.email}`
   }
 }
 
@@ -3303,7 +3314,7 @@ const ADMIN_SETTINGS = [
   'General',
   'Subscription',
   'Members',
-  'Credential Groups',
+  'Credential groups',
   'Insights',
   'White-labeling',
   'Recently deleted',
@@ -3350,11 +3361,11 @@ async function settingsChecks() {
       ).toBeVisible()
     })
   })
-  await check('Sources, Credential Groups and Slack render inside the surface', async () => {
+  await check('Sources, Credential groups and Slack render inside the surface', async () => {
     await withSession(ADMIN, async ({ page }) => {
       for (const [path, title] of [
         ['/settings/integrations', 'Sources'],
-        ['/settings/connected-accounts', 'Credential Groups'],
+        ['/settings/connected-accounts', 'Credential groups'],
         ['/settings/search-slack', 'Sim Search in Slack'],
       ] as const) {
         await page.goto(orgUrl(path))
@@ -3465,10 +3476,260 @@ async function settingsChecks() {
       await expect(page).toHaveURL(orgUrl('/links'))
     })
   })
-  notProvable(
-    'Settings leave guard: dirty state',
-    'Only White-labeling has a dirty form, covered by its own surface'
+  await check(
+    'Settings leave guard: a dirty form asks, and its own rail row does nothing',
+    async () => {
+      await withSession(ADMIN, async ({ page }) => {
+        await page.goto(orgUrl('/settings/whitelabeling'))
+        await page.getByRole('textbox', { name: 'Brand name' }).fill('Unsaved brand')
+        const rail = sidebar(page)
+        await rail.getByRole('link', { name: 'White-labeling', exact: true }).click()
+        await expect(page.getByRole('dialog', { name: 'Unsaved changes' })).toHaveCount(0)
+        await rail.getByRole('link', { name: 'Security', exact: true }).click()
+        const guard = page.getByRole('dialog', { name: 'Unsaved changes' })
+        await expect(guard).toBeVisible()
+        await guard.getByRole('button', { name: 'Keep editing' }).click()
+        await expect(page).toHaveURL((address) => address.pathname.endsWith('/whitelabeling'))
+        await expect(page.getByRole('textbox', { name: 'Brand name' })).toHaveValue('Unsaved brand')
+        await rail.getByRole('link', { name: 'Security', exact: true }).click()
+        await page
+          .getByRole('dialog', { name: 'Unsaved changes' })
+          .getByRole('button', { name: 'Discard changes' })
+          .click()
+        await expect(page).toHaveURL((address) => address.pathname.endsWith('/security'))
+      })
+    }
   )
+  await asPlatformAdmin(() =>
+    check(
+      'Admin: Enter in a ban reason does not ban, and a running ban cannot be dismissed',
+      async () => {
+        await withSession(ADMIN, async ({ page }) => {
+          let banRequests = 0
+          const held = createDeferred<void>()
+          await page.route('**/api/auth/admin/ban-user', async (route) => {
+            banRequests += 1
+            await held.promise
+            await route.fulfill({ status: 500, json: { message: 'Ban refused' } })
+          })
+          await page.goto(orgUrl(`/settings/admin?q=${encodeURIComponent(MEMBER.email)}`))
+          await page.getByRole('button', { name: `${MEMBER.email} actions` }).click()
+          await page.getByRole('menuitem', { name: 'Ban', exact: true }).click()
+          const modal = dialog(page, 'Ban user')
+          const reason = modal.getByRole('textbox', { name: 'Reason' })
+          await reason.fill('Spam')
+          await reason.press('Enter')
+          await sleep(300)
+          assert.equal(banRequests, 0, 'Enter in the reason submitted the ban')
+          await expect(modal).toBeVisible()
+          await modal.getByRole('button', { name: 'Ban', exact: true }).click()
+          await expect.poll(() => banRequests).toBe(1)
+          await page.keyboard.press('Escape')
+          await sleep(300)
+          await expect(modal).toBeVisible()
+          await expect(modal.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+          held.resolve()
+          await expect(modal.getByText('Ban refused')).toBeVisible()
+        })
+      },
+      { allow: [/500 POST .*ban-user/] }
+    )
+  )
+  await check('Permission groups: Enter in Add members search adds nobody', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      let writes = 0
+      await page.route('**/permission-groups/*/members', async (route) => {
+        if (route.request().method() !== 'GET') writes += 1
+        await route.continue()
+      })
+      await page.goto(orgUrl(`/settings/access-control?group-id=${STANDARD_GROUP_ID}`))
+      await page.getByRole('button', { name: 'Add members', exact: true }).click()
+      const modal = dialog(page, 'Add members')
+      const search = modal.getByRole('searchbox')
+      await search.fill('member')
+      await search.press('Enter')
+      await sleep(300)
+      assert.equal(writes, 0, 'Enter in the search changed the group')
+      await expect(modal).toBeVisible()
+    })
+  })
+  await check('Usage events: Description shows at the Settings column width', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.route('**/usage/events**', (route) =>
+        route.fulfill({
+          json: {
+            events: [
+              {
+                id: 'usage-event-1',
+                createdAt: '2026-11-05T10:00:00.000Z',
+                source: 'workflow',
+                description: 'A described charge',
+                workflowName: null,
+                credits: 1,
+                hasCost: true,
+              },
+            ],
+            hasMore: false,
+          },
+        })
+      )
+      await page.goto(orgUrl('/settings/usage/events'))
+      await expect(page.getByRole('columnheader', { name: 'Description' })).toBeVisible()
+      await expect(page.getByText('A described charge')).toBeVisible()
+    })
+  })
+  await check('Credential groups: a bad address leaves the valid one sent', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      const sent: string[][] = []
+      await page.route('**/connected-accounts/people', async (route) => {
+        if (route.request().method() !== 'POST') return route.continue()
+        const emails = toRecord(route.request().postDataJSON()).emails as string[]
+        sent.push(emails)
+        await route.fulfill({
+          json: {
+            success: true,
+            sentCount: emails.length,
+            results: emails.map((email) => ({ email, success: true })),
+          },
+        })
+      })
+      await page.goto(orgUrl('/settings/connected-accounts?tab=people'))
+      await page.getByRole('button', { name: 'Request connections', exact: true }).click()
+      const modal = dialog(page, 'Request account connections')
+      const field = modal.getByRole('textbox', { name: 'Emails' })
+      await field.fill('good@org-redesign.test not-an-address ')
+      await modal.getByRole('button', { name: 'Send requests', exact: true }).click()
+      await expect.poll(() => sent).toEqual([['good@org-redesign.test']])
+      await expect(modal.getByText('not-an-address')).toBeVisible()
+    })
+  })
+  await check(
+    'Single sign-on: inline errors stop a bad Save, and a good one posts',
+    async () => {
+      await withSession(ADMIN, async ({ page }) => {
+        const bodies: unknown[] = []
+        await page.route('**/api/auth/sso/register', async (route) => {
+          bodies.push(route.request().postDataJSON())
+          await route.fulfill({ status: 500, json: { error: 'Stubbed: no identity provider' } })
+        })
+        await page.goto(orgUrl('/settings/sso'))
+        const add = page.getByRole('button', { name: 'Add identity provider' })
+        if (await add.isVisible()) await add.click()
+        const issuer = page.getByRole('textbox', { name: 'Issuer URL' })
+        await issuer.fill('not a url')
+        await page.getByRole('button', { name: 'Save', exact: true }).click()
+        await expect(
+          page.getByText(/Enter a valid issuer URL|Issuer URL must/).first()
+        ).toBeVisible()
+        assert.equal(bodies.length, 0, 'An invalid form reached the server')
+        await page.getByRole('combobox', { name: 'Provider ID' }).click()
+        await page.getByRole('combobox', { name: 'Select or enter a provider ID' }).fill('e2e-oidc')
+        await page.keyboard.press('Escape')
+        await issuer.fill('https://idp.org-redesign.test')
+        await page.getByRole('textbox', { name: 'Domain', exact: true }).fill('org-redesign.test')
+        await page.getByRole('textbox', { name: 'Client ID', exact: true }).fill('e2e-client')
+        await page.getByRole('textbox', { name: 'Client secret' }).fill('e2e-secret')
+        await page.getByRole('button', { name: 'Save', exact: true }).click()
+        await expect.poll(() => bodies.length).toBe(1)
+        assert.equal(toRecord(bodies[0]).providerId, 'e2e-oidc')
+      })
+    },
+    { allow: [/500 POST .*sso\/register/] }
+  )
+  await check('Members: a role change writes, and writes back', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(orgUrl('/settings/members'))
+      const role = page.getByRole('combobox', { name: 'Role for Mia Member', exact: true })
+      const set = async (name: string) => {
+        const write = page.waitForResponse(
+          (response) =>
+            /\/api\/organizations\/[^/]+\/members\/[^/]+$/.test(pathOf(response.url())) &&
+            response.request().method() !== 'GET'
+        )
+        await role.click()
+        await page.getByRole('option', { name, exact: true }).click()
+        assert.ok((await write).ok(), `Setting ${name} failed`)
+        await expect(role).toContainText(name)
+      }
+      await set('Admin')
+      await set('Member')
+    })
+  })
+  await check('Permission groups: editing the name saves, and saves back', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(orgUrl(`/settings/access-control?group-id=${STANDARD_GROUP_ID}`))
+      const name = page.getByRole('textbox', { name: 'Name', exact: true })
+      await expect(name).toBeVisible()
+      const original = await name.inputValue()
+      const save = page.getByRole('button', { name: 'Save', exact: true })
+      for (const value of [`${original} edited`, original]) {
+        await name.fill(value)
+        const write = page.waitForResponse(
+          (response) =>
+            /permission-groups\/[^/]+$/.test(pathOf(response.url())) &&
+            response.request().method() !== 'GET'
+        )
+        await save.click()
+        assert.ok((await write).ok(), 'The group did not save')
+      }
+    })
+  })
+  await check(
+    'Data drains: Create posts the drain',
+    async () => {
+      await withSession(ADMIN, async ({ page }) => {
+        await page.route('**/data-drains', async (route) => {
+          if (route.request().method() !== 'POST') return route.continue()
+          const body = toRecord(route.request().postDataJSON())
+          assert.equal(body.name, 'E2E drain')
+          await route.fulfill({ status: 500, json: { error: 'Stubbed: no bucket to verify' } })
+        })
+        await page.goto(orgUrl('/settings/data-drains'))
+        await page.getByRole('button', { name: 'Create drain', exact: true }).click()
+        await page.getByRole('textbox', { name: 'Name', exact: true }).fill('E2E drain')
+        await page.getByRole('textbox', { name: 'Bucket', exact: true }).fill('e2e-bucket')
+        await page.getByRole('textbox', { name: 'Region', exact: true }).fill('us-east-1')
+        await page.getByRole('textbox', { name: 'Access key ID', exact: true }).fill('AKIAEXAMPLE')
+        await page.getByRole('textbox', { name: 'Secret access key', exact: true }).fill('example')
+        const create = page.waitForRequest(
+          (request) => request.method() === 'POST' && pathOf(request.url()).endsWith('/data-drains')
+        )
+        await page.getByRole('button', { name: 'Create', exact: true }).click()
+        await create
+      }).catch((error) => {
+        throw error
+      })
+    },
+    { allow: [/500 POST .*data-drains/] }
+  )
+  await check('Data retention: a policy edit saves', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(orgUrl('/settings/data-retention'))
+      await page
+        .getByRole('button', { name: /Organization/ })
+        .first()
+        .click()
+      const picker = page.getByRole('combobox').first()
+      await picker.click()
+      const options = page.getByRole('option')
+      const selected = await picker.textContent()
+      const count = await options.count()
+      for (let index = 0; index < count; index += 1) {
+        const option = options.nth(index)
+        if ((await option.textContent())?.trim() !== selected?.trim()) {
+          await option.click()
+          break
+        }
+      }
+      const write = page.waitForResponse(
+        (response) =>
+          pathOf(response.url()).endsWith('/data-retention') &&
+          response.request().method() !== 'GET'
+      )
+      await page.getByRole('button', { name: 'Save', exact: true }).click()
+      assert.ok((await write).ok(), 'The policy did not save')
+    })
+  })
   await check('Insights: heatmap pinning, metric explanations, and View all', async () => {
     await withSession(ADMIN, async ({ page }) => {
       await page.goto(orgUrl('/settings/usage'))
@@ -3485,6 +3746,7 @@ async function settingsChecks() {
       await expect(day).toHaveAttribute('aria-pressed', 'true')
       await day.press('Escape')
       await expect(day).toHaveAttribute('aria-pressed', 'false')
+      await page.getByRole('button', { name: 'About workflow runs' }).hover()
       await expect(page.getByText('Retained executions, grouped by start date.')).toBeVisible()
       await expect(
         page.getByText('Other includes cancelled, paused, and unfinished runs.')
@@ -3663,13 +3925,13 @@ async function blastRadiusChecks() {
     }
   )
   await check(
-    "a workspace's Credential Groups link opens the organization's page",
+    "a workspace's Credential groups link opens the organization's page",
     async () => {
       await withSession(ADMIN, async ({ page }) => {
         await page.goto(url(`/workspace/${MEMBER_ADMIN_WORKSPACE.id}/settings/connected-accounts`))
         await expect(page).toHaveURL(/\/o\/[^/]+\/settings\/connected-accounts/)
         await expect(
-          page.getByRole('heading', { level: 1, name: 'Credential Groups', exact: true })
+          page.getByRole('heading', { level: 1, name: 'Credential groups', exact: true })
         ).toBeVisible()
       })
     },
@@ -4096,6 +4358,102 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
   }
 }
 
+interface StateShot {
+  name: string
+  path: string
+  /** Opens the state after the page loads. */
+  open?: (page: Page) => Promise<void>
+  persona?: Persona
+}
+
+const STATE_SHOTS: readonly StateShot[] = [
+  { name: 'settings-admin', path: 'settings/admin?q=member' },
+  { name: 'settings-mothership', path: 'settings/mothership' },
+  { name: 'not-found', path: 'settings/does-not-exist' },
+  {
+    name: 'collapsed-sidebar',
+    path: 'home',
+    open: (page) => page.getByRole('button', { name: 'Collapse sidebar', exact: true }).click(),
+  },
+  {
+    name: 'menu-row-actions',
+    path: 'settings/members',
+    open: (page) =>
+      page
+        .getByRole('main')
+        .getByRole('button', { name: /^Actions for / })
+        .first()
+        .click(),
+  },
+  {
+    name: 'flyout-organization',
+    path: 'home',
+    open: (page) => orgChip(page).click(),
+  },
+  {
+    name: 'modal-invite',
+    path: 'settings/members',
+    open: (page) => page.getByRole('button', { name: 'Invite', exact: true }).click(),
+  },
+  {
+    name: 'modal-create-group',
+    path: 'settings/access-control',
+    open: (page) => page.getByRole('button', { name: 'Create group', exact: true }).click(),
+  },
+  {
+    name: 'modal-add-source',
+    path: 'settings/integrations',
+    open: (page) => page.getByRole('button', { name: 'Add source', exact: true }).click(),
+  },
+  {
+    name: 'modal-add-user',
+    path: 'settings/admin',
+    open: (page) => page.getByRole('button', { name: 'Add user', exact: true }).click(),
+  },
+]
+
+/** States a route walk never reaches. A shot that cannot open is a failure, not a missing file. */
+async function stateScreenshots() {
+  section('State screenshots')
+  allowedFailures = [/404 GET /]
+  for (const viewport of [DESKTOP, PHONE]) {
+    await check(`${viewport.name}: states capture`, () =>
+      asPlatformAdmin(async () => {
+        const failures: string[] = []
+        for (const shot of STATE_SHOTS) {
+          await withSession(
+            shot.persona ?? ADMIN,
+            async (session) => {
+              await session.page.goto(orgUrl(`/${shot.path}`), { timeout: 60_000 })
+              await session.settle()
+              await shot.open?.(session.page)
+              await sleep(200)
+              await session.page.screenshot({
+                path: resolve(artifactDirectory, `state__${shot.name}__${viewport.name}.png`),
+                animations: 'disabled',
+                timeout: 20_000,
+              })
+            },
+            { viewport, theme: 'light' }
+          ).catch((error) => failures.push(`${shot.name}: ${getErrorMessage(error)}`))
+        }
+        await withSession(
+          OUTSIDER,
+          async (session) => {
+            await session.page.goto(orgUrl('/home'), { timeout: 60_000 })
+            await session.page.screenshot({
+              path: resolve(artifactDirectory, `state__access-denied__${viewport.name}.png`),
+              timeout: 20_000,
+            })
+          },
+          { viewport, theme: 'light' }
+        ).catch((error) => failures.push(`access-denied: ${getErrorMessage(error)}`))
+        assert.deepEqual(failures, [])
+      })
+    )
+  }
+}
+
 async function walkRoutes(personas: Persona[]) {
   section('Route walk')
   currentCheck = 'Route walk'
@@ -4202,6 +4560,7 @@ async function run() {
   await firstPaintChecks()
   await blastRadiusChecks()
   await walkRoutes([MEMBER, ADMIN, OWNER, CONNECTED, NARROW])
+  await stateScreenshots()
   section('Health')
   await check('no unexpected browser runtime errors or failed same-origin requests', async () => {
     assert.deepEqual(unexpected, [])
