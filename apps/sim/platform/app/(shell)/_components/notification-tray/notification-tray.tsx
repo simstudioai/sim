@@ -1,7 +1,13 @@
 import { toast } from '@sim/emcn'
 import type { ShellNotice } from '@/platform/app/(shell)/_components/model'
 
-type Notice = Omit<ShellNotice, 'href'> & { onAction?: () => void }
+type Notice = Omit<ShellNotice, 'href' | 'icon'> & {
+  /** The tray's glyph, which the toast stack draws from `variant` instead. */
+  icon?: ShellNotice['icon']
+  /** How the toast reads. Unset is a plain status, such as an undo offer. */
+  variant?: 'success' | 'error'
+  onAction?: () => void
+}
 
 /** The notices a toast is showing, so re-raising or dismissing a notice id reaches its toast. */
 const toastIdByNotice = new Map<string, string>()
@@ -11,11 +17,12 @@ function dismiss(id: string) {
   if (toastId) toast.dismiss(toastId)
 }
 
-function notify({ id, title, description, action, onAction }: Notice) {
+function notify({ id, title, description, action, onAction, variant }: Notice) {
   dismiss(id)
   const toastId = toast({
     message: title,
     description,
+    variant,
     action: action && onAction ? { label: action, onClick: onAction } : undefined,
     onDismiss: () => {
       if (toastIdByNotice.get(id) === toastId) toastIdByNotice.delete(id)
