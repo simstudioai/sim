@@ -3,12 +3,16 @@
   --shell-notice-width: 22.5rem;
   --shell-org-menu-width: 16.5rem;
   --shell-edge-inset: var(--spacing-12);
-  --shell-home-row-start: calc(
-    var(--shell-edge-inset) +
-    var(--spacing-app-chip) +
-    var(--ui-product-section-gap)
-  );
+  --shell-toolbar-end: calc(var(--shell-edge-inset) + var(--spacing-app-chip));
+  --shell-home-row-start: calc(var(--shell-toolbar-end) + var(--ui-product-section-gap));
+  --shell-page-opener-space: 0px;
   --ui-navigation-inset: 0px;
+}
+@container scrolling-shell (width < 75rem) {
+  [data-platform-ui] [data-page-opener] {
+    --shell-page-opener-space: var(--shell-toolbar-end);
+    --shell-home-row-start: var(--ui-product-section-gap);
+  }
 }
 [data-platform-ui] [data-sidebar-collapsed] {
   --ui-navigation-inset: var(--spacing-52);

@@ -197,17 +197,18 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
         )}
         {banner && <div className={styles.banner}>{banner}</div>}
         {!compact && sidebar}
-        {!scrollingPage && webOpener}
-        <div ref={scrollEdges} className={styles.content}>
+        {webOpener}
+        <div
+          ref={scrollEdges}
+          className={styles.content}
+          data-page-opener={scrollingPage && webOpener ? true : undefined}
+        >
           {scrollingPage ? (
             <ScrollArea
               key={pathname}
               label={home ? 'Home dashboard' : 'Organization integrations'}
             >
-              <div className={styles.pageContent}>
-                {webOpener}
-                {children}
-              </div>
+              <div className={styles.pageContent}>{children}</div>
             </ScrollArea>
           ) : (
             children
