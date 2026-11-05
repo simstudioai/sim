@@ -11,6 +11,7 @@ const RESPONSE_HEADERS = {
 } as const
 
 /**
+ * Search redirect rules from extension versions before 0.1.5 land here until those versions update.
  * Next normalizes query spelling; the handoff still accepts only one q value. Rejecting other
  * parameters and surviving percent escapes prevents ambiguous or repeatedly decoded shortcuts.
  */

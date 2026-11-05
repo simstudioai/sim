@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Chip, ChipModalBody, ChipModalHeader, ChipModalSurface } from '@sim/emcn'
 import { PAGE_ACCESS_ORIGINS } from '@/config'
-import { ExtensionDialog } from '@/extension-dialog'
 
 interface PageAccessButtonProps {
   allowed?: boolean
@@ -54,6 +53,13 @@ interface SiteAccessDialogProps {
   onAccessGranted: () => void
 }
 
+/** Native modality avoids the inline scroll-lock stylesheet blocked by the extension CSP. */
+function mountAccessDialog(dialog: HTMLDialogElement | null) {
+  if (!dialog) return
+  dialog.showModal()
+  return () => dialog.close()
+}
+
 export function SiteAccessDialog({ onClose, onAccessGranted }: SiteAccessDialogProps) {
   const [allowed, setAllowed] = useState<boolean>()
 
@@ -81,7 +87,18 @@ export function SiteAccessDialog({ onClose, onAccessGranted }: SiteAccessDialogP
   }, [])
 
   return (
-    <ExtensionDialog labelledBy='page-access-title' onClose={onClose}>
+    <dialog
+      ref={mountAccessDialog}
+      aria-labelledby='page-access-title'
+      className='m-auto max-h-[85vh] w-[90vw] max-w-[440px] overflow-visible border-0 bg-transparent p-0 text-inherit backdrop:bg-black/10 backdrop:backdrop-blur-[2px]'
+      onCancel={(event) => {
+        event.preventDefault()
+        onClose()
+      }}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
       <ChipModalSurface>
         <ChipModalHeader onClose={onClose}>
           <span id='page-access-title'>Page access</span>
@@ -95,6 +112,6 @@ export function SiteAccessDialog({ onClose, onAccessGranted }: SiteAccessDialogP
           <PageAccessButton allowed={allowed} onAccessGranted={onAccessGranted} />
         </ChipModalBody>
       </ChipModalSurface>
-    </ExtensionDialog>
+    </dialog>
   )
 }

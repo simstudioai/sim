@@ -10,7 +10,6 @@ import {
 } from '@/config'
 import { captureIntentSchema } from '@/intent'
 import { registerSimLinkOmnibox } from '@/omnibox'
-import { registerSearchRecovery } from '@/search-recovery'
 import { registerShortHostVisits } from '@/short-hosts'
 import { digestUrl } from '@/utils'
 
@@ -35,6 +34,12 @@ async function configure() {
     documentUrlPatterns: ['http://*/*', 'https://*/*'],
     targetUrlPatterns: ['http://*/*', 'https://*/*'],
   })
+  // Earlier versions could add search redirect rules, which an update must not leave running.
+  const staleRules = await chrome.declarativeNetRequest.getDynamicRules()
+  await chrome.declarativeNetRequest.updateDynamicRules({
+    removeRuleIds: staleRules.map((rule) => rule.id),
+  })
+  await chrome.storage.local.remove('searchRecovery')
 }
 
 function open(tab: chrome.tabs.Tab, trigger: 'page' | 'selection' | 'keyboard') {
@@ -92,7 +97,6 @@ function open(tab: chrome.tabs.Tab, trigger: 'page' | 'selection' | 'keyboard') 
 }
 
 registerSimLinkOmnibox()
-registerSearchRecovery()
 registerShortHostVisits()
 chrome.runtime.onInstalled.addListener(() => {
   void configure().catch(() => logger.warn('Could not initialize extension controls'))

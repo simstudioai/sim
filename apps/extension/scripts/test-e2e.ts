@@ -96,14 +96,6 @@ const fixture = Bun.serve({
     )
   },
 })
-const searchProviders = [
-  { id: 'google', hosts: ['www.google.com', 'google.com'], path: '/search', parameter: 'q' },
-  { id: 'bing', hosts: ['www.bing.com', 'bing.com'], path: '/search', parameter: 'q' },
-  { id: 'duckduckgo', hosts: ['duckduckgo.com', 'www.duckduckgo.com'], path: '/', parameter: 'q' },
-  { id: 'yahoo', hosts: ['search.yahoo.com'], path: '/search', parameter: 'p' },
-] as const
-const searchRequests: { url: string; method: string }[] = []
-let searchFixture: ReturnType<typeof Bun.serve> | undefined
 const temporary = await mkdtemp(resolve(tmpdir(), 'sim-extension-e2e-'))
 const extensionPath = resolve(temporary, 'extension')
 let context: BrowserContext | undefined
@@ -147,50 +139,6 @@ try {
     )
     assert(!existsSync(rejectedOutput), 'Invalid key material reached build output')
   })
-  const searchKey = resolve(temporary, 'search-key.pem')
-  const searchCertificate = resolve(temporary, 'search-cert.pem')
-  const certificate = spawnSync(
-    'openssl',
-    [
-      'req',
-      '-x509',
-      '-newkey',
-      'rsa:2048',
-      '-nodes',
-      '-days',
-      '1',
-      '-keyout',
-      searchKey,
-      '-out',
-      searchCertificate,
-      '-subj',
-      '/CN=extension-search.test',
-    ],
-    { encoding: 'utf8', timeout: 10_000 }
-  )
-  assert(certificate.status === 0, 'Could not create the isolated search fixture certificate')
-  searchFixture = Bun.serve({
-    hostname: '127.0.0.1',
-    port: 0,
-    tls: { key: await readFile(searchKey), cert: await readFile(searchCertificate) },
-    fetch(request) {
-      const path = new URL(request.url).pathname
-      if (path === '/' || path === '/search')
-        searchRequests.push({ url: request.url, method: request.method })
-      return new Response(
-        '<!doctype html><title>Local search fixture</title><h1>Search fixture</h1>',
-        {
-          headers: { 'content-type': 'text/html' },
-        }
-      )
-    },
-  })
-  const searchHosts = searchProviders.flatMap((provider) => [...provider.hosts])
-  const searchPort = searchFixture.port
-  const fixtureSearchHosts = [...searchHosts, 'm.google.com', 'www.google.com.evil.test']
-  const resolverRules = fixtureSearchHosts
-    .map((host) => `MAP ${host} 127.0.0.1:${searchPort}`)
-    .join(', ')
   const origin = `http://127.0.0.1:${fixture.port}`
   const pageOrigin = `http://localhost:${fixture.port}`
   const built = spawnSync(process.execPath, ['scripts/build.ts', `--outdir=${extensionPath}`], {
@@ -200,18 +148,14 @@ try {
   })
   assert(built.status === 0, `Extension build failed: ${built.stderr}`)
   const manifest = JSON.parse(await readFile(resolve(extensionPath, 'manifest.json'), 'utf8'))
-  // Pregrants isolate routing from consent; approved search hosts resolve to the local fixture.
-  manifest.host_permissions.push(
-    `${pageOrigin}/*`,
-    ...fixtureSearchHosts.map((host) => `https://${host}/*`)
-  )
+  // Pregrants isolate routing from consent.
+  manifest.host_permissions.push(`${pageOrigin}/*`)
   await writeFile(resolve(extensionPath, 'manifest.json'), JSON.stringify(manifest))
   context = await chromium.launchPersistentContext(resolve(temporary, 'profile'), {
     channel: 'chromium',
     headless: true,
     ignoreHTTPSErrors: true,
     args: [
-      `--host-resolver-rules=${resolverRules}`,
       '--no-proxy-server',
       '--enable-unsafe-extension-debugging',
       `--disable-extensions-except=${extensionPath}`,
@@ -1430,121 +1374,6 @@ try {
       await expect(app.locator('body')).toHaveAttribute('data-reference-request', denied.requestId)
     }
   )
-  await check(
-    'Opted-in shortcut recovery redirects only explicit searches on the chosen providers',
-    async () => {
-      const tab = await page.context().newPage()
-      const toggle = async (provider: string, enabled: boolean) => {
-        const result = await panel.evaluate(
-          ({ provider, enabled }) =>
-            chrome.runtime.sendMessage({ type: 'set-search-recovery', provider, enabled }),
-          { provider, enabled }
-        )
-        assert(
-          result?.ok === true,
-          `Could not ${enabled ? 'enable' : 'disable'} ${provider} recovery`
-        )
-      }
-      const unchanged = async (url: string) => {
-        await tab.goto(url)
-        assert(tab.url() === url, `An ordinary or ambiguous search was redirected: ${url}`)
-        assert(
-          (await tab.title()) === 'Local search fixture',
-          'A provider request escaped the local fixture'
-        )
-      }
-      try {
-        for (const provider of searchProviders) {
-          const endpoint = `https://${provider.hosts[0]}${provider.path}`
-          const url = `${endpoint}?${provider.parameter}=sim%2Faskit`
-          await unchanged(url)
-          await toggle(provider.id, true)
-          for (const host of provider.hosts) {
-            for (const shortcut of SIM_LINK_HOSTS.flatMap((short) => [
-              `${short}%2Faskit`,
-              `${short}/jira/ABC-123`,
-            ])) {
-              const candidate = `https://${host}${provider.path}?client=chrome&${provider.parameter}=${shortcut}&source=qa`
-              const prior = searchRequests.filter((request) => request.url === candidate).length
-              await tab.goto(candidate)
-              assert(
-                tab.url() === `${origin}/sim-links/recover?q=${shortcut}`,
-                `${provider.id} lost the explicit shortcut`
-              )
-              assert(
-                searchRequests.filter((request) => request.url === candidate).length === prior,
-                'The matched shortcut reached the search provider'
-              )
-            }
-          }
-          for (const query of [
-            `${provider.parameter}=quarterly+planning`,
-            `${provider.parameter}=sim%2Faskit%20help`,
-            `${provider.parameter}=sim%2Faskit+help`,
-            `${provider.parameter}=sim%252Faskit`,
-            `${provider.parameter}=sim%2Faskit%ZZ`,
-            `${provider.parameter}=sim%2Faskit&${provider.parameter}=other`,
-            `${provider.parameter}=other&${provider.parameter}=sim%2Faskit`,
-            `${provider.parameter}=sim%2Faskit&%${provider.parameter.charCodeAt(0).toString(16)}=other`,
-          ])
-            await unchanged(`${endpoint}?${query}`)
-          await toggle(provider.id, false)
-          await unchanged(url)
-          assert(
-            await worker.evaluate(
-              (origins) => chrome.permissions.contains({ origins }),
-              provider.hosts.map((host) => `https://${host}/*`)
-            ),
-            'Disabling recovery removed a capture permission'
-          )
-        }
-        await toggle('google', true)
-        for (const url of [
-          'https://www.google.com/other?q=sim%2Faskit',
-          'https://m.google.com/search?q=sim%2Faskit',
-          'https://www.google.com.evil.test/search?q=sim%2Faskit',
-          'https://www.google.com/search?%71=sim%2Faskit',
-        ])
-          await unchanged(url)
-        const search = 'https://www.google.com/search?q=sim%2Faskit'
-        await tab.goto(`${origin}/post-fixture`)
-        await Promise.all([
-          tab.waitForNavigation(),
-          tab.evaluate((url) => {
-            const form = document.createElement('form')
-            form.method = 'POST'
-            form.action = url
-            document.body.append(form)
-            form.submit()
-          }, search),
-        ])
-        assert(
-          tab.url() === search &&
-            searchRequests.some((request) => request.url === search && request.method === 'POST'),
-          'A POST search was recovered'
-        )
-        await tab.goto(`${origin}/frame-fixture`)
-        await Promise.all([
-          tab.waitForEvent(
-            'framenavigated',
-            (child) => child.parentFrame() !== null && child.url() === search
-          ),
-          tab.evaluate((url) => {
-            const child = document.createElement('iframe')
-            child.src = url
-            document.body.append(child)
-          }, search),
-        ])
-        assert(
-          tab.url() === `${origin}/frame-fixture`,
-          'A subframe search changed the top-level page'
-        )
-        await toggle('google', false)
-      } finally {
-        await tab.close()
-      }
-    }
-  )
   await mkdir(dirname(output), { recursive: true })
   await panel.screenshot({ path: output.replace(/\.json$/, '.png'), fullPage: true })
 } catch (error) {
@@ -1559,7 +1388,6 @@ try {
 } finally {
   await context?.close()
   fixture.stop(true)
-  searchFixture?.stop(true)
   await mkdir(dirname(output), { recursive: true })
   await writeFile(output, JSON.stringify({ suite: 'browser-extension', checks }, null, 2))
   await rm(temporary, { recursive: true, force: true })

@@ -47,7 +47,6 @@ const extensionActionSchema = z.enum([
   'capture-page',
   'capture-selection',
   'site-access',
-  'browser-shortcuts',
   'microphone-settings',
 ])
 export type ExtensionAction = z.infer<typeof extensionActionSchema>
@@ -88,7 +87,6 @@ export type AppToExtensionMessage = z.infer<typeof appToExtensionMessageSchema>
 export const extensionToAppMessageSchema = z.discriminatedUnion('type', [
   z.strictObject({ ...envelope, type: z.literal('focus-composer'), sessionId: z.uuid() }),
   z.strictObject({ ...envelope, type: z.literal('connected'), sessionId: z.uuid() }),
-  z.strictObject({ ...envelope, type: z.literal('shortcuts-available'), sessionId: z.uuid() }),
   z.strictObject({
     ...envelope,
     type: z.literal('reference-preference'),

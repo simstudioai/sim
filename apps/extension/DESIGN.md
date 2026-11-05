@@ -68,7 +68,7 @@ other workspace resources or browser-control tools.
   capture across sites; switching tabs alone does not extract content.
 - No history permission, bookmarks, cookie API, debugger, native messaging, external messaging,
   or arbitrary remote code execution. The only network interception is the static
-  `sim/` and `go/` redirect rule above, plus opt-in search recovery.
+  `sim/` and `go/` redirect rule above.
 - Background network requests are limited to two. Once a week at browser start, and after
   signing in to the panel, the worker asks the Sim origin whether links are on for the session;
   if so, it opens `http://go/` and `http://sim/` in background tabs that close themselves, which

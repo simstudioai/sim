@@ -22,7 +22,6 @@ import {
 } from '@/config'
 import { type CaptureIntent, captureIntentSchema } from '@/intent'
 import { createReferenceCapture, PAGE_ATTACHMENT_PENDING_MESSAGE } from '@/reference'
-import { SearchRecoveryDialog } from '@/search-recovery-dialog'
 import { PageAccessButton, SiteAccessDialog } from '@/site-access'
 import '@/shell.css'
 
@@ -49,7 +48,6 @@ function SidePanel({ origin }: SidePanelProps) {
   const intentCutoffRef = useRef(0)
   const busyRef = useRef(false)
   const [accessOpen, setAccessOpen] = useState(false)
-  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [status, setStatus] = useState<string | { message: string }>('')
   const referenceRef = useRef<ReturnType<typeof createReferenceCapture> | null>(null)
 
@@ -115,7 +113,6 @@ function SidePanel({ origin }: SidePanelProps) {
     setStatus((status) => (typeof status === 'string' ? status : ''))
     intentCutoffRef.current = Date.now()
     setAccessOpen(false)
-    setShortcutsOpen(false)
     if (pendingRef.current || busyRef.current) setStatus('The chat changed. Attach the page again.')
     captureGenerationRef.current++
     pendingRef.current = null
@@ -316,13 +313,6 @@ function SidePanel({ origin }: SidePanelProps) {
         sessionId,
       }
       frameRef.current?.contentWindow?.postMessage(connected, SIM_ORIGIN)
-      const shortcuts: ExtensionToAppMessage = {
-        channel: 'sim-extension',
-        version: 1,
-        type: 'shortcuts-available',
-        sessionId,
-      }
-      frameRef.current?.contentWindow?.postMessage(shortcuts, SIM_ORIGIN)
       deliver()
       if (!pendingRef.current) deliverFocus()
     }
@@ -352,7 +342,6 @@ function SidePanel({ origin }: SidePanelProps) {
       } else if (parsed.data.type === 'action') {
         if (!navigator.userActivation.isActive) return
         if (parsed.data.action === 'site-access') setAccessOpen(true)
-        else if (parsed.data.action === 'browser-shortcuts') setShortcutsOpen(true)
         else if (parsed.data.action === 'microphone-settings')
           void chrome.tabs.create({ url: 'chrome://settings/content/microphone' })
         else void capture(parsed.data.action === 'capture-page' ? 'page' : 'selection')
@@ -436,7 +425,6 @@ function SidePanel({ origin }: SidePanelProps) {
           }}
         />
       )}
-      {shortcutsOpen && <SearchRecoveryDialog onClose={() => setShortcutsOpen(false)} />}
     </main>
   )
 }
