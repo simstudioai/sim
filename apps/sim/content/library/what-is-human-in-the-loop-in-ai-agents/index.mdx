@@ -19,6 +19,8 @@ faq:
     a: "In Sim, a Human in the Loop block has no default timeout and pauses until someone responds through the approval portal, the API, or a webhook. If a workflow needs a hard deadline, pair the block with a separate timeout mechanism and route expired requests to a safer outcome, such as rejecting the action or escalating to another reviewer."
   - q: "Does every agent action need a human checkpoint?"
     a: "A checkpoint controls a specific action, so an agent does not need one for every step; excessive review creates delay and encourages rubber-stamping. Read-only retrieval and low-impact drafting may run autonomously, while irreversible or regulated actions should receive review at selected workflow points."
+  - q: "Should every AI agent action require human approval?"
+    a: "AI agent actions should not all require human approval because excessive review creates delay and encourages rubber-stamping; approval should focus on risk-bearing decisions."
   - q: "What is human-in-the-loop in AI?"
     a: "Human-in-the-loop in AI is a design pattern in which a person reviews, corrects, approves, rejects, or supplements an AI system’s work at a defined point in the process."
   - q: "What is human-in-the-loop in an AI agent?"
@@ -58,7 +60,7 @@ faq:
   - q: "What is the difference between human approval and human escalation?"
     a: "Human approval asks a person to accept or reject a defined proposal, while human escalation transfers an unresolved case to someone with the judgment or authority to handle it."
   - q: "Does Sim’s Human in the Loop block notify the reviewer?"
-    a: "A Sim workflow should use a separate notification step to alert a reviewer before the Human in the Loop block collects the reviewer’s response."
+    a: "The Human in the Loop block can use its configured notification tools to alert a reviewer with the generated approval URL before collecting the reviewer’s response."
   - q: "Is a notification the same as human-in-the-loop approval?"
     a: "A notification is not human-in-the-loop approval unless the workflow pauses, collects an authorized decision, and routes execution based on that decision before the action occurs."
   - q: "Is human-in-the-loop the same as AI guardrails?"
@@ -246,7 +248,7 @@ A supervised rollout provides evidence for setting those thresholds. Start by re
 
 Sim exposes a dedicated [Human in the Loop block](https://docs.sim.ai/workflows/blocks/human-in-the-loop) within its workflow builder. Sim lists the Human in the Loop block alongside Guardrails and Evaluator blocks as separate core blocks, and a separate Wait block exists too, so a human review checkpoint is a distinct primitive from a generic delay.
 
-The block pauses a run and waits for a person before continuing. Configuration covers what the approver sees, drawn from earlier block outputs, and a resume form that captures their decision. A separate notification step can alert the reviewer through Slack, Gmail, Microsoft Teams, SMS, or a custom webhook. By default the run stays paused with no timeout until someone responds through the approval portal, the API, or a webhook, and downstream blocks can read the approver's inputs directly. Workflows can chain multiple Human in the Loop blocks for staged approvals, such as a manager sign-off followed by a director sign-off.
+The block pauses a run and waits for a person before continuing. Configuration covers what the approver sees, drawn from earlier block outputs, and a resume form that captures their decision. The block's Notification (Send URL) setting can configure Slack, Gmail, Microsoft Teams, SMS, or a custom webhook to alert the reviewer with the generated approval URL. By default the run stays paused with no timeout until someone responds through the approval portal, the API, or a webhook, and downstream blocks can read the approver's inputs directly. Workflows can chain multiple Human in the Loop blocks for staged approvals, such as a manager sign-off followed by a director sign-off.
 
 Sim's logs record every run block by block, so a reviewer can inspect the path a workflow took, see what each block produced, and confirm whether a review step ran. That record supports the post-hoc audit pattern even on workflows that never pause for approval, and it helps identify where future runs should add a checkpoint. For a broader treatment of logs and traces, see this guide to [AI agent observability](https://www.sim.ai/library/ai-agent-observability).
 
@@ -261,15 +263,15 @@ Approval and rejection are values in the response rather than automatic routing 
 A safe Sim pattern is:
 
 1. Use the agent or earlier blocks to assemble the proposed action and supporting context.
-2. Add a separate step that notifies the reviewer that input is required.
-3. Add the Human in the Loop block before the action that requires authorization.
+2. Add the Human in the Loop block before the action that requires authorization.
+3. Configure the block's notification tool to alert the reviewer with the generated approval URL.
 4. Include a structured approve-or-reject field and any required comment fields.
 5. Add a Condition immediately after the block.
 6. Route only the explicit approval result to the consequential action.
 7. Route rejection and unexpected values to a safe terminal, revision, or escalation path.
 8. Write the decision to the appropriate system of record when an audit trail is required.
 
-For an outbound-email workflow, earlier blocks can draft an email from approved CRM and account context before a notification alerts the account owner. The Human in the Loop block can show the recipient, subject, body, and an approval field. A downstream Condition routes an approved draft to the email action, while a rejected draft returns for revision or stops the run. The same pattern can protect a CRM write by showing proposed field changes and allowing the write operation only after approval.
+For an outbound-email workflow, earlier blocks can draft an email from approved CRM and account context. The Human in the Loop block can show the recipient, subject, body, and an approval field, then use its configured notification tool to alert the account owner with the generated approval URL. A downstream Condition routes an approved draft to the email action, while a rejected draft returns for revision or stops the run. The same pattern can protect a CRM write by showing proposed field changes and allowing the write operation only after approval.
 
 The [Sim Human in the Loop documentation](https://docs.sim.ai/workflows/blocks/human-in-the-loop) describes the block’s configuration and outputs. Teams comparing implementations can also read [Best AI Agent Builders for Human Approval Workflows](https://www.sim.ai/library/best-ai-agent-builders-for-human-approval-workflows).
 
