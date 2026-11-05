@@ -4,7 +4,6 @@ import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
-import type { BookmarkLink } from '@/lib/api/contracts/sim-links'
 import {
   defineAuthorizedOrganizationUseCase,
   type OrganizationUseCaseContext,
@@ -24,7 +23,6 @@ import { requireSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import type { SimLinkAccess, SimLinkRecord, SimLinkViewer } from '@/lib/sim-links/repository'
 import * as repository from '@/lib/sim-links/repository'
 import {
-  MAX_MANAGED_BOOKMARKS,
   type SimLinkFields,
   type SimLinkSort,
   stripSimLinkPrefix,
@@ -149,27 +147,6 @@ async function readView(
   return toView(record, viewer)
 }
 
-export const exportSimBookmarks = defineAuthorizedOrganizationUseCase({
-  operation: simLinkOperations.exportBookmarks,
-  ...rollout,
-  async execute({
-    input,
-    context,
-  }: OrganizationUseCaseContext<OrganizationInput & { links: BookmarkLink[] }>) {
-    if (!input.links.length || input.links.length > MAX_MANAGED_BOOKMARKS)
-      throw new OrchestrationError(
-        'validation',
-        `Choose between 1 and ${MAX_MANAGED_BOOKMARKS} bookmarks.`
-      )
-    const selected = new Map(input.links.map((link) => [link.id, link]))
-    const listed = await repository.listBookmarkCandidates(context.organizationId, [
-      ...selected.keys(),
-    ])
-    const current = new Map(listed.map((link) => [link.id, link.name]))
-    return [...selected.values()].filter((link) => current.get(link.id) === link.name)
-  },
-})
-
 export const listSimLinks = defineAuthorizedOrganizationUseCase({
   operation: simLinkOperations.list,
   ...rollout,
@@ -194,14 +171,6 @@ export const listSimLinks = defineAuthorizedOrganizationUseCase({
   },
 })
 
-async function findLinkIdByName(organizationId: string, typedName: string) {
-  const link = await repository.findSimLinkDestination(
-    organizationId,
-    stripSimLinkPrefix(typedName)
-  )
-  return link?.id
-}
-
 /**
  * One link by id or by name as typed. Hidden exactly as browsing hides it: an unlisted link reads
  * as missing to anyone who cannot manage it.
@@ -215,7 +184,14 @@ export const getSimLinkView = defineAuthorizedOrganizationUseCase({
   }: OrganizationUseCaseContext<OrganizationInput & ({ linkId: string } | { name: string })>) {
     const viewer = viewerOf(context)
     const linkId =
-      'linkId' in input ? input.linkId : await findLinkIdByName(input.organizationId, input.name)
+      'linkId' in input
+        ? input.linkId
+        : (
+            await repository.findSimLinkDestination(
+              input.organizationId,
+              stripSimLinkPrefix(input.name)
+            )
+          )?.id
     const record = linkId ? await repository.getSimLink(db, input.organizationId, linkId) : null
     if (!record || (record.unlisted && !canManage(record.createdBy?.id ?? null, viewer)))
       throw new OrchestrationError('not_found', 'Link not found')
@@ -333,8 +309,11 @@ export const suggestSimLinks = defineAuthorizedCredentialUserUseCase({
   operation: simLinkOperations.suggest,
   async execute({ principal, input }: { principal: SessionPrincipal; input: { query: string } }) {
     const organizationId = await resolveSimLinkOrganization(principal)
+    if (!organizationId) return { enabled: false, links: [] }
     const prefix = typedSimLinkPrefix(input.query)
-    if (!organizationId || prefix === null) return []
-    return repository.suggestSimLinks(organizationId, prefix)
+    return {
+      enabled: true,
+      links: prefix === null ? [] : await repository.suggestSimLinks(organizationId, prefix),
+    }
   },
 })

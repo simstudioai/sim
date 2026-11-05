@@ -13,5 +13,5 @@ export const SIM_LINK_COLUMNS = [
 
 export const SIM_LINKS_SEARCH_PLACEHOLDER = 'Search links...'
 
-export const BROWSER_SHORTCUTS_ACTION = { text: 'Browser shortcuts', icon: Globe } as const
+export const INSTALL_EXTENSION_ACTION = { text: 'Install Sim for Chrome', icon: Globe } as const
 export const NEW_SIM_LINK_ACTION = { text: 'New link', icon: Plus, variant: 'primary' } as const

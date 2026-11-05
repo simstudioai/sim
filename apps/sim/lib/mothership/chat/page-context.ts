@@ -1,9 +1,9 @@
 import type { PageSnapshot } from '@sim/browser-extension-protocol'
+import { utf8ByteLength } from '@sim/utils/paste'
 import { MAX_CHAT_CONTEXTS } from '@/lib/mothership/chat/context-limits'
 
 const MAX_PAGE_CONTEXT_TEXT_LENGTH = 150_000
 const MAX_PAGE_CONTEXT_BYTES = 450_000
-const encoder = new TextEncoder()
 
 /** Bounds the combined page budget and refuses ambiguous snapshot identities within a turn. */
 export function getPageContextBudgetError(
@@ -19,7 +19,7 @@ export function getPageContextBudgetError(
     if (ids.has(context.snapshot.id)) return 'Page snapshot IDs must be unique within a message'
     ids.add(context.snapshot.id)
     textLength += context.snapshot.text.length
-    bytes += encoder.encode(JSON.stringify(context.snapshot)).byteLength
+    bytes += utf8ByteLength(JSON.stringify(context.snapshot))
     if (textLength > MAX_PAGE_CONTEXT_TEXT_LENGTH || bytes > MAX_PAGE_CONTEXT_BYTES)
       return 'These pages contain too much text'
   }

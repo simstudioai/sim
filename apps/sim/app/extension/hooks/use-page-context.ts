@@ -18,12 +18,10 @@ interface CaptureState {
   error?: string
   connected?: boolean
   referenceEnabled?: boolean
-  shortcutsAvailable?: boolean
 }
 
 type CaptureAction =
   | { type: 'connected'; scopeKey: string }
-  | { type: 'shortcuts'; scopeKey: string }
   | { type: 'preference'; enabled: boolean; scopeKey: string }
   | { type: 'receive'; snapshot: PageSnapshot; scopeKey: string }
   | { type: 'scope'; scopeKey: string }
@@ -42,7 +40,6 @@ function reduceCaptures(state: CaptureState, action: CaptureAction): CaptureStat
   if (action.scopeKey !== state.scopeKey) return state
   if (action.type === 'preference') return { ...state, referenceEnabled: action.enabled }
   if (action.type === 'connected') return { ...state, connected: true }
-  if (action.type === 'shortcuts') return { ...state, shortcutsAvailable: true }
   if (state.snapshots.some((snapshot) => snapshot.id === action.snapshot.id)) return state
   const snapshots = [...state.snapshots, action.snapshot]
   const error = getPageContextBudgetError(
@@ -108,10 +105,6 @@ export function usePageContext(origins: string[], scopeKey: string) {
           composerFocus?.current?.focus()
           confirmFocus()
         }
-        return
-      }
-      if (parsed.data.type === 'shortcuts-available') {
-        if (bridgeRef.current?.sessionId === sessionId) dispatch({ type: 'shortcuts', scopeKey })
         return
       }
       if (parsed.data.type === 'reference-preference') {
@@ -247,7 +240,6 @@ export function usePageContext(origins: string[], scopeKey: string) {
     setReferenceEnabled,
     captureForSend,
     connected: Boolean(state.connected),
-    shortcutsAvailable: Boolean(state.shortcutsAvailable),
     requestAction,
     snapshots: state.snapshots,
     captureError: state.error,

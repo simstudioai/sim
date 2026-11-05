@@ -812,7 +812,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'When You ask Sim to attach a page or selection, the browser extension reads the requested text from the top frame of that page and transfers it, the page title, and a normalized page address to the hosted Sim composer. URL credentials, query parameters, and fragments are removed. The extractor skips form inputs, editable fields, scripts, embedded frames, and elements it detects as hidden. Page text, including text in collapsed sections, may still contain personal or sensitive information, such as personal communications or health, financial, or authentication information.'
+            'When You ask Sim to attach a page or selection, or open Sim from its toolbar button or keyboard shortcut with Reference current page off, the browser extension reads the requested text from the top frame of that page and transfers it, the page title, and a normalized page address to the hosted Sim composer. URL credentials, query parameters, and fragments are removed. The extractor skips form inputs, editable fields, scripts, embedded frames, and elements it detects as hidden. Page text, including text in collapsed sections, may still contain personal or sensitive information, such as personal communications or health, financial, or authentication information.'
           ),
         },
         {
@@ -848,7 +848,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'Browser shortcuts can optionally recover an explicit sim/ or go/ shortcut that Chrome sends to a supported search engine. After You enable a provider and approve access to its listed sites, Chrome applies request rules that send only the matching shortcut name and path values to Sim’s normal link resolver. Other search parameters and ordinary search terms are not sent to Sim by this feature. The extension stores Your provider choices locally and does not change Your default search engine. These site permissions can also allow page attachment when You explicitly request it; enabling shortcut recovery does not enable Reference current page or background capture. Turning recovery off stops these redirects. Site access remains until You revoke or restrict it in Chrome settings.'
+            'When Links are available for Your organization, the extension opens sim/ and go/ about once a week in background tabs that close themselves, so Chrome recognizes these shortcuts in the address bar. Those tabs load Sim’s link page with Your session, send no browsing data, and appear in Your browser history.'
           ),
         },
         {

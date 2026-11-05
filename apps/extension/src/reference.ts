@@ -11,6 +11,8 @@ import {
 } from '@/capture'
 import { REFERENCE_PAGE_KEY } from '@/config'
 
+export const PAGE_ATTACHMENT_PENDING_MESSAGE = 'Wait for the page attachment, then try again.'
+
 interface ReferenceOptions {
   session: () => string | null
   post: (message: ExtensionToAppMessage) => void
@@ -124,7 +126,7 @@ export function createReferenceCapture({
       replyError(
         sessionId,
         requestId,
-        manualError?.message ?? 'Wait for the page attachment, then try again.',
+        manualError?.message ?? PAGE_ATTACHMENT_PENDING_MESSAGE,
         manualError?.reason
       )
       return

@@ -1,7 +1,7 @@
 'use client'
 
 import { type MouseEvent, useCallback, useMemo, useState } from 'react'
-import { Avatar, ChipConfirmModal, ChipModalError, writeTextToClipboard } from '@sim/emcn'
+import { Avatar, ChipConfirmModal, ChipModalError, toast, writeTextToClipboard } from '@sim/emcn'
 import { Link } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useQueryStates } from 'nuqs'
@@ -10,9 +10,8 @@ import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { simLinkPath, simLinkUrl } from '@/lib/navigation/paths'
 import { toSimLinkName } from '@/lib/sim-links/validation'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import { BrowserShortcutsModal } from '@/app/o/[organizationId]/links/browser-shortcuts-modal'
 import {
-  BROWSER_SHORTCUTS_ACTION,
+  INSTALL_EXTENSION_ACTION,
   NEW_SIM_LINK_ACTION,
   SIM_LINK_COLUMNS,
   SIM_LINKS_SEARCH_PLACEHOLDER,
@@ -42,11 +41,13 @@ import {
 import { useDeleteSimLink, useSimLinks } from '@/hooks/queries/sim-links'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
-import { useHydrated } from '@/hooks/use-hydrated'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
 
 const logger = createLogger('SimLinks')
+
+const SIM_FOR_CHROME_URL =
+  'https://chromewebstore.google.com/detail/sim/oanlcahddodnjpdoopcpjlcageejjpmg'
 
 const SORT_OPTIONS = [
   { id: 'name', label: 'Name' },
@@ -66,8 +67,10 @@ function openLink(name: string) {
 async function copyLink(name: string) {
   try {
     await writeTextToClipboard(simLinkUrl(window.location.origin, name))
+    toast.success('Link copied')
   } catch (error) {
     logger.error('Failed to copy Sim link', { error })
+    toast.error('Unable to copy link')
   }
 }
 
@@ -78,8 +81,6 @@ interface SimLinksProps {
 /** Every Sim link the viewer may browse, in the shared resource table. */
 export function SimLinks({ organizationId }: SimLinksProps) {
   const { hosted } = useDeploymentShape()
-  const hydrated = useHydrated()
-  const [showBrowserShortcuts, setShowBrowserShortcuts] = useState(false)
   const [{ search, create }, setView] = useQueryStates(simLinksParsers, simLinksUrlKeys)
   const setSearch = useDebouncedSearchSetter((value, options) =>
     setView({ search: value }, options)
@@ -168,9 +169,8 @@ export function SimLinks({ organizationId }: SimLinksProps) {
           ...(hosted
             ? [
                 {
-                  ...BROWSER_SHORTCUTS_ACTION,
-                  disabled: !hydrated,
-                  onSelect: () => setShowBrowserShortcuts(true),
+                  ...INSTALL_EXTENSION_ACTION,
+                  onSelect: () => window.open(SIM_FOR_CHROME_URL, '_blank', 'noopener,noreferrer'),
                 },
               ]
             : []),
@@ -205,9 +205,6 @@ export function SimLinks({ organizationId }: SimLinksProps) {
           ))
         }
       />
-      {hosted && showBrowserShortcuts && (
-        <BrowserShortcutsModal onClose={() => setShowBrowserShortcuts(false)} />
-      )}
       {menuLink && (
         <SimLinkContextMenu
           isOpen={contextMenu.isOpen}

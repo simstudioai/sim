@@ -15,6 +15,7 @@ const SUGGEST_DELAY_MS = 220
 const SEARCH_HINT = 'Find a link in Sim'
 // Chrome persists this template and substitutes the input when rendering the default row.
 const OPEN_LINK_HINT = 'Open <match>%s</match> in Sim'
+const SEARCH_LINKS_HINT = 'Find <match>%s</match> in Sim'
 
 /** A Sim link as suggested: its name, and what it shows beside the name. */
 interface SuggestedLink {
@@ -140,9 +141,10 @@ export function registerSimLinkOmnibox() {
   chrome.omnibox.onInputChanged.addListener((text, suggest) => {
     pending?.abort()
     const { name, rest } = readTyped(text)
-    showHint(name || rest ? OPEN_LINK_HINT : SEARCH_HINT)
     // A name can't hold a space, so `sim card prices` is a search, not a link: ask Sim nothing.
-    if (/\s/.test(name) || name.length > SIM_LINK_NAME_MAX_LENGTH) {
+    const phrase = /\s/.test(name)
+    showHint(phrase ? SEARCH_LINKS_HINT : name || rest ? OPEN_LINK_HINT : SEARCH_HINT)
+    if (phrase || name.length > SIM_LINK_NAME_MAX_LENGTH) {
       suggest([])
       return
     }

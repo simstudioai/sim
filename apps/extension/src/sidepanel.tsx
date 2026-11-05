@@ -8,17 +8,24 @@ import { createRoot } from 'react-dom/client'
 import {
   captureActivePage,
   captureErrorMessage,
+  PAGE_CHANGED_MESSAGE,
   PageCaptureError,
   SiteAccessRequiredError,
   UnreadableSelectionError,
 } from '@/capture'
-import { CAPTURE_INTENT_KEY, CAPTURE_INTENT_TTL_MS, REFERENCE_PAGE_KEY, SIM_ORIGIN } from '@/config'
+import {
+  CAPTURE_INTENT_KEY,
+  CAPTURE_INTENT_TTL_MS,
+  REFERENCE_PAGE_KEY,
+  SIM_ORIGIN,
+  VISIT_SHORT_HOSTS_MESSAGE,
+} from '@/config'
 import { type CaptureIntent, captureIntentSchema } from '@/intent'
-import { createReferenceCapture } from '@/reference'
-import { SearchRecoveryDialog } from '@/search-recovery-dialog'
+import { createReferenceCapture, PAGE_ATTACHMENT_PENDING_MESSAGE } from '@/reference'
 import { PageAccessButton, SiteAccessDialog } from '@/site-access'
 import '@/shell.css'
 
+const PAGE_ATTACHMENT_EXPIRED_MESSAGE = 'The page attachment expired. Attach it again.'
 const BLOCKED_SELECTION =
   'Select readable text again, attach the page explicitly, or turn off Reference current page.'
 const KEYBOARD_FOCUS_HINT = navigator.platform.startsWith('Mac')
@@ -41,7 +48,6 @@ function SidePanel({ origin }: SidePanelProps) {
   const intentCutoffRef = useRef(0)
   const busyRef = useRef(false)
   const [accessOpen, setAccessOpen] = useState(false)
-  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [status, setStatus] = useState<string | { message: string }>('')
   const referenceRef = useRef<ReturnType<typeof createReferenceCapture> | null>(null)
 
@@ -49,9 +55,7 @@ function SidePanel({ origin }: SidePanelProps) {
     if (!(status instanceof SiteAccessRequiredError)) return
     const navigated = (tabId: number, change: chrome.tabs.OnUpdatedInfo) => {
       if (tabId === status.tabId && (change.status === 'loading' || change.url !== undefined)) {
-        setStatus((current) =>
-          current === status ? 'The page changed. Attach it again.' : current
-        )
+        setStatus((current) => (current === status ? PAGE_CHANGED_MESSAGE : current))
       }
     }
     const activated = (tab: chrome.tabs.OnActivatedInfo) => {
@@ -74,7 +78,7 @@ function SidePanel({ origin }: SidePanelProps) {
     if (Date.now() - Date.parse(snapshot.capturedAt) > CAPTURE_INTENT_TTL_MS) {
       pendingRef.current = null
       focusRequested.current = false
-      setStatus('The page attachment expired. Attach it again.')
+      setStatus(PAGE_ATTACHMENT_EXPIRED_MESSAGE)
       return
     }
     const message: ExtensionToAppMessage = {
@@ -109,7 +113,6 @@ function SidePanel({ origin }: SidePanelProps) {
     setStatus((status) => (typeof status === 'string' ? status : ''))
     intentCutoffRef.current = Date.now()
     setAccessOpen(false)
-    setShortcutsOpen(false)
     if (pendingRef.current || busyRef.current) setStatus('The chat changed. Attach the page again.')
     captureGenerationRef.current++
     pendingRef.current = null
@@ -130,12 +133,12 @@ function SidePanel({ origin }: SidePanelProps) {
     }
   ) {
     if (referenceRef.current?.busy()) {
-      setStatus('Wait for the page attachment, then try again.')
+      setStatus(PAGE_ATTACHMENT_PENDING_MESSAGE)
       return
     }
     if (busyRef.current) return
     if (pendingRef.current) {
-      setStatus('Wait for the page attachment, then try again.')
+      setStatus(PAGE_ATTACHMENT_PENDING_MESSAGE)
       return
     }
     busyRef.current = true
@@ -171,7 +174,7 @@ function SidePanel({ origin }: SidePanelProps) {
       manualCaptureError: () => {
         if (busyRef.current || pendingRef.current || processingManual || manualIntents.size)
           return {
-            message: 'Wait for the page attachment, then try again.',
+            message: PAGE_ATTACHMENT_PENDING_MESSAGE,
           }
         if (unreadableSelection.current) return { message: BLOCKED_SELECTION, reason: 'selection' }
       },
@@ -249,7 +252,7 @@ function SidePanel({ origin }: SidePanelProps) {
         }
         if (disposed || !intent) return
         if (!currentIntent(intent, window.id)) {
-          setStatus('The page attachment expired. Attach it again.')
+          setStatus(PAGE_ATTACHMENT_EXPIRED_MESSAGE)
           return
         }
         if (intent.kind === 'focus') {
@@ -310,13 +313,6 @@ function SidePanel({ origin }: SidePanelProps) {
         sessionId,
       }
       frameRef.current?.contentWindow?.postMessage(connected, SIM_ORIGIN)
-      const shortcuts: ExtensionToAppMessage = {
-        channel: 'sim-extension',
-        version: 1,
-        type: 'shortcuts-available',
-        sessionId,
-      }
-      frameRef.current?.contentWindow?.postMessage(shortcuts, SIM_ORIGIN)
       deliver()
       if (!pendingRef.current) deliverFocus()
     }
@@ -327,6 +323,8 @@ function SidePanel({ origin }: SidePanelProps) {
       if (parsed.data.type === 'theme') {
         appTheme = parsed.data.theme
         applyTheme()
+      } else if (parsed.data.type === 'signed-in') {
+        void chrome.runtime.sendMessage(VISIT_SHORT_HOSTS_MESSAGE).catch(() => undefined)
       } else if (parsed.data.type === 'ready') {
         void connect(parsed.data.sessionId)
       } else if (parsed.data.sessionId !== sessionRef.current) {
@@ -344,7 +342,6 @@ function SidePanel({ origin }: SidePanelProps) {
       } else if (parsed.data.type === 'action') {
         if (!navigator.userActivation.isActive) return
         if (parsed.data.action === 'site-access') setAccessOpen(true)
-        else if (parsed.data.action === 'browser-shortcuts') setShortcutsOpen(true)
         else if (parsed.data.action === 'microphone-settings')
           void chrome.tabs.create({ url: 'chrome://settings/content/microphone' })
         else void capture(parsed.data.action === 'capture-page' ? 'page' : 'selection')
@@ -362,7 +359,7 @@ function SidePanel({ origin }: SidePanelProps) {
       ) {
         pendingRef.current = null
         focusRequested.current = false
-        setStatus('The page attachment expired. Attach it again.')
+        setStatus(PAGE_ATTACHMENT_EXPIRED_MESSAGE)
       }
       void consumeIntent()
     }, 5_000)
@@ -428,7 +425,6 @@ function SidePanel({ origin }: SidePanelProps) {
           }}
         />
       )}
-      {shortcutsOpen && <SearchRecoveryDialog onClose={() => setShortcutsOpen(false)} />}
     </main>
   )
 }
