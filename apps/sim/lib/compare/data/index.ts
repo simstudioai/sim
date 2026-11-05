@@ -21,11 +21,13 @@ export { zapierProfile } from '@/lib/compare/data/competitors/zapier'
 export { simProfile } from '@/lib/compare/data/sim'
 export type {
   ComparisonFacts,
+  ComparisonQuestion,
   CompetitorBrand,
   CompetitorMigration,
   CompetitorProfile,
   Fact,
   FactSource,
+  GlanceRow,
   Prose,
   ProseSegment,
 } from '@/lib/compare/data/types'

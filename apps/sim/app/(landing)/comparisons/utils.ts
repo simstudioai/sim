@@ -1,4 +1,5 @@
 import {
+  type ComparisonQuestion,
   type CompetitorProfile,
   claudeCoworkProfile,
   crewaiProfile,
@@ -12,6 +13,7 @@ import {
   n8nProfile,
   openaiAgentkitProfile,
   openClawProfile,
+  type Prose,
   pipedreamProfile,
   powerAutomateProfile,
   retoolProfile,
@@ -118,9 +120,16 @@ export function buildBottomLine(competitor: CompetitorProfile): ComparisonVerdic
  * question/answer pair is independently quotable per the landing GEO rules,
  * and every answer names "Sim" and the competitor explicitly. Every answer
  * draws on a real, sourced {@link Fact} field rather than a generic claim,
- * and no two questions repeat the same answer.
+ * and no two questions repeat the same answer. A profile that answers its buyer questions as
+ * page sections gets those questions instead, so its FAQ data matches what the page shows.
  */
 export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFaq[] {
+  if (competitor.questions) {
+    return getQuestionSections(competitor).map(({ question, answer }) => ({
+      question,
+      answer: proseToText(answer),
+    }))
+  }
   const name = competitor.name
   const facts = competitor.facts
   const faqs: ComparisonFaq[] = [
@@ -167,6 +176,45 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
   }
 
   return faqs
+}
+
+/** Heading of the section answering {@link CompetitorProfile.betterThanAnswer}. */
+export function betterThanQuestion(competitor: CompetitorProfile): string {
+  return `Is Sim better than ${competitor.name}?`
+}
+
+/**
+ * The buyer questions the page answers in their own sections, grouped by position: `opening`
+ * (the lead, "better than", and intro questions) ahead of the product definitions, `glance`
+ * after the at-a-glance table, and `closing` after the documented limitations.
+ */
+export function getQuestionSectionGroups(competitor: CompetitorProfile): {
+  opening: ComparisonQuestion[]
+  glance: ComparisonQuestion[]
+  closing: ComparisonQuestion[]
+} {
+  const { leadQuestion, leadAnswer, betterThanAnswer, questions } = competitor
+  return {
+    opening: [
+      ...(leadQuestion && leadAnswer ? [{ question: leadQuestion, answer: leadAnswer }] : []),
+      ...(betterThanAnswer
+        ? [{ question: betterThanQuestion(competitor), answer: betterThanAnswer }]
+        : []),
+      ...(questions?.intro ?? []),
+    ],
+    glance: questions?.glance ?? [],
+    closing: questions?.closing ?? [],
+  }
+}
+
+/** Every question from {@link getQuestionSectionGroups}, in page order. */
+function getQuestionSections(competitor: CompetitorProfile): ComparisonQuestion[] {
+  const { opening, glance, closing } = getQuestionSectionGroups(competitor)
+  return [...opening, ...glance, ...closing]
+}
+
+function proseToText(prose: Prose): string {
+  return prose.map((segment) => (typeof segment === 'string' ? segment : segment.text)).join('')
 }
 
 function buildKeyDifferenceAnswer(competitor: CompetitorProfile): string {
