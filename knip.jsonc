@@ -43,6 +43,7 @@
         // CSS Modules reach this through `@reference`, which knip does not follow.
         "platform/design-system/styles/theme.css",
         // Foundation for the organization redesign. Remove each once a page imports it.
+        "app/o/[[]organizationId[]]/_redesign/redesign-host.tsx",
         "platform/app/[(]shell[)]/_components/**/*.{ts,tsx}",
         "platform/lib/time.ts",
         // Compile-time fixture compatibility assertion, included by tsconfig.
