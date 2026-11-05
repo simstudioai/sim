@@ -162,7 +162,13 @@ interface NetworkState {
    * - `deduped` — the 409 the server returns for an already-claimed send
    */
   postBehavior: 'hang' | 'accept' | 'deduped' | 'tool' | 'task'
-  postBodies: Array<{ message: string; userMessageId?: string; chatId?: string; effort?: string }>
+  postBodies: Array<{
+    message: string
+    mode?: string
+    userMessageId?: string
+    chatId?: string
+    effort?: string
+  }>
   pendingAdmissions: Map<string, () => void>
   abortSettlements: boolean[]
   abortBodies: CopilotChatAbortBody[]
@@ -1153,6 +1159,32 @@ describe('useChat remount send recovery', () => {
     })
     expect(state.postBodies[0].userMessageId).toBe(state.abortBodies[0].streamId)
     expect(state.postBodies[0].chatId).toBe('chat-a')
+  })
+
+  it('moves an Assistant turn from organization Home to its Search chat, and Home starts over', async () => {
+    mockUsePathname.mockReturnValue('/o/org-1/home')
+    state.postBehavior = 'task'
+    const replace = vi.spyOn(window.history, 'replaceState')
+    const { getResult, selectMode } = renderUseChat({ organizationId: 'org-1' }, 'assistant')
+    await act(async () => {
+      void getResult().sendMessage('What changed in the renewal policy?', undefined, undefined, {
+        requestMode: 'assistant',
+      })
+    })
+    await waitFor(() => getResult().resolvedChatId === DEDUPED_CHAT_ID)
+    expect(state.postBodies[0]).toMatchObject({ mode: 'assistant' })
+    const chatPath = `/o/org-1/search/chat/${DEDUPED_CHAT_ID}`
+    expect(replace).toHaveBeenCalledWith(null, '', chatPath)
+
+    mockUsePathname.mockReturnValue(chatPath)
+    selectMode('assistant')
+    expect(getResult().resolvedChatId).toBe(DEDUPED_CHAT_ID)
+    expect(getResult().messages.length).toBeGreaterThan(0)
+
+    mockUsePathname.mockReturnValue('/o/org-1/home')
+    selectMode('assistant')
+    await waitFor(() => getResult().resolvedChatId === undefined)
+    expect(getResult().messages).toEqual([])
   })
 
   it('does not navigate from an unmounted stopped send when admission arrives late', async () => {

@@ -1021,12 +1021,15 @@ try {
     }
   )
   await check(
-    'Search-only members can reopen assistant history without access to Home chat',
+    'Search-only members have Home with the Assistant and their history, but no agent chat',
     async () => {
       await sql`insert into permission_group (id, organization_id, name, config, created_by, is_default)
       values (${generateId()}, ${organizationId}, 'Search only',
         ${sql.json({ disableWorkspaceCreation: true })}, ${userId}, true)`
       await page.goto(`${baseUrl.origin}${root}/home`)
+      await expect(page).toHaveURL((url) => url.pathname === `${root}/home`)
+      await expect(page.getByRole('textbox', { name: 'Ask Sim' })).toBeVisible()
+      await page.goto(`${baseUrl.origin}${root}/chat/${agentId}`)
       await expect(page).toHaveURL((url) => url.pathname === `${root}/search`)
       await page.goto(`${baseUrl.origin}${root}/search/chat/${assistantId}`)
       await expect(page.getByText(answer, { exact: true })).toBeVisible()
