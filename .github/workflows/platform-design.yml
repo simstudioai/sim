@@ -156,6 +156,12 @@ jobs:
       - name: Run the live suite
         working-directory: apps/sim
         run: bash ../../.github/scripts/http-e2e.sh platform-live-${{ matrix.topology }}
+      - name: Hold the parity ledger to this run
+        if: always() && matrix.topology == 'zone'
+        run: >-
+          bun run scripts/check-platform-parity.ts
+          --report "$RUNNER_TEMP/e2e/platform-live/report.json"
+          --report "$RUNNER_TEMP/e2e/platform-live-flag-off/report.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

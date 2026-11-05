@@ -448,7 +448,7 @@ JS
     run_platform_live zone platform-live || live_status=$?
     stop_app
     start_app platform-live-flag-off 3027 'Platform main, flag off' record-http-status
-    PLATFORM_LIVE_ZONE=1 run_platform_live flag-off platform-live-flag-off || live_status=$?
+    run_platform_live flag-off platform-live-flag-off || live_status=$?
     exit "$live_status"
     ;;
 

@@ -556,6 +556,8 @@ const organizationSurfaceResponseSchema = z.object({
   deployment: deploymentShapeSchema,
   /** Which destinations the viewer's navigation lists; none of these authorizes the page behind it. */
   navFlags: z.object({
+    /** Whether the Platform zone is open to this organization at all. */
+    platformOrgUi: z.boolean(),
     people: z.boolean(),
     simLinks: z.boolean(),
     benchmark: z.boolean(),

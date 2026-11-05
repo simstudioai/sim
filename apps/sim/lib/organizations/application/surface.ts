@@ -16,6 +16,7 @@ import {
 import { resolveOrganizationSurfaceFlags } from '@/lib/organizations/surface-flags'
 import { canBrowsePeople } from '@/lib/people/feature-flag'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
+import { isPlatformOrgUiEnabled } from '@/lib/platform/rollout'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { organizationSurfaceSettingsNavigation } from '@/app/o/[organizationId]/settings/navigation'
 
@@ -48,18 +49,20 @@ export const readOrganizationSurface: OperationUseCase<
     const context = await getOrganizationSurfaceContext(organizationId, userId)
     if (!context) throw new OrganizationMembershipNotFoundError()
 
-    const [{ flags, benchmarkEnabled }, people, simLinks, platformAdmin] = await Promise.all([
-      resolveOrganizationSurfaceFlags(organizationId, userId),
-      canBrowsePeople(organizationId, context.viewer.role),
-      isSimLinksEnabled(organizationId),
-      // Decides which links are drawn; the pages behind them authorize for themselves.
-      isPlatformAdmin(userId).catch((error: unknown) => {
-        logger.warn('Could not resolve platform administration navigation', {
-          error: getErrorMessage(error),
-        })
-        return false
-      }),
-    ])
+    const [{ flags, benchmarkEnabled }, people, simLinks, platformAdmin, platformOrgUi] =
+      await Promise.all([
+        resolveOrganizationSurfaceFlags(organizationId, userId),
+        canBrowsePeople(organizationId, context.viewer.role),
+        isSimLinksEnabled(organizationId),
+        // Decides which links are drawn; the pages behind them authorize for themselves.
+        isPlatformAdmin(userId).catch((error: unknown) => {
+          logger.warn('Could not resolve platform administration navigation', {
+            error: getErrorMessage(error),
+          })
+          return false
+        }),
+        isPlatformOrgUiEnabled(organizationId),
+      ])
 
     return {
       organization: context.organization,
@@ -71,6 +74,7 @@ export const readOrganizationSurface: OperationUseCase<
       settingsFeatures: context.settingsFeatures,
       deployment: context.deployment,
       navFlags: {
+        platformOrgUi,
         people,
         simLinks,
         benchmark: benchmarkEnabled,

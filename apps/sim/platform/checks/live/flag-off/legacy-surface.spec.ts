@@ -2,11 +2,9 @@ import { expect, type Page, test } from '@playwright/test'
 import { adminEmail, organizationId, signIn } from '@/platform/checks/live/session'
 
 /**
- * `PLATFORM_LIVE_ZONE=1` means the app was built with `SIM_PLATFORM_ORIGIN` and is running with the
- * flag off; unset, there is no zone at all, even with the flag on.
+ * Runs twice: built with no `SIM_PLATFORM_ORIGIN`, with the flag on; and built with the zone, with
+ * the flag off. Neither may change anything for the organization.
  */
-const zoneBuilt = process.env.PLATFORM_LIVE_ZONE === '1'
-
 const LEGACY_ROUTES = ['home', 'settings/members', 'people'] as const
 
 async function expectLegacySurface(page: Page, route: string) {
@@ -33,12 +31,11 @@ test('a client navigation stays on the legacy surface too', async ({ page }) => 
   await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
 })
 
-test('with no zone built, /org is absent', async ({ page }) => {
-  test.skip(zoneBuilt, 'This build has a zone; its /org is exercised by the zone project')
+test('/org is absent', async ({ page }) => {
   for (const path of ['/org', '/org/home', '/org/settings/members']) {
     await signIn(page, adminEmail(), `/o/${organizationId()}/home`)
     const response = await page.goto(path)
     expect(response?.status(), path).toBe(404)
-    await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Organization menu' })).toHaveCount(0)
   }
 })
