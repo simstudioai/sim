@@ -3,6 +3,7 @@ import { CREDENTIAL_GROUP_DELEGATION_AUDIENCE } from '@/lib/credential-groups/ap
 import { listCredentialGroupCredentials } from '@/lib/credential-groups/application/list-credentials'
 import { listCredentialGroupMcpConnections } from '@/lib/credential-groups/application/list-mcp-connections'
 import { MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE } from '@/lib/credential-groups/credentials'
+import { MAX_CREDENTIAL_GROUP_MCP_CONNECTION_PAGE_SIZE } from '@/lib/credential-groups/mcp-connections'
 import { resolveWorkflowCredentials } from '@/lib/credentials/application/resolve-workflow-credentials'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
 import type { BlockOutput } from '@/blocks/types'
@@ -135,26 +136,34 @@ export class CredentialBlockHandler implements BlockHandler {
       case 'find_organization_mcp_connection':
       case 'list_organization_mcp_connections': {
         const find = operation === 'find_organization_mcp_connection'
+        const email = find
+          ? requireString(inputs.email, 'Email')
+          : parseOptionalString(inputs.email, 'Email')
         const result = await listCredentialGroupMcpConnections.execute({
           principal,
           input: {
             workspaceId: ctx.workspaceId,
-            email: find
-              ? requireString(inputs.email, 'Email')
-              : parseOptionalString(inputs.email, 'Email'),
+            email,
             connectorId: find
               ? requireString(inputs.mcpProvider, 'MCP provider')
               : parseOptionalString(inputs.mcpProvider, 'MCP provider'),
-            limit: find ? 2 : parseLimit(inputs.limit),
+            limit: find ? MAX_CREDENTIAL_GROUP_MCP_CONNECTION_PAGE_SIZE : parseLimit(inputs.limit),
             cursor: find ? undefined : parseOptionalString(inputs.cursor, 'Cursor'),
           },
         })
         if (!find) return result
-        if (result.mcpConnections.length !== 1 || result.hasMore)
+        const matches =
+          result.mcpConnections.length > 1
+            ? result.mcpConnections.filter(
+                (connection) => connection.displayName.toLowerCase() === email?.toLowerCase()
+              )
+            : result.mcpConnections
+        const [match] = matches
+        if (!match || matches.length !== 1)
           throw new Error(
-            `Expected exactly one organization MCP connection; found ${result.mcpConnections.length}${result.hasMore ? '+' : ''}. Check the email, provider, and connection status.`
+            `Expected exactly one organization MCP connection; found ${result.mcpConnections.length}${result.hasMore ? '+' : ''}. Check the email, provider, and connection status. A person with several accounts of one provider needs List Organization MCP Connections to choose between them.`
           )
-        return result.mcpConnections[0]!
+        return match
       }
       default:
         throw new Error(`Unsupported Credential operation: ${operation}`)

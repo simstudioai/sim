@@ -545,6 +545,23 @@ class McpService {
     )
   }
 
+  /** Calls one tool with a grant that has no stored connection yet, such as during OAuth completion. */
+  async callManagedMcpToolWithGrant(
+    serverId: string,
+    scope: string | ResourceScope,
+    auth: OAuthClientProvider,
+    toolCall: McpToolCall,
+    signal?: AbortSignal
+  ): Promise<McpToolResult> {
+    const config = await this.getServerConfig(serverId, scope)
+    if (!config) throw new Error('Managed MCP server is unavailable')
+    return this.withServerClient(
+      { key: '', serverId, allowPool: false },
+      () => this.createManagedOauthClient(config, auth, signal),
+      (client) => client.callTool(toolCall, { signal })
+    )
+  }
+
   async executeManagedMcpTool(params: {
     connectionId: string
     serverId: string

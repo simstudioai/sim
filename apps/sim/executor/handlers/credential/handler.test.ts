@@ -4,6 +4,7 @@ import {
 } from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE } from '@/lib/credential-groups/credentials'
+import { MAX_CREDENTIAL_GROUP_MCP_CONNECTION_PAGE_SIZE } from '@/lib/credential-groups/mcp-connections'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -123,7 +124,7 @@ describe('Credential organization operations', () => {
         input: expect.objectContaining({
           connectorId: 'fireflies',
           email: account.email,
-          limit: 2,
+          limit: MAX_CREDENTIAL_GROUP_MCP_CONNECTION_PAGE_SIZE,
         }),
       })
     )

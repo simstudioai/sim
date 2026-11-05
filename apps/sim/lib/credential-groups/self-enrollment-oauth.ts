@@ -52,6 +52,7 @@ export async function startViewerCredentialGroupMcpOAuth(input: {
   mcpServerId: string
   completionId: string
   returnTo?: 'integrations'
+  connectionIntent?: CredentialGroupConnectionIntent
 }): Promise<{ invitationLink: string; authorizationUrl: string }> {
   const { enrollment, invitationLink } = await createViewerCredentialGroupEnrollment(input)
   const token = new URL(invitationLink).pathname.split('/').at(-1)
@@ -71,6 +72,7 @@ export async function startViewerCredentialGroupMcpOAuth(input: {
   const authorizationUrl = await startCredentialGroupMcpOAuth(oauth, token, {
     completionId: input.completionId,
     returnTo: input.returnTo,
+    connectionIntent: input.connectionIntent,
   })
   return { invitationLink, authorizationUrl }
 }

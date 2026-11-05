@@ -18,6 +18,7 @@ import {
 } from '@/lib/credential-groups/mcp-oauth-state'
 import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
 import type { CredentialGroupOAuthFailure } from '@/lib/credential-groups/oauth-completion'
+import { CredentialGroupOAuthError } from '@/lib/credential-groups/provider-adapter'
 import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups/rate-limit'
 import {
   assertSafeOauthServerUrl,
@@ -162,7 +163,9 @@ async function completeManagedMcpCallback(params: {
     })
   } catch (error) {
     logger.error('Managed MCP OAuth callback failed', error)
-    return failureRedirect('failed')
+    return failureRedirect(
+      error instanceof CredentialGroupOAuthError && error.failure ? error.failure : 'failed'
+    )
   }
 }
 

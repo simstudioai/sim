@@ -1,9 +1,17 @@
 import type { OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
+import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
+import { getErrorMessage } from '@sim/utils/errors'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import type { CredentialGroupMcpOAuthContext } from '@/lib/credential-groups/enrollments'
+import { MANAGED_MCP_ACCOUNT_IDENTITY_CALLS } from '@/lib/credential-groups/managed-mcp-connectors'
+import {
+  type ManagedMcpAccountIdentity,
+  readManagedMcpAccountIdentity,
+} from '@/lib/credential-groups/mcp-account-identity'
 import { createCredentialGroupMcpOAuthAttempt } from '@/lib/credential-groups/mcp-oauth-state'
+import type { CredentialGroupConnectionIntent } from '@/lib/credential-groups/oauth-intent'
 import { encryptManagedMcpTokens, persistManagedMcpCredential } from '@/lib/credentials/managed-mcp'
 import {
   assertSafeOauthServerUrl,
@@ -17,10 +25,16 @@ import { ManagedMcpOauthProvider } from '@/lib/mcp/oauth/managed-provider'
 import { mcpService } from '@/lib/mcp/service'
 import { toManagedMcpToolSnapshots } from '@/lib/mcp/tool-snapshot'
 
+const logger = createLogger('CredentialGroupMcpOAuth')
+
 export async function startCredentialGroupMcpOAuth(
   context: CredentialGroupMcpOAuthContext,
   invitationToken: string,
-  completion: { completionId?: string; returnTo?: 'integrations' } = {}
+  completion: {
+    completionId?: string
+    returnTo?: 'integrations'
+    connectionIntent?: CredentialGroupConnectionIntent
+  } = {}
 ): Promise<string> {
   assertSafeOauthServerUrl(context.server.url)
   return withMcpOauthRefreshLock(context.server.id, async () => {
@@ -69,7 +83,8 @@ export async function completeCredentialGroupMcpOAuth(
   codeVerifier: string,
   authorizationCode: string,
   invitationToken: string,
-  expectedConfigurationFingerprint?: string
+  expectedConfigurationFingerprint?: string,
+  connectionIntent?: CredentialGroupConnectionIntent
 ) {
   assertSafeOauthServerUrl(context.server.url)
   const clientRow = await getOrCreateOauthRow({
@@ -107,6 +122,26 @@ export async function completeCredentialGroupMcpOAuth(
     undefined,
     { requireComplete: true }
   )
+  const identityCall = MANAGED_MCP_ACCOUNT_IDENTITY_CALLS[context.server.connectorId]
+  let identity: ManagedMcpAccountIdentity | null = null
+  if (identityCall && tools.some((tool) => tool.name === identityCall.name)) {
+    try {
+      identity = readManagedMcpAccountIdentity(
+        context.server.connectorId,
+        await mcpService.callManagedMcpToolWithGrant(
+          context.server.id,
+          resourceScopeFromOwner(context),
+          provider,
+          identityCall
+        )
+      )
+    } catch (error) {
+      logger.warn('Could not identify the connected managed MCP account', {
+        connectorId: context.server.connectorId,
+        error: getErrorMessage(error),
+      })
+    }
+  }
   const completion = await persistManagedMcpCredential({
     invitationTokenHash: sha256Hex(invitationToken),
     oauthConfigVersion: context.server.oauthConfigVersion,
@@ -120,6 +155,8 @@ export async function completeCredentialGroupMcpOAuth(
     mcpServerName: context.server.name,
     tokens: grantedTokens,
     tools: toManagedMcpToolSnapshots(tools),
+    identity,
+    connectionIntent,
   })
   return { ...completion, mcpServerId: context.server.id }
 }

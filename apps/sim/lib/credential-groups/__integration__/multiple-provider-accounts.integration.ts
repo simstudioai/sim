@@ -8,6 +8,7 @@ import {
   credential,
   credentialGroup,
   credentialGroupEnrollment,
+  mcpServers,
   member,
   organization,
   user,
@@ -21,6 +22,7 @@ import { completeCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
 import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
 import { CredentialGroupOAuthError } from '@/lib/credential-groups/provider-adapter'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
+import { persistManagedMcpCredential } from '@/lib/credentials/managed-mcp'
 import { decryptManagedOAuthTokenSet } from '@/lib/credentials/managed-oauth'
 import { resolveSlackSearchMember } from '@/lib/knowledge/application/slack-search/identity'
 
@@ -68,6 +70,7 @@ const userId = generateId()
 const groupId = generateId()
 const enrollmentId = generateId()
 const invitationToken = generateId()
+const mcpServerId = generateId()
 const email = `${userId}@example.test`
 
 const optionFor = (provider: CredentialGroupProvider) => ({
@@ -179,6 +182,19 @@ beforeAll(async () => {
     userId,
     role: 'member',
     createdAt: new Date(),
+  })
+  await db.insert(mcpServers).values({
+    id: mcpServerId,
+    organizationId,
+    credentialGroupId: groupId,
+    managedConnectorId: 'notion',
+    name: 'Notion',
+    transport: 'streamable-http',
+    url: 'https://mcp.notion.test/mcp',
+    authType: 'oauth',
+    oauthConfigVersion: 1,
+    enabled: true,
+    createdBy: userId,
   })
   await db.insert(credentialGroupEnrollment).values({
     id: enrollmentId,
@@ -366,5 +382,144 @@ describe('invitation links, which carry no connection intent', () => {
     await connect('work@first-tenant.test')
     expect(await failureOf(connect('work@second-tenant.test'))).toBe('account_mismatch')
     expect(await rows()).toHaveLength(1)
+  })
+})
+
+describe('managed MCP accounts', () => {
+  const identityOf = (name: string) => ({
+    subject: name,
+    tenant: 'workspace-1',
+    label: `${name}@example.test`,
+  })
+  const connectMcp = (
+    identity: ReturnType<typeof identityOf> | null,
+    connectionIntent?: CredentialGroupOAuthAttempt['connectionIntent']
+  ) =>
+    persistManagedMcpCredential({
+      invitationTokenHash: sha256Hex(invitationToken),
+      oauthConfigVersion: 1,
+      enrollmentId,
+      credentialGroupId: groupId,
+      email,
+      userId,
+      organizationId,
+      mcpServerId,
+      mcpServerName: 'Notion',
+      tokens: { access_token: `token-${identity?.subject ?? 'anonymous'}`, token_type: 'bearer' },
+      tools: [],
+      identity,
+      connectionIntent,
+    })
+  const mcpRows = () =>
+    db
+      .select({
+        id: credential.id,
+        subject: credential.providerSubjectId,
+        displayName: credential.displayName,
+        status: credential.managedOauthStatus,
+      })
+      .from(credential)
+      .where(eq(credential.mcpServerId, mcpServerId))
+
+  it('adds a second identity as its own connection, named for the account', async () => {
+    const first = await connectMcp(identityOf('one'), { kind: 'create' })
+    const second = await connectMcp(identityOf('two'), { kind: 'create' })
+
+    expect(second.created).toBe(true)
+    expect(second.connectionId).not.toBe(first.connectionId)
+    expect((await mcpRows()).map((row) => row.displayName).sort()).toEqual([
+      'one@example.test',
+      'two@example.test',
+    ])
+  })
+
+  it('refuses an identity that is already connected, and stops at the limit', async () => {
+    await connectMcp(identityOf('one'), { kind: 'create' })
+    expect(await failureOf(connectMcp(identityOf('one'), { kind: 'create' }))).toBe(
+      'account_already_connected'
+    )
+    for (const name of ['two', 'three', 'four', 'five'])
+      await connectMcp(identityOf(name), { kind: 'create' })
+    expect(await failureOf(connectMcp(identityOf('six'), { kind: 'create' }))).toBe(
+      'account_limit_reached'
+    )
+    expect(await mcpRows()).toHaveLength(5)
+  })
+
+  it('pins reconnect to its account', async () => {
+    const first = await connectMcp(identityOf('one'), { kind: 'create' })
+    await connectMcp(identityOf('two'), { kind: 'create' })
+    const intent = { kind: 'reconnect', credentialId: first.connectionId } as const
+
+    expect(await failureOf(connectMcp(identityOf('two'), intent))).toBe('account_mismatch')
+    await expect(connectMcp(identityOf('one'), intent)).resolves.toMatchObject({
+      created: false,
+      connectionId: first.connectionId,
+    })
+    expect(await failureOf(connectMcp(null, intent))).toBe('account_identity_required')
+  })
+
+  it('still connects a first account when the provider cannot identify it', async () => {
+    await expect(connectMcp(null, { kind: 'create' })).resolves.toMatchObject({ created: true })
+    expect(await mcpRows()).toMatchObject([{ subject: null, displayName: 'Notion' }])
+  })
+
+  it('refuses a second account while it cannot tell them apart', async () => {
+    await connectMcp(identityOf('one'), { kind: 'create' })
+    expect(await failureOf(connectMcp(null, { kind: 'create' }))).toBe('account_identity_required')
+    expect(await mcpRows()).toHaveLength(1)
+  })
+
+  describe('with a connection made before accounts were identified', () => {
+    it('requires reconnecting it before adding another, then allows both', async () => {
+      const legacy = await connectMcp(null, { kind: 'create' })
+
+      expect(await failureOf(connectMcp(identityOf('two'), { kind: 'create' }))).toBe(
+        'account_identity_required'
+      )
+
+      const reconnected = await connectMcp(identityOf('one'), {
+        kind: 'reconnect',
+        credentialId: legacy.connectionId,
+      })
+      expect(reconnected.connectionId).toBe(legacy.connectionId)
+      expect(await mcpRows()).toMatchObject([{ subject: 'one', displayName: 'one@example.test' }])
+
+      await connectMcp(identityOf('two'), { kind: 'create' })
+      expect(await mcpRows()).toHaveLength(2)
+    })
+
+    it('fills in the identity through an invitation link', async () => {
+      const legacy = await connectMcp(null)
+      await expect(connectMcp(identityOf('one'))).resolves.toMatchObject({
+        created: false,
+        connectionId: legacy.connectionId,
+      })
+    })
+  })
+
+  it('lets a disconnected slot go to a different account, and restores a returning one', async () => {
+    const first = await connectMcp(identityOf('one'), { kind: 'create' })
+    await disconnect(first.connectionId)
+
+    const replacement = await connectMcp(identityOf('two'), { kind: 'create' })
+    expect(replacement.created).toBe(true)
+
+    const restored = await connectMcp(identityOf('one'), { kind: 'create' })
+    expect(restored).toMatchObject({ created: false, connectionId: first.connectionId })
+  })
+
+  it('does not let an invitation link add a second account', async () => {
+    await connectMcp(identityOf('one'))
+    expect(await failureOf(connectMcp(identityOf('two')))).toBe('account_mismatch')
+    expect(await mcpRows()).toHaveLength(1)
+  })
+
+  it('never creates two connections when one identity completes twice at once', async () => {
+    await Promise.allSettled([
+      connectMcp(identityOf('one'), { kind: 'create' }),
+      connectMcp(identityOf('one'), { kind: 'create' }),
+    ])
+    expect(await mcpRows()).toHaveLength(1)
   })
 })

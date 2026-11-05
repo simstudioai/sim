@@ -1175,12 +1175,12 @@ async function buildPublicCredentialGroupEnrollment(
         )
       ),
   ])
-  const mcpConnectionByServerId = new Map(
-    mcpConnectionRows.map((connection) => {
-      if (!connection.mcpServerId) throw new Error('Managed MCP credential has no server')
-      return [connection.mcpServerId, connection] as const
-    })
-  )
+  const mcpConnectionByServerId = new Map<string, (typeof mcpConnectionRows)[number]>()
+  for (const connection of mcpConnectionRows) {
+    if (!connection.mcpServerId) throw new Error('Managed MCP credential has no server')
+    if (connection.status === 'active' || !mcpConnectionByServerId.has(connection.mcpServerId))
+      mcpConnectionByServerId.set(connection.mcpServerId, connection)
+  }
   const options = projection
     ? row.options.filter(
         (option) => option.id === projection.optionId && option.status === 'active'

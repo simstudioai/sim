@@ -13,6 +13,8 @@ export const CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES = {
     'This account is already connected. To add another, choose a different account when you sign in.',
   account_limit_reached:
     'You have connected the maximum number of accounts for this integration. Disconnect one to add another.',
+  account_identity_required:
+    'Sim could not confirm which account this is. Reconnect your existing account, then try adding another.',
   account_mismatch:
     'Reconnect with the account originally used for this connection. To use a different account, add it as a new account.',
   rate_limited: 'Authorization is being rate limited. Wait a few minutes and try again.',

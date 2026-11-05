@@ -3,6 +3,7 @@ import type { SearchIntegrationStatus } from '@/lib/api/contracts/knowledge/sear
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import { assistantSearchSourceForProvider } from '@/lib/assistant-actions/providers'
 import { CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT } from '@/lib/credential-groups/limits'
+import { managedMcpAccountLimit } from '@/lib/credential-groups/managed-mcp-connectors'
 import {
   findCredentialGroupProviderFromProviderId,
   getCredentialGroupProviderId,
@@ -144,9 +145,9 @@ export function memberIntegrationEntries(
     )
     const server = servers.find(
       (candidate) =>
-        !accounts.some(
+        accounts.filter(
           (account) => 'mcpServerId' in account && account.mcpServerId === candidate.id
-        )
+        ).length < managedMcpAccountLimit(candidate.managedConnectorId)
     )
     const ready =
       (mcp
