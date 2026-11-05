@@ -58,7 +58,6 @@ export interface OrganizationSurfaceContext extends OrganizationChatAccess {
   deployment: DeploymentShape
 }
 
-/** Whether the viewer's permission group lets them connect accounts for Search. */
 export function canConnectSearchIntegrations(config: PermissionGroupConfig | null): boolean {
   return (
     !capabilityDeniedBy('integrations.manage', config) &&

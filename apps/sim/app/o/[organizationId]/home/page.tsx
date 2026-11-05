@@ -7,7 +7,7 @@ import { Hydrated } from '@/app/o/[organizationId]/_redesign/hydrated'
 import { getOrganizationHomeRedirect } from '@/app/o/[organizationId]/home/home-redirect'
 import { HomeConversation } from '@/platform/app/(shell)/home/_components/home-conversation/home-conversation'
 import { HomeDashboardSkeleton } from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton'
-import { prefetchHome } from '@/platform/lib/data/prefetch'
+import { prefetchHome } from '@/platform/lib/data/prefetch-member-inventory'
 
 export const metadata: Metadata = {
   title: 'Home',

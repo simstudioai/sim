@@ -12,7 +12,7 @@ import { InlineNotice } from '@/platform/design-system/components/status/status'
 
 const HISTORY_RECENT_LIMIT = 5
 
-/** The viewer's private recent activity, and which list is showing. A refused read shows nothing. */
+/** The viewer's private recent activity, and which list is showing. A failed read hides stale rows. */
 function useSearchLandingHistory(organizationId: string, userId: string) {
   const history = useSearchHistory(organizationId, userId)
   const clearHistory = useClearSearchHistory(organizationId, userId)

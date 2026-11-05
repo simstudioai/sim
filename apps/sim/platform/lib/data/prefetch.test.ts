@@ -39,12 +39,8 @@ vi.mock('@/lib/sim-links/application/use-cases', () => ({
   listSimLinks: { execute: mocks.links },
 }))
 
-import {
-  prefetchHome,
-  prefetchIntegrations,
-  prefetchSearch,
-  prefetchSimLinks,
-} from '@/platform/lib/data/prefetch'
+import { prefetchSearch, prefetchSimLinks } from '@/platform/lib/data/prefetch'
+import { prefetchHome, prefetchIntegrations } from '@/platform/lib/data/prefetch-member-inventory'
 
 const principal = createSessionPrincipal({ userId: 'viewer' })
 const surface = (memberScoped: boolean, canConnect = true) => ({
@@ -124,6 +120,10 @@ describe('seeding under the keys the hooks read', () => {
     expect(seeded(await prefetchSimLinks('org-1', principal, view))).toEqual([
       [...simLinksQueryOptions('org-1', term, view.sort, view.dir).queryKey],
     ])
+    expect(mocks.links).toHaveBeenCalledWith({
+      principal,
+      input: { organizationId: 'org-1', search: term || undefined, sort: view.sort, dir: view.dir },
+    })
   })
 })
 
@@ -133,10 +133,6 @@ describe('Links first paint', () => {
       search: '',
       sort: 'name',
       dir: 'asc',
-    })
-    expect(mocks.links).toHaveBeenCalledWith({
-      principal,
-      input: { organizationId: 'org-1', search: undefined, sort: 'name', dir: 'asc' },
     })
     const { normalizedName, ...wire } = LINK_RECORD
     expect(state.queries[0].state.data).toEqual({

@@ -5,14 +5,13 @@ import { Hydrated } from '@/app/o/[organizationId]/_redesign/hydrated'
 import { OrganizationIntegrations } from '@/app/o/[organizationId]/integrations/integrations'
 import { IntegrationsHost } from '@/app/o/[organizationId]/integrations/integrations-host'
 import { IntegrationsRouteFallback } from '@/platform/app/(shell)/integrations/_components/integrations-page/integrations-route'
-import { prefetchIntegrations } from '@/platform/lib/data/prefetch'
+import { prefetchIntegrations } from '@/platform/lib/data/prefetch-member-inventory'
 
 interface HydratedIntegrationsProps extends ComponentProps<typeof OrganizationIntegrations> {
   surface: OrganizationSurfaceContext
   principal: SessionPrincipal
 }
 
-/** The route, painted from the server's reads. */
 export function HydratedIntegrations({ surface, principal, ...route }: HydratedIntegrationsProps) {
   return (
     <Suspense

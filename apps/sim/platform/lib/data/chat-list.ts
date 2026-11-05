@@ -13,7 +13,6 @@ import {
   useSetMothershipChatPinned,
 } from '@/hooks/queries/mothership-chats'
 
-/** Assistant chats live under Search, agent chats at the chat route. */
 export function organizationChatHref(
   chat: { id: string; mode?: string },
   routes: ReturnType<typeof organizationRoutes>

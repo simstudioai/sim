@@ -51,7 +51,7 @@ export function useMemberIntegrations(organizationId: string) {
   }
 }
 
-/** Connecting an account and letting it go, wherever accounts are offered. A failure reports itself. */
+/** A failure reports itself. */
 export function useIntegrationActions(organizationId: string) {
   const connect = useConnectOrganizationAccount()
   const reconnect = useReconnectPersonalOrganizationAccount()
