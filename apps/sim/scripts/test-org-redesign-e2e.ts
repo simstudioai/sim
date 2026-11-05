@@ -2160,7 +2160,7 @@ async function integrationChecks() {
           address.pathname === `${root}/integrations/secrets` &&
           address.searchParams.get('q') === 'secret'
       )
-      await page.locator(`a[href$="${root}/integrations?q=secret"]`).first().click()
+      await page.getByRole('button', { name: 'Integrations', exact: true }).click()
       await expect(page).toHaveURL(
         (address) =>
           address.pathname === `${root}/integrations` && address.searchParams.get('q') === 'secret'
@@ -3186,6 +3186,8 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
 async function walkRoutes(personas: Persona[]) {
   section('Route walk')
   currentCheck = 'Route walk'
+  // The token route limits per user, and one persona opens a hundred pages here within minutes.
+  allowedFailures = [/429 POST \/api\/auth\/socket-token/]
   const plan = personas.flatMap((persona) =>
     [DESKTOP, PHONE].flatMap((viewport) =>
       (['light', 'dark'] as const).map((theme) => ({ persona, viewport, theme }))

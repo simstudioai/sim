@@ -698,7 +698,7 @@ try {
       await expect(page.getByText('taylor@acme.example', { exact: true })).toBeVisible()
       await page.goto(selectedUrl)
       await expect(
-        page.getByText('This account is no longer connected.', { exact: true })
+        page.getByRole('heading', { name: 'This account is no longer connected.', exact: true })
       ).toBeVisible()
       await expect(page.getByRole('searchbox', { name: 'Search tools', exact: true })).toHaveCount(
         0
