@@ -35,7 +35,7 @@ export interface CalendarMeeting {
   people: { name: string; src?: string }[]
 }
 
-/** What fixtures supply; the live adapter fills the same shapes from its reads. */
+/** What fixtures supply. Live data fills `HomeView` directly. */
 export interface HomeData {
   asOf: number
   firstName: string
@@ -127,10 +127,8 @@ export interface HomeWidgetActions {
   reconnect?: (accountId: string) => void
   disconnect?: (accountId: string) => void | Promise<void>
   retry?: () => void
-  /** A live disconnect reaches further than this widget, and the dialog has to say so. */
-  disconnectNotice?: string
-  /** The connected address a session disconnect names, when there is one. */
-  address?: string
+  /** What disconnecting does, for the confirmation dialog to say. */
+  disconnectNotice: string
 }
 
 export interface HomeActions {

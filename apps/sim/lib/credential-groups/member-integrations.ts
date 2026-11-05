@@ -10,6 +10,10 @@ import {
 import { hasSlackSearchUserScopes } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { LIVE_SEARCH_SCOPE_FIELDS } from '@/lib/sim-search/live/policy-schema'
 import {
+  liveSearchProviderForCredential,
+  supportsLiveSearchMode,
+} from '@/lib/sim-search/live/provider-catalog'
+import {
   LIVE_SEARCH_SOURCE_TYPES,
   liveSearchMcpConnector,
   liveSearchMemberAccountProvider,
@@ -22,6 +26,65 @@ const SEARCH_ACCOUNT_PROVIDERS = new Set([
     return provider ? [provider] : []
   }),
 ])
+
+/** Who has a member integrations inventory at all: the rule behind the member Integrations page. */
+export function canReadMemberIntegrations(surface: {
+  searchAccess: { memberScoped: boolean }
+  viewer: { canConnectSearchIntegrations: boolean }
+  connectedAccountsAvailable: boolean
+}): boolean {
+  return (
+    surface.searchAccess.memberScoped &&
+    surface.viewer.canConnectSearchIntegrations &&
+    surface.connectedAccountsAvailable
+  )
+}
+
+/** Get started's first step: the viewer reads Search through their own connection or a source. */
+export function hasSearchIntegrationReady(
+  accounts: OrganizationAccountsSettings | undefined,
+  policies: SearchIntegrationStatus[] | undefined
+): boolean {
+  const usable = policies?.filter((policy) => policy.approved && policy.available !== false)
+  const approved = new Set(usable?.map((policy) => policy.connectorType))
+  const group = accounts?.credentialGroup
+  const readyOptions = new Set(
+    group?.options
+      .filter((option) => {
+        const provider = liveSearchProviderForCredential(option.provider)
+        return (
+          option.status === 'active' &&
+          option.configurationStatus === 'ready' &&
+          provider &&
+          supportsLiveSearchMode(provider, 'member') &&
+          approved.has(provider)
+        )
+      })
+      .map((option) => option.id)
+  )
+  const readyServers = new Set(
+    group?.mcpServers
+      .filter((server) => {
+        const provider = liveSearchProviderForCredential(`mcp:${server.managedConnectorId}`)
+        return (
+          server.enabled &&
+          provider &&
+          approved.has(provider) &&
+          accounts?.availableMcpConnectors.some((id) => id === server.managedConnectorId)
+        )
+      })
+      .map((server) => server.id)
+  )
+  const hasConnection =
+    group?.status === 'active' &&
+    (accounts?.viewerAccounts?.some(
+      (account) => account.status === 'active' && readyOptions.has(account.optionId)
+    ) ||
+      accounts?.viewerMcpAccounts?.some(
+        (account) => account.status === 'active' && readyServers.has(account.mcpServerId)
+      ))
+  return Boolean(hasConnection || usable?.some((policy) => policy.configuredServiceSource))
+}
 
 export function assistantAccountOptions(data: OrganizationAccountsSettings, search: string) {
   const providers = data.assistantProviders.filter(

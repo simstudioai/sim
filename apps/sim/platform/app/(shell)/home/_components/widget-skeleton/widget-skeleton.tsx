@@ -1,16 +1,16 @@
 import styles from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton.module.css'
 
+const ROW_COUNT = 5
+
 interface WidgetSkeletonProps {
   label: string
-  /** Rows to hold, at the row height of the list that replaces them. */
-  rows?: number
 }
 
 /** Holds a widget's list at its final size, so the page does not move when the data arrives. */
-export function WidgetSkeleton({ label, rows = 5 }: WidgetSkeletonProps) {
+export function WidgetSkeleton({ label }: WidgetSkeletonProps) {
   return (
     <div className={styles.rows} role='status' aria-label={label} aria-busy='true'>
-      {Array.from({ length: rows }, (_, index) => (
+      {Array.from({ length: ROW_COUNT }, (_, index) => (
         <span key={index} className={styles.row}>
           <i className={styles.glyph} />
           <span className={styles.copy}>

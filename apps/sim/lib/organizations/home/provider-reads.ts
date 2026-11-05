@@ -2,6 +2,7 @@ import { toArray, toRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { hasRateLimitEvidence } from '@/lib/knowledge/documents/utils'
 import {
   HOME_CALENDAR_ATTENDEE_LIMIT,
   HOME_CALENDAR_EVENT_LIMIT,
@@ -18,11 +19,22 @@ import type { CleanedOutlookEvent, GraphEvent } from '@/tools/outlook/types'
 import type { ToolConfig } from '@/tools/types'
 
 const REQUEST_TIMEOUT_MS = 10_000
-/** Outlook returns whole bodies with a message list; Sim keeps only the preview. */
 const RESPONSE_MAX_BYTES = 4 * 1024 * 1024
 const GMAIL_THREAD_CONCURRENCY = 5
-/** Graph's own ceiling for a read that lists a folder. */
+/** The Outlook read tool's own ceiling for a folder listing. */
 const OUTLOOK_MESSAGE_LIMIT = 10
+/** Asks only for what a widget shows, so no mail or event body is ever fetched. */
+const GMAIL_THREAD_FIELDS = [
+  ['metadataHeaders', 'From'],
+  ['metadataHeaders', 'Subject'],
+  ['metadataHeaders', 'Date'],
+] as const
+const OUTLOOK_MESSAGE_FIELDS = [
+  ['$select', 'id,subject,bodyPreview,from,sender,receivedDateTime'],
+] as const
+const OUTLOOK_EVENT_FIELDS = [
+  ['$select', 'id,subject,start,end,isAllDay,isCancelled,attendees,webLink'],
+] as const
 const UNKNOWN_SENDER = 'Unknown sender'
 const NO_SUBJECT = '(No subject)'
 
@@ -75,17 +87,20 @@ interface ProviderReadInput {
 }
 
 /**
- * Sends a tool's own request under the widget's bounds. The tool's URL and headers are reused as
- * written; what differs from a workflow run is that nothing follows a redirect with the token, and
- * a response past the byte limit fails rather than filling memory.
+ * Sends a tool's own request under the widget's bounds. The tool's URL and headers are reused, with
+ * the `narrowing` parameters added; what differs from a workflow run is that nothing follows a
+ * redirect with the token, and a response past the byte limit fails rather than filling memory.
  */
 async function requestTool<P>(
   tool: Pick<ToolConfig<P, unknown>, 'request'>,
   params: P,
-  signal: AbortSignal
+  signal: AbortSignal,
+  narrowing: readonly (readonly [string, string])[] = []
 ) {
   const { url, headers } = tool.request
-  const response = await secureFetchWithValidation(typeof url === 'function' ? url(params) : url, {
+  const target = new URL(typeof url === 'function' ? url(params) : url)
+  for (const [name, value] of narrowing) target.searchParams.append(name, value)
+  const response = await secureFetchWithValidation(target.toString(), {
     profile: 'configuredEndpoint',
     method: 'GET',
     headers: headers(params),
@@ -98,13 +113,18 @@ async function requestTool<P>(
   if (response.ok) return response
   await response.text().catch(() => '')
   if (response.status === 401) throw new HomeProviderReadError('token_rejected', 401)
-  if (response.status === 403 && !response.headers.get('retry-after'))
+  if (response.status === 403 && !hasRateLimitEvidence(response.headers))
     throw new HomeProviderReadError('needs_reauth', 403)
   throw new HomeProviderReadError('unavailable', response.status)
 }
 
-async function runTool<P, R>(tool: ToolConfig<P, R>, params: P, signal: AbortSignal): Promise<R> {
-  const response = await requestTool(tool, params, signal)
+async function runTool<P, R>(
+  tool: ToolConfig<P, R>,
+  params: P,
+  signal: AbortSignal,
+  narrowing?: readonly (readonly [string, string])[]
+): Promise<R> {
+  const response = await requestTool(tool, params, signal, narrowing)
   if (!tool.transformResponse) throw new HomeProviderReadError('unavailable')
   return tool.transformResponse(
     new Response(await response.arrayBuffer(), { status: response.status }),
@@ -131,7 +151,7 @@ function isoOrNull(value: string | null | undefined) {
   return Number.isFinite(time) ? new Date(time).toISOString() : null
 }
 
-/** Latest inbox threads, read as metadata so no message body is ever fetched. */
+/** Latest inbox threads. */
 export async function readGmailThreads({
   accessToken,
   signal,
@@ -149,7 +169,8 @@ export async function readGmailThreads({
       const thread = await runTool(
         gmailGetThreadV2Tool,
         { accessToken, threadId: id, format: 'metadata' },
-        signal
+        signal,
+        GMAIL_THREAD_FIELDS
       )
       if (!thread.success) throw new HomeProviderReadError('unavailable')
       const messages = thread.output.messages
@@ -178,7 +199,8 @@ export async function readOutlookMessages({
   const { output } = await runTool(
     outlookReadTool,
     { accessToken, folder: 'inbox', maxResults: OUTLOOK_MESSAGE_LIMIT },
-    signal
+    signal,
+    OUTLOOK_MESSAGE_FIELDS
   )
   return output.results.flatMap((message) => {
     const receivedAt = isoOrNull(message.receivedDateTime)
@@ -256,13 +278,9 @@ export async function readGoogleCalendarDay({
   })
 }
 
-/**
- * Graph answers in UTC unless asked otherwise, and no other zone is ever requested here. Its
- * seven-digit fractions are dropped because not every runtime's date parser accepts them.
- */
+/** Graph answers in UTC unless asked otherwise, and no other zone is ever requested here. */
 function graphInstant(value: CleanedOutlookEvent['start']) {
-  if (value?.timeZone !== 'UTC' || !value.dateTime) return null
-  return isoOrNull(`${value.dateTime.replace(/\.\d+$/, '')}Z`)
+  return value?.timeZone === 'UTC' && value.dateTime ? isoOrNull(`${value.dateTime}Z`) : null
 }
 
 /** One day of the mailbox's default Outlook calendar, with cancelled occurrences removed. */
@@ -279,7 +297,8 @@ export async function readOutlookCalendarDay({
       endDateTime: window.endAt,
       maxResults: HOME_CALENDAR_EVENT_LIMIT,
     },
-    signal
+    signal,
+    OUTLOOK_EVENT_FIELDS
   )
   const rows = toArray<GraphEvent & { isCancelled?: boolean }>(
     toRecord(await response.json()).value

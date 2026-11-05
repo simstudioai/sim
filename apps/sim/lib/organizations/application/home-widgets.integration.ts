@@ -20,6 +20,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspace-authorization'
 import * as providerTransport from '@/lib/core/security/input-validation.server'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import { encryptManagedOAuthTokenSet } from '@/lib/credentials/managed-oauth'
@@ -28,6 +29,7 @@ import {
   readOrganizationHomeEmail,
 } from '@/lib/organizations/application/home-widgets'
 import { HOME_EMAIL_THREAD_LIMIT } from '@/lib/organizations/home/limits'
+import * as organizationSurface from '@/lib/organizations/surface'
 import { GET as getCalendarRoute } from '@/app/api/organizations/[id]/home/calendar/route'
 import { GET as getEmailRoute } from '@/app/api/organizations/[id]/home/email/route'
 
@@ -300,8 +302,6 @@ describe('whose mail a widget reads', () => {
     expect(new Set(tokens)).toEqual(
       new Set([`Bearer token-for-${memberGmail}`, `Bearer token-for-${memberOutlook}`])
     )
-    expect(tokens).not.toContain(`Bearer token-for-${colleagueGmail}`)
-    expect(email.threads.every((thread) => thread.credentialId !== colleagueGmail)).toBe(true)
   })
 
   it('gives a colleague their own account, not the first member’s', async () => {
@@ -329,12 +329,35 @@ describe('whose mail a widget reads', () => {
         principal: { kind: 'personal_api_key', userId: memberId, keyId: generateId() },
         input,
       })
-    ).rejects.toThrow()
+    ).rejects.toBeInstanceOf(PrincipalKindAuthorizationError)
     expect(provider).not.toHaveBeenCalled()
   })
 })
 
 describe('what a widget reports', () => {
+  it('refuses a member with no integrations surface, before any provider', async () => {
+    serveProviders()
+    const surface = vi.spyOn(organizationSurface, 'getOrganizationSurfaceContext')
+    surface.mockResolvedValueOnce(null)
+    await expect(
+      readOrganizationHomeEmail.execute({ principal: session(memberId), input })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(provider).not.toHaveBeenCalled()
+    surface.mockRestore()
+  })
+
+  it('asks the provider once more with a fresh token when two reads race a rejection', async () => {
+    provider.mockImplementation(async () => providerResponse({ error: 'provider text' }, 401))
+    const [email, calendar] = await Promise.all([
+      readOrganizationHomeEmail.execute({ principal: session(memberId), input }),
+      readOrganizationHomeCalendar.execute({ principal: session(memberId), input: day }),
+    ])
+    const outlook = (accounts: { credentialId: string; state: string }[]) =>
+      accounts.find((account) => account.credentialId === memberOutlook)?.state
+    expect(outlook(email.accounts)).toBe('needs_reauth')
+    expect(outlook(calendar.accounts)).toBe('needs_reauth')
+  })
+
   it('reports a connection awaiting reconnection without asking its provider', async () => {
     const tokens = serveProviders()
     await setStatus(memberGmail, 'needs_reauth')
@@ -357,7 +380,7 @@ describe('what a widget reports', () => {
   it('reports an upstream failure as retryable and leaves the connection alone', async () => {
     serveProviders({ status: 503 })
     const email = await readOrganizationHomeEmail.execute({ principal: session(memberId), input })
-    expect(email.accounts.every((account) => account.state === 'unavailable')).toBe(true)
+    expect(email.accounts.map((account) => account.state)).toEqual(['unavailable', 'unavailable'])
     expect(email.threads).toEqual([])
     const [stored] = await db
       .select({ status: credential.managedOauthStatus })
@@ -374,10 +397,10 @@ describe('what a widget reports', () => {
     expect(tokens).not.toContain(`Bearer token-for-${memberGmail}`)
   })
 
-  it('bounds the list whatever the provider holds', async () => {
+  it('bounds the list merged across accounts', async () => {
     serveProviders()
     const email = await readOrganizationHomeEmail.execute({ principal: session(memberId), input })
-    expect(email.threads.length).toBeLessThanOrEqual(HOME_EMAIL_THREAD_LIMIT)
+    expect(email.threads).toHaveLength(HOME_EMAIL_THREAD_LIMIT)
   })
 
   it('reads the requested day in the requested zone', async () => {
@@ -390,8 +413,11 @@ describe('what a widget reports', () => {
       startAt: '2026-11-05T08:00:00.000Z',
       endAt: '2026-11-06T08:00:00.000Z',
     })
-    const [url] = provider.mock.calls[0]
-    expect(new URL(url).searchParams.get('timeMin')).toBe(calendar.window.startAt)
+    const urls = provider.mock.calls.map(([url]) => new URL(url))
+    const google = urls.find((url) => url.hostname === 'www.googleapis.com')
+    const graph = urls.find((url) => url.searchParams.has('startDateTime'))
+    expect(google?.searchParams.get('timeMin')).toBe(calendar.window.startAt)
+    expect(graph?.searchParams.get('startDateTime')).toBe(calendar.window.startAt)
     expect(calendar.accounts.map((a) => a.credentialId).sort()).toEqual(
       [memberCalendar, memberOutlook].sort()
     )

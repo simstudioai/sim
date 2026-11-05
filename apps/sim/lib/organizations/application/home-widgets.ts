@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { credentialGroup as credentialGroupTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { compareStrings } from '@sim/utils/string'
@@ -14,8 +15,9 @@ import {
 import type { OrganizationMembershipContext } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
+import { addCalendarDays, zonedWallClockToUtc } from '@/lib/core/utils/timezone'
 import { defineOrganizationAccountsUseCase } from '@/lib/credential-groups/application/organization-accounts'
+import { canReadMemberIntegrations } from '@/lib/credential-groups/member-integrations'
 import {
   type CredentialGroupProvider,
   findCredentialGroupProviderFromProviderId,
@@ -51,8 +53,6 @@ const logger = createLogger('OrganizationHomeWidgets')
 /** A widget gives up on a slow provider rather than holding its request open. */
 const READ_TIMEOUT_MS = 20_000
 
-type WidgetProvider = HomeWidgetAccount['provider']
-
 /**
  * Session-only, so no API key, delegated service or Copilot run can read a member's mail through
  * these. Both carry the capability behind the connected-accounts read that lists the same accounts.
@@ -78,29 +78,12 @@ async function requireIntegrationsSurface({
   userId,
 }: OrganizationMembershipContext) {
   const surface = await getOrganizationSurfaceContext(organizationId, userId)
-  if (
-    !surface?.searchAccess.memberScoped ||
-    !surface.viewer.canConnectSearchIntegrations ||
-    !surface.connectedAccountsAvailable
-  )
+  if (!surface || !canReadMemberIntegrations(surface))
     throw new OrchestrationError('forbidden', 'Integrations are not available to you here')
 }
 
-function isWidgetProvider(
-  provider: CredentialGroupProvider | null,
-  providers: readonly WidgetProvider[]
-): provider is WidgetProvider {
-  return providers.some((candidate) => candidate === provider)
-}
-
 /** The boundary the assistant's direct tools answer to, which a widget must not sidestep. */
-async function isProviderOffered(
-  organizationId: string,
-  providerId: string,
-  allowed: readonly CredentialGroupProvider[],
-  provider: WidgetProvider
-) {
-  if (!allowed.includes(provider)) return false
+async function isProviderContentReadable(organizationId: string, providerId: string) {
   try {
     await requireAssistantProviderAccess(organizationId, providerId)
     return true
@@ -125,39 +108,59 @@ function resolveToken({ context, credentialId, providerId }: ProviderTokenInput)
   })
 }
 
-/** One read with the member's token, and one more with a refreshed token if the first is refused. */
+function isTokenRejected(error: unknown) {
+  return error instanceof HomeProviderReadError && error.failure === 'token_rejected'
+}
+
+/**
+ * One read with the member's token, and one more with a fresh token if the first is refused. A
+ * concurrent read of the same account may already have rotated it, so the fresh token is resolved
+ * whether or not this call was the one that rejected the old token.
+ */
 async function readWithToken<T>(
   input: ProviderTokenInput,
   read: (accessToken: string) => Promise<T[]>
 ): Promise<T[]> {
+  const { context, credentialId, providerId } = input
   const { accessToken } = await resolveToken(input)
   recordCredentialAccess({
-    actorId: input.context.userId,
+    actorId: context.userId,
     workspaceId: null,
-    resourceId: input.credentialId,
-    providerId: input.providerId,
+    resourceId: credentialId,
+    providerId,
     credentialType: 'oauth',
   })
   try {
     return await read(accessToken)
   } catch (error) {
-    if (!(error instanceof HomeProviderReadError) || error.failure !== 'token_rejected') throw error
-    const refreshed = await rejectManagedOAuthToken({
-      credentialId: input.credentialId,
-      organizationId: input.context.organizationId,
-      expectedProviderId: input.providerId,
-      requiredScopes: [],
-      rejectedAccessToken: accessToken,
+    if (!isTokenRejected(error)) throw error
+  }
+  const rejected = await rejectManagedOAuthToken({
+    credentialId,
+    organizationId: context.organizationId,
+    expectedProviderId: providerId,
+    requiredScopes: [],
+    rejectedAccessToken: accessToken,
+  })
+  if (rejected)
+    recordAudit({
+      actorId: context.userId,
+      action: AuditAction.CREDENTIAL_UPDATED,
+      resourceType: AuditResourceType.CREDENTIAL,
+      resourceId: credentialId,
+      description: 'Marked provider-rejected managed OAuth credential as needing reauthorization',
+      metadata: {
+        organizationId: context.organizationId,
+        provider: providerId,
+        credentialType: 'managed_oauth',
+      },
     })
-    if (!refreshed) throw new HomeProviderReadError('needs_reauth', 401)
-    const retry = await resolveToken(input)
-    try {
-      return await read(retry.accessToken)
-    } catch (retryError) {
-      if (retryError instanceof HomeProviderReadError && retryError.failure === 'token_rejected')
-        throw new HomeProviderReadError('needs_reauth', 401)
-      throw retryError
-    }
+  const retry = await resolveToken(input)
+  try {
+    return await read(retry.accessToken)
+  } catch (error) {
+    if (isTokenRejected(error)) throw new HomeProviderReadError('needs_reauth', 401)
+    throw error
   }
 }
 
@@ -170,7 +173,7 @@ const REAUTH_ERROR_CODES: ReadonlySet<ManagedOAuthCredentialError['code']> = new
 /** Sorts a failed read into the widget's states. Logs only its classification, never a response. */
 function failedState(
   error: unknown,
-  meta: { organizationId: string; credentialId: string; provider: WidgetProvider }
+  meta: { organizationId: string; credentialId: string; providerId: string }
 ): Exclude<HomeWidgetAccount['state'], 'ready' | 'not_read' | 'not_offered'> {
   if (error instanceof HomeProviderReadError && error.failure === 'needs_reauth')
     return 'needs_reauth'
@@ -203,13 +206,12 @@ interface WidgetReadResult<T> {
  */
 async function readViewerAccounts<T>(
   context: OrganizationMembershipContext,
-  readers: Partial<Record<WidgetProvider, (accessToken: string) => Promise<T[]>>>
+  readers: Partial<Record<CredentialGroupProvider, (accessToken: string) => Promise<T[]>>>
 ): Promise<WidgetReadResult<T>> {
   await requireIntegrationsSurface(context)
   const { organizationId, userId } = context
   const group = await getOrganizationAccountsGroup(organizationId)
   if (!group) return { accounts: [], rows: [] }
-  const providers = Object.keys(readers) as WidgetProvider[]
   const candidates = (
     await listViewerOrganizationAccounts({
       organizationId,
@@ -219,36 +221,40 @@ async function readViewerAccounts<T>(
   )
     .flatMap((account) => {
       const provider = findCredentialGroupProviderFromProviderId(account.providerId)
-      return isWidgetProvider(provider, providers) ? [{ ...account, provider }] : []
+      const read = provider && readers[provider]
+      return provider && read ? [{ ...account, provider, read }] : []
     })
     .sort((left, right) => compareStrings(left.credentialId, right.credentialId))
   if (candidates.length === 0) return { accounts: [], rows: [] }
-  const { providers: allowed } = await loadAssistantIntegrationTools({ organizationId, userId })
+  const [{ providers: allowed }, owned] = await Promise.all([
+    loadAssistantIntegrationTools({ organizationId, userId }),
+    getOwnOrganizationManagedOAuthCredentials({ organizationId, userId }),
+  ])
+  const ownedIds = new Set(owned.map((credential) => credential.id))
+  const readable = new Map(
+    await Promise.all(
+      [...new Set(candidates.map((candidate) => candidate.providerId))].map(
+        async (providerId) =>
+          [providerId, await isProviderContentReadable(organizationId, providerId)] as const
+      )
+    )
+  )
 
   const results = await Promise.all(
     candidates.map(async (candidate, index) => {
-      const { credentialId, displayName, provider, providerId, status } = candidate
-      const account = { credentialId, displayName, provider }
+      const { credentialId, displayName, provider, providerId, status, read } = candidate
       const settled = (state: HomeWidgetAccount['state'], rows: T[] = []) => ({
-        account: { ...account, state },
+        account: { credentialId, displayName, state },
         rows: rows.map((row) => ({ ...row, credentialId })),
       })
       if (index >= HOME_WIDGET_ACCOUNT_LIMIT) return settled('not_read')
-      if (!(await isProviderOffered(organizationId, providerId, allowed, provider)))
-        return settled('not_offered')
+      if (!allowed.includes(provider) || !readable.get(providerId)) return settled('not_offered')
       if (status === 'needs_reauth') return settled('needs_reauth')
-      const [owned] = await getOwnOrganizationManagedOAuthCredentials({
-        organizationId,
-        userId,
-        credentialId,
-      })
-      if (!owned) return settled('not_offered')
-      const read = readers[provider]
-      if (!read) return settled('not_offered')
+      if (!ownedIds.has(credentialId)) return settled('not_offered')
       try {
         return settled('ready', await readWithToken({ context, credentialId, providerId }, read))
       } catch (error) {
-        return settled(failedState(error, { organizationId, credentialId, provider }))
+        return settled(failedState(error, { organizationId, credentialId, providerId }))
       }
     })
   )
@@ -276,17 +282,10 @@ export const readOrganizationHomeEmail = defineOrganizationAccountsUseCase({
   },
 })
 
-/** The next calendar day's midnight, written as a wall-clock reading. */
-function nextDay(date: string) {
-  const next = new Date(`${date}T00:00:00Z`)
-  next.setUTCDate(next.getUTCDate() + 1)
-  return next.toISOString().slice(0, 10)
-}
-
 function dayWindow(date: string, timeZone: string): HomeCalendarWindow {
   return {
     startAt: zonedWallClockToUtc(`${date}T00:00`, timeZone).toISOString(),
-    endAt: zonedWallClockToUtc(`${nextDay(date)}T00:00`, timeZone).toISOString(),
+    endAt: zonedWallClockToUtc(`${addCalendarDays(date, 1)}T00:00`, timeZone).toISOString(),
   }
 }
 

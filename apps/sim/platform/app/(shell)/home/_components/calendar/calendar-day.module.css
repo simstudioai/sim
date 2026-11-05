@@ -102,11 +102,18 @@
 }
 .allDay {
   display: grid;
-  flex: none;
   gap: var(--ui-list-gap);
   min-inline-size: 0;
+  margin-block-end: var(--ui-list-gap);
+}
+.allDayEvent:has(.eventName[href]:hover) {
+  background: var(--control-muted-hover);
+}
+.allDayEvent:has(.eventName[href]:active) {
+  background: var(--control-muted-pressed);
 }
 .allDayEvent {
+  position: relative;
   display: flex;
   min-inline-size: 0;
   padding: var(--ui-row-block) var(--ui-row-inset);

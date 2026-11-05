@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   useInterfacePreferences,
@@ -20,7 +20,6 @@ import type {
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
 import { platformHref } from '@/platform/design-system/navigation'
 
-const SESSION_ACCOUNT = { id: 'session', label: '', canReconnect: false }
 const NO_ACTIVITY = { status: 'ready' } as const
 
 const CONNECT_OPTIONS = {
@@ -37,11 +36,28 @@ const CONNECT_OPTIONS = {
 function sessionWidget<T>(
   widget: keyof typeof CONNECT_OPTIONS,
   connected: boolean,
+  address: string | undefined,
   data: T
 ): HomeWidgetState<T> {
   return connected
-    ? { status: 'ready', data, accounts: [SESSION_ACCOUNT] }
+    ? {
+        status: 'ready',
+        data,
+        accounts: [{ id: 'session', label: address ?? '', canReconnect: false }],
+      }
     : { status: 'not_connected', options: CONNECT_OPTIONS[widget] }
+}
+
+function calendarForOffset(data: HomeData, dayOffset: number): HomeCalendarDay {
+  const date = new Date(`${data.calendar.date}T12:00:00Z`)
+  date.setUTCDate(date.getUTCDate() + dayOffset)
+  return {
+    date: date.toISOString().slice(0, 10),
+    nowMinute: dayOffset === 0 ? data.calendar.nowMinute : null,
+    status: 'ready',
+    meetings: dayOffset === 0 ? data.calendar.meetings : [],
+    allDay: [],
+  }
 }
 
 function metricPoints(data: HomeData | null, field: 'tasks' | 'searches') {
@@ -63,24 +79,12 @@ export function FixtureHome({ data, recentLinks }: FixtureHomeProps) {
   if (!preferences) throw new Error('Home needs interface preferences')
   const { connections, setConnections } = preferences
   const widgetActions = (widget: keyof typeof CONNECT_OPTIONS): HomeWidgetActions => ({
-    address: data?.address,
+    disconnectNotice: `Sim will stop syncing ${widget === 'Email' ? 'email' : 'calendar events'}${data?.address ? ` from ${data.address}` : ''}. You can reconnect anytime.`,
     connect: data ? () => setConnections((current) => ({ ...current, [widget]: true })) : undefined,
     disconnect: data
       ? () => setConnections((current) => ({ ...current, [widget]: false }))
       : undefined,
   })
-  const calendar = useMemo((): HomeCalendarDay | null => {
-    if (!data) return null
-    const date = new Date(`${data.calendar.date}T12:00:00Z`)
-    date.setUTCDate(date.getUTCDate() + dayOffset)
-    return {
-      date: date.toISOString().slice(0, 10),
-      nowMinute: dayOffset === 0 ? data.calendar.nowMinute : null,
-      status: 'ready',
-      meetings: dayOffset === 0 ? data.calendar.meetings : [],
-      allDay: [],
-    }
-  }, [data, dayOffset])
   const connected = (widget: keyof typeof CONNECT_OPTIONS) =>
     Boolean(data && (connections[widget] ?? data.connected))
   const view: HomeView = {
@@ -92,9 +96,19 @@ export function FixtureHome({ data, recentLinks }: FixtureHomeProps) {
       Build: data ? { status: 'ready', points: metricPoints(data, 'tasks') } : NO_ACTIVITY,
       Search: data ? { status: 'ready', points: metricPoints(data, 'searches') } : NO_ACTIVITY,
     },
-    email: sessionWidget<readonly EmailItem[]>('Email', connected('Email'), data?.email ?? []),
-    calendar: calendar
-      ? sessionWidget('Calendar', connected('Calendar'), calendar)
+    email: sessionWidget<readonly EmailItem[]>(
+      'Email',
+      connected('Email'),
+      data?.address,
+      data?.email ?? []
+    ),
+    calendar: data
+      ? sessionWidget(
+          'Calendar',
+          connected('Calendar'),
+          data.address,
+          calendarForOffset(data, dayOffset)
+        )
       : { status: 'not_connected', options: CONNECT_OPTIONS.Calendar },
     recents: { status: 'ready', items: recents },
     getStarted: [],

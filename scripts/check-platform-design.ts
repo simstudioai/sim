@@ -139,7 +139,6 @@ const seamHelpers = new Set([
   'lib/core/utils/urls',
   'lib/credential-groups/member-integrations',
   'lib/navigation/paths',
-  'lib/sim-search/live/provider-catalog',
 ])
 const seamPackages = /^@sim\/(?:utils|logger)(?:\/|$)/
 function resolveImport(file: string, specifier: string) {

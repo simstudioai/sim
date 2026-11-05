@@ -23,6 +23,13 @@ const COMMON_TIMEZONES = [
   'Australia/Sydney',
 ]
 
+/** Adds whole days to a `yyyy-MM-dd` date. Anchored at noon so no zone or DST can shift the day. */
+export function addCalendarDays(date: string, days: number): string {
+  const next = new Date(`${date}T12:00:00Z`)
+  next.setUTCDate(next.getUTCDate() + days)
+  return next.toISOString().slice(0, 10)
+}
+
 /** A wall-clock reading of an instant in some timezone. */
 export interface WallClockParts {
   year: number

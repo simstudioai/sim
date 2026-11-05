@@ -1,3 +1,5 @@
+import { createParser } from 'nuqs/server'
+import type { AccessRequestRecord } from '@/lib/api/contracts/access-requests'
 import type { SearchHistoryResponse } from '@/lib/api/contracts/knowledge/search-history'
 import type { OrganizationActivitySummary } from '@/lib/api/contracts/organization-activity'
 import type {
@@ -5,9 +7,11 @@ import type {
   OrganizationHomeCalendar,
   OrganizationHomeEmail,
 } from '@/lib/api/contracts/organization-home'
-import { getWallClockParts } from '@/lib/core/utils/timezone'
+import { getWallClockParts, zonedWallClock } from '@/lib/core/utils/timezone'
 import type { MemberIntegration } from '@/lib/credential-groups/member-integrations'
+import type { ShellChat } from '@/platform/app/(shell)/_components/model'
 import type {
+  AttentionItem,
   CalendarMeeting,
   EmailItem,
   HomeAccountView,
@@ -18,30 +22,21 @@ import type {
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import { providerMark } from '@/platform/design-system/components/icon/provider-marks'
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
-import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
-
-/** The gate on the member Integrations page, whose inventory the Home widgets read. */
-export function canReadHomeIntegrations(organization: PlatformOrganization): boolean {
-  const { searchAccess, viewer, connectedAccountsAvailable } = organization
-  return (
-    searchAccess.memberScoped && viewer.canConnectSearchIntegrations && connectedAccountsAvailable
-  )
-}
 
 interface HomeWidgetSource {
-  /** The member inventory entry this widget draws on, so both surfaces agree by construction. */
-  entryId: string
+  /** The member inventory provider this widget draws on, so both surfaces agree by construction. */
+  provider: string
   icon: IconName
 }
 
 /** Outlook appears twice on purpose: one Microsoft account serves both mail and calendar. */
 export const HOME_EMAIL_SOURCES: readonly HomeWidgetSource[] = [
-  { entryId: 'source:gmail', icon: 'I005' },
-  { entryId: 'app:outlook', icon: 'I120' },
+  { provider: 'gmail', icon: 'I005' },
+  { provider: 'outlook', icon: 'I120' },
 ]
 export const HOME_CALENDAR_SOURCES: readonly HomeWidgetSource[] = [
-  { entryId: 'source:google_calendar', icon: 'I088' },
-  { entryId: 'app:outlook', icon: 'I120' },
+  { provider: 'google_calendar', icon: 'I088' },
+  { provider: 'outlook', icon: 'I120' },
 ]
 
 function accountView(
@@ -82,7 +77,7 @@ export function toHomeConnection({
   if (failure === 'failed') return { status: 'error', retrying }
   if (!entries) return { status: 'loading' }
   const matched = sources.flatMap((source) => {
-    const entry = entries.find((candidate) => candidate.id === source.entryId)
+    const entry = entries.find((candidate) => candidate.provider === source.provider)
     return entry ? [{ source, entry }] : []
   })
   const accounts = matched.flatMap(({ entry }) =>
@@ -115,17 +110,19 @@ export function toReadAccounts(
   }))
 }
 
-/** Resolves a read whose accounts all failed, the same way each time for email and calendar. */
+/** What a read's accounts amount to: `null` when at least one answered, so its data can show. */
 export function settleReadAccounts(
   accounts: readonly HomeAccountView[]
-): Extract<HomeWidgetState<never>, { status: 'not_offered' | 'needs_reauth' | 'error' }> | null {
+):
+  | { status: 'not_offered' }
+  | { status: 'needs_reauth'; accounts: readonly HomeAccountView[] }
+  | { status: 'error' }
+  | null {
   if (accounts.length === 0 || accounts.some((account) => !account.problem)) return null
   if (accounts.every((account) => account.problem === 'not_offered'))
     return { status: 'not_offered' }
   const reauth = accounts.filter((account) => account.problem === 'needs_reauth')
-  return reauth.length
-    ? { status: 'needs_reauth', accounts: reauth }
-    : { status: 'error', retrying: false }
+  return reauth.length ? { status: 'needs_reauth', accounts: reauth } : { status: 'error' }
 }
 
 export function toEmailItems(email: OrganizationHomeEmail): EmailItem[] {
@@ -142,6 +139,11 @@ export function toEmailItems(email: OrganizationHomeEmail): EmailItem[] {
 
 const MINUTES_PER_DAY = 24 * 60
 
+export function wallClockMinute(instantMs: number, timeZone: string): number {
+  const { hour, minute } = getWallClockParts(new Date(instantMs), timeZone)
+  return hour * 60 + minute
+}
+
 /** A wall-clock minute of the requested day; an instant outside it clamps to that day's edge. */
 function minuteOfDay(
   instant: string,
@@ -150,8 +152,7 @@ function minuteOfDay(
 ) {
   if (instant <= window.startAt) return 0
   if (instant >= window.endAt) return MINUTES_PER_DAY
-  const { hour, minute } = getWallClockParts(new Date(instant), timeZone)
-  return hour * 60 + minute
+  return wallClockMinute(Date.parse(instant), timeZone)
 }
 
 export function toCalendarDay(
@@ -179,16 +180,8 @@ export function toCalendarDay(
   return { date: day.date, nowMinute: day.nowMinute, status: 'ready', meetings, allDay }
 }
 
-/** The calendar day an instant falls on in a zone. */
 export function localDate(instant: Date, timeZone: string): string {
-  const { year, month, day } = getWallClockParts(instant, timeZone)
-  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-}
-
-export function addDays(date: string, days: number): string {
-  const next = new Date(`${date}T12:00:00Z`)
-  next.setUTCDate(next.getUTCDate() + days)
-  return next.toISOString().slice(0, 10)
+  return zonedWallClock(instant, timeZone).slice(0, 10)
 }
 
 /**
@@ -214,14 +207,88 @@ export function toRecentItems(history: SearchHistoryResponse): RecentItem[] {
   })
 }
 
-export function minuteOfToday(nowMs: number, timeZone: string): number {
-  const { hour, minute } = getWallClockParts(new Date(nowMs), timeZone)
-  return hour * 60 + minute
-}
-
 export function greetingAt(nowMs: number | null, timeZone: string): string {
   if (nowMs === null) return 'Welcome'
   const { hour } = getWallClockParts(new Date(nowMs), timeZone)
   if (hour < 12) return 'Good morning'
   return hour < 18 ? 'Good afternoon' : 'Good evening'
+}
+
+/** Nullable: a clean URL means today, which moves at midnight while a chosen day does not. */
+export const homeDayParam = createParser({
+  parse: (value) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value
+      ? value
+      : null,
+  serialize: (value: string) => value,
+})
+
+interface AttentionInput {
+  entries: readonly MemberIntegration[]
+  readAccounts: readonly HomeAccountView[]
+  chats: readonly ShellChat[]
+  requests: readonly AccessRequestRecord[]
+  reconnect: ((accountId: string) => void) | undefined
+}
+
+/** What is waiting on the viewer. Items with no moment of their own lead the list. */
+export function toAttentionItems({
+  entries,
+  readAccounts,
+  chats,
+  requests,
+  reconnect,
+}: AttentionInput): AttentionItem[] {
+  const reconnects = new Map<string, Pick<AttentionItem, 'title' | 'detail'>>()
+  for (const entry of entries) {
+    for (const account of entry.accounts) {
+      if (
+        account.status === 'needs_reauth' &&
+        entry.reconnectAccountIds.includes(account.credentialId)
+      )
+        reconnects.set(account.credentialId, {
+          title: `Reconnect ${entry.name}`,
+          detail: account.displayName,
+        })
+    }
+  }
+  for (const account of readAccounts) {
+    if (account.problem === 'needs_reauth' && account.canReconnect && !reconnects.has(account.id))
+      reconnects.set(account.id, {
+        title: `Reconnect ${account.label}`,
+        detail: 'Sim can no longer read this account',
+      })
+  }
+  const items: AttentionItem[] = [...reconnects].map(([id, copy]) => ({
+    ...copy,
+    id: `reconnect-${id}`,
+    icon: 'I070',
+    onOpen: () => reconnect?.(id),
+  }))
+  for (const chat of chats) {
+    if (!chat.isUnread) continue
+    items.push({
+      id: `chat-${chat.id}`,
+      title: chat.title,
+      detail: 'New reply in this chat',
+      occurredAt: chat.updatedAt ? Date.parse(chat.updatedAt) : undefined,
+      icon: 'I050',
+      href: chat.href ?? `/chat/${chat.id}`,
+    })
+  }
+  for (const request of requests) {
+    items.push({
+      id: `request-${request.id}`,
+      title: `${request.requester.name || request.requester.email} asked for ${request.targetLabel}`,
+      detail: request.reason ?? 'Waiting for your review',
+      occurredAt: Date.parse(request.createdAt),
+      icon: 'I015',
+      href: '/settings/requests',
+    })
+  }
+  return items.sort(
+    (left, right) =>
+      (right.occurredAt ?? Number.POSITIVE_INFINITY) - (left.occurredAt ?? Number.POSITIVE_INFINITY)
+  )
 }

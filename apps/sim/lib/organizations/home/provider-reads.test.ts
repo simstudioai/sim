@@ -2,8 +2,8 @@
  * @vitest-environment node
  *
  * Failure modes owned here, because no other layer can see them: a provider status mapping to the
- * wrong widget state, a mail body entering the response, an unbounded field, and a provider's
- * timestamp format that the runtime's date parser rejects.
+ * wrong widget state, a mail body entering the response, an unbounded field, and a Graph time read
+ * in a zone Sim did not ask for.
  */
 import {
   inputValidationMock,
@@ -73,6 +73,7 @@ describe('provider status classification', () => {
     [401, {}, 'token_rejected'],
     [403, {}, 'needs_reauth'],
     [403, { 'retry-after': '30' }, 'unavailable'],
+    [403, { 'x-ratelimit-remaining': '0' }, 'unavailable'],
     [429, {}, 'unavailable'],
     [500, {}, 'unavailable'],
   ])('reads %i %o as %s', async (status, headers, failure) => {
@@ -97,7 +98,9 @@ describe('reading mail', () => {
           )
     )
     const threads = await readGmailThreads({ accessToken: 'token', signal })
-    expect(providerFetch.mock.calls[1][0]).toContain('format=metadata')
+    const threadUrl = new URL(providerFetch.mock.calls[1][0] as string)
+    expect(threadUrl.searchParams.get('format')).toBe('metadata')
+    expect(threadUrl.searchParams.getAll('metadataHeaders')).toEqual(['From', 'Subject', 'Date'])
     for (const [, options] of providerFetch.mock.calls) {
       expect(options).toMatchObject({ maxRedirects: 0, maxResponseBytes: expect.any(Number) })
     }
@@ -146,6 +149,9 @@ describe('reading mail', () => {
     )
     const [message] = await readOutlookMessages({ accessToken: 'token', signal })
     expect(JSON.stringify(message)).not.toContain('confidential')
+    expect(
+      new URL(providerFetch.mock.calls[0][0] as string).searchParams.get('$select')
+    ).not.toContain('body,')
     expect(message).toMatchObject({ sender: 'Grace', excerpt: 'Short preview' })
     expect(message.url).toBe('https://outlook.office.com/mail/inbox/id/AAM%2Fk%2B1%3D')
   })
@@ -193,7 +199,7 @@ describe('reading a calendar day', () => {
     expect(events[1].url).toBeUndefined()
   })
 
-  it('parses Graph’s seven-digit timestamps and removes cancelled occurrences', async () => {
+  it('reads Graph’s UTC timestamps, refuses any other zone, and removes cancelled occurrences', async () => {
     providerFetch.mockResolvedValue(
       respond({
         value: [
@@ -210,6 +216,12 @@ describe('reading a calendar day', () => {
             subject: 'Canceled: Sync',
             start: { dateTime: '2026-11-05T18:00:00.0000000', timeZone: 'UTC' },
             end: { dateTime: '2026-11-05T18:15:00.0000000', timeZone: 'UTC' },
+          },
+          {
+            id: 'graph-3',
+            subject: 'Elsewhere',
+            start: { dateTime: '2026-11-05T17:00:00.0000000', timeZone: 'Pacific Standard Time' },
+            end: { dateTime: '2026-11-05T17:15:00.0000000', timeZone: 'Pacific Standard Time' },
           },
         ],
       })

@@ -4,7 +4,7 @@ import { SkeletonBlock } from '@/platform/app/(shell)/home/_components/widget-sk
 /** Home's arrangement before its data, so nothing moves when the page arrives. */
 export function HomeDashboardSkeleton() {
   return (
-    <div className={styles.dashboard} role='status' aria-label='Loading Home' aria-busy='true'>
+    <div className={styles.dashboard} aria-busy='true'>
       <div className={styles.placeholderGreeting} />
       <div className={styles.placeholderComposer} />
       <div className={styles.columns}>

@@ -14,7 +14,6 @@ const paramsSchema = z.object({ id: organizationIdSchema })
 const homeWidgetAccountSchema = z.object({
   credentialId: z.string().min(1).max(128),
   displayName: z.string().max(512),
-  provider: z.enum(['gmail', 'google-calendar', 'outlook']),
   /**
    * What this read found for the account. `not_offered` means the organization or the viewer's
    * permission group no longer allows the provider, and `not_read` that the account fell past the

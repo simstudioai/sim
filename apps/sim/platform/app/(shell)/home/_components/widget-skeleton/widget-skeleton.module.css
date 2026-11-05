@@ -45,7 +45,7 @@
   gap: var(--ui-list-gap);
   block-size: var(--spacing-30);
   margin-block-start: var(--spacing-28);
-  padding-inline: var(--ui-row-inset);
+  margin-inline: calc(-1 * var(--ui-row-inset));
 }
 .lane i {
   inline-size: var(--spacing-132);

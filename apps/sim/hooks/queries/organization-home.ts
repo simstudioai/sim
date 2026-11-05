@@ -5,8 +5,8 @@ import {
   getOrganizationHomeEmailContract,
 } from '@/lib/api/contracts/organization-home'
 
-/** Each read reaches the member's mail provider, so a mounted widget does not re-read for a minute. */
-const EMAIL_STALE_TIME = 60 * 1000
+/** Each read costs a request per thread at the member's mail provider, so focus re-reads are spaced. */
+const EMAIL_STALE_TIME = 2 * 60 * 1000
 /** A day's meetings change less often than a mailbox, and every day browsed is its own read. */
 const CALENDAR_STALE_TIME = 5 * 60 * 1000
 

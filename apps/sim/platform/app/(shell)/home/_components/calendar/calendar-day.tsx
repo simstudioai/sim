@@ -6,12 +6,13 @@ import type {
   CalendarMeeting,
   HomeCalendarDay,
 } from '@/platform/app/(shell)/home/_components/model'
+import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { SkeletonBlock } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import {
   AvatarGroup,
   Button,
-  EmptyState,
   IconButton,
+  InlineNotice,
   OverflowText,
 } from '@/platform/design-system/components'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
@@ -77,16 +78,17 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
   const now = useRef<HTMLSpanElement>(null)
   const firstMeeting = useRef<HTMLElement>(null)
   const restingTop = useRef<number | null>(null)
+  const focusOnReturn = useRef(false)
   const scrollEdges = useScrollEdges('vertical', { viewport, tabStop: true })
   const earliest = calendar.meetings.reduce<CalendarMeeting | undefined>(
     (first, event) => (!first || event.startMinute < first.startMinute ? event : first),
     undefined
   )?.id
 
-  // Forgets the reading position only when the view changes: the clock ticks underneath it.
+  // Forgets the reading position only when the viewport changes: the clock ticks underneath it.
   useLayoutEffect(() => {
     restingTop.current = null
-  }, [calendar.date, returnCount])
+  }, [calendar.date, calendar.status, returnCount])
 
   useLayoutEffect(() => {
     const marker = now.current ?? firstMeeting.current
@@ -113,11 +115,15 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
     }
   }, [calendar.date, calendar.nowMinute, calendar.status, earliest, returnCount])
 
+  // Today may still be loading when the reader returns to it, so focus waits for its viewport.
   useLayoutEffect(() => {
-    if (returnCount) viewport.current?.focus({ preventScroll: true })
-  }, [returnCount])
+    if (!focusOnReturn.current || !viewport.current) return
+    focusOnReturn.current = false
+    viewport.current.focus({ preventScroll: true })
+  }, [calendar.status, returnCount])
 
   function returnToNow() {
+    focusOnReturn.current = true
     onReturnToToday()
     // Replacing the viewport cancels an in-flight native keyboard or momentum scroll.
     setReturnCount((count) => count + 1)
@@ -138,31 +144,12 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
           <IconButton icon='I032' label='Next day' tooltip onClick={() => onDayChange(1)} />
         </div>
       </div>
-      {calendar.allDay.length > 0 && (
-        <ul className={styles.allDay} aria-label='All-day events'>
-          {calendar.allDay.map((event) => (
-            <li key={event.id} className={styles.allDayEvent} data-type='T059'>
-              <a
-                className={styles.eventName}
-                href={externalUrl(event.providerUrl)}
-                target='_blank'
-                rel='noopener noreferrer'
-              >
-                <OverflowText text={event.title} />
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
       {calendar.status === 'loading' && <SkeletonBlock label='Loading this day' />}
       {calendar.status === 'error' && (
-        <EmptyState
-          title='This day could not load'
-          action={
-            <Button size='compact' onClick={onRetry}>
-              Try again
-            </Button>
-          }
+        <InlineNotice
+          intent='warning'
+          message='This day could not load.'
+          action={<RetryButton onRetry={onRetry} />}
         />
       )}
       {calendar.status === 'ready' && (
@@ -173,6 +160,22 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
           aria-label='Calendar schedule'
           className={styles.viewport}
         >
+          {calendar.allDay.length > 0 && (
+            <ul className={styles.allDay} aria-label='All-day events'>
+              {calendar.allDay.map((event) => (
+                <li key={event.id} className={styles.allDayEvent} data-type='T059'>
+                  <a
+                    className={styles.eventName}
+                    href={externalUrl(event.providerUrl)}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                  >
+                    <OverflowText text={event.title} />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
           <div className={styles.timeline}>
             {HOURS.map((time, index) => (
               <span

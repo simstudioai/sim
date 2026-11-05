@@ -2,6 +2,7 @@ import 'server-only'
 import { type DehydratedState, dehydrate } from '@tanstack/react-query'
 import { listSearchIntegrationsContract } from '@/lib/api/contracts/knowledge/search-integrations'
 import { getOrganizationAccountsContract } from '@/lib/api/contracts/organization-accounts'
+import { canReadMemberIntegrations } from '@/lib/credential-groups/member-integrations'
 import {
   ORGANIZATION_ACCOUNTS_STALE_TIME,
   organizationAccountsKeys,
@@ -11,7 +12,6 @@ import {
   SEARCH_INTEGRATIONS_STALE_TIME,
   searchIntegrationKeys,
 } from '@/hooks/queries/utils/search-integration-keys'
-import { canReadHomeIntegrations } from '@/platform/lib/data/home-model'
 import { legacyRoutes, type PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { serverRequestJson } from '@/platform/lib/data/server-request'
 
@@ -32,7 +32,7 @@ export function resolveHomeRedirect(organization: PlatformOrganization): string 
  */
 export async function prefetchHome(organization: PlatformOrganization): Promise<DehydratedState> {
   const queryClient = makeQueryClient()
-  if (canReadHomeIntegrations(organization)) {
+  if (canReadMemberIntegrations(organization)) {
     const organizationId = organization.organization.id
     const signal = () => AbortSignal.timeout(PREFETCH_TIMEOUT_MS)
     await Promise.all([

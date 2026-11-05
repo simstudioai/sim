@@ -14,8 +14,9 @@ import { GetStarted } from '@/platform/app/(shell)/home/_components/get-started/
 import { HomeComposer } from '@/platform/app/(shell)/home/_components/home-composer/home-composer'
 import styles from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css'
 import type { HomeActions, HomeView } from '@/platform/app/(shell)/home/_components/model'
+import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { SkeletonLane } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
-import { ActionMenu, Button, InlineNotice, RecentItems } from '@/platform/design-system/components'
+import { ActionMenu, InlineNotice, RecentItems } from '@/platform/design-system/components'
 
 const WIDGETS: readonly HomeWidget[] = ['Activity', 'Email', 'Calendar']
 const ACTIVITY_METRIC_TITLES = { Build: 'Tasks run', Search: 'Searches' } as const
@@ -80,11 +81,7 @@ export function HomeDashboard({ view, actions }: HomeDashboardProps) {
         <InlineNotice
           intent='warning'
           message='Recents could not load.'
-          action={
-            <Button size='compact' disabled={view.recents.retrying} onClick={actions.retryRecents}>
-              Try again
-            </Button>
-          }
+          action={<RetryButton retrying={view.recents.retrying} onRetry={actions.retryRecents} />}
         />
       )}
       {view.recents.status === 'ready' && view.recents.items.length > 0 && (
@@ -92,9 +89,7 @@ export function HomeDashboard({ view, actions }: HomeDashboardProps) {
           <RecentItems label='Recents' items={view.recents.items} onRemove={actions.removeRecent} />
         </div>
       )}
-      {homeMode === 'Search' && view.getStarted.length > 0 && (
-        <GetStarted steps={view.getStarted} />
-      )}
+      {view.getStarted.length > 0 && <GetStarted steps={view.getStarted} />}
       <div className={styles.columns}>
         <div className={styles.column}>
           <HomeActivityChart

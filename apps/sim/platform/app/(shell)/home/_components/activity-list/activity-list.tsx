@@ -6,11 +6,11 @@ import type {
   EmailItem,
   HomeListState,
 } from '@/platform/app/(shell)/home/_components/model'
+import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { WidgetSkeleton } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import {
   ActivityRow,
   Avatar,
-  Button,
   EmptyState,
   Icon,
   InlineNotice,
@@ -61,19 +61,22 @@ interface AttentionListProps {
 
 export function AttentionList({ state, asOf, onRetry }: AttentionListProps) {
   const search = useSearchParams()
-  const retry = (retrying = false) => (
-    <Button size='compact' disabled={retrying} onClick={onRetry}>
-      Try again
-    </Button>
-  )
   return (
     <HomeSection title='Needs your attention'>
       {state.status === 'loading' && <WidgetSkeleton label='Loading what needs your attention' />}
       {state.status === 'error' && (
-        <EmptyState title='This could not load' action={retry(state.retrying)} />
+        <InlineNotice
+          intent='warning'
+          message='This could not load.'
+          action={<RetryButton retrying={state.retrying} onRetry={onRetry} />}
+        />
       )}
       {state.status === 'ready' && state.partial && (
-        <InlineNotice intent='warning' message='Some items could not load.' action={retry()} />
+        <InlineNotice
+          intent='warning'
+          message='Some items could not load.'
+          action={<RetryButton onRetry={onRetry} />}
+        />
       )}
       {state.status === 'ready' &&
         (state.items.length ? (

@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import styles from '@/platform/app/(shell)/home/_components/activity-chart/activity-chart.module.css'
 import type { HomeActivityState } from '@/platform/app/(shell)/home/_components/model'
+import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { SkeletonBlock } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import { TrendPlot } from '@/platform/design-system/catalog/plots'
-import { Button, EmptyState } from '@/platform/design-system/components'
+import { InlineNotice } from '@/platform/design-system/components'
 import { chartNumber, chartTick } from '@/platform/design-system/components/chart/chart-format'
 import { ChartTooltip } from '@/platform/design-system/components/chart/chart-tooltip'
 import { usePlotInspection } from '@/platform/design-system/components/chart/use-plot-inspection'
@@ -121,30 +122,8 @@ export function HomeActivityChart({
   const [range, setRange] = useState(RANGE_LABELS[0])
   const scrollEdges = useScrollEdges<HTMLElement>('vertical', { tabStop: true })
   if (hidden || state.status === 'hidden') return null
-  if (state.status !== 'ready') {
-    return (
-      <section className={styles.chart} aria-label={title}>
-        <header className={styles.header}>
-          <div className={styles.heading}>
-            <h2 data-type='T042'>{title}</h2>
-          </div>
-        </header>
-        {state.status === 'loading' ? (
-          <SkeletonBlock label={`Loading ${title}`} />
-        ) : (
-          <EmptyState
-            title='This chart could not load'
-            action={
-              <Button size='compact' disabled={state.retrying} onClick={onRetry}>
-                Try again
-              </Button>
-            }
-          />
-        )}
-      </section>
-    )
-  }
-  const history = state.points
+  const ready = state.status === 'ready'
+  const history = ready ? state.points : undefined
   const days = WINDOW_DAYS[RANGE_LABELS.indexOf(range)]
   const points = calendarWindow(history, days)
   const total = points.reduce((sum, point) => sum + point.value, 0)
@@ -153,19 +132,33 @@ export function HomeActivityChart({
       <header className={styles.header}>
         <div className={styles.heading}>
           <h2 data-type='T042'>{title}</h2>
-          <span className={styles.total} data-type='T076'>
-            {chartNumber.format(total)}
-          </span>
+          {ready && (
+            <span className={styles.total} data-type='T076'>
+              {chartNumber.format(total)}
+            </span>
+          )}
         </div>
-        <RangePicker
-          label='Range'
-          options={history ? RANGE_LABELS : []}
-          value={range}
-          defaultOpen={initiallyOpen}
-          onValueChange={setRange}
-        />
+        {ready && (
+          <RangePicker
+            label='Range'
+            options={history ? RANGE_LABELS : []}
+            value={range}
+            defaultOpen={initiallyOpen}
+            onValueChange={setRange}
+          />
+        )}
       </header>
-      <ActivitySeries key={range} title={title} points={points} initialPoint={initialPoint} />
+      {state.status === 'loading' && <SkeletonBlock label={`Loading ${title}`} />}
+      {state.status === 'error' && (
+        <InlineNotice
+          intent='warning'
+          message='This chart could not load.'
+          action={<RetryButton retrying={state.retrying} onRetry={onRetry} />}
+        />
+      )}
+      {ready && (
+        <ActivitySeries key={range} title={title} points={points} initialPoint={initialPoint} />
+      )}
     </section>
   )
 }

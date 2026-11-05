@@ -15,11 +15,11 @@ import {
   toHomeConnection,
 } from '@/platform/lib/data/home-model'
 
-function entry(id: string, overrides: Partial<MemberIntegration>): MemberIntegration {
+function entry(provider: string, overrides: Partial<MemberIntegration>): MemberIntegration {
   return {
-    id,
-    provider: id,
-    name: id,
+    id: provider,
+    provider,
+    name: provider,
     icon: () => null,
     accounts: [],
     permissionAccountIds: [],
@@ -53,31 +53,34 @@ describe('where a widget stands', () => {
   })
 
   it('offers no Connect when the viewer has no integrations surface at all', () => {
-    expect(connection([entry('source:gmail', {})], false).status).toBe('not_offered')
+    expect(
+      connection([entry('gmail', { connectionTarget: { optionId: 'gmail-option' } })], false).status
+    ).toBe('not_offered')
   })
 
   it('offers no Connect when the organization has not made the provider connectable', () => {
     expect(connection([]).status).toBe('not_offered')
-    expect(connection([entry('source:gmail', { ready: false })]).status).toBe('not_offered')
-    expect(connection([entry('source:gmail', { connectionTarget: undefined })]).status).toBe(
-      'not_offered'
-    )
+    expect(
+      connection([entry('gmail', { ready: false, connectionTarget: { optionId: 'gmail-option' } })])
+        .status
+    ).toBe('not_offered')
+    expect(connection([entry('gmail', {})]).status).toBe('not_offered')
   })
 
   it('offers only the providers the inventory marks connectable', () => {
     const state = connection([
-      entry('source:gmail', { connectionTarget: { optionId: 'gmail-option' } }),
-      entry('app:outlook', { ready: false }),
-      entry('source:slack', { connectionTarget: { optionId: 'slack-option' } }),
+      entry('gmail', { connectionTarget: { optionId: 'gmail-option' } }),
+      entry('outlook', { ready: false, connectionTarget: { optionId: 'outlook-option' } }),
+      entry('slack', { connectionTarget: { optionId: 'slack-option' } }),
     ])
     expect(state).toEqual({
       status: 'not_connected',
-      options: [{ id: 'gmail-option', label: 'source:gmail', icon: 'I005' }],
+      options: [{ id: 'gmail-option', label: 'gmail', icon: 'I005' }],
     })
   })
 
   it('asks to reconnect only when no connected account can still be read', () => {
-    const reauth = entry('source:gmail', {
+    const reauth = entry('gmail', {
       accounts: [account('a', 'needs_reauth')],
       reconnectAccountIds: ['a'],
     })
@@ -88,7 +91,7 @@ describe('where a widget stands', () => {
     expect(
       connection([
         reauth,
-        entry('app:outlook', { accounts: [account('b', 'active')], reconnectAccountIds: ['b'] }),
+        entry('outlook', { accounts: [account('b', 'active')], reconnectAccountIds: ['b'] }),
       ]).status
     ).toBe('connected')
   })
