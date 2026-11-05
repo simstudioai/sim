@@ -4,6 +4,7 @@ import { createContext, type ReactNode, useContext, useRef, useState } from 'rea
 import { generateShortId } from '@sim/utils/id'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useDesktopHost } from '@/platform/app/(shell)/_components/desktop/desktop-host'
+import { useRecentHistory } from '@/platform/app/(shell)/_components/session/interface-preferences'
 import type { PanelData, PanelRecent } from '@/platform/app/(shell)/chat/_components/panel/model'
 import { PanelContent } from '@/platform/app/(shell)/chat/_components/panel/panel-content'
 import { PanelTabs } from '@/platform/app/(shell)/chat/_components/panel/panel-tabs'
@@ -56,10 +57,9 @@ export function ChatPanels({ children, data, workspaces }: ChatPanelsProps) {
   const [expanded, setExpanded] = useState(false)
   const [items, setItems] = useState<PanelTab[]>([{ id: 'initial', view: 'start' }])
   const [current, setCurrent] = useState('initial')
-  const [removed, setRemoved] = useState<string[]>([])
+  const { recents, removeRecent } = useRecentHistory(data?.recents ?? [])
   const trigger = useRef<HTMLButtonElement>(null)
   const panel = useRef<HTMLElement>(null)
-  const recents = (data?.recents ?? []).filter((item) => !removed.includes(item.id))
   function show(element: HTMLButtonElement) {
     trigger.current = element
     setVisible(true)
@@ -117,7 +117,7 @@ export function ChatPanels({ children, data, workspaces }: ChatPanelsProps) {
           onHome={home}
           onVisit={visit}
           onRecent={recent}
-          onRemove={(id) => setRemoved((list) => [...list, id])}
+          onRemove={removeRecent}
         />
       ),
       icon: tab.resource?.icon ?? meta.icon,

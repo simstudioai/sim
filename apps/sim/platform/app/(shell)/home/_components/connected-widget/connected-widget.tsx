@@ -22,7 +22,7 @@ interface ConnectedWidgetProps {
   title: keyof typeof integrations
   address?: string
   connected: boolean
-  onConnectionChange: (connected: boolean) => void
+  onConnectionChange?: (connected: boolean) => void
   onHide: () => void
   children: ReactNode
 }
@@ -53,15 +53,15 @@ export function ConnectedWidget({
       {connected ? (
         children
       ) : (
-        <div className={styles.connect}>
-          <p data-type='T067'>Connect your {title.toLowerCase()}</p>
+        <div className={styles.connect} data-material='shell'>
+          <p data-type='T060'>Connect your {title.toLowerCase()}</p>
           <div className={styles.providers}>
             {integrations[title].map(({ name, icon }) => (
               <Button
                 key={name}
-                size='compact'
+                disabled={!onConnectionChange}
                 icon={icon}
-                onClick={() => onConnectionChange(true)}
+                onClick={() => onConnectionChange?.(true)}
               >
                 {name}
               </Button>
@@ -78,7 +78,7 @@ export function ConnectedWidget({
         destructive
         description={`Sim will stop syncing ${title === 'Email' ? 'email' : 'calendar events'}${address ? ` from ${address}` : ''}. You can reconnect anytime.`}
         onConfirm={() => {
-          onConnectionChange(false)
+          onConnectionChange?.(false)
           setDisconnecting(false)
         }}
       />

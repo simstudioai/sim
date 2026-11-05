@@ -9,6 +9,7 @@ import { NotificationTray } from '@/platform/app/(shell)/_components/notificatio
 import styles from '@/platform/app/(shell)/_components/platform-shell/platform-shell.module.css'
 import { WindowHistoryButtons } from '@/platform/app/(shell)/_components/platform-shell/window-history'
 import { useChatChanges } from '@/platform/app/(shell)/_components/session/chat-changes'
+import { SETTINGS_DESTINATIONS } from '@/platform/app/(shell)/_components/settings-navigation/destinations'
 import { Sidebar } from '@/platform/app/(shell)/_components/sidebar/sidebar'
 import { useSidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
 import { SidebarToolbar } from '@/platform/app/(shell)/_components/sidebar/sidebar-toolbar'
@@ -20,16 +21,14 @@ import { platformHref } from '@/platform/design-system/navigation'
 interface PlatformShellProps {
   data: ShellData | null
   children: ReactNode
-  desktopTitle?: string
-  navigation?: ReactNode
 }
 
-export function PlatformShell({ data, children, navigation, desktopTitle }: PlatformShellProps) {
+export function PlatformShell({ data, children }: PlatformShellProps) {
   const scrollEdges = useScrollEdges<HTMLDivElement>()
   const pathname = usePathname()
   const search = useSearchParams()
   const router = useRouter()
-  const { collapsed, setCollapsed } = useSidebarLayout()
+  const { collapsed, setCollapsed, order } = useSidebarLayout()
   const [drawer, setDrawer] = useState(false)
   const [command, setCommand] = useState(false)
   const compact = useCompactViewport('navigation')
@@ -37,15 +36,22 @@ export function PlatformShell({ data, children, navigation, desktopTitle }: Plat
   const drawerRef = useRef<HTMLDialogElement>(null)
   const chat = useChatChanges()
   const settings = pathname.startsWith('/settings')
+  const section = settings
+    ? SETTINGS_DESTINATIONS.find((item) => item.key === (pathname.split('/')[2] || 'preferences'))
+    : undefined
   const conversation = pathname.startsWith('/chat')
   const activeChat = conversation ? pathname.split('/')[2] : undefined
   const home = !settings && !conversation
-  const chats = [...chat.created, ...(data?.chats ?? [])].filter((item) => !chat.isRemoved(item.id))
-  const chatTitle =
-    activeChat &&
-    chat.titleFor(activeChat, chats.find((item) => item.id === activeChat)?.title ?? 'Chat')
+  const chats = [...chat.created, ...(data?.chats ?? [])]
+    .filter((item) => !chat.isRemoved(item.id))
+    .map((item) => ({ ...item, title: chat.titleFor(item.id, item.title) }))
+  if (order === 'Name (A–Z)') chats.sort((a, b) => a.title.localeCompare(b.title))
+  if (order === 'Name (Z–A)') chats.sort((a, b) => b.title.localeCompare(a.title))
+  const chatTitle = activeChat && (chats.find((item) => item.id === activeChat)?.title ?? 'Chat')
   const pageTitle = settings
-    ? (desktopTitle ?? 'Settings')
+    ? section
+      ? `Settings / ${section.title}`
+      : 'Settings'
     : conversation
       ? chatTitle || 'New chat'
       : 'Home'
@@ -95,11 +101,11 @@ export function PlatformShell({ data, children, navigation, desktopTitle }: Plat
   const sidebar = (
     <Sidebar
       data={data}
+      chats={chats}
       activeChat={activeChat}
       home={home}
-      settings={settings}
+      settingsSection={section?.key}
       actions={(!desktop || compact) && actions}
-      navigation={navigation}
       navigate={navigate}
       onNavigate={() => setDrawer(false)}
     />
@@ -134,7 +140,7 @@ export function PlatformShell({ data, children, navigation, desktopTitle }: Plat
             )}
           </header>
         )}
-        {!compact && !collapsed && sidebar}
+        {!compact && sidebar}
         {!home && webOpener}
         <div ref={scrollEdges} className={styles.content}>
           {home ? (
@@ -160,13 +166,13 @@ export function PlatformShell({ data, children, navigation, desktopTitle }: Plat
             if (event.currentTarget === event.target) setDrawer(false)
           }}
         >
-          {drawerOpen && sidebar}
+          {compact && sidebar}
         </dialog>
         <CommandMenu
           open={command}
           onClose={() => setCommand(false)}
           navigate={navigate}
-          chats={chats.map((item) => ({ ...item, title: chat.titleFor(item.id, item.title) }))}
+          chats={chats}
           workspaces={data?.workspaces ?? []}
         />
       </div>

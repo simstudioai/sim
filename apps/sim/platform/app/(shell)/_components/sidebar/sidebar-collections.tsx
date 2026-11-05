@@ -17,12 +17,18 @@ import {
 import { platformHref } from '@/platform/design-system/navigation'
 
 interface SidebarCollectionsProps {
-  data: ShellData | null
+  workspaces: ShellData['workspaces']
+  chats: readonly ShellItem[]
   activeChat?: string
   navigate: (href: string) => void
 }
 
-export function SidebarCollections({ data, activeChat, navigate }: SidebarCollectionsProps) {
+export function SidebarCollections({
+  workspaces,
+  chats,
+  activeChat,
+  navigate,
+}: SidebarCollectionsProps) {
   const query = useSearchParams()
   const changes = useChatChanges()
   const { workspacesOpen, setWorkspacesOpen, chatsOpen, setChatsOpen, order, setOrder } =
@@ -30,15 +36,6 @@ export function SidebarCollections({ data, activeChat, navigate }: SidebarCollec
   const [editing, setEditing] = useState<{ action: 'Rename' | 'Archive'; chat: ShellItem } | null>(
     null
   )
-  const chats = [...changes.created, ...(data?.chats ?? [])]
-    .filter((item) => !changes.isRemoved(item.id))
-    .map((item) => ({ ...item, title: changes.titleFor(item.id, item.title) }))
-    .sort((a, b) => {
-      if (order === 'Name (A–Z)') return a.title.localeCompare(b.title)
-      if (order === 'Name (Z–A)') return b.title.localeCompare(a.title)
-      return 0
-    })
-
   return (
     <>
       <Disclosure
@@ -66,7 +63,7 @@ export function SidebarCollections({ data, activeChat, navigate }: SidebarCollec
         }
       >
         <div className={styles.group}>
-          {(data?.workspaces ?? []).map((item) => (
+          {workspaces.map((item) => (
             <Chip
               key={item.id}
               href={platformHref('/home', query)}

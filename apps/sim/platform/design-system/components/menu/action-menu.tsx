@@ -126,9 +126,16 @@ function TriggeredMenu({
   triggerSize = 'small',
   tooltip = true,
 }: TriggeredMenuProps) {
-  const { trigger, container } = usePopoverContainer()
+  const { trigger, container, opener } = usePopoverContainer()
   return (
-    <Menu.Root modal={false} open={open} onOpenChange={onOpenChange}>
+    <Menu.Root
+      modal={false}
+      open={open}
+      onOpenChange={(next, details) => {
+        if (!next && details.reason === 'item-press') opener.current?.focus({ preventScroll: true })
+        onOpenChange?.(next)
+      }}
+    >
       {icon ? (
         <IconButton
           tooltip={tooltip}

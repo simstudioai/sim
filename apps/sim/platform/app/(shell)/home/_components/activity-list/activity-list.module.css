@@ -1,14 +1,10 @@
-.entries,
-.mailEntries {
+.entries {
   display: grid;
   gap: var(--ui-list-gap);
   min-inline-size: 0;
 }
-.inbox {
+.viewport {
   display: grid;
-  max-block-size: var(--spacing-224);
-}
-.entries,
-.inbox {
+  min-block-size: 0;
   margin-inline: calc(-1 * var(--ui-row-inset));
 }

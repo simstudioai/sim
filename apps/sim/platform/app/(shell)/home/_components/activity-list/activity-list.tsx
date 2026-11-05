@@ -18,9 +18,9 @@ interface ActivityListProps {
 export function EmailList({ data, onOpen }: ActivityListProps) {
   if (!data?.email.length) return <EmptyState title='No email yet' />
   return (
-    <div className={styles.inbox}>
+    <div className={styles.viewport}>
       <ScrollArea label='Email messages'>
-        <ul className={styles.mailEntries}>
+        <ul className={styles.entries}>
           {data.email.map((mail) => (
             <ActivityRow
               key={mail.id}
@@ -43,18 +43,22 @@ export function AttentionList({ data, onOpen }: ActivityListProps) {
   return (
     <HomeSection title='Needs your attention'>
       {data?.attention.length ? (
-        <ul className={styles.entries}>
-          {data.attention.map((row) => (
-            <ActivityRow
-              key={row.id}
-              leading={<Icon name={row.icon} />}
-              title={row.title}
-              detail={row.detail}
-              metadata={formatRelativeTime(row.occurredAt, data.asOf)}
-              onOpen={onOpen}
-            />
-          ))}
-        </ul>
+        <div className={styles.viewport}>
+          <ScrollArea label='Attention requests'>
+            <ul className={styles.entries}>
+              {data.attention.map((row) => (
+                <ActivityRow
+                  key={row.id}
+                  leading={<Icon name={row.icon} />}
+                  title={row.title}
+                  detail={row.detail}
+                  metadata={formatRelativeTime(row.occurredAt, data.asOf)}
+                  onOpen={onOpen}
+                />
+              ))}
+            </ul>
+          </ScrollArea>
+        </div>
       ) : (
         <EmptyState
           title='You’re all caught up'

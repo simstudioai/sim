@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
+import { SETTINGS_DESTINATIONS } from '@/platform/app/(shell)/_components/settings-navigation/destinations'
 import { AppearanceSettings } from '@/platform/app/(shell)/settings/_components/appearance-settings/appearance-settings'
 import type { SettingsData } from '@/platform/app/(shell)/settings/_components/model'
 import { NotificationSettings } from '@/platform/app/(shell)/settings/_components/notification-settings/notification-settings'
 import { ProfileSettings } from '@/platform/app/(shell)/settings/_components/profile/profile-settings'
-import { SETTINGS_DESTINATIONS } from '@/platform/app/(shell)/settings/_components/settings-navigation/destinations'
 import styles from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen.module.css'
 import {
   SettingsRow,

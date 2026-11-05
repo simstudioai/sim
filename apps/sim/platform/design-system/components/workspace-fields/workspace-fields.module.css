@@ -37,8 +37,13 @@
 }
 
 .recipients {
-  height: calc(2 * var(--spacing-56));
-  padding: var(--spacing-8);
+  block-size: var(--spacing-76);
+  padding-inline: var(--spacing-8);
+  cursor: text;
+}
+
+.recipients:hover {
+  border-color: var(--control-hover-border);
 }
 
 .recipients[data-invalid] {
@@ -49,55 +54,21 @@
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
-  align-items: flex-start;
-  gap: var(--spacing-6);
+  align-items: center;
+  block-size: 100%;
+  padding-block: var(--spacing-8);
+  gap: var(--spacing-4);
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .recipientViewport input {
   min-width: min(100%, var(--spacing-96));
+  block-size: 1lh;
+  scroll-margin-block: var(--spacing-8);
 }
 
-.recipient {
-  display: inline-flex;
-  position: relative;
-  align-items: center;
-  max-width: 100%;
-  height: var(--spacing-24);
-  padding-inline: var(--spacing-8);
-  overflow: hidden;
-  border-radius: var(--radius-item);
-  background: var(--ui-hover);
-  white-space: nowrap;
-}
-
-.recipient[data-invalid] {
-  background: var(--control-danger-soft);
-  color: var(--control-danger);
-}
-
-.address {
-  min-width: 0;
-  overflow: hidden;
-}
-
-.removeRecipient {
-  position: absolute;
-  inset-block-start: 0;
-  inset-inline-end: 0;
-  display: flex;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.recipient:is(:hover, [data-selected]) .removeRecipient {
+.recipientViewport input::placeholder {
+  color: var(--ui-secondary);
   opacity: 1;
-  pointer-events: auto;
-}
-
-.recipient:has(.removeRecipient):is(:hover, [data-selected]) .address {
-  mask-image: linear-gradient(
-    to right,
-    var(--color-light-text-strong) calc(100% - var(--spacing-48)),
-    transparent calc(100% - var(--spacing-32))
-  );
 }

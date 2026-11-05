@@ -72,6 +72,18 @@ export const panelScenarios: Record<Scenario, PanelData | null> = {
   full,
   stress: {
     ...full,
+    recents: [
+      ...full.recents,
+      ...['customer-onboarding', 'account-planning', 'implementation-notes', 'renewal-review'].map(
+        (name) => ({
+          id: name,
+          label: name.replaceAll('-', ' '),
+          icon: 'I045' as const,
+          destination: 'website' as const,
+          address: `github.com/topics/${name}`,
+        })
+      ),
+    ],
     terminal: `${Array.from({ length: 50 }, (_, i) => `[run ${i + 1}] Checking workflow status…\nRun completed.`).join('\n')}\n~/customer-operations $`,
   },
 }

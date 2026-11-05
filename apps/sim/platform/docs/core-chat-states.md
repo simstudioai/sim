@@ -6,9 +6,15 @@ Source: [Platform: Core](https://app.paper.design/file/01M6A91A32GBA6GTN4HASVG0E
 
 ## Current Home composition
 
-Below the composer, the first column contains the activity chart and Email. The second contains Needs your attention and Calendar. On narrow screens the columns stack in that order. The Home Workspaces card was retired. Workspaces remain available in the sidebar and chat panel.
+Below the composer, **Recents** shows the website links from the chat panel’s history. Both surfaces use `RecentItems`, its horizontal scroll fade and its per-session dismissal. Home opens a link in a new tab; Chat opens the corresponding resource in its panel. Empty history takes no space.
+
+The first dashboard column contains the activity chart and Email. The second contains Needs your attention and Calendar. On narrow screens the columns stack in that order. Each widget fits its content up to the shared Home height limit, then scrolls independently. The expanded notification stack observes the same limit and the available viewport. The Home Workspaces card was retired. Workspaces remain available in the sidebar and chat panel.
 
 Hide Email or Calendar from the widget menu or Customize Home. Email and calendar rows reserve hover for selection. Widget visibility belongs to the section controls. An empty calendar day keeps its scrollable hours. The activity chart’s inspected point uses the line’s opaque color without an outline.
+
+## Current navigation
+
+The shared product layout keeps the main sidebar at the same scroll position when a chat opens or a reader returns from Settings. Closing and reopening the compact drawer also preserves the position. Command K lists Home, Settings and Integrations, followed by workspace and chat results in sidebar order. Integrations and workspace selections currently go to Home.
 
 ## Settings coverage
 

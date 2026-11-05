@@ -147,6 +147,25 @@
 .chipRow[data-action-side="start"]:hover > .chip > svg {
   visibility: hidden;
 }
+
+.chip[data-recipient] {
+  min-block-size: 0;
+  block-size: 1lh;
+  background: var(--ui-hover);
+  cursor: text;
+}
+.chip[data-recipient="invalid"],
+.chipRow:hover > .chip[data-recipient="invalid"] {
+  background: var(--control-danger-soft);
+  color: var(--control-danger);
+}
+.chipRow:has(> .chip[data-recipient]) {
+  position: relative;
+}
+.chipRow:has(> .chip[data-recipient]) > .chipAction {
+  position: absolute;
+  inset-inline-end: 0;
+}
 @media (hover: none) {
   .chipAction {
     opacity: 1;

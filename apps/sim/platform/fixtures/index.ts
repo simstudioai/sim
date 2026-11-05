@@ -62,6 +62,16 @@ export const loadShellData = fixture(async (scenario) => {
     chats: chat.threads.map(({ id, title }) => ({ id, title })),
   }
 })
+/** A shared layout stays mounted when the fixture query changes on the client. */
+export async function loadShellScenarios() {
+  const [empty, full, stress] = await Promise.all([
+    loadShellData('empty'),
+    loadShellData('full'),
+    loadShellData('stress'),
+  ])
+  return empty && full && stress ? { empty, full, stress } : null
+}
+
 export const loadSettingsData = fixture(
   async (scenario) =>
     (await import('@/platform/fixtures/settings-data')).settingsScenarios[scenario]
@@ -73,3 +83,10 @@ export const loadConversationData = fixture(
 export const loadPanelData = fixture(
   async (scenario) => (await import('@/platform/fixtures/panel-data')).panelScenarios[scenario]
 )
+
+export async function loadHomeRecentLinks(scenario: Scenario): Promise<RecentItem[]> {
+  const panel = await loadPanelData(scenario)
+  return (panel?.recents ?? []).flatMap(({ id, label, icon, destination, address }) =>
+    destination === 'website' && address ? [{ id, label, icon, href: `https://${address}` }] : []
+  )
+}

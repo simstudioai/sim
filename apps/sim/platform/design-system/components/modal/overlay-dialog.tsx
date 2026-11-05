@@ -1,6 +1,6 @@
 'use client'
 
-import { type FormEventHandler, type ReactNode, useEffect, useId, useRef } from 'react'
+import { type FormEventHandler, type ReactNode, useId, useLayoutEffect, useRef } from 'react'
 import styles from '@/platform/design-system/components/modal/modal.module.css'
 import { ModalHeader } from '@/platform/design-system/components/modal/modal-parts'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
@@ -9,6 +9,7 @@ interface DialogSurfaceProps {
   open: boolean
   onClose: () => void
   description?: string
+  step?: number
   onSubmit?: FormEventHandler<HTMLFormElement>
   children: ReactNode
 }
@@ -26,18 +27,31 @@ export function OverlayDialog({
   title,
   description,
   presentation,
+  step,
   onSubmit,
   children,
 }: OverlayDialogProps) {
   const ref = useRef<HTMLDialogElement>(null)
   const id = useId()
   const layout = useScrollEdges<HTMLElement>()
-  useEffect(() => {
+  useLayoutEffect(() => {
     const dialog = ref.current
-    if (!dialog) return
-    if (open && !dialog.open) dialog.showModal()
-    if (!open && dialog.open) dialog.close()
+    if (!dialog || !open) return
+    dialog.showModal()
+    return () => dialog.close()
   }, [open])
+  useLayoutEffect(() => {
+    const dialog = ref.current
+    if (!dialog || !open) return
+    const body = step === undefined ? dialog : dialog.querySelector('fieldset:not([hidden])')
+    const field = Array.from(
+      body?.querySelectorAll<HTMLElement>(
+        'input:enabled:not([type="hidden"], [readonly]), textarea:enabled:not([readonly]), select:enabled, [role="combobox"]:not(:disabled, [aria-disabled="true"])'
+      ) ?? []
+    ).find((element) => element.tabIndex >= 0 && element.checkVisibility())
+    const target = field ?? dialog.querySelector<HTMLElement>('footer button:enabled')
+    target?.focus({ preventScroll: true })
+  }, [open, step])
   const content = (
     <>
       {title && (
@@ -64,6 +78,7 @@ export function OverlayDialog({
       aria-describedby={description ? `${id}-description` : undefined}
       onCancel={(event) => {
         event.preventDefault()
+        event.stopPropagation()
         onClose()
       }}
       onClick={(event) => {

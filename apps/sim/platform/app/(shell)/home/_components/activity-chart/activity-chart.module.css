@@ -3,6 +3,9 @@
   gap: var(--spacing-16);
   inline-size: 100%;
   min-inline-size: 0;
+  max-block-size: var(--ui-widget-max-size);
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .header,
@@ -15,7 +18,6 @@
 .header {
   align-items: flex-start;
   flex-wrap: wrap;
-  margin-inline-end: calc(-1 * var(--ui-row-inset));
 }
 
 .heading {
@@ -49,7 +51,7 @@
 .plot {
   position: relative;
   min-inline-size: 0;
-  block-size: var(--spacing-chart-plot);
+  block-size: calc(var(--spacing-chart-plot) + var(--spacing-32));
 }
 
 .plot > svg {

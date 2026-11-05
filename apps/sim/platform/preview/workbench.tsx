@@ -130,7 +130,7 @@ export function Workbench({ theme, scenario, data, recipe, destination }: Workbe
                       content: (
                         <RecipientField
                           label='Email addresses'
-                          recipients={
+                          defaultRecipients={
                             data?.organization.members.map((name) => ({
                               address: `${name.toLowerCase().replaceAll(' ', '.')}@example.test`,
                             })) ?? []

@@ -1,6 +1,8 @@
 .section {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   min-inline-size: 0;
+  max-block-size: var(--ui-widget-max-size);
   gap: var(--ui-popup-padding);
 }
 .heading,
@@ -10,6 +12,7 @@
   gap: var(--ui-row-gap);
 }
 .heading {
+  flex: none;
   justify-content: space-between;
   min-block-size: var(--spacing-28);
   margin-inline-end: calc(-1 * var(--ui-action-overhang));

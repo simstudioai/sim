@@ -77,6 +77,7 @@ function ModalSurface({
         open={open}
         title={title}
         description={step.description}
+        step={index}
         presentation={presentation}
         onClose={close}
         onSubmit={(event) => {

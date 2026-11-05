@@ -449,21 +449,13 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
     case 'LogoUploadField':
       return <LogoUploadField label='Logo' optional />
     case 'RecipientTag':
-      return (
-        <RecipientTag
-          address={sample?.recipients[0]?.address ?? 'Recipient'}
-          selected={family.includes('selected')}
-        />
-      )
+      return <RecipientTag address={sample?.recipients[0]?.address ?? 'Recipient'} />
     case 'RecipientField':
       return (
         <RecipientField
           label='Recipients'
-          recipients={sample?.recipients ?? []}
+          defaultRecipients={sample?.recipients}
           placeholder='Add an email'
-          error={
-            sample?.recipients.some((r) => r.invalid) ? 'Enter a valid email address.' : undefined
-          }
         />
       )
     case 'Disclosure': {
@@ -635,7 +627,7 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
               ),
             },
             {
-              content: <RecipientField label='Recipients' recipients={sample?.recipients ?? []} />,
+              content: <RecipientField label='Recipients' defaultRecipients={sample?.recipients} />,
             },
           ]}
         />

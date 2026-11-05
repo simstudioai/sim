@@ -9,6 +9,9 @@
 .shell[data-sidebar-collapsed] {
   grid-template-columns: minmax(0, 1fr);
 }
+.shell[data-sidebar-collapsed] > aside {
+  display: none;
+}
 .shell[data-desktop] {
   grid-template-rows: auto minmax(0, 1fr);
 }

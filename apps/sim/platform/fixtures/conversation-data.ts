@@ -449,7 +449,7 @@ const emptyHome: HomeData = {
   connected: false,
   attention: [],
   email: [],
-  calendar: { date: '2026-10-14', meetings: [] },
+  calendar: { ...fullHome.calendar, meetings: [] },
   activity: activity.map(({ date }) => ({ date, tasks: 0, searches: 0 })),
 }
 const batch = Array.from({ length: 20 }, (_, i) => ({

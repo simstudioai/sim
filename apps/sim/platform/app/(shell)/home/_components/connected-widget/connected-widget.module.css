@@ -1,7 +1,15 @@
 .connect {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: var(--ui-section-gap);
-  padding-block: var(--ui-row-block);
+  block-size: var(--ui-widget-max-size);
+  min-block-size: 0;
+  padding: var(--spacing-16);
+  border: var(--spacing-stroke-default) solid var(--ui-divider);
+  border-radius: var(--radius-menu-shared);
+  text-align: center;
 }
 .connect p {
   color: var(--ui-secondary);
@@ -9,5 +17,6 @@
 .providers {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: var(--ui-row-gap);
 }

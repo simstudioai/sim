@@ -27,12 +27,13 @@ export interface HomeData {
   }[]
   calendar: {
     date: string
-    nowMinute?: number
+    nowMinute: number
     meetings: {
       id: string
       title: string
       startMinute: number
       duration: number
+      providerUrl?: string
       people: { name: string; src?: string }[]
     }[]
   }

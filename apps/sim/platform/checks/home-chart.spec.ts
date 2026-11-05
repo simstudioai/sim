@@ -23,7 +23,7 @@ test('Home switches the activity metric while keeping its date window and widget
 }) => {
   await page.goto(`${origin}/home?state=full`)
   const build = page.getByRole('region', { name: 'Tasks run', exact: true })
-  const search = page.getByRole('region', { name: 'Searches made', exact: true })
+  const search = page.getByRole('region', { name: 'Searches', exact: true })
   await build.getByRole('button', { name: 'Range: Last 7 days' }).click()
   await page.getByRole('menuitemradio', { name: 'Last 90 days' }).click()
   const buildData = build.getByRole('group', { name: 'Tasks run data' })
@@ -37,20 +37,18 @@ test('Home switches the activity metric while keeping its date window and widget
   await expect(
     search.getByRole('list', { name: 'Chart periods' }).getByRole('listitem')
   ).toHaveText(['Jul 16', 'Aug 29', 'Oct 13'])
-  const searchData = search.getByRole('group', { name: 'Searches made data' })
+  const searchData = search.getByRole('group', { name: 'Searches data' })
   await searchData.focus()
   await page.keyboard.press('Home')
   await expect(search.getByRole('tooltip')).toContainText('Jul 16, 2026')
   await page.keyboard.press('End')
   const searchTip = search.getByRole('tooltip')
   await expect(searchTip).toContainText('Oct 13, 2026')
-  expect((await searchTip.innerText()).replace('Searches made', 'Tasks run')).not.toBe(
-    lastBuildPoint
-  )
+  expect((await searchTip.innerText()).replace('Searches', 'Tasks run')).not.toBe(lastBuildPoint)
 
   const customize = page.getByRole('button', { name: 'Customize Home' })
   await customize.click()
-  await page.getByRole('menuitemcheckbox', { name: 'Searches made' }).click()
+  await page.getByRole('menuitemcheckbox', { name: 'Searches' }).click()
   await page.keyboard.press('Escape')
   await expect(search).toHaveCount(0)
   await page.getByRole('radio', { name: 'Build', exact: true }).click()

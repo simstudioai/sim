@@ -17,6 +17,7 @@ function usePreferenceState() {
   }
   const [homeMode, setHomeMode] = useState<HomeMode>('Build')
   const [hiddenWidgets, setHiddenWidgets] = useState<HomeWidget[]>([])
+  const [removedRecents, setRemovedRecents] = useState<string[]>([])
   const [connections, setConnections] = useState<Partial<Record<'Email' | 'Calendar', boolean>>>({})
 
   const [inApp, setInApp] = useState(true)
@@ -32,6 +33,8 @@ function usePreferenceState() {
     setHomeMode,
     hiddenWidgets,
     setHiddenWidgets,
+    removedRecents,
+    setRemovedRecents,
     connections,
     setConnections,
     inApp,
@@ -58,4 +61,15 @@ export function InterfacePreferences({ children }: InterfacePreferencesProps) {
 
 export function useInterfacePreferences() {
   return useContext(Preferences)
+}
+
+/** A dismissal applies to both Home and the chat panel for this interface session. */
+export function useRecentHistory<T extends { id: string }>(history: readonly T[]) {
+  const session = useInterfacePreferences()
+  if (!session) throw new Error('Recents need an interface session')
+  const { removedRecents, setRemovedRecents } = session
+  return {
+    recents: history.filter((item) => !removedRecents.includes(item.id)),
+    removeRecent: (id: string) => setRemovedRecents((items) => [...items, id]),
+  }
 }

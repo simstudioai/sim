@@ -14,7 +14,7 @@ type AnchoredPopoverProps = {
   anchor: RefObject<HTMLElement | null>
   children: ReactNode
   open: boolean
-  onOpenChange: (open: boolean) => void
+  onOpenChange: (open: boolean, trigger?: Element) => void
 } & (
   | { trigger: (button: ReactElement) => ReactElement; icon?: never }
   | { trigger?: never; icon: IconName }
@@ -33,7 +33,7 @@ export function AnchoredPopover({
   const scrollEdges = useScrollEdges<HTMLDivElement>()
   const portal = usePopoverContainer()
   return (
-    <Popover.Root open={open} onOpenChange={onOpenChange}>
+    <Popover.Root open={open} onOpenChange={(next, details) => onOpenChange(next, details.trigger)}>
       {icon ? (
         <IconButton
           render={<Popover.Trigger ref={portal.trigger} />}

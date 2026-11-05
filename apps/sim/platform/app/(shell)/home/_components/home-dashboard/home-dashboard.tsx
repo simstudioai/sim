@@ -3,7 +3,10 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { HomeWidget } from '@/platform/app/(shell)/_components/model'
 import { usePlatformNotices } from '@/platform/app/(shell)/_components/notification-tray/notification-tray'
-import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
+import {
+  useInterfacePreferences,
+  useRecentHistory,
+} from '@/platform/app/(shell)/_components/session/interface-preferences'
 import { HomeActivityChart } from '@/platform/app/(shell)/home/_components/activity-chart/activity-chart'
 import {
   AttentionList,
@@ -14,23 +17,26 @@ import { ConnectedWidget } from '@/platform/app/(shell)/home/_components/connect
 import { HomeComposer } from '@/platform/app/(shell)/home/_components/home-composer/home-composer'
 import styles from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css'
 import type { HomeData } from '@/platform/app/(shell)/home/_components/model'
-import { ActionMenu } from '@/platform/design-system/components'
+import { ActionMenu, RecentItems } from '@/platform/design-system/components'
+import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
 import { platformHref } from '@/platform/design-system/navigation'
 
 const WIDGETS: readonly HomeWidget[] = ['Activity', 'Email', 'Calendar']
 const ACTIVITY_METRICS = {
   Build: { field: 'tasks', title: 'Tasks run' },
-  Search: { field: 'searches', title: 'Searches made' },
+  Search: { field: 'searches', title: 'Searches' },
 } as const
 
 interface HomeDashboardProps {
   data: HomeData | null
+  recentLinks: readonly RecentItem[]
 }
 
-export function HomeDashboard({ data }: HomeDashboardProps) {
+export function HomeDashboard({ data, recentLinks }: HomeDashboardProps) {
   const router = useRouter()
   const search = useSearchParams()
   const preferences = useInterfacePreferences()
+  const { recents, removeRecent } = useRecentHistory(recentLinks)
   const { notify, dismiss } = usePlatformNotices()
   if (!preferences) throw new Error('Home needs interface preferences')
   const {
@@ -69,17 +75,19 @@ export function HomeDashboard({ data }: HomeDashboardProps) {
       <ConnectedWidget
         title={widget}
         address={data?.address}
-        connected={connections[widget] ?? data?.connected ?? false}
-        onConnectionChange={(value) =>
-          setConnections((current) => ({ ...current, [widget]: value }))
+        connected={Boolean(data && (connections[widget] ?? data.connected))}
+        onConnectionChange={
+          data
+            ? (value) => setConnections((current) => ({ ...current, [widget]: value }))
+            : undefined
         }
         onHide={() => setVisible(widget, false)}
       >
         {widget === 'Email' ? (
           <EmailList data={data} onOpen={goHome} />
-        ) : (
-          <CalendarDay calendar={data?.calendar} />
-        )}
+        ) : data ? (
+          <CalendarDay calendar={data.calendar} />
+        ) : null}
       </ConnectedWidget>
     )
   }
@@ -104,6 +112,11 @@ export function HomeDashboard({ data }: HomeDashboardProps) {
         />
       </header>
       <HomeComposer mode={homeMode} onModeChange={setHomeMode} references={data?.references} />
+      {recents.length > 0 && (
+        <div className={styles.recents}>
+          <RecentItems label='Recents' items={recents} onRemove={removeRecent} />
+        </div>
+      )}
       <div className={styles.columns}>
         <div className={styles.column}>
           <HomeActivityChart

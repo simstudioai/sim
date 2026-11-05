@@ -29,6 +29,38 @@ async function expectSidebarInsets(sidebar: Locator) {
   })
 }
 
+test('the sidebar keeps its reading position across route changes and a Settings round trip', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 680 })
+  await page.goto(`${origin}/home?state=full`)
+  const sidebar = page.getByRole('complementary', { name: 'Platform sidebar' })
+  const nav = sidebar.getByRole('region', { name: 'Platform navigation' })
+  await expect(nav).toHaveAttribute('data-edges', 'end')
+  const row = nav.getByRole('region', { name: 'Chats', exact: true }).getByRole('link').last()
+  await row.scrollIntoViewIfNeeded()
+  const offset = await nav.evaluate((element) => element.scrollTop)
+  expect(offset).toBeGreaterThan(0)
+  await row.click()
+  await expect(row).toHaveAttribute('aria-current', 'page')
+  await expect.poll(() => nav.evaluate((element) => element.scrollTop)).toBe(offset)
+  await page.keyboard.press('Control+k')
+  const search = page.getByRole('combobox', { name: 'Search the platform' })
+  const results = page.getByRole('listbox', { name: 'Search results' })
+  const groups = results.getByRole('group')
+  await expect(groups.nth(0).getByRole('option')).toHaveText(['Home', 'Settings', 'Integrations'])
+  await expect(groups.nth(1)).toHaveAccessibleName('Workspaces')
+  await expect(groups.nth(2)).toHaveAccessibleName('Chats')
+  await search.fill('Integrations')
+  await search.press('Enter')
+  await expect(page).toHaveURL(/\/home\?state=full/)
+  await expect.poll(() => nav.evaluate((element) => element.scrollTop)).toBe(offset)
+  await sidebar.getByRole('button', { name: 'Emir Karabeg' }).click()
+  await expect(sidebar.getByRole('region', { name: 'Settings navigation' })).toBeVisible()
+  await sidebar.getByRole('button', { name: 'Back to app' }).click()
+  await expect.poll(() => nav.evaluate((element) => element.scrollTop)).toBe(offset)
+})
+
 test('a keyboard search navigates to the matching chat and shell edits survive the return trip', async ({
   page,
 }) => {
@@ -135,6 +167,19 @@ test('the narrow drawer returns focus on Escape, routes through settings, and ke
     await expect(drawer).not.toBeVisible()
     await expect(toggle).toBeFocused()
     await toggle.click()
+    const nav = drawer.getByRole('region', { name: 'Platform navigation' })
+    const lastChat = nav
+      .getByRole('region', { name: 'Chats', exact: true })
+      .getByRole('link')
+      .last()
+    await lastChat.scrollIntoViewIfNeeded()
+    const offset = await nav.evaluate((element) => element.scrollTop)
+    expect(offset).toBeGreaterThan(0)
+    await lastChat.click()
+    await expect(page).toHaveURL(/\/chat\//)
+    await expect(drawer).toBeHidden()
+    await toggle.click()
+    await expect.poll(() => nav.evaluate((element) => element.scrollTop)).toBe(offset)
     await drawer.getByRole('button', { name: 'Organization menu' }).click()
     await page
       .getByRole('dialog', { name: 'Organization menu' })

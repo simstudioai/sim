@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { SETTINGS_DESTINATIONS } from '@/platform/app/(shell)/settings/_components/settings-navigation/destinations'
-import styles from '@/platform/app/(shell)/settings/_components/settings-navigation/settings-navigation.module.css'
+import { SETTINGS_DESTINATIONS } from '@/platform/app/(shell)/_components/settings-navigation/destinations'
+import styles from '@/platform/app/(shell)/_components/settings-navigation/settings-navigation.module.css'
 import { Chip, SearchField } from '@/platform/design-system/components'
 import { platformHref } from '@/platform/design-system/navigation'
 

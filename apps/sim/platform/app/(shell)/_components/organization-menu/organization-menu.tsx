@@ -1,6 +1,6 @@
 'use client'
 
-import { type RefObject, useState } from 'react'
+import { type RefObject, useRef, useState } from 'react'
 import type { ShellData } from '@/platform/app/(shell)/_components/model'
 import styles from '@/platform/app/(shell)/_components/organization-menu/organization-menu.module.css'
 import {
@@ -22,6 +22,7 @@ interface OrganizationMenuProps {
 export function OrganizationMenu({ anchor, organization, onSettings }: OrganizationMenuProps) {
   const [open, setOpen] = useState(false)
   const [invite, setInvite] = useState(false)
+  const opener = useRef<HTMLElement>(null)
   const name = organization?.name ?? 'Organization'
   return (
     <>
@@ -30,7 +31,10 @@ export function OrganizationMenu({ anchor, organization, onSettings }: Organizat
         label='Organization menu'
         anchor={anchor}
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={(next, trigger) => {
+          if (next && trigger instanceof HTMLElement) opener.current = trigger
+          setOpen(next)
+        }}
         trigger={(button) => (
           <IdentityButton
             render={button}
@@ -56,6 +60,7 @@ export function OrganizationMenu({ anchor, organization, onSettings }: Organizat
               size='compact'
               disabled={!organization}
               onClick={() => {
+                opener.current?.focus({ preventScroll: true })
                 setOpen(false)
                 setInvite(true)
               }}
@@ -80,7 +85,7 @@ export function OrganizationMenu({ anchor, organization, onSettings }: Organizat
         confirmLabel='Invite'
         confirmDisabled
       >
-        <RecipientField label='Email addresses' recipients={[]} placeholder='name@company.com' />
+        <RecipientField label='Email addresses' name='recipients' placeholder='name@company.com' />
       </Modal>
     </>
   )

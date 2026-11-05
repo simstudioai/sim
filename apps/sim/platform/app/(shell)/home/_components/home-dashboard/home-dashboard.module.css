@@ -20,6 +20,10 @@
   color: var(--ui-secondary);
   text-wrap: pretty;
 }
+.recents {
+  min-inline-size: 0;
+  margin-inline: calc(-1 * var(--ui-row-inset));
+}
 .columns {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--container-440)), 1fr));

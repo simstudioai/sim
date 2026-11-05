@@ -1,10 +1,12 @@
 'use client'
 
-import { type ReactNode, useRef } from 'react'
+import { Activity, type ReactNode, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
-import type { ShellData } from '@/platform/app/(shell)/_components/model'
+import { PLATFORM_DESTINATIONS } from '@/platform/app/(shell)/_components/destinations'
+import type { ShellData, ShellItem } from '@/platform/app/(shell)/_components/model'
 import { OrganizationMenu } from '@/platform/app/(shell)/_components/organization-menu/organization-menu'
 import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
+import { SettingsNavigation } from '@/platform/app/(shell)/_components/settings-navigation/settings-navigation'
 import { HelpMenu } from '@/platform/app/(shell)/_components/sidebar/help-menu'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar.module.css'
 import { SidebarCollections } from '@/platform/app/(shell)/_components/sidebar/sidebar-collections'
@@ -14,24 +16,25 @@ import { platformHref } from '@/platform/design-system/navigation'
 
 interface SidebarProps {
   data: ShellData | null
+  chats: readonly ShellItem[]
   activeChat?: string
   home: boolean
-  settings: boolean
+  settingsSection?: string
   actions?: ReactNode
-  navigation?: ReactNode
   navigate: (href: string) => void
   onNavigate: () => void
 }
 export function Sidebar({
   data,
+  chats,
   activeChat,
   home,
-  settings,
+  settingsSection,
   actions,
-  navigation,
   navigate,
   onNavigate,
 }: SidebarProps) {
+  const settings = Boolean(settingsSection)
   const search = useSearchParams()
   const sidebarHeader = useRef<HTMLDivElement>(null)
   const preferences = useInterfacePreferences()
@@ -62,23 +65,35 @@ export function Sidebar({
           if (event.target instanceof Element && event.target.closest('a[href]')) onNavigate()
         }}
       >
-        <ScrollArea label={settings ? 'Settings navigation' : 'Platform navigation'}>
-          {settings ? (
-            navigation
-          ) : (
+        <Activity mode={settings ? 'hidden' : 'visible'}>
+          <ScrollArea label='Platform navigation'>
             <nav className={styles.nav} aria-label='Main navigation'>
               <div className={styles.group}>
-                <Chip href={platformHref('/home', search)} selected={home} icon='I104'>
-                  Home
-                </Chip>
-                <Chip href={platformHref('/home', search)} icon='I070'>
-                  Integrations
-                </Chip>
+                {PLATFORM_DESTINATIONS.filter((item) => item.id !== 'settings').map((item) => (
+                  <Chip
+                    key={item.id}
+                    href={platformHref(item.value, search)}
+                    selected={home && item.id === 'home'}
+                    icon={item.icon}
+                  >
+                    {item.label}
+                  </Chip>
+                ))}
               </div>
-              <SidebarCollections data={data} activeChat={activeChat} navigate={navigate} />
+              <SidebarCollections
+                workspaces={data?.workspaces ?? []}
+                chats={chats}
+                activeChat={activeChat}
+                navigate={navigate}
+              />
             </nav>
-          )}
-        </ScrollArea>
+          </ScrollArea>
+        </Activity>
+        {settings && (
+          <ScrollArea label='Settings navigation'>
+            <SettingsNavigation section={settingsSection} organization={data?.organization.name} />
+          </ScrollArea>
+        )}
       </div>
       <footer className={styles.sidebarFooter}>
         {!settings && data && (

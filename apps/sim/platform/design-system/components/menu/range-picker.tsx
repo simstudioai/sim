@@ -34,7 +34,6 @@ export function RangePicker({
         disabled={!options.length}
         variant='quiet'
         size='compact'
-        trailingIcon='I080'
       >
         {value || label}
       </Button>

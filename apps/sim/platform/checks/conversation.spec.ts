@@ -35,8 +35,28 @@ test('Home can hide, undo, disconnect and reconnect widgets without losing the r
   await page.getByRole('link', { name: 'Review the renewal brief', exact: true }).click()
   await page.getByRole('link', { name: 'Home', exact: true }).click()
   await expect(email).toHaveCount(0)
-  await page.getByRole('button', { name: 'Next day' }).click()
-  const schedule = page.getByRole('region', { name: 'Calendar schedule' })
+})
+
+test('Now restores today’s time after scrolling the calendar or viewing another day', async ({
+  page,
+}) => {
+  await page.goto(`${populated}/home?state=full`)
+  const calendar = page.getByRole('region', { name: 'Calendar', exact: true })
+  const schedule = calendar.getByRole('region', { name: 'Calendar schedule' })
+  const now = calendar.getByRole('button', { name: 'Now', exact: true })
+  const currentTime = schedule.getByLabel('Current time')
+  await schedule.scrollIntoViewIfNeeded()
+  await expect(currentTime).toBeInViewport()
+  await expect(now).toHaveCount(0)
+  await schedule.press('End')
+  await expect(now).toBeVisible()
+  await now.press('Enter')
+  await expect(now).toHaveCount(0)
+  await expect(currentTime).toBeInViewport()
+  await expect(schedule).toBeFocused()
+
+  await calendar.getByRole('button', { name: 'Next day' }).click()
+  await expect(now).toBeVisible()
   await expect(schedule.getByRole('article')).toHaveCount(0)
   for (const [key, time, edges] of [
     ['End', '11:00 PM', 'start'],
@@ -47,15 +67,12 @@ test('Home can hide, undo, disconnect and reconnect widgets without losing the r
     await expect(schedule).toHaveAttribute('data-edges', edges)
     await expect(schedule.getByText(time, { exact: true })).toBeInViewport()
   }
-  await page.getByRole('button', { name: 'Previous day' }).click()
-  const meeting = schedule.getByRole('button', { name: /Customer operations review/ })
-  await meeting.press('Enter')
-  const details = page.getByRole('dialog', { name: 'Customer operations review' })
-  await expect(details).toContainText('10:30–11:15 AM')
-  await page.keyboard.press('Escape')
-  await expect(meeting).toBeFocused()
+  await now.click()
+  await expect(now).toHaveCount(0)
+  await expect(currentTime).toBeInViewport()
+  await schedule.getByText('Customer operations review', { exact: true }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   await page.getByRole('button', { name: 'Show 2 more people' }).hover()
-  await expect(details).not.toBeVisible()
   await expect(page.getByRole('tooltip').getByText('Nina Patel')).toBeVisible()
   await expect(page.getByRole('tooltip')).toHaveCount(1)
   await page.keyboard.press('Escape')

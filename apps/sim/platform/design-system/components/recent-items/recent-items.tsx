@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import { IconButton } from '@/platform/design-system/components/button/button'
 import { ControlRow } from '@/platform/design-system/components/button/control-row'
@@ -8,6 +9,8 @@ export interface RecentItem {
   id: string
   label: string
   icon?: IconName
+  /** An external link opens independently of the current workspace. */
+  href?: string
 }
 
 interface RecentItemsProps {
@@ -33,7 +36,13 @@ export function RecentItems({ label, title = label, items, onSelect, onRemove }:
                 icon={item.icon}
                 actionSide={item.icon ? 'start' : 'end'}
                 render={
-                  onSelect ? <button type='button' onClick={() => onSelect(item.id)} /> : <span />
+                  item.href ? (
+                    <Link href={item.href} target='_blank' rel='noopener noreferrer' />
+                  ) : onSelect ? (
+                    <button type='button' onClick={() => onSelect(item.id)} />
+                  ) : (
+                    <span />
+                  )
                 }
                 action={
                   onRemove && (

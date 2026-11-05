@@ -8,6 +8,7 @@
   gap: var(--ui-row-gap);
 }
 .toolbar {
+  flex: none;
   justify-content: space-between;
   margin-inline-end: calc(-1 * var(--ui-action-overhang));
   color: var(--ui-secondary);
@@ -15,12 +16,13 @@
 .dayControls {
   gap: var(--ui-stack-gap);
 }
-.dayControls > :first-child svg {
+.dayControls [aria-label="Previous day"] svg {
   transform: scaleX(-1);
 }
 .viewport {
   position: relative;
-  block-size: var(--spacing-224);
+  block-size: var(--ui-widget-max-size);
+  min-block-size: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -56,16 +58,16 @@
   border-radius: var(--ui-control-radius);
   background: var(--control-muted-fill);
 }
-.event:has(.eventName:hover) {
+.event:has(.eventName[href]:hover) {
   background: var(--control-muted-hover);
 }
-.event:has(.eventName:active) {
+.event:has(.eventName[href]:active) {
   background: var(--control-muted-pressed);
 }
 .event > :last-child {
   position: relative;
 }
-.eventName::before {
+.eventName[href]::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -73,7 +75,6 @@
 .eventName {
   display: grid;
   text-align: start;
-  cursor: pointer;
   grid-template-columns: minmax(0, 1fr);
   flex: 1;
   min-inline-size: 0;

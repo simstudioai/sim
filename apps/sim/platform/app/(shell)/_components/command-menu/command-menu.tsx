@@ -1,3 +1,4 @@
+import { PLATFORM_DESTINATIONS } from '@/platform/app/(shell)/_components/destinations'
 import type { ShellData, ShellItem } from '@/platform/app/(shell)/_components/model'
 import { CommandPalette } from '@/platform/design-system/components/command-palette/command-palette'
 import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
@@ -17,12 +18,14 @@ export function CommandMenu({ open, onClose, navigate, chats, workspaces }: Comm
         label='Search the platform'
         onSelect={navigate}
         groups={[
+          { items: PLATFORM_DESTINATIONS },
           {
-            items: [
-              { id: 'home', label: 'Home', icon: 'I104', value: '/home' },
-              { id: 'new', label: 'New chat', icon: 'I073', value: '/chat' },
-              { id: 'settings', label: 'Settings', icon: 'I116', value: '/settings' },
-            ],
+            label: 'Workspaces',
+            items: workspaces.map((item) => ({
+              id: item.id,
+              label: item.name,
+              value: '/home',
+            })),
           },
           {
             label: 'Chats',
@@ -31,14 +34,6 @@ export function CommandMenu({ open, onClose, navigate, chats, workspaces }: Comm
               label: item.title,
               icon: 'I073',
               value: `/chat/${item.id}`,
-            })),
-          },
-          {
-            label: 'Workspaces',
-            items: workspaces.map((item) => ({
-              id: item.id,
-              label: item.name,
-              value: '/home',
             })),
           },
         ]}

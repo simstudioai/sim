@@ -77,5 +77,6 @@
 }
 
 .panel[data-presentation="panel"] {
+  max-block-size: min(var(--available-height), var(--ui-widget-max-size));
   border-radius: var(--radius-panel);
 }

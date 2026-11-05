@@ -18,3 +18,7 @@ export function platformHref(path: string, search: SearchValues) {
   if (theme === 'system' || theme === 'light' || theme === 'dark') query.set('theme', theme)
   return query.size ? `${path}?${query}` : path
 }
+
+export function readScenario(value: string | string[] | null | undefined) {
+  return value === 'empty' || value === 'stress' ? value : 'full'
+}
