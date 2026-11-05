@@ -24,6 +24,11 @@ export function StatusTag({ label, intent = 'neutral', live }: StatusTagProps) {
   )
 }
 
+/** Work in progress beside its own label, so the motion needs no announcement of its own. */
+export function Spinner() {
+  return <span className={styles.spinner} aria-hidden='true' />
+}
+
 interface InlineNoticeProps {
   message: string
   title?: string

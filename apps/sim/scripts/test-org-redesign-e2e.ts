@@ -1373,6 +1373,43 @@ async function stubConnectedHome(page: Page) {
   })
 }
 
+/**
+ * Real signals for the Home Workspaces rows: a person-paused run in the member's write workspace, a
+ * live run in their admin workspace, and a paused run in one they cannot open, which must not reach them.
+ */
+async function withWorkspaceActivity(run: () => Promise<void>) {
+  const prefix = 'org-redesign-activity'
+  const seeded = [
+    { key: 'review', workspaceId: MEMBER_WRITE_WORKSPACE.id, name: 'Renewal approval' },
+    { key: 'running', workspaceId: MEMBER_ADMIN_WORKSPACE.id, name: 'Invoice sync' },
+    { key: 'hidden', workspaceId: WORKSPACES[4].id, name: 'Not for this member' },
+  ]
+  const cleanup = async () => {
+    await sql`delete from workflow_execution_logs where id like ${`${prefix}-%`}`
+    await sql`delete from workflow_execution_snapshots where id like ${`${prefix}-%`}`
+    await sql`delete from workflow where id like ${`${prefix}-%`}`
+  }
+  try {
+    for (const { key, workspaceId: scope, name } of seeded) {
+      const workflowId = `${prefix}-${key}`
+      await sql`insert into workflow (id, user_id, workspace_id, name, last_synced, created_at, updated_at)
+        values (${workflowId}, ${OWNER.userId}, ${scope}, ${name}, now(), now(), now())`
+      if (key === 'running') {
+        await sql`insert into workflow_execution_snapshots (id, workflow_id, state_hash, state_data)
+          values (${workflowId}, ${workflowId}, ${workflowId}, ${sql.json({})})`
+        await sql`insert into workflow_execution_logs (id, workflow_id, workspace_id, execution_id, state_snapshot_id, level, status, trigger, started_at, execution_deadline_at)
+          values (${workflowId}, ${workflowId}, ${scope}, ${workflowId}, ${workflowId}, 'info', 'running', 'api', now(), now() + interval '30 minutes')`
+      } else {
+        await sql`insert into paused_executions (id, workflow_id, execution_id, execution_snapshot, pause_points, total_pause_count)
+          values (${workflowId}, ${workflowId}, ${workflowId}, ${sql.json({})}, ${sql.json({ approval: { resumeStatus: 'paused', pauseKind: 'human' } })}, 1)`
+      }
+    }
+    await run()
+  } finally {
+    await cleanup()
+  }
+}
+
 async function homeChecks() {
   section('3 Home: member')
   await check(
@@ -1563,6 +1600,126 @@ async function homeChecks() {
       await expect(homeRegion(page, 'Email')).toBeVisible()
     })
   })
+  await check(
+    "Workspaces lists only the member's workspaces, Review then Running, and opens like the rail",
+    async () => {
+      await withWorkspaceActivity(async () => {
+        await withSession(MEMBER, async ({ page }) => {
+          const reads: string[] = []
+          page.on('request', (request) => {
+            const { pathname } = new URL(request.url())
+            if (pathname.includes('workspace-activity')) reads.push(pathname)
+          })
+          const answered = page.waitForResponse(/\/home\/workspace-activity$/)
+          await page.goto(orgUrl('/home'))
+          const body = await (await answered).text()
+          assert(!body.includes(WORKSPACES[4].id), 'Another workspace reached the member')
+          const rows = homeRegion(page, 'Workspaces').getByRole('link')
+          await expect(rows).toHaveText([
+            new RegExp(`${MEMBER_WRITE_WORKSPACE.name}.*Renewal approval.*Review`),
+            new RegExp(`${MEMBER_ADMIN_WORKSPACE.name}.*Invoice sync.*Running`),
+          ])
+          await expect(homeRegion(page, 'Workspaces').getByText('Up to date')).toHaveCount(0)
+          assert.deepEqual(
+            reads,
+            [`/api/organizations/${ORGANIZATION_ID}/home/workspace-activity`],
+            'Home read workspace activity more than once'
+          )
+          await rows.nth(1).click()
+          await expect(page).toHaveURL(
+            (address) => address.pathname.startsWith(`/workspace/${MEMBER_ADMIN_WORKSPACE.id}`),
+            { timeout: 45_000 }
+          )
+        })
+      })
+    }
+  )
+  await check('a workspace with an old run says when, and claims no status', async () => {
+    await withSession(MEMBER, async ({ page }) => {
+      await page.route(/\/home\/workspace-activity$/, (route) =>
+        route.fulfill({
+          json: {
+            workspaces: [
+              {
+                workspaceId: MEMBER_ADMIN_WORKSPACE.id,
+                status: null,
+                statusWorkflowName: null,
+                lastRun: {
+                  workflowName: 'Invoice sync',
+                  startedAt: new Date(Date.now() - 2 * 60 * 60_000).toISOString(),
+                  failed: true,
+                },
+              },
+              {
+                workspaceId: MEMBER_WRITE_WORKSPACE.id,
+                status: null,
+                statusWorkflowName: null,
+                lastRun: null,
+              },
+            ],
+          },
+        })
+      )
+      await page.goto(orgUrl('/home'))
+      const region = homeRegion(page, 'Workspaces')
+      await expect(region.getByText('Last run failed: Invoice sync')).toBeVisible()
+      await expect(region.getByText('2hrs ago')).toBeVisible()
+      await expect(region.getByText('No recent workflow runs')).toBeVisible()
+    })
+  })
+  await check(
+    'Workspaces holds its rows while its read is out, and keeps them if it fails',
+    async () => {
+      await withSession(MEMBER, async ({ page }) => {
+        const release = createDeferred<void>()
+        let fail = true
+        await page.route(/\/home\/workspace-activity$/, async (route) => {
+          await release.promise
+          if (fail) await route.fulfill({ status: 500, json: { error: 'stand-in' } })
+          else await route.fallback()
+        })
+        await page.goto(orgUrl('/home'))
+        const region = homeRegion(page, 'Workspaces')
+        await expect(region.getByRole('status', { name: 'Loading workspaces' })).toBeVisible()
+        await expect(
+          region.getByRole('status', { name: 'Loading workspaces' }).locator('> span')
+        ).toHaveCount(2)
+        release.resolve()
+        await expect(
+          region.getByText('What these workspaces are doing could not load.')
+        ).toBeVisible({ timeout: 30_000 })
+        await expect(region.getByRole('link', { name: MEMBER_ADMIN_WORKSPACE.name })).toBeVisible()
+        fail = false
+        await region.getByRole('button', { name: 'Try again' }).click()
+        await expect(
+          region.getByText('What these workspaces are doing could not load.')
+        ).toHaveCount(0, { timeout: 30_000 })
+      })
+    },
+    { allow: [/500 GET .*workspace-activity/] }
+  )
+  await check('Customize Home hides Workspaces across a reload, and stops its read', async () => {
+    await withSession(MEMBER, async ({ page }) => {
+      await page.goto(orgUrl('/home'))
+      await expect(homeRegion(page, 'Workspaces')).toBeVisible()
+      await page.getByRole('button', { name: 'Customize Home' }).click()
+      await page.getByRole('menuitemcheckbox', { name: 'Workspaces' }).click()
+      await page.keyboard.press('Escape')
+      await expect(homeRegion(page, 'Workspaces')).toHaveCount(0)
+      const reads: string[] = []
+      page.on('request', (request) => {
+        if (request.url().includes('/home/workspace-activity')) reads.push(request.url())
+      })
+      await page.reload()
+      await expect(composer(page)).toBeVisible()
+      await expect(homeRegion(page, 'Workspaces')).toHaveCount(0)
+      assert.deepEqual(reads, [], 'A hidden widget still read its activity')
+      await page.getByRole('button', { name: 'Customize Home' }).click()
+      await page.getByRole('menuitemcheckbox', { name: 'Workspaces' }).click()
+      await page.keyboard.press('Escape')
+      await expect(homeRegion(page, 'Workspaces')).toBeVisible()
+    })
+  })
   await check('widget reads refuse another organization', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(orgUrl('/home'))
@@ -1590,7 +1747,45 @@ async function homeChecks() {
     })
   })
 
+  await check(
+    'A member with no workspaces sees no Workspaces section and reads nothing',
+    async () => {
+      await withSession(NARROW, async ({ page }) => {
+        const reads: string[] = []
+        page.on('request', (request) => {
+          if (request.url().includes('/home/workspace-activity')) reads.push(request.url())
+        })
+        await page.goto(orgUrl('/home'))
+        await expect(sidebar(page).getByText('No workspaces yet')).toBeVisible()
+        await expect(homeRegion(page, 'Workspaces')).toHaveCount(0)
+        await page.getByRole('button', { name: 'Customize Home' }).click()
+        await expect(page.getByRole('menuitemcheckbox', { name: 'Email' })).toBeVisible()
+        await expect(page.getByRole('menuitemcheckbox', { name: 'Workspaces' })).toHaveCount(0)
+        assert.deepEqual(reads, [], 'A member with no workspaces read workspace activity')
+      })
+    }
+  )
   section('3 Home: admin')
+  await check('an admin pages through Workspaces the way the rail does', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(orgUrl('/home'))
+      const region = homeRegion(page, 'Workspaces')
+      await expect(region.getByRole('link')).toHaveCount(5)
+      await region.getByRole('button', { name: 'See more' }).click()
+      await expect(region.getByRole('link')).toHaveCount(WORKSPACES.length)
+      await region.getByRole('button', { name: 'See less' }).click()
+      await expect(region.getByRole('link')).toHaveCount(5)
+    })
+  })
+  await check('the workspace activity read refuses another organization', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(orgUrl('/home'))
+      const response = await page.request.get(
+        url(`/api/organizations/${OUTSIDE_ORGANIZATION_ID}/home/workspace-activity`)
+      )
+      assert.equal(response.status(), 404)
+    })
+  })
   await check(
     'the agent composer with its tools and the Tasks run chart, without Suggested actions',
     async () => {

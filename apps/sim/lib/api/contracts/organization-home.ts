@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { organizationIdSchema } from '@/lib/api/contracts/primitives'
+import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { isValidTimezone } from '@/lib/core/utils/timezone'
 import {
@@ -7,6 +7,7 @@ import {
   HOME_CALENDAR_EVENT_LIMIT,
   HOME_EMAIL_THREAD_LIMIT,
   HOME_TEXT_LIMITS,
+  HOME_WORKSPACE_ACTIVITY_LIMIT,
 } from '@/lib/organizations/home/limits'
 
 const paramsSchema = z.object({ id: organizationIdSchema })
@@ -88,4 +89,38 @@ export const getOrganizationHomeCalendarContract = defineRouteContract({
 })
 export type OrganizationHomeCalendar = z.output<
   typeof getOrganizationHomeCalendarContract.response.schema
+>
+
+const homeWorkspaceActivitySchema = z.object({
+  workspaceId: workspaceIdSchema,
+  /**
+   * `review`: a run in the workspace is paused on a person's response. `running`: a run is executing
+   * within its deadline. Null when neither holds, which says nothing about whether work is current.
+   */
+  status: z.enum(['review', 'running']).nullable(),
+  /** The workflow `status` is about. Null with no status, or when its row is gone. */
+  statusWorkflowName: z.string().nullable(),
+  /** The newest retained run. Null when log retention holds none, which is not "never ran". */
+  lastRun: z
+    .object({
+      workflowName: z.string().nullable(),
+      startedAt: z.iso.datetime(),
+      failed: z.boolean(),
+    })
+    .nullable(),
+})
+
+export const getOrganizationHomeWorkspaceActivityContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/home/workspace-activity',
+  params: paramsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      workspaces: z.array(homeWorkspaceActivitySchema).max(HOME_WORKSPACE_ACTIVITY_LIMIT),
+    }),
+  },
+})
+export type OrganizationHomeWorkspaceActivity = z.output<
+  typeof getOrganizationHomeWorkspaceActivityContract.response.schema
 >

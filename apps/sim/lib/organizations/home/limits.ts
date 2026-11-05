@@ -6,3 +6,6 @@ export const HOME_TEXT_LIMITS = { name: 256, title: 512, excerpt: 512 } as const
 
 /** Accounts one read will reach, so a viewer's account count cannot multiply provider requests. */
 export const HOME_WIDGET_ACCOUNT_LIMIT = 4
+
+/** Workspaces one activity read covers, so a viewer's workspace count cannot grow the query. */
+export const HOME_WORKSPACE_ACTIVITY_LIMIT = 200

@@ -34,6 +34,11 @@
     grid-row: 1 / span 2;
   }
 }
+.metaLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-popup-padding);
+}
 .row:hover {
   background: var(--ui-hover);
 }
