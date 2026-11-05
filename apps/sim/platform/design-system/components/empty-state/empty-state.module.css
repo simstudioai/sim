@@ -18,6 +18,12 @@
   gap: var(--spacing-12);
 }
 
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+}
+
 .empty p {
   color: var(--ui-secondary);
 }

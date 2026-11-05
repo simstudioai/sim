@@ -1,4 +1,4 @@
-import { LinksSurface } from '@/app/o/[organizationId]/links/links-surface'
+import { RedesignPageSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import {
   LinkRowsSkeleton,
   LinksFrame,
@@ -6,10 +6,10 @@ import {
 
 export default function SimLinksLoading() {
   return (
-    <LinksSurface>
+    <RedesignPageSurface>
       <LinksFrame loading>
         <LinkRowsSkeleton />
       </LinksFrame>
-    </LinksSurface>
+    </RedesignPageSurface>
   )
 }

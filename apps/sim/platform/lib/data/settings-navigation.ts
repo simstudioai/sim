@@ -29,9 +29,9 @@ export type SettingsSectionKey = AccountSettingsSection | OrganizationSettingsSe
 
 const SECTION_ICONS: Partial<Record<SettingsSectionKey, IconName>> = {
   general: 'I116',
-  billing: 'I133',
+  billing: 'I138',
   'knowledge-graphs': 'I004',
-  members: 'I134',
+  members: 'I133',
   'connected-accounts': 'I100',
   usage: 'I135',
   whitelabeling: 'I036',

@@ -63,6 +63,9 @@
 .table td[data-empty] {
   color: var(--ui-muted);
 }
+.table [data-primary] {
+  inline-size: 32%;
+}
 .table [data-numeric="true"] {
   inline-size: calc(var(--ui-table-compact) + var(--spacing-16));
   text-align: end;
@@ -115,6 +118,10 @@
   inline-size: calc(var(--spacing-app-control-sm) + var(--spacing-16));
   padding-inline: 0;
   text-align: end;
+}
+.table [data-kind="action"][data-passive] {
+  padding-inline-end: var(--spacing-8);
+  pointer-events: none;
 }
 .sort {
   display: inline-flex;

@@ -14,11 +14,13 @@ export function AvatarImage({ src, name = '' }: AvatarImageProps) {
   return <img className={styles.avatarImage} alt={name} src={src} />
 }
 
+const AVATAR_TYPE = { inline: 'T021', row: 'T050', card: 'T042', hero: 'T076' } as const
+
 interface AvatarProps {
   name: string
   src?: string
   organization?: boolean
-  size?: 'inline'
+  size?: 'inline' | 'row' | 'card' | 'hero'
   /** Beside a visible name, which already says who this is. */
   decorative?: boolean
 }
@@ -32,7 +34,7 @@ export function Avatar({ name, src, organization, size, decorative }: AvatarProp
       role={decorative ? undefined : 'img'}
       aria-label={decorative ? undefined : name}
       aria-hidden={decorative || undefined}
-      data-type={size ? 'T021' : organization ? 'T034' : 'T050'}
+      data-type={size ? AVATAR_TYPE[size] : organization ? 'T034' : 'T050'}
     >
       {src ? <AvatarImage src={src} /> : Array.from(name.trim().toUpperCase())[0]}
     </span>

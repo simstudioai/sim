@@ -21,7 +21,7 @@ export function EmptyState({ title, description, action, graphic }: EmptyStatePr
         <h2 data-type='T042'>{title}</h2>
         {description && <p data-type='T067'>{description}</p>}
       </div>
-      {action}
+      {action && <div className={styles.actions}>{action}</div>}
     </section>
   )
 }

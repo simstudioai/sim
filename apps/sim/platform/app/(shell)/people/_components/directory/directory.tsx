@@ -1,66 +1,51 @@
 'use client'
 
 import { useMemo } from 'react'
-import { PEOPLE_SEARCH_MAX_LENGTH } from '@/lib/people/validation'
 import styles from '@/platform/app/(shell)/people/_components/directory/directory.module.css'
 import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
+import { PersonIdentity } from '@/platform/app/(shell)/people/_components/person-identity/person-identity'
 import {
-  Avatar,
   Button,
   DataTable,
   EmptyState,
   FailureNotice,
-  OverflowText,
-  RecipientTag,
   SearchableSelect,
   SearchField,
-  TableLabel,
 } from '@/platform/design-system/components'
-import {
-  personHref,
-  profileOriginQuery,
-  useDepartmentOptions,
-  usePeopleDirectory,
-} from '@/platform/lib/data/people'
-
-type PersonSummaryRow = ReturnType<typeof usePeopleDirectory>['rows'][number]
+import { personHref, useDepartmentOptions, usePeopleDirectory } from '@/platform/lib/data/people'
 
 const COLUMNS = [
-  { key: 'name', label: 'Name', kind: 'text' },
-  { key: 'title', label: 'Title', kind: 'text', showFrom: 'compact' },
+  { key: 'person', label: 'Person', kind: 'text', primary: true },
   { key: 'department', label: 'Department', kind: 'text', showFrom: 'compact' },
   { key: 'location', label: 'Location', kind: 'text', showFrom: 'wide' },
   { key: 'manager', label: 'Manager', kind: 'text', showFrom: 'wide' },
 ] as const
 
-function PersonLabel({ person }: { person: { name: string; image: string | null } }) {
+interface DirectoryCellProps {
+  value: string | null | undefined
+}
+
+function DirectoryCell({ value }: DirectoryCellProps) {
   return (
-    <TableLabel
-      leading={
-        <Avatar size='inline' name={person.name} src={person.image ?? undefined} decorative />
-      }
-    >
-      <OverflowText text={person.name}>{person.name}</OverflowText>
-    </TableLabel>
+    <span className={value ? undefined : styles.blank} data-type='T043'>
+      {value || '—'}
+    </span>
   )
 }
 
-function joinFacts(facts: readonly (string | null | undefined)[]) {
-  return facts.filter(Boolean).join(' · ')
+interface PersonSummaryProps {
+  department: string | null
+  location: string | null
+  manager: string | undefined
 }
 
-/** What the table's hidden columns would say, under the name, so a narrow table loses nothing. */
-function PersonSummary({ person }: { person: PersonSummaryRow }) {
-  const role = joinFacts([person.title, person.department])
-  const place = joinFacts([person.location, person.manager && `Reports to ${person.manager.name}`])
+/** What the table's hidden columns would say, under the person, so a narrow table loses nothing. */
+function PersonSummary({ department, location, manager }: PersonSummaryProps) {
+  const place = [location, manager && `Reports to ${manager}`].filter(Boolean).join(' · ')
   return (
     <span className={styles.summary} data-type='T052'>
-      {role && (
-        <span className={styles.summaryRole}>
-          <OverflowText text={role}>{role}</OverflowText>
-        </span>
-      )}
-      {place && <OverflowText text={place}>{place}</OverflowText>}
+      {department && <span className={styles.summaryDepartment}>{department}</span>}
+      {place && <span>{place}</span>}
     </span>
   )
 }
@@ -71,30 +56,29 @@ interface PeopleDirectoryProps {
 
 export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
   const directory = usePeopleDirectory(organizationId)
-  const { origin } = directory
-  const departments = useDepartmentOptions(organizationId, origin)
-  const originQuery = profileOriginQuery(origin, { view: 'directory' })
+  const departments = useDepartmentOptions(organizationId, directory.origin)
+  const { originQuery } = directory
   const rows = useMemo(
     () =>
       directory.rows.map((person) => ({
         id: person.memberId,
-        values: {
-          name: person.name,
-          title: person.title,
-          department: person.department,
-          location: person.location,
-        },
+        values: {},
         cells: {
-          name: (
-            <span className={styles.nameCell}>
-              <PersonLabel person={person} />
-              <PersonSummary person={person} />
+          person: (
+            <span className={styles.personCell}>
+              <PersonIdentity person={person} />
+              <PersonSummary
+                department={person.department}
+                location={person.location}
+                manager={person.manager?.name}
+              />
             </span>
           ),
-          manager: person.manager ? <PersonLabel person={person.manager} /> : undefined,
+          department: <DirectoryCell value={person.department} />,
+          location: <DirectoryCell value={person.location} />,
+          manager: <DirectoryCell value={person.manager?.name} />,
         },
         href: personHref(organizationId, person.memberId, originQuery),
-        prefetch: false,
       })),
     [directory.rows, organizationId, originQuery]
   )
@@ -104,8 +88,7 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
         <div className={styles.search}>
           <SearchField
             label='Search people'
-            placeholder='Search people…'
-            maxLength={PEOPLE_SEARCH_MAX_LENGTH}
+            placeholder='Search name, role, or location'
             value={directory.search}
             onValueChange={directory.setSearch}
           />
@@ -123,15 +106,10 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
             onValueChange={(next) => directory.setDepartment(departments.parse(next))}
           />
         </div>
+        <span className={styles.scope} data-type='T050'>
+          People in your organization
+        </span>
       </div>
-      {directory.hasDepartment && (
-        <div>
-          <RecipientTag
-            address={`Department: ${directory.departmentLabel}`}
-            onRemove={() => directory.setDepartment(null)}
-          />
-        </div>
-      )}
       {directory.loading ? (
         <PeopleStatus>Loading people…</PeopleStatus>
       ) : directory.error ? (
@@ -142,16 +120,15 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
         />
       ) : rows.length === 0 ? (
         !directory.query && !directory.hasDepartment ? (
-          <EmptyState title='No people to show' />
+          <EmptyState
+            title='No people to show'
+            description='Organization members and people from a connected directory appear here.'
+          />
         ) : (
           <EmptyState
-            title={directory.query ? `No results for “${directory.query}”` : 'No results'}
-            description={
-              directory.hasDepartment
-                ? 'No people match the selected department.'
-                : 'Searched everyone in your organization.'
-            }
-            action={<Button onClick={directory.clearFilters}>Clear</Button>}
+            title='No people found'
+            description='Try another name, title, email address, or department.'
+            action={<Button onClick={directory.clearFilters}>Clear search</Button>}
           />
         )
       ) : (
@@ -159,6 +136,7 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
           title='People'
           titleHidden
           virtualized
+          rowChevron
           columns={COLUMNS}
           rows={rows}
           loadMore={directory.loadMore}

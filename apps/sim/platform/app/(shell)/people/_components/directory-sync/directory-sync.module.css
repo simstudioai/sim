@@ -1,23 +1,202 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 100%;
+  padding: var(--shell-home-row-start) var(--ui-page-inline-gutter) var(--ui-page-inset-block);
+  gap: var(--spacing-32);
+}
+
+.back {
+  margin-inline-start: calc(-1 * var(--spacing-control-inline));
+}
+
+.heading {
+  display: grid;
+  gap: var(--spacing-8);
+}
+
 .secondary {
   color: var(--ui-secondary);
 }
 
-.connection {
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, calc(2 * var(--spacing-320))) minmax(
+      0,
+      calc(var(--spacing-320) + var(--spacing-64))
+    );
+  align-items: start;
+  gap: var(--spacing-32) var(--spacing-64);
+}
+
+.main,
+.notes {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  min-inline-size: 0;
+  gap: var(--spacing-32);
+}
+
+.notes {
+  gap: var(--spacing-24);
+  padding-block-start: var(--spacing-8);
+}
+
+.note {
+  display: grid;
   gap: var(--spacing-8);
+}
+
+.disconnect {
+  display: grid;
+  gap: var(--spacing-12);
+  padding-block-start: var(--spacing-8);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+  padding: var(--spacing-24);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-12);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+}
+
+.cardHeader .sourceCopy {
+  flex: 1;
+}
+
+.summary {
+  display: grid;
+  gap: var(--spacing-4);
+}
+
+.mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--spacing-32);
+  block-size: var(--spacing-32);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--ui-control-radius);
+}
+
+.sourceCopy {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-stack-gap);
   overflow-wrap: anywhere;
 }
 
-.progress {
+.facts {
+  display: grid;
+  gap: var(--spacing-16);
+}
+
+.fact {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--spacing-4) var(--spacing-12);
+}
+
+.cardHeader .mark {
+  inline-size: var(--spacing-40);
+  block-size: var(--spacing-40);
+}
+
+.run {
+  margin-inline-start: auto;
+}
+
+.cardFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+  padding-block-start: var(--spacing-16);
+  border-block-start: var(--spacing-stroke-default) solid var(--ui-divider);
+}
+
+.sources {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 16rem));
+  justify-content: center;
+  inline-size: 100%;
+  gap: var(--spacing-16);
+}
+
+.source {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-16);
+  padding: var(--spacing-20);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-12);
+  background: var(--ui-canvas);
+  color: var(--ui-ink);
+  text-align: start;
+  cursor: pointer;
+}
+
+.source:hover {
+  background: var(--ui-hover);
+}
+
+.sourceAction {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  align-self: stretch;
+  margin-block-start: var(--spacing-4);
+}
+
+.unconnected {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-24);
+}
+
+.unconnected .sources {
+  justify-content: start;
+}
+
+.importPrompt {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-block-start: var(--spacing-8);
+  gap: var(--spacing-8);
+  color: var(--ui-secondary);
+}
+
+.importLink {
+  color: var(--ui-ink);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.provisioning {
   display: grid;
   gap: var(--ui-stack-gap);
 }
 
-.actions {
+.quietActions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--ui-action-gap);
+}
+
+@media (width < 64rem) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

@@ -1,11 +1,8 @@
 .page {
   display: flex;
-  flex: 1;
   flex-direction: column;
-  gap: var(--spacing-16);
-  margin-inline: auto;
-  inline-size: min(calc(100% - 2 * var(--ui-page-inline-gutter)), var(--ui-page-max-size));
-  padding-block: var(--shell-home-row-start) var(--ui-page-inset-block);
+  min-block-size: 100%;
+  padding-block-start: var(--shell-home-row-start);
 }
 
 .header {
@@ -13,24 +10,61 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--spacing-12);
+  gap: var(--spacing-8) var(--spacing-16);
+  padding-inline: var(--ui-page-inline-gutter);
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--spacing-8);
+}
+
+.updated {
+  color: var(--ui-secondary);
+  margin-inline-end: var(--spacing-8);
+}
+
+.tabs {
+  display: flex;
+  gap: var(--spacing-24);
+  margin-block-start: var(--spacing-24);
+  padding-inline: var(--ui-page-inline-gutter);
+  border-block-end: var(--spacing-stroke-default) solid var(--ui-divider);
+}
+
+.tab {
+  margin-block-end: calc(-1 * var(--spacing-stroke-default));
+  min-block-size: var(--spacing-40);
+  border-block-end: var(--spacing-stroke-focus) solid transparent;
+  color: var(--ui-secondary);
+  cursor: pointer;
+}
+
+.tab:hover:enabled {
+  color: var(--ui-ink);
+}
+
+.tab[aria-current="page"] {
+  border-block-end-color: var(--ui-ink);
+  color: var(--ui-ink);
+}
+
+.tab:disabled {
+  cursor: default;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  padding-block-start: var(--spacing-20);
 }
 
 .status {
   color: var(--ui-secondary);
   padding-block: var(--spacing-48);
   text-align: center;
-}
-
-.viewsPlaceholder {
-  block-size: var(--spacing-app-control-sm);
-  inline-size: var(--spacing-128);
-  border-radius: var(--ui-control-radius);
-  background: var(--control-muted-fill);
 }
