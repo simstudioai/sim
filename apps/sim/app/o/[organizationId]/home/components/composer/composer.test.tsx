@@ -419,11 +419,19 @@ it('preserves mode-specific models and unsent effort across composer remounts', 
 })
 
 /** Flushes until the lists have landed and the editor has seen them, however busy the runner is. */
-async function settleQueries() {
-  const tick = () => act(async () => new Promise((resolve) => setTimeout(resolve, 20)))
-  await tick()
-  while (queryClient.isFetching() > 0) await tick()
-  await tick()
+async function settleQueries(until?: () => void) {
+  await act(async () => {
+    await vi.waitFor(() => {
+      expect(queryClient.isFetching()).toBe(0)
+      until?.()
+    })
+  })
+}
+
+function required<Element extends HTMLElement>(selector: string) {
+  const element = container.querySelector<Element>(selector)
+  if (!element) throw new Error(`Nothing matches ${selector}`)
+  return element
 }
 
 function typeInto(input: HTMLTextAreaElement, text: string) {
@@ -435,9 +443,7 @@ function typeInto(input: HTMLTextAreaElement, text: string) {
 
 it('reads no workspace list on mount, even with the field focused', async () => {
   await render(true, '', 'agent')
-  await act(async () =>
-    container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!.focus()
-  )
+  await act(async () => required<HTMLTextAreaElement>('[aria-label="Ask Sim"]').focus())
   expect(mocks.skillQuery).not.toHaveBeenCalled()
   expect(mocks.resourceMenu.mock.lastCall?.[0].warm).toBe(false)
 })
@@ -445,9 +451,9 @@ it('reads no workspace list on mount, even with the field focused', async () => 
 it('warms the lists when the viewer presses the field, and opening the + menu does too', async () => {
   await render(true, '', 'agent')
   await act(async () =>
-    container
-      .querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
-      .dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
+    required<HTMLTextAreaElement>('[aria-label="Ask Sim"]').dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true })
+    )
   )
   expect(mocks.skillQuery).toHaveBeenCalledExactlyOnceWith('workspace-a')
   expect(mocks.resourceMenu.mock.lastCall?.[0].warm).toBe(true)
@@ -457,31 +463,24 @@ it('warms the lists when the viewer presses the field, and opening the + menu do
   queryClient.clear()
   await render(true, '', 'agent')
   expect(mocks.resourceMenu.mock.lastCall?.[0].warm).toBe(false)
-  await act(async () =>
-    container.querySelector<HTMLButtonElement>('button[aria-label="Add resources"]')!.click()
-  )
+  await act(async () => required<HTMLButtonElement>('button[aria-label="Add resources"]').click())
   expect(mocks.openResourceMenu).toHaveBeenCalledOnce()
   expect(mocks.resourceMenu.mock.lastCall?.[0].warm).toBe(true)
 })
 
 it('a slash reads the skills only, and the resource lists stay cold', async () => {
   await render(true, '', 'agent')
-  await act(async () =>
-    typeInto(container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!, '/')
-  )
+  await act(async () => typeInto(required<HTMLTextAreaElement>('[aria-label="Ask Sim"]'), '/'))
   expect(mocks.skillQuery).toHaveBeenCalledExactlyOnceWith('workspace-a')
   expect(mocks.resourceMenu.mock.lastCall?.[0].warm).toBe(false)
 })
 
 it('a draft carrying a skill still chips once its list arrives', async () => {
   await render(true, '/review this', 'agent')
-  const input = container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+  const input = required<HTMLTextAreaElement>('[aria-label="Ask Sim"]')
   expect(mocks.skillQuery).toHaveBeenCalledExactlyOnceWith('workspace-a')
-  await settleQueries()
-  expect(input.value).toBe(' review this')
-  await act(async () =>
-    container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click()
-  )
+  await settleQueries(() => expect(input.value).toBe(' review this'))
+  await act(async () => required<HTMLButtonElement>('button[aria-label="Send"]').click())
   expect(mocks.contexts).toHaveBeenLastCalledWith([
     { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
   ])
@@ -495,7 +494,7 @@ it('a skill typed to its boundary before the lists land chips when they do, care
     })
   )
   await render(true, '', 'agent')
-  const input = container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+  const input = required<HTMLTextAreaElement>('[aria-label="Ask Sim"]')
   await act(async () => typeInto(input, '/'))
   await act(async () => typeInto(input, '/review now'))
   expect(input.value).toBe('/review now')
@@ -515,7 +514,6 @@ it('a skill typed to its boundary before the lists land chips when they do, care
       },
     ])
   })
-  await settleQueries()
-  expect(input.value).toBe(' review now')
+  await settleQueries(() => expect(input.value).toBe(' review now'))
   expect(input.selectionStart).toBe(9)
 })
