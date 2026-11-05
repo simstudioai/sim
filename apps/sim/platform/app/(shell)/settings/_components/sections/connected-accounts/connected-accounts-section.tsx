@@ -28,7 +28,7 @@ import {
 } from '@/platform/lib/data/credential-groups'
 
 const VIEWS = [
-  { value: 'providers', label: 'Integrations' },
+  { value: 'providers', label: 'Providers' },
   { value: 'people', label: 'People' },
   { value: 'workspace-access', label: 'Access' },
 ] as const

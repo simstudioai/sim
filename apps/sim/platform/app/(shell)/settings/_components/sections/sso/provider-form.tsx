@@ -526,15 +526,9 @@ export function ProviderForm({
             </FieldStack>
           </SettingsSection>
           <ActionRow>
-            {/* Never disabled on validation errors: errors show only once a save is attempted. */}
-            <Button variant='primary' submit disabled={configure.isPending}>
-              {configure.isPending
-                ? isEditing
-                  ? 'Updating…'
-                  : 'Saving…'
-                : isEditing
-                  ? 'Update'
-                  : 'Save'}
+            {/* Enabled by an edit, never by validity: errors show only once a save is attempted. */}
+            <Button variant='primary' submit disabled={!dirty || configure.isPending}>
+              {configure.isPending ? 'Saving…' : 'Save'}
             </Button>
             {dirty && (
               <Button variant='quiet' disabled={configure.isPending} onClick={discard}>

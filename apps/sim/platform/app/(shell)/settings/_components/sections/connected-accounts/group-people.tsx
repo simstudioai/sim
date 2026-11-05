@@ -8,6 +8,7 @@ import {
   LoadingState,
   Muted,
   SectionStack,
+  SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/group-people.module.css'
 import { PeopleInviteModal } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/people-invite-modal'
@@ -80,12 +81,26 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
 
   return (
     <SectionStack>
-      <SearchField
-        label='Search people'
-        placeholder='Search people...'
-        value={peopleSearch}
-        onValueChange={setPeopleSearch}
-      />
+      <SectionToolbar
+        grow={
+          <SearchField
+            label='Search people'
+            placeholder='Search people…'
+            value={peopleSearch}
+            onValueChange={setPeopleSearch}
+          />
+        }
+      >
+        <Button
+          variant='primary'
+          size='compact'
+          icon='I074'
+          disabled={pending}
+          onClick={() => setInviteOpen(true)}
+        >
+          Request connections
+        </Button>
+      </SectionToolbar>
       {error && !revoking && <InlineNotice intent='danger' message={error.message} />}
       <SettingsSection title='People'>
         {people.isPending ? (
@@ -154,17 +169,6 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
             onRetry={() => void people.fetchNextPage()}
           />
         )}
-        <SettingsRow label='Connection requests'>
-          <Button
-            variant='primary'
-            size='compact'
-            icon='I074'
-            disabled={pending}
-            onClick={() => setInviteOpen(true)}
-          >
-            Request connections
-          </Button>
-        </SettingsRow>
       </SettingsSection>
       {inviteOpen && (
         <PeopleInviteModal organizationId={organizationId} onClose={() => setInviteOpen(false)} />

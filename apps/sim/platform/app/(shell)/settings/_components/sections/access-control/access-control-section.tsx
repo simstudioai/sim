@@ -8,6 +8,7 @@ import {
   LoadingState,
   ResourceList,
   SectionStack,
+  SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { GroupDetail } from '@/platform/app/(shell)/settings/_components/sections/access-control/group-detail'
@@ -201,14 +202,22 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
     <SectionStack>
       {refreshError}
       {workspacesError}
-      <SearchField
-        label='Search permission groups'
-        placeholder='Search permission groups…'
-        value={params.search}
-        onValueChange={params.setSearch}
-      />
+      <SectionToolbar
+        grow={
+          <SearchField
+            label='Search permission groups'
+            placeholder='Search permission groups…'
+            value={params.search}
+            onValueChange={params.setSearch}
+          />
+        }
+      >
+        <Button variant='primary' size='compact' icon='I074' onClick={() => setCreating(true)}>
+          Create group
+        </Button>
+      </SectionToolbar>
       {permissionGroups.length === 0 ? (
-        <EmptyState title='No permission groups yet' description='Create a group to get started.' />
+        <EmptyState title='No permission groups yet' />
       ) : filtered.length === 0 ? (
         <EmptyState title={`No groups found matching "${params.search}"`} />
       ) : (
@@ -227,11 +236,6 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
         </SettingsSection>
       )}
       <SettingsSection title='Manage'>
-        <SettingsRow label='New permission group'>
-          <Button size='compact' icon='I074' onClick={() => setCreating(true)}>
-            Create group
-          </Button>
-        </SettingsRow>
         <SettingsRow label='Access requests'>
           <Button
             size='compact'

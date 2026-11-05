@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import {
   LoadingState,
   SectionStack,
+  SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { WorkspaceGrantModal } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/workspace-grant-modal'
 import {
@@ -48,12 +49,6 @@ export function GroupAccess({ organizationId }: GroupAccessProps) {
   const setSearchTerm = useDebouncedSearchSetter(setSearchParam)
   return (
     <SectionStack>
-      <SearchField
-        label='Search workspaces'
-        placeholder='Search workspaces...'
-        value={searchTerm}
-        onValueChange={setSearchTerm}
-      />
       {access.error ? (
         <FailureNotice
           message={getErrorMessage(access.error, 'Could not load workspace access')}
@@ -69,6 +64,14 @@ export function GroupAccess({ organizationId }: GroupAccessProps) {
           key={organizationId}
           organizationId={organizationId}
           access={access.data}
+          search={
+            <SearchField
+              label='Search workspaces'
+              placeholder='Search workspaces…'
+              value={searchTerm}
+              onValueChange={setSearchTerm}
+            />
+          }
           searchTerm={searchTerm}
         />
       )}
@@ -78,10 +81,16 @@ export function GroupAccess({ organizationId }: GroupAccessProps) {
 
 interface WorkspaceAccessListProps extends GroupAccessProps {
   access: OrganizationAccountWorkspaceAccess
+  search: ReactNode
   searchTerm: string
 }
 
-function WorkspaceAccessList({ organizationId, access, searchTerm }: WorkspaceAccessListProps) {
+function WorkspaceAccessList({
+  organizationId,
+  access,
+  search,
+  searchTerm,
+}: WorkspaceAccessListProps) {
   const update = useUpdateOrganizationAccountWorkspaceAccess()
   const [editor, setEditor] = useState<GrantEditor | null>(null)
   const byId = new Map(access.workspaces.map((workspace) => [workspace.id, workspace]))
@@ -139,6 +148,24 @@ function WorkspaceAccessList({ organizationId, access, searchTerm }: WorkspaceAc
 
   return (
     <>
+      <SectionToolbar grow={search}>
+        <Button
+          variant='primary'
+          size='compact'
+          icon='I074'
+          disabled={
+            update.isPending ||
+            !availableWorkspaces.length ||
+            access.grants.length >= ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT
+          }
+          onClick={() => {
+            update.reset()
+            setEditor({ mode: 'create', revision: access.revision })
+          }}
+        >
+          Add workspace
+        </Button>
+      </SectionToolbar>
       {update.error && !editor && <InlineNotice intent='danger' message={update.error.message} />}
       <SettingsSection title='Workspaces'>
         {visibleWorkspaces.length === 0 ? (
@@ -178,23 +205,6 @@ function WorkspaceAccessList({ organizationId, access, searchTerm }: WorkspaceAc
             )
           })
         )}
-        <SettingsRow label='Grant workspace access'>
-          <Button
-            size='compact'
-            icon='I074'
-            disabled={
-              update.isPending ||
-              !availableWorkspaces.length ||
-              access.grants.length >= ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT
-            }
-            onClick={() => {
-              update.reset()
-              setEditor({ mode: 'create', revision: access.revision })
-            }}
-          >
-            Add workspace
-          </Button>
-        </SettingsRow>
       </SettingsSection>
       {editor && (
         <WorkspaceGrantModal

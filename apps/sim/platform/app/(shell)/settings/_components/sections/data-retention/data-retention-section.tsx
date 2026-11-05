@@ -7,14 +7,12 @@ import {
   LoadingState,
   ResourceList,
   SectionStack,
+  SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { PolicyDetail } from '@/platform/app/(shell)/settings/_components/sections/data-retention/policy-detail'
 import { ActivityRow, Button, EmptyState, FailureNotice } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
+import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   buildRetentionUpdate,
   type DataRetentionResponse,
@@ -150,6 +148,17 @@ function RetentionForm({ initialData, organizationId, workspaceOptions }: Retent
 
   return (
     <SectionStack>
+      <SectionToolbar>
+        <Button
+          variant='primary'
+          size='compact'
+          icon='I074'
+          disabled={freeWorkspaces.length === 0}
+          onClick={() => open(newOverrideDraft(), true)}
+        >
+          Add override
+        </Button>
+      </SectionToolbar>
       <SettingsSection title='Retention policies'>
         <ResourceList>
           <ActivityRow
@@ -167,16 +176,6 @@ function RetentionForm({ initialData, organizationId, workspaceOptions }: Retent
             />
           ))}
         </ResourceList>
-        <SettingsRow label='Workspace override'>
-          <Button
-            variant='primary'
-            icon='I074'
-            disabled={freeWorkspaces.length === 0}
-            onClick={() => open(newOverrideDraft(), true)}
-          >
-            Add override
-          </Button>
-        </SettingsRow>
       </SettingsSection>
     </SectionStack>
   )

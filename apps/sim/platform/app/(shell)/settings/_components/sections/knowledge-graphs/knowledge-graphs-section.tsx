@@ -1,7 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { LoadingState } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import {
+  LoadingState,
+  Muted,
+  SectionToolbar,
+} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import {
   Button,
@@ -23,6 +27,24 @@ export default function KnowledgeGraphsSection({ organization }: SettingsSection
   const [name, setName] = useState('')
   return (
     <>
+      <SectionToolbar
+        grow={
+          <Muted>New chats use the active graph. Existing chats keep their original graph.</Muted>
+        }
+      >
+        <Button
+          variant='primary'
+          size='compact'
+          icon='I074'
+          disabled={graphs.status !== 'success' || graphs.selecting}
+          onClick={() => {
+            setName('')
+            setCreating(true)
+          }}
+        >
+          New graph
+        </Button>
+      </SectionToolbar>
       <SettingsSection title='Graphs'>
         {graphs.status === 'error' ? (
           <FailureNotice
@@ -53,22 +75,6 @@ export default function KnowledgeGraphsSection({ organization }: SettingsSection
             </SettingsRow>
           ))
         )}
-        <SettingsRow
-          label='New knowledge graph'
-          description='New chats use the active graph. Existing chats keep their original graph.'
-        >
-          <Button
-            size='compact'
-            icon='I074'
-            disabled={graphs.status !== 'success' || graphs.selecting}
-            onClick={() => {
-              setName('')
-              setCreating(true)
-            }}
-          >
-            New graph
-          </Button>
-        </SettingsRow>
       </SettingsSection>
       <Modal
         open={creating}

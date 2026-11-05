@@ -92,61 +92,65 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
   }
 
   return (
-    <SettingsSection title='Session policies'>
-      <FieldStack>
-        <TextField
-          label='Max session lifetime (hours)'
-          hint='Members must sign in again this many hours after signing in, regardless of activity. Leave empty for the default 30-day sliding session.'
-          inputMode='numeric'
-          placeholder='No limit'
-          value={maxHours}
-          onChange={setMaxHours}
-        />
-        <TextField
-          label='Idle timeout (hours)'
-          hint={`Sessions expire after this many hours without activity. Minimum ${MIN_IDLE_TIMEOUT_HOURS} hours.`}
-          inputMode='numeric'
-          placeholder='No limit'
-          value={idleHours}
-          onChange={setIdleHours}
-        />
-        <ActionRow>
-          <Button
-            variant='primary'
-            disabled={!dirty || updatePolicy.isPending}
-            onClick={() => void save()}
-          >
-            {updatePolicy.isPending ? 'Saving…' : 'Save'}
-          </Button>
-          {dirty && (
-            <Button variant='quiet' disabled={updatePolicy.isPending} onClick={discard}>
-              Discard
-            </Button>
-          )}
-        </ActionRow>
-      </FieldStack>
-      <SettingsRow
-        label='End all sessions'
-        description='Members must sign in again. Your current session stays active.'
-      >
-        <Button variant='destructive' onClick={() => setConfirmingRevoke(true)}>
-          Sign out all members
+    <>
+      <SettingsSection title='Session policies'>
+        <FieldStack>
+          <TextField
+            label='Max session lifetime (hours)'
+            hint='Members must sign in again this many hours after signing in, regardless of activity. Leave empty for the default 30-day sliding session.'
+            inputMode='numeric'
+            placeholder='No limit'
+            value={maxHours}
+            onChange={setMaxHours}
+          />
+          <TextField
+            label='Idle timeout (hours)'
+            hint={`Sessions expire after this many hours without activity. Minimum ${MIN_IDLE_TIMEOUT_HOURS} hours.`}
+            inputMode='numeric'
+            placeholder='No limit'
+            value={idleHours}
+            onChange={setIdleHours}
+          />
+        </FieldStack>
+      </SettingsSection>
+      <ActionRow>
+        <Button
+          variant='primary'
+          disabled={!dirty || updatePolicy.isPending}
+          onClick={() => void save()}
+        >
+          {updatePolicy.isPending ? 'Saving…' : 'Save'}
         </Button>
-      </SettingsRow>
-      <Modal
-        variant='confirm'
-        destructive
-        open={confirmingRevoke}
-        onOpenChange={setConfirmingRevoke}
-        title='Sign out all members'
-        description='Every member of this organization will be signed out on their next request, except your current session. Members will need to sign in again.'
-        confirmLabel={revokeSessions.isPending ? 'Signing out…' : 'Sign out all'}
-        onConfirm={async () => {
-          const result = await revokeSessions.mutateAsync({ orgId: organizationId })
-          toast.success(`Signed out ${plural(result.data.revokedSessions, 'session')}`)
-        }}
-      />
-    </SettingsSection>
+        {dirty && (
+          <Button variant='quiet' disabled={updatePolicy.isPending} onClick={discard}>
+            Discard
+          </Button>
+        )}
+      </ActionRow>
+      <SettingsSection title='Active sessions'>
+        <SettingsRow
+          label='End all sessions'
+          description='Members must sign in again. Your current session stays active.'
+        >
+          <Button variant='destructive' onClick={() => setConfirmingRevoke(true)}>
+            Sign out all members
+          </Button>
+        </SettingsRow>
+        <Modal
+          variant='confirm'
+          destructive
+          open={confirmingRevoke}
+          onOpenChange={setConfirmingRevoke}
+          title='Sign out all members'
+          description='Every member of this organization will be signed out on their next request, except your current session. Members will need to sign in again.'
+          confirmLabel={revokeSessions.isPending ? 'Signing out…' : 'Sign out all'}
+          onConfirm={async () => {
+            const result = await revokeSessions.mutateAsync({ orgId: organizationId })
+            toast.success(`Signed out ${plural(result.data.revokedSessions, 'session')}`)
+          }}
+        />
+      </SettingsSection>
+    </>
   )
 }
 

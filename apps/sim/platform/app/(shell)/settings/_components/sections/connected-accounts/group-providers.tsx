@@ -11,6 +11,7 @@ import {
   ActionRow,
   Muted,
   SectionStack,
+  SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { DatabricksModal } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/databricks-modal'
 import { ProviderCatalogModal } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/provider-catalog-modal'
@@ -150,13 +151,30 @@ export function GroupProviders({
 
   return (
     <SectionStack>
-      <SearchField
-        label='Search integrations'
-        placeholder='Search integrations...'
-        value={searchTerm}
-        onValueChange={setSearchTerm}
-      />
-      <SettingsSection title='Integrations'>
+      <SectionToolbar
+        grow={
+          <SearchField
+            label='Search providers'
+            placeholder='Search providers…'
+            value={searchTerm}
+            onValueChange={setSearchTerm}
+          />
+        }
+      >
+        <Button
+          variant='primary'
+          size='compact'
+          icon='I074'
+          disabled={pending}
+          onClick={() => {
+            resetMutations()
+            setCatalogOpen(true)
+          }}
+        >
+          Add provider
+        </Button>
+      </SectionToolbar>
+      <SettingsSection title='Providers'>
         {visibleRows.map(({ id, name, icon, choice }) => {
           const providerId = choice.kind === 'oauth' ? choice.provider : choice.connectorId
           const configure =
@@ -201,24 +219,11 @@ export function GroupProviders({
           <EmptyState
             title={
               normalizedSearch
-                ? 'No integrations match your search'
-                : 'Add an integration to start connecting accounts.'
+                ? 'No providers match your search'
+                : 'Add a provider to start connecting accounts.'
             }
           />
         )}
-        <SettingsRow label='New integration'>
-          <Button
-            size='compact'
-            icon='I074'
-            disabled={pending}
-            onClick={() => {
-              resetMutations()
-              setCatalogOpen(true)
-            }}
-          >
-            Add integration
-          </Button>
-        </SettingsRow>
         {options.length > 0 && (
           <SettingsRow
             label='Provider configurations'

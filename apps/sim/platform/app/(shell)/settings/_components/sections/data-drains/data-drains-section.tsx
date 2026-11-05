@@ -18,10 +18,7 @@ import {
   FailureNotice,
   SearchField,
 } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
+import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   CADENCE_LABELS,
   DESTINATION_LABELS,
@@ -90,7 +87,17 @@ export default function DataDrainsSection({ organization }: SettingsSectionProps
             onValueChange={setSearch}
           />
         }
-      />
+      >
+        <Button
+          variant='primary'
+          size='compact'
+          icon='I074'
+          disabled={isPending}
+          onClick={() => setCreating(true)}
+        >
+          Create drain
+        </Button>
+      </SectionToolbar>
       <SettingsSection title='Data drains'>
         {error ? (
           <FailureNotice
@@ -117,13 +124,8 @@ export default function DataDrainsSection({ organization }: SettingsSectionProps
             <EmptyState title={`No drains found matching "${search}"`} />
           )
         ) : (
-          <EmptyState title='No data drains yet' description='Create a drain to get started.' />
+          <EmptyState title='No data drains yet' />
         )}
-        <SettingsRow label='New data drain'>
-          <Button size='compact' icon='I074' disabled={isPending} onClick={() => setCreating(true)}>
-            Create drain
-          </Button>
-        </SettingsRow>
       </SettingsSection>
     </SectionStack>
   )
