@@ -2747,12 +2747,17 @@ async function blastRadiusChecks() {
 const PREFETCHED_ON_LAYOUT = [
   { label: 'chat list', pattern: /^\/api\/mothership\/chats\?/ },
   { label: 'profile', pattern: /^\/api\/users\/me\/profile/ },
+  { label: 'workspace list', pattern: /^\/api\/workspaces(\?|$)/ },
 ]
-const PREFETCHED_ON_HOME = [
+const PREFETCHED_INVENTORY = [
   { label: 'connected accounts', pattern: /\/connected-accounts(\?|$)/ },
   { label: 'search integrations', pattern: /\/api\/knowledge\/sim-search\/integrations/ },
-  { label: 'search history', pattern: /\/search\/history(\?|$)/ },
 ]
+const PREFETCHED_HISTORY = [{ label: 'search history', pattern: /\/search\/history(\?|$)/ }]
+const PREFETCHED_SECRET_SOURCE = [
+  { label: 'secret source', pattern: /\/secrets\/source|\/secret-source/ },
+]
+const PREFETCHED_LINKS = [{ label: 'links first page', pattern: /\/sim-links(\?(?!.*cursor=)|$)/ }]
 
 async function firstPaintChecks() {
   section('6 First paint')
@@ -2761,25 +2766,31 @@ async function firstPaintChecks() {
       name: 'Home',
       path: 'home',
       primary: (page: Page) => composer(page),
-      prefetched: [...PREFETCHED_ON_LAYOUT, ...PREFETCHED_ON_HOME],
+      prefetched: [...PREFETCHED_ON_LAYOUT, ...PREFETCHED_INVENTORY, ...PREFETCHED_HISTORY],
     },
     {
       name: 'Search',
       path: 'search?mode=search',
       primary: (page: Page) => searchField(page),
-      prefetched: PREFETCHED_ON_LAYOUT,
+      prefetched: [...PREFETCHED_ON_LAYOUT, ...PREFETCHED_HISTORY],
     },
     {
       name: 'Integrations',
       path: 'integrations',
       primary: (page: Page) => page.getByRole('link', { name: /^Gmail/ }),
-      prefetched: PREFETCHED_ON_LAYOUT,
+      prefetched: [...PREFETCHED_ON_LAYOUT, ...PREFETCHED_INVENTORY, ...PREFETCHED_SECRET_SOURCE],
     },
     {
       name: 'Links',
       path: 'links',
       primary: (page: Page) => page.getByRole('row').nth(1),
-      prefetched: PREFETCHED_ON_LAYOUT,
+      prefetched: [...PREFETCHED_ON_LAYOUT, ...PREFETCHED_LINKS],
+    },
+    {
+      name: 'Links by opens',
+      path: 'links?sort=popular&dir=desc',
+      primary: (page: Page) => page.getByRole('row').nth(1),
+      prefetched: [...PREFETCHED_ON_LAYOUT, ...PREFETCHED_LINKS],
     },
   ] satisfies {
     name: string
@@ -2787,6 +2798,45 @@ async function firstPaintChecks() {
     primary: (page: Page) => Locator
     prefetched: { label: string; pattern: RegExp }[]
   }[]
+  await check(
+    'Links paints its first page from the server, even with the client read refused',
+    async () => {
+      await withSession(MEMBER, async ({ page }) => {
+        const reads: string[] = []
+        await page.route(`**/api/organizations/${ORGANIZATION_ID}/sim-links**`, (route) => {
+          reads.push(route.request().url())
+          return route.fulfill({ status: 500, json: { error: 'The client must not need this' } })
+        })
+        await page.goto(url(`${root}/links`))
+        await expect(
+          page.getByRole('row').filter({ hasText: NAMED_LINKS.handbook.name })
+        ).toBeVisible()
+        await expect(page.getByRole('button', { name: /Retry/ })).toHaveCount(0)
+        assert.deepEqual(
+          reads.filter((address) => !address.includes('cursor=')),
+          [],
+          'The seeded first page was fetched again'
+        )
+        await page.goto(url(`${root}/links?sort=popular&dir=desc`))
+        await expect(page.getByRole('row').nth(1)).toContainText(NAMED_LINKS.mostUsed.name)
+        await page.goto(url(`${root}/links?search=${NAMED_LINKS.mostUsed.name}`))
+        await expect(page.getByRole('row').nth(1)).toContainText(NAMED_LINKS.mostUsed.name)
+        assert.deepEqual(
+          reads.filter((address) => !address.includes('cursor=')),
+          [],
+          'A seeded view of the URL was fetched again'
+        )
+      })
+    },
+    { allow: [/sim-links/] }
+  )
+  await check('the Links document already carries the first page of rows', async () => {
+    await withSession(MEMBER, async ({ page, context }) => {
+      await page.goto(url(`${root}/home`))
+      const html = await (await context.request.get(url(`${root}/links`))).text()
+      assert(html.includes(NAMED_LINKS.handbook.url), 'The document holds the seeded rows')
+    })
+  })
   for (const persona of [MEMBER, ADMIN]) {
     for (const entry of pages) {
       await check(
