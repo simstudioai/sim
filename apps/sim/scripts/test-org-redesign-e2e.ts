@@ -1917,6 +1917,44 @@ async function homeChecks() {
 
 async function chatChecks() {
   section('3 Chat')
+  await check("Share and the feedback form on a chat are the design system's dialogs", async () => {
+    const inSurface = (dialogLocator: ReturnType<typeof dialog>) =>
+      expect(dialogLocator.locator('xpath=ancestor::*[@data-platform-ui]')).not.toHaveCount(0)
+    const fileId = '6f1f4a52-8e0b-4d7a-9a13-0d5d3c1b7e21'
+    await sql`insert into workspace_files (id, key, user_id, workspace_id, context, original_name, content_type, size_bytes)
+      values (${fileId}, ${`workspace/${fileId}.md`}, ${ADMIN.userId}, ${MEMBER_ADMIN_WORKSPACE.id}, 'workspace', 'share-check.md', 'text/markdown', 1)`
+    await sql`update copilot_chats
+      set resources = ${sql.json([
+        {
+          type: 'file',
+          id: fileId,
+          title: 'share-check.md',
+          workspaceId: MEMBER_ADMIN_WORKSPACE.id,
+        },
+      ])}
+      where id = ${ADMIN_CHATS.agent.id}`
+    try {
+      await withSession(ADMIN, async ({ page }) => {
+        await page.goto(orgUrl(`/chat/${ADMIN_CHATS.agent.id}?resource=${fileId}`))
+        await page.getByRole('button', { name: 'Share file', exact: true }).click()
+        const share = dialog(page, 'Share share-check.md')
+        await inSurface(share)
+        await expect(share.getByRole('group', { name: 'File access' })).toBeVisible()
+        await share.getByRole('button', { name: 'Cancel', exact: true }).click()
+        await expect(share).toHaveCount(0)
+        await page.getByRole('button', { name: 'Rate response', exact: true }).click()
+        await menuEntry(page, 'Bad response').click()
+        const feedback = dialog(page, 'Share feedback')
+        await inSurface(feedback)
+        await expect(feedback.getByRole('textbox', { name: 'Details' })).toHaveValue('')
+        await feedback.getByRole('button', { name: 'Cancel', exact: true }).click()
+        await expect(feedback).toHaveCount(0)
+      })
+    } finally {
+      await sql`update copilot_chats set resources = '[]'::jsonb where id = ${ADMIN_CHATS.agent.id}`
+      await sql`delete from workspace_files where id = ${fileId}`
+    }
+  })
   await check(
     'assistant conversation under Search: switch, New chat, follow-up composer',
     async () => {

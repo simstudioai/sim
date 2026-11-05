@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import type { PageSnapshot } from '@sim/browser-extension-protocol'
 import {
   ChipLink,
@@ -13,7 +13,17 @@ import {
   useScrollEdges,
 } from '@sim/emcn'
 import { Globe } from '@sim/emcn/icons'
+import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ResourceMention } from '@/app/workspace/[workspaceId]/home/components/message-content/components/resource-mention'
+
+/** Draws the open page-context dialog in another design language. */
+export type RenderPageContextDialog = (dialog: {
+  snapshot: PageSnapshot
+  title: string
+  hostname: string
+  isDraft: boolean
+  onClose: () => void
+}) => ReactNode
 
 interface PageContextProps {
   snapshot: PageSnapshot
@@ -22,6 +32,8 @@ interface PageContextProps {
 }
 
 export function PageContext({ snapshot, onRemove, label }: PageContextProps) {
+  const { appearance } = useChatSurface()
+  const renderDialog = appearance?.renderPageContextDialog
   const [open, setOpen] = useState(false)
   const [preview, setPreview] = useState<HTMLPreElement | null>(null)
   const edges = useScrollEdges(preview)
@@ -46,8 +58,17 @@ export function PageContext({ snapshot, onRemove, label }: PageContextProps) {
         onRemove={onRemove}
         removeLabel='Remove page context'
       />
+      {renderDialog &&
+        open &&
+        renderDialog({
+          snapshot,
+          title,
+          hostname,
+          isDraft: Boolean(onRemove),
+          onClose: () => setOpen(false),
+        })}
       <ChipModal
-        open={open}
+        open={open && !renderDialog}
         onOpenChange={setOpen}
         srTitle='Page context'
         size='sm'

@@ -19,7 +19,17 @@ html[class~="dark"] .palette {
 
 /* The element itself also carries the host's Inter class, so this needs the extra specificity. */
 div.thread,
-.thread :not(code, pre, code *, pre *, [class*="font-mono"], [class*="font-mono"] *) {
+.thread
+  :not(
+    code,
+    pre,
+    code *,
+    pre *,
+    [class*="font-mono"],
+    [class*="font-mono"] *,
+    [data-platform-ui],
+    [data-platform-ui] *
+  ) {
   font-family: "Geist", sans-serif;
   letter-spacing: normal;
 }
@@ -45,19 +55,67 @@ div.thread,
   padding: 0.75rem 1rem;
 }
 
-/* A 14px glyph in the design's 28px action box, its edge on the text's own. */
+/*
+ * A 14px glyph in the design's 28px action box, its edge on the text's own. The row's own buttons
+ * are design-system ones in a surface; the direct child is the legacy sources button beside them.
+ */
 .responseActions {
   margin-inline-start: -0.4375rem;
 }
-.responseActions button {
+.responseActions > button {
   border-radius: 0.5rem;
   color: var(--text-muted);
 }
 @media (pointer: fine) {
-  .responseActions button {
+  .responseActions > button {
     block-size: 1.75rem;
     min-inline-size: 1.75rem;
   }
+}
+.responseActions > [data-platform-ui] {
+  background: transparent;
+}
+.responseActionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+.dialogHost {
+  user-select: text;
+}
+.dialogHost > [data-platform-ui] {
+  background: transparent;
+}
+.shareFields {
+  display: contents;
+}
+.shareLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-action-gap);
+}
+.pageContextMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+  color: var(--ui-secondary);
+}
+.pageContextText {
+  max-block-size: 50dvh;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.helpSteps {
+  display: grid;
+  gap: var(--ui-row-gap);
+  padding-inline-start: var(--spacing-16);
+  list-style: decimal;
+}
+.helpNote {
+  color: var(--ui-secondary);
 }
 
 /* Portalled out of the thread, so it holds its own type. */

@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, type ReactNode, useEffect, useRef, useState } from 'react'
 import {
   Check,
   ChipModal,
@@ -31,6 +31,27 @@ const ICON_CLASS = 'size-[14px]'
 const BUTTON_CLASS =
   'flex size-[26px] items-center pointer-coarse:size-[44px] justify-center rounded-[6px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-hidden'
 
+/** Everything a reply's action row shows and does, whichever design language draws it. */
+export interface MessageActionsModel {
+  canCopy: boolean
+  copied: boolean
+  onCopy: () => void
+  canRate: boolean
+  /** The rating whose feedback form is open. */
+  rating: 'up' | 'down' | null
+  onRate: (rating: 'up' | 'down') => void
+  onDismissRating: () => void
+  /** Sends the open rating with these details. Empty details send nothing. */
+  onSubmitRating: (details: string) => void
+  requestId?: string
+  canFork: boolean
+  forking: boolean
+  onFork: () => void
+}
+
+/** Draws the action row in another design language. The behavior stays in `MessageActions`. */
+export type RenderMessageActions = (actions: MessageActionsModel) => ReactNode
+
 interface MessageActionsProps {
   content: string
   getCopyContent?: () => string
@@ -58,7 +79,7 @@ export const MessageActions = memo(function MessageActions({
   const owner = params.organizationId
     ? { organizationId: params.organizationId }
     : params.workspaceId
-  const { chatId, onNavigateToChat } = useChatSurface()
+  const { chatId, onNavigateToChat, appearance } = useChatSurface()
   const { copied, copy: copyMessage } = useCopyToClipboard({ resetMs: 1500 })
   const [copiedRequestId, setCopiedRequestId] = useState(false)
   const [pendingFeedback, setPendingFeedback] = useState<'up' | 'down' | null>(null)
@@ -105,9 +126,9 @@ export const MessageActions = memo(function MessageActions({
     }
   }
 
-  const handleSubmitFeedback = () => {
+  const handleSubmitFeedback = (details = feedbackText) => {
     if (!pendingFeedback || !chatId || !userQuery) return
-    const text = feedbackText.trim()
+    const text = details.trim()
     if (!text) {
       setPendingFeedback(null)
       setFeedbackText('')
@@ -165,6 +186,23 @@ export const MessageActions = memo(function MessageActions({
   // appears once the transcript refetch swaps in the persisted message id.
   const canFork = Boolean(owner && chatId && messageId && !isLiveAssistantMessageId(messageId))
   if (!canCopyContent && !canSubmitFeedback && !canFork) return null
+
+  if (appearance?.renderResponseActions) {
+    return appearance.renderResponseActions({
+      canCopy: canCopyContent,
+      copied,
+      onCopy: copyToClipboard,
+      canRate: canSubmitFeedback,
+      rating: pendingFeedback,
+      onRate: handleFeedbackClick,
+      onDismissRating: () => handleModalClose(false),
+      onSubmitRating: handleSubmitFeedback,
+      requestId,
+      canFork,
+      forking: forkChat.isPending,
+      onFork: handleFork,
+    })
+  }
 
   return (
     <>
@@ -265,7 +303,7 @@ export const MessageActions = memo(function MessageActions({
           }
           primaryAction={{
             label: 'Submit',
-            onClick: handleSubmitFeedback,
+            onClick: () => handleSubmitFeedback(),
           }}
         />
       </ChipModal>

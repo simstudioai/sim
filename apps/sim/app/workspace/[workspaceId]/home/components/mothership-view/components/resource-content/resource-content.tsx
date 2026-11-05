@@ -1,6 +1,16 @@
 'use client'
 
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  lazy,
+  memo,
+  type ReactNode,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {
   Button,
   OverflowText,
@@ -41,7 +51,10 @@ import {
   type PreviewMode,
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
-import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
+import {
+  type ShareDialogModel,
+  ShareModal,
+} from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
@@ -418,12 +431,14 @@ interface ResourceActionsProps {
   workspaceId: string
   resource: MothershipResource
   downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
+  renderShareDialog?: (dialog: ShareDialogModel) => ReactNode
 }
 
 export function ResourceActions({
   workspaceId,
   resource,
   downloadSourceRef,
+  renderShareDialog,
 }: ResourceActionsProps) {
   switch (resource.type) {
     case 'workflow':
@@ -436,6 +451,7 @@ export function ResourceActions({
           fileId={resource.id}
           filePath={resource.path}
           downloadSourceRef={downloadSourceRef}
+          renderShareDialog={renderShareDialog}
         />
       )
     case 'knowledgebase':
@@ -745,6 +761,7 @@ interface EmbeddedFileActionsProps {
   fileId: string
   filePath?: string
   downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
+  renderShareDialog?: (dialog: ShareDialogModel) => ReactNode
 }
 
 function EmbeddedFileActions({
@@ -752,6 +769,7 @@ function EmbeddedFileActions({
   fileId,
   filePath,
   downloadSourceRef,
+  renderShareDialog,
 }: EmbeddedFileActionsProps) {
   const router = useRouter()
   const { canEdit } = useUserPermissionsContext()
@@ -826,6 +844,7 @@ function EmbeddedFileActions({
               fileId={file.id}
               fileName={file.name}
               initialShare={file.share ?? null}
+              renderDialog={renderShareDialog}
             />
           )}
         </>

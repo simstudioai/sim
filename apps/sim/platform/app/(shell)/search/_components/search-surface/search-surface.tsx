@@ -10,9 +10,9 @@ import {
   useSearchFieldDraft,
 } from '@/app/o/[organizationId]/search/use-organization-search'
 import { VoiceWaveform } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
-import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
 import { useAutoSizeTextarea } from '@/hooks/use-auto-size-textarea'
 import { CONVERSATION_APPEARANCE } from '@/platform/app/(shell)/_components/conversation/appearance'
+import { MicrophoneHelp } from '@/platform/app/(shell)/_components/conversation/dialogs'
 import { ConversationLanding } from '@/platform/app/(shell)/_components/conversation/landing'
 import {
   ConversationSkeleton,
@@ -120,10 +120,9 @@ function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
       ) : (
         field
       )}
-      <MicrophonePermissionHelp
-        open={voice.permissionHelpOpen}
-        onOpenChange={voice.setPermissionHelpOpen}
-      />
+      {voice.permissionHelpOpen && (
+        <MicrophoneHelp onClose={() => voice.setPermissionHelpOpen(false)} />
+      )}
     </>
   )
 }

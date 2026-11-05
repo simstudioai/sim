@@ -27,6 +27,8 @@ interface ModalActions {
   confirmLabel: string
   confirmDisabled?: boolean
   onConfirm?: ConfirmHandler<[values: FormData]>
+  /** Names the dialog more specifically than its visible title. */
+  accessibleName?: string
 }
 type ModalTrigger =
   | { triggerLabel: string; triggerIcon?: IconName; open?: never; onOpenChange?: never }
@@ -67,6 +69,7 @@ function ModalSurface({
   cancelLabel,
   onBack,
   onConfirm,
+  accessibleName,
   open: controlled,
   onOpenChange,
 }: ModalSurfaceProps) {
@@ -119,6 +122,7 @@ function ModalSurface({
       <OverlayDialog
         open={open}
         title={step.title ?? title}
+        accessibleName={accessibleName}
         description={step.description}
         step={index + backs}
         presentation={presentation}
@@ -196,6 +200,7 @@ export function Modal({
   destructive,
   cancelLabel,
   onBack,
+  accessibleName,
 }: ModalProps) {
   return (
     <ModalSurface
@@ -212,6 +217,7 @@ export function Modal({
       presentation={variant}
       cancelLabel={cancelLabel}
       onBack={onBack}
+      accessibleName={accessibleName}
     />
   )
 }

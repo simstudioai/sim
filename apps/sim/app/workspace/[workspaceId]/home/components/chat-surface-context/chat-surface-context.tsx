@@ -11,6 +11,8 @@ import {
   useRef,
 } from 'react'
 import { noop } from '@sim/utils/helpers'
+import type { RenderMessageActions } from '@/app/workspace/[workspaceId]/components/message-actions/message-actions'
+import type { RenderPageContextDialog } from '@/app/workspace/[workspaceId]/home/components/message-content/components/page-context'
 import type { SearchIntegrationConnectionProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import type { WorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/types'
 import type { ChatContext } from '@/stores/panel'
@@ -24,6 +26,8 @@ export interface ChatAppearance {
   /** The reply's action row: copy, votes, fork, and sources. */
   responseActionsClassName?: string
   sourcesPopoverClassName?: string
+  renderResponseActions?: RenderMessageActions
+  renderPageContextDialog?: RenderPageContextDialog
   /** Replaces the transcript's skeleton while its history loads. */
   loadingTranscript?: ReactNode
   /** Holds the composer's place while the history loads. */
