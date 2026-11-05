@@ -10,7 +10,13 @@ import { SIM_MCP_ROUTE_PATH } from '@/lib/api/mcp/urls'
 import { getBrowserExtensionOrigins } from '@/lib/core/security/extension'
 import { isMarketingPath } from '@/lib/landing/routes'
 import { isAuthSurfacePath } from '@/lib/navigation/auth-surfaces'
-import { APP_ENTRY_PATH, isAppSurfacePath, isNoindexPath } from '@/lib/navigation/paths'
+import {
+  APP_ENTRY_PATH,
+  isAppSurfacePath,
+  isNoindexPath,
+  isPathOrDescendant,
+} from '@/lib/navigation/paths'
+import { LEGACY_URL_HEADER } from '@/lib/platform/routes'
 import { isOAuthAuthorizationCallback, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
 import { getEnv } from './lib/core/config/env'
 import { isAuthDisabled, isDev, isHosted } from './lib/core/config/env-flags'
@@ -356,6 +362,21 @@ function handleIntegrationSlugRedirect(request: NextRequest): NextResponse | nul
   return NextResponse.redirect(url, 308)
 }
 
+/**
+ * Continues an app-surface request. With the Platform zone configured, an organization route also
+ * tells its layout which URL it is rendering, which that layout cannot otherwise learn. Overwriting
+ * the header here means the layout never reads a value the browser sent.
+ */
+function continueAppSurface(request: NextRequest): NextResponse {
+  const { pathname, search } = request.nextUrl
+  if (!getEnv('SIM_PLATFORM_ORIGIN') || !isPathOrDescendant(pathname, '/o')) {
+    return NextResponse.next()
+  }
+  const headers = new Headers(request.headers)
+  headers.set(LEGACY_URL_HEADER, `${pathname}${search}`)
+  return NextResponse.next({ request: { headers } })
+}
+
 export function proxy(request: NextRequest) {
   const url = request.nextUrl
 
@@ -430,7 +451,7 @@ export function proxy(request: NextRequest) {
     if (!hasActiveSession) {
       return applyIndexingPolicy(request, NextResponse.redirect(new URL('/login', request.url)))
     }
-    const response = NextResponse.next()
+    const response = continueAppSurface(request)
     response.headers.set('Content-Security-Policy', generateRuntimeCSP())
     response.headers.set('X-Content-Type-Options', 'nosniff')
     response.headers.set('X-Frame-Options', 'SAMEORIGIN')
