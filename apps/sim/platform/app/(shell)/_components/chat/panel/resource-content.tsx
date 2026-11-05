@@ -1,9 +1,11 @@
 'use client'
 
+import Link from 'next/link'
 import type { PlatformResource } from '@/platform/app/(shell)/_components/chat/model'
 import styles from '@/platform/app/(shell)/_components/chat/panel/panels.module.css'
 import { SearchResultsPanel } from '@/platform/app/(shell)/_components/search/search-results-host'
 import { EmptyState } from '@/platform/design-system/components'
+import { ControlRow } from '@/platform/design-system/components/button/control-row'
 
 /** What a tab shows. A kind this app does not render yet opens in the legacy surface that does. */
 export function ResourceContent({ resource }: { resource: PlatformResource }) {
@@ -14,18 +16,16 @@ export function ResourceContent({ resource }: { resource: PlatformResource }) {
       <EmptyState
         title={resource.title}
         description='Open this in its workspace to view and edit it.'
+        action={
+          resource.href ? (
+            <ControlRow
+              render={<Link href={resource.href} target='_blank' rel='noopener noreferrer' />}
+              label={`Open ${resource.title}`}
+              trailingIcon='I030'
+            />
+          ) : undefined
+        }
       />
-      {resource.href && (
-        <a
-          className={styles.outlink}
-          data-type='T048'
-          href={resource.href}
-          target='_blank'
-          rel='noopener noreferrer'
-        >
-          Open {resource.title}
-        </a>
-      )}
     </div>
   )
 }

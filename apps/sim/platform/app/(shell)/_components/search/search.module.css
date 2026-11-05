@@ -17,17 +17,10 @@
   gap: var(--ui-row-gap);
   min-inline-size: 0;
 }
-.rowBody {
-  display: grid;
-  flex: 1;
-  gap: var(--ui-stack-gap);
-  min-inline-size: 0;
-}
 .rowTitle {
   min-inline-size: 0;
 }
-.rowTitle:hover,
-.link {
+.rowTitle:hover {
   text-decoration: underline;
 }
 .quiet,

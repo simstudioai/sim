@@ -1,13 +1,11 @@
 'use client'
 
-import { useRouter, useSearchParams } from 'next/navigation'
 import { MessageComposer } from '@/platform/app/(shell)/_components/composer/message-composer'
 import type { HomeMode } from '@/platform/app/(shell)/_components/model'
 import { useComposerHost } from '@/platform/app/(shell)/_components/session/composer-host'
 import styles from '@/platform/app/(shell)/home/_components/home-composer/home-composer.module.css'
 import type { HomeData } from '@/platform/app/(shell)/home/_components/model'
 import { Icon, SegmentedControl } from '@/platform/design-system/components'
-import { platformHref } from '@/platform/design-system/navigation'
 
 interface HomeComposerProps {
   references?: HomeData['references']
@@ -16,11 +14,9 @@ interface HomeComposerProps {
 }
 
 export function HomeComposer({ references, mode, onModeChange }: HomeComposerProps) {
-  const router = useRouter()
-  const search = useSearchParams()
   const host = useComposerHost()
   const startChat = host.useStartChat()
-  const searchAvailable = host.useSearchAvailable()
+  const startSearch = host.useStartSearch()
   const composer = host.useComposer({ draftKey: 'home', references, requestMode: 'agent' })
   return (
     <section className={styles.composer} aria-label='Start a conversation'>
@@ -46,10 +42,9 @@ export function HomeComposer({ references, mode, onModeChange }: HomeComposerPro
             : 'Search your company’s knowledge…'
         }
         onSubmit={(draft) => {
-          if (mode === 'Search' && searchAvailable) {
+          if (mode === 'Search' && startSearch) {
             if (!draft.text) return false
-            const query = new URLSearchParams({ q: draft.text })
-            router.push(platformHref(`/search?${query}`, search))
+            startSearch(draft.text)
             return undefined
           }
           return startChat(draft)

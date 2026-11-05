@@ -31,8 +31,8 @@ export interface ComposerHost {
   useComposer: (options: ComposerOptions) => ComposerController
   /** Starts a chat from Home's composer and enters it. */
   useStartChat: () => (draft: ComposerDraft) => undefined | false
-  /** Whether the viewer can search, which is what Home's Search segment leads to. */
-  useSearchAvailable: () => boolean
+  /** Opens Search with a query, where Home's Search segment leads; null when the viewer can't. */
+  useStartSearch: () => ((query: string) => void) | null
 }
 
 function attachmentFor(file: File): ChatAttachment {
@@ -112,7 +112,7 @@ function useMemoryStartChat() {
 const MEMORY_HOST: ComposerHost = {
   useComposer: useMemoryComposer,
   useStartChat: useMemoryStartChat,
-  useSearchAvailable: () => false,
+  useStartSearch: () => null,
 }
 
 const HostContext = createContext<ComposerHost>(MEMORY_HOST)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { useQueries } from '@tanstack/react-query'
@@ -50,6 +50,7 @@ import type {
 import { draftToSend } from '@/platform/lib/data/chat-draft'
 import { attachmentKind } from '@/platform/lib/data/chat-model'
 import { useOrganization } from '@/platform/lib/data/organization'
+import { useStartSearch } from '@/platform/lib/data/search'
 import { toast } from '@/platform/lib/data/toast'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import {
@@ -182,14 +183,11 @@ function useLiveComposer({
     store.setDraft(key, { ...(store.drafts[key] ?? { text: '' }), fileAttachments })
   }, [key, files.attachedFiles])
 
-  const write = useCallback(
-    (next: { text?: string; contexts?: ChatContext[] }) => {
-      const store = useMothershipDraftsStore.getState()
-      const current = store.drafts[key] ?? { text: '' }
-      store.setDraft(key, { ...current, ...next })
-    },
-    [key]
-  )
+  const write = (next: { text?: string; contexts?: ChatContext[] }) => {
+    const store = useMothershipDraftsStore.getState()
+    const current = store.drafts[key] ?? { text: '' }
+    store.setDraft(key, { ...current, ...next })
+  }
 
   const attachments: ChatAttachment[] = [
     ...files.attachedFiles.map(
@@ -322,10 +320,7 @@ function useLiveComposer({
 function useOwnedWorkspaces(enabled: boolean) {
   const { organization } = useOrganization()
   const { data: workspaces = [] } = useWorkspacesQuery(enabled)
-  return useMemo(
-    () => (enabled ? workspaces.filter((item) => item.organizationId === organization.id) : []),
-    [enabled, workspaces, organization.id]
-  )
+  return enabled ? workspaces.filter((item) => item.organizationId === organization.id) : []
 }
 
 /**
@@ -397,7 +392,7 @@ function useLiveStartChat() {
 export const LIVE_COMPOSER_HOST: ComposerHost = {
   useComposer: useLiveComposer,
   useStartChat: useLiveStartChat,
-  useSearchAvailable: () => useOrganization().searchAccess.memberScoped,
+  useStartSearch,
 }
 
 export { useLiveComposer }

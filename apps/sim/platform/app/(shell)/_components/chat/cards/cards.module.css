@@ -30,11 +30,6 @@
   min-inline-size: 0;
   overflow-wrap: anywhere;
 }
-.glyph {
-  display: inline-flex;
-  flex: none;
-  color: var(--ui-secondary);
-}
 .quiet,
 .fields dt {
   color: var(--ui-secondary);
@@ -46,7 +41,4 @@
 .fields dd {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-.link {
-  text-decoration: underline;
 }

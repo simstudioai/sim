@@ -7,6 +7,7 @@ import type { PlatformTool, ToolDecision } from '@/platform/app/(shell)/_compone
 import { usePlatformNotices } from '@/platform/app/(shell)/_components/notification-tray/notification-tray'
 import { useChatRuntime } from '@/platform/app/(shell)/_components/session/chat-runtime'
 import { ActionMenu, Button, Icon } from '@/platform/design-system/components'
+import { ActivityBody } from '@/platform/design-system/components/activity-row/activity-body'
 
 const BROWSER_TOOL = /^browser[_-]/
 
@@ -17,14 +18,12 @@ const BROWSER_TOOL = /^browser[_-]/
 export function ToolApproval({ tool }: { tool: PlatformTool }) {
   const { approvals, registerApproval, decideTools } = useChatRuntime()
   const { notify } = usePlatformNotices()
-  const [submitting, setSubmitting] = useState(false)
   const [expired, setExpired] = useState(false)
   useEffect(() => registerApproval(tool.id), [registerApproval, tool.id])
   const { outstanding, submitted } = approvals
-  const busy = submitting || submitted.includes(tool.id)
+  const busy = submitted.includes(tool.id)
   const browser = BROWSER_TOOL.test(tool.name)
   async function submit(decision: ToolDecision, ids: readonly string[]) {
-    setSubmitting(true)
     try {
       const result = await decideTools(ids, decision)
       if (result === 'gone') setExpired(true)
@@ -34,7 +33,6 @@ export function ToolApproval({ tool }: { tool: PlatformTool }) {
         icon: 'I047',
         title: 'Could not record your choice. Please try again.',
       })
-      setSubmitting(false)
     }
   }
   if (expired)
@@ -45,14 +43,11 @@ export function ToolApproval({ tool }: { tool: PlatformTool }) {
     )
   return (
     <div className={styles.card}>
-      <div className={styles.row}>
-        <span className={styles.glyph}>
-          <Icon name='I084' />
-        </span>
+      <ActivityBody leading={<Icon name='I084' />} decorativeLeading>
         <span className={styles.title} data-type='T048' title={tool.input}>
           {tool.title}
         </span>
-      </div>
+      </ActivityBody>
       <div className={styles.actions}>
         <Button
           variant='primary'
@@ -69,11 +64,13 @@ export function ToolApproval({ tool }: { tool: PlatformTool }) {
             {
               id: 'chat',
               label: browser ? 'Browser actions in this chat' : 'For this chat',
+              disabled: busy,
               onSelect: () => void submit('allow_chat', [tool.id]),
             },
             {
               id: 'every',
               label: browser ? 'Browser actions in every chat' : 'For every chat',
+              disabled: busy,
               onSelect: () => void submit('always_allow', [tool.id]),
             },
           ]}

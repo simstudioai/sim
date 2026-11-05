@@ -20,7 +20,6 @@ import {
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useSearchIntegrationConnection } from '@/hooks/use-search-integration-connection'
 import type { PlatformCredentialRequest } from '@/platform/app/(shell)/_components/chat/model'
-import { platformUrl } from '@/platform/lib/data/base-path'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { legacyRoutes } from '@/platform/lib/data/organization-model'
 import { toast } from '@/platform/lib/data/toast'
@@ -121,9 +120,9 @@ export function useSecretSaver(items: readonly PlatformCredentialRequest[]) {
     }
     if (scope === 'personal') {
       // Saving replaces the whole map, so it merges over the latest copy.
-      const { data: latest } = await personal.refetch()
+      const { data: latest } = await personal.refetch({ throwOnError: true })
       const merged: Record<string, string> = {}
-      for (const [key, entry] of Object.entries(latest ?? personal.data ?? {})) {
+      for (const [key, entry] of Object.entries(latest ?? {})) {
         merged[key] = entry.value
       }
       await savePersonal.mutateAsync({ variables: { ...merged, ...variables } })
@@ -204,7 +203,7 @@ export function useUsageLink(action: string) {
     canManage: !hosted || organization.viewer.isAdmin,
     upgrade,
     href: hosted
-      ? platformUrl('/settings/billing')
+      ? '/settings/billing'
       : upgrade
         ? buildHostedUpgradeUrl()
         : HOSTED_BILLING_SETTINGS_URL,

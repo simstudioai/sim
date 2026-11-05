@@ -141,7 +141,10 @@ export function AssistantReview({ turnId }: { turnId: string }) {
     setFailure('')
     try {
       await decide(ids, decision, decision === 'allow' ? edits : undefined)
-      setEdits({})
+      // The cards not decided stay on screen, with whatever was typed into them.
+      setEdits((current) =>
+        Object.fromEntries(Object.entries(current).filter(([id]) => !ids.includes(id)))
+      )
     } catch (error) {
       setFailure(error instanceof Error ? error.message : 'Could not save this review')
     }

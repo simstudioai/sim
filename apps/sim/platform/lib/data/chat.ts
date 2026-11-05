@@ -1,11 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
-import { requestJson } from '@/lib/api/client/request'
-import { copilotToolPermissionContract } from '@/lib/api/contracts/copilot'
 import { useSession } from '@/lib/auth/client'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { desktopChatScopeId } from '@/lib/desktop/chat-scope'
@@ -25,7 +22,7 @@ import type {
   FileAttachmentForApi,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
-import { generalSettingsKeys } from '@/hooks/queries/current-user-data'
+import { useDecideToolPermissions } from '@/hooks/queries/copilot-tool-permissions'
 import {
   useForkMothershipChat,
   useMarkMothershipChatRead,
@@ -135,7 +132,6 @@ export function useLiveChatRuntime({
 }: LiveChatOptions) {
   const { organization, canBuild } = useOrganization()
   const organizationId = organization.id
-  const queryClient = useQueryClient()
   const router = useRouter()
   const controller = useResourcePanelController()
   const { data: session } = useSession()
@@ -214,17 +210,13 @@ export function useLiveChatRuntime({
   const clearSubmitted = useToolPermissionStore((state) => state.clearSubmitted)
   const awaitingIds = useToolPermissionStore((state) => state.awaitingIds)
   const submittedIds = useToolPermissionStore((state) => state.submittedIds)
+  const { mutateAsync: decideToolPermissions } = useDecideToolPermissions()
   const decideTools = useCallback(
     async (ids: readonly string[], decision: ToolDecision): Promise<'ok' | 'gone'> => {
       const list = [...ids]
       markSubmitted(list)
       try {
-        await requestJson(copilotToolPermissionContract, {
-          body: { decisions: list.map((toolCallId) => ({ toolCallId, decision })) },
-        })
-        if (decision === 'always_allow') {
-          void queryClient.invalidateQueries({ queryKey: generalSettingsKeys.settings() })
-        }
+        await decideToolPermissions({ ids: list, decision })
         return 'ok'
       } catch (error) {
         if (isApiClientError(error) && error.status === 404) return 'gone'
@@ -232,7 +224,7 @@ export function useLiveChatRuntime({
         throw error
       }
     },
-    [clearSubmitted, markSubmitted, queryClient]
+    [clearSubmitted, decideToolPermissions, markSubmitted]
   )
 
   const submitFeedback = useSubmitCopilotFeedback()

@@ -1,10 +1,18 @@
 'use client'
 
 import type { KeyboardEvent } from 'react'
+import Link from 'next/link'
 import type { SearchResultsData } from '@/platform/app/(shell)/_components/search/model'
 import styles from '@/platform/app/(shell)/_components/search/search.module.css'
 import { SourceRow } from '@/platform/app/(shell)/_components/search/source-row'
-import { Button, DateRangePicker, InlineNotice, Select } from '@/platform/design-system/components'
+import {
+  Button,
+  DateRangePicker,
+  EmptyState,
+  InlineNotice,
+  Select,
+} from '@/platform/design-system/components'
+import { ControlRow } from '@/platform/design-system/components/button/control-row'
 
 function moveFocus(event: KeyboardEvent<HTMLElement>) {
   if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
@@ -72,30 +80,30 @@ export function SearchResults({ results }: { results: SearchResultsData }) {
           )}
         </div>
       )}
-      {results.empty && (
-        <p className={styles.quiet} data-type='T052'>
-          Search found no results.
-        </p>
-      )}
+      {results.empty && !results.noApps && <EmptyState title='Search found no results.' />}
       {results.noApps && (
         <InlineNotice
           message='No connected apps are available for this search.'
           action={
-            <a className={styles.link} data-type='T048' href={results.noApps.href}>
-              Connect apps
-            </a>
+            <ControlRow
+              render={<Link href={results.noApps.href} />}
+              label='Connect apps'
+              trailingIcon='I030'
+            />
           }
         />
       )}
       {results.someAppsUnavailable && (
-        <p className={styles.quiet} data-type='T052' role='status'>
-          Some apps couldn’t be searched. Showing available results.
-        </p>
+        <InlineNotice
+          intent='warning'
+          message='Some apps couldn’t be searched. Showing available results.'
+        />
       )}
       {results.partial && (
-        <p className={styles.quiet} data-type='T052'>
-          Coverage is incomplete. Narrow the query or ask Assistant to refine it.
-        </p>
+        <InlineNotice
+          intent='warning'
+          message='Coverage is incomplete. Narrow the query or ask Assistant to refine it.'
+        />
       )}
       <div
         className={styles.rows}

@@ -30,7 +30,7 @@ One row per capability of the legacy organization surface. Every capability is e
 | Chat | Sources panel and button, Find in chat, tool brand icons, virtualized transcript, animated placeholder, prompt history, suggested actions and Get started | `message-sources.tsx`, `use-chat-find.ts`, `suggested-actions.tsx` | Open | Chat lane. None holds a turn; the same chat opens fine on the legacy route |
 | Chat | Service-account credential rows | `connect-service-account-modal` | Legacy | The row links to `/o/[id]/settings/integrations`, whose setup form is legacy UI |
 | Chat | Plan-required modal on send | `use-chat-plan-required.ts` | Done | Workspace surfaces only by design; an organization relies on admission plus the usage notice |
-| Search | Query, stop, re-run, New search, voice-free field, URL state with the legacy parsers | `search.tsx`, `search-params.ts` | Done | `search-surface/search-surface.tsx`; `checks/live/search.spec.ts` |
+| Search | Query, stop, re-run, New search, URL state with the legacy parsers | `search.tsx`, `search-params.ts` | Done | `search-surface/search-surface.tsx`; `checks/live/search.spec.ts` |
 | Search | Results: searching, updating, error and retry, none, unavailable apps, partial, grouped by document | `knowledge-search-results.tsx` | Done | `_components/search/search-results.tsx` |
 | Search | Source and date filters, custom range, keyboard movement | `search-filters.tsx` | Done | `_components/search/search-results.tsx` |
 | Search | Source row: open, record, copy link, Summarize | `source-card.tsx` | Open | Chat lane. Open, record and copy work; Summarize needs a send into the mounted Assistant, and Create Sim link needs the Sim Links form |

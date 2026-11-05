@@ -1,6 +1,7 @@
 import type { SearchSourceRow } from '@/platform/app/(shell)/_components/search/model'
 import styles from '@/platform/app/(shell)/_components/search/search.module.css'
 import { ActionMenu, OverflowText } from '@/platform/design-system/components'
+import { ActivityBody } from '@/platform/design-system/components/activity-row/activity-body'
 
 interface SourceRowProps {
   row: SearchSourceRow
@@ -12,7 +13,7 @@ interface SourceRowProps {
 export function SourceRow({ row, onOpen, onCopyLink, onSummarize }: SourceRowProps) {
   return (
     <article className={styles.row}>
-      <div className={styles.rowBody}>
+      <ActivityBody>
         <a
           className={styles.rowTitle}
           data-type='T048'
@@ -25,16 +26,16 @@ export function SourceRow({ row, onOpen, onCopyLink, onSummarize }: SourceRowPro
           <OverflowText text={row.title}>{row.title}</OverflowText>
         </a>
         {row.meta && (
-          <p className={styles.quiet} data-type='T052'>
+          <span className={styles.quiet} data-type='T052'>
             {row.meta}
-          </p>
+          </span>
         )}
         {row.snippet && (
-          <p className={styles.snippet} data-type='T052'>
+          <span className={styles.snippet} data-type='T052'>
             {row.snippet}
-          </p>
+          </span>
         )}
-      </div>
+      </ActivityBody>
       <ActionMenu
         label={`Actions for ${row.title}`}
         icon='I108'

@@ -45,7 +45,7 @@ export function PanelTabs({
           <span className={styles.title} data-type='T046'>
             {active && <OverflowText text={active.label}>{active.label}</OverflowText>}
           </span>
-          <IconButton icon='I074' label='New panel tab' onClick={onAdd} />
+          {onAdd && <IconButton icon='I074' label='New panel tab' onClick={onAdd} />}
           <div className={styles.actions}>
             <div className={styles.expand}>
               <IconButton

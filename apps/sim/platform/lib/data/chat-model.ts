@@ -1,5 +1,6 @@
 import { isPlainRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { searchConnectionTargetSchema } from '@/lib/knowledge/search/connection-target'
 import {
   Terminal as TerminalTool,
@@ -168,6 +169,7 @@ function toCredentialRequest(item: CredentialItemData): PlatformCredentialReques
     scope: item.scope,
     workspaceId: item.workspaceId,
     source: item,
+    safeUrl: item.value && isSafeHttpUrl(item.value) ? item.value : undefined,
     searchTarget: item.connectorType ? parseSearchTarget(item) : undefined,
   }
 }

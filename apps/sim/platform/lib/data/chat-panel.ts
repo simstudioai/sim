@@ -1,6 +1,5 @@
 'use client'
 
-import { useMemo } from 'react'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
 import type { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
@@ -38,19 +37,15 @@ export function usePanelResources({
   controller,
 }: PanelResourcesOptions): PanelResources {
   const { legacyOrigin } = useOrganization()
-  const resources = useMemo<PlatformResource[]>(
-    () =>
-      chat.resources.map((resource) => ({
-        id: resource.id,
-        type: resource.type,
-        title: resource.title,
-        workspaceId: resource.workspaceId,
-        href: legacyHref(resource, legacyOrigin),
-        active: resource.id === chat.activeResourceId,
-        search: resource.search,
-      })),
-    [chat.resources, chat.activeResourceId, legacyOrigin]
-  )
+  const resources: PlatformResource[] = chat.resources.map((resource) => ({
+    id: resource.id,
+    type: resource.type,
+    title: resource.title,
+    workspaceId: resource.workspaceId,
+    href: legacyHref(resource, legacyOrigin),
+    active: resource.id === chat.activeResourceId,
+    search: resource.search,
+  }))
   return {
     resources,
     collapsed: controller.isResourceCollapsed,

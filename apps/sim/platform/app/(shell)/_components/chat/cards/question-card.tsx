@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import styles from '@/platform/app/(shell)/_components/chat/cards/cards.module.css'
 import type { PlatformQuestion } from '@/platform/app/(shell)/_components/chat/model'
-import { Button, Checkbox, IconButton } from '@/platform/design-system/components'
+import { Button, Checkbox, Chip, IconButton } from '@/platform/design-system/components'
 import { Input } from '@/platform/design-system/components/field/inputs'
 
 /** One `Prompt — Answer` line per question, the shape the transcript pairs back to this card. */
@@ -126,14 +126,13 @@ export function QuestionCard({ questions, answers: stored, onSubmit }: QuestionC
               onCheckedChange={() => toggle(option.label)}
             />
           ) : (
-            <Button
+            <Chip
               key={option.id}
-              variant='muted'
-              size='compact'
+              selected={selected[step]?.includes(option.label) ?? false}
               onClick={() => choose(option.label)}
             >
               {option.label}
-            </Button>
+            </Chip>
           )
         )}
       </div>

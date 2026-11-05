@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useIsFetching, useQueryClient } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { useSession } from '@/lib/auth/client'
@@ -136,24 +137,23 @@ export function useSearchSurface(chatId: string | undefined) {
   )
   const { q: query, mode: urlMode, source, updated, from, to } = params
   const storageKey = `${SEARCH_MODE_STORAGE}:${userId}:${organizationId}`
-  const [remembered] = useState(() =>
-    userId ? BrowserStorage.getItem<'search' | 'assistant' | null>(storageKey, null) : null
+  const remembered = useMemo(
+    () => (userId ? BrowserStorage.getItem<'search' | 'assistant' | null>(storageKey, null) : null),
+    [userId, storageKey]
   )
+  const hasSearchParams = Boolean(query || source || updated !== 'any')
   const mode: 'search' | 'assistant' = !assistantAvailable
     ? 'search'
-    : (urlMode ?? (chatId ? 'assistant' : (remembered ?? 'search')))
+    : (urlMode ?? (chatId ? 'assistant' : hasSearchParams ? 'search' : (remembered ?? 'search')))
   const [assistantStarted, setAssistantStarted] = useState(mode === 'assistant')
+  if (mode === 'assistant' && !assistantStarted) setAssistantStarted(true)
   const setMode = (next: string) => {
     const value = next === 'assistant' ? 'assistant' : 'search'
-    if (value === 'assistant') setAssistantStarted(true)
     if (userId) BrowserStorage.setItem(storageKey, value)
-    void setParams({ mode: value })
+    void setParams({ mode: value }, { history: 'push' })
   }
   const [searchedAt] = useState(() => Date.now())
-  const filters = useMemo(
-    () => searchFiltersFromParams({ source, updated, from, to }, searchedAt),
-    [source, updated, from, to, searchedAt]
-  )
+  const filters = searchFiltersFromParams({ source, updated, from, to }, searchedAt)
   const scope = useMemo<ResourceScope>(
     () => ({ kind: 'organization', organizationId }),
     [organizationId]
@@ -167,7 +167,7 @@ export function useSearchSurface(chatId: string | undefined) {
     scope,
     // Hidden behind Assistant, a query in the URL must not search every connected app.
     query: showingSearch ? query : '',
-    filters,
+    filters: showingSearch ? filters : NO_FILTERS,
     awaitingRange,
     onRecordSource: (row) =>
       record.mutate({
@@ -180,11 +180,6 @@ export function useSearchSurface(chatId: string | undefined) {
       queryKey: knowledgeKeys.searchQuery(resourceScopeKey(scope), query.trim(), userId),
     }) > 0
   const sourceTypes = [...new Set([...results.providers, ...(source ? [source] : [])])]
-
-  useEffect(() => {
-    if (query.trim()) record.mutate({ kind: 'query', query: query.trim() })
-    // Recorded once per committed query, not on each mutation identity.
-  }, [query])
 
   return {
     organizationName: organization.organization.name,
@@ -204,6 +199,7 @@ export function useSearchSurface(chatId: string | undefined) {
         })
         return
       }
+      record.mutate({ kind: 'query', query: value })
       void setParams({ q: value })
     },
     stop: () => {
@@ -251,7 +247,11 @@ export function useSearchSurface(chatId: string | undefined) {
       },
     },
     history: {
-      status: history.isError ? ('error' as const) : ('ready' as const),
+      status: history.isError
+        ? ('error' as const)
+        : history.isPending
+          ? ('loading' as const)
+          : ('ready' as const),
       retry: () => void history.refetch(),
       sources: (history.data?.sources ?? []).slice(0, 5).map((item) => ({
         id: item.url,
@@ -278,4 +278,18 @@ export function useSearchTabResults(resource: PlatformResource): SearchResultsDa
     nativeQueries: search?.nativeQueries,
     reuseFreshResult: true,
   })
+}
+
+/** Home's Search entry: a submitted query, recorded as Search's own field records one. */
+export function useStartSearch(): ((query: string) => void) | null {
+  const organization = useOrganization()
+  const organizationId = organization.organization.id
+  const { data: session } = useSession()
+  const record = useRecordSearchHistory(organizationId, session?.user?.id)
+  const router = useRouter()
+  if (!organization.searchAccess.memberScoped) return null
+  return (query) => {
+    record.mutate({ kind: 'query', query })
+    router.push(`/search?${new URLSearchParams({ q: query })}`)
+  }
 }

@@ -4,7 +4,13 @@ import { type FormEvent, useState } from 'react'
 import { LiveChat } from '@/platform/app/(shell)/_components/chat/live/live-chat'
 import { SearchResults } from '@/platform/app/(shell)/_components/search/search-results'
 import styles from '@/platform/app/(shell)/search/_components/search-surface/search-surface.module.css'
-import { Button, RecentItems, SegmentedControl } from '@/platform/design-system/components'
+import {
+  Button,
+  EmptyState,
+  InlineNotice,
+  RecentItems,
+  SegmentedControl,
+} from '@/platform/design-system/components'
 import { Input } from '@/platform/design-system/components/field/inputs'
 import { useSearchSurface } from '@/platform/lib/data/search'
 
@@ -16,6 +22,11 @@ export function SearchSurface({ chatId }: SearchSurfaceProps) {
   const surface = useSearchSurface(chatId)
   const { mode, query, assistantAvailable, history } = surface
   const [draft, setDraft] = useState(query)
+  const [draftQuery, setDraftQuery] = useState(query)
+  if (draftQuery !== query) {
+    setDraftQuery(query)
+    setDraft(query)
+  }
   function submit(event: FormEvent) {
     event.preventDefault()
     surface.submit(draft)
@@ -88,12 +99,21 @@ export function SearchSurface({ chatId }: SearchSurfaceProps) {
             {query || surface.filtered ? (
               <SearchResults results={surface.results} />
             ) : history.status === 'error' ? (
-              <div className={styles.field}>
-                <p data-type='T048'>Your history could not load.</p>
-                <Button variant='muted' size='compact' onClick={history.retry}>
-                  Try again
-                </Button>
-              </div>
+              <InlineNotice
+                intent='danger'
+                message='Your history could not load.'
+                action={
+                  <Button variant='muted' size='compact' onClick={history.retry}>
+                    Try again
+                  </Button>
+                }
+              />
+            ) : history.status === 'loading' ? (
+              <p data-type='T048' role='status'>
+                Loading history
+              </p>
+            ) : !history.sources.length && !history.queries.length ? (
+              <EmptyState title='No search history yet' />
             ) : (
               <section className={styles.history} aria-label='Search history'>
                 {history.sources.length > 0 && (
@@ -113,11 +133,9 @@ export function SearchSurface({ chatId }: SearchSurfaceProps) {
                     }}
                   />
                 )}
-                {(history.sources.length > 0 || history.queries.length > 0) && (
-                  <Button variant='muted' size='compact' onClick={history.clear}>
-                    Clear history
-                  </Button>
-                )}
+                <Button variant='muted' size='compact' onClick={history.clear}>
+                  Clear history
+                </Button>
               </section>
             )}
           </div>

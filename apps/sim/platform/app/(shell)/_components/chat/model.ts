@@ -64,6 +64,8 @@ export interface PlatformCredentialRequest {
   workspaceId?: string
   /** The parsed tag item this row came from, which the submission message is built from. */
   source: CredentialItemData
+  /** The connect link, present only when it is safe to open as http(s). */
+  safeUrl?: string
   /** Present when this row connects a Search source rather than a workspace credential. */
   searchTarget?: SearchConnectionTarget
 }

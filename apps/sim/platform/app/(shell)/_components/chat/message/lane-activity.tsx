@@ -5,7 +5,7 @@ import {
   ToolInteraction,
 } from '@/platform/app/(shell)/_components/chat/message/tool-activity'
 import type { PlatformLane } from '@/platform/app/(shell)/_components/chat/model'
-import { Disclosure } from '@/platform/design-system/components'
+import { Disclosure, InlineNotice } from '@/platform/design-system/components'
 
 /** One subagent's work under its own disclosure. A held approval renders outside the collapse. */
 export function LaneActivity({ lane }: { lane: PlatformLane }) {
@@ -39,7 +39,7 @@ export function LaneActivity({ lane }: { lane: PlatformLane }) {
           })}
         </div>
       </Disclosure>
-      {lane.error && <p data-type='T048'>{lane.error}</p>}
+      {lane.error && <InlineNotice intent='danger' message={lane.error} />}
       {held.map((tool) => (
         <ToolInteraction key={tool.id} tool={tool} />
       ))}

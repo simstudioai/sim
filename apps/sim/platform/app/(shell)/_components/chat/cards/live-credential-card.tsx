@@ -1,14 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import styles from '@/platform/app/(shell)/_components/chat/cards/cards.module.css'
 import type {
   CredentialCardProps,
   UsageNoticeProps,
 } from '@/platform/app/(shell)/_components/chat/message/message-segments'
 import type { PlatformCredentialRequest } from '@/platform/app/(shell)/_components/chat/model'
-import { Button, InlineNotice } from '@/platform/design-system/components'
-import { Input } from '@/platform/design-system/components/field/inputs'
+import { Button, InlineNotice, SecretField } from '@/platform/design-system/components'
+import { ControlRow } from '@/platform/design-system/components/button/control-row'
 import {
   CredentialWorkspaceProvider,
   useCredentialWorkspace,
@@ -31,10 +32,10 @@ interface RowProps {
   onConnected: () => void
 }
 
-function LinkRow({ item, controlId, onConnected }: RowProps) {
+function LinkRow({ item, url, controlId, onConnected }: RowProps & { url: string }) {
   const name = serviceName(item)
   const connection = useOAuthChipConnection({
-    connectUrl: item.value ?? '',
+    connectUrl: url,
     provider: item.provider ?? '',
     displayName: name,
     controlId,
@@ -42,20 +43,24 @@ function LinkRow({ item, controlId, onConnected }: RowProps) {
   })
   if (connection.connected) return <p data-type='T048'>Connected {name}</p>
   return (
-    <a
-      className={styles.link}
-      data-type='T048'
-      href={item.value}
-      target='_blank'
-      rel='noopener noreferrer'
-      onClick={connection.onConnectClick}
-    >
-      {connection.status === 'pending'
-        ? `Waiting for ${name} connection`
-        : connection.reconnectCredentialId
-          ? `Reconnect ${name}`
-          : `Connect ${name}`}
-    </a>
+    <ControlRow
+      render={
+        <Link
+          href={url}
+          target='_blank'
+          rel='noopener noreferrer'
+          onClick={connection.onConnectClick}
+        />
+      }
+      label={
+        connection.status === 'pending'
+          ? `Waiting for ${name} connection`
+          : connection.reconnectCredentialId
+            ? `Reconnect ${name}`
+            : `Connect ${name}`
+      }
+      trailingIcon='I030'
+    />
   )
 }
 
@@ -200,10 +205,11 @@ export function LiveCredentialCard({
                   controlId={controlId}
                   onConnected={markConnected}
                 />
-              ) : canEdit ? (
+              ) : canEdit && item.safeUrl ? (
                 <LinkRow
                   key={controlId}
                   item={item}
+                  url={item.safeUrl}
                   controlId={controlId}
                   onConnected={markConnected}
                 />
@@ -216,35 +222,30 @@ export function LiveCredentialCard({
                   {item.name} added
                 </p>
               ) : (
-                <Input
+                <SecretField
                   key={controlId}
                   label={item.name ?? 'Secret'}
                   placeholder={item.name}
-                  type='password'
                   value={drafts[index] ?? ''}
                   onChange={(value) => setDrafts((current) => ({ ...current, [index]: value }))}
                 />
               )
             case 'service_account':
               return canEdit ? (
-                <a
+                <ControlRow
                   key={controlId}
-                  className={styles.link}
-                  data-type='T048'
-                  href={integrationsHref}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                >
-                  Connect {serviceName(item)} in Integrations
-                </a>
+                  render={
+                    <Link href={integrationsHref} target='_blank' rel='noopener noreferrer' />
+                  }
+                  label={`Connect ${serviceName(item)} in Integrations`}
+                  trailingIcon='I030'
+                />
               ) : null
             case 'folder_access':
               return <FolderRow key={controlId} item={item} />
             case 'sim_key':
               return item.value ? (
-                <code key={controlId} data-type='T009'>
-                  {item.value}
-                </code>
+                <SecretField key={controlId} label='Sim key' value={item.value} readOnly copyable />
               ) : null
             default:
               return null
@@ -284,9 +285,11 @@ export function LiveUsageNotice({ action, reason, message }: UsageNoticeProps) {
       }
       action={
         canManage ? (
-          <a className={styles.link} data-type='T048' href={href}>
-            {upgrade ? 'Upgrade Plan' : 'Increase Limit'}
-          </a>
+          <ControlRow
+            render={<Link href={href} />}
+            label={upgrade ? 'Upgrade Plan' : 'Increase Limit'}
+            trailingIcon='I030'
+          />
         ) : undefined
       }
     />
