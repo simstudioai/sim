@@ -57,6 +57,7 @@ The [Platform design contract](AGENTS.md) is authoritative. Use the repository's
 
 ```sh
 bun run check:platform-design
+bun run --cwd apps/sim type-check:platform
 bun run --cwd apps/sim build:platform
 bunx --no-install playwright install chromium
 bun run --cwd apps/sim test:platform:e2e
@@ -64,6 +65,8 @@ bun run --cwd apps/sim test:platform:e2e
 bun run --cwd apps/desktop build
 bun run --cwd apps/sim test:platform:desktop
 ```
+
+The Platform type check generates Next.js route types and checks the isolated project. The repository type check runs it alongside the existing app’s TypeScript project.
 
 The browser suite starts separate production servers with fixtures enabled and disabled. Supply `PLATFORM_REPORT_PATH` to save JSON, failure screenshots and traces. Next uses webpack for this nested app: the installed Turbopack also discovers the parent Sim project's proxy and instrumentation. Watch for that boundary when upgrading Next.
 

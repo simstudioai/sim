@@ -32,6 +32,7 @@
   "exclude": [
     "node_modules",
     ".next",
+    "platform",
     "**/*.test.ts",
     "**/*.test.tsx",
     "vitest.config.ts",
