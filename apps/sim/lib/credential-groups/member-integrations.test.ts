@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 import type { SearchIntegrationStatus } from '@/lib/api/contracts/knowledge/search-integrations'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import { memberIntegrationEntries } from '@/lib/credential-groups/member-integrations'
-import { SLACK_SEARCH_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
 
 function option(id: string, provider: string, requiredScopes: readonly string[] = []) {
   return {
@@ -32,17 +31,14 @@ const settings = (viewerAccounts: unknown[], viewerMcpAccounts: unknown[] = []) 
   ({
     credentialGroup: {
       status: 'active',
-      options: [
-        option('drive', 'google-drive'),
-        option('slack', 'slack', SLACK_SEARCH_USER_SCOPES),
-      ],
+      options: [option('drive', 'google-drive')],
       mcpServers: [
         { id: 'notion-server', managedConnectorId: 'notion', enabled: true },
         { id: 'lucid-server', managedConnectorId: 'lucid', enabled: true },
       ],
     },
     assistantProviders: [],
-    availableProviders: ['google-drive', 'slack'],
+    availableProviders: ['google-drive'],
     availableMcpConnectors: [],
     viewerAccounts,
     viewerMcpAccounts,
@@ -54,7 +50,6 @@ const approved = (connectorType: string) =>
 function entryFor(provider: string, viewerAccounts: unknown[], viewerMcpAccounts: unknown[] = []) {
   return memberIntegrationEntries(settings(viewerAccounts, viewerMcpAccounts), [
     approved('google_drive'),
-    approved('slack'),
     approved('notion'),
     approved('lucid'),
   ]).find((entry) => entry.provider === provider)
@@ -72,12 +67,6 @@ describe('offering another account', () => {
       account(index, 'drive', 'google-drive')
     )
     expect(entryFor('google_drive', accounts)?.connectionTarget).toBeUndefined()
-  })
-
-  it('applies the same rule to Slack', () => {
-    expect(entryFor('slack', [account(1, 'slack', 'slack')])?.connectionTarget).toEqual({
-      optionId: 'slack',
-    })
   })
 
   const mcpAccount = (index: number, mcpServerId: string) => ({

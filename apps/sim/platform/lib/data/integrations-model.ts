@@ -17,6 +17,7 @@ import {
   type OrganizationIntegration,
   type ToolPermissionsModel,
 } from '@/platform/lib/integrations/model'
+import { plural } from '@/platform/lib/plural'
 
 const CONNECT_ACCOUNT_GUIDE = `${SIM_DOCS_URL}/search/connect-your-account`
 
@@ -36,8 +37,7 @@ function memberIntegrationStatus(entry: MemberIntegration) {
     )
   )
     return 'Reconnect needed'
-  if (entry.accounts.length)
-    return entry.accounts.length === 1 ? '1 account' : `${entry.accounts.length} accounts`
+  if (entry.accounts.length) return plural(entry.accounts.length, 'account')
   return 'Not connected'
 }
 

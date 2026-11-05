@@ -24,13 +24,11 @@ import {
 } from '@/lib/knowledge/search/connection-attempt'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
+import { refreshConnectedAccounts } from '@/hooks/queries/organization-accounts'
 import {
-  personalSearchIntegrationKeys,
   useConnectPersonalSearchIntegration,
   usePersonalSearchIntegrations,
 } from '@/hooks/queries/personal-search-integrations'
-import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
-import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 interface SearchIntegrationConnectionProps {
   organizationId: string
@@ -117,13 +115,7 @@ export function useSearchIntegrationConnection({
       writeSearchConnectionAttempt(key, { ...attempt, status: 'failed', error })
     channel.onmessage = ({ data }: MessageEvent<unknown>) => {
       if (isCredentialGroupOAuthFailure(data)) fail(CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES[data])
-      else if (data === 'connected') {
-        void client.invalidateQueries({ queryKey: personalSearchIntegrationKeys.lists() })
-        void client.invalidateQueries({
-          queryKey: searchSourceKeys.list({ kind: 'organization', organizationId }),
-        })
-        void client.invalidateQueries({ queryKey: organizationAccountsKeys.detail(organizationId) })
-      }
+      else if (data === 'connected') void refreshConnectedAccounts(client)
     }
     const timer = window.setTimeout(
       () => {
@@ -136,7 +128,7 @@ export function useSearchIntegrationConnection({
       channel.close()
       window.clearTimeout(timer)
     }
-  }, [attempt, key, client, organizationId])
+  }, [attempt, key, client])
 
   useEffect(() => {
     if (!connected || !attempt) return

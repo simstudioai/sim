@@ -47,11 +47,11 @@ describe('Slack email to Sim member resolution', () => {
       'verified Sim account'
     )
   })
-  it('refuses a contradictory active Slack identity', async () => {
+  it('refuses a Slack identity already linked to another person', async () => {
     limit
       .mockResolvedValueOnce([{ id: 'u1', emailVerified: true }])
       .mockResolvedValueOnce([{ id: 'm1' }])
-      .mockResolvedValueOnce([{ subjectId: 'U2', userId: 'u1' }])
+      .mockResolvedValueOnce([{ subjectId: 'U1', userId: 'u2' }])
     await expect(resolveSlackSearchMember('org1', 'T1', 'U1', 'alice@example.com')).rejects.toThrow(
       'verified Sim account'
     )

@@ -47,7 +47,7 @@ export function IntegrationDetails({
     : accounts.length === 1
       ? accounts[0]
       : undefined
-  const stale = Boolean(accountId && !selected)
+  const stale = Boolean(accountId && !selected && !pending)
   const canConnect = isConnectable(integration)
   const shown = selected ? [selected] : accounts
   const reason =
@@ -75,10 +75,14 @@ export function IntegrationDetails({
           accounts={shown.map((account) => ({
             ...account,
             statusLabel: accountStatus(integration, account),
-            href: selected ? undefined : accountHref(account.id),
+            href: !selected && account.hasToolPermissions ? accountHref(account.id) : undefined,
           }))}
           pending={pending}
-          addAccount={connectionTarget ? { disabled: !canConnect, onSelect: onConnect } : undefined}
+          addAccount={
+            connectionTarget && !accountId
+              ? { disabled: !canConnect, onSelect: onConnect }
+              : undefined
+          }
           onReconnect={onReconnect}
           onDisconnect={onDisconnect}
         />

@@ -99,7 +99,6 @@ async function readerToken(organizationId: string, credentialId: string) {
   })
 }
 
-/** What GitHub setup can offer a person to choose from at once. */
 const MAX_LISTED_INSTALLATIONS = 1000
 
 /** A null answer means only this account needs reconnecting; App JWT failures stay errors. */
@@ -166,7 +165,7 @@ export const listGitHubSearchInstallations = defineAuthorizedKnowledgeUseCase({
     const answered = answers.flatMap((answer) =>
       answer.status === 'fulfilled' && answer.value ? [answer.value] : []
     )
-    /** One account's failure stays hidden while another account still answers. */
+    // One account's failure stays hidden while another account still answers.
     if (answered.length === 0) {
       const failed = answers.find((answer) => answer.status === 'rejected')
       if (failed) throw failed.reason

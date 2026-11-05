@@ -32,10 +32,10 @@ export function ConnectedCredential({
 }: ConnectedCredentialProps) {
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const confirming = accounts.find((account) => account.id === confirmingId)
-  const heading = accounts.length > 1 ? 'Connected credentials' : 'Connected credential'
+  const heading = accounts.length > 1 ? 'Connected accounts' : 'Connected account'
   return (
     <section aria-label={heading} className={styles.section}>
-      <h2 data-type='T042'>{heading}</h2>
+      <h2 data-type='T093'>{heading}</h2>
       {accounts.map((account) => (
         <div key={account.id} className={styles.row}>
           <div className={styles.identity}>
@@ -50,29 +50,41 @@ export function ConnectedCredential({
               {account.statusLabel}
             </p>
           </div>
-          <ActionMenu
-            label={`Manage ${account.label}`}
-            icon='I108'
-            triggerSize='row'
-            align='end'
-            tooltip={false}
-            actions={[
-              {
-                id: 'reconnect',
-                label: 'Reconnect account',
-                disabled: pending || !account.canReconnect,
-                onSelect: () => onReconnect(account.id),
-              },
-              {
-                id: 'disconnect',
-                label: 'Disconnect account',
-                destructive: true,
-                separatorBefore: true,
-                disabled: pending,
-                onSelect: () => setConfirmingId(account.id),
-              },
-            ]}
-          />
+          <div className={styles.actions}>
+            {account.status === 'needs_reauth' && account.canReconnect && (
+              <Button
+                size='compact'
+                disabled={pending}
+                aria-label={`Reconnect ${account.label}`}
+                onClick={() => onReconnect(account.id)}
+              >
+                Reconnect
+              </Button>
+            )}
+            <ActionMenu
+              label={`Manage ${account.label}`}
+              icon='I108'
+              triggerSize='row'
+              align='end'
+              tooltip={false}
+              actions={[
+                {
+                  id: 'reconnect',
+                  label: 'Reconnect account',
+                  disabled: pending || !account.canReconnect,
+                  onSelect: () => onReconnect(account.id),
+                },
+                {
+                  id: 'disconnect',
+                  label: 'Disconnect account',
+                  destructive: true,
+                  separatorBefore: true,
+                  disabled: pending,
+                  onSelect: () => setConfirmingId(account.id),
+                },
+              ]}
+            />
+          </div>
         </div>
       ))}
       {addAccount && (
@@ -91,7 +103,7 @@ export function ConnectedCredential({
           title={`Disconnect ${integrationName}`}
           variant='confirm'
           destructive
-          description={`Disconnect ${confirming.label} from all ${integrationName} connections in this organization. Workflows using this account will also lose access. You can reconnect later.`}
+          description={`Disconnect ${confirming.label} from this organization. Workflows using this account will also lose access. You can reconnect later.`}
           confirmLabel='Disconnect'
           onConfirm={() => onDisconnect(confirming.id)}
         />

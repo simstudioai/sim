@@ -257,7 +257,7 @@ async function authorizeReader(attempt: GitHubSetupAttempt) {
       )
     )
     .limit(2)
-  /** GitHub signs in whoever its session holds, so setup cannot aim at one of several accounts. */
+  // GitHub signs in whoever its session holds, so setup cannot aim at one of several accounts.
   if (connected.length > 1)
     throw new OrchestrationError(
       'validation',

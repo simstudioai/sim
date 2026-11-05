@@ -34,16 +34,10 @@ vi.mock('@/lib/credential-groups/provider-registry', () => ({
     getPolicy: async () => ({ authorizationAppId: 'current-app', scopeVersion: 1 }),
   }),
 }))
-vi.mock('@/lib/oauth/github-installation', () => ({
-  GitHubInstallationError: class extends Error {
-    constructor(
-      message: string,
-      readonly status?: number,
-      readonly operation?: string
-    ) {
-      super(message)
-    }
-  },
+vi.mock('@/lib/oauth/github-installation', async (importOriginal) => ({
+  GitHubInstallationError: (
+    await importOriginal<typeof import('@/lib/oauth/github-installation')>()
+  ).GitHubInstallationError,
   getGitHubInstallationConfiguration: () => ({
     configured: true,
     installUrl: 'https://github.com/apps/example/installations/new',

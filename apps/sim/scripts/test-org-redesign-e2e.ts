@@ -2077,6 +2077,59 @@ async function integrationChecks() {
       })
     }
   )
+  await check(
+    'several accounts: listed together, each managed alone, and another can be added',
+    async () => {
+      const second = 'second.account@example.test'
+      const secondId = 'org-redesign-grant-gmail-second'
+      await sql`insert into credential (id, created_by, credential_group_enrollment_id, credential_group_option_id, organization_id, type, display_name, provider_id, managed_oauth_status, managed_oauth_scope_version, granted_scopes, provider_subject_id, authorization_app_id, encrypted_oauth_token_set, access_token_expires_at, granted_at)
+        select ${secondId}, created_by, credential_group_enrollment_id, credential_group_option_id, organization_id, type, ${second}, provider_id, 'needs_reauth', managed_oauth_scope_version, granted_scopes, ${secondId}, authorization_app_id, encrypted_oauth_token_set, access_token_expires_at, granted_at
+        from credential where id = ${GRANTS.gmail.credentialId}`
+      try {
+        await withSession(CONNECTED, async ({ page, context }) => {
+          await context.route('https://accounts.google.com/**', (route) =>
+            route.fulfill({ status: 200, contentType: 'text/html', body: 'Google stand-in' })
+          )
+          await page.goto(orgUrl('/integrations/gmail'))
+          const accounts = page.getByRole('region', { name: 'Connected accounts' })
+          await expect(accounts.getByText(CONNECTED.email).first()).toBeVisible()
+          await expect(accounts.getByText(second).first()).toBeVisible()
+          await expect(accounts.getByRole('button', { name: `Reconnect ${second}` })).toBeVisible()
+          await expect(
+            accounts.getByRole('button', { name: `Reconnect ${CONNECTED.email}` })
+          ).toHaveCount(0)
+          await page.screenshot({
+            path: resolve(artifactDirectory, 'integration-several-accounts.png'),
+            fullPage: true,
+            animations: 'disabled',
+          })
+          await page.setViewportSize({ width: 390, height: 844 })
+          await page.screenshot({
+            path: resolve(artifactDirectory, 'integration-several-accounts-mobile.png'),
+            fullPage: true,
+            animations: 'disabled',
+          })
+          await page.setViewportSize({ width: 1280, height: 800 })
+
+          await accounts.getByRole('button', { name: `Manage ${second}` }).click()
+          await menuEntry(page, 'Disconnect account').click()
+          const modal = dialog(page, 'Disconnect Gmail')
+          await expect(modal).toContainText(second)
+          await expect(modal).not.toContainText(CONNECTED.email)
+          await modal.getByRole('button', { name: 'Cancel', exact: true }).click()
+
+          const authorization = context.waitForEvent('request', (request) =>
+            request.url().startsWith('https://accounts.google.com/')
+          )
+          await accounts.getByRole('button', { name: 'Add account', exact: true }).click()
+          const prompt = new URL((await authorization).url()).searchParams.get('prompt')
+          assert(prompt?.includes('select_account'), 'Add account must offer an account chooser')
+        })
+      } finally {
+        await sql`delete from credential where id = ${secondId}`
+      }
+    }
+  )
   await check('a stale ?account= says so', async () => {
     await withSession(CONNECTED, async ({ page }) => {
       await page.goto(orgUrl('/integrations/gmail?account=gone'))

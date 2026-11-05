@@ -60,15 +60,18 @@ describe('reading the connected account from a provider response', () => {
     ).toMatchObject({ subject: 'pat@example.test' })
   })
 
-  it.each<[string, McpToolResult]>([
-    ['a tool error', { isError: true, content: [{ type: 'text', text: 'pat@example.test' }] }],
-    ['no content', { content: [] }],
-    ['a response with no email', text({ name: 'Pat' })],
-    ['two different emails in text', text('a@example.test and b@example.test')],
-    ['a Notion response without a user', text({ workspace: { id: 'workspace-1' } })],
-    ['a Notion response without a workspace', text({ user: { id: 'user-1' } })],
-  ])('reports no identity for %s rather than guessing', (_name, result) => {
-    const connector = _name.startsWith('a Notion') ? 'notion' : 'fireflies'
+  it.each<[string, string, McpToolResult]>([
+    [
+      'a tool error',
+      'fireflies',
+      { isError: true, content: [{ type: 'text', text: 'pat@example.test' }] },
+    ],
+    ['no content', 'fireflies', { content: [] }],
+    ['a response with no email', 'fireflies', text({ name: 'Pat' })],
+    ['two different emails in text', 'fireflies', text('a@example.test and b@example.test')],
+    ['a Notion response without a user', 'notion', text({ workspace: { id: 'workspace-1' } })],
+    ['a Notion response without a workspace', 'notion', text({ user: { id: 'user-1' } })],
+  ])('reports no identity for %s rather than guessing', (_name, connector, result) => {
     expect(readManagedMcpAccountIdentity(connector, result)).toBeNull()
   })
 

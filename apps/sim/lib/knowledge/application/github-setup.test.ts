@@ -334,7 +334,10 @@ describe('GitHub setup reader OAuth continuation', () => {
     queueTableRows(credential, [{ id: 'first' }, { id: 'second' }])
     await start()
     expect(m.oauthStart).not.toHaveBeenCalled()
-    await expect(status()).resolves.toMatchObject({ status: 'failed' })
+    await expect(status()).resolves.toEqual({
+      status: 'failed',
+      error: 'Reconnect one of your GitHub accounts in Integrations, then try setup again.',
+    })
   })
   it('a revoked enrollment stays denied before provider authorization', async () => {
     m.enrollment.mockRejectedValueOnce(new Error('revoked'))

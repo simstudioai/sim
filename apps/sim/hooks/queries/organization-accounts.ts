@@ -49,12 +49,15 @@ import { isDesktopApp } from '@/lib/desktop'
 import { connectDesktopSource } from '@/lib/desktop/source-connect'
 import { assistantActionKeys } from '@/hooks/queries/assistant-actions'
 import { personalCredentialKeys } from '@/hooks/queries/personal-credentials'
+import { personalSearchIntegrationKeys } from '@/hooks/queries/personal-search-integrations'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 import {
   ORGANIZATION_ACCOUNTS_STALE_TIME,
   organizationAccountsKeys,
 } from '@/hooks/queries/utils/organization-accounts-keys'
 import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
+import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
 import { slackSearchKeys } from '@/hooks/queries/utils/slack-search-keys'
 
@@ -102,7 +105,7 @@ function useAccountConnectionMutation<Variables>(
         )
       }
     },
-    onSettled: () => refreshAccounts(client),
+    onSettled: () => refreshConnectedAccounts(client),
   })
 }
 
@@ -262,11 +265,15 @@ export function useUpdateOrganizationAccounts() {
   })
 }
 
-async function refreshAccounts(client: ReturnType<typeof useQueryClient>) {
+/** Everything a newly connected account changes, including what Search can now reach. */
+export async function refreshConnectedAccounts(client: ReturnType<typeof useQueryClient>) {
   await Promise.all([
     client.invalidateQueries({ queryKey: organizationAccountsKeys.all }),
     client.invalidateQueries({ queryKey: assistantActionKeys.permissions() }),
     client.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
+    client.invalidateQueries({ queryKey: personalSearchIntegrationKeys.lists() }),
+    client.invalidateQueries({ queryKey: searchSourceKeys.lists() }),
+    client.invalidateQueries({ queryKey: knowledgeKeys.searches() }),
     client.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
     invalidateSelectorQueries(client),
   ])

@@ -102,6 +102,7 @@ export function ConnectedWidget<T>({
     menu.push({
       id: `disconnect-${account.id}`,
       destructive: true,
+      separatorBefore: menu.length === 1,
       label: `Disconnect ${several ? account.label : title}`,
       onSelect: () => setDisconnecting(account),
     })

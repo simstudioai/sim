@@ -310,6 +310,8 @@ describe('reconnecting one of several accounts', () => {
     const after = await rows()
     const untouched = (list: typeof after) => list.find((row) => row.id === first.credentialId)
     expect(untouched(after)?.tokens).toBe(untouched(before)?.tokens)
+    const targeted = (list: typeof after) => list.find((row) => row.id === second.credentialId)
+    expect(targeted(after)?.tokens).not.toBe(targeted(before)?.tokens)
     expect(after).toHaveLength(2)
   })
 
@@ -324,12 +326,13 @@ describe('reconnecting one of several accounts', () => {
     expect(await rows()).toEqual(before)
   })
 
-  it('refuses a reconnect target that no longer belongs to this option', async () => {
+  it('refuses a reconnect target that belongs to another option', async () => {
     await connect('work@first-tenant.test', { kind: 'create' })
+    const other = await connect('work@first-tenant.test', { kind: 'create' }, GITHUB)
     await expect(
-      connect('work@first-tenant.test', { kind: 'reconnect', credentialId: generateId() })
-    ).rejects.toBeInstanceOf(CredentialGroupOAuthError)
-    expect(await rows()).toHaveLength(1)
+      connect('work@first-tenant.test', { kind: 'reconnect', credentialId: other.credentialId })
+    ).rejects.toThrow('account changed')
+    expect(await rows()).toHaveLength(2)
   })
 })
 
@@ -371,14 +374,6 @@ describe('after disconnecting', () => {
     expect(restored).toMatchObject({ created: false, credentialId: first.credentialId })
     expect(await rows()).toHaveLength(1)
     expect((await rows())[0]).toMatchObject({ status: 'active', revokedAt: null })
-  })
-})
-
-describe('every provider', () => {
-  it.each([DRIVE, GITHUB, SLACK])('accepts several accounts of $provider', async (option) => {
-    await connect('first@tenant.test', { kind: 'create' }, option)
-    await connect('second@tenant.test', { kind: 'create' }, option)
-    expect(await rows()).toHaveLength(2)
   })
 })
 
@@ -485,7 +480,7 @@ describe('managed MCP accounts', () => {
       created: false,
       connectionId: first.connectionId,
     })
-    expect(await failureOf(connectMcp(null, intent))).toBe('account_identity_required')
+    expect(await failureOf(connectMcp(null, intent))).toBe('account_unverified')
   })
 
   it('still connects a first account when the provider cannot identify it', async () => {
@@ -495,7 +490,7 @@ describe('managed MCP accounts', () => {
 
   it('refuses a second account while it cannot tell them apart', async () => {
     await connectMcp(identityOf('one'), { kind: 'create' })
-    expect(await failureOf(connectMcp(null, { kind: 'create' }))).toBe('account_identity_required')
+    expect(await failureOf(connectMcp(null, { kind: 'create' }))).toBe('account_unverified')
     expect(await mcpRows()).toHaveLength(1)
   })
 
@@ -577,6 +572,7 @@ describe('managed MCP accounts', () => {
         created: false,
         connectionId: legacy.connectionId,
       })
+      expect(await mcpRows()).toMatchObject([{ subject: 'one', displayName: 'one@example.test' }])
     })
   })
 

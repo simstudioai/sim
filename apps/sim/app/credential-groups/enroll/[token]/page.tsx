@@ -286,25 +286,31 @@ export default async function CredentialGroupEnrollmentPage({
           <div className='au:space-y-2'>
             {visibleOptions.map((option) => {
               const ProviderIcon = getCredentialGroupProviderService(option.provider).icon
+              const visibleConnections = option.connections.filter(
+                (connection) => connection.status !== 'revoked'
+              )
               return (
                 <SettingsResourceRow
                   key={option.id}
                   icon={<ProviderIcon />}
                   title={option.label}
                   description={
-                    option.connections.length > 0
-                      ? option.connections.map((account) => (
-                          <span key={account.email} className='au:block'>
+                    visibleConnections.length > 0
+                      ? visibleConnections.map((account) => (
+                          <span key={`${account.email}-${account.grantedAt}`} className='au:block'>
                             {account.email}
                             {account.status === 'connected'
                               ? ' — Connected'
-                              : ' — Reconnect required'}
+                              : ' — Reconnect needed'}
                           </span>
                         ))
                       : 'Not connected'
                   }
                   actions={
-                    focusedConnected ? undefined : (
+                    focusedConnected &&
+                    visibleConnections.every(
+                      (account) => account.status === 'connected'
+                    ) ? undefined : (
                       <OAuthConnectLink
                         href={`/api/credential-groups/enroll/${encodeURIComponent(token)}/oauth/${encodeURIComponent(option.id)}${focused ? `?returnTo=${returnToSearch ? 'search' : 'accounts'}` : ''}`}
                         reconnect={option.connections.length > 0}
@@ -327,7 +333,7 @@ export default async function CredentialGroupEnrollmentPage({
                       server.connection?.status === 'connected'
                         ? 'Connected'
                         : server.connection
-                          ? 'Reconnect required'
+                          ? 'Reconnect needed'
                           : server.description || 'Not connected'
                     }
                     actions={

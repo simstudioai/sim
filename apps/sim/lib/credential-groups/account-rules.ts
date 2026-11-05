@@ -57,7 +57,7 @@ export function resolveAccountWrite<Account extends ConnectedAccount>({
         409
       )
     if (target.providerSubjectId !== null) {
-      if (!identity) throw accountConflict('account_identity_required')
+      if (!identity) throw accountConflict('account_unverified')
       if (existing?.id !== target.id) throw accountConflict('account_mismatch')
     }
     if (target.revokedAt && live.length >= limit) throw accountConflict('account_limit_reached')
@@ -66,8 +66,8 @@ export function resolveAccountWrite<Account extends ConnectedAccount>({
 
   if (intent?.kind === 'create') {
     if (existing && !existing.revokedAt) throw accountConflict('account_already_connected')
-    if (live.length > 0 && (!identity || hasUnidentifiedLive))
-      throw accountConflict('account_identity_required')
+    if (live.length > 0 && !identity) throw accountConflict('account_unverified')
+    if (hasUnidentifiedLive) throw accountConflict('account_identity_required')
     if (live.length >= limit) throw accountConflict('account_limit_reached')
     return (
       existing ??
@@ -82,7 +82,7 @@ export function resolveAccountWrite<Account extends ConnectedAccount>({
       (identity ? undefined : accounts.find((account) => account.providerSubjectId === null))
     )
   if (live.length === 1 && hasUnidentifiedLive) return live[0]
-  throw accountConflict(identity ? 'account_mismatch' : 'account_identity_required')
+  throw accountConflict(identity ? 'account_mismatch' : 'account_unverified')
 }
 
 const ACCOUNT_STATUS_RANK: Record<string, number> = { active: 2, needs_reauth: 1 }

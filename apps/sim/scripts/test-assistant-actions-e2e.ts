@@ -576,7 +576,7 @@ try {
       timeout: 180_000,
     })
     await integrationRow('Salesforce').click()
-    await expect(page.getByRole('button', { name: 'Add account', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Add account', exact: true })).toBeVisible()
     const policy = page.getByRole('group', { name: 'Create Task in Salesforce permission' })
     await expect(policy).toBeVisible({ timeout: 180_000 })
     await page.getByRole('button', { name: /^Manage / }).click()
@@ -791,7 +791,7 @@ try {
         await expect(
           page.getByRole('main').getByText('Connections unavailable', { exact: true })
         ).toBeVisible()
-        await expect(page.getByRole('region', { name: 'Connected credential' })).toHaveCount(0)
+        await expect(page.getByRole('region', { name: 'Connected account' })).toHaveCount(0)
         await expect(page.getByRole('button', { name: 'Salesforce', exact: true })).toBeDisabled()
         await capture('integration-disabled-app-empty')
       } finally {
