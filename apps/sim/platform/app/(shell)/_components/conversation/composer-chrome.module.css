@@ -1,27 +1,25 @@
 /*
- * The frame holds legacy components, so it sits outside any surface and cannot read design-system
- * tokens. Its literal values are those of `--radius-composer` and the `T048` type role; its text
- * colors come from `conversation.module.css`'s palette, which it shares with the thread.
- *
- * The toolbar row holds 30px legacy controls around 28px design-system ones. The gap and the bottom
- * inset each give back that row's 1px of centering, so the controls land where the design puts them.
+ * The frame holds legacy components, so it sits outside any surface and reads the design system
+ * through `host-bridge.module.css`, which also holds the composer's box. Its text colors come from
+ * `conversation.module.css`'s palette, which it shares with the thread.
  */
 .frame {
-  padding: 1.0625rem 0.8125rem 0.75rem;
-  font-family: "Geist", sans-serif;
+  padding: var(--composer-inset-block-start) var(--composer-inset-inline)
+    var(--composer-inset-block-end);
+  font-family: var(--design-font-sans), sans-serif;
   letter-spacing: normal;
   -webkit-font-smoothing: antialiased;
 }
 .frame div:has(> textarea) > * {
   padding-block: 0;
-  font-family: "Geist", sans-serif;
-  font-weight: 400;
-  line-height: 1.375rem;
+  font-family: var(--design-font-sans), sans-serif;
+  font-weight: var(--design-font-weight-regular);
+  line-height: var(--design-leading-22);
   letter-spacing: normal;
 }
 .field {
-  min-block-size: 3rem;
-  margin-block-end: 0.9375rem;
+  min-block-size: var(--composer-field-block);
+  margin-block-end: var(--composer-gap);
 }
 .backdrop {
   position: absolute;
@@ -47,11 +45,4 @@
 }
 .controls button {
   border-radius: var(--radius-full);
-}
-
-@media (max-width: 40rem) {
-  .field {
-    min-block-size: 2.5rem;
-    margin-block-end: 0.6875rem;
-  }
 }

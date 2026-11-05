@@ -33,6 +33,7 @@ function ControlIsland({ children }: { children: ReactNode }) {
 export const COMPOSER_CHROME: ComposerChrome = {
   frameClassName: `${conversationStyles.palette} ${styles.frame}`,
   fieldClassName: styles.field,
+  modelSelectorOptions: { showEffortChevron: true },
   backdrop: (
     <div className={styles.backdrop} aria-hidden='true'>
       <RedesignSurface>

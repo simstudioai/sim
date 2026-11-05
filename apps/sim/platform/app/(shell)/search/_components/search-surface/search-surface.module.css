@@ -89,8 +89,8 @@
   border: var(--spacing-stroke-default) solid var(--ui-divider);
   border-radius: var(--radius-composer);
 }
-.field:has(textarea:focus-visible) {
-  border-color: var(--ui-secondary);
+.field button {
+  border-radius: var(--radius-full);
 }
 .fieldMark {
   display: inline-flex;
@@ -169,16 +169,7 @@
   padding-block: var(--spacing-4) var(--spacing-24);
 }
 .landing {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-block-size: 100%;
-  padding-block: var(--spacing-56) var(--spacing-32);
-}
-@media (width >= 48rem) {
-  .landing {
-    padding-block: 2vh 22vh;
-  }
+  padding-block: var(--landing-offset) var(--spacing-32);
 }
 .heading {
   margin-block-end: var(--spacing-28);

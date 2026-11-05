@@ -41,11 +41,7 @@ export default async function OrganizationChatPage({
 
   return (
     <Suspense fallback={<OrganizationChatLoading />}>
-      <ChatRoute
-        userName={session.user.name ?? undefined}
-        chatId={chatId}
-        requestMode={chat.mode}
-      />
+      <ChatRoute chatId={chatId} requestMode={chat.mode} />
     </Suspense>
   )
 }

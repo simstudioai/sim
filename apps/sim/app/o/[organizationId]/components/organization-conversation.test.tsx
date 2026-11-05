@@ -77,13 +77,6 @@ vi.mock('@/hooks/queries/mothership-chats', () => ({
   useMarkMothershipChatRead: () => ({ mutate: mocks.markRead }),
 }))
 vi.mock('@/app/o/[organizationId]/home/components/composer', () => ({ Composer: mocks.composer }))
-vi.mock('@/app/workspace/[workspaceId]/home/components/suggested-actions', () => ({
-  SuggestedActions: ({ onSelectPrompt }: { onSelectPrompt: (prompt: string) => void }) => (
-    <button onClick={() => onSelectPrompt('Create a CRM with sample data.')}>
-      Suggested actions
-    </button>
-  ),
-}))
 vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
 vi.mock('@/hooks/queries/api-keys', () => ({ useApiKeys: mocks.apiKeys }))
 vi.mock('@/hooks/queries/oauth-provider', () => ({ useAuthorizedApps: mocks.authorizedApps }))

@@ -1,21 +1,21 @@
 /*
- * The composer between the surfaces cannot read design-system tokens, so the frame that shares a
- * column with it repeats the values of `--ui-page-max-size` and `--ui-page-inline-gutter`.
+ * The composer sits between the surfaces, so the frame that shares a column with it reads the design
+ * system through `host-bridge.module.css`.
  */
 .scroller {
   flex: 1;
   block-size: 100%;
   min-block-size: 0;
   overflow-y: auto;
-  padding-inline: clamp(1rem, 4cqi, 3rem);
+  padding-inline: clamp(var(--design-spacing-16), 4cqi, var(--design-spacing-48));
 }
 .dashboard {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   inline-size: 100%;
-  max-inline-size: 81rem;
+  max-inline-size: var(--design-ui-page-max-size);
   margin-inline: auto;
-  padding-block: 4rem 1.5rem;
+  padding-block: var(--design-spacing-64) var(--design-spacing-24);
 }
 /* The host page's canvas shows through, so the composer's row does not read as a band. */
 .dashboard > [data-platform-ui] {
@@ -61,7 +61,7 @@
   position: relative;
   z-index: 1;
   min-inline-size: 0;
-  margin-block-end: 1.5rem;
+  margin-block-end: var(--design-spacing-24);
 }
 /* The composer caps at the chat column elsewhere; here it spans Home's column. */
 .composer > * {
@@ -107,26 +107,7 @@
 .placeholderGetStarted {
   block-size: var(--spacing-132);
 }
-/*
- * The real composer's height, the same for both modes: `composer-chrome.module.css`'s frame,
- * field, and gap around a 30px toolbar row, or the 44px touch targets on a coarse pointer.
- */
 .placeholderComposer {
-  block-size: 7.625rem;
+  block-size: var(--composer-block);
   border-radius: var(--radius-composer);
-}
-@media (pointer: coarse) {
-  .placeholderComposer {
-    block-size: 8.5rem;
-  }
-}
-@media (max-width: 40rem) {
-  .placeholderComposer {
-    block-size: 6.875rem;
-  }
-}
-@media (max-width: 40rem) and (pointer: coarse) {
-  .placeholderComposer {
-    block-size: 7.75rem;
-  }
 }
