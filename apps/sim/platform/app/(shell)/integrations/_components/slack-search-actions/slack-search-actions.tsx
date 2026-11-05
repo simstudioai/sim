@@ -1,11 +1,13 @@
 'use client'
 
-import { Chip, ChipLink } from '@sim/emcn'
+import Link from 'next/link'
 import { slackSearchOnboardingPath } from '@/lib/slack-search/onboarding'
 import {
   useRetrySlackSearchOnboarding,
   useSlackSearchOnboarding,
 } from '@/hooks/queries/slack-search-onboarding'
+import styles from '@/platform/app/(shell)/integrations/_components/integrations-page/integrations-page.module.css'
+import { Button, InlineNotice } from '@/platform/design-system/components'
 
 interface SlackSearchActionsProps {
   organizationId: string
@@ -17,45 +19,42 @@ interface SlackSearchActionsProps {
 export function SlackSearchActions({ organizationId, token, userId }: SlackSearchActionsProps) {
   const status = useSlackSearchOnboarding(token, userId)
   const retry = useRetrySlackSearchOnboarding(userId)
-  if (status.isPending) return null
-  if (status.isError)
-    return (
-      <p role='alert' className='text-[var(--text-error)] text-caption'>
-        {status.error.message}
-      </p>
-    )
   const data = status.data
+  if (!data)
+    return status.error ? <InlineNotice intent='danger' message={status.error.message} /> : null
   if (!('organizationId' in data) || data.organizationId !== organizationId)
-    return <ChipLink href={slackSearchOnboardingPath(token)}>Finish Slack setup</ChipLink>
+    return (
+      <div className={styles.handoff}>
+        <Button render={<Link href={slackSearchOnboardingPath(token)} />}>
+          Finish Slack setup
+        </Button>
+      </div>
+    )
   const retried = data.status === 'retried' || retry.isSuccess
   return (
-    <div className='flex flex-wrap items-center gap-1.5'>
+    <div className={styles.handoff}>
       {!retried &&
         (data.status === 'ready' ? (
-          <Chip
+          <Button
             variant='primary'
             disabled={retry.isPending}
             onClick={() => retry.mutate({ token })}
           >
             {retry.isPending ? 'Queuing' : 'Retry question in Slack'}
-          </Chip>
+          </Button>
         ) : (
-          <Chip disabled={status.isFetching} onClick={() => void status.refetch()}>
+          <Button disabled={status.isFetching} onClick={() => void status.refetch()}>
             {status.isFetching ? 'Checking' : 'Check connection'}
-          </Chip>
+          </Button>
         ))}
-      <ChipLink
-        variant={retried ? 'primary' : undefined}
-        href={data.slackUrl}
-        referrerPolicy='no-referrer'
+      <Button
+        variant={retried ? 'primary' : 'secondary'}
+        render={<Link href={data.slackUrl} referrerPolicy='no-referrer' />}
       >
         Return to Slack
-      </ChipLink>
-      {retry.isError && (
-        <p role='alert' className='text-[var(--text-error)] text-caption'>
-          {retry.error.message}
-        </p>
-      )}
+      </Button>
+      {retry.isError && <InlineNotice intent='danger' message={retry.error.message} />}
+      {status.isRefetchError && <InlineNotice intent='danger' message={status.error.message} />}
     </div>
   )
 }

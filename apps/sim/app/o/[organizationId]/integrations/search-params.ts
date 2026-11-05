@@ -12,6 +12,12 @@ export const serializeIntegrationView = createSerializer({
   ...integrationViewParsers,
 })
 
+/** Reads a link from before providers had their own route, so it can be sent there. */
+export const loadIntegrationView = createLoader({
+  ...organizationPageParsers,
+  ...integrationViewParsers,
+})
+
 export const integrationConnectionParams = {
   connectorType: parseAsString.withDefault(''),
   connectionMode: parseAsString.withDefault(''),
