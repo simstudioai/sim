@@ -37,7 +37,7 @@ export function ConnectedCredential({
   const heading = accounts.length > 1 ? 'Connected credentials' : 'Connected credential'
   return (
     <section aria-label={heading} className={styles.section}>
-      <h2 data-type='T042'>{heading}</h2>
+      <h2 data-type='T093'>{heading}</h2>
       {accounts.map((account) => (
         <div key={account.id} className={styles.row}>
           <div className={styles.identity}>

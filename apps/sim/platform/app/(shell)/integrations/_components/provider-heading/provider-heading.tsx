@@ -26,7 +26,7 @@ export function ProviderHeading({
         <h1 ref={titleRef} tabIndex={titleRef ? -1 : undefined} data-type='T076'>
           {name}
         </h1>
-        <p data-type='T048'>{description}</p>
+        <p data-type='T060'>{description}</p>
       </div>
     </header>
   )
