@@ -25,7 +25,7 @@ test('a display name saves through the profile read', async ({ page }) => {
   await page.goto(settings())
   const name = `Live ${Date.now()}`
   await page.getByRole('button', { name: /^Edit display name/ }).click()
-  await page.getByRole('dialog').getByLabel('Display name').fill(name)
+  await page.getByRole('textbox', { name: 'Display name' }).fill(name)
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   await page.reload()
   await expect(page.getByRole('region', { name: 'Profile' })).toContainText(name)

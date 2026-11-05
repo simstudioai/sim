@@ -23,8 +23,8 @@ test('the directory filters, pages and opens a profile that returns to the same 
   await expect(page).toHaveURL(/search=/)
   await table.getByRole('row').nth(1).getByRole('button').first().click()
   await expect(page).toHaveURL(/\/org\/people\/[^/?]+\?.*search=/)
-  await page.getByRole('link', { name: 'People' }).first().click()
-  await expect(page).toHaveURL(/view=directory/)
+  await page.getByRole('main').getByRole('link', { name: 'People' }).first().click()
+  await expect(page).toHaveURL(/\/org\/people\?.*view=directory/)
   await expect(page.getByRole('searchbox', { name: 'Search people' })).toHaveValue(email)
 })
 
@@ -47,7 +47,9 @@ test('a member withheld the directory gets no People, from the sidebar or a save
     data: { name: 'Withhold directory', isDefault: true, config: { hideOrgMemberDirectory: true } },
   })
   expect(created.status(), await created.text()).toBeLessThan(300)
-  const { id } = (await created.json()) as { id: string }
+  const {
+    permissionGroup: { id },
+  } = (await created.json()) as { permissionGroup: { id: string } }
   const context = await browser.newContext({ baseURL })
   try {
     const member = await context.newPage()

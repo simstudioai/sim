@@ -138,7 +138,7 @@ test.describe('Home for the seeded administrator', () => {
       route.fulfill({ status: 200, contentType: 'text/html', body: 'Google stand-in' })
     )
     await signInAsAdmin(page, '/org/home')
-    const authorization = page.waitForRequest((request) =>
+    const authorization = context.waitForEvent('request', (request) =>
       request.url().startsWith('https://accounts.google.com/')
     )
     await page
@@ -257,7 +257,7 @@ test.describe('Home with connected accounts', () => {
       page.getByRole('region', { name: 'Calendar', exact: true }).getByText(/^Standup /)
     ).toBeVisible()
     failing = false
-    await email.getByRole('button', { name: 'Retry' }).click()
+    await email.getByRole('button', { name: 'Try again' }).click()
     await expect(email.getByText('Grace Hopper')).toBeVisible()
   })
 

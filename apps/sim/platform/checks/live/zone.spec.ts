@@ -45,8 +45,8 @@ test('a client navigation into a mapped legacy route also reaches the Platform',
 }) => {
   await signIn(page, adminEmail(), legacy(UNMAPPED))
   await page.goto(legacy(UNMAPPED))
-  await page.getByRole('link', { name: 'People', exact: true }).first().click()
-  await expect(page).toHaveURL(/\/org\/people/)
+  await page.getByRole('link', { name: 'Members', exact: true }).first().click()
+  await expect(page).toHaveURL(/\/org\/settings\/members/)
 })
 
 test('signing in from a Platform link returns to the zone', async ({ page }) => {

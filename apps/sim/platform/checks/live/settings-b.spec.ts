@@ -110,7 +110,7 @@ test.describe('governance settings', () => {
     await page.getByRole('textbox', { name: 'Pattern (regex)' }).fill('(')
     await expect(page.getByText(/Invalid regex/)).toBeVisible()
     await page.getByRole('button', { name: 'Data retention' }).click()
-    await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Unsaved changes' })).toBeVisible()
   })
 
   test('a data drain withholds Create until its destination is complete', async ({ page }) => {
