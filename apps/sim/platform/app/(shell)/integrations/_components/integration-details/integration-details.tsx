@@ -83,6 +83,17 @@ export function IntegrationDetails({
           onReconnect={onReconnect}
           onDisconnect={onDisconnect}
         />
+      ) : availability === 'managed' ? (
+        <EmptyState
+          title={reason}
+          action={
+            integration.setupGuideUrl && (
+              <Chip href={integration.setupGuideUrl} icon='I079'>
+                Docs
+              </Chip>
+            )
+          }
+        />
       ) : (
         <ConnectionPrompt
           title={canConnect ? `Connect your ${name} account` : reason}
