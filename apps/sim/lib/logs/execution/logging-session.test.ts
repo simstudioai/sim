@@ -6,6 +6,7 @@ import {
 } from '@sim/testing/mocks/billing-usage-reservation.mock'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { executionPayloadStoreMock } from '@sim/testing/mocks/execution-payload-store.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import {
   getMockPlatformEvent,
   telemetryMock,
@@ -772,6 +773,35 @@ describe('LoggingSession completion retries', () => {
     expect(displayLogs[0].output).toEqual({ value: 'row-0:{{TOKEN}}' })
     expect(displayLogs[128].output).toEqual({ value: 'row-128:{{TOKEN}}' })
     expect(rawLogs[128].output.value).toBe('row-128:raw-secret')
+  })
+
+  it('labels a live block-log projection warning with the live phase', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-live-phase', 'manual', 'req-1')
+    session.setResolvedSecretTraceRegistry(
+      createSecretRegistry([{ plaintext: 'raw-secret', replacement: '{{TOKEN}}' }])
+    )
+
+    await session.projectBlockLogsForDisplay([
+      {
+        blockId: 'function-1',
+        blockName: 'Function 1',
+        blockType: 'function',
+        startedAt: '2026-07-01T00:00:00.000Z',
+        endedAt: '2026-07-01T00:00:00.001Z',
+        durationMs: 1,
+        success: true,
+        executionOrder: 1,
+        output: { rows: Array.from({ length: 100_001 }, (_, index) => index) },
+        displayResolvedSecretTraceProvenance: createDisplayProvenance([
+          { plaintext: 'raw-secret', replacement: '{{TOKEN}}' },
+        ]),
+      },
+    ])
+
+    expect(getMockLogger('TraceSecretProjection').warn).toHaveBeenCalledWith(
+      'Omitting trace content that could not be sanitized',
+      expect.objectContaining({ executionId: 'execution-live-phase', phase: 'live' })
+    )
   })
 
   it('projects a numeric Function result produced by a resolved numeric secret', async () => {
