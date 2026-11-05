@@ -52,7 +52,7 @@ export function useSimLinks(
  * Links whose destination is exactly `url`. Shares the list key prefix, so creating a link
  * refreshes it.
  */
-export function useSimLinksForUrl(organizationId: string, url: string) {
+export function useSimLinksForUrl(organizationId: string, url: string, enabled = true) {
   return useQuery({
     queryKey: simLinkKeys.forUrl(organizationId, url),
     queryFn: ({ signal }) =>
@@ -63,6 +63,7 @@ export function useSimLinksForUrl(organizationId: string, url: string) {
       }),
     select: (page) => page.links,
     staleTime: SIM_LINKS_STALE_TIME,
+    enabled: Boolean(organizationId) && enabled,
   })
 }
 

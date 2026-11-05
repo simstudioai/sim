@@ -16,8 +16,8 @@ vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
 vi.mock('@/app/o/[organizationId]/integrations/integrations', () => ({
   OrganizationIntegrations: () => <div>Integrations</div>,
 }))
-vi.mock('@/app/o/[organizationId]/search/search', () => ({
-  OrganizationSearch: () => <div>Standalone Search</div>,
+vi.mock('@/platform/app/(shell)/search/_components/search-surface/search-surface', () => ({
+  OrganizationSearchSurface: () => <div>Standalone Search</div>,
 }))
 vi.mock('@/app/o/[organizationId]/components/organization-conversation', () => ({
   OrganizationConversation: ({ requestMode }: { requestMode?: string }) => (

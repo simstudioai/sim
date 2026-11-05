@@ -376,7 +376,6 @@
   "apps/sim/app/workspace/[workspaceId]/home/components/message-content/components/interaction-card.tsx#InteractionCardRecapItem",
   "apps/sim/app/workspace/[workspaceId]/home/components/message-content/components/question/index.ts#formatQuestionAnswerMessage",
   "apps/sim/app/workspace/[workspaceId]/home/components/message-content/components/source-card/index.ts#highlightTerms",
-  "apps/sim/app/workspace/[workspaceId]/home/components/message-content/components/source-card/source-card.tsx#highlightTerms",
   "apps/sim/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/index.ts#CREDENTIAL_TAG_TYPES",
   "apps/sim/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/index.ts#CredentialItemData",
   "apps/sim/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/index.ts#CredentialTagData",

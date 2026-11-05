@@ -46,7 +46,11 @@ const SOURCE_ROW_MARK_CLASSES = cn(chipIconSlotClass, 'mt-0.5')
  * document matched. Terms are matched as whole words in any script,
  * case-insensitively, by the same rule the snippet was centred with.
  */
-export function highlightTerms(text: string, query: string | undefined): ReactNode {
+export function highlightTerms(
+  text: string,
+  query: string | undefined,
+  termClassName = 'font-medium text-[var(--text-primary)]'
+): ReactNode {
   const matches = findTermMatches(text, queryTerms(query))
   if (matches.length === 0) return text
   const parts: ReactNode[] = []
@@ -54,7 +58,7 @@ export function highlightTerms(text: string, query: string | undefined): ReactNo
   for (const match of matches) {
     if (match.index > cursor) parts.push(text.slice(cursor, match.index))
     parts.push(
-      <strong key={match.index} className='font-medium text-[var(--text-primary)]'>
+      <strong key={match.index} className={termClassName}>
         {text.slice(match.index, match.index + match.length)}
       </strong>
     )
@@ -68,6 +72,18 @@ function parseUpdatedAt(value: string | undefined): Date | null {
   if (!value) return null
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? null : date
+}
+
+/** Where a source lives, who wrote it and when it changed, in the order a result row reads them. */
+export function sourceMeta(source: SourceTagData): string {
+  const updatedAt = parseUpdatedAt(source.updatedAt)
+  return [
+    sourceSiteName(source),
+    source.author?.trim() || null,
+    updatedAt ? formatDate(updatedAt) : null,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(' · ')
 }
 
 interface SourceActionsProps {
@@ -130,12 +146,7 @@ interface SourceCardProps {
 /** Source results share the same document identity and actions across search and cited evidence. */
 export function SourceCard({ source, query, onSummarize, dense = false }: SourceCardProps) {
   const navigate = useSourceNavigation(source)
-  const updatedAt = parseUpdatedAt(source.updatedAt)
-  const meta = [
-    sourceSiteName(source),
-    source.author?.trim() || null,
-    updatedAt ? formatDate(updatedAt) : null,
-  ].filter((part): part is string => Boolean(part))
+  const meta = sourceMeta(source)
 
   if (dense) {
     return (
@@ -166,7 +177,7 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
             />
           </a>
           <OverflowText
-            label={meta.join(' · ')}
+            label={meta}
             className='max-w-[40%] shrink-0 text-[var(--text-tertiary)] text-caption'
           />
           <SourceActions source={source} />
@@ -198,10 +209,7 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
           </div>
         </div>
         <div className='flex min-w-0 flex-col gap-1 pl-6'>
-          <OverflowText
-            label={meta.join(' · ')}
-            className='text-[var(--text-tertiary)] text-caption'
-          />
+          <OverflowText label={meta} className='text-[var(--text-tertiary)] text-caption' />
           {source.snippet && (
             <p className='line-clamp-3 text-[var(--text-body)] text-small [overflow-wrap:anywhere]'>
               {highlightTerms(source.snippet, query)}
