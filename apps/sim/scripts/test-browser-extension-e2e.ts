@@ -891,7 +891,7 @@ try {
     }
   }
   await checkNavigation(
-    'Capture, preview, removal, and the three-page cap use the real composer',
+    'Capture, preview, and removal support ten pages in the real composer',
     async () => {
       await capture()
       await expect(attachments()).toHaveCount(1)
@@ -1007,13 +1007,16 @@ try {
         await focusBarrier.dispose()
         await focusObserver.dispose()
       }
-      await capture()
-      await capture()
-      await capture()
-      await expect(attachments()).toHaveCount(3)
-      await expect(frame().getByRole('alert').filter({ hasText: 'Remove a page' })).toBeVisible()
-      await screenshot('page-limit')
-      await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
+      for (let count = 2; count <= 10; count++) {
+        await capture()
+        await expect(attachments()).toHaveCount(count)
+      }
+      await expect(frame().getByRole('alert').filter({ hasText: 'Remove a page' })).toHaveCount(0)
+      await screenshot('many-pages')
+      for (let count = 10; count > 2; count--) {
+        await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
+        await expect(attachments()).toHaveCount(count - 1)
+      }
       await expect(attachments()).toHaveCount(2)
       const stored = await frame().evaluate(() => JSON.stringify(localStorage))
       assert(
