@@ -34,12 +34,6 @@ async function configure() {
     documentUrlPatterns: ['http://*/*', 'https://*/*'],
     targetUrlPatterns: ['http://*/*', 'https://*/*'],
   })
-  // Earlier versions could add search redirect rules, which an update must not leave running.
-  const staleRules = await chrome.declarativeNetRequest.getDynamicRules()
-  await chrome.declarativeNetRequest.updateDynamicRules({
-    removeRuleIds: staleRules.map((rule) => rule.id),
-  })
-  await chrome.storage.local.remove('searchRecovery')
 }
 
 function open(tab: chrome.tabs.Tab, trigger: 'page' | 'selection' | 'keyboard') {

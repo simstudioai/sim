@@ -5,7 +5,7 @@ import {
 } from '@sim/browser-extension-protocol'
 import { z } from 'zod'
 
-export const SIM_LINK_NAME_PATTERN = /^[A-Za-z0-9.:@&~_-]+$/
+const NAME_PATTERN = /^[A-Za-z0-9.:@&~_-]+$/
 const NAME_PUNCTUATION = /[.:@&~_-]/g
 const NAME_DISALLOWED = /[^A-Za-z0-9.:@&~_-]/g
 export const SIM_LINK_DESCRIPTION_MAX_LENGTH = 500
@@ -122,7 +122,7 @@ export const simLinkNameSchema = z
   .trim()
   .min(1, 'Enter a name')
   .max(SIM_LINK_NAME_MAX_LENGTH, `Use at most ${SIM_LINK_NAME_MAX_LENGTH} characters`)
-  .regex(SIM_LINK_NAME_PATTERN, 'Use letters, numbers, and . : @ & ~ - _')
+  .regex(NAME_PATTERN, 'Use letters, numbers, and . : @ & ~ - _')
   .refine((name) => normalizeSimLinkName(name).length > 0, 'Include a letter or number')
 
 const destinationSchema = z

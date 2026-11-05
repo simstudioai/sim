@@ -45,8 +45,6 @@ export function organizationRoutes(organizationId: string) {
     benchmark: `${root}/benchmark`,
     memberSecrets: `${root}/integrations/secrets`,
     simLinks: `${root}/links`,
-    openSimLink: (name: string) =>
-      `/sim-links/${encodeURIComponent(organizationId)}/${encodeURIComponent(name)}`,
     people: `${root}/people`,
     person: (memberId: string) => `${root}/people/${encodeURIComponent(memberId)}`,
     organizationSecrets: `${root}/settings/integrations/secrets`,
