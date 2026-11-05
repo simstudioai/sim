@@ -392,7 +392,6 @@ const permissionGroupEditorCatalogSchema = z.object({
         z.object({
           id: z.string(),
           inStaticCatalog: z.boolean(),
-          deprecated: z.boolean(),
           sunset: z.enum(['legacy', 'deprecated']).nullable(),
         })
       ),

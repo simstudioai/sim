@@ -45,8 +45,10 @@ import {
   isDestructiveAuditAction,
 } from '@/ee/audit-logs/lib/format'
 import {
+  auditRefreshReads,
   canExportAuditLogs,
   presentableAuditEntries,
+  resolveAuditTimeRange,
   resolveAuditWorkspaceScope,
 } from '@/ee/audit-logs/lib/scope'
 import {
@@ -155,17 +157,11 @@ interface AuditLogsProps {
 export function AuditLogs({ organizationId }: AuditLogsProps) {
   const [urlFilters, setUrlFilters] = useQueryStates(auditLogFilterParsers, auditLogFilterUrlKeys)
   const { types: selectedTypes } = urlFilters
-  const customStartDate = urlFilters.startDate ?? ''
-  const customEndDate = urlFilters.endDate ?? ''
-  /**
-   * 'Custom range' is only honored with both bounds present — a partial deep
-   * link (`?time-range=custom` with a missing date) falls back to the default
-   * preset window instead of silently querying unbounded.
-   */
-  const timeRange: TimeRange =
-    urlFilters.timeRange === 'Custom range' && (!customStartDate || !customEndDate)
-      ? DEFAULT_AUDIT_TIME_RANGE
-      : urlFilters.timeRange
+  const {
+    timeRange,
+    customStart: customStartDate,
+    customEnd: customEndDate,
+  } = resolveAuditTimeRange(urlFilters, DEFAULT_AUDIT_TIME_RANGE)
   /**
    * Resolved, not merely present. Only the id lives in the URL, and the filter is
    * applied once it matches a workspace the organization actually owns — a stale id
@@ -266,18 +262,9 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
     }, REFRESH_SPINNER_DURATION_MS)
     refreshTimers.add(timerId)
     const pending: Promise<unknown>[] = []
-    /*
-      `refetch` ignores `enabled`, so this has to repeat the gate. While the scope is
-      unanswerable the feed's filter carries no workspace, and refreshing it would
-      issue exactly the organization-wide read the gate exists to prevent.
-    */
-    if (isScopeAnswerable) pending.push(refetch())
-    /*
-      The lookup is what has to succeed for a closed feed to reopen, so it is retried
-      whenever a scope asked for it — and skipped entirely when none did, where it is
-      a disabled query with nothing to say.
-    */
-    if (workspaceScope) pending.push(orgWorkspaces.refetch())
+    const reads = auditRefreshReads(scope, workspaceScope)
+    if (reads.feed) pending.push(refetch())
+    if (reads.workspaces) pending.push(orgWorkspaces.refetch())
     Promise.all(pending).catch((error: unknown) => {
       logger.error('Failed to refresh audit logs', { error })
     })

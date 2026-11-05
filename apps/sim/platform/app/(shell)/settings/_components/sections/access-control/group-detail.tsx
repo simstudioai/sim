@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useDeferredValue, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   DetailHeader,
@@ -9,7 +9,6 @@ import {
   Muted,
   QueryErrorState,
   SectionStack,
-  SectionTabs,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { useUnsavedGuard } from '@/platform/app/(shell)/settings/_components/section-parts/use-unsaved-guard'
@@ -31,6 +30,7 @@ import {
   MultiSelect,
   SearchableSelect,
   SearchField,
+  SegmentedControl,
   Select,
   Switch,
   TextField,
@@ -315,7 +315,8 @@ export function GroupDetail({
 
   const memberList = members.data ?? []
   const { search, status } = params
-  const query = search.trim().toLowerCase()
+  const deferredSearch = useDeferredValue(search)
+  const query = deferredSearch.trim().toLowerCase()
 
   function catalogBody() {
     if (editor.isLoading) return <LoadingState label='Loading permissions…' />
@@ -434,7 +435,7 @@ export function GroupDetail({
         </SectionStack>
       )
     }
-    const features = searchPlatformFeatures(search).filter((feature) =>
+    const features = searchPlatformFeatures(deferredSearch).filter((feature) =>
       matchesStatusFilter(
         status,
         controls.getState({ kind: 'feature', configKey: feature.configKey })
@@ -548,9 +549,9 @@ export function GroupDetail({
           {deleteGroup.isPending ? 'Deleting…' : 'Delete'}
         </Button>
       </DetailHeader>
-      <SectionTabs
+      <SegmentedControl
         label='Permission group settings'
-        tabs={TABS}
+        options={TABS}
         value={params.tab}
         onSelect={params.selectTab}
       />

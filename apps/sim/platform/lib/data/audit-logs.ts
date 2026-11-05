@@ -9,7 +9,12 @@ import { useOrganizationWorkspaces } from '@/ee/access-control/hooks/permission-
 import { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
 import { type AuditLogFilters, useAuditLogs } from '@/ee/audit-logs/hooks/audit-logs'
 import { auditLogExportUrl } from '@/ee/audit-logs/lib/format'
-import { presentableAuditEntries, resolveAuditWorkspaceScope } from '@/ee/audit-logs/lib/scope'
+import {
+  auditRefreshReads,
+  presentableAuditEntries,
+  resolveAuditTimeRange,
+  resolveAuditWorkspaceScope,
+} from '@/ee/audit-logs/lib/scope'
 import {
   auditLogFilterParsers,
   auditLogFilterUrlKeys,
@@ -38,16 +43,10 @@ export { RESOURCE_TYPE_OPTIONS }
  */
 export function useAuditLogFeed(organizationId: string) {
   const [urlFilters, setUrlFilters] = useQueryStates(auditLogFilterParsers, auditLogFilterUrlKeys)
-  const customStart = urlFilters.startDate ?? ''
-  const customEnd = urlFilters.endDate ?? ''
-  /**
-   * 'Custom range' is only honored with both bounds present: a partial deep link falls back to the
-   * default preset window instead of silently querying unbounded.
-   */
-  const timeRange: TimeRange =
-    urlFilters.timeRange === 'Custom range' && (!customStart || !customEnd)
-      ? DEFAULT_AUDIT_TIME_RANGE
-      : urlFilters.timeRange
+  const { timeRange, customStart, customEnd } = resolveAuditTimeRange(
+    urlFilters,
+    DEFAULT_AUDIT_TIME_RANGE
+  )
   const workspaceScope = urlFilters.workspace
   const workspaces = useOrganizationWorkspaces(organizationId, Boolean(workspaceScope))
   const scope = resolveAuditWorkspaceScope(workspaceScope, workspaces)
@@ -95,15 +94,13 @@ export function useAuditLogFeed(organizationId: string) {
     /** Both bounds are written at once, so the URL never holds a half-open custom range. */
     applyCustomRange: (start: string, end: string) =>
       void setUrlFilters({ timeRange: 'Custom range', startDate: start, endDate: end }),
-    /**
-     * `refetch` ignores `enabled`, so this repeats the gate. The lookup is what has to succeed for a
-     * closed feed to reopen, so it is retried whenever a scope asked for it.
-     */
+    /** Reads only what `auditRefreshReads` allows, since `refetch` ignores `enabled`. */
     refresh: async () => {
-      const pending: Promise<unknown>[] = []
-      if (scope.isAnswerable) pending.push(feed.refetch())
-      if (workspaceScope) pending.push(workspaces.refetch())
-      await Promise.all(pending)
+      const reads = auditRefreshReads(scope, workspaceScope)
+      await Promise.all([
+        ...(reads.feed ? [feed.refetch()] : []),
+        ...(reads.workspaces ? [workspaces.refetch()] : []),
+      ])
     },
     exportCsv: () =>
       downloadCsvExport(

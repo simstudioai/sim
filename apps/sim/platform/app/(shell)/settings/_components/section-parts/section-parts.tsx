@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import styles from '@/platform/app/(shell)/settings/_components/section-parts/section-parts.module.css'
-import { Button, InlineNotice, SegmentedControl } from '@/platform/design-system/components'
+import { Button, InlineNotice } from '@/platform/design-system/components'
 
 interface ChildrenProps {
   children: ReactNode
@@ -143,20 +143,4 @@ export function QueryErrorState({ message, retrying, onRetry }: QueryErrorStateP
       }
     />
   )
-}
-
-interface SectionTabsProps<Tab extends string> {
-  label: string
-  tabs: ReadonlyArray<{ value: Tab; label: string }>
-  value: Tab
-  onSelect: (tab: Tab) => void
-}
-
-export function SectionTabs<Tab extends string>({
-  label,
-  tabs,
-  value,
-  onSelect,
-}: SectionTabsProps<Tab>) {
-  return <SegmentedControl label={label} options={tabs} value={value} onSelect={onSelect} />
 }

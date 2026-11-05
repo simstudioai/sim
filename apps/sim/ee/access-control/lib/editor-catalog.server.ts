@@ -12,7 +12,6 @@ import {
 } from '@/ee/access-control/lib/editor-registry'
 import {
   DYNAMIC_MODEL_PROVIDERS,
-  getModelSunsetStatus,
   getStaticProviderModels,
   NAMESPACED_MODEL_PROVIDERS,
   PROVIDER_DEFINITIONS,
@@ -72,8 +71,7 @@ export async function buildPermissionGroupEditorCatalog(context: {
         models: definition.models.map((model) => ({
           id: model.id,
           inStaticCatalog: fromStaticCatalog.has(model.id),
-          deprecated: model.sunset?.status === 'deprecated',
-          sunset: getModelSunsetStatus(model.id) ?? null,
+          sunset: model.sunset?.status ?? null,
         })),
       }
     }),

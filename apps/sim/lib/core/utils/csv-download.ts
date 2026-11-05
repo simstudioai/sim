@@ -24,6 +24,7 @@ export async function downloadCsvExport(url: string, filename: string): Promise<
   document.body.appendChild(link)
   link.click()
   link.remove()
-  URL.revokeObjectURL(objectUrl)
+  // Deferred: revoking synchronously after click() can race the download starting.
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
   return { ok: true, truncated }
 }

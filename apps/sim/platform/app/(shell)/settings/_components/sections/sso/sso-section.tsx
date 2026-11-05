@@ -7,7 +7,6 @@ import {
   QueryErrorState,
   ResourceList,
   SectionStack,
-  SectionTabs,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
@@ -65,8 +64,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
     requestedProvider && !createProvider
       ? providerList.find((entry) => entry.providerId === requestedProvider)
       : undefined
-  const signInView: 'create' | 'detail' | 'list' =
-    providerList.length === 0 || createProvider ? 'create' : selectedProvider ? 'detail' : 'list'
+  const creating = providerList.length === 0 || createProvider
   /** Opening pushed a history entry; closing must not push another. */
   const showList = () =>
     void setParams({ provider: null, createProvider: null }, { history: 'replace' })
@@ -117,9 +115,9 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
       )}
       <SectionToolbar
         grow={
-          <SectionTabs
+          <SegmentedControl
             label='Single sign-on settings'
-            tabs={[
+            options={[
               { value: 'sign-in', label: 'Sign-in' },
               { value: 'domains', label: 'Domains' },
               ...(provisioningAvailable
@@ -145,7 +143,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
               retrying={providers.isFetching}
               onRetry={() => void providers.refetch()}
             />
-          ) : signInView === 'list' ? (
+          ) : !creating && !selectedProvider ? (
             <>
               <SectionToolbar>
                 <Button
@@ -178,7 +176,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
               </SettingsSection>
               <RequireSso organizationId={organizationId} />
             </>
-          ) : signInView === 'detail' && selectedProvider ? (
+          ) : selectedProvider ? (
             <ProviderDetail
               key={`provider:${selectedProvider.providerId}`}
               organizationId={organizationId}

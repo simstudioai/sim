@@ -41,7 +41,7 @@ import { formatTimestamp } from '@/platform/lib/time'
 
 type AuditEntry = ReturnType<typeof useAuditLogFeed>['entries'][number]
 
-function AuditEntryRow({ entry }: { entry: AuditEntry }) {
+function AuditEntryDetails({ entry }: { entry: AuditEntry }) {
   const metadata = getAuditMetadataEntries(entry.metadata).map(
     ([key, value]) => [key, describeMetadataValue(value)] as const
   )
@@ -52,22 +52,7 @@ function AuditEntryRow({ entry }: { entry: AuditEntry }) {
     ? `${entry.actorName || 'Unknown'} (${entry.actorEmail})`
     : entry.actorName || 'Unknown'
   return (
-    <Disclosure
-      variant='activity'
-      label={entry.description || entry.resourceName || entry.resourceId || '-'}
-      introduction={
-        <ActionRow>
-          <StatusTag
-            label={formatAuditAction(entry.action)}
-            intent={isDestructiveAuditAction(entry.action) ? 'danger' : 'neutral'}
-          />
-          <Muted>
-            {entry.actorEmail || entry.actorName || 'System'} ·{' '}
-            {formatTimestamp(new Date(entry.createdAt).getTime())}
-          </Muted>
-        </ActionRow>
-      }
-    >
+    <>
       <PropertyList
         title='Details'
         properties={[
@@ -104,6 +89,29 @@ function AuditEntryRow({ entry }: { entry: AuditEntry }) {
             <Preformatted>{value.text}</Preformatted>
           </RowStack>
         ))}
+    </>
+  )
+}
+
+function AuditEntryRow({ entry }: { entry: AuditEntry }) {
+  return (
+    <Disclosure
+      variant='activity'
+      label={entry.description || entry.resourceName || entry.resourceId || '-'}
+      introduction={
+        <ActionRow>
+          <StatusTag
+            label={formatAuditAction(entry.action)}
+            intent={isDestructiveAuditAction(entry.action) ? 'danger' : 'neutral'}
+          />
+          <Muted>
+            {entry.actorEmail || entry.actorName || 'System'} ·{' '}
+            {formatTimestamp(new Date(entry.createdAt).getTime())}
+          </Muted>
+        </ActionRow>
+      }
+    >
+      <AuditEntryDetails entry={entry} />
     </Disclosure>
   )
 }

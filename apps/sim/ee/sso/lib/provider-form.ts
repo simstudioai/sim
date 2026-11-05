@@ -305,6 +305,10 @@ export function ssoFormFromProvider(provider: SsoProviderView): SsoProviderForm 
   }
 }
 
+function callbackPath(isSaml: boolean, providerId: string | null | undefined): string {
+  return `/api/auth/${isSaml ? 'sso/saml2/callback' : 'sso/callback'}/${providerId}`
+}
+
 /** Where the identity provider returns to, while the form is being filled in. */
 export function ssoFormCallbackUrl(
   form: SsoProviderForm,
@@ -314,7 +318,7 @@ export function ssoFormCallbackUrl(
   const isSaml = form.providerType === 'saml'
   return (
     (isSaml && form.callbackUrl) ||
-    `${baseUrl}/api/auth/${isSaml ? 'sso/saml2/callback' : 'sso/callback'}/${form.providerId || existing?.providerId || 'provider-id'}`
+    `${baseUrl}${callbackPath(isSaml, form.providerId || existing?.providerId || 'provider-id')}`
   )
 }
 
@@ -323,7 +327,7 @@ export function ssoProviderCallbackUrl(provider: SsoProviderView, baseUrl: strin
   return (
     (provider.providerType === 'saml' &&
       readProviderConfigString(provider.samlConfig, 'callbackUrl')) ||
-    `${baseUrl}/api/auth/${provider.providerType === 'saml' ? 'sso/saml2/callback' : 'sso/callback'}/${provider.providerId}`
+    `${baseUrl}${callbackPath(provider.providerType === 'saml', provider.providerId)}`
   )
 }
 

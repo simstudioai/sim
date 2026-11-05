@@ -1,4 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
+import { contractUrl } from '@/lib/api/client/request'
+import { exportAuditLogsContract } from '@/lib/api/contracts/audit-logs'
 
 /** Trimmed to the most commonly used granularities so the menu fits without scrolling. */
 export const AUDIT_TIME_RANGE_OPTIONS = [
@@ -109,12 +111,14 @@ export function auditLogExportUrl(
     endDate?: string
   }
 ): string {
-  const params = new URLSearchParams()
-  params.set('organizationId', organizationId)
-  if (filters.search) params.set('search', filters.search)
-  if (filters.resourceType) params.set('resourceType', filters.resourceType)
-  if (filters.workspaceId) params.set('workspaceId', filters.workspaceId)
-  if (filters.startDate) params.set('startDate', filters.startDate)
-  if (filters.endDate) params.set('endDate', filters.endDate)
-  return `/api/audit-logs/export?${params.toString()}`
+  return contractUrl(exportAuditLogsContract, {
+    query: {
+      organizationId,
+      search: filters.search || undefined,
+      resourceType: filters.resourceType || undefined,
+      workspaceId: filters.workspaceId || undefined,
+      startDate: filters.startDate || undefined,
+      endDate: filters.endDate || undefined,
+    },
+  })
 }

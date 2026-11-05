@@ -103,7 +103,15 @@ function catalogModelFacts(catalog: PermissionGroupEditorCatalog): ModelFacts {
       )
     )
   )
-  const findProvider = (model: string) => findProviderForModel(matchers, namespaced, model)
+  const providerByModel = new Map<string, string | null>()
+  const findProvider = (model: string) => {
+    let provider = providerByModel.get(model)
+    if (provider === undefined) {
+      provider = findProviderForModel(matchers, namespaced, model)
+      providerByModel.set(model, provider)
+    }
+    return provider
+  }
   return {
     findProvider,
     isKnown: (model) => isKnownModelIn(staticIds, catalog.dynamicProviderIds, model),
@@ -138,7 +146,7 @@ function toEditorModel(catalog: PermissionGroupEditorCatalog, blacklist: readonl
         modelIds:
           definitions
             .get(id)
-            ?.models.filter((model) => model.inStaticCatalog && !model.deprecated)
+            ?.models.filter((model) => model.inStaticCatalog && model.sunset !== 'deprecated')
             .map((model) => model.id) ?? [],
       })),
       knowledgeConnectors: catalog.knowledgeConnectors,

@@ -118,15 +118,11 @@ function daysToHours(days: string): number | null {
 
 /** Override field: `INHERIT` ⇄ undefined, `'never'` ⇄ null (forever), day count ⇄ hours. */
 function hoursToOverrideValue(hours: number | null | undefined): string {
-  if (hours === undefined) return INHERIT
-  if (hours === null) return 'never'
-  return clampDisplayDays(hours)
+  return hours === undefined ? INHERIT : hoursToDisplayDays(hours)
 }
 
 function overrideValueToHours(value: string): number | null | undefined {
-  if (value === INHERIT) return undefined
-  if (value === 'never') return null
-  return toRetentionHours(value)
+  return value === INHERIT ? undefined : daysToHours(value)
 }
 
 /**

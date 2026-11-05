@@ -3,6 +3,7 @@
 import { type ReactElement, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Modal } from '@/platform/design-system/components'
+import { inAppLinkDestination, useBeforeUnloadWhile } from '@/platform/lib/data/navigation-guard'
 
 interface UnsavedGuardOptions {
   isDirty: boolean
@@ -32,28 +33,23 @@ export function useUnsavedGuard({
   const guarded = useRef({ dirty: false, blocked: false })
   guarded.current = { dirty: isDirty, blocked: Boolean(navigationBlocked) }
 
+  useBeforeUnloadWhile(isDirty || Boolean(navigationBlocked))
+
   useEffect(() => {
-    function refuseUnload(event: BeforeUnloadEvent) {
-      if (guarded.current.dirty || guarded.current.blocked) event.preventDefault()
-    }
     function interceptLink(event: MouseEvent) {
       const { dirty, blocked } = guarded.current
-      if (!(dirty || blocked) || event.defaultPrevented || event.button !== 0) return
-      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-      const link = event.target instanceof Element ? event.target.closest('a[href]') : null
-      if (!(link instanceof HTMLAnchorElement) || link.target === '_blank') return
-      if (link.origin !== window.location.origin) return
+      if (!dirty && !blocked) return
+      const destination = inAppLinkDestination(event)
+      if (!destination) return
       event.preventDefault()
-      event.stopPropagation()
+      event.stopImmediatePropagation()
       if (blocked) return
-      setPending(() => () => router.push(`${link.pathname}${link.search}${link.hash}`))
+      setPending(
+        () => () => router.push(destination.pathname + destination.search + destination.hash)
+      )
     }
-    window.addEventListener('beforeunload', refuseUnload)
     document.addEventListener('click', interceptLink, true)
-    return () => {
-      window.removeEventListener('beforeunload', refuseUnload)
-      document.removeEventListener('click', interceptLink, true)
-    }
+    return () => document.removeEventListener('click', interceptLink, true)
   }, [router])
 
   return {

@@ -254,6 +254,7 @@ export function hasPermissionConfigChanges(
   return (Object.keys(edited) as (keyof PermissionGroupConfig)[]).some((key) => {
     const savedValue = saved[key]
     const editedValue = edited[key]
+    if (savedValue === editedValue) return false
     if (!Array.isArray(savedValue) || !Array.isArray(editedValue)) return savedValue !== editedValue
     const savedMembers = new Set<string>(savedValue)
     const editedMembers = new Set<string>(editedValue)

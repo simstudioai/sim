@@ -1,4 +1,5 @@
 import type { AuditLogPage } from '@/lib/api/contracts/audit-logs'
+import type { TimeRange } from '@/stores/logs/filters/types'
 
 /** One entry of the audit feed, as its contract delivers it. */
 type AuditLogEntry = AuditLogPage['data'][number]
@@ -58,6 +59,31 @@ export function resolveAuditWorkspaceScope<Workspace extends { id: string; name:
       ? `Workspace: ${workspace?.name ?? (isUnavailable ? 'unavailable' : 'not found')}`
       : null,
   }
+}
+
+/**
+ * The time window a URL asks for. 'Custom range' is only honored with both bounds present — a
+ * partial deep link falls back to the default preset window instead of silently querying unbounded.
+ */
+export function resolveAuditTimeRange(
+  url: { timeRange: TimeRange; startDate: string | null; endDate: string | null },
+  fallback: TimeRange
+) {
+  const customStart = url.startDate ?? ''
+  const customEnd = url.endDate ?? ''
+  const timeRange =
+    url.timeRange === 'Custom range' && (!customStart || !customEnd) ? fallback : url.timeRange
+  return { timeRange, customStart, customEnd }
+}
+
+/**
+ * What a refresh may read. `refetch` ignores `enabled`, so this repeats the gate: while the scope is
+ * unanswerable the feed's filter carries no workspace, and refreshing it would issue exactly the
+ * organization-wide read the gate exists to prevent. The lookup is what has to succeed for a closed
+ * feed to reopen, so it is retried whenever a scope asked for it.
+ */
+export function auditRefreshReads(scope: { isAnswerable: boolean }, workspaceId: string | null) {
+  return { feed: scope.isAnswerable, workspaces: Boolean(workspaceId) }
 }
 
 /**

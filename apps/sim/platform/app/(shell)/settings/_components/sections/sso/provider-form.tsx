@@ -150,7 +150,7 @@ export function ProviderForm({
    * Editing an OIDC provider always means a secret is stored: the contract requires one to register,
    * and the API returns only its sentinel. Leaving the field blank means "keep it", not "clear it".
    */
-  const hasStoredSecret = isEditing && existingProvider?.providerType === 'oidc'
+  const hasStoredSecret = existingProvider?.providerType === 'oidc'
   const storedHint = hasStoredSecret
     ? readProviderConfigString(existingProvider?.oidcConfig, 'clientSecretHint')
     : null
@@ -191,9 +191,8 @@ export function ProviderForm({
   async function submit() {
     if (configure.isPending) return
     setShowErrors(true)
-    const validation = validateSsoProviderForm(form, secretMode)
-    if (hasSsoFormErrors(validation)) {
-      if (validation.scopes.length > 0) setShowAdvanced(true)
+    if (hasSsoFormErrors(errors)) {
+      if (errors.scopes.length > 0) setShowAdvanced(true)
       return
     }
     try {

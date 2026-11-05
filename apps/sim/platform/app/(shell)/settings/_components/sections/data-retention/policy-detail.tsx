@@ -7,7 +7,6 @@ import {
   FieldStack,
   FormFieldset,
   Muted,
-  SectionTabs,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/data-retention/policy-detail.module.css'
 import {
@@ -322,9 +321,12 @@ export function PolicyDetail({
             )}
             {showPiiGrid && (
               <>
-                <SectionTabs
+                <SegmentedControl
                   label='Redaction stage'
-                  tabs={PII_STAGE_META.map((stage) => ({ value: stage.key, label: stage.label }))}
+                  options={PII_STAGE_META.map((stage) => ({
+                    value: stage.key,
+                    label: stage.label,
+                  }))}
                   value={activeStage}
                   onSelect={setActiveStage}
                 />

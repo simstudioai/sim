@@ -87,6 +87,7 @@ function PermissionRow({
   children,
   controls,
 }: PermissionRowProps) {
+  const [expanded, setExpanded] = useState(false)
   const inheritedFrom = controls.getInheritedFrom(target)
   const state = controls.getState(target)
   const rowDisabled = disabled || controls.isInherited(target)
@@ -113,8 +114,8 @@ function PermissionRow({
         </ActionRow>
       </SettingsRow>
       {children && (
-        <Disclosure label={`Details for ${label}`}>
-          <div className={styles.nested}>{children}</div>
+        <Disclosure label={`Details for ${label}`} open={expanded} onOpenChange={setExpanded}>
+          {expanded && <div className={styles.nested}>{children}</div>}
         </Disclosure>
       )}
     </div>
