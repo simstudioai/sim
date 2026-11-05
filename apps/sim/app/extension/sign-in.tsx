@@ -99,7 +99,7 @@ function PanelSignIn({ expectedUserId }: ExtensionSignInProps) {
       >
         Sign in
       </ChipLink>
-      {failed && <Chip onClick={() => window.location.reload()}>Try again</Chip>}
+      <Chip onClick={() => window.location.reload()}>{failed ? 'Try again' : 'Refresh'}</Chip>
     </main>
   )
 }

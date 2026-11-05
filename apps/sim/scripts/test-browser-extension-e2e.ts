@@ -78,6 +78,7 @@ const checks: {
 const screenshots: string[] = []
 const browserErrors: string[] = []
 const voiceDiagnostics: Record<string, unknown>[] = []
+const signInRecoveryReceipts: Record<string, unknown>[] = []
 const httpErrors: { path: string; status: number; injected: boolean }[] = []
 const injectedRequests = new WeakSet<Request>()
 const pendingRequests = new Set<Request>()
@@ -534,10 +535,89 @@ try {
     userId = String(id)
     await seed()
   }
+  let login: Page | null = null
+  await checkNavigation(
+    'Manual refresh recovers sign-in without focus or visibility changes',
+    async () => {
+      login = await openPage()
+      await login.goto(`${base.origin}/login`)
+      const recovery = await openPanel()
+      try {
+        const signedOutSession = recovery.waitForResponse(
+          (response) => new URL(response.url()).pathname === '/api/auth/get-session'
+        )
+        await recovery.goto(`chrome-extension://${extensionId}/sidepanel.html`)
+        const app = recovery.frames().find((candidate) => candidate.url().startsWith(base.origin))
+        assert(app, 'Recovery panel must load the real app')
+        await app.getByRole('heading', { name: 'Sign in to Sim', exact: true }).click()
+        assert.equal(await (await signedOutSession).json(), null)
+        await expect
+          .poll(
+            () =>
+              [...pendingRequests].filter(
+                (request) =>
+                  request.frame().page() === recovery &&
+                  new URL(request.url()).pathname === '/api/auth/get-session'
+              ).length
+          )
+          .toBe(0)
+        const events = await app.evaluateHandle(() => {
+          let focus = 0
+          let visibility = 0
+          const focused = () => focus++
+          const visible = () => visibility++
+          window.addEventListener('focus', focused)
+          document.addEventListener('visibilitychange', visible)
+          return {
+            snapshot: () => ({
+              focus,
+              visibility,
+              focused: document.hasFocus(),
+              visibilityState: document.visibilityState,
+            }),
+            dispose: () => {
+              window.removeEventListener('focus', focused)
+              document.removeEventListener('visibilitychange', visible)
+            },
+          }
+        })
+        try {
+          await signInAndSeed()
+          const beforeRefresh = await events.evaluate((observer) => observer.snapshot())
+          signInRecoveryReceipts.push({ phase: 'before-refresh', ...beforeRefresh })
+          assert.deepEqual(beforeRefresh, {
+            focus: 0,
+            visibility: 0,
+            focused: true,
+            visibilityState: 'visible',
+          })
+          await expect(
+            app.getByRole('heading', { name: 'Sign in to Sim', exact: true })
+          ).toBeVisible()
+          await screenshot('sign-in-manual-refresh', recovery)
+          const [response] = await Promise.all([
+            app.waitForNavigation({ waitUntil: 'load' }),
+            app.getByRole('button', { name: 'Refresh', exact: true }).click(),
+          ])
+          assert(response, 'Refresh must return a document response')
+          assert.equal(response.status(), 200)
+          assert(response.request().isNavigationRequest(), 'Refresh must reload the app document')
+          await expect(
+            app.getByRole('link', { name: 'Extension QA alpha', exact: true })
+          ).toBeVisible()
+          signInRecoveryReceipts.push({ phase: 'recovered', documentStatus: response.status() })
+          await screenshot('sign-in-manual-recovered', recovery)
+        } finally {
+          await events.evaluate((observer) => observer.dispose()).catch(() => {})
+          await events.dispose()
+        }
+      } finally {
+        await recovery.close()
+      }
+    }
+  )
   await checkNavigation('A real Better Auth session reaches the extension iframe', async () => {
-    const login = await openPage()
-    await login.goto(`${base.origin}/login`)
-    await signInAndSeed()
+    assert(login, 'The sign-in tab must remain open until returning to the original panel')
     await login.close()
     await shell.bringToFront()
     await expect(
@@ -3343,6 +3423,7 @@ try {
         screenshots,
         browserErrors,
         voiceDiagnostics,
+        signInRecoveryReceipts,
         failedRequests,
         pendingRequests: pendingAtFailure,
         failureState,
