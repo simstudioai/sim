@@ -1,3 +1,4 @@
+export { ActivityRow } from './activity-row/activity-row'
 export { AttachmentGrid } from './attachments/attachment-grid'
 export {
   Avatar,
@@ -8,6 +9,7 @@ export {
   PersonRow,
 } from './avatar/avatar'
 export { Button, Chip, IconButton } from './button/button'
+export { CopyButton } from './button/copy-button'
 export { ChartTooltip } from './chart/chart-tooltip'
 export { BarChart, DonutChart, TrendChart } from './chart/charts'
 export { ComposerInput } from './composer-input/composer-input'

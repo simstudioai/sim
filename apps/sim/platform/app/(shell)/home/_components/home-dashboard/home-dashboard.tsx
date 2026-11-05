@@ -5,8 +5,8 @@ import type { HomeWidget } from '@/platform/app/(shell)/_components/model'
 import { usePlatformNotices } from '@/platform/app/(shell)/_components/notification-tray/notification-tray'
 import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
 import {
+  AttentionList,
   EmailList,
-  WorkList,
 } from '@/platform/app/(shell)/home/_components/activity-list/activity-list'
 import { CalendarDay } from '@/platform/app/(shell)/home/_components/calendar/calendar-day'
 import { ConnectedWidget } from '@/platform/app/(shell)/home/_components/connected-widget/connected-widget'
@@ -54,12 +54,7 @@ export function HomeDashboard({ data }: HomeDashboardProps) {
     }
   }
   const goHome = () => router.push(platformHref('/home', search))
-  const work = (
-    <>
-      <WorkList title='Needs your attention' rows={data?.attention ?? []} onOpen={goHome} />
-      <WorkList title='Workspaces' rows={data?.workspaces ?? []} onOpen={goHome} />
-    </>
-  )
+  const attention = <AttentionList rows={data?.attention ?? []} onOpen={goHome} />
   return (
     <div className={styles.viewport}>
       <ScrollArea label='Home dashboard'>
@@ -88,7 +83,7 @@ export function HomeDashboard({ data }: HomeDashboardProps) {
               {!hiddenWidgets.includes('Tasks run') && (
                 <TasksRunChart title='Tasks run' ranges={data?.ranges ?? []} />
               )}
-              {personal.length > 0 && work}
+              {personal.length > 0 && attention}
             </div>
             <div className={styles.column}>
               {personal.length
@@ -110,7 +105,7 @@ export function HomeDashboard({ data }: HomeDashboardProps) {
                       )}
                     </ConnectedWidget>
                   ))
-                : work}
+                : attention}
             </div>
           </div>
         </div>

@@ -36,7 +36,6 @@ export function OrganizationMenu({ anchor, organization, onSettings }: Organizat
             render={button}
             label='Organization menu'
             leading={organization && <Avatar name={name} organization size='inline' />}
-            trailingIcon='I064'
           >
             {name}
           </IdentityButton>

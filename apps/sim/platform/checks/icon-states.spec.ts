@@ -25,6 +25,7 @@ function paint(control: Locator) {
 test('quiet actions and menu rows preserve optical weight and distinguish their hover states', async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
   for (const theme of ['light', 'dark']) {
     await page.goto(`http://127.0.0.1:3181/home?state=full&theme=${theme}`)
     const add = page.getByRole('button', { name: 'Add workspace' })

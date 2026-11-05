@@ -1,20 +1,18 @@
 import type { ComposerReferences } from '@/platform/app/(shell)/_components/composer/model'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 
-export interface HomeRow {
+interface AttentionItem {
   id: string
   title: string
   detail: string
   meta: string
-  indicator?: IconName
   icon: IconName
 }
 
 export interface HomeData {
   firstName: string
   address: string
-  attention: HomeRow[]
-  workspaces: HomeRow[]
+  attention: AttentionItem[]
   ranges: { label: string; points: { label: string; value: number }[] }[]
   email: {
     id: string
@@ -27,7 +25,6 @@ export interface HomeData {
   }[]
   calendar: {
     date: string
-    times: string[]
     now?: string
     nowMinute?: number
     meetings: {

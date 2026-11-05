@@ -1,10 +1,9 @@
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-20);
   min-block-size: 0;
   min-inline-size: 0;
-  padding: var(--spacing-12) var(--ui-row-inset);
+  padding: var(--ui-page-inset-block) var(--ui-row-inset);
   border-inline-end: var(--spacing-stroke-default) solid var(--ui-divider);
 }
 .sidebarHeader,
@@ -15,12 +14,12 @@
 }
 .sidebarHeader {
   justify-content: space-between;
-  min-block-size: var(--spacing-28);
+  margin-block-end: var(--ui-product-section-gap);
 }
 .sidebarFooter {
   gap: var(--ui-row-gap);
   min-block-size: var(--spacing-app-chip);
-  margin-block-start: auto;
+  margin-block-start: var(--ui-page-inset-block);
 }
 .help {
   display: flex;
@@ -34,6 +33,7 @@
   border-radius: var(--radius-full);
 }
 .actions {
+  gap: var(--ui-action-gap);
   flex: none;
 }
 .sidebarBody {
@@ -46,7 +46,7 @@
   min-inline-size: 0;
 }
 .nav {
-  gap: var(--spacing-20);
+  gap: var(--ui-product-section-gap);
 }
 .group {
   gap: var(--ui-list-gap);

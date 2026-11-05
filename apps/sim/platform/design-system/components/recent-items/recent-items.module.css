@@ -2,6 +2,8 @@
   display: grid;
   min-inline-size: 0;
   max-inline-size: 100%;
+  gap: var(--ui-row-gap);
+  inline-size: 100%;
 }
 .heading {
   display: flex;
@@ -10,58 +12,11 @@
   padding-inline: var(--spacing-8);
   color: var(--collection-heading-ink);
 }
-.recents {
-  gap: var(--spacing-8);
-  inline-size: 100%;
-}
 .recentLane {
   display: flex;
   align-items: center;
-  gap: var(--spacing-4);
+  gap: var(--ui-list-gap);
 }
-.recentItem {
-  display: flex;
-  align-items: center;
+.recentLane > li {
   flex: none;
-  gap: var(--spacing-8);
-  min-height: var(--spacing-32);
-  padding-inline: var(--spacing-8);
-  border-radius: var(--radius-control);
-  white-space: nowrap;
-  color: var(--ui-ink);
-}
-.recentItem > button {
-  align-self: stretch;
-  cursor: pointer;
-}
-@media (pointer: coarse) {
-  .recentItem {
-    min-height: var(--spacing-app-touch-target);
-  }
-  .recentItem > button {
-    min-inline-size: var(--spacing-app-touch-target);
-  }
-}
-.recentItem:has(button):hover {
-  background: var(--ui-hover);
-}
-.removeRecent {
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-}
-.removeRecent > svg:last-child,
-.recentItem:hover .removeRecent > svg:first-child {
-  display: none;
-}
-.recentItem:hover .removeRecent > svg:last-child {
-  display: block;
-}
-@media (hover: none) {
-  .removeRecent > svg:first-child {
-    display: none;
-  }
-  .removeRecent > svg:last-child {
-    display: block;
-  }
 }

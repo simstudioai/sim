@@ -4,8 +4,7 @@ import { type ReactNode, useRef } from 'react'
 import { Tabs as BaseTabs } from '@base-ui/react/tabs'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import { IconButton } from '@/platform/design-system/components/button/button'
-import { Icon } from '@/platform/design-system/components/icon/icon'
-import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
+import { ControlRow } from '@/platform/design-system/components/button/control-row'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import styles from '@/platform/design-system/components/tabs/tabs.module.css'
 
@@ -44,36 +43,33 @@ export function Tabs({ label, tabs, current, onSelect, onRemove, renderHeader }:
         <div ref={scrollRef} className={styles.strip}>
           <BaseTabs.List className={styles.tabs} aria-label={label} activateOnFocus>
             {tabs.map((tab) => (
-              <BaseTabs.Tab
+              <ControlRow
                 key={tab.id}
-                value={tab.id}
-                ref={tab.id === current ? selected : undefined}
-                className={styles.tab}
-                data-type='T067'
-                onKeyDown={(event) => {
-                  if (event.key === 'Delete') {
-                    event.preventDefault()
-                    closeTab(tab.id)
-                  }
-                }}
-              >
-                <Icon name={tab.icon} />
-                <OverflowText text={tab.label}>{tab.label}</OverflowText>
-              </BaseTabs.Tab>
+                label={tab.label}
+                icon={tab.icon}
+                render={
+                  <BaseTabs.Tab
+                    value={tab.id}
+                    ref={tab.id === current ? selected : undefined}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Delete') {
+                        event.preventDefault()
+                        closeTab(tab.id)
+                      }
+                    }}
+                  />
+                }
+                action={
+                  <IconButton
+                    icon='I105'
+                    size='compact'
+                    label={`Close ${tab.label} tab`}
+                    onClick={() => closeTab(tab.id)}
+                  />
+                }
+              />
             ))}
           </BaseTabs.List>
-          <div className={styles.closes}>
-            {tabs.map((tab) => (
-              <div className={styles.slot} key={tab.id}>
-                <IconButton
-                  icon='I105'
-                  size='compact'
-                  label={`Close ${tab.label} tab`}
-                  onClick={() => closeTab(tab.id)}
-                />
-              </div>
-            ))}
-          </div>
         </div>
       )}
       {tabs.map((tab) => (

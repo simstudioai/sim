@@ -1,11 +1,11 @@
 'use client'
 
-import { usePlatformTheme } from '@/platform/app/(shell)/_components/session/product-surface'
 import { BrowserContent } from '@/platform/app/(shell)/chat/_components/panel/browser-content'
 import type { PanelDestination } from '@/platform/app/(shell)/chat/_components/panel/chat-panels'
 import type { PanelData, PanelRecent } from '@/platform/app/(shell)/chat/_components/panel/model'
 import styles from '@/platform/app/(shell)/chat/_components/panel/panels.module.css'
 import {
+  ActivityRow,
   Icon,
   IconButton,
   RecentItems,
@@ -39,7 +39,6 @@ export function PanelContent({
   onRecent,
   onRemove,
 }: PanelContentProps) {
-  const theme = usePlatformTheme()
   const compact = useCompactViewport('navigation')
   if (view === 'terminal')
     return (
@@ -102,26 +101,25 @@ export function PanelContent({
               label='Workspaces'
               items={workspaces}
               onSelect={onHome}
-              theme={theme}
             />
           </div>
         ) : (
-          <div className={styles.launcher}>
-            <button type='button' onClick={() => onVisit('terminal')}>
-              <Icon name='I107' />
-              <span>
-                <strong data-type='T043'>Terminal</strong>
-                <small data-type='T067'>Run commands in this session</small>
-              </span>
-            </button>
-            <button type='button' onClick={() => onVisit('workspaces')}>
-              <Icon name='I025' />
-              <span>
-                <strong data-type='T043'>Workspaces</strong>
-                <small data-type='T067'>Open a workspace</small>
-              </span>
-            </button>
-          </div>
+          <ul className={styles.launcher} aria-label='Panel destinations'>
+            <ActivityRow
+              leading={<Icon name='I107' />}
+              title='Terminal'
+              detail='Run commands in this session'
+              showChevron={false}
+              onOpen={() => onVisit('terminal')}
+            />
+            <ActivityRow
+              leading={<Icon name='I025' />}
+              title='Workspaces'
+              detail='Open a workspace'
+              showChevron={false}
+              onOpen={() => onVisit('workspaces')}
+            />
+          </ul>
         )}
       </div>
     </div>

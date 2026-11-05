@@ -1,4 +1,6 @@
-import { useId } from 'react'
+'use client'
+
+import { useId, useState } from 'react'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import styles from '@/platform/design-system/components/segmented-control/segmented-control.module.css'
@@ -11,7 +13,9 @@ interface Choice {
 
 interface SelectionItemProps extends Choice {
   name: string
+  checked?: boolean
   defaultChecked?: boolean
+  onReselect?: () => void
   onSelect?: (value: string) => void
 }
 
@@ -20,7 +24,9 @@ export function SelectionItem({
   label,
   value,
   icon,
+  checked,
   defaultChecked,
+  onReselect,
   onSelect,
 }: SelectionItemProps) {
   return (
@@ -30,7 +36,14 @@ export function SelectionItem({
         className={styles.radio}
         name={name}
         value={value}
+        checked={checked}
         defaultChecked={defaultChecked}
+        onClick={
+          onReselect &&
+          ((event) => {
+            if (event.detail > 0) onReselect()
+          })
+        }
         onChange={onSelect && (() => onSelect(value))}
       />
       <span
@@ -59,17 +72,27 @@ export function SegmentedControl({
   onSelect,
 }: SegmentedControlProps) {
   const group = useId()
+  const [selected, setSelected] = useState(defaultValue)
+  function select(value: string) {
+    setSelected(value)
+    onSelect?.(value)
+  }
   return (
     <fieldset className={styles.segmented} aria-label={label}>
-      {options.map((option) => (
+      {options.map((option, index) => (
         <SelectionItem
           key={option.value}
           name={group}
           value={option.value}
           label={option.label}
           icon={option.icon}
-          defaultChecked={defaultValue === option.value}
-          onSelect={onSelect}
+          checked={selected === option.value}
+          onSelect={select}
+          onReselect={
+            options.length === 2 && selected === option.value
+              ? () => select(options[1 - index].value)
+              : undefined
+          }
         />
       ))}
     </fieldset>

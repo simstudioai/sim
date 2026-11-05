@@ -90,7 +90,7 @@ export function Sidebar({
                   <AvatarImage src={preferences.picture} name={accountName} />
                 </span>
               ) : (
-                <Avatar name={accountName} size='inline' />
+                <Avatar name={accountName} size='inline' singleInitial />
               )
             }
             onClick={() => navigate('/settings')}

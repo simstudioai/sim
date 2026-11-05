@@ -40,8 +40,8 @@
 }
 
 .iconButton[data-size="row"] {
-  width: calc(var(--ui-icon-size) + 2 * var(--ui-row-inset));
-  height: calc(var(--ui-icon-size) + 2 * var(--ui-row-inset));
+  width: var(--spacing-app-chip);
+  height: var(--spacing-app-chip);
 }
 
 .iconButton[data-size="compact"] {
@@ -50,8 +50,17 @@
 }
 
 .chip {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  max-inline-size: 100%;
   min-height: var(--spacing-app-chip);
-  padding-inline: var(--spacing-8);
+  padding-inline: var(--ui-row-inset);
+  gap: var(--ui-row-gap);
+  justify-content: start;
+  text-align: start;
+}
+.wrappedLabel {
+  overflow-wrap: anywhere;
 }
 
 .button[data-size="compact"] {
@@ -65,23 +74,15 @@
   background: var(--ui-ink);
   color: var(--control-on-solid);
 }
-.iconButton[data-variant="floating"] {
-  border: var(--spacing-stroke-default) solid var(--ui-border);
-}
 .iconButton[data-variant="solid"]:enabled:hover {
   background: var(--control-primary-hover);
 }
-.iconButton[data-variant="floating"]:enabled:hover {
-  background: var(--ui-floating);
-}
 
-:is(.button, .iconButton, .chip):enabled:hover {
+:is(.button, .iconButton):enabled:hover {
   background: var(--ui-hover);
 }
 
-:is(.button, .iconButton, .chip):enabled:active,
-.chip[aria-pressed="true"],
-.chip[aria-current="page"] {
+:is(.button, .iconButton):enabled:active {
   background: var(--ui-selected);
 }
 
@@ -107,26 +108,26 @@
   cursor: default;
 }
 
-.iconButton[data-size="touch"] {
-  width: var(--spacing-app-touch-target);
-  height: var(--spacing-app-touch-target);
-}
-
 @media (pointer: coarse) {
-  .iconButton:is([data-size="small"], [data-size="row"]) {
+  .iconButton[data-size="small"] {
     inline-size: var(--spacing-app-touch-target);
     block-size: var(--spacing-app-touch-target);
   }
 }
 
-a.chip {
-  justify-content: start;
-  min-inline-size: 0;
-}
-a.chip:not([aria-current="page"]):hover {
+.chip:where(a[href], :enabled):hover,
+.chipRow:where(:hover, :has([aria-expanded="true"])) > .chip {
   background: var(--ui-hover);
 }
-
+.chip:where(a[href], :enabled):active,
+.chip:is(
+    [aria-pressed="true"],
+    [aria-expanded="true"],
+    [aria-current="page"],
+    [aria-selected="true"]
+  ) {
+  background: var(--ui-selected);
+}
 .chipRow {
   display: grid;
   grid-template-areas: "row";
@@ -137,24 +138,31 @@ a.chip:not([aria-current="page"]):hover {
 .chipAction {
   grid-area: row;
 }
-.chipRow > .chip {
-  padding-inline-end: var(--spacing-36);
+.chipRow[data-action-side="end"] > .chip {
+  padding-inline-end: var(--spacing-app-chip);
 }
 .chipAction {
   display: flex;
   justify-self: end;
+  margin-inline: calc((var(--spacing-app-chip) - var(--spacing-24)) / 2);
   opacity: 0;
 }
-.chipRow:hover > .chip:not([aria-current="page"]),
-.chipRow:has([aria-expanded="true"]) > .chip:not([aria-current="page"]) {
-  background: var(--ui-hover);
+.chipRow[data-action-side="start"] > .chipAction {
+  justify-self: start;
 }
 .chipRow:hover .chipAction,
+.chipRow:has([role="tab"]) .chipAction,
 .chipAction:has([aria-expanded="true"]) {
   opacity: 1;
+}
+.chipRow[data-action-side="start"]:hover > .chip > svg {
+  visibility: hidden;
 }
 @media (hover: none) {
   .chipAction {
     opacity: 1;
+  }
+  .chipRow[data-action-side="start"] > .chip > svg {
+    visibility: hidden;
   }
 }

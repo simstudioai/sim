@@ -75,9 +75,18 @@ test('the narrow drawer returns focus on Escape, routes through settings, and ke
     await page.setViewportSize({ width, height: 640 })
     await page.goto(`${origin}/home?state=stress&theme=light`)
     const toggle = page.getByRole('button', { name: 'Expand sidebar' })
+    const openerHeight = (await toggle.boundingBox())?.height
     await toggle.click()
     const drawer = page.getByRole('dialog', { name: 'Navigation drawer' })
     await expect(drawer).toBeVisible()
+    const org = drawer.getByRole('button', { name: 'Organization menu' })
+    const rowHeight = (await org.boundingBox())?.height
+    for (const name of ['Search', 'Notifications', 'Collapse sidebar', 'Help']) {
+      const box = await drawer.getByRole('button', { name, exact: true }).boundingBox()
+      expect(box?.height).toBe(rowHeight)
+      expect(box?.width).toBe(rowHeight)
+    }
+    expect(openerHeight).toBe(rowHeight)
     const help = drawer.getByRole('button', { name: 'Help', exact: true })
     const anchor = await help.boundingBox()
     await help.click()
@@ -103,6 +112,56 @@ test('the narrow drawer returns focus on Escape, routes through settings, and ke
     await expect(page).toHaveURL(/\/settings\/members\?state=stress&theme=light/)
     await expect(drawer).not.toBeVisible()
   }
+})
+
+test('sidebar and panel row actions share a hit area and act independently of the row', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.goto(`${origin}/chat/weekly-review?state=full`)
+  const sidebar = page.getByRole('complementary', { name: 'Platform sidebar' })
+  const panel = page.getByRole('complementary', { name: 'Chat panel' })
+  await page.getByRole('button', { name: 'Open chat panel' }).click()
+  const workspace = sidebar.getByRole('link', { name: 'Customer operations', exact: true })
+  const menu = sidebar.getByRole('button', { name: 'Actions for Customer operations' })
+  const recent = panel.getByRole('button', { name: 'Renewal brief', exact: true })
+  const remove = panel.getByRole('button', { name: 'Remove Renewal brief from recents' })
+  const pairs = [
+    [workspace, menu, false],
+    [
+      sidebar.getByRole('link', { name: 'Review the renewal brief' }),
+      sidebar.getByRole('button', { name: 'Actions for Review the renewal brief' }),
+      false,
+    ],
+    [
+      panel.getByRole('tab', { selected: true }),
+      panel.getByRole('button', { name: 'Close Workspaces tab' }),
+      false,
+    ],
+    [recent, remove, true],
+  ] as const
+  const targets = []
+  for (const [row, action, leading] of pairs) {
+    await row.hover()
+    await expect(action).toBeVisible()
+    const host = await row.boundingBox()
+    const hit = await action.boundingBox()
+    if (!host || !hit) throw new Error('The row and its action must both be visible')
+    targets.push([
+      host.height,
+      hit.width,
+      hit.height,
+      leading ? hit.x - host.x : host.x + host.width - hit.x - hit.width,
+    ])
+  }
+  for (const target of targets) expect(target).toEqual(targets[0])
+  await remove.click()
+  await expect(recent).toHaveCount(0)
+  await expect(panel.getByRole('tab', { selected: true })).toHaveAccessibleName('Workspaces')
+  await workspace.hover()
+  await menu.click()
+  await page.getByRole('menuitem', { name: 'Open workspace' }).click()
+  await expect(page).toHaveURL(/\/home\?state=full/)
 })
 
 test('the inbox filters unread items and each notification can be dismissed separately', async ({

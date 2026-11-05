@@ -78,13 +78,12 @@ export function BrowserContent({
           />
         </form>
         <BrowserActionsMenu
+          address={address}
           zoomPercent={zoom}
           onZoom={setZoom}
           onAction={(action) => {
             if (action === 'find' || action === 'downloads')
               setTool(tool === action ? null : action)
-            if (action === 'copy' && address)
-              void navigator.clipboard?.writeText(address).catch(() => {})
           }}
         />
       </div>

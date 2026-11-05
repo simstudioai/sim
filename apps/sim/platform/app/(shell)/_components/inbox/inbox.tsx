@@ -4,7 +4,7 @@ import { type RefObject, useState } from 'react'
 import styles from '@/platform/app/(shell)/_components/inbox/inbox.module.css'
 import type { InboxItem } from '@/platform/app/(shell)/_components/model'
 import { useSidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
-import { Icon, SegmentedControl } from '@/platform/design-system/components'
+import { ActivityRow, Icon, SegmentedControl } from '@/platform/design-system/components'
 import { AnchoredPopover } from '@/platform/design-system/components/menu/anchored-popover'
 
 interface InboxProps {
@@ -43,24 +43,17 @@ export function Inbox({ anchor, items, navigate }: InboxProps) {
         </header>
         <ul className={styles.list}>
           {visible.map((item) => (
-            <li key={item.id}>
-              <button
-                type='button'
-                className={styles.inboxRow}
-                onClick={() => {
-                  setRead((previous) => new Set(previous).add(item.id))
-                  setOpen(false)
-                  navigate(item.href)
-                }}
-              >
-                <Icon name={item.icon} />
-                <span className={styles.copy}>
-                  <span data-type='T059'>{item.title}</span>
-                  <span data-type='T050'>{item.description}</span>
-                </span>
-                <Icon name='I032' />
-              </button>
-            </li>
+            <ActivityRow
+              key={item.id}
+              leading={<Icon name={item.icon} />}
+              title={item.title}
+              detail={item.description}
+              onOpen={() => {
+                setRead((previous) => new Set(previous).add(item.id))
+                setOpen(false)
+                navigate(item.href)
+              }}
+            />
           ))}
         </ul>
         {!visible.length && (

@@ -28,27 +28,25 @@
 .turn {
   display: grid;
   min-inline-size: 0;
-  gap: var(--spacing-24);
+  gap: var(--ui-product-section-gap);
   overflow-wrap: anywhere;
 }
 .thread,
 .dockInner {
-  inline-size: min(
-    var(--container-chat-thread),
-    calc(100% - clamp(var(--spacing-32), 10cqi, var(--spacing-96)))
-  );
+  inline-size: min(var(--ui-page-max-size), calc(100% - 2 * var(--ui-page-inline-gutter)));
   margin-inline: auto;
 }
 .dock {
   flex: none;
   position: relative;
   min-inline-size: 0;
-  padding-block-end: clamp(var(--spacing-16), 3cqi, var(--spacing-28));
+  padding-block-end: var(--ui-page-inset-block);
 }
 .jump {
   position: absolute;
-  inset-block-end: 100%;
-  inset-inline: 0;
   display: flex;
-  justify-content: center;
+  inset-block-end: calc(100% + var(--ui-section-gap));
+  inset-inline: 0;
+  inline-size: max-content;
+  margin-inline: auto;
 }

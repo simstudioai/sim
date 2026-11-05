@@ -27,7 +27,6 @@ export interface ChatTurn {
     steps: {
       id: string
       name: string
-      detail?: string
       time: string
       input: string
       output: string

@@ -1,11 +1,10 @@
-import { ComponentRecipe } from '@/platform/design-system/catalog/component-recipe'
+import { ControlRow } from '@/platform/design-system/components/button/control-row'
 import { ScrollArea } from '@/platform/design-system/components/scroll-area/scroll-area'
 import styles from '@/platform/design-system/components/workspace-list/workspace-list.module.css'
 
 interface WorkspaceItemsProps {
   label: string
   items: readonly { id: string; name: string }[]
-  theme: 'light' | 'dark'
 }
 
 interface WorkspaceListProps extends WorkspaceItemsProps {
@@ -13,13 +12,7 @@ interface WorkspaceListProps extends WorkspaceItemsProps {
   target?: 'standard' | 'touch'
 }
 
-export function WorkspaceList({
-  label,
-  items,
-  theme,
-  onSelect,
-  target = 'standard',
-}: WorkspaceListProps) {
+export function WorkspaceList({ label, items, onSelect, target = 'standard' }: WorkspaceListProps) {
   return (
     <section className={styles.workspaces} data-target={target}>
       <h3 className={styles.heading} data-type='T067'>
@@ -28,29 +21,18 @@ export function WorkspaceList({
       <div className={styles.workspaceViewport}>
         <ScrollArea label={label}>
           <ul className={styles.rows} aria-label={label}>
-            {items.map((item) => {
-              const row = (
-                <ComponentRecipe
-                  recipe={theme === 'light' ? 'C1282' : 'C1281'}
-                  slots={{ label: item.name }}
+            {items.map((item) => (
+              <li className={styles.workspaceRow} key={item.id}>
+                <ControlRow
+                  label={item.name}
+                  icon='I025'
+                  wrap
+                  render={
+                    onSelect ? <button type='button' onClick={() => onSelect(item.id)} /> : <span />
+                  }
                 />
-              )
-              return (
-                <li className={styles.workspaceRow} key={item.id}>
-                  {onSelect ? (
-                    <button
-                      type='button'
-                      className={styles.workspaceHit}
-                      onClick={() => onSelect(item.id)}
-                    >
-                      {row}
-                    </button>
-                  ) : (
-                    row
-                  )}
-                </li>
-              )
-            })}
+              </li>
+            ))}
           </ul>
         </ScrollArea>
       </div>
@@ -58,15 +40,12 @@ export function WorkspaceList({
   )
 }
 
-export function SidebarWorkspaceItems({ label, items, theme }: WorkspaceItemsProps) {
+export function SidebarWorkspaceItems({ label, items }: WorkspaceItemsProps) {
   return (
     <ul className={styles.rows} aria-label={label}>
       {items.map((item) => (
         <li key={item.id}>
-          <ComponentRecipe
-            recipe={theme === 'light' ? 'C1056' : 'C1051'}
-            slots={{ label: item.name }}
-          />
+          <ControlRow icon='I025' label={item.name} render={<span />} />
         </li>
       ))}
     </ul>

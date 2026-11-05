@@ -2,9 +2,8 @@
 
 import { useState } from 'react'
 import { Menu } from '@base-ui/react/menu'
-import { Icon } from '@/platform/design-system/components/icon/icon'
+import { Button } from '@/platform/design-system/components/button/button'
 import { ActionMenuPopup, MenuItem } from '@/platform/design-system/components/menu/action-menu'
-import styles from '@/platform/design-system/components/menu/range-picker.module.css'
 import { usePopoverContainer } from '@/platform/design-system/components/menu/use-popover-container'
 import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
 
@@ -29,16 +28,15 @@ export function RangePicker({
   return (
     <Menu.Root modal={false} defaultOpen={defaultOpen && options.length > 0}>
       <Tooltip label={label}>
-        <Menu.Trigger
-          ref={trigger}
-          className={styles.trigger}
-          aria-label={value ? `${label}: ${value}` : label}
+        <Button
+          render={<Menu.Trigger ref={trigger} aria-label={value ? `${label}: ${value}` : label} />}
           disabled={!options.length}
-          data-type='T060'
+          variant='quiet'
+          size='compact'
+          trailingIcon='I080'
         >
           {value || label}
-          <Icon name='I080' />
-        </Menu.Trigger>
+        </Button>
       </Tooltip>
       <ActionMenuPopup label={label} container={container} align='end'>
         <Menu.RadioGroup

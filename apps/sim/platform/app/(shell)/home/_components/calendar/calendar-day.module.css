@@ -18,12 +18,18 @@
 .dayControls > :first-child svg {
   transform: scaleX(-1);
 }
+.viewport {
+  position: relative;
+  block-size: var(--spacing-224);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .timeline {
   display: grid;
   grid-template-columns: var(--spacing-60) minmax(0, 1fr);
   grid-auto-rows: calc(var(--spacing-64) / 60);
   column-gap: var(--ui-row-gap);
-  padding-block-start: var(--ui-row-inset);
+  padding-block: var(--ui-row-inset);
   min-inline-size: 0;
 }
 .hour,

@@ -6,16 +6,17 @@
 }
 .dashboard {
   display: grid;
-  max-inline-size: calc(var(--container-app-dashboard) + 2 * var(--spacing-48));
+  inline-size: min(var(--ui-page-max-size), calc(100% - 2 * var(--ui-page-inline-gutter)));
   margin-inline: auto;
-  padding-inline: clamp(var(--spacing-16), 4cqi, var(--spacing-48));
-  gap: clamp(var(--spacing-20), 3cqi, var(--spacing-28));
+  padding-block: var(--ui-page-inset-block);
+  gap: var(--ui-product-section-gap);
 }
 .greeting {
   display: flex;
   align-items: start;
   justify-content: space-between;
   gap: var(--ui-row-gap);
+  margin-inline-start: max(0px, calc(var(--ui-navigation-inset) - (100cqi - 100%) / 2));
   margin-inline-end: calc(-1 * var(--ui-action-overhang));
 }
 .greeting > div {
@@ -30,22 +31,13 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--container-440)), 1fr));
   align-items: start;
-  gap: clamp(var(--spacing-16), 3cqi, var(--spacing-32));
+  gap: var(--ui-product-section-gap);
 }
 .column {
   display: grid;
-  gap: var(--spacing-24);
+  gap: var(--ui-product-section-gap);
   min-inline-size: 0;
 }
 .column:empty {
   display: none;
-}
-
-@media (width > 48rem) {
-  .dashboard {
-    padding-inline-start: max(
-      var(--ui-navigation-inset),
-      clamp(var(--spacing-16), 4cqi, var(--spacing-48))
-    );
-  }
 }

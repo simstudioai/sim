@@ -40,6 +40,12 @@
 .userActions {
   gap: var(--ui-action-gap);
 }
+.responseActions time {
+  margin-inline-start: var(--ui-action-overhang);
+}
+.userActions time {
+  margin-inline-end: var(--ui-action-overhang);
+}
 .responseActions {
   justify-self: start;
   margin-inline-start: calc(-1 * var(--ui-action-overhang));
@@ -52,11 +58,11 @@
   margin-inline-end: calc(var(--spacing-16) - var(--ui-action-overhang));
 }
 .userActions,
-.responseActions > span:last-child {
+.responseActions time {
   opacity: 0;
 }
 .user:hover .userActions,
-.responseActions:hover > span:last-child {
+.responseActions:hover time {
   opacity: 1;
 }
 @container conversation (width < 24rem) {
@@ -75,7 +81,7 @@
     padding-block-start: 0;
   }
   .userActions,
-  .responseActions > span:last-child {
+  .responseActions time {
     opacity: 1;
   }
 }
@@ -89,6 +95,11 @@
 .steps {
   display: grid;
   gap: var(--ui-list-gap);
+}
+.runRule {
+  border: 0;
+  border-block-start: var(--ui-conversation-rule);
+  margin: 0;
 }
 .step summary {
   color: var(--ui-secondary);
@@ -120,8 +131,9 @@
   transform: rotate(90deg);
 }
 .result {
-  margin-block-start: var(--ui-section-gap);
+  margin-block-start: var(--ui-row-gap);
   padding-inline-start: var(--spacing-16);
+  border-inline-start: var(--ui-conversation-rule);
   color: var(--ui-ink);
 }
 .result div {
@@ -136,9 +148,6 @@
 }
 .step time {
   flex: none;
-}
-.qualifier {
-  color: var(--ui-secondary);
 }
 .retry {
   justify-self: start;

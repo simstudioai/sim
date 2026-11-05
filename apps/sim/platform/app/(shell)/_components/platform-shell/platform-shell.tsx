@@ -107,12 +107,7 @@ export function PlatformShell({ data, children, navigation, desktopTitle }: Plat
 
   const openControl = (
     <Tooltip label='Expand sidebar'>
-      <IconButton
-        label='Expand sidebar'
-        icon='I066'
-        size={compact ? 'touch' : 'small'}
-        onClick={toggle}
-      />
+      <IconButton label='Expand sidebar' icon='I066' size='row' onClick={toggle} />
     </Tooltip>
   )
   return (
@@ -120,6 +115,7 @@ export function PlatformShell({ data, children, navigation, desktopTitle }: Plat
       <div
         className={styles.shell}
         data-desktop={desktop || undefined}
+        data-home={home || undefined}
         data-conversation={conversation || undefined}
         data-sidebar-collapsed={collapsed || undefined}
       >
@@ -129,7 +125,7 @@ export function PlatformShell({ data, children, navigation, desktopTitle }: Plat
               <WindowHistoryButtons />
               {!compact && !collapsed ? actions : openControl}
             </div>
-            {!conversation && (
+            {!conversation && !(home && compact) && (
               <span className={styles.desktopTitle} data-type='T067'>
                 <OverflowText text={pageTitle}>{pageTitle}</OverflowText>
               </span>
@@ -137,25 +133,10 @@ export function PlatformShell({ data, children, navigation, desktopTitle }: Plat
           </header>
         )}
         {!compact && !collapsed && sidebar}
-        <div
-          ref={scrollEdges}
-          className={styles.content}
-          onScroll={(event) => {
-            if (home && compact)
-              event.currentTarget.toggleAttribute(
-                'data-scrolled',
-                event.currentTarget.scrollTop > 0
-              )
-          }}
-        >
-          {home && !desktop && compact && (
-            <header className={styles.homeHeader} data-material='shell'>
-              <span data-type='T042'>Home</span>
-            </header>
-          )}
-          {!desktop && (compact || collapsed) && (
-            <div className={styles.openControl}>{openControl}</div>
-          )}
+        {!desktop && (compact || collapsed) && (
+          <div className={styles.openControl}>{openControl}</div>
+        )}
+        <div ref={scrollEdges} className={styles.content}>
           {children}
         </div>
         <dialog

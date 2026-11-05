@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ControlRow } from '@/platform/design-system/components/button/control-row'
 import styles from '@/platform/design-system/components/destination-tabs/destination-tabs.module.css'
 import { ScrollArea } from '@/platform/design-system/components/scroll-area/scroll-area'
 
@@ -14,16 +15,17 @@ export function DestinationTabs({ label, destinations, currentHref }: Destinatio
       <ScrollArea label={label} axis='horizontal' arrows>
         <div className={styles.lane}>
           {destinations.map(({ label: text, href }) => (
-            <Link
+            <ControlRow
               key={href}
-              href={href}
-              scroll={false}
-              className={styles.destination}
-              aria-current={href === currentHref ? 'page' : undefined}
-              data-type='T043'
-            >
-              {text}
-            </Link>
+              label={text}
+              render={
+                <Link
+                  href={href}
+                  scroll={false}
+                  aria-current={href === currentHref ? 'page' : undefined}
+                />
+              }
+            />
           ))}
         </div>
       </ScrollArea>

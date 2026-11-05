@@ -138,6 +138,16 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
   const primitive = file.startsWith(`${system}components/`)
   if (inPlatform && /^@base-ui\/react(?:\/|$)/.test(specifier) && !primitive)
     report('primitive-owner', file, 'Use the Platform component that owns this Base UI primitive')
+  if (
+    !typesOnly &&
+    (primitive || file.startsWith('platform/app/')) &&
+    target?.replace(/\.tsx?$/, '') === `${system}catalog/component-recipe`
+  )
+    report(
+      'specimen-owner',
+      file,
+      'Render an EMCN component; static Paper specimens belong in the workbench'
+    )
   const targetOwner = target && privateRouteOwner(target)
   if (
     target?.endsWith('.module.css') &&
@@ -351,6 +361,11 @@ function checkCss(file: string, sheet: postcss.Root) {
     }
     if (base) return
     if (
+      /^(?:transition|animation)(?:-|$)/.test(prop) &&
+      /(?:^|[^\w-])(?:\d*\.)?\d+(?:ms|s)\b/.test(value)
+    )
+      report('motion-timing', location, 'Use the shared motion duration instead of a local time')
+    if (
       (prop === 'opacity' && /^(?:0)?\.\d+$/.test(value)) ||
       (/^(?:font(?:-family|-weight|-size)?|line-height|letter-spacing)$/.test(prop) &&
         !value.includes('var(') &&
@@ -534,6 +549,19 @@ function checkJs(file: string, content: string) {
   const location = (node: ts.Node) =>
     `${file}:${sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1}`
   function visit(node: ts.Node) {
+    if (
+      inPlatform &&
+      (owner || file.startsWith('platform/app/')) &&
+      ts.isCallExpression(node) &&
+      /^(?:(?:globalThis|window)\.)?setTimeout$/.test(node.expression.getText()) &&
+      node.arguments[1] &&
+      ts.isNumericLiteral(node.arguments[1])
+    )
+      report(
+        'feedback-timing',
+        location(node),
+        'Use shared feedback expiry or a named timing policy'
+      )
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
       const specifier = node.moduleSpecifier
       if (specifier && ts.isStringLiteral(specifier)) {

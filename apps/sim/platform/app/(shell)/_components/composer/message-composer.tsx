@@ -121,6 +121,7 @@ export function MessageComposer({
     <div
       className={styles.composer}
       data-material='reading'
+      data-elevation='composer'
       onKeyDownCapture={(event) => {
         if (
           slash !== 'typed' ||

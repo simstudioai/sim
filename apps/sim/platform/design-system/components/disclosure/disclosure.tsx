@@ -43,7 +43,7 @@ export function Disclosure({
         open={open}
         onOpenChange={onOpenChange}
       >
-        <Collapsible.Trigger className={styles.summary} data-type='T060'>
+        <Collapsible.Trigger className={styles.summary} data-type='T048'>
           {title}
         </Collapsible.Trigger>
         {introduction}

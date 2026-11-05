@@ -2,11 +2,33 @@ import 'server-only'
 import type { ShellData } from '@/platform/app/(shell)/_components/model'
 import type { Scenario } from '@/platform/fixtures'
 
-type ShellDetails = Omit<ShellData, 'chats' | 'workspaces'>
+type ShellDetails = Omit<ShellData, 'chats'>
 
 const full: ShellDetails = {
   organization: { name: 'Sim Enterprise', memberCount: 5 },
   user: { name: 'Emir Karabeg' },
+  workspaces: [
+    ['operations', 'Customer operations'],
+    ['revenue', 'Revenue operations'],
+    ['finance', 'Finance'],
+    ['marketing', 'Marketing'],
+    ['people', 'People operations'],
+    ['onboarding', 'Customer onboarding'],
+    ['sales', 'Sales development'],
+    ['product', 'Product operations'],
+    ['engineering', 'Engineering'],
+    ['legal', 'Legal & compliance'],
+    ['it', 'IT operations'],
+    ['analytics', 'Data & analytics'],
+    ['procurement', 'Procurement'],
+    ['partners', 'International partnerships & channel operations'],
+    ['success', 'Customer success'],
+    ['security', 'Security'],
+    ['business', 'Business operations'],
+    ['executive', 'Executive office'],
+    ['intelligence', 'Revenue intelligence'],
+    ['tools', 'Internal tools'],
+  ].map(([id, name]) => ({ id, name })),
   inbox: [
     {
       id: 'approval',
@@ -57,12 +79,17 @@ export const shellScenarios: Record<Scenario, ShellDetails> = {
   empty: {
     ...full,
     organization: { name: 'Sim Enterprise', memberCount: 1 },
+    workspaces: [],
     inbox: [],
     notifications: [],
   },
   full,
   stress: {
     ...full,
+    workspaces: Array.from({ length: 36 }, (_, index) => ({
+      id: `workspace-${index}`,
+      name: `International customer operations and onboarding ${index + 1}`,
+    })),
     organization: { name: 'International customer operations and research', memberCount: 178 },
   },
 }

@@ -67,7 +67,21 @@ export function SidebarCollections({ data, activeChat, navigate }: SidebarCollec
       >
         <div className={styles.group}>
           {(data?.workspaces ?? []).map((item) => (
-            <Chip key={item.id} href={platformHref('/home', query)}>
+            <Chip
+              key={item.id}
+              href={platformHref('/home', query)}
+              action={
+                <ActionMenu
+                  label={`Actions for ${item.name}`}
+                  icon='I108'
+                  triggerSize='compact'
+                  align='end'
+                  actions={[
+                    { id: 'open', label: 'Open workspace', onSelect: () => navigate('/home') },
+                  ]}
+                />
+              }
+            >
               {item.name}
             </Chip>
           ))}

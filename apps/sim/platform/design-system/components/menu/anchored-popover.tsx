@@ -3,12 +3,10 @@
 import type { ReactElement, ReactNode, RefObject } from 'react'
 import { Popover } from '@base-ui/react/popover'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
-import controls from '@/platform/design-system/components/button/button.shared.module.css'
-import { Icon } from '@/platform/design-system/components/icon/icon'
+import { IconButton } from '@/platform/design-system/components/button/button'
 import popup from '@/platform/design-system/components/menu/popup.shared.module.css'
 import { usePopoverContainer } from '@/platform/design-system/components/menu/use-popover-container'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
-import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
 
 type AnchoredPopoverProps = {
   label: string
@@ -37,17 +35,13 @@ export function AnchoredPopover({
   return (
     <Popover.Root open={open} onOpenChange={onOpenChange}>
       {icon ? (
-        <Tooltip label={label} enabled={!open}>
-          <Popover.Trigger
-            ref={portal.trigger}
-            className={controls.iconButton}
-            data-type='T060'
-            aria-label={label}
-            data-size='row'
-          >
-            <Icon name={icon} />
-          </Popover.Trigger>
-        </Tooltip>
+        <IconButton
+          render={<Popover.Trigger ref={portal.trigger} />}
+          tooltip
+          label={label}
+          icon={icon}
+          size='row'
+        />
       ) : (
         trigger(<Popover.Trigger ref={portal.trigger} aria-label={label} />)
       )}

@@ -1,51 +1,14 @@
-.entries {
+.entries,
+.mailEntries {
   display: grid;
   gap: var(--ui-list-gap);
   min-inline-size: 0;
 }
-.row {
-  display: flex;
-  align-items: center;
-  gap: var(--ui-row-gap);
-  inline-size: calc(100% + 2 * var(--ui-row-inset));
+.inbox {
+  display: grid;
+  max-block-size: var(--spacing-224);
+}
+.entries,
+.inbox {
   margin-inline: calc(-1 * var(--ui-row-inset));
-  padding: var(--ui-row-block) var(--ui-row-inset);
-  border-radius: var(--ui-control-radius);
-  text-align: start;
-}
-.row:hover {
-  background: var(--ui-hover);
-}
-.leading {
-  align-self: start;
-  display: grid;
-  place-items: center;
-  flex: none;
-  inline-size: var(--ui-icon-size);
-  block-size: var(--leading-app-control);
-}
-.copy {
-  display: grid;
-  flex: 1;
-  grid-template-columns: minmax(0, 1fr);
-  min-inline-size: 0;
-  gap: var(--ui-stack-gap);
-}
-.title small {
-  margin-inline-start: var(--ui-popup-padding);
-}
-.detail,
-.meta,
-.title small {
-  color: var(--ui-secondary);
-}
-.detail strong {
-  color: var(--ui-ink);
-}
-.meta {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ui-popup-padding);
-  min-block-size: var(--leading-app-control);
-  white-space: nowrap;
 }

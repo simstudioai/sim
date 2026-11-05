@@ -21,7 +21,7 @@
   margin: auto;
   overflow: visible;
   padding: 0;
-  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border: 0;
   border-radius: var(--radius-dialog);
   color: var(--ui-ink);
 }
@@ -31,7 +31,7 @@
 }
 
 .modalLayout {
-  max-height: calc(100dvh - var(--spacing-32) - 2 * var(--spacing-stroke-default));
+  max-height: calc(100dvh - var(--spacing-32));
   padding: var(--ui-dialog-inset);
   overflow-y: auto;
   gap: var(--ui-section-gap);

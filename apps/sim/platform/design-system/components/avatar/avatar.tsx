@@ -19,11 +19,12 @@ interface AvatarProps {
   name: string
   src?: string
   organization?: boolean
+  singleInitial?: boolean
   size?: 'inline'
 }
 
-export function Avatar({ name, src, organization, size }: AvatarProps) {
-  const initials = avatarInitials(name, organization ? 1 : 2)
+export function Avatar({ name, src, organization, singleInitial, size }: AvatarProps) {
+  const initials = avatarInitials(name, organization || singleInitial ? 1 : 2)
   return (
     <span
       className={styles.avatar}

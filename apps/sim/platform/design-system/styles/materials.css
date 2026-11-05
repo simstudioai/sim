@@ -6,6 +6,7 @@
   --ui-muted: var(--color-app-text-muted);
   --ui-border: var(--color-light-border);
   --ui-divider: var(--color-light-divider);
+  --ui-conversation-rule: var(--spacing-stroke-default) solid var(--ui-divider);
   --ui-hover: var(--color-light-hover);
   --ui-selected: var(--color-light-selected);
   --ui-shell: var(--color-light-glass-shell);
@@ -63,10 +64,15 @@
     inset 0 1px 0 var(--ui-highlight),
     0 10px 15px -3px var(--ui-shadow-menu);
 }
-[data-elevation="modal"] {
+[data-material="reading"][data-elevation="composer"] {
+  background: var(--ui-reading);
+  border: var(--spacing-stroke-default) solid var(--ui-divider);
   box-shadow:
-    inset 0 1px 0 var(--ui-highlight),
-    0 20px 48px -12px var(--ui-shadow-modal);
+    inset 0 var(--spacing-1) 0 var(--ui-highlight),
+    0 var(--spacing-2) var(--spacing-6) var(--ui-shadow-control);
+}
+[data-elevation="modal"] {
+  box-shadow: 0 20px 48px -12px var(--ui-shadow-modal);
 }
 [data-elevation="tooltip"] {
   box-shadow: var(--ui-elevation-tooltip);

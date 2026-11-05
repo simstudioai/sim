@@ -13,13 +13,13 @@ import {
 import { Menu } from '@base-ui/react/menu'
 import { Toolbar } from '@base-ui/react/toolbar'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
-import controls from '@/platform/design-system/components/button/button.shared.module.css'
+import { Button, IconButton } from '@/platform/design-system/components/button/button'
+import { useClipboard } from '@/platform/design-system/components/feedback/use-clipboard'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import styles from '@/platform/design-system/components/menu/menu.module.css'
 import popup from '@/platform/design-system/components/menu/popup.shared.module.css'
 import { usePopoverContainer } from '@/platform/design-system/components/menu/use-popover-container'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
-import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
 
 interface InlineSelection {
   layout?: 'browser' | 'visibility'
@@ -125,30 +125,18 @@ function TriggeredMenu({
   return (
     <Menu.Root modal={false} open={open} onOpenChange={onOpenChange}>
       {icon ? (
-        <Tooltip label={label}>
-          <Menu.Trigger
-            ref={trigger}
-            className={controls.iconButton}
-            data-type='T060'
-            disabled={!actions.length}
-            aria-label={label}
-            data-variant='quiet'
-            data-size={triggerSize}
-          >
-            <Icon name={icon} />
-          </Menu.Trigger>
-        </Tooltip>
-      ) : (
-        <Menu.Trigger
-          ref={trigger}
+        <IconButton
+          tooltip
+          render={<Menu.Trigger ref={trigger} />}
+          size={triggerSize}
+          label={label}
+          icon={icon}
           disabled={!actions.length}
-          className={controls.button}
-          data-type='T060'
-          data-variant='quiet'
-          data-size='regular'
-        >
+        />
+      ) : (
+        <Button render={<Menu.Trigger ref={trigger} />} variant='quiet' disabled={!actions.length}>
           {label}
-        </Menu.Trigger>
+        </Button>
       )}
       <ActionMenuPopup label={label} container={container} align={align}>
         {heading && (
@@ -465,23 +453,31 @@ export function MenuItem({
   )
 }
 
-type BrowserAction = 'copy' | 'find' | 'zoom' | 'downloads'
+type BrowserAction = 'find' | 'zoom' | 'downloads'
 
 interface BrowserActionsMenuProps {
+  address?: string
   zoomPercent?: number
   onZoom?: (percent: number) => void
   onAction?: (action: BrowserAction) => void
 }
 
 export function BrowserActionsMenu({
+  address,
   zoomPercent = 100,
   onAction,
   onZoom,
 }: BrowserActionsMenuProps) {
+  const { copied, copy } = useClipboard()
   const { trigger, container } = usePopoverContainer()
   const rows = (
     <>
-      <MenuItem icon='I006' label='Copy link' onSelect={() => onAction?.('copy')} />
+      <MenuItem
+        icon={copied ? 'I072' : 'I006'}
+        label={copied ? 'Copied' : 'Copy link'}
+        disabled={!address}
+        onSelect={() => address && void copy(address)}
+      />
       <MenuItem icon='I037' label='Open in default browser' disabled />
       <MenuItem
         icon='I089'
@@ -521,15 +517,12 @@ export function BrowserActionsMenu({
     )
   return (
     <Menu.Root modal={false}>
-      <Menu.Trigger
-        ref={trigger}
-        className={controls.iconButton}
-        aria-label='Browser actions'
-        data-size='small'
-        data-variant='quiet'
-      >
-        <Icon name='I108' />
-      </Menu.Trigger>
+      <IconButton
+        tooltip
+        render={<Menu.Trigger ref={trigger} />}
+        label='Browser actions'
+        icon='I108'
+      />
       <ActionMenuPopup label='Browser actions' container={container} align='end' browser>
         {rows}
       </ActionMenuPopup>

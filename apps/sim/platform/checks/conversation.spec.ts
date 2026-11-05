@@ -36,7 +36,17 @@ test('Home can hide, undo, disconnect and reconnect widgets without losing the r
   await page.getByRole('link', { name: 'Home', exact: true }).click()
   await expect(email).toHaveCount(0)
   await page.getByRole('button', { name: 'Next day' }).click()
-  await expect(page.getByText('No meetings today')).toBeVisible()
+  const schedule = page.getByRole('region', { name: 'Calendar schedule' })
+  await expect(schedule.getByRole('article')).toHaveCount(0)
+  for (const [key, time, edges] of [
+    ['End', '11:00 PM', 'start'],
+    ['Home', '12:00 AM', 'end'],
+  ] as const) {
+    await schedule.focus()
+    await schedule.press(key)
+    await expect(schedule).toHaveAttribute('data-edges', edges)
+    await expect(schedule.getByText(time, { exact: true })).toBeInViewport()
+  }
   await page.getByRole('button', { name: 'Previous day' }).click()
   await page.getByRole('button', { name: 'Show 2 more people' }).hover()
   await expect(page.getByRole('tooltip').getByText('Nina Patel')).toBeVisible()
@@ -83,13 +93,23 @@ test('Home fills the available chart column and keeps calendar day controls on t
 })
 
 test('clipped mail fades sideways inside the scrolling Home dashboard', async ({ page }) => {
-  await page.setViewportSize({ width: 1050, height: 760 })
+  await page.setViewportSize({ width: 390, height: 740 })
   await page.goto(`${populated}/home?state=full`)
   const home = page.getByRole('region', { name: 'Home dashboard' })
   const row = home.getByRole('button', { name: /Nina Patel.*Updated onboarding checklist/ })
   await expect(home).toHaveAttribute('data-edges', 'end')
   await row.getByText('Updated onboarding checklist', { exact: true }).hover()
-  await expect(page.locator('[role=tooltip]:visible')).toContainText('kickoff on Thursday')
+  const tooltip = page.locator('[role=tooltip]:visible')
+  await expect(tooltip).toContainText('kickoff on Thursday')
+  await expect(row).toHaveAccessibleName(/kickoff on Thursday/)
+  const visibleLines = await tooltip.evaluate((el) => {
+    const css = getComputedStyle(el)
+    return (
+      (el.clientHeight - Number.parseFloat(css.paddingTop) - Number.parseFloat(css.paddingBottom)) /
+      Number.parseFloat(css.lineHeight)
+    )
+  })
+  expect(visibleLines).toBeLessThanOrEqual(3)
   await expect
     .poll(() =>
       row.evaluate((el) =>
@@ -99,6 +119,14 @@ test('clipped mail fades sideways inside the scrolling Home dashboard', async ({
       )
     )
     .toContainEqual(expect.stringMatching(/to right/))
+  const inbox = home.getByRole('region', { name: 'Email messages' })
+  const outerOffset = await home.evaluate((el) => el.scrollTop)
+  await expect(inbox).toHaveAttribute('data-edges', 'end')
+  await inbox.evaluate((el) => {
+    el.scrollTop = el.scrollHeight
+  })
+  await expect(inbox).toHaveAttribute('data-edges', 'start')
+  expect(await home.evaluate((el) => el.scrollTop)).toBe(outerOffset)
   await home.evaluate((el) => {
     el.scrollTop = el.scrollHeight
   })
@@ -177,7 +205,17 @@ test('chat activity, recovery, and feedback controls work at intermediate and na
   const input = page.locator('dd code').filter({ hasText: '"pages"' })
   await expect(input).toBeVisible()
   expect(JSON.parse(await input.innerText())).toEqual({ file: 'renewal-brief.pdf', pages: '1–12' })
-  await expect(page.getByRole('button', { name: 'Copy tool response', exact: true })).toBeVisible()
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+  const result = page.locator('details[open] dl').filter({ has: input })
+  for (const [index, label] of ['Copy tool input', 'Copy tool response'].entries()) {
+    const value = await result.locator('dd code').nth(index).innerText()
+    await result.getByRole('button', { name: label, exact: true }).click()
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(value)
+  }
+  await expect(result.getByRole('button', { name: 'Copied', exact: true })).toHaveCount(2)
+  await expect(result.getByRole('button', { name: /^Copy tool / })).toHaveCount(2, {
+    timeout: 7_000,
+  })
   const answer = await page.getByText(/^The renewal is in good shape/).boundingBox()
   const copy = await page
     .getByRole('button', { name: 'Copy response', exact: true })

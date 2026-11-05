@@ -39,9 +39,9 @@ Shared and Platform still own different recipes; `catalog/evidence.json` preserv
 
 Workspace lists, sidebar items, recents and attachment batches accept typed arrays with stable item IDs. Use the named components for these collection masters: a Paper specimen's item count is sample data. An empty array renders zero items, and adding items preserves their registered row/card appearance. Each scroll viewport determines fades and controls from its actual contents. Chart labels, marks, inspected values and legends come from the same series. Supply raw numeric values and their units to data tables. The column schema determines alignment and which columns remain visible as the table narrows.
 
-The full scenario includes long email descriptions, twenty workspaces and sixteen linked conversations. Open Home at normal or narrow width to see clipping, scrolling and the list rhythm. Sidebar groups, command results and other scrollable owners share a directional fade that clears at the boundary. The same rules apply in Electron.
+The full fixture includes twenty sidebar workspaces, sixteen conversations, a twelve-message inbox and a calendar that scrolls from midnight to midnight even on empty days. Home and Chat share a reading width. Home content starts at the same 24px inset used between major sidebar sections. Content scrolls through the viewport edge fade.
 
-Form dialogs receive their title and actions as data. EMCN owns title alignment and the quiet Cancel button, including multi-step forms. The [design contract](AGENTS.md) defines the shared button sizes, switch shapes, row alignment, icon ink and gaps.
+Start with the [component ownership map](docs/component-ownership.md) when choosing a primitive. Sidebar, recents and panel tabs use one row; form and command dialogs use one borderless surface. Copy confirmations and transient notifications last four seconds. Notifications pause under the pointer or keyboard focus; icon color transitions take 120ms and respect reduced motion. The [design contract](AGENTS.md) defines these rules.
 
 ### Keyboard and dropdown behavior
 

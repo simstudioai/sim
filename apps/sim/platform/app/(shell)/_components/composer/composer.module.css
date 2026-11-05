@@ -4,11 +4,7 @@
   gap: var(--spacing-16);
   min-inline-size: 0;
   padding: var(--spacing-16) var(--spacing-12) var(--spacing-12);
-  border: var(--spacing-stroke-default) solid var(--ui-divider);
   border-radius: var(--radius-composer);
-  box-shadow:
-    inset 0 var(--spacing-1) 0 var(--ui-highlight),
-    0 var(--spacing-2) var(--spacing-6) var(--ui-shadow-control);
 }
 .composer textarea {
   max-block-size: min(24dvh, var(--container-208));

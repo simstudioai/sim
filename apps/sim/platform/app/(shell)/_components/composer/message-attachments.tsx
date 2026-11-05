@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import styles from '@/platform/app/(shell)/_components/composer/composer.module.css'
 import type { ChatAttachment } from '@/platform/app/(shell)/_components/composer/model'
-import { usePlatformTheme } from '@/platform/app/(shell)/_components/session/product-surface'
 import { AttachmentGrid } from '@/platform/design-system/components/attachments/attachment-grid'
 import { useFileUrl } from '@/platform/design-system/components/attachments/use-file-url'
 import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
@@ -17,7 +16,6 @@ interface MessageAttachmentsProps {
 export function MessageAttachments({ items, onRemove }: MessageAttachmentsProps) {
   const [expanded, setExpanded] = useState(false)
   const [preview, setPreview] = useState<ChatAttachment | null>(null)
-  const theme = usePlatformTheme()
   if (!items.length) return null
   const batch = items.length > 3
   return (
@@ -45,7 +43,6 @@ export function MessageAttachments({ items, onRemove }: MessageAttachmentsProps)
           previewFile: item.file,
         }))}
         layout={expanded ? 'list' : 'grid'}
-        theme={theme}
         onPreview={(id) => setPreview(items.find((item) => item.id === id) ?? null)}
         onRemove={onRemove}
       />

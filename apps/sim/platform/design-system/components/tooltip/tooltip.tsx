@@ -120,7 +120,7 @@ export function Tooltip({ label, enabled = true, visualOnly, panel, children }: 
               if (!host.current?.matches(':focus-within')) setTarget(null)
             }}
           >
-            {panel ?? label}
+            {panel ?? <span className={styles.label}>{label}</span>}
           </span>,
           target
         )}

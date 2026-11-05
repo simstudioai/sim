@@ -46,7 +46,7 @@
 }
 .point {
   r: var(--spacing-3);
-  fill: var(--ui-strong);
+  fill: var(--ui-plot-primary);
   stroke: none;
 }
 

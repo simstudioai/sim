@@ -303,6 +303,8 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       `import { Button } from '@/platform/design-system/components/button/button'
       import '@/platform/app/bypass.css'
       export const escape = (props: object) => <Button className="red" style={{opacity: 0.2}} {...props}/>
+      export const paperSpecimen = () => import('@/platform/design-system/catalog/component-recipe')
+      export const localTimer = () => window.setTimeout(() => {}, 2000)
       export const legacy = () => import('@/components/old')
       export const data = () => import('@/platform/fixtures/data')`
     )
@@ -315,7 +317,7 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     write('platform/app/bypass.css', '.button { color: blue }')
     write(
       `${component}/button.module.css`,
-      ".button[data-variant='unused-selector']{color:var(--unregistered);background:rebeccapurple; @apply bg-[#f00]; opacity:.37; padding:37px}"
+      ".button[data-variant='unused-selector']{color:var(--unregistered);background:rebeccapurple; @apply bg-[#f00]; opacity:.37; padding:37px;transition:color .2s}"
     )
     write(
       `${component}/passthrough.tsx`,
@@ -380,6 +382,9 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       'utility-token',
       'untokenized-style',
       'raw-geometry',
+      'motion-timing',
+      'feedback-timing',
+      'specimen-owner',
       'variant-use',
       'variant-declaration',
       'variant-selector',

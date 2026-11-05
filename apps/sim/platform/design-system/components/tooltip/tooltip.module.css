@@ -1,4 +1,6 @@
 .tooltipHost {
+  min-inline-size: 0;
+  max-inline-size: 100%;
   position: relative;
   display: inline-flex;
 }
@@ -25,4 +27,11 @@
   background: var(--control-tooltip);
   color: var(--control-tooltip-ink);
   overflow-wrap: anywhere;
+}
+
+.label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }

@@ -1,5 +1,5 @@
 import 'server-only'
-import type { AttachmentItem } from '@/platform/design-system/components/attachments/attachment-grid'
+import type { AttachmentItem } from '@/platform/design-system/components/attachments/attachment-tile'
 import type { PropertyItem } from '@/platform/design-system/components/property-list/property-list'
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
 
@@ -56,10 +56,9 @@ export const loadShellData = fixture(async (scenario) => {
     import('@/platform/fixtures/shell-data'),
     import('@/platform/fixtures/conversation-data'),
   ])
-  const { home, chat } = conversationScenarios[scenario]
+  const { chat } = conversationScenarios[scenario]
   return {
     ...shellScenarios[scenario],
-    workspaces: home.workspaces.map(({ id, title }) => ({ id, name: title })),
     chats: chat.threads.map(({ id, title }) => ({ id, title })),
   }
 })

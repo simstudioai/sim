@@ -1,9 +1,6 @@
 .workspaces {
   display: grid;
   min-inline-size: 0;
-  max-inline-size: 100%;
-}
-.workspaces {
   inline-size: fit-content;
   max-inline-size: min(100%, var(--container-480));
   gap: var(--spacing-12);
@@ -19,7 +16,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   min-inline-size: 0;
-  gap: var(--spacing-2);
+  gap: var(--ui-list-gap);
 }
 .workspaceViewport {
   display: grid;
@@ -29,7 +26,7 @@
 }
 .workspaceRow {
   display: grid;
-  align-items: center;
+  place-items: center start;
   min-inline-size: 0;
 }
 .workspaces[data-target="touch"] .workspaceRow {
@@ -42,17 +39,4 @@
   .workspaceRow {
     min-height: var(--spacing-app-touch-target);
   }
-}
-
-.workspaceHit {
-  align-self: stretch;
-  display: grid;
-  align-items: center;
-  width: 100%;
-  cursor: pointer;
-  text-align: start;
-  border-radius: var(--radius-control);
-}
-.workspaceHit:hover {
-  background: var(--ui-hover);
 }

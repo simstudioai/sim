@@ -57,7 +57,7 @@ export function OverlayDialog({
       ref={ref}
       className={styles.modal}
       data-material='floating'
-      data-elevation={presentation === 'command' ? 'menu' : 'modal'}
+      data-elevation='modal'
       data-presentation={presentation}
       aria-label={label}
       aria-labelledby={title ? `${id}-title` : undefined}

@@ -10,22 +10,56 @@
   grid-template-columns: minmax(0, 1fr);
 }
 .attachmentItem {
-  position: relative;
+  display: flex;
+  align-items: stretch;
   min-inline-size: 0;
+  min-block-size: var(--spacing-64);
+  border: var(--spacing-stroke-default) solid var(--ui-divider);
+  border-radius: var(--radius-menu-shared);
+  background: var(--ui-reading);
 }
-.previewFile {
-  position: absolute;
-  inset: 0;
+.tile {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  min-inline-size: 0;
+  padding: var(--ui-row-inset);
+  border-radius: inherit;
+  text-align: start;
+}
+button.tile {
   cursor: pointer;
-  border-radius: var(--radius-item);
 }
-.previewFile:hover {
+.attachmentItem:has(> button.tile:hover) {
   background: var(--ui-hover);
 }
+.media {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--spacing-36);
+  block-size: var(--spacing-44);
+}
+.media[data-kind="image"] {
+  inline-size: var(--spacing-44);
+  border-radius: var(--radius-item);
+  overflow: clip;
+}
+.copy {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-stack-gap);
+  min-inline-size: 0;
+}
+.caption {
+  color: var(--ui-secondary);
+}
 .removeFile {
-  position: absolute;
-  inset-block-start: var(--spacing-4);
-  inset-inline-end: var(--spacing-4);
+  align-self: start;
+  margin-block-start: var(--ui-popup-padding);
+  margin-inline-end: var(--ui-popup-padding);
 }
 .attachmentViewport {
   display: grid;

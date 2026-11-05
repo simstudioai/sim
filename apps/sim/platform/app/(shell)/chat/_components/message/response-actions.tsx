@@ -1,9 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { CopyAction } from '@/platform/app/(shell)/chat/_components/message/copy-action'
 import styles from '@/platform/app/(shell)/chat/_components/message/message.module.css'
-import { ActionMenu, FieldFrame, SegmentedControl } from '@/platform/design-system/components'
+import {
+  ActionMenu,
+  CopyButton,
+  FieldFrame,
+  SegmentedControl,
+} from '@/platform/design-system/components'
 import { TextArea } from '@/platform/design-system/components/field/inputs'
 import { Modal } from '@/platform/design-system/components/modal/modal'
 
@@ -17,7 +21,7 @@ export function ResponseActions({ text, time }: ResponseActionsProps) {
   return (
     <>
       <div className={styles.responseActions} data-type='T060'>
-        <CopyAction label='Copy response' text={text} />
+        <CopyButton label='Copy response' text={text} />
         <ActionMenu
           icon={rating ? (rating === 'Good response' ? 'I017' : 'I008') : 'I069'}
           label='Rate response'
@@ -28,7 +32,7 @@ export function ResponseActions({ text, time }: ResponseActionsProps) {
             onSelect: () => setFeedback(label),
           }))}
         />
-        <span data-type='T052'>{time}</span>
+        <time data-type='T052'>{time}</time>
       </div>
       <Modal
         variant='feedback'

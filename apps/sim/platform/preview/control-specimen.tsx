@@ -191,7 +191,6 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
       return (
         <WorkspaceList
           label='Workspaces'
-          theme={location.theme}
           target={family.endsWith('/touch') ? 'touch' : 'standard'}
           items={data?.organization.workspaces ?? []}
         />
@@ -200,7 +199,6 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
       return (
         <SidebarWorkspaceItems
           label='Sidebar workspaces'
-          theme={location.theme}
           items={data?.organization.workspaces ?? []}
         />
       )
@@ -212,7 +210,6 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
       return (
         <AttachmentGrid
           label='Attachments'
-          theme={location.theme}
           layout={key === 'C0212' ? 'list' : 'grid'}
           attachments={data?.collections.attachments ?? []}
         />
@@ -353,7 +350,7 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
                 : 'quiet'
           }
           disabled={family.includes('disabled')}
-          size={key === 'C0522' ? 'touch' : family.includes('/xs/') ? 'compact' : 'small'}
+          size={family.includes('/xs/') ? 'compact' : 'small'}
         />
       )
     case 'TouchTarget':

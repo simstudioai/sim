@@ -4,6 +4,7 @@ import { createContext, type ReactNode, useContext, useState } from 'react'
 import type { ShellNotice } from '@/platform/app/(shell)/_components/model'
 import styles from '@/platform/app/(shell)/_components/notification-tray/notification-tray.module.css'
 import { Button, IconButton } from '@/platform/design-system/components/button/button'
+import { useFeedbackExpiry } from '@/platform/design-system/components/feedback/use-feedback-expiry'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
@@ -51,11 +52,27 @@ export function NotificationTray({ history, navigate }: NotificationTrayProps) {
     ...[...edits.values()].filter((item) => item !== null),
   ]
   const latest = items.at(-1)
+  const [engaged, setEngaged] = useState<typeof latest>(undefined)
+  useFeedbackExpiry(display === 'latest' && engaged !== latest ? latest : null, () =>
+    setDisplay('minimized')
+  )
   const shown = display === 'expanded' ? items : display === 'latest' && latest ? [latest] : []
   if (display === 'hidden' || !items.length) return null
   return (
     <section
       ref={scrollEdges}
+      onPointerEnter={() => setEngaged(latest)}
+      onPointerLeave={(event) =>
+        setEngaged(event.currentTarget.matches(':focus-within') ? latest : undefined)
+      }
+      onFocus={() => setEngaged(latest)}
+      onBlur={(event) =>
+        setEngaged(
+          event.currentTarget.contains(event.relatedTarget) || event.currentTarget.matches(':hover')
+            ? latest
+            : undefined
+        )
+      }
       aria-label='Notification stack'
       className={styles.stack}
       aria-live='polite'
