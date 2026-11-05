@@ -16,10 +16,9 @@ interface ModalStep {
 /**
  * A synchronous confirm closes the dialog in the same update. A returned promise holds it open as
  * pending, closes it on success, and on rejection keeps the draft and shows the error's message.
+ * Returning or resolving `false` keeps it open: the confirm reached the dialog's next stage, not its end.
  */
-type ConfirmHandler<Args extends unknown[]> =
-  | ((...args: Args) => void)
-  | ((...args: Args) => Promise<void>)
+type ConfirmHandler<Args extends unknown[]> = (...args: Args) => unknown
 
 interface ModalActions {
   title: string
@@ -50,6 +49,8 @@ type ModalSurfaceProps = ModalActions & {
   steps: MultiStepModalProps['steps']
   destructive?: boolean
   presentation?: ModalProps['variant']
+  cancelLabel?: string
+  onCancel?: () => void
 }
 
 function ModalSurface({
@@ -61,6 +62,8 @@ function ModalSurface({
   steps,
   destructive,
   presentation = 'form',
+  cancelLabel,
+  onCancel,
   onConfirm,
   open: controlled,
   onOpenChange,
@@ -85,12 +88,10 @@ function ModalSurface({
     setError(null)
     try {
       const result = onConfirm?.(values)
-      if (!(result instanceof Promise)) {
-        close()
-        return
-      }
-      setPending(true)
-      await result
+      if (result instanceof Promise) {
+        setPending(true)
+        if ((await result) === false) return
+      } else if (result === false) return
       close()
     } catch (failure) {
       setError(getErrorMessage(failure, 'Something went wrong. Please try again.'))
@@ -142,10 +143,11 @@ function ModalSurface({
           confirmLabel={last ? confirmLabel : 'Continue'}
           onPrevious={() => {
             setError(null)
-            if (index === 0) dismiss()
-            else setIndex(index - 1)
+            if (index > 0) setIndex(index - 1)
+            else if (onCancel) onCancel()
+            else dismiss()
           }}
-          previousStep={index > 0}
+          cancelLabel={index > 0 ? 'Back' : cancelLabel}
           disabled={pending || (last && confirmDisabled)}
           cancelDisabled={pending}
           destructive={destructive}
@@ -162,6 +164,10 @@ type ModalProps = ModalActions &
     children?: ReactNode
     description?: string
     destructive?: boolean
+    /** Names the quiet footer action, "Cancel" by default. */
+    cancelLabel?: string
+    /** Runs the quiet footer action in place of closing, such as a step back. Close still closes. */
+    onCancel?: () => void
   }
 
 export function Modal({
@@ -177,6 +183,8 @@ export function Modal({
   variant = 'form',
   description,
   destructive,
+  cancelLabel,
+  onCancel,
 }: ModalProps) {
   return (
     <ModalSurface
@@ -191,6 +199,8 @@ export function Modal({
       steps={[{ description, content: children }]}
       destructive={destructive}
       presentation={variant}
+      cancelLabel={cancelLabel}
+      onCancel={onCancel}
     />
   )
 }

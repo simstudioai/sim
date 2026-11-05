@@ -51,7 +51,7 @@ export function ModalBody({ children, label, inactive }: ModalBodyProps) {
 interface ModalFooterProps {
   confirmLabel: string
   onPrevious?: () => void
-  previousStep?: boolean
+  cancelLabel?: string
   destructive?: boolean
   disabled?: boolean
   cancelDisabled?: boolean
@@ -61,7 +61,7 @@ interface ModalFooterProps {
 export function ModalFooter({
   confirmLabel,
   onPrevious,
-  previousStep,
+  cancelLabel = 'Cancel',
   destructive,
   disabled,
   cancelDisabled,
@@ -75,7 +75,7 @@ export function ModalFooter({
         </span>
       )}
       <Button variant='quiet' disabled={cancelDisabled} onClick={onPrevious}>
-        {previousStep ? 'Back' : 'Cancel'}
+        {cancelLabel}
       </Button>
       <Button variant={destructive ? 'destructive' : 'primary'} submit disabled={disabled}>
         {confirmLabel}

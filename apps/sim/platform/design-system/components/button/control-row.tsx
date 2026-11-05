@@ -18,6 +18,8 @@ interface ControlRowProps {
   wrap?: boolean
   action?: ReactNode
   actionSide?: 'start' | 'end'
+  /** A read-only state at the row's end. It yields to `action` where a pointer can reveal it. */
+  status?: ReactNode
 }
 
 export function ControlRow({
@@ -31,6 +33,7 @@ export function ControlRow({
   wrap,
   action,
   actionSide = 'end',
+  status,
 }: ControlRowProps) {
   const control = useRender({
     render,
@@ -55,8 +58,13 @@ export function ControlRow({
   })
   if (!action) return control
   return (
-    <div className={styles.chipRow} data-action-side={actionSide}>
+    <div
+      className={styles.chipRow}
+      data-action-side={actionSide}
+      data-status={status ? true : undefined}
+    >
       {control}
+      {status && <span className={styles.chipStatus}>{status}</span>}
       <span className={styles.chipAction}>{action}</span>
     </div>
   )

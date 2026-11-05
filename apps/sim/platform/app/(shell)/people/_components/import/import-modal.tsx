@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import styles from '@/platform/app/(shell)/people/_components/import/import.module.css'
-import { useHeldModal } from '@/platform/app/(shell)/people/_components/use-held-modal'
 import {
   Button,
   FileField,
@@ -84,7 +83,6 @@ interface ImportModalProps {
 export function ImportModal({ organization, onClose }: ImportModalProps) {
   const organizationId = organization.organization.id
   const provisionable = canUseProvisioning(organization)
-  const held = useHeldModal(onClose)
   const importPeople = usePeopleImport(organizationId)
   const [source, setSource] = useState<ImportSource>('okta')
   const connection = useProvisioningConnection(organizationId, source === 'directory')
@@ -143,10 +141,12 @@ export function ImportModal({ organization, onClose }: ImportModalProps) {
   return (
     <Modal
       open
-      onOpenChange={held.onOpenChange}
+      onOpenChange={onClose}
       title={title}
       confirmLabel={done ? 'Done' : preview ? 'Import' : 'Preview import'}
       confirmDisabled={pending || (!preview && !ready)}
+      cancelLabel={preview ? 'Back' : undefined}
+      onCancel={preview && !pending ? () => setPreview(null) : undefined}
       onConfirm={
         done
           ? undefined
@@ -160,7 +160,7 @@ export function ImportModal({ organization, onClose }: ImportModalProps) {
                   return
                 }
                 setPreview(result)
-                held.hold()
+                return false
               } catch (error) {
                 if (source !== 'file' && preview && isApiConflict(error)) setPreview(null)
                 throw error
@@ -191,16 +191,6 @@ export function ImportModal({ organization, onClose }: ImportModalProps) {
                 : 'Import updates matching members’ profiles. If the directory changes, you’ll be asked to preview it again.'}
             </p>
           )}
-          <div>
-            <Button
-              variant='quiet'
-              size='compact'
-              disabled={pending}
-              onClick={() => setPreview(null)}
-            >
-              Back
-            </Button>
-          </div>
         </>
       ) : (
         <>

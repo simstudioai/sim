@@ -4,7 +4,7 @@
  * A gallery is documentation: only a real Platform screen, or a Base used by one,
  * can establish a variant. Native layout and interactive behavior are checked in the browser.
  */
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import ts from '@typescript/typescript6'
 import postcss from 'postcss'
@@ -125,7 +125,10 @@ for (const [owner, props] of Object.entries(variants)) {
 const dataSeam = 'platform/lib/data/'
 /** Everything under these may cross into the data seam; each wraps a contract or its hook. */
 const seamRoots = ['hooks/queries', 'lib/api']
-/** Named pure helpers the seam needs. Their import closures reach no `@/app` or `@/components`. */
+/**
+ * Named modules the seam needs. The chat hook's own pure modules are among them, so a name under
+ * `@/app` or `@/components` is expected; `checkSeamClosure` proves none of them renders legacy UI.
+ */
 const seamHelpers = new Set([
   'app/o/[organizationId]/search/search-params',
   'app/workspace/[workspaceId]/home/components/knowledge-search-results/utils',
@@ -147,9 +150,6 @@ const seamHelpers = new Set([
   'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments',
   'blocks/custom/overlay',
   'components/assistant-actions/presentation',
-  'components/settings/use-settings-browser-navigation',
-  'components/settings/use-settings-leave-links',
-  'components/settings/use-settings-unsaved-guard',
   'ee/access-control/hooks/permission-groups',
   'ee/access-control/lib/editor',
   'ee/access-control/search-params',
@@ -231,6 +231,9 @@ const seamHelpers = new Set([
   // The chat hook and the pure modules around it: Platform drives it rather than forking it.
   // `next.config.ts` replaces what they would otherwise reach for a canvas with a named shim.
   'hooks/use-seed-deployment-shape',
+  'hooks/use-settings-browser-navigation',
+  'hooks/use-settings-leave-links',
+  'hooks/use-settings-unsaved-guard',
   'hooks/use-settings-search',
   'hooks/use-url-sort',
   'lib/core/utils/csv-download',
@@ -291,6 +294,14 @@ const seamHelpers = new Set([
   'lib/workspaces/permissions/role-lock',
   'stores/settings/dirty/store',
 ])
+/** Legacy `.tsx` the seam's closure may reach: providers and glyphs, not a surface. */
+const seamClosureViews = new Set([
+  'app/_shell/providers/query-provider.tsx',
+  'app/workspace/[workspaceId]/providers/feature-flags-provider.tsx',
+  'components/icons.tsx',
+])
+/** Each pulls in a whole subsystem, which is why `next.config.ts` replaces what would reach it. */
+const seamClosureBanned = /^(?:blocks|tools)\/registry\.tsx?$/
 const seamPackages =
   /^@sim\/(?:utils|logger|browser-extension-protocol|platform-authz\/predicates)(?:\/|$)/
 function resolveImport(file: string, specifier: string) {
@@ -711,6 +722,88 @@ function checkProps(name: string, node: ts.Node, file: string, owner: boolean) {
   }
 }
 
+function runtimeImports(file: string): string[] {
+  const source = ts.createSourceFile(file, read(file), ts.ScriptTarget.Latest)
+  const found: string[] = []
+  function visit(node: ts.Node) {
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+      const clause = node.importClause
+      const named = clause?.namedBindings
+      const typesOnly =
+        clause?.isTypeOnly ||
+        (!clause?.name &&
+          named &&
+          ts.isNamedImports(named) &&
+          named.elements.length > 0 &&
+          named.elements.every((element) => element.isTypeOnly))
+      if (!typesOnly) found.push(node.moduleSpecifier.text)
+    } else if (
+      ts.isExportDeclaration(node) &&
+      !node.isTypeOnly &&
+      node.moduleSpecifier &&
+      ts.isStringLiteral(node.moduleSpecifier)
+    ) {
+      found.push(node.moduleSpecifier.text)
+    } else if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments[0] &&
+      ts.isStringLiteralLike(node.arguments[0])
+    ) {
+      found.push(node.arguments[0].text)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  return found
+}
+
+/** The source file an import names, as the bundler would find it. */
+function resolveSource(file: string, specifier: string): string | null {
+  const target = resolveImport(file, specifier)
+  if (!target) return null
+  for (const suffix of ['.ts', '.tsx', '/index.ts', '/index.tsx']) {
+    if (existsSync(path.join(app, target + suffix))) return target + suffix
+  }
+  return null
+}
+
+/**
+ * Walks what the seam actually bundles, past the modules it names directly. A `.tsx` under `@/app`
+ * or `@/components` is legacy UI riding in behind a hook. `next.config.ts` replaces its canvas
+ * modules at build time, so the walk stops at them the same way.
+ */
+function checkSeamClosure() {
+  const replaced = new Set(
+    [...read('platform/next.config.ts').matchAll(/\['(@\/[^']+)', 'lib\/data\/shims\//g)].map(
+      ([, request]) => request
+    )
+  )
+  const importer = new Map<string, string>()
+  const queue: string[] = []
+  for (const file of files(dataSeam)) {
+    if (!/\.tsx?$/.test(file) || /\.test\.tsx?$/.test(file)) continue
+    importer.set(file, '')
+    queue.push(file)
+  }
+  for (let file = queue.pop(); file; file = queue.pop()) {
+    for (const specifier of runtimeImports(file)) {
+      if (replaced.has(specifier)) continue
+      const target = resolveSource(file, specifier)
+      if (!target || importer.has(target)) continue
+      importer.set(target, file)
+      queue.push(target)
+      const view = /^(?:app|components)\//.test(target) && target.endsWith('.tsx')
+      if (seamClosureBanned.test(target) || (view && !seamClosureViews.has(target)))
+        report(
+          'seam-closure',
+          target,
+          `The data seam bundles this legacy module through ${file}; cut that edge`
+        )
+    }
+  }
+}
+
 function checkJs(file: string, content: string) {
   const inPlatform = file.startsWith(platform)
   if (!inPlatform && !content.includes('platform')) return
@@ -1017,6 +1110,7 @@ for (const [name, props] of Object.entries(variants)) {
     }
   }
 }
+checkSeamClosure()
 if (errors.size) {
   process.stderr.write(`${[...errors].sort().join('\n')}\n`)
   process.exitCode = 1

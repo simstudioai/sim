@@ -3,7 +3,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 interface EditorProps {

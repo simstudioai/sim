@@ -1,6 +1,6 @@
 'use client'
 
-import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
+import { QueryErrorState } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
 import {
   Avatar,
@@ -37,7 +37,7 @@ function SummaryView({ summary }: { summary: ReturnType<typeof useActivitySummar
     <section className={styles.block} aria-label='Activity'>
       <h2 data-type='T093'>Activity</h2>
       {summary.failed ? (
-        <LoadFailure message='Couldn’t load activity.' onRetry={summary.retry} />
+        <QueryErrorState message='Couldn’t load activity.' onRetry={summary.retry} />
       ) : summary.pending ? (
         <span className={styles.chartPlaceholder} role='status' aria-label='Loading activity' />
       ) : (
@@ -155,7 +155,7 @@ export function ActivityPanel({ organizationId }: { organizationId: string }) {
           )}
         </div>
         {breakdown.failed ? (
-          <LoadFailure message='Couldn’t load the breakdown.' onRetry={breakdown.retry} />
+          <QueryErrorState message='Couldn’t load the breakdown.' onRetry={breakdown.retry} />
         ) : !breakdown.rows ? (
           <span className={styles.listPlaceholder} role='status' aria-label='Loading breakdown' />
         ) : breakdown.rows.length === 0 ? (

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
+import { QueryErrorState } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { CopyField, Modal, TextField } from '@/platform/design-system/components'
 import { useMemberCredits } from '@/platform/lib/data/usage'
 
@@ -39,7 +39,7 @@ export function ManageCredits({
       onConfirm={() => credits.save(draft)}
     >
       {credits.failed && (
-        <LoadFailure message='Couldn’t load this member’s limit.' onRetry={credits.retry} />
+        <QueryErrorState message='Couldn’t load this member’s limit.' onRetry={credits.retry} />
       )}
       <CopyField
         label={

@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction, SettingsBackAction } from '@/components/settings/settings-header'
 import { SettingsPanel } from '@/components/settings/settings-panel'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { ConnectorData, ConnectorDetailData } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
@@ -32,6 +31,7 @@ import {
 } from '@/hooks/queries/kb/connectors'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 
 interface OrganizationSourceDetailProps {
   connectorId: string

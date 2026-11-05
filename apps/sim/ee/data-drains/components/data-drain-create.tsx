@@ -5,7 +5,6 @@ import { ChipInput, ChipSelect, toast } from '@sim/emcn'
 import { ArrowLeft, Database } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type { CreateDataDrainBody } from '@/lib/api/contracts/data-drains'
 import type { CADENCE_TYPES, SOURCE_TYPES } from '@/lib/data-drains/types'
 import { DESTINATION_TYPES } from '@/lib/data-drains/types'
@@ -24,6 +23,7 @@ import {
   DESTINATION_OPTIONS,
   SOURCE_OPTIONS,
 } from '@/ee/data-drains/labels'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 
 const logger = createLogger('DataDrainCreate')
 

@@ -10,7 +10,6 @@ import {
   QueryErrorState,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { useUnsavedGuard } from '@/platform/app/(shell)/settings/_components/section-parts/use-unsaved-guard'
 import { GroupMappings } from '@/platform/app/(shell)/settings/_components/sections/sso/group-mappings'
 import {
   ActionMenu,
@@ -38,6 +37,10 @@ import {
   useScimActivity,
   useScimConnection,
 } from '@/platform/lib/data/scim'
+import {
+  useSettingsNavigationBlocked,
+  useSettingsUnsavedGuard,
+} from '@/platform/lib/data/settings-guard'
 import { toast } from '@/platform/lib/data/toast'
 import { formatCalendarDate, formatRelativeTime } from '@/platform/lib/time'
 
@@ -106,7 +109,7 @@ function ConnectionDetails({ organizationId, active, connection }: ConnectionDet
   const [pendingRevokeId, setPendingRevokeId] = useState<string | null>(null)
   const pendingRevoke =
     connection.credentials.find((credential) => credential.id === pendingRevokeId) ?? null
-  const guard = useUnsavedGuard({
+  useSettingsUnsavedGuard({
     isDirty: expiry !== 'never' || issuedSecret !== null,
     navigationBlocked: issueCredential.isPending,
     onDiscard: () => {
@@ -300,7 +303,6 @@ function ConnectionDetails({ organizationId, active, connection }: ConnectionDet
           toast.success('Token revoked')
         }}
       />
-      {guard.dialog}
     </>
   )
 }
@@ -318,6 +320,7 @@ export function ScimPanel({ organizationId, active, onOpenDomains }: ScimPanelPr
     active
   )
   const configure = useConfigureScimConnection()
+  const navigationBlocked = useSettingsNavigationBlocked()
 
   if (data === undefined && isError) {
     return (
@@ -355,7 +358,7 @@ export function ScimPanel({ organizationId, active, onOpenDomains }: ScimPanelPr
           <Switch
             label='Enable directory provisioning'
             checked={enabled}
-            disabled={isLoading || configure.isPending}
+            disabled={isLoading || configure.isPending || navigationBlocked}
             onCheckedChange={(checked) => void updateEnabled(checked)}
           />
         </SettingsRow>

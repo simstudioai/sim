@@ -29,6 +29,8 @@ interface SearchableSelectProps {
   searchLabel: string
   /** Needs a controlled `value`: a selection may leave the current `options`. */
   search?: PickerServerSearch
+  /** Lets a caller read its options only once the viewer asks for them. */
+  onOpenChange?: (open: boolean) => void
   name?: string
   disabled?: boolean
   error?: string
@@ -48,6 +50,7 @@ export function SearchableSelect({
   placeholder,
   searchLabel,
   search,
+  onOpenChange,
   name,
   disabled,
   error,
@@ -70,6 +73,7 @@ export function SearchableSelect({
         filter={search ? null : undefined}
         inputValue={search?.query}
         onInputValueChange={search?.onQueryChange}
+        onOpenChange={onOpenChange}
         onValueChange={(next) => {
           selection.setValue(next)
           onValueChange?.(next)

@@ -11,7 +11,6 @@ import {
   SectionStack,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { useUnsavedGuard } from '@/platform/app/(shell)/settings/_components/section-parts/use-unsaved-guard'
 import { AddMembersModal } from '@/platform/app/(shell)/settings/_components/sections/access-control/add-members-modal'
 import {
   BlockToolRow,
@@ -71,6 +70,7 @@ import {
   useRemovePermissionGroupMember,
   useUpdatePermissionGroup,
 } from '@/platform/lib/data/access-control'
+import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { toast } from '@/platform/lib/data/toast'
 import { formatTimestamp } from '@/platform/lib/time'
 
@@ -218,7 +218,7 @@ export function GroupDetail({
     setEditingName(viewing.name.trim())
     setEditingDescription((viewing.description ?? '').trim())
   }
-  const guard = useUnsavedGuard({
+  const guard = useSettingsUnsavedGuard({
     isDirty: hasChanges,
     navigationBlocked: updateGroup.isPending || deleteGroup.isPending,
     onDiscard: discard,
@@ -353,7 +353,7 @@ export function GroupDetail({
                 key='providers'
                 label='Search providers'
                 placeholder='Search providers...'
-                defaultValue={search}
+                value={search}
                 onValueChange={params.setSearch}
               />
             }
@@ -401,7 +401,7 @@ export function GroupDetail({
                 key='blocks'
                 label='Search blocks'
                 placeholder='Search blocks...'
-                defaultValue={search}
+                value={search}
                 onValueChange={params.setSearch}
               />
             }
@@ -480,7 +480,7 @@ export function GroupDetail({
               key='platform'
               label='Search features'
               placeholder='Search features...'
-              defaultValue={search}
+              value={search}
               onValueChange={params.setSearch}
             />
           }
@@ -710,7 +710,6 @@ export function GroupDetail({
           onBack()
         }}
       />
-      {guard.dialog}
     </>
   )
 }

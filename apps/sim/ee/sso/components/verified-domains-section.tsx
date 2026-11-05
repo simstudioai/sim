@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { Chip, ChipConfirmModal, ChipCopyInput, ChipInput, ChipTag, toast } from '@sim/emcn'
 import { Link } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type { OrganizationDomain } from '@/lib/api/contracts/organization'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import {
@@ -20,6 +19,7 @@ import {
   useRemoveOrganizationDomain,
   useVerifyOrganizationDomain,
 } from '@/ee/sso/hooks/domains'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 
 /** Ties the "Add a domain" label to its input, so clicking the label focuses it. */
 const ADD_DOMAIN_FIELD_ID = 'sso-add-domain'

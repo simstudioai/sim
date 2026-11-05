@@ -21,7 +21,6 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type { SsoProviderView } from '@/lib/api/contracts/auth'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { SettingsField } from '@/app/workspace/[workspaceId]/settings/components/settings-field'
@@ -45,6 +44,7 @@ import {
   ssoProviderCallbackUrl,
   validateSsoProviderForm,
 } from '@/ee/sso/lib/provider-form'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 
 const logger = createLogger('SSO')
 

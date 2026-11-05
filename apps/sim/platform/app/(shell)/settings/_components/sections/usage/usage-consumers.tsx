@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
+import { QueryErrorState } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
 import {
   ActionMenu,
@@ -84,7 +84,7 @@ export function UsageConsumers({
   onExpandOther,
 }: UsageConsumersProps) {
   const { data: breakdown, loading, failed, dimmed, retry: onRetry } = list
-  if (failed) return <LoadFailure message={`Couldn’t load ${title}.`} onRetry={onRetry} />
+  if (failed) return <QueryErrorState message={`Couldn’t load ${title}.`} onRetry={onRetry} />
   if (loading || !breakdown)
     return <span className={styles.listPlaceholder} role='status' aria-label={`Loading ${title}`} />
   if (breakdown.rows.length === 0)

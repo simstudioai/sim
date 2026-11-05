@@ -201,7 +201,7 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
           <SearchField
             label='Search permission groups'
             placeholder='Search permission groups...'
-            defaultValue={params.search}
+            value={params.search}
             onValueChange={params.setSearch}
           />
         }

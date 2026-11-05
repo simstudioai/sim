@@ -153,7 +153,7 @@ Proof `settings-b` is `checks/live/settings-b.spec.ts`. Every API behind these s
 | Data drains | List, search, deep link holds first paint, states | `ee/data-drains/components/data-drains-settings.tsx` | Done | `settings-b` |
 | Data drains | Create with all eight destinations; credentials write-only | `ee/data-drains/destinations/specs.ts` | Done | `settings-b` |
 | Data drains | Detail: enabled, Run now, Test connection, schedule, destination, runs, delete | `data-drain-detail.tsx` | Done | `settings-b` |
-| Settings | Unsaved-changes guard | `components/settings/use-settings-unsaved-guard.ts` | Open | Back, shell links and tab close are guarded by `section-parts/use-unsaved-guard`. Browser back is not, the SCIM enable switch does not read a shared navigation block, and each editor guards alone, so a discard covers one dirty editor rather than all of them. Owner: settings shell, with one guard provider |
+| Settings | Unsaved-changes guard | `hooks/use-settings-unsaved-guard.ts` | Open | Back, shell links and tab close are guarded by `section-parts/use-unsaved-guard`. Browser back is not, the SCIM enable switch does not read a shared navigation block, and each editor guards alone, so a discard covers one dirty editor rather than all of them. Owner: settings shell, with one guard provider |
 
 Status is one of:
 

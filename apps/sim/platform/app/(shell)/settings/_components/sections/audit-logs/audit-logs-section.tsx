@@ -159,7 +159,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
           <SearchField
             label='Search audit logs'
             placeholder='Search audit logs...'
-            defaultValue={feed.search}
+            value={feed.search}
             onValueChange={feed.setSearch}
           />
         }

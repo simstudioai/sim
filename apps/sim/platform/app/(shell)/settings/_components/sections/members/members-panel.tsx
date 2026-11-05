@@ -67,7 +67,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
           <SearchField
             label='Search members'
             placeholder='Search members...'
-            defaultValue={search}
+            value={search}
             onValueChange={setSearch}
           />
         </div>

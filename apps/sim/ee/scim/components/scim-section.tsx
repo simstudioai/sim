@@ -20,7 +20,6 @@ import {
 } from '@sim/emcn'
 import { Key } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type {
   ScimActivityEntry,
   ScimConnectionView,
@@ -52,6 +51,7 @@ import {
   useScimActivity,
   useScimConnection,
 } from '@/ee/scim/hooks/scim'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 interface ScimSectionProps {

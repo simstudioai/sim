@@ -1,8 +1,8 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
-import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-skeleton/section-skeleton'
 import { Switch } from '@/platform/design-system/components'
 import {
   SettingsRow,

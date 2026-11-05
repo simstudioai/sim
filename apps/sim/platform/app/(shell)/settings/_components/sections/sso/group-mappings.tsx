@@ -8,7 +8,6 @@ import {
   Muted,
   QueryErrorState,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { useUnsavedGuard } from '@/platform/app/(shell)/settings/_components/section-parts/use-unsaved-guard'
 import {
   ActionMenu,
   Button,
@@ -34,6 +33,7 @@ import {
   useUpsertScimGroupMapping,
   type WorkspacePermission,
 } from '@/platform/lib/data/scim'
+import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { toast } from '@/platform/lib/data/toast'
 
 type PermissionGroups = NonNullable<ReturnType<typeof usePermissionGroups>['data']>
@@ -56,7 +56,7 @@ function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: A
     setTargetId('')
     setPermission('read')
   }
-  const guard = useUnsavedGuard({
+  useSettingsUnsavedGuard({
     isDirty: targetKind !== 'permission_group' || Boolean(targetId) || permission !== 'read',
     navigationBlocked: upsertMapping.isPending,
     onDiscard: discard,
@@ -135,7 +135,6 @@ function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: A
           permanently to selected members. Other members will use the remaining permission policy.
         </Muted>
       )}
-      {guard.dialog}
     </>
   )
 }

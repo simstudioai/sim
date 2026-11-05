@@ -10,7 +10,6 @@ import {
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { useUnsavedGuard } from '@/platform/app/(shell)/settings/_components/section-parts/use-unsaved-guard'
 import {
   Button,
   Checkbox,
@@ -24,6 +23,7 @@ import {
   TextField,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
+import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import {
   buildSsoRegistrationBody,
   DEFAULT_SSO_FORM,
@@ -171,7 +171,7 @@ export function ProviderForm({
     setIsReplacing(false)
     if (isEditing) onBack?.()
   }
-  const guard = useUnsavedGuard({
+  const guard = useSettingsUnsavedGuard({
     isDirty: dirty,
     navigationBlocked: configure.isPending,
     onDiscard: discard,
@@ -512,7 +512,6 @@ export function ProviderForm({
           </ActionRow>
         </FormFieldset>
       </form>
-      {guard.dialog}
     </SectionStack>
   )
 }

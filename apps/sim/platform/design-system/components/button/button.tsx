@@ -115,17 +115,26 @@ type ChipProps = {
   icon?: IconName
   selected?: boolean
 } & (
-  | { href: string; onClick?: never; action?: ReactNode }
-  | { href?: never; onClick?: MouseEventHandler<HTMLButtonElement>; action?: never }
+  | { href: string; onClick?: never; action?: ReactNode; status?: ReactNode }
+  | { href?: never; onClick?: MouseEventHandler<HTMLButtonElement>; action?: never; status?: never }
 )
 
-export function Chip({ children, icon, selected = false, onClick, href, action }: ChipProps) {
+export function Chip({
+  children,
+  icon,
+  selected = false,
+  onClick,
+  href,
+  action,
+  status,
+}: ChipProps) {
   const LinkElement = href && isAbsoluteHref(href) ? 'a' : Link
   return (
     <ControlRow
       label={children}
       icon={icon}
       action={action}
+      status={status}
       render={
         href ? (
           <LinkElement href={href} aria-current={selected ? 'page' : undefined} />

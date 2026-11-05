@@ -10,7 +10,6 @@ import {
   QueryErrorState,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { useUnsavedGuard } from '@/platform/app/(shell)/settings/_components/section-parts/use-unsaved-guard'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import {
   Button,
@@ -31,6 +30,7 @@ import {
   useRevokeOrganizationSessions,
   useUpdateOrganizationSessionPolicy,
 } from '@/platform/lib/data/security'
+import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { toast } from '@/platform/lib/data/toast'
 
 type SessionPolicy = NonNullable<ReturnType<typeof useOrganizationSessionPolicy>['data']>
@@ -56,7 +56,7 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
     setMaxHours(savedMax)
     setIdleHours(savedIdle)
   }
-  const guard = useUnsavedGuard({
+  useSettingsUnsavedGuard({
     isDirty: dirty,
     navigationBlocked: updatePolicy.isPending,
     onDiscard: discard,
@@ -146,7 +146,6 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
           )
         }}
       />
-      {guard.dialog}
     </SettingsSection>
   )
 }

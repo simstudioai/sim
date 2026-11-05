@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { BooleanRow } from '@/platform/app/(shell)/settings/_components/boolean-row/boolean-row'
-import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
-import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-skeleton/section-skeleton'
+import { BooleanRow } from '@/platform/app/(shell)/settings/_components/section-parts/boolean-row'
+import {
+  QueryErrorState,
+  SectionSkeleton,
+} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
   Avatar,
   Icon,
@@ -36,7 +38,7 @@ function Profile() {
   const [editing, setEditing] = useState(false)
   if (profile.status === 'pending') return <SectionSkeleton title='Profile' />
   if (profile.status === 'error')
-    return <LoadFailure message='Failed to load your profile' onRetry={profile.retry} />
+    return <QueryErrorState message='Failed to load your profile' onRetry={profile.retry} />
   const displayName = profile.name || profile.email
   return (
     <SettingsSection title='Profile'>
@@ -103,7 +105,7 @@ function Appearance() {
   const appearance = useAppearanceSettings()
   if (appearance.status === 'pending') return <SectionSkeleton title='Appearance' rows={2} />
   if (appearance.status === 'error')
-    return <LoadFailure message='Failed to load your settings' onRetry={appearance.retry} />
+    return <QueryErrorState message='Failed to load your settings' onRetry={appearance.retry} />
   return (
     <SettingsSection title='Appearance'>
       <SettingsRow label='Theme' description='Select your preferred color theme' field>

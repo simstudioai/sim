@@ -1,4 +1,4 @@
-import { BooleanRow } from '@/platform/app/(shell)/settings/_components/boolean-row/boolean-row'
+import { BooleanRow } from '@/platform/app/(shell)/settings/_components/section-parts/boolean-row'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 
 export default function NotificationsSection() {

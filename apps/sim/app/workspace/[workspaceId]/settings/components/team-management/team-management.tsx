@@ -5,7 +5,6 @@ import { Plus, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { useSession } from '@/lib/auth/client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -38,6 +37,7 @@ import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seat
 import { useOpenBillingPortal, useSubscriptionData } from '@/hooks/queries/subscription'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 
 const logger = createLogger('TeamManagement')
 

@@ -3,7 +3,6 @@
   gap: var(--ui-list-gap);
 }
 .row {
-  position: relative;
   display: grid;
   min-inline-size: 0;
   border-radius: var(--ui-control-radius);
@@ -12,19 +11,8 @@
   background: var(--ui-selected);
 }
 .indicator {
-  position: absolute;
-  inset-block: 0;
-  inset-inline-end: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
-  inline-size: var(--spacing-app-chip);
-  color: var(--ui-secondary);
-  pointer-events: none;
-}
-.row:hover .indicator,
-.row:has([aria-expanded="true"]) .indicator {
-  visibility: hidden;
 }
 .dot {
   inline-size: var(--spacing-6);
@@ -41,9 +29,4 @@
   min-block-size: var(--spacing-app-chip);
   padding-inline: var(--ui-row-inset);
   color: var(--ui-secondary);
-}
-@media (hover: none) {
-  .indicator {
-    visibility: hidden;
-  }
 }

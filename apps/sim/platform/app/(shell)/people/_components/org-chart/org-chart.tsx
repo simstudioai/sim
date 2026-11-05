@@ -41,6 +41,7 @@ function FindPerson({ organizationId, onSelect, rootsLabel }: FindPersonProps) {
       options={picker.options}
       value={null}
       search={picker.search}
+      onOpenChange={picker.onOpenChange}
       onValueChange={(next) => {
         if (next) onSelect(next)
       }}

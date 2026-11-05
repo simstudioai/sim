@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { Chip, ChipConfirmModal, ChipSelect, ChipTag, toast } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type { PermissionGroup } from '@/lib/api/contracts/permission-groups'
 import {
   SettingsEmptyState,
@@ -33,6 +32,7 @@ import {
   mappingChangesAllMembersPolicy,
   removeMappingConsequence,
 } from '@/ee/scim/lib/group-mapping-view'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 
 interface AddMappingProps {
   organizationId: string

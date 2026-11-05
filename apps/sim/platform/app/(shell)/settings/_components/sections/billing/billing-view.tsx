@@ -1,9 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { LoadFailure } from '@/platform/app/(shell)/settings/_components/load-failure/load-failure'
+import {
+  QueryErrorState,
+  SectionSkeleton,
+} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
-import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-skeleton/section-skeleton'
 import { Button, DataTable, Input, StatusTag, Switch } from '@/platform/design-system/components'
 import {
   SettingsRow,
@@ -48,7 +50,7 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
   const billing = useBillingSection(organization)
   if (billing.status === 'pending') return <SectionSkeleton title='Plan' rows={1} />
   if (billing.status === 'error')
-    return <LoadFailure message={billing.error} onRetry={billing.retry} />
+    return <QueryErrorState message={billing.error} onRetry={billing.retry} />
   return (
     <>
       <SettingsSection title='Plan'>
@@ -138,7 +140,7 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
         </SettingsSection>
       )}
       {billing.invoicesFailed && (
-        <LoadFailure message='Couldn’t load invoices.' onRetry={billing.retryInvoices} />
+        <QueryErrorState message='Couldn’t load invoices.' onRetry={billing.retryInvoices} />
       )}
       {billing.invoices.length > 0 && (
         <DataTable

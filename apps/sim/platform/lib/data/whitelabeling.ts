@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
 import {
   findInvalidWhitelabelColor,
@@ -15,6 +14,7 @@ import {
 } from '@/ee/whitelabeling/hooks/whitelabel'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useProfilePictureUpload } from '@/hooks/use-profile-picture-upload'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import { queryView } from '@/platform/lib/data/query-view'
 import { toast } from '@/platform/lib/data/toast'
 

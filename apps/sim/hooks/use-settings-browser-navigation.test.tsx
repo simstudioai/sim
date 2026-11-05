@@ -6,8 +6,8 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { SettingsNavigationGuard } from '@/components/settings/settings-navigation-guard'
-import { useSettingsBrowserNavigation } from '@/components/settings/use-settings-browser-navigation'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
+import { useSettingsBrowserNavigation } from '@/hooks/use-settings-browser-navigation'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 vi.mock(

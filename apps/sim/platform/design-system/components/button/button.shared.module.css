@@ -136,7 +136,8 @@
   align-items: center;
 }
 .chipRow > .chip,
-.chipAction {
+.chipAction,
+.chipStatus {
   grid-area: row;
 }
 .chipRow[data-action-side="end"] > .chip {
@@ -160,9 +161,34 @@
   visibility: hidden;
 }
 
+.chipStatus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: end;
+  inline-size: var(--spacing-app-chip);
+  color: var(--ui-secondary);
+  pointer-events: none;
+}
+.chipRow:has([aria-expanded="true"]) .chipStatus {
+  visibility: hidden;
+}
+@media (hover: hover) {
+  .chipRow:hover .chipStatus {
+    visibility: hidden;
+  }
+}
+
 @media (hover: none) {
   .chipAction {
     opacity: 1;
+  }
+  .chipRow[data-status] > .chip {
+    padding-inline-end: calc(2 * var(--spacing-app-chip));
+  }
+  .chipRow[data-status] > .chipStatus {
+    margin-inline-end: var(--spacing-app-chip);
+    visibility: visible;
   }
   .chipRow[data-action-side="start"] > .chip > svg {
     visibility: hidden;

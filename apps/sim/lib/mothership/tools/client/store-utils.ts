@@ -1,7 +1,7 @@
 import { Read as ReadTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/mothership/resources/types'
+import { resolveReadTargetBlockName } from '@/lib/mothership/tools/client/block-name'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
-import { getReadTargetBlock } from '@/lib/mothership/tools/client/read-block'
 import { ClientToolCallState } from '@/lib/mothership/tools/client/tool-call-state'
 import { humanizeDisplayIdentifier, humanizeToolName } from '@/lib/mothership/tools/display'
 import { decodeVfsSegmentSafe } from '@/lib/vfs/path'
@@ -111,8 +111,8 @@ function formatValidatingLabel(target: string, state: ClientToolCallState): stri
 function describeReadTarget(path: string | undefined): string | undefined {
   if (!path) return undefined
 
-  const block = getReadTargetBlock(path)
-  if (block) return block.name
+  const blockName = resolveReadTargetBlockName(path)
+  if (blockName !== undefined) return blockName
 
   const segments = path
     .split('/')

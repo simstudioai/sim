@@ -46,7 +46,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
       <SearchField
         label='Search requests'
         placeholder='Search requests...'
-        defaultValue={list.search}
+        value={list.search}
         onValueChange={list.setSearch}
       />
       {settings.loading ? (
