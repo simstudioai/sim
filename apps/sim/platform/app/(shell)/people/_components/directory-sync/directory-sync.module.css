@@ -1,0 +1,23 @@
+.secondary {
+  color: var(--ui-secondary);
+}
+
+.connection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+  overflow-wrap: anywhere;
+}
+
+.progress {
+  display: grid;
+  gap: var(--ui-stack-gap);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-action-gap);
+}

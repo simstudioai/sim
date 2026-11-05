@@ -127,17 +127,37 @@ const dataSeam = 'platform/lib/data/'
 const seamRoots = ['hooks/queries', 'lib/api']
 /** Named pure helpers the seam needs. Their import closures reach no `@/app` or `@/components`. */
 const seamHelpers = new Set([
+  'ee/access-requests/components/search-params',
+  'ee/access-requests/components/status',
+  'ee/access-requests/lib/constants',
+  'ee/access-requests/lib/navigation',
+  'ee/access-requests/lib/policy-description',
+  'ee/access-requests/lib/targets',
+  'ee/scim/hooks/scim',
+  'hooks/use-debounce',
+  'hooks/use-debounced-search-setter',
+  'hooks/use-is-mobile',
+  'hooks/use-search-filter-value',
   'hooks/use-seed-deployment-shape',
   'lib/auth/browser-storage',
   'lib/auth/client',
   'lib/auth/session-context',
   'lib/auth/session-expiry',
+  'lib/billing/plan-helpers',
+  'lib/billing/subscriptions/utils',
   'lib/core/config/env',
   'lib/core/config/public-env',
   'lib/core/utils/urls',
+  'lib/invitations/failure-message',
+  'lib/messaging/email/validation',
   'lib/navigation/paths',
+  'lib/people/read-sheet',
+  'lib/people/search-params',
+  'lib/people/validation',
+  'lib/url-state',
+  'lib/workspaces/permissions/role-lock',
 ])
-const seamPackages = /^@sim\/(?:utils|logger)(?:\/|$)/
+const seamPackages = /^@sim\/(?:utils|logger|platform-authz\/predicates)(?:\/|$)/
 function resolveImport(file: string, specifier: string) {
   if (specifier.startsWith('@/')) return path.normalize(specifier.slice(2))
   if (specifier.startsWith('.')) return path.normalize(path.join(path.dirname(file), specifier))

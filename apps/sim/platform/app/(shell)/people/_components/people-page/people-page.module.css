@@ -1,0 +1,28 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  margin-inline: auto;
+  inline-size: min(calc(100% - 2 * var(--ui-page-inline-gutter)), var(--ui-page-max-size));
+  padding-block: var(--ui-page-inset-block);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+}
+
+.status {
+  color: var(--ui-secondary);
+  padding-block: var(--spacing-48);
+  text-align: center;
+}

@@ -1,0 +1,200 @@
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+}
+
+.toolbar,
+.path,
+.footer,
+.pager,
+.emptyActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+
+.emptyActions {
+  justify-content: center;
+}
+
+.picker {
+  flex: none;
+  inline-size: var(--spacing-192);
+  max-inline-size: 100%;
+}
+
+.path {
+  gap: var(--spacing-4);
+  color: var(--ui-secondary);
+}
+
+.current {
+  color: var(--ui-ink);
+}
+
+.footer {
+  justify-content: space-between;
+  color: var(--ui-secondary);
+}
+
+.pager {
+  font-variant-numeric: tabular-nums;
+}
+
+.canvas {
+  display: grid;
+  justify-items: center;
+  row-gap: var(--spacing-32);
+  padding-block: var(--spacing-16);
+}
+
+.level {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.level[data-connects-below]::after {
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline-start: 50%;
+  block-size: var(--spacing-32);
+  border-inline-start: var(--spacing-stroke-default) solid var(--ui-divider);
+  content: "";
+}
+
+.card {
+  position: relative;
+  inline-size: var(--spacing-224);
+  max-inline-size: 100%;
+  border: var(--spacing-stroke-default) solid var(--ui-divider);
+  border-radius: var(--radius-12);
+  background: var(--ui-canvas);
+}
+
+.card[data-focus-card] {
+  border-color: var(--ui-border);
+}
+
+.card:hover {
+  background: var(--ui-hover);
+}
+
+.cardTarget {
+  display: grid;
+  gap: var(--spacing-8);
+  inline-size: 100%;
+  padding: var(--spacing-12);
+  border-radius: inherit;
+  text-align: start;
+}
+
+.identity {
+  display: flex;
+  align-items: flex-start;
+  min-inline-size: 0;
+  gap: var(--ui-row-gap);
+  padding-inline-end: var(--spacing-24);
+}
+
+.names {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-stack-gap);
+}
+
+.secondary,
+.cardFooter {
+  color: var(--ui-secondary);
+}
+
+.cardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-inline-size: 0;
+  gap: var(--spacing-8);
+}
+
+.cardAction {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--spacing-4);
+  color: var(--ui-ink);
+}
+
+.profileLink {
+  position: absolute;
+  inset-block-start: var(--spacing-8);
+  inset-inline-end: var(--spacing-8);
+}
+
+.reports {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--spacing-224) var(--spacing-224);
+  gap: var(--spacing-16) var(--spacing-32);
+  max-inline-size: 100%;
+}
+
+.reports::before {
+  position: absolute;
+  inset-block: 0 var(--spacing-48);
+  inset-inline-start: 50%;
+  border-inline-start: var(--spacing-stroke-default) solid var(--ui-divider);
+  content: "";
+}
+
+.reports[data-single] {
+  grid-template-columns: var(--spacing-224);
+}
+
+.reports[data-single]::before {
+  display: none;
+}
+
+.report {
+  position: relative;
+}
+
+.report::after {
+  position: absolute;
+  inset-block-start: 50%;
+  inline-size: calc(var(--spacing-32) / 2);
+  border-block-start: var(--spacing-stroke-default) solid var(--ui-divider);
+  content: "";
+}
+
+.report:nth-child(odd)::after {
+  inset-inline-start: 100%;
+}
+
+.report:nth-child(even)::after {
+  inset-inline-end: 100%;
+}
+
+.reports[data-single] .report::after {
+  display: none;
+}
+
+.graphic {
+  display: block;
+  inline-size: var(--spacing-224);
+  fill: none;
+  stroke: var(--ui-divider);
+  stroke-width: var(--spacing-stroke-default);
+}
+
+@media (max-width: 40rem) {
+  .reports {
+    grid-template-columns: minmax(0, var(--spacing-224));
+  }
+
+  .reports::before,
+  .report::after {
+    display: none;
+  }
+}

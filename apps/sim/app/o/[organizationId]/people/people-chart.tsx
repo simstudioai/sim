@@ -21,14 +21,10 @@ import { ChevronLeft, ChevronRight, Search } from '@sim/emcn/icons'
 import { useQueryStates } from 'nuqs'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import { isApiClientError } from '@/lib/api/client/errors'
+import { peopleParsers, peopleUrlKeys, serializePeopleView } from '@/lib/people/search-params'
 import { ChartCanvas } from '@/app/o/[organizationId]/people/chart-canvas'
 import { ChartEmptyState } from '@/app/o/[organizationId]/people/chart-empty-state'
 import { LoadingStatus } from '@/app/o/[organizationId]/people/loading-status'
-import {
-  peopleParsers,
-  peopleUrlKeys,
-  serializePeopleView,
-} from '@/app/o/[organizationId]/people/search-params'
 import { usePeoplePicker } from '@/app/o/[organizationId]/people/use-people-picker'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { ResourceLoadError } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'

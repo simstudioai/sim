@@ -8,15 +8,11 @@ import { useQueryStates } from 'nuqs'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import type { PersonSummary } from '@/lib/api/contracts/people'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { peopleParsers, peopleUrlKeys, serializePeopleView } from '@/lib/people/search-params'
 import { PEOPLE_SEARCH_MAX_LENGTH } from '@/lib/people/validation'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { PEOPLE_COLUMNS, PEOPLE_SEARCH_PLACEHOLDER } from '@/app/o/[organizationId]/people/columns'
 import { LoadingStatus } from '@/app/o/[organizationId]/people/loading-status'
-import {
-  peopleParsers,
-  peopleUrlKeys,
-  serializePeopleView,
-} from '@/app/o/[organizationId]/people/search-params'
 import {
   ResourceLoadError,
   ResourceNoResults,
