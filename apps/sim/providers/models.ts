@@ -6199,7 +6199,7 @@ export const DYNAMIC_MODEL_PROVIDERS = [
 ] as const
 
 /** Providers whose adapter accepts namespaced IDs, rather than only a native model-family name. */
-const NAMESPACED_MODEL_PROVIDERS = new Set(
+export const NAMESPACED_MODEL_PROVIDERS = new Set(
   Object.entries(PROVIDER_DEFINITIONS)
     .filter(
       ([providerId, provider]) =>

@@ -187,11 +187,14 @@ interface DateRange {
 }
 
 interface DateRangePickerProps {
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   label: string
   labelHidden?: boolean
   /** `YYYY-MM-DD` days, or `YYYY-MM-DDTHH:mm` local date-times with `withTime`. */
   value: DateRange | null
-  onValueChange: (value: DateRange | null) => void
+  /** Return false to keep the draft open after a rejected range. */
+  onValueChange: ((value: DateRange | null) => boolean) | ((value: DateRange | null) => void)
   placeholder?: string
   min?: string
   max?: string
@@ -232,6 +235,8 @@ function rangeText({ start, end }: DateRange) {
 
 /** Days are staged in the popup and committed together by Apply; Escape discards them. */
 export function DateRangePicker({
+  open: controlledOpen,
+  onOpenChange,
   label,
   labelHidden,
   value,
@@ -246,12 +251,14 @@ export function DateRangePicker({
   hint,
 }: DateRangePickerProps) {
   const focusTarget = useRef<HTMLButtonElement>(null)
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
   const [draft, setDraft] = useState(() => stagedRange(value))
 
   function changeOpen(next: boolean) {
     if (next) setDraft(stagedRange(value))
-    setOpen(next)
+    if (controlledOpen === undefined) setInternalOpen(next)
+    onOpenChange?.(next)
   }
 
   function pick(day: string) {
@@ -265,8 +272,7 @@ export function DateRangePicker({
   }
 
   function commit(next: DateRange | null) {
-    onValueChange(next)
-    setOpen(false)
+    if (onValueChange(next) !== false) changeOpen(false)
   }
 
   function apply() {

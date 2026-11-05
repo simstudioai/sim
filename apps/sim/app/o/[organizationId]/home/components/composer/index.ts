@@ -1,1 +1,1 @@
-export { Composer } from './composer'
+export { Composer, type ComposerChrome } from './composer'

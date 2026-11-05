@@ -8,7 +8,7 @@
 }
 .header,
 .series,
-.series li,
+.series button,
 .legendItem,
 .ticks {
   display: flex;
@@ -60,8 +60,20 @@
   gap: var(--spacing-16);
   color: var(--ui-secondary);
 }
-.series li {
+.series button {
   gap: var(--spacing-6);
+  min-block-size: var(--spacing-28);
+  color: inherit;
+}
+.seriesTotal {
+  color: var(--ui-strong);
+  font-variant-numeric: tabular-nums;
+}
+.series button[aria-pressed="true"] {
+  color: var(--ui-strong);
+}
+.series li[data-dimmed] {
+  opacity: var(--opacity-disabled);
 }
 .swatch {
   display: inline-block;
@@ -183,6 +195,7 @@
 
 @media (pointer: coarse) {
   .header,
+  .series button,
   .legendItem {
     min-height: var(--spacing-app-touch-target);
   }

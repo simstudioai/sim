@@ -13,6 +13,8 @@ export const permissionGroupKeys = {
     [...permissionGroupKeys.detail(organizationId, id), 'members'] as const,
   userConfig: (workspaceId?: string) =>
     [...permissionGroupKeys.all, 'userConfig', workspaceId ?? ''] as const,
+  editorCatalog: (organizationId?: string) =>
+    [...permissionGroupKeys.all, 'editorCatalog', organizationId ?? ''] as const,
   orgWorkspaces: (organizationId?: string) =>
     [...permissionGroupKeys.all, 'orgWorkspaces', organizationId ?? ''] as const,
 }

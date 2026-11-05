@@ -6,7 +6,6 @@ import { usePathname } from 'next/navigation'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { isPathOrDescendant, organizationRoutes } from '@/lib/navigation/paths'
 import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
-import { OrganizationSettingsRail } from '@/app/o/[organizationId]/settings/organization-settings-rail'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands'
@@ -14,6 +13,10 @@ import { useSidebarResize } from '@/app/workspace/[workspaceId]/w/components/sid
 import { isSidebarBackgroundClick } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { CommandMenu } from '@/platform/app/(shell)/_components/command-menu/command-menu'
 import { OrganizationMenu } from '@/platform/app/(shell)/_components/organization-menu/organization-menu'
+import {
+  SettingsBackButton,
+  SettingsNavigation,
+} from '@/platform/app/(shell)/_components/settings-navigation/settings-navigation'
 import { AccountMenu } from '@/platform/app/(shell)/_components/sidebar/account-menu'
 import { ChatsSection } from '@/platform/app/(shell)/_components/sidebar/chats-section'
 import { HelpMenu } from '@/platform/app/(shell)/_components/sidebar/help-menu'
@@ -41,10 +44,10 @@ import { useSearchModalStore } from '@/stores/modals/search/store'
  * as the workspace sidebar, so the collapse cookie, resize, mobile drawer and desktop peek behave the
  * same. Collapse and peek state come from the chrome.
  *
- * Three surfaces beside each other rather than one around the rail, because Settings keeps its own
- * legacy navigation between the header and footer, and nothing legacy can render inside a surface.
- * Nothing between a surface and the chrome is positioned: a menu portals into its surface and is
- * positioned against the chrome's frame, which is what keeps it outside the rail's clipped width.
+ * Settings swaps the header's organization menu for Back to app and the body for its own sections,
+ * so the rail stays one design on every route. Nothing between a surface and the chrome is
+ * positioned: a menu portals into its surface and is positioned against the chrome's frame, which is
+ * what keeps it outside the rail's clipped width.
  */
 export function Sidebar(flags: OrganizationNavFlags) {
   const { isCollapsed: railCollapsed, isPeeking, onToggle } = useSidebarChrome()
@@ -79,7 +82,6 @@ export function Sidebar(flags: OrganizationNavFlags) {
       className={styles.sidebar}
       data-collapsed={collapsed || undefined}
       data-peeking={isPeeking || undefined}
-      data-settings={isSettings || undefined}
       aria-label='Organization sidebar'
       onClick={(event) => {
         const onFlyout =
@@ -121,12 +123,18 @@ export function Sidebar(flags: OrganizationNavFlags) {
                 />
               ) : (
                 <>
-                  <OrganizationMenu
-                    anchor={header}
-                    organization={organization}
-                    onOpen={() => warmers.warmSettings('members')}
-                    onSettings={() => actions.navigate(membersSettings)}
-                  />
+                  {isSettings ? (
+                    <div className={styles.back}>
+                      <SettingsBackButton />
+                    </div>
+                  ) : (
+                    <OrganizationMenu
+                      anchor={header}
+                      organization={organization}
+                      onOpen={() => warmers.warmSettings('members')}
+                      onSettings={() => actions.navigate(membersSettings)}
+                    />
+                  )}
                   <div className={styles.actions}>
                     <Tooltip label={`Quick search (${shortcutModifier}K)`}>
                       <IconButton
@@ -160,7 +168,11 @@ export function Sidebar(flags: OrganizationNavFlags) {
         </RedesignSurface>
         <div className={styles.body}>
           {isSettings ? (
-            <OrganizationSettingsRail collapsed={collapsed} />
+            <RedesignSurface>
+              <div className={styles.settingsFrame} data-material='shell'>
+                <SettingsNavigation collapsed={collapsed} />
+              </div>
+            </RedesignSurface>
           ) : (
             <RedesignSurface>
               <div className={styles.bodyFrame} data-material='shell'>

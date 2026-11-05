@@ -7,6 +7,7 @@ import { ActionMenuPopup, MenuItem } from '@/platform/design-system/components/m
 import { usePopoverContainer } from '@/platform/design-system/components/menu/use-popover-container'
 
 interface RangePickerProps {
+  id?: string
   label: string
   options: readonly string[]
   value?: string
@@ -16,6 +17,7 @@ interface RangePickerProps {
 }
 
 export function RangePicker({
+  id,
   label,
   options,
   value: controlledValue,
@@ -30,10 +32,13 @@ export function RangePicker({
   return (
     <Menu.Root modal={false} defaultOpen={defaultOpen && options.length > 0}>
       <Button
-        render={<Menu.Trigger ref={trigger} aria-label={value ? `${label}: ${value}` : label} />}
+        render={
+          <Menu.Trigger id={id} ref={trigger} aria-label={value ? `${label}: ${value}` : label} />
+        }
         disabled={!options.length}
         variant='quiet'
         size='compact'
+        trailingIcon='I080'
       >
         {value || label}
       </Button>

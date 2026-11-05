@@ -6,6 +6,7 @@ import type {
   HomeWidgetAccount,
   OrganizationHomeCalendar,
   OrganizationHomeEmail,
+  OrganizationHomeWorkspaceActivity,
 } from '@/lib/api/contracts/organization-home'
 import { assistantSearchSourceForProvider } from '@/lib/assistant-actions/providers'
 import { getWallClockParts, zonedWallClock } from '@/lib/core/utils/timezone'
@@ -24,6 +25,7 @@ import type {
   HomeCalendarDay,
   HomeConnectOption,
   HomeWidgetState,
+  HomeWorkspaceItem,
 } from '@/platform/app/(shell)/home/_components/model'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import { providerMark } from '@/platform/design-system/components/icon/provider-marks'
@@ -319,4 +321,42 @@ export function toAttentionItems({
     (left, right) =>
       (right.occurredAt ?? Number.POSITIVE_INFINITY) - (left.occurredAt ?? Number.POSITIVE_INFINITY)
   )
+}
+
+type WorkspaceActivity = OrganizationHomeWorkspaceActivity['workspaces'][number]
+
+function workspaceDetail({ status, statusWorkflowName, lastRun }: WorkspaceActivity) {
+  if (status) return statusWorkflowName ?? undefined
+  if (!lastRun) return 'No recent workflow runs'
+  const label = lastRun.failed ? 'Last run failed' : 'Last run'
+  return lastRun.workflowName ? `${label}: ${lastRun.workflowName}` : label
+}
+
+const STATUS_RANK = { review: 0, running: 1 } as const
+const WITHOUT_STATUS_RANK = 2
+
+function workspaceRank(item: HomeWorkspaceItem) {
+  return item.status ? STATUS_RANK[item.status] : WITHOUT_STATUS_RANK
+}
+
+/**
+ * The sidebar's rows and order, with what needs a person first, then what is live. A workspace the
+ * read did not cover keeps its place among the rest and claims nothing.
+ */
+export function toHomeWorkspaceItems(
+  workspaces: readonly Pick<HomeWorkspaceItem, 'id' | 'name' | 'href'>[],
+  activity: OrganizationHomeWorkspaceActivity | undefined
+): HomeWorkspaceItem[] {
+  const byWorkspace = new Map(activity?.workspaces.map((row) => [row.workspaceId, row]))
+  const items = workspaces.map((workspace): HomeWorkspaceItem => {
+    const row = byWorkspace.get(workspace.id)
+    if (!row) return { ...workspace }
+    return {
+      ...workspace,
+      detail: workspaceDetail(row),
+      ...(row.status ? { status: row.status } : {}),
+      ...(!row.status && row.lastRun ? { lastRunAt: Date.parse(row.lastRun.startedAt) } : {}),
+    }
+  })
+  return items.sort((left, right) => workspaceRank(left) - workspaceRank(right))
 }

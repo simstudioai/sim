@@ -3,6 +3,7 @@ import styles from '@/platform/app/(shell)/home/_components/home-dashboard/home-
 import {
   SkeletonBlock,
   SkeletonLane,
+  WidgetSkeleton,
 } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 
 interface HomeDashboardSkeletonProps {
@@ -22,7 +23,7 @@ export function HomeDashboardSkeleton({ requestMode }: HomeDashboardSkeletonProp
         </RedesignSurface>
         <RedesignSurface>
           <div className={styles.composer}>
-            <div className={styles.placeholderComposer} data-mode={requestMode} />
+            <div className={styles.placeholderComposer} />
           </div>
         </RedesignSurface>
         <RedesignSurface>
@@ -32,10 +33,13 @@ export function HomeDashboardSkeleton({ requestMode }: HomeDashboardSkeletonProp
             <div className={styles.columns}>
               <div className={styles.column}>
                 {requestMode === 'agent' && <SkeletonBlock label='Loading activity' />}
-                <SkeletonBlock label='Loading email' />
+                <SkeletonBlock label='Loading what needs your attention' />
+                {requestMode === 'agent' && (
+                  <WidgetSkeleton label='Loading workspaces' glyph={false} />
+                )}
               </div>
               <div className={styles.column}>
-                <SkeletonBlock label='Loading what needs your attention' />
+                <SkeletonBlock label='Loading email' />
                 <SkeletonBlock label='Loading your calendar' />
               </div>
             </div>

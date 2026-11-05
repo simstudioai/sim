@@ -444,7 +444,11 @@ const searchField = (page: Page) => page.getByRole('textbox', { name: 'Search yo
 const dialog = (page: Page, name: string | RegExp) => page.getByRole('dialog', { name })
 const orgChip = (page: Page) => page.getByRole('button', { name: 'Organization menu' })
 const orgCard = (page: Page) => dialog(page, 'Organization menu')
-const homeRegion = (page: Page, name: string) => page.getByRole('region', { name, exact: true })
+/** Filtered by heading because the sidebar has a section with the same name as Home's Workspaces. */
+const homeRegion = (page: Page, name: string) =>
+  page
+    .getByRole('region', { name, exact: true })
+    .filter({ has: page.locator('h2', { hasText: name }) })
 
 async function navLabels(page: Page) {
   const links = mainNav(page).getByRole('link')
@@ -604,7 +608,7 @@ async function landingChecks() {
             address.searchParams.get('view') === 'authorized-apps'
         )
         await page.goto(orgUrl('/settings/team'))
-        await expect(page.getByPlaceholder('Search members...')).toBeVisible()
+        await expect(page.getByPlaceholder('Search members…')).toBeVisible()
         await page.goto(orgUrl('/access-requests'))
         await expect(page).toHaveURL((address) => address.pathname === `${root}/settings/requests`)
         await page.goto(orgUrl('/settings/audit-logs'))
@@ -767,6 +771,82 @@ async function sidebarChecks() {
         .toBeGreaterThan(before + 30)
     })
   })
+  await check(
+    'the rail opens at its design width and moves to and from /workspace with no frame between',
+    async () => {
+      const workspaceHome = `/workspace/${MEMBER_ADMIN_WORKSPACE.id}/home`
+      const railWidths = (page: Page) =>
+        page.evaluate(() => (window as unknown as { railWidths: string[] }).railWidths)
+      const pushRoute = (page: Page, href: string) =>
+        page.evaluate((target) => {
+          ;(
+            window as unknown as { next: { router: { push: (href: string) => void } } }
+          ).next.router.push(target)
+        }, href)
+      await withSession(ADMIN, async ({ page }) => {
+        await page.addInitScript(() => {
+          const seen = new Set<string>()
+          const record = () => {
+            for (const rail of document.querySelectorAll('aside[aria-label$=" sidebar"]')) {
+              const width = Math.round(rail.getBoundingClientRect().width)
+              if (width > 0) seen.add(`${rail.getAttribute('aria-label')}:${width}`)
+            }
+            ;(window as unknown as { railWidths: string[] }).railWidths = [...seen]
+            requestAnimationFrame(record)
+          }
+          requestAnimationFrame(record)
+        })
+        await page.goto(orgUrl('/home'))
+        await expect(sidebar(page)).toBeVisible()
+        await pushRoute(page, workspaceHome)
+        await expect(page.getByRole('complementary', { name: 'Workspace sidebar' })).toBeVisible({
+          timeout: 45_000,
+        })
+        await pushRoute(page, `${root}/home`)
+        await expect(sidebar(page)).toBeVisible({ timeout: 45_000 })
+        await sleep(250)
+        assert.deepEqual((await railWidths(page)).sort(), [
+          `Organization sidebar:${SIDEBAR_WIDTH.ORGANIZATION_DEFAULT}`,
+          `Workspace sidebar:${SIDEBAR_WIDTH.DEFAULT}`,
+        ])
+      })
+    }
+  )
+  await check(
+    'a dragged organization width is kept and leaves the workspace rail alone',
+    async () => {
+      await withSession(ADMIN, async ({ page }) => {
+        await page.goto(orgUrl('/home'))
+        const edge = sidebar(page).getByRole('separator', { name: 'Resize sidebar' })
+        const box = await edge.boundingBox()
+        assert(box, 'The edge is on screen')
+        await page.mouse.move(box.x + box.width / 2, box.y + 200)
+        await page.mouse.down()
+        await page.mouse.move(340, box.y + 200, { steps: 8 })
+        await page.mouse.up()
+        const railWidth = async (rail: Locator) =>
+          Math.round((await rail.boundingBox())?.width ?? 0)
+        await expect.poll(() => railWidth(sidebar(page))).toBe(340)
+        await page.reload()
+        await expect.poll(() => railWidth(sidebar(page))).toBe(340)
+        await page.goto(url(`/workspace/${MEMBER_ADMIN_WORKSPACE.id}/home`))
+        const workspaceRail = page.getByRole('complementary', { name: 'Workspace sidebar' })
+        await expect.poll(() => railWidth(workspaceRail)).toBe(SIDEBAR_WIDTH.DEFAULT)
+      })
+    }
+  )
+  await check('a width saved before the organization default still applies', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(orgUrl('/home'))
+      await page.evaluate(() =>
+        localStorage.setItem('sidebar-state', JSON.stringify({ state: { sidebarWidth: 310 } }))
+      )
+      await page.reload()
+      await expect
+        .poll(async () => Math.round((await sidebar(page).boundingBox())?.width ?? 0))
+        .toBe(310)
+    })
+  })
   await check('on a phone the rail is a drawer that opens and closes', async () => {
     await withSession(
       MEMBER,
@@ -791,7 +871,7 @@ async function sidebarChecks() {
       await page.goto(orgUrl('/settings/general'))
       await expect(mainNav(page)).toHaveCount(0)
       await expect(sidebar(page).getByRole('link', { name: 'Members', exact: true })).toBeVisible()
-      await sidebar(page).getByRole('button', { name: 'Back', exact: true }).click()
+      await sidebar(page).getByRole('button', { name: 'Back to app', exact: true }).click()
       await expect(page).toHaveURL(orgUrl('/home'))
       await expect(composer(page)).toBeVisible()
     })
@@ -1297,6 +1377,43 @@ async function stubConnectedHome(page: Page) {
   })
 }
 
+/**
+ * Real signals for the Home Workspaces rows: a person-paused run in the member's write workspace, a
+ * live run in their admin workspace, and a paused run in one they cannot open, which must not reach them.
+ */
+async function withWorkspaceActivity(run: () => Promise<void>) {
+  const prefix = 'org-redesign-activity'
+  const seeded = [
+    { key: 'review', workspaceId: MEMBER_WRITE_WORKSPACE.id, name: 'Renewal approval' },
+    { key: 'running', workspaceId: MEMBER_ADMIN_WORKSPACE.id, name: 'Invoice sync' },
+    { key: 'hidden', workspaceId: WORKSPACES[4].id, name: 'Not for this member' },
+  ]
+  const cleanup = async () => {
+    await sql`delete from workflow_execution_logs where id like ${`${prefix}-%`}`
+    await sql`delete from workflow_execution_snapshots where id like ${`${prefix}-%`}`
+    await sql`delete from workflow where id like ${`${prefix}-%`}`
+  }
+  try {
+    for (const { key, workspaceId: scope, name } of seeded) {
+      const workflowId = `${prefix}-${key}`
+      await sql`insert into workflow (id, user_id, workspace_id, name, last_synced, created_at, updated_at)
+        values (${workflowId}, ${OWNER.userId}, ${scope}, ${name}, now(), now(), now())`
+      if (key === 'running') {
+        await sql`insert into workflow_execution_snapshots (id, workflow_id, state_hash, state_data)
+          values (${workflowId}, ${workflowId}, ${workflowId}, ${sql.json({})})`
+        await sql`insert into workflow_execution_logs (id, workflow_id, workspace_id, execution_id, state_snapshot_id, level, status, trigger, started_at, execution_deadline_at)
+          values (${workflowId}, ${workflowId}, ${scope}, ${workflowId}, ${workflowId}, 'info', 'running', 'api', now(), now() + interval '30 minutes')`
+      } else {
+        await sql`insert into paused_executions (id, workflow_id, execution_id, execution_snapshot, pause_points, total_pause_count)
+          values (${workflowId}, ${workflowId}, ${workflowId}, ${sql.json({})}, ${sql.json({ approval: { resumeStatus: 'paused', pauseKind: 'human' } })}, 1)`
+      }
+    }
+    await run()
+  } finally {
+    await cleanup()
+  }
+}
+
 async function homeChecks() {
   section('3 Home: member')
   await check(
@@ -1308,6 +1425,7 @@ async function homeChecks() {
         await expect(page.getByRole('heading', { level: 1 })).toContainText(', Mia')
         await expect(page.getByText('Ask about your company’s knowledge.')).toBeVisible()
         await expect(composer(page)).toHaveAttribute('placeholder', 'Ask about your sources')
+        await expect(composer(page).locator('xpath=ancestor::*[@data-platform-ui]')).toHaveCount(0)
         await expect(page.getByRole('radio', { name: 'Search' })).toHaveCount(0)
         await expect(page.getByRole('combobox', { name: 'Conversation mode' })).toHaveCount(0)
         await expect(page.getByRole('button', { name: 'Add resources' })).toHaveCount(0)
@@ -1398,6 +1516,13 @@ async function homeChecks() {
         await expect(
           calendar.getByRole('button', { name: 'Google Calendar', exact: true })
         ).toBeEnabled()
+        const cardHeight = async (region: Locator, title: string) =>
+          Math.round(
+            (await region.getByText(title, { exact: true }).locator('xpath=..').boundingBox())
+              ?.height ?? 0
+          )
+        assert.equal(await cardHeight(email, 'Connect your email'), 176)
+        assert.equal(await cardHeight(calendar, 'Connect your calendar'), 156)
         await expect(calendar.getByRole('button', { name: 'Outlook', exact: true })).toHaveCount(0)
         const authorization = context.waitForEvent('request', (request) =>
           request.url().startsWith('https://accounts.google.com/')
@@ -1479,6 +1604,126 @@ async function homeChecks() {
       await expect(homeRegion(page, 'Email')).toBeVisible()
     })
   })
+  await check(
+    "Workspaces lists only the member's workspaces, Review then Running, and opens like the rail",
+    async () => {
+      await withWorkspaceActivity(async () => {
+        await withSession(MEMBER, async ({ page }) => {
+          const reads: string[] = []
+          page.on('request', (request) => {
+            const { pathname } = new URL(request.url())
+            if (pathname.includes('workspace-activity')) reads.push(pathname)
+          })
+          const answered = page.waitForResponse(/\/home\/workspace-activity$/)
+          await page.goto(orgUrl('/home'))
+          const body = await (await answered).text()
+          assert(!body.includes(WORKSPACES[4].id), 'Another workspace reached the member')
+          const rows = homeRegion(page, 'Workspaces').getByRole('link')
+          await expect(rows).toHaveText([
+            new RegExp(`${MEMBER_WRITE_WORKSPACE.name}.*Renewal approval.*Review`),
+            new RegExp(`${MEMBER_ADMIN_WORKSPACE.name}.*Invoice sync.*Running`),
+          ])
+          await expect(homeRegion(page, 'Workspaces').getByText('Up to date')).toHaveCount(0)
+          assert.deepEqual(
+            reads,
+            [`/api/organizations/${ORGANIZATION_ID}/home/workspace-activity`],
+            'Home read workspace activity more than once'
+          )
+          await rows.nth(1).click()
+          await expect(page).toHaveURL(
+            (address) => address.pathname.startsWith(`/workspace/${MEMBER_ADMIN_WORKSPACE.id}`),
+            { timeout: 45_000 }
+          )
+        })
+      })
+    }
+  )
+  await check('a workspace with an old run says when, and claims no status', async () => {
+    await withSession(MEMBER, async ({ page }) => {
+      await page.route(/\/home\/workspace-activity$/, (route) =>
+        route.fulfill({
+          json: {
+            workspaces: [
+              {
+                workspaceId: MEMBER_ADMIN_WORKSPACE.id,
+                status: null,
+                statusWorkflowName: null,
+                lastRun: {
+                  workflowName: 'Invoice sync',
+                  startedAt: new Date(Date.now() - 2.5 * 60 * 60_000).toISOString(),
+                  failed: true,
+                },
+              },
+              {
+                workspaceId: MEMBER_WRITE_WORKSPACE.id,
+                status: null,
+                statusWorkflowName: null,
+                lastRun: null,
+              },
+            ],
+          },
+        })
+      )
+      await page.goto(orgUrl('/home'))
+      const region = homeRegion(page, 'Workspaces')
+      await expect(region.getByText('Last run failed: Invoice sync')).toBeVisible()
+      await expect(region.getByText('2hrs ago')).toBeVisible()
+      await expect(region.getByText('No recent workflow runs')).toBeVisible()
+    })
+  })
+  await check(
+    'Workspaces holds its rows while its read is out, and keeps them if it fails',
+    async () => {
+      await withSession(MEMBER, async ({ page }) => {
+        const release = createDeferred<void>()
+        let fail = true
+        await page.route(/\/home\/workspace-activity$/, async (route) => {
+          await release.promise
+          if (fail) await route.fulfill({ status: 500, json: { error: 'stand-in' } })
+          else await route.fallback()
+        })
+        await page.goto(orgUrl('/home'))
+        const region = homeRegion(page, 'Workspaces')
+        await expect(region.getByRole('status', { name: 'Loading workspaces' })).toBeVisible()
+        await expect(
+          region.getByRole('status', { name: 'Loading workspaces' }).locator('> span')
+        ).toHaveCount(2)
+        release.resolve()
+        await expect(
+          region.getByText('What these workspaces are doing could not load.')
+        ).toBeVisible({ timeout: 30_000 })
+        await expect(region.getByRole('link', { name: MEMBER_ADMIN_WORKSPACE.name })).toBeVisible()
+        fail = false
+        await region.getByRole('button', { name: 'Try again' }).click()
+        await expect(
+          region.getByText('What these workspaces are doing could not load.')
+        ).toHaveCount(0, { timeout: 30_000 })
+      })
+    },
+    { allow: [/500 GET .*workspace-activity/] }
+  )
+  await check('Customize Home hides Workspaces across a reload, and stops its read', async () => {
+    await withSession(MEMBER, async ({ page }) => {
+      await page.goto(orgUrl('/home'))
+      await expect(homeRegion(page, 'Workspaces')).toBeVisible()
+      await page.getByRole('button', { name: 'Customize Home' }).click()
+      await page.getByRole('menuitemcheckbox', { name: 'Workspaces' }).click()
+      await page.keyboard.press('Escape')
+      await expect(homeRegion(page, 'Workspaces')).toHaveCount(0)
+      const reads: string[] = []
+      page.on('request', (request) => {
+        if (request.url().includes('/home/workspace-activity')) reads.push(request.url())
+      })
+      await page.reload()
+      await expect(composer(page)).toBeVisible()
+      await expect(homeRegion(page, 'Workspaces')).toHaveCount(0)
+      assert.deepEqual(reads, [], 'A hidden widget still read its activity')
+      await page.getByRole('button', { name: 'Customize Home' }).click()
+      await page.getByRole('menuitemcheckbox', { name: 'Workspaces' }).click()
+      await page.keyboard.press('Escape')
+      await expect(homeRegion(page, 'Workspaces')).toBeVisible()
+    })
+  })
   await check('widget reads refuse another organization', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(orgUrl('/home'))
@@ -1506,7 +1751,45 @@ async function homeChecks() {
     })
   })
 
+  await check(
+    'A member with no workspaces sees no Workspaces section and reads nothing',
+    async () => {
+      await withSession(NARROW, async ({ page }) => {
+        const reads: string[] = []
+        page.on('request', (request) => {
+          if (request.url().includes('/home/workspace-activity')) reads.push(request.url())
+        })
+        await page.goto(orgUrl('/home'))
+        await expect(sidebar(page).getByText('No workspaces yet')).toBeVisible()
+        await expect(homeRegion(page, 'Workspaces')).toHaveCount(0)
+        await page.getByRole('button', { name: 'Customize Home' }).click()
+        await expect(page.getByRole('menuitemcheckbox', { name: 'Email' })).toBeVisible()
+        await expect(page.getByRole('menuitemcheckbox', { name: 'Workspaces' })).toHaveCount(0)
+        assert.deepEqual(reads, [], 'A member with no workspaces read workspace activity')
+      })
+    }
+  )
   section('3 Home: admin')
+  await check('an admin pages through Workspaces the way the rail does', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(orgUrl('/home'))
+      const region = homeRegion(page, 'Workspaces')
+      await expect(region.getByRole('link')).toHaveCount(5)
+      await region.getByRole('button', { name: 'See more' }).click()
+      await expect(region.getByRole('link')).toHaveCount(WORKSPACES.length)
+      await region.getByRole('button', { name: 'See less' }).click()
+      await expect(region.getByRole('link')).toHaveCount(5)
+    })
+  })
+  await check('the workspace activity read refuses another organization', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(orgUrl('/home'))
+      const response = await page.request.get(
+        url(`/api/organizations/${OUTSIDE_ORGANIZATION_ID}/home/workspace-activity`)
+      )
+      assert.equal(response.status(), 404)
+    })
+  })
   await check(
     'the agent composer with its tools and the Tasks run chart, without Suggested actions',
     async () => {
@@ -1515,6 +1798,7 @@ async function homeChecks() {
         await expect(page).toHaveURL(orgUrl('/home'))
         await expect(page.getByRole('heading', { level: 1 })).toContainText(', Ada')
         await expect(composer(page)).toBeVisible()
+        await expect(composer(page).locator('xpath=ancestor::*[@data-platform-ui]')).toHaveCount(0)
         await expect(page.getByRole('button', { name: 'Add resources' })).toBeVisible()
         await expect(page.getByRole('button', { name: 'Attach file' })).toBeVisible()
         await expect(page.getByRole('button', { name: /Skills/ }).first()).toBeVisible()
@@ -1542,6 +1826,37 @@ async function homeChecks() {
         timeout: 30_000,
       })
     })
+  })
+  await check('the resource toggle waits for a resource, then collapses and reopens', async () => {
+    const toggle = (page: Page, action: 'Expand' | 'Collapse') =>
+      page.getByRole('button', { name: `${action} resource view`, exact: true })
+    await withSession(ADMIN, async ({ page }) => {
+      await stubSearch(page)
+      await page.goto(orgUrl('/home'))
+      await expect(composer(page)).toBeVisible()
+      await expect(toggle(page, 'Expand')).toHaveCount(0)
+      await expect(toggle(page, 'Collapse')).toHaveCount(0)
+      const resource = encodeURIComponent(`search:organization:${ORGANIZATION_ID}`)
+      await page.goto(orgUrl(`/home?q=parts&resource=${resource}`))
+      await toggle(page, 'Collapse').click()
+      await toggle(page, 'Expand').click()
+      await expect(toggle(page, 'Collapse')).toBeVisible()
+    })
+  })
+  await check('on a phone neither Home nor a chat without resources has the toggle', async () => {
+    await withSession(
+      ADMIN,
+      async ({ page }) => {
+        const anyToggle = page.getByRole('button', { name: /resource view/ })
+        await page.goto(orgUrl('/home'))
+        await expect(composer(page)).toBeVisible()
+        await expect(anyToggle).toHaveCount(0)
+        await page.goto(orgUrl(`/chat/${ADMIN_CHATS.agent.id}`))
+        await expect(composer(page)).toBeVisible()
+        await expect(anyToggle).toHaveCount(0)
+      },
+      { viewport: PHONE }
+    )
   })
   await check('the handoff search params restore a results tab on Home', async () => {
     await withSession(ADMIN, async ({ page }) => {
@@ -2596,20 +2911,73 @@ async function settingsChecks() {
       })
     })
   }
-  await check('the settings shell renders correctly around legacy content', async () => {
+  await check('the settings frame: breadcrumb and a section on the design', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(orgUrl('/settings/general'))
+      await expect(page.getByLabel('Settings location')).toContainText('General')
       await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible()
       await expect(page.getByRole('button', { name: 'Reset password', exact: true })).toBeVisible()
       await expect(sidebar(page).locator('[data-platform-ui]').first()).toBeVisible()
+      await expect(
+        page.locator('[data-platform-ui]').getByRole('heading', { name: 'General', exact: true })
+      ).toBeVisible()
     })
   })
+  await check('a section on its older page renders beside the surface', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(orgUrl('/settings/integrations'))
+      await expect(page.getByLabel('Settings location')).toContainText('Sources')
+      const heading = page.getByRole('heading', { name: 'Sources', exact: true })
+      await expect(heading).toBeVisible()
+      await expect(
+        page.locator('[data-platform-ui]').getByRole('heading', { name: 'Sources' })
+      ).toHaveCount(0)
+    })
+  })
+  await check('a legacy alias opens its section under the same URL', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(orgUrl('/settings/team'))
+      await expect(page.getByLabel('Settings location')).toContainText('Members')
+      await expect(page.getByPlaceholder('Search members…')).toBeVisible()
+    })
+  })
+  await check(
+    "Settings search finds sections and settings, within the viewer's gates",
+    async () => {
+      await withSession(ADMIN, async ({ page }) => {
+        await page.goto(orgUrl('/settings/members'))
+        const rail = sidebar(page)
+        const field = rail.getByRole('searchbox', { name: 'Search settings' })
+        await page.keyboard.press('/')
+        await expect(field).toBeFocused()
+        await field.fill('password')
+        await rail.getByRole('link', { name: 'Reset password', exact: true }).click()
+        await expect(page).toHaveURL(orgUrl('/settings/general'))
+        await expect(
+          page.getByRole('button', { name: 'Reset password', exact: true })
+        ).toBeInViewport()
+        await field.fill('scim')
+        await rail.getByRole('link', { name: 'Directory provisioning', exact: true }).click()
+        await expect(page).toHaveURL(orgUrl('/settings/sso?tab=provisioning'))
+        await field.fill('audit')
+        await expect(rail.getByRole('link', { name: 'Audit logs', exact: true })).toBeVisible()
+        await field.fill('no setting is called this')
+        await expect(rail.getByText('No matching settings')).toBeVisible()
+      })
+      await withSession(MEMBER, async ({ page }) => {
+        await page.goto(orgUrl('/settings/general'))
+        const rail = sidebar(page)
+        await rail.getByRole('searchbox', { name: 'Search settings' }).fill('audit')
+        await expect(rail.getByText('No matching settings')).toBeVisible()
+      })
+    }
+  )
   await check(
     'Members: roster and search for a member; Leave present, Invite and seats hidden',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
         await page.goto(orgUrl('/settings/members'))
-        await expect(page.getByPlaceholder('Search members...')).toBeVisible()
+        await expect(page.getByPlaceholder('Search members…')).toBeVisible()
         await expect(page.getByText(ADMIN.email).first()).toBeVisible()
         await expect(page.getByRole('button', { name: 'Leave organization' })).toBeVisible()
         await expect(page.getByRole('button', { name: 'Invite', exact: true })).toHaveCount(0)
@@ -2636,14 +3004,12 @@ async function settingsChecks() {
   await check('Requests and Search MCP render for a member', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(orgUrl('/settings/requests'))
-      await expect(
-        page.getByText('No requests yet. Requests you send will appear here.')
-      ).toBeVisible()
+      await expect(page.getByText('No requests yet')).toBeVisible()
       await page.goto(orgUrl('/settings/search-mcp'))
       await expect(
         page
           .getByRole('button', { name: /Copy configuration/ })
-          .or(page.getByText(/Server URL|Terminal command/).first())
+          .or(page.getByLabel(/Server URL|Terminal command/).first())
       ).toBeVisible()
     })
   })
@@ -2655,7 +3021,7 @@ async function settingsChecks() {
         .getByRole('button', { name: 'Settings', exact: true })
         .click()
       await expect(page).toHaveURL(orgUrl('/settings/general'))
-      await sidebar(page).getByRole('button', { name: 'Back', exact: true }).click()
+      await sidebar(page).getByRole('button', { name: 'Back to app', exact: true }).click()
       await expect(page).toHaveURL(orgUrl('/links'))
     })
   })
@@ -2663,12 +3029,72 @@ async function settingsChecks() {
     'Settings leave guard: dirty state',
     'Only White-labeling has a dirty form, covered by its own surface'
   )
+  await check('Insights: heatmap pinning, metric explanations, and View all', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(orgUrl('/settings/usage'))
+      await expect(page.getByText('Less', { exact: true })).toBeVisible()
+      await expect(page.getByText('More', { exact: true })).toBeVisible()
+      const day = page
+        .getByRole('group', { name: /^Daily credit usage/ })
+        .getByRole('button')
+        .last()
+      await day.hover()
+      await expect(page.getByRole('tooltip').first()).toBeVisible()
+      await expect(day).toHaveAttribute('aria-pressed', 'false')
+      await day.click()
+      await expect(day).toHaveAttribute('aria-pressed', 'true')
+      await day.press('Escape')
+      await expect(day).toHaveAttribute('aria-pressed', 'false')
+      await expect(page.getByText('Retained executions, grouped by start date.')).toBeVisible()
+      await expect(
+        page.getByText('Other includes cancelled, paused, and unfinished runs.')
+      ).toBeVisible()
+      await expect(page.getByRole('button', { name: 'View all', exact: true })).toHaveCount(2)
+    })
+  })
+  notProvable(
+    'Insights: allowance meter, legend totals, and the unattributed-workspace note',
+    'The fixture seeds no usage limit, ledger credits, or unattributed workspace row'
+  )
+  await check(
+    'Permission groups: a failed provider blacklist blocks Providers only',
+    async () => {
+      await withSession(ADMIN, async ({ page }) => {
+        await page.route('**/api/settings/allowed-providers**', (route) =>
+          route.fulfill({ status: 500, json: { error: 'unavailable' } })
+        )
+        const group = `/settings/access-control?group-id=${STANDARD_GROUP_ID}`
+        await page.goto(orgUrl(`${group}&group-tab=providers`))
+        await expect(page.getByText('Could not load provider availability')).toBeVisible()
+        await expect(page.getByRole('region', { name: 'Providers' })).toHaveCount(0)
+        await page.goto(orgUrl(`${group}&group-tab=blocks`))
+        await expect(page.getByRole('region', { name: 'Core Blocks' })).toBeVisible()
+      })
+    },
+    { allow: [/500 GET .*allowed-providers/] }
+  )
+  await check('Single sign-on: the client secret keeps its autofill guards', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(orgUrl('/settings/sso'))
+      const add = page.getByRole('button', { name: 'Add identity provider' })
+      if (await add.isVisible()) await add.click()
+      const decoy = page.locator('input[name="fakepasswordremembered"]')
+      await expect(decoy).toHaveJSProperty('hidden', false)
+      const secret = page.getByRole('textbox', { name: 'Client secret' })
+      await expect(secret).toHaveAttribute('type', 'text')
+      await expect(secret).toHaveAttribute('data-masked', 'true')
+      await expect(secret).toHaveJSProperty('readOnly', true)
+      await secret.focus()
+      await expect(secret).toHaveJSProperty('readOnly', false)
+    })
+  })
   await check('admin settings sections all open', async () => {
     await withSession(ADMIN, async ({ page }) => {
       for (const path of [...SETTINGS_FOR_ADMIN, 'search-mcp']) {
         const response = await page.goto(orgUrl(`/settings/${path}`))
         assert((response?.status() ?? 500) < 400, `settings/${path} ${response?.status()}`)
         await expect(sidebar(page)).toBeVisible()
+        await expect(page.getByText('Page not found')).toHaveCount(0)
       }
     })
   })
@@ -2797,7 +3223,7 @@ async function blastRadiusChecks() {
     }
   )
   await check(
-    'legacy Settings content is styled the same under /o as under /workspace',
+    'a Settings section on its older page is styled the same under /o as under /workspace',
     async () => {
       const sampleContent = (page: Page) =>
         page.evaluate(() => {
@@ -2813,7 +3239,10 @@ async function blastRadiusChecks() {
           const output: Record<string, string> = {}
           const controls = Array.from(
             document.querySelectorAll('h1, h2, h3, label, input, button, p')
-          ).filter((element) => !element.closest('aside') && (element as HTMLElement).offsetParent)
+          ).filter(
+            (element) =>
+              !element.closest('aside, [data-platform-ui]') && (element as HTMLElement).offsetParent
+          )
           for (const element of controls.slice(0, 80)) {
             const key = `${element.tagName} ${(element.textContent ?? '').trim().slice(0, 32)}`
             const style = getComputedStyle(element)
@@ -2823,15 +3252,15 @@ async function blastRadiusChecks() {
         })
       await withSession(ADMIN, async (session) => {
         const { page } = session
-        await page.goto(url(`/workspace/${MEMBER_ADMIN_WORKSPACE.id}/settings/general`))
+        await page.goto(url(`/workspace/${MEMBER_ADMIN_WORKSPACE.id}/settings/connected-accounts`))
         await expect(
-          page.getByRole('button', { name: 'Reset password', exact: true })
+          page.getByRole('heading', { name: 'Credential Groups', exact: true })
         ).toBeVisible()
         await session.settle()
         const workspace = await sampleContent(page)
-        await page.goto(orgUrl('/settings/general'))
+        await page.goto(orgUrl('/settings/connected-accounts'))
         await expect(
-          page.getByRole('button', { name: 'Reset password', exact: true })
+          page.getByRole('heading', { name: 'Credential Groups', exact: true })
         ).toBeVisible()
         await session.settle()
         const organization = await sampleContent(page)
@@ -3069,7 +3498,7 @@ async function firstPaintChecks() {
 const SETTINGS_FOR_ALL = ['general', 'members', 'recently-deleted', 'requests', 'search-mcp']
 const SETTINGS_FOR_ADMIN = [
   'subscription',
-  'credential-groups',
+  'connected-accounts',
   'usage',
   'whitelabeling',
   'audit-logs',
@@ -3079,7 +3508,7 @@ const SETTINGS_FOR_ADMIN = [
   'data-retention',
   'data-drains',
   'integrations',
-  'slack-search',
+  'search-slack',
 ]
 
 const settingsRoutes = (sections: readonly string[]) =>

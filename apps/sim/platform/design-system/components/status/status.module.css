@@ -60,3 +60,22 @@
   gap: var(--ui-action-gap);
   color: var(--ui-ink);
 }
+.spinner {
+  flex: none;
+  inline-size: var(--ui-icon-size);
+  block-size: var(--ui-icon-size);
+  border: 1.5px solid currentcolor;
+  border-inline-end-color: transparent;
+  border-radius: var(--radius-full);
+  animation: spinner-turn 1s linear infinite;
+}
+@keyframes spinner-turn {
+  to {
+    rotate: 360deg;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}

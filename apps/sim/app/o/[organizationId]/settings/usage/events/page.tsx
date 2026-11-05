@@ -1,11 +1,10 @@
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
-import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
 import { getSession } from '@/lib/auth'
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
-import { UsageEventsView } from '@/ee/organization-usage/components/usage-events-view'
+import { PlatformSettingsSectionHost } from '@/platform/app/(shell)/settings/_components/settings-section-host'
 
 export const metadata: Metadata = { title: 'Usage events' }
 
@@ -34,11 +33,5 @@ export default async function OrganizationUsageEventsPage({
     notFound()
   }
 
-  return (
-    <SettingsHeaderProvider>
-      <SettingsHeaderShell>
-        <UsageEventsView organizationId={organizationId} backHref={backHref} />
-      </SettingsHeaderShell>
-    </SettingsHeaderProvider>
-  )
+  return <PlatformSettingsSectionHost section='usage' subpath={['events']} />
 }

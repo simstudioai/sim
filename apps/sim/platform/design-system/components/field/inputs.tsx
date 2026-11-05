@@ -36,6 +36,8 @@ interface InputProps extends ControlProps, TextValueProps, TextEntryProps {
   spellCheck?: boolean
   /** An action inside the frame, after the text. */
   trailing?: ReactNode
+  /** Draws a text input's value as dots. */
+  masked?: boolean
 }
 
 export function Input({
@@ -58,6 +60,7 @@ export function Input({
   readOnly,
   spellCheck,
   trailing,
+  masked,
 }: InputProps) {
   const scrollRef = useScrollEdges<HTMLInputElement>('horizontal')
   return (
@@ -76,6 +79,7 @@ export function Input({
         aria-label={label}
         className={styles.input}
         data-type='T043'
+        data-masked={masked || undefined}
         name={name}
         defaultValue={defaultValue}
         value={value}

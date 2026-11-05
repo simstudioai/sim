@@ -859,6 +859,43 @@ export const glyphs = {
       <path d='m16 17 5-5-5-5M21 12H9M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4' />
     ),
   },
+  I133: {
+    label: 'credit-card',
+    viewBox: '0 0 24 24',
+    draw: (): ReactNode => (
+      <>
+        <rect x='3' y='5' width='18' height='14' rx='2' />
+        <path d='M3 10h18' />
+      </>
+    ),
+  },
+  I134: {
+    label: 'users',
+    viewBox: '0 0 24 24',
+    draw: (): ReactNode => (
+      <>
+        <circle cx='9' cy='8' r='3' />
+        <path d='M3 20v-2a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v2M16 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 4v2' />
+      </>
+    ),
+  },
+  I135: {
+    label: 'bar-chart',
+    viewBox: '0 0 24 24',
+    draw: (): ReactNode => <path d='M4 4v16h16M8 15v-4m5 4V7m5 8v-6' />,
+  },
+  I136: {
+    label: 'shield',
+    viewBox: '0 0 24 24',
+    draw: (): ReactNode => <path d='m12 3 8 3v5c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z' />,
+  },
+  I137: {
+    label: 'key',
+    viewBox: '0 0 24 24',
+    draw: (): ReactNode => (
+      <path d='M15 4a5 5 0 1 1-3.4 8.6L5 19.2H2v-3l6.6-6.6A5 5 0 0 1 15 4ZM17 7h.01' />
+    ),
+  },
 } as const
 
 export type IconName = keyof typeof glyphs

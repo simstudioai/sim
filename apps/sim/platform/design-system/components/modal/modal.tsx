@@ -9,6 +9,8 @@ import { ModalBody, ModalFooter } from '@/platform/design-system/components/moda
 import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
 
 interface ModalStep {
+  title?: string
+  continueDisabled?: boolean
   description?: string
   content: ReactNode
 }
@@ -35,11 +37,11 @@ type ModalTrigger =
       triggerIcon?: never
     }
 
-interface MultiStepModalProps extends Omit<ModalActions, 'onConfirm'> {
-  onConfirm?: ConfirmHandler<[]>
-  triggerLabel: string
-  steps: readonly [ModalStep, ...ModalStep[]]
-}
+type MultiStepModalProps = Omit<ModalActions, 'onConfirm'> &
+  ModalTrigger & {
+    onConfirm?: ConfirmHandler<[]>
+    steps: readonly [ModalStep, ...ModalStep[]]
+  }
 
 type ModalSurfaceProps = ModalActions & {
   triggerLabel?: string
@@ -77,6 +79,7 @@ function ModalSurface({
   const open = controlled ?? internal
   const step = steps[index]
   const last = index === steps.length - 1
+  const disabled = pending || Boolean(step.continueDisabled) || (last && confirmDisabled)
 
   if (!open && error) setError(null)
 
@@ -115,7 +118,7 @@ function ModalSurface({
       )}
       <OverlayDialog
         open={open}
-        title={title}
+        title={step.title ?? title}
         description={step.description}
         step={index + backs}
         presentation={presentation}
@@ -123,7 +126,7 @@ function ModalSurface({
         onClose={dismiss}
         onSubmit={(event) => {
           event.preventDefault()
-          if (pending || (last && confirmDisabled)) return
+          if (disabled) return
           if (!last) {
             setIndex(index + 1)
             return
@@ -132,7 +135,11 @@ function ModalSurface({
         }}
       >
         {steps.map((entry, i) => (
-          <ModalBody key={i} inactive={i !== index} label={entry.description || title}>
+          <ModalBody
+            key={i}
+            inactive={i !== index}
+            label={entry.description || entry.title || title}
+          >
             {entry.content}
           </ModalBody>
         ))}
@@ -152,7 +159,7 @@ function ModalSurface({
             } else dismiss()
           }}
           cancelLabel={index > 0 || onBack ? 'Back' : cancelLabel}
-          disabled={pending || (last && confirmDisabled)}
+          disabled={disabled}
           cancelDisabled={pending}
           destructive={destructive}
           progress={steps.length > 1 ? `Step ${index + 1} of ${steps.length}` : undefined}
@@ -211,6 +218,8 @@ export function Modal({
 
 export function MultiStepModal({
   triggerLabel,
+  open,
+  onOpenChange,
   title,
   confirmLabel,
   confirmDisabled,
@@ -220,6 +229,8 @@ export function MultiStepModal({
   return (
     <ModalSurface
       triggerLabel={triggerLabel}
+      open={open}
+      onOpenChange={onOpenChange}
       title={title}
       confirmLabel={confirmLabel}
       confirmDisabled={confirmDisabled}

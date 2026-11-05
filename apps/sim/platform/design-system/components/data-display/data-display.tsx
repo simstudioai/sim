@@ -11,16 +11,21 @@ import type { LoadMoreState } from '@/platform/design-system/components/scroll-a
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 interface MetricGroupProps {
-  metrics: readonly { label: string; value: string | number }[]
+  metrics: readonly { label: string; value: string | number; description?: string }[]
 }
 
 export function MetricGroup({ metrics }: MetricGroupProps) {
   return (
     <dl className={styles.metrics}>
-      {metrics.map(({ label, value }) => (
+      {metrics.map(({ label, value, description }) => (
         <div className={styles.metric} key={label}>
           <dt data-type='T050'>{label}</dt>
           <dd data-type='T102'>{value}</dd>
+          {description && (
+            <dd className={styles.metricDescription} data-type='T060'>
+              {description}
+            </dd>
+          )}
         </div>
       ))}
     </dl>

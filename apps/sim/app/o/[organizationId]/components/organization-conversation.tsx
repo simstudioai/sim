@@ -27,7 +27,7 @@ import {
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
 import { OrganizationLanding } from '@/app/o/[organizationId]/components/organization-landing'
-import { Composer } from '@/app/o/[organizationId]/home/components/composer'
+import { Composer, type ComposerChrome } from '@/app/o/[organizationId]/home/components/composer'
 import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
@@ -104,6 +104,8 @@ interface OrganizationConversationProps {
   landing?: {
     /** Shown over the conversation once the first turn has replaced the landing. */
     chatHeader?: ReactNode
+    /** The composer's look on this landing; the conversation that follows keeps the default one. */
+    composerChrome?: ComposerChrome
     fallback: ReactNode
     render: (slot: OrganizationLandingSlot) => ReactNode
   }
@@ -479,6 +481,7 @@ function OrganizationConversationContent({
 
   const composer = (
     <Composer
+      chrome={hasChat ? undefined : landing?.composerChrome}
       requestMode={requestMode}
       submission={submission}
       compact={Boolean(panelOptions)}
@@ -538,7 +541,7 @@ function OrganizationConversationContent({
           enabled={requestMode === 'assistant'}
         >
           <MothershipChat
-            reserveResourceHeader={!header}
+            reserveResourceHeader={!header && chat.resources.length > 0}
             onNavigateToChat={panelOptions?.onNavigateToChat}
             layout={panelOptions ? 'copilot-view' : undefined}
             onViewSources={(messageId, requestId) =>
@@ -631,6 +634,7 @@ function OrganizationConversationContent({
   return (
     <ChatResourcePanel
       header={header}
+      hideToggleUntilResource
       allowBuildControls={requestMode !== 'assistant' && canBuild}
       organizationId={organization.id}
       chat={chat}

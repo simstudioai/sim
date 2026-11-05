@@ -138,6 +138,7 @@ export default async function OrganizationLayout({
                 <SessionExpired />
                 <SettingsNavigationProvider>
                   <WorkspaceChrome
+                    sidebarSurface='organization'
                     sidebar={
                       <Sidebar
                         benchmarkEnabled={benchmarkEnabled}

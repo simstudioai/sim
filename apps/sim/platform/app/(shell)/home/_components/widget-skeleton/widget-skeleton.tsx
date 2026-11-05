@@ -4,15 +4,19 @@ const ROW_COUNT = 5
 
 interface WidgetSkeletonProps {
   label: string
+  /** How many rows the list will have, when that is already known. */
+  rows?: number
+  /** Whether the list's rows lead with a glyph. */
+  glyph?: boolean
 }
 
 /** Holds a widget's list at its final size, so the page does not move when the data arrives. */
-export function WidgetSkeleton({ label }: WidgetSkeletonProps) {
+export function WidgetSkeleton({ label, rows = ROW_COUNT, glyph = true }: WidgetSkeletonProps) {
   return (
     <div className={styles.rows} role='status' aria-label={label} aria-busy='true'>
-      {Array.from({ length: ROW_COUNT }, (_, index) => (
+      {Array.from({ length: rows }, (_, index) => (
         <span key={index} className={styles.row}>
-          <i className={styles.glyph} />
+          {glyph && <i className={styles.glyph} />}
           <span className={styles.copy}>
             <i className={styles.title} />
             <i className={styles.detail} />

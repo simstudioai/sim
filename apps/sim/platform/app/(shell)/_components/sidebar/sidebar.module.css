@@ -17,13 +17,6 @@
 .sidebar [role="tooltip"] {
   z-index: var(--z-tooltip);
 }
-.sidebar[data-settings] [data-platform-ui] {
-  background: var(--surface-1);
-}
-.sidebar[data-settings] [data-material="shell"] {
-  background: transparent;
-  backdrop-filter: none;
-}
 .column {
   display: flex;
   flex: 1;
@@ -86,6 +79,13 @@ button:hover > .railMark > .railGlyph {
 }
 .body > [data-platform-ui] {
   block-size: 100%;
+}
+.settingsFrame {
+  block-size: 100%;
+}
+.back {
+  flex: 1;
+  min-inline-size: 0;
 }
 .bodyFrame {
   display: grid;
