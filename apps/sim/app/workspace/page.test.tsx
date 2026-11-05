@@ -1,62 +1,78 @@
 /**
- * @vitest-environment node
+ * @vitest-environment jsdom
  */
-import { authMockFns } from '@sim/testing/mocks/auth.mock'
-import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act } from 'react'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockResolveWorkspacelessMemberPath } = vi.hoisted(() => ({
-  mockResolveWorkspacelessMemberPath: vi.fn(),
+const { mockUseWorkspacesWithMetadata } = vi.hoisted(() => ({
+  mockUseWorkspacesWithMetadata: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => nextNavigationMock)
-
-vi.mock('@/lib/navigation/resolve-app-entry', () => ({
-  resolveWorkspacelessMemberPath: mockResolveWorkspacelessMemberPath,
+vi.mock('@/lib/auth/client', () => authClientMock)
+vi.mock('@/hooks/queries/workspace', () => ({
+  useWorkspacesWithMetadata: mockUseWorkspacesWithMetadata,
 }))
-
-vi.mock('@/app/workspace/workspace-entry', () => ({ WorkspaceEntry: () => null }))
 
 import WorkspacePage from '@/app/workspace/page'
 
-const mockGetSession = authMockFns.mockGetSession
-const session = { user: { id: 'viewer' } }
+const mockReplace = nextNavigationMockFns.router.replace
 
-function visit(search: { redirect?: string } = {}) {
-  return WorkspacePage({ searchParams: Promise.resolve(search) })
-}
+describe('WorkspacePage for a viewer with nothing to pick', () => {
+  let container: HTMLDivElement
+  let root: Root
 
-describe('WorkspacePage', () => {
+  function visit(search: string, list: { forwardOrganizationId?: string }) {
+    window.history.pushState({}, '', `/workspace${search}`)
+    mockUseWorkspacesWithMetadata.mockReturnValue({
+      data: {
+        workspaces: [],
+        lastActiveWorkspaceId: null,
+        pinnedWorkspaceIds: [],
+        creationPolicy: { canCreate: false, workspaceMode: 'organization' },
+        ...list,
+      },
+      isLoading: false,
+      error: null,
+    })
+    act(() => root.render(<WorkspacePage />))
+  }
+
   beforeEach(() => {
-    mockGetSession.mockResolvedValue(session)
-    mockResolveWorkspacelessMemberPath.mockResolvedValue(null)
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    mockReplace.mockClear()
+    authClientMockFns.mockUseSession.mockReturnValue({
+      data: { user: { id: 'viewer' } },
+      isPending: false,
+      error: null,
+    })
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
   })
 
-  it('forwards a workspaceless member before the picker renders', async () => {
-    mockResolveWorkspacelessMemberPath.mockResolvedValue('/o/org-1/home')
-    await expect(visit()).rejects.toThrow('NEXT_REDIRECT:/o/org-1/home')
-    expect(mockResolveWorkspacelessMemberPath).toHaveBeenCalledWith(session, 'home')
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
   })
 
-  it('carries a settings request through to the destination', async () => {
-    mockResolveWorkspacelessMemberPath.mockResolvedValue('/o/org-1/settings/general')
-    await expect(visit({ redirect: 'settings' })).rejects.toThrow(
-      'NEXT_REDIRECT:/o/org-1/settings/general'
-    )
-    expect(mockResolveWorkspacelessMemberPath).toHaveBeenCalledWith(session, 'settings')
+  it('forwards to the organization without showing the blocked card', () => {
+    visit('', { forwardOrganizationId: 'org-1' })
+    expect(mockReplace).toHaveBeenCalledExactlyOnceWith('/o/org-1/home')
+    expect(container.querySelector('h1')).toBeNull()
   })
 
-  it('leaves a stale session on the recovery surface', async () => {
-    mockGetSession.mockResolvedValue(null)
-    await expect(visit()).resolves.toBeTruthy()
-    expect(mockResolveWorkspacelessMemberPath).not.toHaveBeenCalled()
+  it('carries a settings request to the organization settings', () => {
+    visit('?redirect=settings', { forwardOrganizationId: 'org-1' })
+    expect(mockReplace).toHaveBeenCalledExactlyOnceWith('/o/org-1/settings/general')
   })
 
-  it.each([
-    ['session', () => mockGetSession.mockRejectedValue(new Error('down'))],
-    ['destination', () => mockResolveWorkspacelessMemberPath.mockRejectedValue(new Error('down'))],
-  ])('keeps the recovery surface when the %s lookup fails', async (_label, fail) => {
-    fail()
-    await expect(visit()).resolves.toBeTruthy()
+  it('stays on the blocked card when no organization can serve them', () => {
+    visit('', {})
+    expect(mockReplace).not.toHaveBeenCalled()
+    expect(container.querySelector('h1')).not.toBeNull()
   })
 })

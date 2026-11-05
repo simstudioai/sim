@@ -2,14 +2,6 @@ import {
   knowledgeAvailabilityMock,
   knowledgeAvailabilityMockFns,
 } from '@sim/testing/mocks/knowledge-availability.mock'
-import {
-  workspacesPolicyMock,
-  workspacesPolicyMockFns,
-} from '@sim/testing/mocks/workspaces-policy.mock'
-import {
-  workspacesUtilsMock,
-  workspacesUtilsMockFns,
-} from '@sim/testing/mocks/workspaces-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockResolveOrganizationLanding } = vi.hoisted(() => ({
@@ -22,19 +14,13 @@ vi.mock('@/lib/organizations/surface', () => ({
   resolveOrganizationLanding: mockResolveOrganizationLanding,
 }))
 
-vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)
-
-vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
-
 import {
   resolveAppEntryPath,
   resolveOrganizationEntryPath,
-  resolveWorkspacelessMemberPath,
+  resolveRolledOutOrganizationId,
 } from '@/lib/navigation/resolve-app-entry'
 
 const mockSearchAvailable = knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable
-const { mockGetWorkspaceCreationPolicy } = workspacesPolicyMockFns
-const { mockListAccessibleWorkspaceRowsForUser: mockListWorkspaces } = workspacesUtilsMockFns
 
 describe('resolveAppEntryPath', () => {
   beforeEach(() => {
@@ -85,40 +71,16 @@ describe('resolveOrganizationEntryPath', () => {
   })
 })
 
-describe('resolveWorkspacelessMemberPath', () => {
-  const session = { user: { id: 'viewer' } }
-
+describe('resolveRolledOutOrganizationId', () => {
   beforeEach(() => {
-    mockResolveOrganizationLanding.mockResolvedValue('org-1')
     mockSearchAvailable.mockResolvedValue(true)
-    mockGetWorkspaceCreationPolicy.mockResolvedValue({ canCreate: false })
-    mockListWorkspaces.mockResolvedValue([])
   })
 
-  it('forwards a member who has no workspace and cannot create one', async () => {
-    await expect(resolveWorkspacelessMemberPath(session, 'home')).resolves.toBe('/o/org-1/home')
-    await expect(resolveWorkspacelessMemberPath(session, 'settings')).resolves.toBe(
-      '/o/org-1/settings/general'
-    )
-  })
+  it('names the organization only when its surface would keep the viewer', async () => {
+    mockResolveOrganizationLanding.mockResolvedValue('org-1')
+    await expect(resolveRolledOutOrganizationId({ user: { id: 'viewer' } })).resolves.toBe('org-1')
 
-  it('stays on the picker when the organization surface would send the viewer back', async () => {
     mockSearchAvailable.mockResolvedValue(false)
-    await expect(resolveWorkspacelessMemberPath(session, 'home')).resolves.toBeNull()
-  })
-
-  it('stays on the picker for a viewer with no organization', async () => {
-    mockResolveOrganizationLanding.mockResolvedValue(null)
-    await expect(resolveWorkspacelessMemberPath(session, 'home')).resolves.toBeNull()
-  })
-
-  it('keeps a member who has a workspace on the picker', async () => {
-    mockListWorkspaces.mockResolvedValue([{ workspace: { id: 'ws-1' } }])
-    await expect(resolveWorkspacelessMemberPath(session, 'home')).resolves.toBeNull()
-  })
-
-  it('leaves a member who can create a workspace to the default-workspace path', async () => {
-    mockGetWorkspaceCreationPolicy.mockResolvedValue({ canCreate: true })
-    await expect(resolveWorkspacelessMemberPath(session, 'home')).resolves.toBeNull()
+    await expect(resolveRolledOutOrganizationId({ user: { id: 'viewer' } })).resolves.toBeNull()
   })
 })

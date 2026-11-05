@@ -2,15 +2,19 @@ import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { organizationRoutes, WORKSPACES_PATH } from '@/lib/navigation/paths'
 import { resolveOrganizationLanding } from '@/lib/organizations/surface'
-import { getWorkspaceCreationPolicy } from '@/lib/workspaces/policy'
-import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
 interface EntrySession {
   user: { id: string }
 }
 
-/** The viewer's organization, once membership and the organization's rollout both check out. */
-async function resolveRolledOutOrganizationId(session: EntrySession): Promise<string | null> {
+/**
+ * The viewer's organization, once membership and the organization's rollout both check
+ * out. The organization surface sends a viewer to the workspace picker only when that
+ * rollout is off, so forwarding the picker's viewers on this answer cannot loop.
+ */
+export async function resolveRolledOutOrganizationId(
+  session: EntrySession
+): Promise<string | null> {
   const organizationId = await resolveOrganizationLanding(
     session.user.id,
     getActiveOrganizationId(session)
@@ -23,32 +27,6 @@ async function resolveRolledOutOrganizationId(session: EntrySession): Promise<st
 export async function resolveOrganizationEntryPath(session: EntrySession): Promise<string | null> {
   const organizationId = await resolveRolledOutOrganizationId(session)
   return organizationId ? organizationRoutes(organizationId).home : null
-}
-
-/**
- * Where the workspace picker forwards an organization member it cannot serve: one
- * with no accessible workspace who is not allowed to create one. `null` leaves the
- * viewer on the picker. The rollout check is what keeps this loop-free, since the
- * organization surface sends a viewer back to the picker only when that rollout is off.
- */
-export async function resolveWorkspacelessMemberPath(
-  session: EntrySession,
-  destination: 'home' | 'settings'
-): Promise<string | null> {
-  const organizationId = await resolveRolledOutOrganizationId(session)
-  if (!organizationId) return null
-
-  const [creationPolicy, workspaces] = await Promise.all([
-    getWorkspaceCreationPolicy({
-      userId: session.user.id,
-      activeOrganizationId: getActiveOrganizationId(session),
-    }),
-    listAccessibleWorkspaceRowsForUser(session.user.id),
-  ])
-  if (creationPolicy.canCreate || workspaces.length > 0) return null
-
-  const routes = organizationRoutes(organizationId)
-  return destination === 'settings' ? routes.settingsSection('general') : routes.home
 }
 
 /**
