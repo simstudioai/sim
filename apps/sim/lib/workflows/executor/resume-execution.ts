@@ -439,7 +439,8 @@ export async function executeResumeWorkflow({
     if (error instanceof ResumeWorkflowExecutionError) throw error
     const statusCode =
       isRecordLike(error) && typeof error.statusCode === 'number' ? error.statusCode : undefined
-    if (statusCode !== undefined && statusCode < 500) markFailureKind(error, 'user')
+    const retryable = isRecordLike(error) && error.retryable === true
+    if (statusCode !== undefined && statusCode < 500 && !retryable) markFailureKind(error, 'user')
     logFailureOnce(logger, 'Resume request failed', error, {
       executionId,
       metadata: () =>

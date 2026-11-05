@@ -1105,7 +1105,13 @@ export async function saveTriggerWebhooksForDeploy({
         externalSubscriptionCreated: result.externalSubscriptionCreated,
       })
     } catch (error: unknown) {
-      logger.error(`[${requestId}] Failed to create external subscription for ${block.id}`, error)
+      if (error instanceof WebhookDeploymentConfigurationError) {
+        logger.warn(`[${requestId}] Rejected webhook trigger configuration for ${block.id}`, {
+          error: error.message,
+        })
+      } else {
+        logger.error(`[${requestId}] Failed to create external subscription for ${block.id}`, error)
+      }
       await pendingVerificationTracker.clearAll()
       let cleanupFailure: unknown
       for (const sub of createdSubscriptions) {
