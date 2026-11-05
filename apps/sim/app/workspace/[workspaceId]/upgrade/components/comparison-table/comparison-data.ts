@@ -209,7 +209,7 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
         values: [false, false, false, true],
       },
       {
-        label: 'Self Hosting',
+        label: 'Self-Hosted Enterprise Features',
         values: [false, false, false, true],
       },
       {
