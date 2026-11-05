@@ -9,11 +9,7 @@ import {
   type SimLinkResolution,
   suggestSimLinks,
 } from '@/lib/sim-links/application/use-cases'
-import {
-  parseTypedSimLink,
-  SIM_LINK_SEARCH_MAX_LENGTH,
-  simLinkNameSchema,
-} from '@/lib/sim-links/validation'
+import { parseTypedSimLink, simLinkNameSchema } from '@/lib/sim-links/validation'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { LogoShell } from '@/app/(landing)/components/logo-shell'
 import { serializeSimLinkView } from '@/app/o/[organizationId]/links/search-params'
@@ -108,7 +104,7 @@ export default async function SimLinkPage({ params, searchParams }: SimLinkPageP
   const validName = simLinkNameSchema.safeParse(name).success
   // A name can't hold a space, so `sim card prices` is someone looking for a link, not naming one.
   if (result.kind === 'not_found' && /\s/.test(name)) {
-    redirect(serializeSimLinkView(library, { search: name.slice(0, SIM_LINK_SEARCH_MAX_LENGTH) }))
+    redirect(serializeSimLinkView(library, { search: name }))
   }
   const creatable = result.kind === 'not_found' && validName
   const similar = creatable
