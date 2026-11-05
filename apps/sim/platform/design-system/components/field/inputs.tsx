@@ -1,6 +1,13 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import type {
+  ClipboardEventHandler,
+  FocusEventHandler,
+  ReactNode,
+  Ref,
+  SyntheticEvent,
+  UIEventHandler,
+} from 'react'
 import styles from '@/platform/design-system/components/field/field.module.css'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
@@ -22,7 +29,16 @@ export interface TextValueProps {
 
 /** Native text-entry attributes, passed through as written. */
 export interface TextEntryProps {
-  type?: 'text' | 'email' | 'url' | 'tel' | 'number' | 'password' | 'time'
+  type?:
+    | 'text'
+    | 'email'
+    | 'url'
+    | 'tel'
+    | 'number'
+    | 'password'
+    | 'time'
+    | 'date'
+    | 'datetime-local'
   inputMode?: 'text' | 'email' | 'url' | 'tel' | 'numeric' | 'decimal' | 'search'
   autoComplete?: string
   maxLength?: number
@@ -38,6 +54,15 @@ interface InputProps extends ControlProps, TextValueProps, TextEntryProps {
   trailing?: ReactNode
   /** Draws a text input's value as dots. */
   masked?: boolean
+  autoCapitalize?: string
+  autoCorrect?: string
+  onFocus?: FocusEventHandler<HTMLInputElement>
+  onBlur?: FocusEventHandler<HTMLInputElement>
+  onPaste?: ClipboardEventHandler<HTMLInputElement>
+  onSelect?: (event: SyntheticEvent<HTMLInputElement>) => void
+  onScroll?: UIEventHandler<HTMLInputElement>
+  /** The input element, for a caller that places its caret. */
+  inputRef?: Ref<HTMLInputElement>
 }
 
 export function Input({
@@ -61,12 +86,24 @@ export function Input({
   spellCheck,
   trailing,
   masked,
+  autoCapitalize,
+  autoCorrect,
+  onFocus,
+  onBlur,
+  onPaste,
+  onSelect,
+  onScroll,
+  inputRef,
 }: InputProps) {
   const scrollRef = useScrollEdges<HTMLInputElement>('horizontal')
   return (
     <span className={styles.inputFrame} data-trailing={trailing ? true : undefined}>
       <input
-        ref={scrollRef}
+        ref={(element) => {
+          scrollRef(element)
+          if (typeof inputRef === 'function') inputRef(element)
+          else if (inputRef) inputRef.current = element
+        }}
         id={id}
         type={type}
         inputMode={inputMode}
@@ -88,6 +125,13 @@ export function Input({
         disabled={disabled}
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
+        autoCapitalize={autoCapitalize}
+        autoCorrect={autoCorrect}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        onPaste={onPaste}
+        onSelect={onSelect}
+        onScroll={onScroll}
       />
       {trailing}
     </span>

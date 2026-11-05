@@ -15,8 +15,7 @@ interface SettingsFrameProps {
 }
 
 /**
- * The breadcrumb over every section. A section on the design mounts its own surface below it; one
- * still on its older page renders beside this surface, never inside it, so the tokens stay apart.
+ * The breadcrumb over every section. Each section mounts its own surface below it.
  *
  * A clicked section paints its heading over an empty body while its route resolves. The current
  * section stays mounted underneath, invisible and inert, so its state survives if the navigation

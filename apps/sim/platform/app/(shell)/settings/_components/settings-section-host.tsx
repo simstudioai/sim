@@ -25,6 +25,13 @@ const PLATFORM_SECTIONS: Record<PlatformSettingsSection, ComponentType<SettingsS
       ),
     { loading }
   ),
+  'connected-accounts': dynamic(
+    () =>
+      import(
+        '@/platform/app/(shell)/settings/_components/sections/connected-accounts/connected-accounts-section'
+      ),
+    { loading }
+  ),
   general: dynamic(
     () => import('@/platform/app/(shell)/settings/_components/sections/general/general-section'),
     { loading }
@@ -90,6 +97,29 @@ const PLATFORM_SECTIONS: Record<PlatformSettingsSection, ComponentType<SettingsS
       import(
         '@/platform/app/(shell)/settings/_components/sections/data-drains/data-drains-section'
       ),
+    { loading }
+  ),
+  integrations: dynamic(
+    () =>
+      import(
+        '@/platform/app/(shell)/settings/_components/sections/integrations/integrations-section'
+      ),
+    { loading }
+  ),
+  'search-slack': dynamic(
+    () =>
+      import(
+        '@/platform/app/(shell)/settings/_components/sections/search-slack/search-slack-section'
+      ),
+    { loading }
+  ),
+  admin: dynamic(
+    () => import('@/platform/app/(shell)/settings/_components/sections/admin/admin-section'),
+    { loading }
+  ),
+  mothership: dynamic(
+    () =>
+      import('@/platform/app/(shell)/settings/_components/sections/mothership/mothership-section'),
     { loading }
   ),
   'search-mcp': dynamic(

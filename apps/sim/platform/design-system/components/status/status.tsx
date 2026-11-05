@@ -9,9 +9,11 @@ interface StatusTagProps {
   intent?: StatusIntent
   /** Announce changes to this tag, for a status that updates while it is on screen. */
   live?: boolean
+  /** A mark before the label, such as the provider this tag names. */
+  leading?: ReactNode
 }
 
-export function StatusTag({ label, intent = 'neutral', live }: StatusTagProps) {
+export function StatusTag({ label, intent = 'neutral', live, leading }: StatusTagProps) {
   return (
     <span
       className={styles.tag}
@@ -19,6 +21,7 @@ export function StatusTag({ label, intent = 'neutral', live }: StatusTagProps) {
       data-type='T052'
       role={live ? 'status' : undefined}
     >
+      {leading}
       {label}
     </span>
   )

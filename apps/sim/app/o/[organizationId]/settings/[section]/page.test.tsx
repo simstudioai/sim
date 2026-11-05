@@ -9,14 +9,8 @@ vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/settings/application/organization-section-access', () => ({
   authorizeOrganizationSettingsSection: mocks.authorize,
 }))
-vi.mock('@/components/settings/account-settings-renderer', () => ({
-  AccountSettingsRenderer: () => null,
-}))
 vi.mock('@/components/settings/prefetch-standalone-general', () => ({
   prefetchStandaloneGeneral: vi.fn(),
-}))
-vi.mock('@/app/o/[organizationId]/settings/[section]/settings', () => ({
-  OrganizationSettings: () => null,
 }))
 vi.mock('@/platform/app/(shell)/settings/_components/settings-section-host', () => ({
   PlatformSettingsSectionHost: () => null,

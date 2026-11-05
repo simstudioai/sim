@@ -9,8 +9,9 @@ import { LIVE_SEARCH_SERVICE_PROVIDERS } from '@/lib/sim-search/live/policy-sche
 import { searchSetupParam } from '@/lib/sim-search/params'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { serializeOrganizationPeople } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
-import { OrganizationProviderDetail } from '@/app/o/[organizationId]/settings/integrations/providers/[connectorType]/provider-detail'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { LoadingState } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { ProviderDetail } from '@/platform/app/(shell)/settings/_components/sections/integrations/provider-detail'
+import { SettingsSubpageHost } from '@/platform/app/(shell)/settings/_components/settings-subpage-host'
 
 interface OrganizationProviderPageProps {
   params: Promise<{ organizationId: string; connectorType: string }>
@@ -71,10 +72,10 @@ export default async function OrganizationProviderPage({
     )
   }
   return (
-    <Suspense
-      fallback={<SettingsEmptyState variant='inline'>Loading integration</SettingsEmptyState>}
-    >
-      <OrganizationProviderDetail connectorType={connectorType} />
-    </Suspense>
+    <SettingsSubpageHost section='integrations'>
+      <Suspense fallback={<LoadingState label='Loading integration' />}>
+        <ProviderDetail connectorType={connectorType} />
+      </Suspense>
+    </SettingsSubpageHost>
   )
 }

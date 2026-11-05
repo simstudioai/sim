@@ -1,14 +1,16 @@
 import { Suspense } from 'react'
 import { notFound, redirect } from 'next/navigation'
-import { OrganizationSecretsEditor } from '@/components/secrets/organization-secrets-editor'
-import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
 import { getSession } from '@/lib/auth'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { readOrganizationSecretSource } from '@/lib/organization-secrets/application/use-cases'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { IntegrationsHost } from '@/app/o/[organizationId]/integrations/integrations-host'
+import { IntegrationsPage } from '@/platform/app/(shell)/integrations/_components/integrations-page/integrations-page'
+import { SecretsEditor } from '@/platform/app/(shell)/integrations/_components/secrets-editor/secrets-editor'
+import { LoadingState } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { SettingsSubpageHost } from '@/platform/app/(shell)/settings/_components/settings-subpage-host'
 
 interface OrganizationSecretsPageProps {
   organizationId: string
@@ -38,15 +40,16 @@ export async function OrganizationSecretsPage({
   })
   if (source?.mode !== mode)
     redirect(mode === 'organization' ? routes.settingsSection('integrations') : routes.integrations)
-  return (
-    <SettingsHeaderProvider>
-      <SettingsHeaderShell meta={{ title: 'Generic Secrets' }}>
-        <Suspense
-          fallback={<SettingsEmptyState variant='inline'>Loading secrets…</SettingsEmptyState>}
-        >
-          <OrganizationSecretsEditor mode={mode} backHref={backHref} />
-        </Suspense>
-      </SettingsHeaderShell>
-    </SettingsHeaderProvider>
+  const editor = (
+    <Suspense fallback={<LoadingState label='Loading secrets…' />}>
+      <SecretsEditor mode={mode} backHref={backHref} />
+    </Suspense>
+  )
+  return mode === 'organization' ? (
+    <SettingsSubpageHost section='integrations'>{editor}</SettingsSubpageHost>
+  ) : (
+    <IntegrationsHost>
+      <IntegrationsPage>{editor}</IntegrationsPage>
+    </IntegrationsHost>
   )
 }
