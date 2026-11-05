@@ -1,7 +1,4 @@
-export type {
-  ScimConnectionView,
-  ScimGroupMappingView,
-} from '@/lib/api/contracts/organization-scim'
+export type { ScimConnectionView } from '@/lib/api/contracts/organization-scim'
 export {
   useOrganizationWorkspaces,
   usePermissionGroups,

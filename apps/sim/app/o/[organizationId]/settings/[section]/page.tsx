@@ -20,6 +20,7 @@ import { resolveOrganizationSurfaceSection } from '@/app/o/[organizationId]/sett
 import { getLegacyAccessRequestsQuery } from '@/ee/access-requests/lib/navigation'
 import { isPlatformSettingsSection } from '@/platform/app/(shell)/settings/_components/platform-sections'
 import { PlatformSettingsSectionHost } from '@/platform/app/(shell)/settings/_components/settings-section-host'
+import { prefetchPermissionEditorCatalog } from '@/platform/lib/data/prefetch-permission-editor'
 
 interface OrganizationSettingsSectionPageProps {
   params: Promise<{ organizationId: string; section: string }>
@@ -80,6 +81,18 @@ export default async function OrganizationSettingsSectionPage({
     }
     if (legacyRequestsQuery) {
       redirect(getOrganizationSettingsHref(organizationId, 'requests', legacyRequestsQuery))
+    }
+    if (resolved.section === 'access-control') {
+      const state = await prefetchPermissionEditorCatalog(organizationId, {
+        kind: 'session',
+        userId: session.user.id,
+        sessionId: session.session.id,
+      })
+      return (
+        <HydrationBoundary state={state}>
+          <PlatformSettingsSectionHost section='access-control' />
+        </HydrationBoundary>
+      )
     }
     return isPlatformSettingsSection(resolved.section) ? (
       <PlatformSettingsSectionHost section={resolved.section} />

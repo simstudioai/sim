@@ -33,6 +33,74 @@ const PLATFORM_SECTIONS: Record<PlatformSettingsSection, ComponentType<SettingsS
       ),
     { loading }
   ),
+  usage: dynamic(
+    () => import('@/platform/app/(shell)/settings/_components/sections/usage/usage-section'),
+    { loading }
+  ),
+  requests: dynamic(
+    () => import('@/platform/app/(shell)/settings/_components/sections/requests/requests-section'),
+    { loading }
+  ),
+  'recently-deleted': dynamic(
+    () =>
+      import(
+        '@/platform/app/(shell)/settings/_components/sections/recently-deleted/recently-deleted-section'
+      ),
+    { loading }
+  ),
+  'knowledge-graphs': dynamic(
+    () =>
+      import(
+        '@/platform/app/(shell)/settings/_components/sections/knowledge-graphs/knowledge-graphs-section'
+      ),
+    { loading }
+  ),
+  whitelabeling: dynamic(
+    () =>
+      import(
+        '@/platform/app/(shell)/settings/_components/sections/whitelabeling/whitelabeling-section'
+      ),
+    { loading }
+  ),
+  'audit-logs': dynamic(
+    () =>
+      import('@/platform/app/(shell)/settings/_components/sections/audit-logs/audit-logs-section'),
+    { loading }
+  ),
+  sso: dynamic(
+    () => import('@/platform/app/(shell)/settings/_components/sections/sso/sso-section'),
+    { loading }
+  ),
+  security: dynamic(
+    () => import('@/platform/app/(shell)/settings/_components/sections/security/security-section'),
+    { loading }
+  ),
+  'data-retention': dynamic(
+    () =>
+      import(
+        '@/platform/app/(shell)/settings/_components/sections/data-retention/data-retention-section'
+      ),
+    { loading }
+  ),
+  'data-drains': dynamic(
+    () =>
+      import(
+        '@/platform/app/(shell)/settings/_components/sections/data-drains/data-drains-section'
+      ),
+    { loading }
+  ),
+  'search-mcp': dynamic(
+    () =>
+      import('@/platform/app/(shell)/settings/_components/sections/search-mcp/search-mcp-section'),
+    { loading }
+  ),
+  'access-control': dynamic(
+    () =>
+      import(
+        '@/platform/app/(shell)/settings/_components/sections/access-control/access-control-section'
+      ),
+    { loading }
+  ),
 }
 
 interface PlatformSettingsSectionHostProps {

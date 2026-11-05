@@ -144,7 +144,7 @@ const SETTINGS_SEARCH_INDEX: Partial<Record<SettingsSectionKey, readonly Setting
   mothership: [{ label: 'Licenses', terms: 'platform admin byok environment overview' }],
 }
 
-export interface SettingsSearchResult {
+interface SettingsSearchResult {
   /** Stable across renders of one section. */
   id: string
   label: string

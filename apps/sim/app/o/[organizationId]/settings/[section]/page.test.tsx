@@ -18,6 +18,12 @@ vi.mock('@/components/settings/prefetch-standalone-general', () => ({
 vi.mock('@/app/o/[organizationId]/settings/[section]/settings', () => ({
   OrganizationSettings: () => null,
 }))
+vi.mock('@/platform/app/(shell)/settings/_components/settings-section-host', () => ({
+  PlatformSettingsSectionHost: () => null,
+}))
+vi.mock('@/platform/lib/data/prefetch-permission-editor', () => ({
+  prefetchPermissionEditorCatalog: vi.fn(),
+}))
 
 import OrganizationSettingsSectionPage from '@/app/o/[organizationId]/settings/[section]/page'
 

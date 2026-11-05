@@ -34,8 +34,6 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { formatInstantDate } from '@/platform/lib/time'
 
-export { getAccessRequestTargetKey }
-export type RequestRecord = AccessRequestRecord
 export type RequestScope = AccessRequestScope
 export type RequestTarget = AccessRequestTarget
 export type RequestStatusFilter = AccessRequestRecord['status'] | 'all'

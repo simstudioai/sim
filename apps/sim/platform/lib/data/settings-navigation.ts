@@ -50,7 +50,7 @@ const SECTION_ICONS: Partial<Record<SettingsSectionKey, IconName>> = {
   mothership: 'I128',
 }
 
-export interface SettingsNavItem {
+interface SettingsNavItem {
   key: SettingsSectionKey
   title: string
   description?: string

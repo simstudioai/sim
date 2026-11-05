@@ -1,9 +1,4 @@
-export {
-  MIN_IDLE_TIMEOUT_HOURS,
-  type OrganizationSessionPolicy,
-  updateOrganizationSessionPolicyBodySchema,
-} from '@/lib/api/contracts/organization'
-export type { OrganizationNetwork } from '@/lib/api/contracts/organization-network'
+export { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
 export {
   useOrganizationSessionPolicy,
   useRevokeOrganizationSessions,

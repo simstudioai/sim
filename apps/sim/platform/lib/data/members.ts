@@ -12,15 +12,11 @@ import type {
   RosterWorkspaceAccess,
 } from '@/lib/api/contracts/organization'
 import { useSession } from '@/lib/auth/client'
-import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
-import { buildInviteFailureMessage } from '@/lib/invitations/failure-message'
-import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { workspaceRoleLockReason } from '@/lib/workspaces/permissions/role-lock'
 import {
   useRemoveWorkspaceMember,
-  useSendWorkspaceInvitations,
   useUpdateWorkspacePermissions,
 } from '@/hooks/queries/invitations'
 import {
@@ -41,13 +37,11 @@ import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import type { PlatformOrganization } from '@/platform/lib/data/organization'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { useBrowserTimezone } from '@/platform/lib/data/preferences'
-import { plural } from '@/platform/lib/plural'
 import { formatInstantDate } from '@/platform/lib/time'
 
 type OrganizationRole = RosterMember['role']
 export type WorkspacePermission = RosterWorkspaceAccess['permission']
 
-export type SettingsRoster = OrganizationRoster
 /** Assignable roles, the default first. */
 export const ORGANIZATION_ROLE_OPTIONS = [
   { value: 'member', label: 'Member' },
@@ -508,64 +502,6 @@ export function useMemberCredits(userId: string) {
     usage: limit.data,
     save: async (creditLimit: number | null) => {
       await update.mutateAsync({ orgId: organizationId, userId, creditLimit })
-    },
-  }
-}
-
-const SEAT_WARNING =
-  'invites beyond that may fail. External collaborators and existing members do not use seats.'
-
-/**
- * Sending invitations from any entry on this surface. The seat warning is advisory by design: the
- * server decides per email, and an existing member or an invitee forced external takes no seat.
- */
-export function useInviteMembers(open: boolean) {
-  const organization = useOrganization()
-  const organizationId = organization.organization.id
-  const { billingEnabled } = organization.deployment
-  const { isAdmin, canInviteMembers } = organization.viewer
-  const { data: session } = useSession()
-  const seats = useOrganizationPlanSeats(organizationId, {
-    enabled: open && billingEnabled && isAdmin,
-  })
-  const send = useSendWorkspaceInvitations()
-  const viewerEmail = session?.user?.email?.toLowerCase()
-  const seatData = seats.data?.data
-  const available = seatData ? Math.max(0, seatData.totalSeats - seatData.usedSeats) : 0
-  const seatCapped = Boolean(
-    isAdmin && seatData && isEnterprise(seatData.subscriptionPlan) && seatData.totalSeats > 0
-  )
-  return {
-    canInvite: canInviteMembers && isAdmin,
-    addressProblem: (address: string): string | null => {
-      const format = quickValidateEmail(address)
-      if (!format.isValid) return format.reason ?? 'Invalid email'
-      return address.toLowerCase() === viewerEmail ? 'You cannot invite yourself' : null
-    },
-    seatWarning: (count: number): string | undefined =>
-      seatCapped && count > available
-        ? `Only ${plural(available, 'seat')} available — ${SEAT_WARNING}`
-        : undefined,
-    /** Resolves with the addresses to keep, and the reasons when any of them failed. */
-    submit: async (emails: string[], membership: 'member' | 'admin') => {
-      const result = await send.mutateAsync({
-        workspaceIds: [],
-        emails,
-        permission: 'write',
-        membership,
-        organizationId,
-      })
-      const sent = [
-        result.added.length > 0 && `${plural(result.added.length, 'member')} added`,
-        result.successful.length > 0 && `${plural(result.successful.length, 'invite')} sent`,
-      ].filter(Boolean)
-      if (sent.length > 0) toast.success(sent.join(' · '))
-      return {
-        failed: result.failed.map((failure) => failure.email),
-        message: result.failed.length
-          ? buildInviteFailureMessage(result.failed, emails.length)
-          : null,
-      }
     },
   }
 }
