@@ -85,6 +85,7 @@ interface ProjectionContext {
   /** Content fields omitted so far; a span compares it across its own fields to set `contentWithheld`. */
   omittedContentFields: number
   logDetails: ProjectionLogDetails
+  displayFieldsBySpanId?: ReadonlyMap<string, string>
 }
 
 interface OversizedHydrationGate {
@@ -124,6 +125,11 @@ export interface ProjectTraceSpansForSecretsOptions {
   store: LargeValueStoreContext
   /** Read-only display projections omit ref-backed content instead of writing another ref. */
   allowLargeValueWrites?: boolean
+  /**
+   * Synthetic spans that each carry one display-envelope value, keyed by span id. Warnings name
+   * the envelope field instead of the synthetic span and count it apart from real spans.
+   */
+  displayFieldsBySpanId?: ReadonlyMap<string, string>
 }
 
 class TraceSecretProjectionError extends Error {
@@ -188,7 +194,9 @@ function describeProjectionFailure(error: unknown): { name: string; reason?: str
 function createProjectionContext(
   matcher: ResolvedSecretMatcher,
   store: LargeValueStoreContext,
-  allowLargeValueWrites: boolean
+  allowLargeValueWrites: boolean,
+  logDetails: ProjectionLogDetails,
+  displayFieldsBySpanId?: ReadonlyMap<string, string>
 ): ProjectionContext {
   return {
     matcher,
@@ -206,7 +214,8 @@ function createProjectionContext(
     sourceLargeValueBytes: 0,
     storedLargeValueBytes: 0,
     storedLargeValueCount: 0,
-    logDetails: projectionLogDetails(store, allowLargeValueWrites ? 'write' : 'read'),
+    logDetails,
+    displayFieldsBySpanId,
   }
 }
 
@@ -849,11 +858,12 @@ async function sanitizeContentField(
   try {
     return await sanitizeMaterializedValue(value, context)
   } catch (error) {
+    const displayField = context.displayFieldsBySpanId?.get(owner.id)
     logger.warn('Omitting trace content that could not be sanitized', {
       ...context.logDetails,
-      spanId: owner.id,
-      spanType: owner.type,
-      field,
+      ...(displayField === undefined
+        ? { spanId: owner.id, spanType: owner.type, field }
+        : { displayField }),
       failure: describeProjectionFailure(error),
     })
     context.omittedContentFields += 1
@@ -1269,11 +1279,15 @@ function projectBoundedTraceSpans(
     state: BoundedTraceStructureState,
     depth: number
   ) => TraceSpan | undefined,
+  logDetails: ProjectionLogDetails,
   state: BoundedTraceStructureState = { nodes: 0, truncated: false }
 ): TraceSpan[] {
   const projected = projectBoundedArray(traceSpans, (span) => project(span, state, 0))
   if (state.truncated) {
-    logger.warn('Trace structure exceeded projection limits; truncating projected structure')
+    logger.warn(
+      'Trace structure exceeded projection limits; truncating projected structure',
+      logDetails
+    )
   }
   return projected
 }
@@ -1281,20 +1295,25 @@ function projectBoundedTraceSpans(
 /** Pass `state` to continue a structure budget that earlier spans of the same trace already spent. */
 function structuralOnlyTraceSpans(
   traceSpans: TraceSpan[],
+  logDetails: ProjectionLogDetails,
   state?: BoundedTraceStructureState
 ): TraceSpan[] {
   try {
-    return projectBoundedTraceSpans(traceSpans, structuralOnlySpan, state)
+    return projectBoundedTraceSpans(traceSpans, structuralOnlySpan, logDetails, state)
   } catch (error) {
     logger.warn('Trace structure could not be safely traversed; omitting projected spans', {
+      ...logDetails,
       failure: describeProjectionFailure(error),
     })
     return []
   }
 }
 
-function cloneTraceSpansForProjection(traceSpans: TraceSpan[]): TraceSpan[] {
-  return projectBoundedTraceSpans(traceSpans, cloneTraceSpanForProjection)
+function cloneTraceSpansForProjection(
+  traceSpans: TraceSpan[],
+  logDetails: ProjectionLogDetails
+): TraceSpan[] {
+  return projectBoundedTraceSpans(traceSpans, cloneTraceSpanForProjection, logDetails)
 }
 
 function assertNoPlaintext(
@@ -1600,9 +1619,10 @@ async function verifyPostTransformLargeValues(
 async function assertPostTransformTraceSpansAreSafe(
   traceSpans: TraceSpan[],
   matcher: ResolvedSecretMatcher,
-  store: LargeValueStoreContext
+  store: LargeValueStoreContext,
+  logDetails: ProjectionLogDetails
 ): Promise<void> {
-  const projection = createProjectionContext(matcher, store, false)
+  const projection = createProjectionContext(matcher, store, false, logDetails)
   const context: PostTransformInvariantContext = {
     projection,
     plaintext: {
@@ -1623,6 +1643,32 @@ async function assertPostTransformTraceSpansAreSafe(
   await verifyPostTransformLargeValues(refs, context, new Set<string>())
 }
 
+/**
+ * Counts the real spans kept before `withheldFrom` and withheld from it on, naming the withheld
+ * display-envelope fields apart from them.
+ */
+function describeWithheldContent(
+  traceSpans: readonly TraceSpan[],
+  withheldFrom: number,
+  displayFieldsBySpanId: ReadonlyMap<string, string> | undefined
+): { retainedSpanCount: number; withheldSpanCount: number; withheldDisplayFields?: string[] } {
+  let retainedDisplayFieldCount = 0
+  const withheldDisplayFields: string[] = []
+  if (displayFieldsBySpanId?.size) {
+    for (let index = 0; index < traceSpans.length; index += 1) {
+      const displayField = displayFieldsBySpanId.get(traceSpans[index].id)
+      if (displayField === undefined) continue
+      if (index < withheldFrom) retainedDisplayFieldCount += 1
+      else withheldDisplayFields.push(displayField)
+    }
+  }
+  return {
+    retainedSpanCount: withheldFrom - retainedDisplayFieldCount,
+    withheldSpanCount: traceSpans.length - withheldFrom - withheldDisplayFields.length,
+    ...(withheldDisplayFields.length > 0 ? { withheldDisplayFields } : {}),
+  }
+}
+
 export interface EnforceTraceSpanSecretInvariantOptions {
   registry?: ResolvedSecretTraceRegistry
   store: LargeValueStoreContext
@@ -1638,22 +1684,23 @@ export async function enforceTraceSpanSecretInvariant(
   traceSpans: TraceSpan[],
   options: EnforceTraceSpanSecretInvariantOptions
 ): Promise<TraceSpan[]> {
+  const logDetails = projectionLogDetails(options.store, 'write')
   try {
-    if (!options.registry?.isComplete()) return structuralOnlyTraceSpans(traceSpans)
+    if (!options.registry?.isComplete()) return structuralOnlyTraceSpans(traceSpans, logDetails)
 
     const matcher = createResolvedSecretMatcher(options.registry.getActiveMatches(), {
       preserveNamedProvenanceLabels: true,
     })
     if (!matcher) return traceSpans
 
-    await assertPostTransformTraceSpansAreSafe(traceSpans, matcher, options.store)
+    await assertPostTransformTraceSpansAreSafe(traceSpans, matcher, options.store, logDetails)
     return traceSpans
   } catch (error) {
     logger.warn('Trace secret invariant failed; retaining structural spans only', {
-      ...projectionLogDetails(options.store, 'write'),
+      ...logDetails,
       failure: describeProjectionFailure(error),
     })
-    return structuralOnlyTraceSpans(traceSpans)
+    return structuralOnlyTraceSpans(traceSpans, logDetails)
   }
 }
 
@@ -1665,19 +1712,25 @@ export async function projectTraceSpansForSecrets(
   traceSpans: TraceSpan[],
   options: ProjectTraceSpansForSecretsOptions
 ): Promise<TraceSpan[]> {
-  if (!options.registry?.isComplete()) {
-    return structuralOnlyTraceSpans(traceSpans)
-  }
-
   const allowLargeValueWrites = options.allowLargeValueWrites !== false
   const logDetails = projectionLogDetails(options.store, allowLargeValueWrites ? 'write' : 'read')
+  if (!options.registry?.isComplete()) {
+    return structuralOnlyTraceSpans(traceSpans, logDetails)
+  }
+
   try {
     const matcher = createResolvedSecretMatcher(options.registry.getActiveMatches(), {
       preserveNamedProvenanceLabels: true,
     })
-    if (!matcher) return cloneTraceSpansForProjection(traceSpans)
+    if (!matcher) return cloneTraceSpansForProjection(traceSpans, logDetails)
 
-    const context = createProjectionContext(matcher, options.store, allowLargeValueWrites)
+    const context = createProjectionContext(
+      matcher,
+      options.store,
+      allowLargeValueWrites,
+      logDetails,
+      options.displayFieldsBySpanId
+    )
 
     const projected: TraceSpan[] = []
     const state: BoundedTraceStructureState = { nodes: 0, truncated: false }
@@ -1698,17 +1751,16 @@ export async function projectTraceSpansForSecrets(
          * spans left it, so the trace keeps exactly the structure a whole-trace fallback would.
          */
         logger.warn(
-          'Trace content exceeded the projection budget; withholding the remaining spans',
+          'Trace content exceeded the projection budget; withholding the remaining content',
           {
             ...logDetails,
-            retainedSpanCount: index,
-            withheldSpanCount: traceSpans.length - index,
+            ...describeWithheldContent(traceSpans, index, options.displayFieldsBySpanId),
             failure: describeProjectionFailure(error),
           }
         )
         return [
           ...projected,
-          ...structuralOnlyTraceSpans(traceSpans.slice(index), {
+          ...structuralOnlyTraceSpans(traceSpans.slice(index), logDetails, {
             nodes: retainedStructureNodes,
             truncated: false,
           }),
@@ -1721,6 +1773,6 @@ export async function projectTraceSpansForSecrets(
       ...logDetails,
       failure: describeProjectionFailure(error),
     })
-    return structuralOnlyTraceSpans(traceSpans)
+    return structuralOnlyTraceSpans(traceSpans, logDetails)
   }
 }

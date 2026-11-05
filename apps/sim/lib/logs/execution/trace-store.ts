@@ -476,10 +476,11 @@ export async function materializeExecutionDataForDisplayWithBlockOutputs(
       registry = blockImport.registry
     }
     const now = new Date().toISOString()
+    const blockOutputSpanId = `${LOG_DISPLAY_PROJECTION_SPAN_ID}-block-output`
     const [projected] = await projectTraceSpansForSecrets(
       [
         {
-          id: `${LOG_DISPLAY_PROJECTION_SPAN_ID}-block-output`,
+          id: blockOutputSpanId,
           name: 'Block Output Display Projection',
           type: 'display',
           duration: 0,
@@ -488,7 +489,12 @@ export async function materializeExecutionDataForDisplayWithBlockOutputs(
           output: { value: blockState.output },
         },
       ],
-      { registry, allowLargeValueWrites: false, store: projectionStore }
+      {
+        registry,
+        allowLargeValueWrites: false,
+        store: projectionStore,
+        displayFieldsBySpanId: new Map([[blockOutputSpanId, `blockOutput:${blockId}`]]),
+      }
     )
     if (projected?.output && Object.hasOwn(projected.output, 'value')) {
       blockOutputs.set(blockId, projected.output.value)
@@ -723,10 +729,11 @@ export async function projectExecutionDataForDisplay(
       exactRegistry.markIncomplete('untrusted-provenance', { origin: 'traceStore.exactProvenance' })
     }
 
+    const exactValueSpanId = `${LOG_DISPLAY_PROJECTION_SPAN_ID}-${valueKey}`
     const [projected] = await projectTraceSpansForSecrets(
       [
         {
-          id: `${LOG_DISPLAY_PROJECTION_SPAN_ID}-${valueKey}`,
+          id: exactValueSpanId,
           name: 'Exact Log Value Display Projection',
           type: 'display',
           duration: 0,
@@ -735,7 +742,12 @@ export async function projectExecutionDataForDisplay(
           output: { value: executionData[valueKey] },
         },
       ],
-      { registry: exactRegistry, allowLargeValueWrites: false, store: projectionStore }
+      {
+        registry: exactRegistry,
+        allowLargeValueWrites: false,
+        store: projectionStore,
+        displayFieldsBySpanId: new Map([[exactValueSpanId, valueKey]]),
+      }
     )
     if (projected?.output && Object.hasOwn(projected.output, 'value')) {
       exactValueProjections.set(valueKey, projected.output.value)
@@ -781,7 +793,12 @@ export async function projectExecutionDataForDisplay(
       ...spansToProject,
       ...envelopeSpans(TRAILING_LOG_DISPLAY_CONTENT_KEYS),
     ],
-    { registry, allowLargeValueWrites: false, store: projectionStore }
+    {
+      registry,
+      allowLargeValueWrites: false,
+      store: projectionStore,
+      displayFieldsBySpanId: envelopeKeysBySpanId,
+    }
   )
 
   const displayData = omit(executionData, [

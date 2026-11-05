@@ -1091,7 +1091,7 @@ describe('projectTraceSpansForSecrets whole-trace content budget', () => {
     }
     expect(JSON.stringify(projected)).not.toContain('top-secret')
     expect(warnMock).toHaveBeenCalledWith(
-      'Trace content exceeded the projection budget; withholding the remaining spans',
+      'Trace content exceeded the projection budget; withholding the remaining content',
       expect.objectContaining({
         executionId: 'execution-1',
         phase: 'read',
