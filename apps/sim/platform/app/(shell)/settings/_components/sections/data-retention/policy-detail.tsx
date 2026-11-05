@@ -106,14 +106,23 @@ interface StagePanelProps {
   description: string
   value: PiiStagePolicy
   onChange: (next: PiiStagePolicy) => void
+  /** Held above the stages, so the term survives switching between them. */
+  search: string
+  onSearchChange: (search: string) => void
 }
 
 /**
  * One redaction stage. It is "on" purely by having entity types or patterns selected, so there is no
  * separate toggle. Block outputs run in-flight on large payloads, so they offer no NER recognizers.
  */
-function StagePanel({ stageKey, description, value, onChange }: StagePanelProps) {
-  const [search, setSearch] = useState('')
+function StagePanel({
+  stageKey,
+  description,
+  value,
+  onChange,
+  search,
+  onSearchChange,
+}: StagePanelProps) {
   const query = search.trim().toLowerCase()
   const update = (patch: Partial<PiiStagePolicy>) => onChange(updateStagePolicy(value, patch))
   const groups = getEntityGroupsForLanguage(value.language, {
@@ -142,7 +151,8 @@ function StagePanel({ stageKey, description, value, onChange }: StagePanelProps)
       <SearchField
         label='Search PII types'
         placeholder='Search PII types…'
-        onValueChange={setSearch}
+        value={search}
+        onValueChange={onSearchChange}
       />
       <SelectField
         label='Language'
@@ -222,6 +232,7 @@ export function PolicyDetail({
 }: PolicyDetailProps) {
   const isOrg = draft.isOrgDefault
   const showPiiGrid = isOrg || draft.piiOverride
+  const [piiSearch, setPiiSearch] = useState('')
   const [activeStage, setActiveStage] = useState<PiiStageKey>(
     () =>
       PII_STAGE_META.find((stage) => stageHasContent(draft.piiStages[stage.key]))?.key ??
@@ -326,6 +337,8 @@ export function PolicyDetail({
                 </ActionRow>
                 <StagePanel
                   key={activeStage}
+                  search={piiSearch}
+                  onSearchChange={setPiiSearch}
                   stageKey={activeStage}
                   description={stageMeta.description}
                   value={draft.piiStages[activeStage]}

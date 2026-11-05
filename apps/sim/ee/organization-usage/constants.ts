@@ -38,6 +38,9 @@ export type UsageTab =
  * Activity ranks retained executions; the member, workspace, and model tabs rank
  * ledger spend. Workflow spend remains within the workspace drill-down because
  * charges from other sources do not carry workflow attribution.
+ *
+ * BYOK is withheld, not removed: no usage has been recorded against a bring-your-own-key provider
+ * yet, so its tab could only show an empty state. Its dimension, labels, token unit and query work.
  */
 export const USAGE_TAB_ORDER: readonly UsageTab[] = [
   USAGE_OVERVIEW_TAB,
@@ -45,12 +48,6 @@ export const USAGE_TAB_ORDER: readonly UsageTab[] = [
   'member',
   'workspace',
   'model',
-  /*
-    'byok' is withheld, not removed: no usage has been recorded against a
-    bring-your-own-key provider yet, so the tab could only show its empty state.
-    Re-add it here once the ledger carries BYOK rows — the dimension, its labels,
-    its token unit, and the breakdown query all still work.
-  */
 ]
 
 export const USAGE_TAB_LABELS: Record<UsageTab, string> = {

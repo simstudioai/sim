@@ -296,12 +296,13 @@ function SourceSettingsForm({
     .filter((action) => action.id !== 'sync')
     .map((action) => ({
       id: action.id ?? action.text,
-      label:
+      label: `${
         action.id === 'pause'
           ? connector.status === 'paused'
             ? 'Resume search'
             : 'Pause search'
-          : action.text,
+          : action.text
+      }${action.disabled && action.tooltip ? ` (${action.tooltip})` : ''}`,
       disabled: action.disabled,
       destructive: action.id === 'delete',
       separatorBefore: action.id === 'delete',

@@ -1,6 +1,7 @@
 'use client'
 
 import { getErrorMessage } from '@sim/utils/errors'
+import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 import {
   ActionRow,
   FieldStack,
@@ -47,6 +48,7 @@ const USER_COLUMNS = [
 ] as const
 
 export default function AdminSection() {
+  useCaptureWhenReady('settings_tab_viewed', { plane: 'account', section: 'admin' }, 'admin')
   const admin = useAdminConsole()
   const { settings, importWorkflow, usersData, searchQuery, pendingUserIds } = admin
   const superUser = settings?.superUserModeEnabled ?? false
@@ -254,34 +256,34 @@ export default function AdminSection() {
             </Muted>
           )}
           {searchQuery.length > 0 && usersData ? (
-            usersData.users.length === 0 ? (
-              <EmptyState title='No users found.' />
-            ) : (
-              <>
+            <>
+              {usersData.users.length === 0 ? (
+                <EmptyState title='No users found.' />
+              ) : (
                 <DataTable
                   title='Users'
                   titleHidden
                   columns={USER_COLUMNS}
                   rows={userRows(usersData.users)}
                 />
-                {admin.totalPages > 1 && (
-                  <>
-                    <Muted>
-                      {`Page ${admin.currentPage} of ${admin.totalPages} (${usersData.total} users)`}
-                    </Muted>
-                    <Pagination
-                      label='Users pages'
-                      page={admin.currentPage}
-                      pageCount={admin.totalPages}
-                      disabled={admin.usersLoading}
-                      onPageChange={(page) =>
-                        void admin.setAdminParams({ offset: (page - 1) * ADMIN_PAGE_SIZE })
-                      }
-                    />
-                  </>
-                )}
-              </>
-            )
+              )}
+              {admin.totalPages > 1 && (
+                <>
+                  <Muted>
+                    {`Page ${admin.currentPage} of ${admin.totalPages} (${usersData.total} users)`}
+                  </Muted>
+                  <Pagination
+                    label='Users pages'
+                    page={admin.currentPage}
+                    pageCount={admin.totalPages}
+                    disabled={admin.usersLoading}
+                    onPageChange={(page) =>
+                      void admin.setAdminParams({ offset: (page - 1) * ADMIN_PAGE_SIZE })
+                    }
+                  />
+                </>
+              )}
+            </>
           ) : (
             searchQuery.length === 0 &&
             admin.recentUsers &&

@@ -378,6 +378,7 @@ interface ContentCredentialFieldProps {
   credentialId: string | null
   onChange: (credentialId: string | null) => void
   options: readonly { value: string; label: string }[]
+  loading?: boolean
   disabled?: boolean
 }
 
@@ -388,6 +389,7 @@ export function ContentCredentialField({
   credentialId,
   onChange,
   options,
+  loading,
   disabled,
 }: ContentCredentialFieldProps) {
   return (
@@ -398,7 +400,8 @@ export function ContentCredentialField({
       value={credentialId ?? CONNECTED_MEMBERS}
       options={[{ value: CONNECTED_MEMBERS, label: 'Connected members' }, ...options]}
       onValueChange={(value) => onChange(value === CONNECTED_MEMBERS ? null : value)}
-      disabled={disabled}
+      disabled={disabled || loading}
+      hint={loading ? 'Loading accounts…' : undefined}
     />
   )
 }

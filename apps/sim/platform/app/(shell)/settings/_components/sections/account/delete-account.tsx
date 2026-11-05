@@ -71,6 +71,15 @@ export function DeleteAccount({ email, onClose }: DeleteAccountProps) {
             autoComplete='off'
             disabled={deletion.fetching}
             value={confirmation}
+            hint={
+              deletion.fetching
+                ? 'Checking whether this account can be deleted…'
+                : !deletion.loaded
+                  ? 'This account has to be checked before it can be deleted.'
+                  : deletion.matches(confirmation)
+                    ? undefined
+                    : `Type ${email} to delete this account.`
+            }
             onChange={setConfirmation}
           />
         </>

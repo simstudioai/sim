@@ -1,6 +1,5 @@
 'use client'
 
-import { useMemo } from 'react'
 import { useQueryStates } from 'nuqs'
 import { downloadCsvExport } from '@/lib/core/utils/csv-download'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/time-range'
@@ -23,6 +22,8 @@ import {
 import { useDebounce } from '@/hooks/use-debounce'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
+const WINDOW_STEP_MS = 60_000
+
 /**
  * The audit feed under the URL's filters and deep-linked workspace scope. The scope is resolved
  * before anything reads: an unanswerable scope presents no rows and refreshes nothing organization
@@ -40,11 +41,12 @@ export function useAuditLogFeed(organizationId: string) {
   const [search, setSearch] = useSettingsSearch()
   const debouncedSearch = useDebounce(search, SEARCH_DEBOUNCE_MS).trim()
 
-  /** A preset's start reads the clock, so it is pinned per range or every render would be a new key. */
-  const startDate = useMemo(
-    () => getStartDateFromTimeRange(timeRange, customStart)?.toISOString(),
-    [timeRange, customStart]
-  )
+  /** A preset's start follows the clock by the minute, so a render alone is not a new query key. */
+  const startDate = getStartDateFromTimeRange(
+    timeRange,
+    customStart,
+    Math.floor(Date.now() / WINDOW_STEP_MS) * WINDOW_STEP_MS
+  )?.toISOString()
   const filters: AuditLogFilters = {
     search: debouncedSearch || undefined,
     resourceType: urlFilters.types.length > 0 ? urlFilters.types.join(',') : undefined,

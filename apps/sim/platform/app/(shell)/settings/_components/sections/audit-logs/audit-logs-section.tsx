@@ -43,6 +43,8 @@ import {
 } from '@/platform/lib/data/audit-logs'
 import { formatTimestamp } from '@/platform/lib/time'
 
+const ALL_TYPES = '__all_types__'
+
 type AuditEntry = ReturnType<typeof useAuditLogFeed>['entries'][number]
 
 /** Sentence-cases the stored action for reading; the stored value and filters stay as they are. */
@@ -179,9 +181,9 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
             variant='quiet'
             label='Resource type'
             labelHidden
-            options={RESOURCE_TYPE_OPTIONS}
+            options={[{ value: ALL_TYPES, label: 'All types' }, ...RESOURCE_TYPE_OPTIONS]}
             value={feed.types}
-            onValueChange={feed.setTypes}
+            onValueChange={(types) => feed.setTypes(types.includes(ALL_TYPES) ? [] : types)}
             placeholder='All types'
             searchLabel='Search types'
           />

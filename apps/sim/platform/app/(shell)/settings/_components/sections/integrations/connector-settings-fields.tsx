@@ -184,7 +184,8 @@ export function ConnectorSettingsFields({
             credentialId={contentCredentialId}
             onChange={onContentCredentialChange}
             options={credentialOptions}
-            disabled={isSaving || !canAdmin || credentialsLoading}
+            loading={credentialsLoading}
+            disabled={isSaving || !canAdmin}
           />
         )}
       {connectorConfig &&

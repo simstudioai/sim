@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
+import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 import {
   ActionRow,
   FieldStack,
@@ -45,6 +46,11 @@ import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 const REQUEST_LIMIT = 100
 
 export default function MothershipSection() {
+  useCaptureWhenReady(
+    'settings_tab_viewed',
+    { plane: 'account', section: 'mothership' },
+    'mothership'
+  )
   const [{ tab: activeTab, env: environment }, setParams] = useQueryStates(
     mothershipParsers,
     mothershipUrlKeys

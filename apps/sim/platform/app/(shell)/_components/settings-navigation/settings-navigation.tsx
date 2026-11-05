@@ -80,6 +80,7 @@ function SectionLink({
           onIntent={onIntent}
           onNavigate={(event) => {
             event.preventDefault()
+            if (selected) return
             const { isDirty, navigationBlocked, requestLeave } = useSettingsDirtyStore.getState()
             if (isDirty || navigationBlocked) requestLeave(onNavigate)
             else onNavigate()

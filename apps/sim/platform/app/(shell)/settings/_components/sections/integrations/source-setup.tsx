@@ -125,6 +125,7 @@ export function SourceSetupForm({
           credentialId={form.contentCredentialId}
           onChange={form.setContentCredentialId}
           options={accountOptions}
+          loading={credentialsLoading}
           disabled={isCreating}
         />
         <ActionRow>

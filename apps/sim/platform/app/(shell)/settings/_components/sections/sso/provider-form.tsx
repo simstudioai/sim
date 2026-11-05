@@ -300,9 +300,10 @@ export function ProviderForm({
                   onValueChange={(value) => set('providerId', value ?? '')}
                   search={{
                     query: providerIdQuery,
-                    onQueryChange: (query) => {
+                    onQueryChange: (query, { reason }) => {
                       setProviderIdQuery(query)
-                      if (query.trim()) set('providerId', query.trim())
+                      if (reason === 'input-change' || reason === 'input-clear')
+                        set('providerId', query.trim())
                     },
                   }}
                 />
