@@ -135,6 +135,7 @@ const routes: {
 }[] = []
 const firstPaints: FirstPaint[] = []
 const unexpected: Problem[] = []
+let clientAddress = 0
 let currentCheck = 'Setup'
 let currentSection = 'Setup'
 /** What the running check expects to fail; everything else is reported. */
@@ -285,7 +286,12 @@ interface OpenOptions {
 
 async function open(persona: Persona | null, options: OpenOptions = {}): Promise<Session> {
   const viewport = options.viewport ?? DESKTOP
+  clientAddress += 1
   const context = await browser.newContext({
+    // Better Auth limits by address, and hundreds of loads from one would be nobody's real traffic.
+    extraHTTPHeaders: {
+      'x-forwarded-for': `10.0.${Math.floor(clientAddress / 250)}.${clientAddress % 250}`,
+    },
     viewport: { width: viewport.width, height: viewport.height },
     colorScheme: options.theme ?? 'light',
     hasTouch: viewport === PHONE,
@@ -3136,7 +3142,7 @@ function routesFor(persona: Persona): { name: string; path: string }[] {
   if (persona === ADMIN || persona === OWNER)
     return [
       ...shared,
-      { name: 'agent-chat', path: `chat/${ADMIN_CHATS.agent.id}` },
+      ...(persona === ADMIN ? [{ name: 'agent-chat', path: `chat/${ADMIN_CHATS.agent.id}` }] : []),
       ...SETTINGS_FOR_ADMIN.map((section) => ({
         name: `settings-${section}`,
         path: `settings/${section}`,
@@ -3200,6 +3206,10 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
         for (const route of routesFor(persona)) {
           const response = await page.goto(url(`${root}/${route.path}`), { timeout: 60_000 })
           await session.settle()
+          if (route.name === 'home')
+            await composer(page)
+              .waitFor({ timeout: 20_000 })
+              .catch(() => failures.push('home never left its skeleton'))
           const screenshot = `${persona.key}__${route.name}__${viewport.name}__${theme}.png`
           const path = resolve(artifactDirectory, screenshot)
           await fullPageScreenshot(page, path, viewport)
