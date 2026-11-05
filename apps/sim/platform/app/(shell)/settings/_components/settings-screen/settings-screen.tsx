@@ -16,13 +16,17 @@ export function SettingsBreadcrumb({ title }: SettingsBreadcrumbProps) {
       <span aria-hidden='true' className={styles.parent} data-type='T057'>
         /
       </span>
-      <span className={styles.fullTitle} data-type='T057'>
-        {title}
-      </span>
-      <span className={styles.compactTitle} data-type='T042'>
-        {title}
-      </span>
+      <span data-type='T057'>{title}</span>
     </header>
+  )
+}
+
+/** The section's name, for the phone top bar that replaces the breadcrumb. */
+export function SettingsMobileTitle({ title }: SettingsBreadcrumbProps) {
+  return (
+    <span className={styles.mobileTitle} data-type='T057'>
+      {title}
+    </span>
   )
 }
 

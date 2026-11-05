@@ -46,18 +46,14 @@
 .parent {
   color: var(--ui-secondary);
 }
-.compactTitle {
-  display: none;
+.mobileTitle {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 @media (max-width: 48rem) {
   .breadcrumb {
-    padding-inline: var(--spacing-16);
-  }
-  .compactTitle {
-    display: inline;
-  }
-  .fullTitle,
-  .parent {
     display: none;
   }
   .content {

@@ -1,12 +1,15 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { createPortal } from 'react-dom'
 import { useSettingsNavigationState } from '@/components/settings/settings-navigation-provider'
 import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import { resolveOrganizationSurfaceHeaderMeta } from '@/app/o/[organizationId]/settings/navigation'
+import { MOBILE_TITLE_SLOT_ID } from '@/app/workspace/[workspaceId]/components/workspace-chrome/mobile-title-slot'
 import {
   SettingsBreadcrumb,
+  SettingsMobileTitle,
   SettingsScreen,
 } from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen'
 
@@ -21,6 +24,19 @@ interface SettingsFrameProps {
  * section stays mounted underneath, invisible and inert, so its state survives if the navigation
  * settles back on it.
  */
+/** On a phone the title joins the navigation toggle, so one bar sits above the page's heading. */
+function PhoneTitle({ title }: { title: string }) {
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
+  useEffect(() => setSlot(document.getElementById(MOBILE_TITLE_SLOT_ID)), [])
+  if (!slot) return null
+  return createPortal(
+    <RedesignSurface>
+      <SettingsMobileTitle title={title} />
+    </RedesignSurface>,
+    slot
+  )
+}
+
 export function SettingsFrame({ children }: SettingsFrameProps) {
   const pathname = usePathname()
   const { pendingSection } = useSettingsNavigationState()
@@ -33,6 +49,7 @@ export function SettingsFrame({ children }: SettingsFrameProps) {
       <RedesignSurface>
         <SettingsBreadcrumb title={title} />
       </RedesignSurface>
+      <PhoneTitle title={title} />
       <div className='relative min-h-0 flex-1'>
         {pending && (
           <div className='absolute inset-0 z-10 grid grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)]'>
