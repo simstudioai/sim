@@ -8,8 +8,8 @@ import { useQueryStates } from 'nuqs'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { PersonSummary } from '@/lib/api/contracts/people'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { peopleParsers, serializePeopleView } from '@/lib/people/search-params'
 import { PersonModal } from '@/app/o/[organizationId]/people/[memberId]/person-modal'
-import { peopleParsers, serializePeopleView } from '@/app/o/[organizationId]/people/search-params'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
   CredentialDetailHeading,

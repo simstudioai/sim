@@ -20,6 +20,7 @@ import { isOrganizationSettingsSectionAvailable } from '@/components/settings/na
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { PeopleImportBody, PeopleImportResult } from '@/lib/api/contracts/people'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { type PeopleSheet, readPeopleSheet } from '@/lib/people/read-sheet'
 import { saveBlob } from '@/lib/uploads/client/download'
 import {
   IMPORT_SOURCES,
@@ -28,10 +29,6 @@ import {
   ProviderFields,
   ProvisioningSource,
 } from '@/app/o/[organizationId]/people/import-source'
-import {
-  type PeopleSheet,
-  readPeopleSheet,
-} from '@/app/o/[organizationId]/people/read-people-sheet'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { useScimConnection } from '@/ee/scim/hooks/scim'
 import { useImportPeople } from '@/hooks/queries/people'
