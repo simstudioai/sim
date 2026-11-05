@@ -269,9 +269,10 @@ async function readStoredOutputs(
  * did. Re-applying a commit that landed could undo what the user did since, such as editing the
  * output or stopping a downstream group, so a cell whose state already matches only needs the event
  * the lost attempt never emitted, carrying what is stored now. A completed run or a write carrying
- * outputs comes after a pickup wrote the cell's state, so if that state is gone the user cleared it.
- * Any other write can be the first the cell ever had, so it is written; the most that can come back
- * is an error badge with no outputs, which the user can clear or re-run.
+ * outputs comes after a pickup wrote the cell's state, so if that state is gone the user cleared it,
+ * and an unclaimed marker in its place belongs to a newer run. Any other write can be the first the
+ * cell ever had, or can be settling its own marker, so it is written; the most that can come back is
+ * an error badge with no outputs, which the user can clear or re-run.
  *
  * A `cancelled` stamp is never repeated. It carries no guard, so a repeat could kill a run the user
  * started after it.
@@ -297,7 +298,8 @@ export async function writeWorkflowGroupStateDurably(
         }
         const followsPickup =
           status === 'completed' || Object.keys(payload.dataPatch ?? {}).length > 0
-        if (!current && followsPickup) return 'skipped'
+        const isNewerMarker = current?.status === 'pending' && current.executionId == null
+        if (followsPickup && (!current || isNewerMarker)) return 'skipped'
       }
       attempted = true
       return writeWorkflowGroupState(ctx, payload)

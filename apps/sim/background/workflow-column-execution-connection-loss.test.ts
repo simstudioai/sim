@@ -19,6 +19,7 @@ import {
   executionPreprocessingMock,
   executionPreprocessingMockFns,
 } from '@sim/testing/mocks/execution-preprocessing.mock'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import {
   tableRowsServiceMock,
   tableRowsServiceMockFns,
@@ -263,6 +264,19 @@ describe('a table cell losing a database socket', () => {
       'row-1',
       expect.any(String)
     )
+  })
+
+  it('finishes the row markers before giving up the row lock', async () => {
+    const releasesBeforeCleanup: number[] = []
+    mocks.getTableById.mockRejectedValue(resetRead())
+    mocks.terminalizeUnclaimedRowMarkers.mockImplementation(async () => {
+      releasesBeforeCleanup.push(redisConfigMockFns.mockReleaseLock.mock.calls.length)
+    })
+
+    await expect(executeWorkflowGroupCellJob(PAYLOAD)).rejects.toThrow()
+
+    expect(releasesBeforeCleanup).toEqual([0])
+    expect(redisConfigMockFns.mockReleaseLock).toHaveBeenCalledOnce()
   })
 
   it('reports the original failure when the marker cannot be terminalized either', async () => {

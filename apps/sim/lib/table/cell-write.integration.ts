@@ -156,8 +156,9 @@ afterAll(async () => {
     await tx`DELETE FROM project WHERE id = ${workspaceId}`
     await tx`DELETE FROM "user" WHERE id = ${userId}`
   })
+  await db.$client.end({ timeout: 1 })
   await control.end({ timeout: 1 })
-  proxy.close()
+  await new Promise((resolve) => proxy.close(resolve))
 })
 
 describe('a durable cell state write around a lost connection', { timeout: 90_000 }, () => {
@@ -264,6 +265,29 @@ describe('a durable cell state write around a lost connection', { timeout: 90_00
     ).resolves.toBe('wrote')
 
     expect((await readCell(rowId)).status).toBe('error')
+  })
+
+  it('does not overwrite the marker of a newer run requested during the retry backoff', async () => {
+    const { ctx, rowId } = await createCell()
+    interception = {
+      match: /commit/i,
+      forward: false,
+      afterReset: async () => {
+        await control`
+          UPDATE table_row_executions SET status = 'pending', execution_id = NULL
+          WHERE row_id = ${rowId}`
+      },
+    }
+
+    await expect(writeWorkflowGroupStateDurably(ctx, completed({ out: 'result' }))).resolves.toBe(
+      'skipped'
+    )
+
+    expect(await readCell(rowId)).toMatchObject({
+      out: 'before',
+      status: 'pending',
+      execution_id: null,
+    })
   })
 
   it('does not overwrite a Stop that lands during the retry backoff', async () => {

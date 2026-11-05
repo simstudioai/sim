@@ -388,13 +388,28 @@ export async function executeWorkflowGroupCellJob(
         ),
       }
     }
+  } finally {
+    carrierTimeoutController.cleanup()
+  }
+}
+
+/** Re-fetches the table schema each iteration so groups added DURING the
+ *  cascade become visible to the eligibility check. The resume worker must
+ *  already hold the row's cascade lock before calling.
+ *
+ *  A read that runs out of retries between groups kills this carrier, the row's
+ *  only owner. Other carriers bail on its lock expecting it to drain their
+ *  markers, so any left unclaimed would stay Queued with nothing to revisit
+ *  them. It fails them while it still holds the lock, so it cannot touch work a
+ *  later owner has taken on, and rethrows because the database stayed
+ *  unreachable through a full retry budget. */
+export async function runRowCascadeLoop(
+  payload: QueuedWorkflowGroupCellPayload,
+  signal?: AbortSignal
+): Promise<'blocked' | undefined> {
+  try {
+    return await driveRowCascade(payload, signal)
   } catch (err) {
-    /**
-     * A read that ran out of retries between groups kills this carrier, the row's only owner. Other
-     * carriers bail on its lock expecting it to drain their markers, so any left unclaimed would
-     * stay Queued with nothing to revisit them. The throw still fails the run, because the database
-     * stayed unreachable through a full retry budget.
-     */
     const { tableId, rowId } = payload
     const { terminalizeUnclaimedRowMarkers } = await import('@/lib/table/cell-write')
     await withIdempotentWriteRetry(
@@ -408,15 +423,10 @@ export async function executeWorkflowGroupCellJob(
       })
     })
     throw err
-  } finally {
-    carrierTimeoutController.cleanup()
   }
 }
 
-/** Re-fetches the table schema each iteration so groups added DURING the
- *  cascade become visible to the eligibility check. The resume worker must
- *  already hold the row's cascade lock before calling. */
-export async function runRowCascadeLoop(
+async function driveRowCascade(
   payload: QueuedWorkflowGroupCellPayload,
   signal?: AbortSignal
 ): Promise<'blocked' | undefined> {

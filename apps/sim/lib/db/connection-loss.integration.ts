@@ -68,7 +68,8 @@ afterAll(async () => {
   await new Promise((resolve) => proxy.close(resolve))
 })
 
-describe('real connection resets', () => {
+/** A reset can stall the replacement connection until `connect_timeout` before it rejects. */
+describe('real connection resets', { timeout: 90_000 }, () => {
   it('recovers a read reset while its statement is running', async () => {
     let attempts = 0
     const rows = await withDatabaseReadRetry(async () => {
