@@ -74,7 +74,7 @@ vi.mock('@/hooks/queries/api-keys', () => ({ useApiKeys: mocks.apiKeys }))
 vi.mock('@/hooks/queries/oauth-provider', () => ({ useAuthorizedApps: mocks.authorizedApps }))
 vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => mothershipChatMock)
 
-import type { ConversationComposerProps } from '@/app/o/[organizationId]/home/components/composer'
+import type { ConversationComposerProps } from '@/app/_organization-conversation/composer'
 import { PageConversation } from '@/platform/embedded/app/(shell)/_components/conversation/page-conversation'
 
 const {

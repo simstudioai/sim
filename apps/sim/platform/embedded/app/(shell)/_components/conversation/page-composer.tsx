@@ -8,7 +8,7 @@ import {
   ComposerFileTargets,
   type ConversationComposerProps,
   useComposer,
-} from '@/app/o/[organizationId]/home/components/composer'
+} from '@/app/_organization-conversation/composer'
 import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { PromptEditor } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor'

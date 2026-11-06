@@ -1,8 +1,8 @@
 'use client'
 
 import { createContext, type ReactNode, useContext, useState } from 'react'
+import { SimLinkModal } from '@/components/sim-links/sim-link-modal'
 import { suggestSimLinkName } from '@/lib/sim-links/validation'
-import { SimLinkModal } from '@/app/o/[organizationId]/links/sim-link-modal'
 
 interface SimLinkDraft {
   url: string
