@@ -4,7 +4,6 @@ import { type ReactNode, useContext } from 'react'
 import { usePathname } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { useSettingsNavigationState } from '@/components/settings/settings-navigation-provider'
-import { resolveOrganizationSurfaceHeaderMeta } from '@/app/o/[organizationId]/settings/navigation'
 import { MobileTitleSlot } from '@/app/workspace/[workspaceId]/components/workspace-chrome/mobile-title-slot'
 import {
   SettingsBreadcrumb,
@@ -12,6 +11,7 @@ import {
   SettingsScreen,
 } from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen'
 import { Surface } from '@/platform/design-system/components/surface/surface'
+import { resolveOrganizationSurfaceHeaderMeta } from '@/platform/lib/data/settings-sections'
 
 interface SettingsFrameProps {
   children: ReactNode

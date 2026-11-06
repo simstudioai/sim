@@ -16,14 +16,14 @@ import {
 } from '@/lib/billing/subscriptions/utils'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { useOrganization } from '@/lib/organizations/provider'
-import {
-  organizationSurfaceSettingsNavigation,
-  resolveOrganizationSurfaceSection,
-} from '@/app/o/[organizationId]/settings/navigation'
-import { warmOrganizationSettingsSectionQuery } from '@/app/o/[organizationId]/settings/settings-query-warmers'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
+import {
+  organizationSurfaceSettingsNavigation,
+  resolveOrganizationSurfaceSection,
+} from '@/platform/lib/data/settings-sections'
+import { warmOrganizationSettingsSectionQuery } from '@/platform/lib/data/settings-warmers'
 
 export type SettingsSectionKey = AccountSettingsSection | OrganizationSettingsSection
 

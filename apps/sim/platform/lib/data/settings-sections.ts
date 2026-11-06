@@ -30,7 +30,7 @@ export type OrganizationSurfaceSettingsSection =
  * General in the Account group. Platform administration keeps the account
  * plane's access rules; Desktop, Browser, and Terminal are workspace-bound.
  */
-export const ORGANIZATION_SURFACE_ACCOUNT_ITEMS: SettingsNavigationItem<AccountSettingsSection>[] =
+const ORGANIZATION_SURFACE_ACCOUNT_ITEMS: SettingsNavigationItem<AccountSettingsSection>[] =
   ACCOUNT_SETTINGS_ITEMS.filter((item) => item.id === 'general' || item.group === 'platform')
 
 export function resolveOrganizationSettingsSection(

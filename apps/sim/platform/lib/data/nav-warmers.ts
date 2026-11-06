@@ -7,7 +7,6 @@ import { canReadMemberIntegrations } from '@/lib/credential-groups/member-integr
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { useOrganization } from '@/lib/organizations/provider'
 import { simLinksSortParams } from '@/app/o/[organizationId]/links/search-params'
-import { warmOrganizationSettingsSectionQuery } from '@/app/o/[organizationId]/settings/settings-query-warmers'
 import { organizationAccountsQueryOptions } from '@/hooks/queries/organization-accounts'
 import { searchIntegrationsQueryOptions } from '@/hooks/queries/search-integrations'
 import { simLinksQueryOptions } from '@/hooks/queries/sim-links'
@@ -15,6 +14,7 @@ import {
   dropFailedSpeculativeQuery,
   prefetchQueryOnIntent,
 } from '@/hooks/queries/utils/prefetch-query-on-intent'
+import { warmOrganizationSettingsSectionQuery } from '@/platform/lib/data/settings-warmers'
 
 const NAV_WARM_DWELL_MS = 80
 
