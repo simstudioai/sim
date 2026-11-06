@@ -3731,6 +3731,201 @@ const ADMIN_SETTINGS = [
   'Sim Search in Slack',
 ]
 
+/** Saves a JSON settings column back to what it held, whatever the check did to it. */
+async function withOrganizationSettingsRestored(
+  column: 'whitelabel_settings' | 'session_policy_settings',
+  run: () => Promise<void>
+) {
+  const [before] =
+    await sql`select ${sql(column)} as value from organization where id = ${ORGANIZATION_ID}`
+  await withRestore(
+    () =>
+      sql`update organization set ${sql(column)} = ${before.value === null ? null : sql.json(before.value)} where id = ${ORGANIZATION_ID}`,
+    run
+  )
+}
+
+async function organizationSectionChecks() {
+  await check(
+    'Subscription: an Enterprise plan is priced by contract, with nothing to cancel',
+    async () => {
+      await withSession(ADMIN, async ({ page }) => {
+        await page.goto(orgUrl('/settings/subscription'))
+        await expect(page.getByText('Enterprise plan', { exact: true })).toBeVisible()
+        await expect(page.getByText('Custom pricing', { exact: true })).toBeVisible()
+        await expect(page.getByText('Next billing date', { exact: true })).toBeVisible()
+        await expect(page.getByRole('button', { name: 'Manage in Stripe' })).toBeVisible()
+        await expect(page.getByRole('button', { name: 'Explore organization plans' })).toHaveCount(
+          0
+        )
+        await expect(page.getByText('Cancel subscription', { exact: true })).toHaveCount(0)
+        await expect(page.getByRole('textbox', { name: 'Monthly limit, in credits' })).toHaveCount(
+          0
+        )
+      })
+    }
+  )
+  await check(
+    'Audit logs: an event is listed, found by search, and absent from a miss',
+    async () => {
+      const id = 'org-redesign-audit-probe'
+      const description = 'Audit probe from the acceptance suite'
+      await withRestore(
+        () => sql`delete from audit_log where id = ${id}`,
+        async () => {
+          await sql`insert into audit_log (id, workspace_id, actor_id, action, resource_type, actor_email, description)
+          values (${id}, ${MEMBER_ADMIN_WORKSPACE.id}, ${ADMIN.userId}, 'workspace.updated', 'workspace', ${ADMIN.email}, ${description})`
+          await withSession(ADMIN, async ({ page }) => {
+            await page.goto(orgUrl('/settings/audit-logs'))
+            await expect(page.getByText(description)).toBeVisible()
+            const search = page.getByRole('searchbox', { name: 'Search audit logs' })
+            await search.fill('Audit probe')
+            await expect(page.getByText(description)).toBeVisible()
+            await search.fill('zzzz-nothing')
+            await expect(page.getByText('No results for "zzzz-nothing"')).toBeVisible()
+            await expect(page.getByText(description)).toHaveCount(0)
+          })
+        }
+      )
+    }
+  )
+  await check('Security: a bad idle timeout stays local, and a good policy saves', () =>
+    withOrganizationSettingsRestored('session_policy_settings', () =>
+      withSession(ADMIN, async ({ page }) => {
+        const writes: string[] = []
+        page.on('request', (request) => {
+          if (request.method() === 'PUT' && request.url().endsWith('/session-policy'))
+            writes.push(request.url())
+        })
+        await page.goto(orgUrl('/settings/security'))
+        const idle = page.getByRole('textbox', { name: 'Idle timeout (hours)' })
+        const save = page.getByRole('button', { name: 'Save', exact: true })
+        await idle.fill('1')
+        await save.click()
+        await pageTurn(page)
+        assert.deepEqual(writes, [], 'An idle timeout under the minimum reached the server')
+        await idle.fill('72')
+        const saved = page.waitForResponse(
+          (response) =>
+            response.request().method() === 'PUT' && response.url().endsWith('/session-policy')
+        )
+        await save.click()
+        assert.ok((await saved).ok(), 'The policy did not save')
+        await expect(save).toBeDisabled()
+        await page.reload()
+        await expect(idle).toHaveValue('72')
+        await page.getByRole('button', { name: 'Sign out all members', exact: true }).click()
+        const confirm = dialog(page, 'Sign out all members')
+        await expect(confirm).toBeVisible()
+        await confirm.getByRole('button', { name: 'Cancel', exact: true }).click()
+        await expect(confirm).toHaveCount(0)
+        await expect(page.getByText('Outbound IP addresses', { exact: true })).toBeVisible()
+        await expect(page.getByText('Could not load network settings')).toHaveCount(0)
+      })
+    )
+  )
+  await check('Sim Search in Slack: an empty organization is offered setup', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(orgUrl('/settings/search-slack'))
+      await expect(
+        page.getByText('Connect your workspace to ask questions in Slack.')
+      ).toBeVisible()
+      await page.getByRole('button', { name: /^(Set up|Install Sim Search)$/ }).click()
+      await expect(page.getByRole('dialog')).toBeVisible()
+    })
+  })
+  await check('Sim Search in Slack: a connection can be disabled and removed', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      const installation = {
+        id: 'installation-1',
+        credentialId: 'slack-credential-1',
+        appId: 'A123',
+        teamId: 'T123',
+        teamName: 'Ridgeline Slack',
+        appKind: 'shared',
+        enabled: true,
+        needsValidation: false,
+        lastOutcome: null,
+        lastEventAt: null,
+      }
+      const configured: unknown[] = []
+      const removed: string[] = []
+      await page.route('**/api/knowledge/slack**', (route) => {
+        const request = route.request()
+        if (request.method() === 'POST') {
+          configured.push(request.postDataJSON())
+          return route.fulfill({ json: { id: installation.id } })
+        }
+        if (request.method() === 'DELETE') {
+          removed.push(pathOf(request.url()))
+          return route.fulfill({ json: { id: installation.id } })
+        }
+        return route.fulfill({
+          json: {
+            sharedAppAvailable: true,
+            memberAppKind: 'shared',
+            installations: [installation],
+            bots: [],
+          },
+        })
+      })
+      await page.goto(orgUrl('/settings/search-slack'))
+      await expect(page.getByText('Ridgeline Slack', { exact: true })).toBeVisible()
+      await expect(page.getByText('Enabled', { exact: true })).toBeVisible()
+      const actions = page.getByRole('button', { name: 'Sim Search actions', exact: true })
+      await actions.click()
+      await menuEntry(page, 'Disable').click()
+      await expect
+        .poll(() => configured)
+        .toEqual([
+          {
+            organizationId: ORGANIZATION_ID,
+            credentialId: installation.credentialId,
+            enabled: false,
+          },
+        ])
+      await actions.click()
+      await menuEntry(page, 'Remove from Search').click()
+      const confirm = dialog(page, 'Remove Slack Search')
+      await confirm.getByRole('button', { name: 'Remove', exact: true }).click()
+      await expect.poll(() => removed.length).toBe(1)
+      assert.match(removed[0], new RegExp(`/${installation.id}\\?`))
+    })
+  })
+  await check(
+    'White-labeling: a bad color stays local, and a brand saves and survives reload',
+    () =>
+      withOrganizationSettingsRestored('whitelabel_settings', () =>
+        withSession(ADMIN, async ({ page }) => {
+          const writes: string[] = []
+          page.on('request', (request) => {
+            if (request.method() !== 'GET' && request.url().endsWith('/whitelabel'))
+              writes.push(request.url())
+          })
+          await page.goto(orgUrl('/settings/whitelabeling'))
+          const brand = page.getByRole('textbox', { name: 'Brand name' })
+          const color = page.getByRole('textbox', { name: 'Primary color', exact: true })
+          const save = page.getByRole('button', { name: 'Save', exact: true })
+          await color.fill('zz')
+          await save.click()
+          await pageTurn(page)
+          assert.deepEqual(writes, [], 'An invalid color reached the server')
+          await color.fill('')
+          await brand.fill('Acceptance Brand')
+          const saved = page.waitForResponse(
+            (response) =>
+              response.request().method() !== 'GET' && response.url().endsWith('/whitelabel')
+          )
+          await save.click()
+          assert.ok((await saved).ok(), 'The brand did not save')
+          await expect(save).toBeDisabled()
+          await page.reload()
+          await expect(brand).toHaveValue('Acceptance Brand')
+        })
+      )
+  )
+}
+
 async function settingsChecks() {
   section('3 Settings')
   for (const [persona, expected] of [
@@ -4232,6 +4427,7 @@ async function settingsChecks() {
       ),
     }
   )
+  await organizationSectionChecks()
   await check('admin settings sections all open', async () => {
     await withSession(ADMIN, async ({ page }) => {
       for (const path of [...SETTINGS_FOR_ADMIN, 'search-mcp']) {
