@@ -517,6 +517,28 @@ async function deleteChat(chatId: string): Promise<void> {
 }
 
 /**
+ * Forgets a deleted chat's transcript. Removing an entry a mounted view still reads makes its next
+ * render rebuild the entry and read a chat that is gone, so that view keeps what it has until its
+ * last reader leaves, which leaving the deleted chat is about to do.
+ */
+function forgetChatHistory(queryClient: QueryClient, chatId: string) {
+  const queryKey = mothershipChatKeys.detail(chatId)
+  const cache = queryClient.getQueryCache()
+  const query = cache.find({ queryKey, exact: true })
+  if (!query?.getObserversCount()) {
+    queryClient.removeQueries({ queryKey })
+    return
+  }
+  void queryClient.cancelQueries({ queryKey, exact: true })
+  const unsubscribe = cache.subscribe((event) => {
+    if (event.type !== 'observerRemoved' || event.query !== query) return
+    if (query.getObserversCount() > 0) return
+    unsubscribe()
+    queryClient.removeQueries({ queryKey })
+  })
+}
+
+/**
  * Soft-deletes a mothership chat and invalidates both the active and archived
  * chat lists — the chat moves from the sidebar into Recently Deleted.
  */
@@ -526,7 +548,7 @@ export function useDeleteMothershipChat(owner?: MothershipChatOwner) {
     mutationFn: deleteChat,
     onSuccess: async (_data, chatId) => {
       await suspendDesktopChatScopes(chatId)
-      queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(chatId) })
+      forgetChatHistory(queryClient, chatId)
       useMothershipQueueStore.getState().clearChat(chatId)
     },
     onSettled: () => {
@@ -575,7 +597,7 @@ export function useDeleteMothershipChats(owner?: MothershipChatOwner) {
         chatIds.map(async (chatId) => {
           await deleteChat(chatId)
           await suspendDesktopChatScopes(chatId)
-          queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(chatId) })
+          forgetChatHistory(queryClient, chatId)
           useMothershipQueueStore.getState().clearChat(chatId)
         })
       )

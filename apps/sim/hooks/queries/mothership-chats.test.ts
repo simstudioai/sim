@@ -27,6 +27,8 @@ vi.mock('@/lib/terminal/transport', () => ({
 import type { MothershipEffort } from '@/lib/mothership/model-options'
 import {
   fetchMothershipChatHistory,
+  mothershipChatHistoryQueryOptions,
+  useDeleteMothershipChat,
   useDeleteMothershipChats,
   useSetMothershipChatEffort,
 } from '@/hooks/queries/mothership-chats'
@@ -99,6 +101,46 @@ describe('tasks query boundary parsing', () => {
     expect(queryClient.removeQueries).not.toHaveBeenCalledWith({
       queryKey: ['mothership-chats', 'detail', 'chat-b'],
     })
+  })
+
+  it('reads a deleted chat no more while a view holds it, and forgets it once the view leaves', async () => {
+    const tanstack =
+      await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query')
+    const client = new tanstack.QueryClient()
+    reactQueryMockFns.mockUseQueryClient.mockReturnValueOnce(
+      client as unknown as typeof queryClient
+    )
+    const mutation = useDeleteMothershipChat({ organizationId: 'org-1' }) as unknown as {
+      onSuccess: (data: undefined, chatId: string) => Promise<void>
+    }
+    const options = mothershipChatHistoryQueryOptions('chat-open')
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({
+        success: true,
+        chat: {
+          id: 'chat-open',
+          title: null,
+          mode: 'assistant',
+          messages: [],
+          activeStreamId: null,
+          resources: [],
+        },
+      })
+    )
+    await client.prefetchQuery(options)
+    vi.mocked(fetch).mockClear()
+    const view = new tanstack.QueryObserver(client, options)
+    const leave = view.subscribe(() => {})
+
+    await mutation.onSuccess(undefined, 'chat-open')
+    view.getOptimisticResult(client.defaultQueryOptions(options))
+    view.setOptions(options)
+
+    expect(fetch).not.toHaveBeenCalled()
+    expect(view.getCurrentResult().isSuccess).toBe(true)
+    leave()
+    expect(client.getQueryCache().find({ queryKey: options.queryKey })).toBeUndefined()
+    client.clear()
   })
 
   it('loads a chat from a server that predates the effort field', async () => {
