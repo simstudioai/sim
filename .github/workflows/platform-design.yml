@@ -190,6 +190,9 @@ jobs:
         run: >-
           bun run check:platform-parity
           --report "$RUNNER_TEMP/e2e/platform-live/report.json"
+          --report "$RUNNER_TEMP/e2e/platform-live-zone-down/report.json"
+          --report "$RUNNER_TEMP/e2e/platform-live-zone-5xx/report.json"
+          --report "$RUNNER_TEMP/e2e/platform-live-zone-recovered/report.json"
           --report "$RUNNER_TEMP/e2e/platform-live-flag-off/report.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()

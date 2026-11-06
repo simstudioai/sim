@@ -17,7 +17,8 @@ import {
   isPathOrDescendant,
   ORGANIZATIONS_PATH,
 } from '@/lib/navigation/paths'
-import { LEGACY_URL_HEADER } from '@/lib/platform/routes'
+import { LEGACY_URL_HEADER, PLATFORM_BASE_PATH } from '@/lib/platform/routes'
+import { isPlatformZoneAvailable, isPlatformZoneDeployed } from '@/lib/platform/zone-availability'
 import { isOAuthAuthorizationCallback, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
 import { getEnv } from './lib/core/config/env'
 import { isAuthDisabled, isDev, isHosted } from './lib/core/config/env-flags'
@@ -364,21 +365,39 @@ function handleIntegrationSlugRedirect(request: NextRequest): NextResponse | nul
 }
 
 /**
- * Continues an app-surface request. With the Platform zone configured, an organization route also
- * tells its layout which URL it is rendering, which that layout cannot otherwise learn. Overwriting
- * the header here means the layout never reads a value the browser sent.
+ * Continues an app-surface request. With the Platform zone up, an organization route also tells its
+ * layout which URL it is rendering, which that layout cannot otherwise learn. Overwriting the header
+ * here means the layout never reads a value the browser sent; dropping it while the zone is down
+ * renders the route here instead of handing the organization off to a dead page.
  */
-function continueAppSurface(request: NextRequest): NextResponse {
+async function continueAppSurface(request: NextRequest): Promise<NextResponse> {
   const { pathname, search } = request.nextUrl
-  if (!getEnv('SIM_PLATFORM_ORIGIN') || !isPathOrDescendant(pathname, ORGANIZATIONS_PATH)) {
+  if (!isPlatformZoneDeployed() || !isPathOrDescendant(pathname, ORGANIZATIONS_PATH)) {
     return NextResponse.next()
   }
   const headers = new Headers(request.headers)
-  headers.set(LEGACY_URL_HEADER, `${pathname}${search}`)
+  if (await isPlatformZoneAvailable()) {
+    headers.set(LEGACY_URL_HEADER, `${pathname}${search}`)
+  } else {
+    headers.delete(LEGACY_URL_HEADER)
+  }
   return NextResponse.next({ request: { headers } })
 }
 
-export function proxy(request: NextRequest) {
+/**
+ * Sends a Platform page back to the main app while the zone cannot serve it, because the rewrite
+ * would answer with a bare 500 and nothing to click. Assets and writes pass: neither can use a page.
+ */
+async function handleUnavailableZone(request: NextRequest): Promise<NextResponse | null> {
+  const { pathname } = request.nextUrl
+  if (!isPathOrDescendant(pathname, PLATFORM_BASE_PATH)) return null
+  if (pathname.startsWith(`${PLATFORM_BASE_PATH}/_next/`)) return null
+  if (request.method !== 'GET' && request.method !== 'HEAD') return null
+  if (!isPlatformZoneDeployed() || (await isPlatformZoneAvailable())) return null
+  return NextResponse.redirect(new URL(ORGANIZATIONS_PATH, request.url))
+}
+
+export async function proxy(request: NextRequest) {
   const url = request.nextUrl
 
   const mcpPath = resolveSimMcpHostPath(request.headers.get('host'), url.pathname)
@@ -402,6 +421,9 @@ export function proxy(request: NextRequest) {
     applyCorsHeaders(response, policy)
     return response
   }
+
+  const zoneFallback = await handleUnavailableZone(request)
+  if (zoneFallback) return applyIndexingPolicy(request, zoneFallback)
 
   const sessionCookie = getSessionCookie(request)
   const hasActiveSession = isAuthDisabled || !!sessionCookie
@@ -452,7 +474,7 @@ export function proxy(request: NextRequest) {
     if (!hasActiveSession) {
       return applyIndexingPolicy(request, NextResponse.redirect(new URL('/login', request.url)))
     }
-    const response = continueAppSurface(request)
+    const response = await continueAppSurface(request)
     response.headers.set('Content-Security-Policy', generateRuntimeCSP())
     response.headers.set('X-Content-Type-Options', 'nosniff')
     response.headers.set('X-Frame-Options', 'SAMEORIGIN')

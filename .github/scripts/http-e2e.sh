@@ -36,6 +36,7 @@ platform_pid=''
 platform_tag=''
 platform_log=''
 agent_pid=''
+failing_zone_pid=''
 browsers_pid=''
 local_app_url=''
 # `dev` or `start`; a group sets it before start_app.
@@ -77,6 +78,10 @@ finish() {
   if [ -n "$agent_pid" ]; then
     kill "$agent_pid" 2>/dev/null || true
     wait "$agent_pid" 2>/dev/null || true
+  fi
+  if [ -n "$failing_zone_pid" ]; then
+    kill "$failing_zone_pid" 2>/dev/null || true
+    wait "$failing_zone_pid" 2>/dev/null || true
   fi
   if [ -n "$browsers_pid" ]; then
     kill -- "-$browsers_pid" 2>/dev/null || true
@@ -162,9 +167,16 @@ start_platform() {
   platform_log="$report_dir/platform-live-platform.log"
   E2E_APP="$platform_tag" SIM_PLATFORM_API_ORIGIN="$local_app_url" SIM_PLATFORM_BASE_PATH=/org setsid node \
     ../../node_modules/next/dist/bin/next start platform --hostname 127.0.0.1 --port "$port" \
-    > "$platform_log" 2>&1 &
+    >> "$platform_log" 2>&1 &
   platform_pid=$!
   wait_ready "$platform_pid" "http://127.0.0.1:$port/org" 'Platform zone'
+}
+
+# stop_platform: takes the zone away from under a running main app, as an outage does.
+stop_platform() {
+  bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$platform_pid" "$platform_tag"
+  wait "$platform_pid" 2>/dev/null || true
+  platform_pid=''
 }
 
 # platform_live_environment: one hosted Enterprise organization, the deterministic seed its specs
@@ -488,9 +500,9 @@ JS
       bun run test:landing-seo:e2e
     ;;
 
-  # The zone as deployed: flag on, /org rewritten to the Platform build. Then the same build
-  # with the flag off, which must put everyone back on the legacy surface. Both report, whichever
-  # fails.
+  # The zone as deployed: flag on, /org rewritten to the Platform build. Then, on that running app,
+  # the zone goes away, answers 503 to everything, and comes back. Then the same build with the flag
+  # off, which must put everyone back on the legacy surface. Every phase reports, whichever fails.
   platform-live-zone)
     platform_live_environment
     export SIM_PLATFORM_ORIGIN=http://127.0.0.1:3028
@@ -504,6 +516,18 @@ JS
     wait_for_browsers
     live_status=0
     run_platform_live zone platform-live || live_status=$?
+    stop_platform
+    run_platform_live zone-down platform-live-zone-down || live_status=$?
+    bun --no-env-file platform/checks/live/support/failing-zone.ts 3028 \
+      > "$report_dir/platform-live-failing-zone.log" 2>&1 &
+    failing_zone_pid=$!
+    wait_ready "$failing_zone_pid" http://127.0.0.1:3028/health 'failing zone'
+    run_platform_live zone-down platform-live-zone-5xx || live_status=$?
+    kill "$failing_zone_pid"
+    wait "$failing_zone_pid" 2>/dev/null || true
+    failing_zone_pid=''
+    start_platform 3028
+    run_platform_live zone-recovered platform-live-zone-recovered || live_status=$?
     stop_app
     start_app platform-live-flag-off 3027 'Platform main, flag off' record-http-status
     run_platform_live flag-off platform-live-flag-off || live_status=$?
