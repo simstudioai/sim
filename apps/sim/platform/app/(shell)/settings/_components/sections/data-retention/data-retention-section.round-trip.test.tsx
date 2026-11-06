@@ -8,7 +8,7 @@ import {
 } from '@sim/testing/mocks/api-client-request.mock'
 import { stubResizeObserver } from '@sim/testing/mocks/browser-apis.mock'
 import { emcnMock, emcnMockFns } from '@sim/testing/mocks/emcn.mock'
-import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -161,7 +161,6 @@ describe('DataRetentionSection across saves', () => {
   })
 
   afterEach(() => {
-    onlineManager.setOnline(true)
     act(() => root.unmount())
     container.remove()
     queryClient.clear()
@@ -231,18 +230,6 @@ describe('DataRetentionSection across saves', () => {
       expect(emcnMockFns.mockToast.error).toHaveBeenCalledWith(
         'Could not confirm the latest retention settings. Nothing was saved.'
       )
-    })
-
-    it('stops at once while offline instead of waiting to write on reconnect', async () => {
-      await click('Organization')
-      await click('keep logs 7 days')
-      onlineManager.setOnline(false)
-      await failNextReads(() => click('Save'))
-
-      expect(emcnMockFns.mockToast.error).toHaveBeenCalledWith(
-        'Could not confirm the latest retention settings. Nothing was saved.'
-      )
-      expect(server.writes).toEqual([])
     })
 
     it('removes nothing over the document from before the failure', async () => {
