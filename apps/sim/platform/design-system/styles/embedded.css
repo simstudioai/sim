@@ -51,11 +51,6 @@
   background: var(--ui-canvas);
 }
 
-/* A part carried into the host's own bar: the bar paints, so the surface around it must not. */
-[data-platform-ui][data-canvas]:has(> [data-host-chrome]) {
-  background: transparent;
-}
-
 [data-platform-ui][data-theme="dark"] {
   color-scheme: dark;
 }

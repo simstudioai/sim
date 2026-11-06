@@ -24,7 +24,7 @@ export function SettingsBreadcrumb({ title }: SettingsBreadcrumbProps) {
 /** The section's name, for the phone top bar that replaces the breadcrumb. */
 export function SettingsMobileTitle({ title }: SettingsBreadcrumbProps) {
   return (
-    <span className={styles.mobileTitle} data-host-chrome data-type='T057'>
+    <span className={styles.mobileTitle} data-type='T057'>
       {title}
     </span>
   )

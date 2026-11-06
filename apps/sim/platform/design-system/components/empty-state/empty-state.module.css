@@ -9,7 +9,7 @@
 .empty {
   justify-content: center;
   min-height: calc(var(--spacing-56) * 2);
-  padding-block: var(--spacing-16);
+  padding: var(--spacing-16) var(--spacing-8);
   color: var(--ui-ink);
 }
 
