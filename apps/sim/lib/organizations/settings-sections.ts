@@ -2,17 +2,16 @@ import {
   ACCOUNT_SETTINGS_ITEMS,
   type AccountSettingsSection,
   getSettingsSectionMeta,
-  isOrganizationSettingsSectionAvailable,
   ORGANIZATION_SETTINGS_GROUPS,
   ORGANIZATION_SETTINGS_ITEMS,
   type OrganizationSettingsFeatures,
   type OrganizationSettingsSection,
   parseSettingsPathSection,
-  resolveOrganizationSectionAccess,
   type SettingsNavigationItem,
   toSettingsHeaderMeta,
 } from '@/components/settings/navigation'
 import type { SettingsHeaderMeta } from '@/components/settings/settings-header'
+import { organizationSupportsSettingsSection } from '@/lib/settings/section-availability'
 
 /**
  * A section on the organization surface's settings, tagged with the plane that
@@ -84,18 +83,8 @@ export function organizationSettingsNavigation(
   features: OrganizationSettingsFeatures,
   availability: { connectedAccounts: boolean; search: boolean; knowledgeGraphs?: boolean }
 ) {
-  return ORGANIZATION_SETTINGS_ITEMS.filter(
-    (item) =>
-      (item.id !== 'knowledge-graphs' || availability.knowledgeGraphs === true) &&
-      (item.id !== 'connected-accounts' || availability.connectedAccounts) &&
-      ((item.id !== 'search-mcp' && item.id !== 'search-slack' && item.id !== 'integrations') ||
-        availability.search) &&
-      resolveOrganizationSectionAccess({
-        section: item.id,
-        isTargetOrganizationMember: true,
-        isTargetOrganizationAdmin: isAdmin,
-      }) !== 'unavailable' &&
-      isOrganizationSettingsSectionAvailable(item.id, features)
+  return ORGANIZATION_SETTINGS_ITEMS.filter((item) =>
+    organizationSupportsSettingsSection(item.id, features, availability, isAdmin)
   )
 }
 
