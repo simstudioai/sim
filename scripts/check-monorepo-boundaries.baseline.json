@@ -1,5 +1,4 @@
 {
-  "apps/sim/platform/app/(shell)/integrations/_components/secrets-editor/secrets-editor.tsx": 1,
   "apps/sim/platform/app/(shell)/settings/_components/sections/audit-logs/audit-logs-section.tsx": 3,
   "apps/sim/platform/app/(shell)/settings/_components/sections/connected-accounts/connected-accounts-section.tsx": 2,
   "apps/sim/platform/app/(shell)/settings/_components/sections/connected-accounts/databricks-modal.tsx": 1,

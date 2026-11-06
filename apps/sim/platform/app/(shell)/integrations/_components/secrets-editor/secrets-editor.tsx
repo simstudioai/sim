@@ -28,10 +28,6 @@ import { organizationRoutes } from '@/lib/navigation/paths'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
-import {
-  useOrganizationSecrets,
-  useSaveOrganizationSecrets,
-} from '@/hooks/queries/organization-secrets'
 import styles from '@/platform/app/(shell)/integrations/_components/secrets-editor/secrets-editor.module.css'
 import {
   DetailHeader,
@@ -48,6 +44,7 @@ import {
   Tooltip,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
+import { useGenericSecrets } from '@/platform/lib/data/generic-secrets'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 
 const logger = createLogger('SecretsManager')
@@ -272,17 +269,19 @@ interface SecretsEditorProps {
 
 /** One source's Generic Secrets: the organization's, or the viewer's own. */
 export function SecretsEditor({ mode, backHref }: SecretsEditorProps) {
-  const { organization, viewer } = useOrganizationContext()
+  const { organization } = useOrganizationContext()
   const router = useRouter()
-  const secrets = useOrganizationSecrets(organization.id, mode, mode === 'member' || viewer.isAdmin)
-  const save = useSaveOrganizationSecrets(organization.id)
+  const { failure, editor } = useGenericSecrets(mode)
   const routes = organizationRoutes(organization.id)
   const back =
     mode === 'organization'
       ? { text: 'Sources', href: routes.settingsSection('integrations') }
       : { text: 'Integrations', href: backHref ?? routes.integrations }
+  const failureNotice = failure && (
+    <FailureNotice message={failure.message} retrying={failure.retrying} onRetry={failure.retry} />
+  )
   /** A failed refetch keeps the editor mounted with its drafts; only a first load shows failure. */
-  if (!secrets.data)
+  if (!editor)
     return (
       <SectionStack>
         <DetailHeader
@@ -291,35 +290,18 @@ export function SecretsEditor({ mode, backHref }: SecretsEditorProps) {
           title='Generic Secrets'
           pageHeading={mode === 'member'}
         />
-        {secrets.error ? (
-          <FailureNotice
-            message={getErrorMessage(secrets.error, 'Could not load secrets')}
-            retrying={secrets.isFetching}
-            onRetry={() => void secrets.refetch()}
-          />
-        ) : (
-          <LoadingState label='Loading secrets…' />
-        )}
+        {failureNotice ?? <LoadingState label='Loading secrets…' />}
       </SectionStack>
     )
-  const data = secrets.data
   return (
     <SecretRows
-      key={data.source.id}
+      key={editor.sourceId}
       back={back}
       mode={mode}
-      refreshFailure={
-        secrets.error ? (
-          <FailureNotice
-            message={getErrorMessage(secrets.error, 'Could not refresh secrets')}
-            retrying={secrets.isFetching}
-            onRetry={() => void secrets.refetch()}
-          />
-        ) : undefined
-      }
-      variables={data.variables}
-      save={(changes) => save.mutateAsync({ ...changes, sourceId: data.source.id, mode })}
-      isSaving={save.isPending}
+      refreshFailure={failureNotice ?? undefined}
+      variables={editor.variables}
+      save={editor.save}
+      isSaving={editor.isSaving}
     />
   )
 }
