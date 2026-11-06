@@ -76,7 +76,9 @@ vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
 vi.mock('@/hooks/queries/api-keys', () => ({ useApiKeys: mocks.apiKeys }))
 vi.mock('@/hooks/queries/oauth-provider', () => ({ useAuthorizedApps: mocks.authorizedApps }))
 vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => mothershipChatMock)
+vi.mock('@/app/extension/o/[organizationId]/panel-composer', () => ({ PanelComposer: () => null }))
 
+import { PanelConversation } from '@/app/extension/o/[organizationId]/panel-conversation'
 import type { ConversationComposerProps } from '@/app/o/[organizationId]/home/components/composer'
 import { PageConversation } from '@/platform/embedded/app/(shell)/_components/conversation/page-conversation'
 
@@ -265,4 +267,57 @@ it('isolates saved drafts by user, organization, and conversation', async () => 
     renderHome(<PageConversation chatId='chat-a' requestMode='assistant' fallback={null} />)
   )
   expect(draftText()).toBe('')
+})
+
+describe('a message not delivered', () => {
+  const surfaces: Array<[string, () => ReactNode]> = [
+    [
+      'organization page',
+      () => <PageConversation chatId='chat-a' requestMode='assistant' fallback={null} />,
+    ],
+    [
+      'extension panel',
+      () => (
+        <PanelConversation
+          chatId='chat-a'
+          requestMode='assistant'
+          header={null}
+          onChatIdResolved={vi.fn()}
+          onNavigateToChat={vi.fn()}
+          prepareSubmission={vi.fn()}
+          onSubmitted={vi.fn()}
+          draftNamespace='extension'
+        />
+      ),
+    ],
+  ]
+
+  it.each(surfaces)(
+    'offers Retry and Dismiss that reach the chat on the %s',
+    async (_name, view) => {
+      const retryMessage = vi.fn()
+      const dismissMessage = vi.fn()
+      mockUseChat.mockReturnValue({
+        resources: [],
+        messages: [{ id: 'held', role: 'user', content: 'Then summarize', delivery: 'failed' }],
+        isChatHistoryPending: false,
+        resolvedChatId: 'chat-a',
+        sendMessage: mocks.send,
+        retryMessage,
+        dismissMessage,
+      })
+
+      await act(async () => renderHome(view()))
+
+      const thread = toRecord(mockMothershipChat.mock.lastCall?.[0])
+      const { onRetryMessage, onDismissMessage } = thread
+      if (typeof onRetryMessage !== 'function' || typeof onDismissMessage !== 'function') {
+        throw new Error('The thread renders a message not delivered with no Retry or Dismiss')
+      }
+      onRetryMessage('held')
+      onDismissMessage('held')
+      expect(retryMessage).toHaveBeenCalledWith('held')
+      expect(dismissMessage).toHaveBeenCalledWith('held')
+    }
+  )
 })
