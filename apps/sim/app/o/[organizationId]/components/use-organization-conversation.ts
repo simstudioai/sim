@@ -9,6 +9,7 @@ import { createSerializer, useQueryStates } from 'nuqs'
 import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
+import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { BrowserStorage } from '@/lib/core/utils/browser-storage'
 import {
   getMothershipAttachmentPreviewUrl,
@@ -51,7 +52,6 @@ import type {
   FileAttachmentForApi,
   WorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import {
   type AttachedFile,
   useFileAttachments,

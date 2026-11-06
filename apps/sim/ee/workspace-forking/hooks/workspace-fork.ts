@@ -29,7 +29,7 @@ import {
 } from '@/lib/api/contracts/workspace-fork'
 import type { WorkspacesResponse } from '@/lib/api/contracts/workspaces'
 import { backgroundWorkKeys } from '@/ee/workspace-forking/hooks/background-work'
-import { deploymentKeys } from '@/hooks/queries/deployments'
+import { deploymentKeys } from '@/hooks/queries/utils/deployment-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'

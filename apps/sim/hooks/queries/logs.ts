@@ -31,7 +31,6 @@ import { logKeys } from '@/hooks/queries/utils/log-keys'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
 export type { DashboardStatsResponse, WorkflowStats }
-export { logKeys }
 
 export type LogSortBy = 'date' | 'duration' | 'cost' | 'status'
 export type LogSortOrder = 'asc' | 'desc'

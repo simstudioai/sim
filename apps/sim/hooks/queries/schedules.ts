@@ -11,7 +11,7 @@ import {
   type WorkspaceScheduleRow,
 } from '@/lib/api/contracts/schedules'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
-import { deploymentKeys } from '@/hooks/queries/deployments'
+import { deploymentKeys } from '@/hooks/queries/utils/deployment-keys'
 
 const logger = createLogger('ScheduleQueries')
 

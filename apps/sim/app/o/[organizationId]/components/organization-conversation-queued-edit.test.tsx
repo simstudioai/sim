@@ -47,10 +47,7 @@ vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/organizations/provider', () => organizationProviderMock)
-vi.mock(
-  '@/app/workspace/[workspaceId]/providers/feature-flags-provider',
-  () => featureFlagsProviderMock
-)
+vi.mock('@/lib/core/config/feature-flags-context', () => featureFlagsProviderMock)
 vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => useChatMock)
 vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-resource-panel', () => useResourcePanelMock)
 vi.mock(

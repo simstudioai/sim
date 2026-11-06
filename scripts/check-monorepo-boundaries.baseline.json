@@ -42,9 +42,7 @@
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/search-slack/search-slack-section.tsx": 1
   },
   "platformLibToWorkspace": {
-    "apps/sim/platform/embedded/lib/data/chat-list.ts": 1,
-    "apps/sim/platform/embedded/lib/data/organization-search.ts": 1,
-    "apps/sim/platform/embedded/lib/data/settings-navigation.ts": 1
+    "apps/sim/platform/embedded/lib/data/organization-search.ts": 1
   },
   "viewsToWorkspace": {
     "apps/sim/platform/embedded/app/(shell)/_components/conversation/dialogs.tsx": 1,

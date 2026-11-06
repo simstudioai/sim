@@ -14,13 +14,13 @@ import {
   hasPaidSubscriptionStatus,
   hasUsableSubscriptionAccess,
 } from '@/lib/billing/subscriptions/utils'
+import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { useOrganization } from '@/lib/organizations/provider'
 import {
   organizationSurfaceSettingsNavigation,
   resolveOrganizationSurfaceSection,
 } from '@/lib/organizations/settings-sections'
-import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import { warmOrganizationSettingsSectionQuery } from '@/platform/embedded/lib/data/settings-warmers'

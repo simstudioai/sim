@@ -44,8 +44,6 @@ export function WorkspaceHostProvider({
   )
 }
 
-export { useOptionalWorkspaceHostContext }
-
 export function useWorkspaceHostContext(): WorkspaceHostContext {
   const context = useOptionalWorkspaceHostContext()
   if (!context) {

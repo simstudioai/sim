@@ -3,10 +3,7 @@
 import { useState, useSyncExternalStore } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
-import {
-  isOrganizationSettingsSectionAvailable,
-  resolveOrganizationSectionAccess,
-} from '@/components/settings/navigation'
+import { resolveOrganizationSectionAccess } from '@/components/settings/navigation'
 import { useSession } from '@/lib/auth/client'
 import { addCalendarDays, getBrowserTimezone } from '@/lib/core/utils/timezone'
 import {
@@ -16,6 +13,7 @@ import {
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { useOrganization } from '@/lib/organizations/provider'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { organizationPlanAllowsSettingsSection } from '@/lib/settings/section-availability'
 import { useOrganizationAccessRequests } from '@/hooks/queries/access-requests'
 import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
 import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
@@ -240,7 +238,7 @@ function useHomeActivity(
       isTargetOrganizationMember: true,
       isTargetOrganizationAdmin: organization.viewer.isAdmin,
     }) !== 'unavailable' &&
-    isOrganizationSettingsSectionAvailable('usage', organization.settingsFeatures)
+    organizationPlanAllowsSettingsSection('usage', organization.settingsFeatures)
   const summary = useOrganizationActivitySummary(
     organization.organization.id,
     {

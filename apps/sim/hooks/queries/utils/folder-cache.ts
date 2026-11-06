@@ -1,6 +1,6 @@
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
+import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
 const EMPTY_FOLDERS: WorkflowFolder[] = []

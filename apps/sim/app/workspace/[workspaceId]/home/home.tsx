@@ -8,6 +8,7 @@ import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
+import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import {
   LandingPromptStorage,
   type LandingWorkflowSeed,
@@ -35,7 +36,6 @@ import {
   fetchWorkspaceResourceRef,
   readCachedWorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
-import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'

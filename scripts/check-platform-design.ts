@@ -376,7 +376,6 @@ const seamHelpers = new Set([
 /** Legacy `.tsx` the seam's closure may reach: providers and glyphs, not a surface. */
 const seamClosureViews = new Set([
   'app/_shell/providers/query-provider.tsx',
-  'app/workspace/[workspaceId]/providers/feature-flags-provider.tsx',
   'components/icons.tsx',
 ])
 /** Each pulls in a whole subsystem, which is why `next.config.ts` replaces what would reach it. */

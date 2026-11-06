@@ -1,9 +1,9 @@
 'use client'
 
-import { isOrganizationSettingsSectionAvailable } from '@/components/settings/navigation'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { useOrganization } from '@/lib/organizations/provider'
+import { organizationPlanAllowsSettingsSection } from '@/lib/settings/section-availability'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { serializeSsoSettings } from '@/ee/sso/search-params'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
@@ -22,7 +22,7 @@ export function usePeopleViewer() {
     organizationName: organization.name,
     isAdmin: viewer.isAdmin,
     canProvision: features.scim && (!hosted || settingsFeatures.hasEnterprisePlan),
-    canOpenProvisioningSettings: isOrganizationSettingsSectionAvailable('sso', settingsFeatures),
+    canOpenProvisioningSettings: organizationPlanAllowsSettingsSection('sso', settingsFeatures),
     provisioningSettingsHref: serializeSsoSettings(
       organizationRoutes(organization.id).settingsSection('sso'),
       { tab: 'provisioning' }

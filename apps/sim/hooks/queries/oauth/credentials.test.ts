@@ -8,7 +8,8 @@ vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('@/hooks/queries/credentials', () => ({ useWorkspaceCredential: vi.fn() }))
 
 import { listOrganizationOAuthCredentialsContract } from '@/lib/api/contracts/organization-credentials'
-import { fetchOAuthCredentials, oauthCredentialKeys } from '@/hooks/queries/oauth/credentials'
+import { fetchOAuthCredentials } from '@/hooks/queries/oauth/credentials'
+import { oauthCredentialKeys } from '@/hooks/queries/utils/oauth-credential-keys'
 
 const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 

@@ -10,7 +10,7 @@ import { createDeferred } from '@sim/testing/helpers/deferred'
 import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
+import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
 import { ComputerUseSettings } from '@/app/workspace/[workspaceId]/settings/components/desktop/computer-use'
 
 const native = vi.hoisted(() => ({

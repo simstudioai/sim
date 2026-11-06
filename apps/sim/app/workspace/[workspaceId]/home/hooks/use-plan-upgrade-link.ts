@@ -13,7 +13,7 @@ import type { UsageUpgradeTagPayload } from '@/lib/billing/usage-upgrade'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { useOptionalOrganization } from '@/lib/organizations/provider'
-import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-context'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 interface PlanUpgradeLinkInput {

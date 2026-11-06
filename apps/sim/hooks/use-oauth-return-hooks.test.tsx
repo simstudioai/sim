@@ -41,7 +41,8 @@ import {
   readOAuthReturnContext,
   writeOAuthReturnContext,
 } from '@/lib/credentials/client-state'
-import { oauthCredentialKeys, useOAuthCredentials } from '@/hooks/queries/oauth/credentials'
+import { useOAuthCredentials } from '@/hooks/queries/oauth/credentials'
+import { oauthCredentialKeys } from '@/hooks/queries/utils/oauth-credential-keys'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import {
   useDesktopOAuthConnectListener,

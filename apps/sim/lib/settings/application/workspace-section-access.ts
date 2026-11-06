@@ -1,6 +1,5 @@
 import {
   getOrganizationSettingsFeatures,
-  isOrganizationSettingsSectionAvailable,
   resolveWorkspaceNavigation,
   UNIFIED_TO_ORGANIZATION_SECTION,
   UNIFIED_TO_WORKSPACE_SECTION,
@@ -16,6 +15,7 @@ import type { BooleanPermissionGroupConfigKey } from '@/lib/permission-groups/fe
 import { isOrganizationPermissionRegimeActive } from '@/lib/permission-groups/resolve.server'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
+import { organizationPlanAllowsSettingsSection } from '@/lib/settings/section-availability'
 import { isCustomBlocksEligibleForOrganization } from '@/lib/workflows/custom-blocks/operations'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { resolveVerifiedUserAccessControlContext } from '@/ee/access-control/utils/permission-check'
@@ -131,7 +131,7 @@ async function canOpenOrganizationSection(
   ])
   return (
     canOpenSection &&
-    isOrganizationSettingsSectionAvailable(
+    organizationPlanAllowsSettingsSection(
       organizationSection,
       getOrganizationSettingsFeatures(
         needsEnterprisePlan && isEnterpriseOrganization,

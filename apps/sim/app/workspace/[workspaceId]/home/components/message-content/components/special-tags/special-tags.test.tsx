@@ -54,7 +54,7 @@ vi.mock('@/app/workspace/[workspaceId]/home/components/resource-workspace-host',
 }))
 
 vi.mock('@/lib/organizations/provider', () => organizationProviderMock)
-vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
+vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-context', () => ({
   useOptionalWorkspaceHostContext: () => null,
 }))
 vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)

@@ -51,10 +51,7 @@ const mocks = vi.hoisted(() => ({
   selectResource: vi.fn(),
   activeResource: null as string | null,
 }))
-vi.mock(
-  '@/app/workspace/[workspaceId]/providers/feature-flags-provider',
-  () => featureFlagsProviderMock
-)
+vi.mock('@/lib/core/config/feature-flags-context', () => featureFlagsProviderMock)
 vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 vi.mock('next/navigation', () => nextNavigationMock)
