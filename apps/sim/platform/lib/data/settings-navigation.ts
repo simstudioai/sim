@@ -113,3 +113,21 @@ export function resolveLiveSetting(key: string, organization: PlatformOrganizati
   )
   return entry && isVisible(entry, organization) ? entry : null
 }
+
+/**
+ * The tab title of a Settings path, the same as the legacy page's. Whether the viewer may open it is
+ * the route's answer, and a title reveals nothing the navigation's labels do not.
+ */
+export function settingsPageTitle([key = 'general', segment]: readonly string[]): string {
+  if (key === 'usage' && segment === 'events') return 'Usage events'
+  if (key === 'integrations' && segment === 'secrets') return 'Generic Secrets'
+  if (key === 'integrations' && segment === 'sources') return 'Search source'
+  if (key === 'integrations' && segment === 'providers') return 'Integration'
+  if (key === 'keyboard-shortcuts') return 'Keyboard shortcuts'
+  if (key === 'links') return 'Links'
+  return (
+    LIVE_SETTINGS.flatMap((group): readonly LiveSetting[] => group.items).find(
+      (item) => item.key === key
+    )?.title ?? 'Settings'
+  )
+}

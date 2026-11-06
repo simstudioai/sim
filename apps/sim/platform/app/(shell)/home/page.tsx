@@ -1,7 +1,10 @@
+import type { Metadata } from 'next'
 import { FixtureHome } from '@/platform/app/(shell)/home/_components/fixture-home/fixture-home'
 import { readScenario } from '@/platform/design-system/navigation'
 import { loadConversationData, loadHomeRecentLinks } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
+
+export const metadata: Metadata = { title: 'Home' }
 
 export default async function Page({ searchParams }: PageProps<'/home'>) {
   if (resolvePlatformMode() === 'live') {

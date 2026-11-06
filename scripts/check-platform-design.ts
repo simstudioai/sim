@@ -268,6 +268,7 @@ const seamHelpers = new Set([
   'lib/core/resource-scope',
   'lib/core/security/csp',
   'lib/core/utils/browser-storage',
+  'lib/core/utils/paste-admission',
   'lib/core/utils/react-node-text',
   'lib/desktop',
   'lib/desktop/chat-scope',

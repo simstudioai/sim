@@ -7,7 +7,11 @@ One row per capability of the legacy organization surface. Every capability is e
 | Shell | Inbox panel | None; Platform only | Hidden | A per-user item feed with read state, its contract and publishers |
 | Shell | Notification tray history | None; Platform only | Hidden | The same feed. Local notices and hook toasts still use the tray |
 | Shell | Recents in the chat panel | None; Platform only | Hidden | A per-user recent destinations store. Only fixtures supply rows, so live data renders none |
-| Shell | Sort workspaces | None; Platform only | Hidden | A per-user preference field. Order stays pinned, then by visits |
+| Shell | Sort workspaces | None; Platform only | Hidden | Nothing stores a sort choice, so `unbacked` hides the control. Order stays pinned, then by the viewer's visits, through `useOrderedWorkspacesQuery` |
+| Shell | Oversized paste refused before an editor parses it | `app/_shell/paste-admission-guard.tsx` | Done | `paste-guard.test.tsx`, mounted without an element in `LiveProviders`. Zone fields publish no `data-paste-*` ceilings yet, so only the crash-only fallback applies; fixture sessions have no guard |
+| Shell | A tab title per route | Each legacy page's `metadata` | Done | "Each route names its own tab". Bare titles: no brand suffix, which legacy reads from whitelabeling. A Settings provider page reads Integration, not the provider's name |
+| Shell | Desktop tray: recents, New Chat, Settings, on/off | `apps/desktop/src/main/tray.ts`, `/workspace/[id]/settings/desktop` | Open | Native, and New Chat and Settings resolve from a zone route. Recents read workspace chats from `/api/copilot/chats`, so organization chats are not listed, and the on/off switch has only the workspace Desktop page |
+| Shell | Warm a destination on pointer dwell | `nav-warmers.ts` | Open | `useNavWarmers` in `lib/data/nav-warmers.ts` is ready and proved by `nav-warmers.test.tsx`. The sidebar's destination rows have no pointer handler to call it, which is the sidebar owner's move |
 | Chat | Send, stream, stop, reconnect, resume on open and on return, queued handoff, withdrawal recovery, older pages, desktop tool execution | `useChat` | Unverified | Send, stream and stop are proved by "A running turn streams, stops" against a scripted worker. Reconnect, resume, queued handoff, withdrawal recovery, older pages and desktop tools have no live check, and no real model has run |
 | Chat | Busy refusal, queue, send now, remove, edit, recall with Arrow Up, Enter sends the head | `useChat`, `queued-messages.tsx` | Unverified | Queue and remove are proved by "A message sent during a running turn waits in the queue". Send now, edit, Arrow Up and Enter have no live check |
 | Chat | Server-assigned id replaces the URL in place; Back and Forward restore it; a new chat on `/chat` resets the surface | `chat-url.ts`, `use-restored-chat-entry.ts` | Unverified | No live check yet. `isNewChatRoute` and `chatPath` options |
@@ -33,15 +37,23 @@ One row per capability of the legacy organization surface. Every capability is e
 | Search | Query, stop, re-run, New search, URL state with the legacy parsers | `search.tsx`, `search-params.ts` | Done | "A query lands in the URL". Stop and New search have no live check |
 | Search | Results: searching, updating, error and retry, none, unavailable apps, partial, grouped by document | `knowledge-search-results.tsx` | Unverified | No live check yet. `_components/search/search-results.tsx` |
 | Search | Source and date filters, custom range, keyboard movement | `search-filters.tsx` | Done | "A query lands in the URL" covers the date filter. Source filters and a custom range have no live check |
-| Search | Source row: open, record, copy link, Summarize | `source-card.tsx` | Open | Chat lane. Open, record and copy work; Summarize needs a send into the mounted Assistant, and Create Sim link needs the Sim Links form |
+| Search | Source row: open, record, copy link | `source-card.tsx` | Unverified | No live check yet. `lib/data/search.ts` |
+| Search | Source row: Summarize, scoped to that document, hand-off to Assistant | `source-card.tsx`, `use-organization-conversation.ts` | Done | "Summarize on a result switches to Assistant" |
+| Search | Source row: Create Sim link | `source-card.tsx` | Open | Chat lane. Needs the Sim Links form |
 | Search | History: recently viewed, recent searches, clear, retry | `search-landing-history.tsx` | Unverified | No live check yet. `search-surface.tsx` |
+| Search | First paint of history | `prefetch.ts` | Done | `prefetch-reads.test.ts` |
 | Search | Search and Assistant switch, remembered per viewer, gated on `mothershipAvailable` | `search.tsx` | Unverified | No live check yet. `search-surface.tsx`; route gates in `live-search-route.tsx` |
 | Search | Assistant conversation stays mounted under Search and keeps streaming | `search.tsx` | Unverified | No live check yet. `search-surface.tsx` |
 | Home | Build enters a new chat through the handoff; Search goes to `/search?q=` | `organization-conversation.tsx` | Done | "Home hands a draft to a new chat", "Home’s Search segment opens Search" |
 | Navigation | Benchmark | `/o/[id]/benchmark` | Legacy | Unmapped |
 | Navigation | Skills | `/o/[id]/skills` | Legacy | Unmapped |
-| Settings | Platform administration | `/o/[id]/settings/admin`, `/mothership` | Legacy | Unmapped; linked out for platform admins |
-| Integrations | Credential pages, secrets, Search providers and sources | `/o/[id]/integrations/*`, `/settings/integrations/*`, `/settings/connected-accounts` | Legacy | Unmapped until the Integrations owner maps them |
+| Settings | Platform administration: Admin | `/o/[id]/settings/admin` | Unverified | No live check yet. `/settings/admin`, platform admins only. The legacy URL stays unmapped and keeps its own page |
+| Settings | Platform administration: Mothership | `/o/[id]/settings/mothership` | Unverified | No live check yet. `/settings/mothership`, platform admins only. The legacy URL maps here |
+| Integrations | Member inventory and account pages | `/o/[id]/integrations`, `/o/[id]/integrations/[provider]` | Unverified | No live check yet. `/integrations` and `/integrations/[providerId]`. `/integrations` maps here unless its query asks for a job the zone cannot do; `/integrations/[provider]` stays unmapped and keeps its own page |
+| Integrations | Member secrets, per-account tool permissions | `/o/[id]/integrations/secrets`, `/o/[id]/integrations/accounts/[credentialId]` | Legacy | Unmapped. Generic secrets link out through `legacyRoutes` |
+| Integrations | Search sources: list, secrets, provider and source pages | `/o/[id]/settings/integrations/*` | Unverified | No live check yet. `/settings/integrations` with `secrets`, `providers/:connectorType` and `sources/:connectorId`. The legacy URLs stay unmapped and keep their own pages |
+| Integrations | Credential Groups | `/o/[id]/settings/connected-accounts` | Unverified | No live check yet. `/settings/connected-accounts`. The legacy URL stays unmapped and keeps its own page |
+| Integrations | First paint of the inventory | `settings-query-warmers.ts`, `prefetch-member-inventory.ts` | Done | `prefetch-reads.test.ts` |
 | Integrations | Member inventory page | `/o/[id]/integrations` | Open | Integrations owner. `lib/platform/routes.ts` maps the plain page. Slack handoff, connection requests and saved-account connect stay on the legacy page until the zone has them |
 
 ## Settings: personal
@@ -102,6 +114,7 @@ One row per capability of the legacy organization surface. Every capability is e
 | Domain | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- | --- |
 | Links | Route and gate | `/o/[id]/links` | Done | "links: create, find, open, edit and delete" |
+| Links | First paint of the list the URL asks for | `prefetch.ts` | Done | `prefetch-reads.test.ts` |
 | Links | List with paging, search and sort in the URL | Links | Done | "links: create, find, open, edit and delete" covers search. Paging and sort have no live check |
 | Links | Favicon, owner, access, updated cells | Links | Unverified | No live check yet |
 | Links | Row opens `sim/<name>` on the main app | Links | Done | "links: create, find, open, edit and delete" |
@@ -238,13 +251,13 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Non-member denial page | `O/layout.tsx`, `organization-access-denied.tsx` | Unverified | No live check yet. Foundation: `shell-gate.tsx` |
 | Surface unavailable redirect | `O/layout.tsx` | Unverified | No live check yet. Foundation: `hasOrganizationSurface` in `live-shell.tsx` |
 | Org root redirect priority | `O/page.tsx` | Unverified | No live check yet. Foundation: `lib/data/landing.ts` |
-| Home page gate | `O/home/page.tsx` | Open | Home owner |
+| Home page gate | `O/home/page.tsx` | Done | "a member who cannot build lands on Search". `resolveHomeRedirect` in `live-home-route.tsx` |
 | Error boundary with retry | `O/error.tsx` | Unverified | No live check yet. Foundation: `(shell)/error.tsx` |
 | Not found page | `O/not-found.tsx` | Done | "A chat outside the viewer’s access is not found". It is a streamed 200, not a 404 status, under the shell's Suspense boundary |
 | Server prefetch of chats, workspaces, profile | `O/prefetch.ts` | Unverified | No live check yet. Foundation: `lib/data/prefetch-shell.ts` |
 | Org surface context | `organization-provider.tsx` | Done | "signing in through the zone lands" |
 | Deployment shape seeding | `organization-provider.tsx` | Unverified | No live check yet. Foundation: `useSeedDeploymentShape` in `lib/data/organization.tsx` |
-| Live chat status over SSE | `use-mothership-chat-events.ts` | Open | Chat owner: the list reads `isActive` and `isUnread`, but nothing here subscribes to the events route yet |
+| Live chat status over SSE | `use-mothership-chat-events.ts` | Unverified | No live check yet. `LiveChatEvents` subscribes in `lib/data/providers.tsx`; the list reads `isActive` and `isUnread` |
 | Socket connection | `organization-provider.tsx` | Open | Chat owner decides. No shell view consumes it |
 | Source history provider | `organization-provider.tsx` | Open | Chat owner |
 | Runtime feature flags | `O/layout.tsx` | Done | "navigation lists what the surface grants" |
@@ -344,7 +357,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Home | Recents the panel shows for files and workspaces | None; Platform only | Hidden | A per-user recent destinations store |
 | Home | Needs your attention | None; Platform only | Done | "an unread chat needs attention", "an account Google stopped honoring". A failed source has no live check |
 | Home | Cross-chat approvals in Needs your attention | None; Platform only | Hidden | Pending tool permissions and assistant reviews are listed per chat. Needs a member-scoped list across chats |
-| Home | Customize Home | None; Platform only | Hidden | Session scope, as `hiddenWidgets` already was: `settings` has no column for it and a new one needs a migration. Hide and Undo work; a reload restores every widget |
+| Home | Customize Home | None; Platform only | Open | Hide and Undo work for the session; a reload restores every widget. `stores/organization-home/store.ts` already persists the choice per viewer in the browser with no migration, and `embedded/` reads it. The zone keeps it in `interface-preferences.tsx`, which is UI state and its owner's move |
 | Home | Get started checklist | `app/o/[id]/home/components/get-started/get-started.tsx` | Done | "Search mode on Home offers Get started". Completing each step has no live check |
 | Home | Suggested action rows and Connect from a suggestion | `suggested-actions.tsx` | Open | Chat lane. Needs the block template catalog (337-file closure, banned by the seam) behind a route, and a way to hand a prompt to the composer draft. Recents hold that slot on Platform |
 | Home | Plan toggle, composer handoff and server chat id | `organization-conversation.tsx` | Open | Chat lane owns `home-composer` |

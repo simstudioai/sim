@@ -38,6 +38,7 @@ import { draftToSend } from '@/platform/lib/data/chat-draft'
 import { toPlatformTurns } from '@/platform/lib/data/chat-model'
 import { useAssistantReview } from '@/platform/lib/data/chat-review'
 import { useOrganization } from '@/platform/lib/data/organization'
+import { type SummaryRequest, useSendSummary } from '@/platform/lib/data/search-summary'
 import { toast } from '@/platform/lib/data/toast'
 import { plural } from '@/platform/shared/plural'
 import type { ChatContext } from '@/stores/panel'
@@ -120,6 +121,9 @@ interface LiveChatOptions {
   }) => void
   /** A chat's URL, for a surface other than Chat. */
   chatPath?: (chatId: string) => string
+  /** A summary to send under its own search scope; `onSummaryConsumed` fires as it goes out. */
+  summaryRequest?: SummaryRequest
+  onSummaryConsumed?: (id: string) => void
 }
 
 /**
@@ -131,6 +135,8 @@ export function useLiveChatRuntime({
   requestMode,
   onRestoreQueued,
   chatPath = (id) => `/chat/${id}`,
+  summaryRequest,
+  onSummaryConsumed,
 }: LiveChatOptions) {
   const { organization, canBuild } = useOrganization()
   const organizationId = organization.id
@@ -198,6 +204,16 @@ export function useLiveChatRuntime({
       })
     }
   }, [chatId, organizationId, requestMode, sendMessage, assistantOptions])
+
+  useSendSummary({
+    request: summaryRequest,
+    onConsumed: onSummaryConsumed,
+    send: useCallback(
+      ({ message, assistantSearch }: SummaryRequest) =>
+        void sendMessage(message, undefined, undefined, { ...assistantOptions, assistantSearch }),
+      [sendMessage, assistantOptions]
+    ),
+  })
 
   const register = useToolPermissionStore((state) => state.register)
   const unregister = useToolPermissionStore((state) => state.unregister)

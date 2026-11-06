@@ -51,7 +51,6 @@ import {
   toReadableProviders,
   toRecentItems,
   toTaskPoints,
-  wallClockMinute,
 } from '@/platform/embedded/lib/data/home-model'
 import {
   ACTIVITY_WINDOW_DAYS,
@@ -71,6 +70,7 @@ import {
 } from '@/platform/embedded/lib/data/home-view'
 import { useIntegrationActions } from '@/platform/embedded/lib/data/integrations'
 import { workspaceHref } from '@/platform/embedded/lib/data/workspaces'
+import { wallClockMinute } from '@/platform/shared/calendar-meeting'
 import { homeDayParam } from '@/platform/shared/home-params'
 import { isRefusal } from '@/platform/shared/query-view'
 import { currentMinute, MINUTE_MS } from '@/platform/shared/time'

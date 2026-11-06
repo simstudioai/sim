@@ -1,4 +1,3 @@
-import { SIM_DOCS_URL } from '@sim/utils/site'
 import type { AssistantToolPermissionsResponse } from '@/lib/api/contracts/assistant-actions'
 import type { SearchIntegrationStatus } from '@/lib/api/contracts/knowledge/search-integrations'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
@@ -7,7 +6,6 @@ import {
   memberIntegrationEntries,
 } from '@/lib/credential-groups/member-integrations'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
-import { LIVE_SEARCH_SCOPE_FIELDS } from '@/lib/sim-search/live/policy-schema'
 import {
   memberSecretMetadata,
   providerMetadata,
@@ -18,9 +16,8 @@ import {
   type OrganizationIntegration,
   type ToolPermissionsModel,
 } from '@/platform/embedded/lib/integrations/model'
+import { integrationGuide } from '@/platform/shared/integration-guide'
 import { plural } from '@/platform/shared/plural'
-
-const CONNECT_ACCOUNT_GUIDE = `${SIM_DOCS_URL}/search/connect-your-account`
 
 function availabilityOf(entry: MemberIntegration): OrganizationIntegration['availability'] {
   if (entry.managed) return 'managed'
@@ -50,13 +47,7 @@ function toOrganizationIntegration(entry: MemberIntegration): OrganizationIntegr
     icon: entry.icon,
     name: entry.name,
     description: metadata?.description ?? `Connect your ${entry.name} account to use it here`,
-    setupGuideUrl:
-      metadata?.setupGuideUrl ??
-      (LIVE_SEARCH_SCOPE_FIELDS[entry.provider]
-        ? `${SIM_DOCS_URL}/search/${entry.provider}`
-        : CONNECT_ACCOUNT_GUIDE),
-    searchResource:
-      metadata?.searchResource ?? LIVE_SEARCH_SCOPE_FIELDS[entry.provider]?.label ?? null,
+    ...integrationGuide(entry.provider, metadata),
     searchReads: metadata?.searchReads ?? [],
     requestedScopes: metadata?.requestedScopes ?? null,
     accessDescription: entry.description ?? 'Access follows your account permissions',
