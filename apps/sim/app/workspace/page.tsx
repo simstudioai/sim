@@ -132,9 +132,7 @@ export default function WorkspacePage() {
         ? buildUpgradeHref(id, isUpgradeReason(rawReason) ? rawReason : undefined)
         : redirectTarget === 'settings'
           ? `/workspace/${id}/settings/general`
-          : redirectTarget === 'billing'
-            ? `/workspace/${id}/settings/billing`
-            : `/workspace/${id}`
+          : `/workspace/${id}`
 
     const { workspaces, lastActiveWorkspaceId, creationPolicy, forwardOrganizationId } = data
 
@@ -143,11 +141,7 @@ export default function WorkspacePage() {
         hasRedirectedRef.current = true
         const routes = organizationRoutes(forwardOrganizationId)
         router.replace(
-          redirectTarget === 'settings'
-            ? routes.settingsSection('general')
-            : redirectTarget === 'billing'
-              ? routes.settingsSection('billing')
-              : routes.home
+          redirectTarget === 'settings' ? routes.settingsSection('general') : routes.home
         )
         return
       }

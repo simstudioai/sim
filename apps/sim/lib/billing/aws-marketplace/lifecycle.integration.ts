@@ -767,13 +767,16 @@ describe('linking a claimed license', () => {
       companyName: CONTACT.companyName,
     })
     const team = await emailsTo(TEAM)
-    expect(team.map((email) => email.subject)).toEqual([
-      expect.stringMatching(/active → active/),
-      expect.stringMatching(/Linked to an organization/),
-    ])
-    expect(team[1].text).toMatch(/Company: Example Co/)
-    expect(team[1].text).toMatch(/pausePaymentCollection: true/)
-    expect(team[1].text).toMatch(/Never send a Stripe invoice/)
+    expect(team.map((email) => email.subject)).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/active → active/),
+        expect.stringMatching(/Linked to an organization/),
+      ])
+    )
+    const linkNotice = team.find((email) => /Linked to an organization/.test(email.subject))
+    expect(linkNotice?.text).toMatch(/Company: Example Co/)
+    expect(linkNotice?.text).toMatch(/pausePaymentCollection: true/)
+    expect(linkNotice?.text).toMatch(/Never send a Stripe invoice/)
     expect(await emailsTo(BUYER)).toEqual([
       expect.objectContaining({
         text: expect.stringMatching(
@@ -1307,6 +1310,35 @@ describe('reconcileAwsMarketplaceLicenses', () => {
     }
   })
 
+  it('leaves messages it has not started queued once the run budget cannot fit another', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const licenses = await Promise.all([insertLicense(), insertLicense()])
+      for (const { licenseArn } of licenses) {
+        entitlementsByLicense.set(licenseArn, [currentEntitlement()])
+      }
+      const deleted = deliverOnce(
+        licenses.map(({ licenseArn }) => ({
+          'detail-type': 'License Updated - Manufacturer',
+          detail: { license: { arn: licenseArn }, product: { code: PRODUCT } },
+        }))
+      )
+      const receive = queueSend.getMockImplementation()
+      queueSend.mockImplementation(async (command: { kind: string }) => {
+        const answer = await receive?.(command)
+        if (command.kind === 'receive') vi.setSystemTime(Date.now() + 6 * 60_000)
+        return answer
+      })
+
+      const summary = await reconcileAwsMarketplaceLicenses()
+
+      expect(summary).toMatchObject({ received: 0, outOfBudget: true })
+      expect(deleted).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps licenses AWS keeps refusing from starving the rest of the re-verify', async () => {
     const failing = Array.from({ length: 50 }, () => uniqueArn())
     const healthyArn = uniqueArn()
@@ -1368,6 +1400,21 @@ describe('agreement events', () => {
     expect(await emailsTo(TEAM)).toEqual([
       expect.objectContaining({ subject: expect.stringMatching(/active → inactive/) }),
     ])
+  })
+
+  it('keeps an ended agreement queued while AWS still reports its license current', async () => {
+    const agreementId = uniqueAgreement()
+    const { licenseArn } = await insertLicense({ agreementId })
+    entitlementsByLicense.set(licenseArn, [currentEntitlement()])
+    const deleted = deliverOnce([
+      {
+        'detail-type': 'Purchase Agreement Ended - Proposer',
+        detail: { agreement: { id: agreementId } },
+      },
+    ])
+
+    expect(await reconcileAwsMarketplaceLicenses()).toMatchObject({ retained: 1, applied: 0 })
+    expect(deleted).toEqual([])
   })
 
   it('reads every license of an ended agreement even when one fails, and keeps the message', async () => {

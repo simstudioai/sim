@@ -210,9 +210,9 @@ async function extendVisibility(
 
 /**
  * Each license gets its own read bound and commits on its own, so one that fails or runs out of
- * time costs no other's progress. The message stays queued until all of them have been read, and
- * a redelivery starts with those least recently attempted. An agreement ID with no license is
- * normal: the seller account has other products.
+ * time costs no other's progress. The message stays queued until AWS reports all of them ended,
+ * since a read can lag the event, and a redelivery starts with those least recently attempted. An
+ * agreement ID with no license is normal: the seller account has other products.
  */
 async function applyAgreementEnded(
   context: DrainContext,
@@ -233,7 +233,11 @@ async function applyAgreementEnded(
     }
     if (index > 0) await extendVisibility(context, message, messageId)
     try {
-      await reverifyLicense(context.productCode, licenseArn, { ended: true })
+      const { summary } = await reverifyLicense(context.productCode, licenseArn, { ended: true })
+      if (summary.active) {
+        incomplete = true
+        logger.info('AWS still reports a license of an ended agreement current', { messageId })
+      }
     } catch (error) {
       if (isInvalidEntitlementRequest(error)) {
         logger.warn('The Entitlement Service rejected a license of an ended agreement', {
@@ -384,6 +388,11 @@ async function drainEvents(context: DrainContext): Promise<void> {
     if (messages.length === 0) return
 
     for (const message of messages) {
+      // An ended agreement can read many licenses; what is not started stays queued for the next run.
+      if (!fits(LICENSE_READ_BUDGET_MS)) {
+        summary.outOfBudget = true
+        return
+      }
       summary.received++
       const outcome = await handleMessage(context, message)
       summary[outcome]++
