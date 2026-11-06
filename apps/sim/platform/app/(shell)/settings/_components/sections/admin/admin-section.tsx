@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect } from 'react'
+import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 import {
@@ -128,6 +130,14 @@ export default function AdminSection() {
         'Action failed. Try again.')
       : null)
   const pendingEmail = admin.pendingUser?.email ?? 'this user'
+  const importError = importWorkflow.error?.message
+  // These mutations live in the shared admin console, so failure is reported from where it surfaces.
+  useEffect(() => {
+    if (actionError) toast.error(actionError)
+  }, [actionError])
+  useEffect(() => {
+    if (importError) toast.error(importError)
+  }, [importError])
 
   return (
     <SectionStack>
@@ -156,9 +166,7 @@ export default function AdminSection() {
               value={settings?.mothershipEnvironment ?? 'default'}
               options={MOTHERSHIP_ENV_OPTIONS}
               disabled={admin.updateSetting.isPending}
-              onValueChange={(value) =>
-                void admin.handleMothershipEnvironmentChange(value as MothershipEnvironment)
-              }
+              onValueChange={(value) => void admin.handleMothershipEnvironmentChange(value)}
             />
           </SettingsRow>
         )}
@@ -202,9 +210,6 @@ export default function AdminSection() {
               {importWorkflow.isPending ? 'Importing…' : 'Import'}
             </Button>
           </ActionRow>
-          {importWorkflow.error && (
-            <InlineNotice intent='danger' message={importWorkflow.error.message} />
-          )}
           {importWorkflow.isSuccess && (
             <InlineNotice
               intent='success'
@@ -243,7 +248,6 @@ export default function AdminSection() {
               message={getErrorMessage(admin.usersError, 'Failed to fetch users')}
             />
           )}
-          {actionError && <InlineNotice intent='danger' message={actionError} />}
           {admin.provisionWarning && (
             <InlineNotice intent='warning' message={admin.provisionWarning} />
           )}
@@ -425,7 +429,7 @@ function AddUserModal({ onClose, onCreated }: AddUserModalProps) {
         }
         disabled={isSubmissionPending}
         onValueChange={(value) => {
-          form.setPasswordMode(value as PasswordMode)
+          form.setPasswordMode(value)
           addUser.reset()
         }}
       />
