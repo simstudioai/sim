@@ -242,6 +242,13 @@ export function PolicyDetail({
   const stageMeta = PII_STAGE_META.find((stage) => stage.key === activeStage) ?? PII_STAGE_META[0]
   const setStage = (next: PiiStagePolicy) =>
     onChange({ ...draft, piiStages: { ...draft.piiStages, [activeStage]: next } })
+  const stageWithBadPattern = showPiiGrid
+    ? PII_STAGE_META.find((stage) =>
+        draft.piiStages[stage.key].customPatterns?.some((pattern) =>
+          customPatternError(pattern.regex)
+        )
+      )
+    : undefined
 
   return (
     <>
@@ -353,6 +360,9 @@ export function PolicyDetail({
         dirty={changed}
         saving={isSaving}
         blocked={conflict || (!isOrg && draft.workspaceIds.length === 0)}
+        blockedReason={
+          stageWithBadPattern && `Fix the custom patterns in ${stageWithBadPattern.label}`
+        }
         onSave={onSave}
         onDiscard={onDiscard}
       />

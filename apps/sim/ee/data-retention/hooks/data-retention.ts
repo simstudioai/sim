@@ -37,6 +37,8 @@ export function useOrganizationRetention(orgId: string | undefined) {
     queryFn: ({ signal }) => fetchDataRetention(orgId as string, signal),
     enabled: Boolean(orgId),
     staleTime: DATA_RETENTION_STALE_TIME,
+    // A save re-reads this first: offline, that read must fail rather than wait and write on reconnect.
+    networkMode: 'always',
   })
 }
 
@@ -54,6 +56,9 @@ export function useUpdateOrganizationRetention() {
         params: { id: orgId },
         body: settings,
       }),
+    onSuccess: ({ data }, { orgId }) => {
+      queryClient.setQueryData(dataRetentionKeys.settings(orgId), data)
+    },
     onSettled: (_data, _error, { orgId }) => {
       queryClient.invalidateQueries({ queryKey: dataRetentionKeys.settings(orgId) })
     },

@@ -29,6 +29,12 @@ export function makeQueryClient() {
       },
       mutations: {
         retry: false,
+        /**
+         * The default pauses a mutation started offline until reconnect. Nothing here persists or
+         * shows that queue: the caller just waits, holding a pending dialog open, and the action
+         * then runs long after the person gave up on it. Failing fast lets them see it and decide.
+         */
+        networkMode: 'always',
       },
     },
   })

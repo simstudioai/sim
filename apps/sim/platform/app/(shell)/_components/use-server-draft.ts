@@ -34,7 +34,9 @@ type DraftAction<T> =
 /**
  * An editing buffer over a value another tab or admin can change. A newer server value is adopted
  * while the draft is clean. While it is dirty the edits stay and `conflict` holds the choice, so a
- * refetch can neither overwrite an edit nor let a save overwrite a change the editor never saw.
+ * refetch cannot overwrite an edit. It knows only the values that reach it and checks no version: a
+ * save before a refetch lands can still overwrite a change the editor never saw, unless the caller
+ * re-reads the value at save or the route compares versions.
  */
 export function useServerDraft<T>({
   server,

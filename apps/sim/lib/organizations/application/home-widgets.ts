@@ -107,7 +107,7 @@ interface WidgetReadResult<T> {
 
 /** One account's read: which grant it is, and how many accounts this widget read is sharing. */
 interface ViewerAccountRead extends ProviderTokenInput {
-  accountId: string | null
+  providerSubjectId: string | null
   readableAccounts: number
   withToken: AccountTokenRead
 }
@@ -173,7 +173,8 @@ async function readViewerAccounts<T>(
 
   const results = await Promise.all(
     candidates.map(async (candidate) => {
-      const { credentialId, accountId, displayName, provider, providerId, status, read } = candidate
+      const { credentialId, providerSubjectId, displayName, provider, providerId, status, read } =
+        candidate
       const settled = (state: HomeWidgetAccount['state'], rows: T[] = []) => ({
         account: { credentialId, displayName, state },
         rows: rows.map((row) => ({ ...row, credentialId })),
@@ -186,7 +187,7 @@ async function readViewerAccounts<T>(
         const tokenInput = { context, credentialId, providerId }
         const account = {
           ...tokenInput,
-          accountId,
+          providerSubjectId,
           readableAccounts: toRead.size,
           withToken: createAccountTokenRead(tokenInput),
         }
@@ -261,7 +262,7 @@ export const readOrganizationHomeEmail = defineOrganizationAccountsUseCase({
           accessToken,
           signal,
           credentialId: account.credentialId,
-          accountId: account.accountId,
+          providerSubjectId: account.providerSubjectId,
           count: Math.ceil(HOME_EMAIL_THREAD_LIMIT / account.readableAccounts),
         })
         cursors.set(account.credentialId, { ...cursor, account })
