@@ -72,11 +72,6 @@ export function Preformatted({ children }: ChildrenProps) {
   )
 }
 
-/** The list element `ActivityRow` rows sit in. */
-export function ResourceList({ children }: ChildrenProps) {
-  return <ul className={styles.list}>{children}</ul>
-}
-
 interface DetailHeaderContent {
   backLabel: string
   title: string

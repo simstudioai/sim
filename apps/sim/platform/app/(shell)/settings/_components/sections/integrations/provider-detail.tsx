@@ -8,7 +8,6 @@ import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organ
 import {
   DetailHeader,
   Muted,
-  ResourceList,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { SlackAccountSetup } from '@/platform/app/(shell)/settings/_components/sections/integrations/slack-account-setup'
@@ -20,6 +19,7 @@ import {
   EmptyState,
   FailureNotice,
   LoadingRows,
+  RowList,
   SearchField,
   Tooltip,
 } from '@/platform/design-system/components'
@@ -267,16 +267,17 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
             <LoadingRows label='Loading connections' />
           ) : (
             <>
-              <ResourceList>
+              <RowList>
                 {listed?.map((source) => (
                   <ActivityRow
+                    density='comfortable'
                     key={source.connectorId}
                     title={source.sourceDescription || meta.name}
                     detail={!approved ? 'Unavailable' : !source.enabled ? 'Paused' : undefined}
                     href={routes.searchSource(source.connectorId)}
                   />
                 ))}
-              </ResourceList>
+              </RowList>
               {!listed?.length && !sources.hasNextPage && (
                 <EmptyState
                   title={

@@ -12,6 +12,7 @@ import {
   FailureNotice,
   Icon,
   LoadingRows,
+  RowList,
 } from '@/platform/design-system/components'
 import { useClipboard } from '@/platform/design-system/components/feedback/use-clipboard'
 import {
@@ -112,7 +113,7 @@ interface PersonRowsProps {
 
 function PersonRows({ organizationId, originQuery, people }: PersonRowsProps) {
   return (
-    <ul className={styles.list}>
+    <RowList>
       {people.map((person) => (
         <li key={person.memberId}>
           <Link
@@ -125,7 +126,7 @@ function PersonRows({ organizationId, originQuery, people }: PersonRowsProps) {
           </Link>
         </li>
       ))}
-    </ul>
+    </RowList>
   )
 }
 

@@ -13,7 +13,7 @@ import {
   errorMessageOr,
   Modal,
   QueryBoundary,
-  SearchField,
+  SectionSearch,
 } from '@/platform/design-system/components'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { useOrganizationRoster } from '@/platform/lib/data/access-control'
@@ -96,11 +96,7 @@ export function AddMembersModal({
       >
         {() => (
           <>
-            <SearchField
-              label='Search members'
-              placeholder='Search members…'
-              onValueChange={setSearch}
-            />
+            <SectionSearch subject='members' onValueChange={setSearch} />
             <ActionRow>
               <Button size='compact' onClick={toggleAll}>
                 {allFilteredSelected ? 'Deselect all' : 'Select all'}

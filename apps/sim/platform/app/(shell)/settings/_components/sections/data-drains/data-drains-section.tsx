@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import {
-  ResourceList,
   SectionStack,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -15,7 +14,8 @@ import {
   EmptyState,
   errorMessageOr,
   QueryBoundary,
-  SearchField,
+  RowList,
+  SectionSearch,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
@@ -78,14 +78,7 @@ export default function DataDrainsSection({ organization }: SettingsSectionProps
   return (
     <SectionStack>
       <SectionToolbar
-        grow={
-          <SearchField
-            label='Search data drains'
-            placeholder='Search data drains…'
-            value={search}
-            onValueChange={setSearch}
-          />
-        }
+        grow={<SectionSearch subject='data drains' value={search} onValueChange={setSearch} />}
       >
         <Button
           variant='primary'
@@ -106,9 +99,10 @@ export default function DataDrainsSection({ organization }: SettingsSectionProps
         >
           {() =>
             filtered.length > 0 ? (
-              <ResourceList>
+              <RowList>
                 {filtered.map((drain) => (
                   <ActivityRow
+                    density='comfortable'
                     key={drain.id}
                     title={drain.name}
                     detail={`${SOURCE_LABELS[drain.source]} → ${DESTINATION_LABELS[drain.destinationType]} · ${CADENCE_LABELS[drain.scheduleCadence]} · ${drain.lastRunAt ? `Last run ${formatTimestamp(new Date(drain.lastRunAt).getTime())}` : 'Never run'}`}
@@ -116,7 +110,7 @@ export default function DataDrainsSection({ organization }: SettingsSectionProps
                     onOpen={() => void setSelectedId(drain.id)}
                   />
                 ))}
-              </ResourceList>
+              </RowList>
             ) : (
               <EmptyState title={`No drains found matching "${search}"`} />
             )

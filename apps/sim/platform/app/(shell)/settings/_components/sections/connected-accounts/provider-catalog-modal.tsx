@@ -10,7 +10,7 @@ import {
   EmptyState,
   InlineNotice,
   Modal,
-  SearchField,
+  SectionSearch,
 } from '@/platform/design-system/components'
 import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 import {
@@ -55,12 +55,7 @@ export function ProviderCatalogModal({
       cancelLabel='Close'
       confirmLabel='Done'
     >
-      <SearchField
-        label='Search providers'
-        placeholder='Search providers…'
-        value={search}
-        onValueChange={setSearch}
-      />
+      <SectionSearch subject='providers' value={search} onValueChange={setSearch} />
       {providers.map(({ name, icon, choice }) => {
         const providerId = choice.kind === 'oauth' ? choice.provider : choice.connectorId
         return (

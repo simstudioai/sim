@@ -6,7 +6,6 @@ import { toError } from '@sim/utils/errors'
 import { compareStrings } from '@sim/utils/string'
 import {
   DraftConflictNotice,
-  ResourceList,
   SectionStack,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -19,6 +18,7 @@ import {
   EmptyState,
   FailureNotice,
   LoadingRows,
+  RowList,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
@@ -270,8 +270,9 @@ function RetentionForm({
         </Button>
       </SectionToolbar>
       <SettingsSection title='Retention policies'>
-        <ResourceList>
+        <RowList>
           <ActivityRow
+            density='comfortable'
             title='Organization'
             detail={orgPolicySummary(snapshot)}
             metadata='Default'
@@ -279,13 +280,14 @@ function RetentionForm({
           />
           {withOverrides.map((workspaceId) => (
             <ActivityRow
+              density='comfortable'
               key={workspaceId}
               title={workspaceName(workspaceId)}
               detail={overridePolicySummary(snapshot, workspaceId)}
               onOpen={() => setSelection({ kind: 'override', workspaceId })}
             />
           ))}
-        </ResourceList>
+        </RowList>
       </SettingsSection>
     </SectionStack>
   )

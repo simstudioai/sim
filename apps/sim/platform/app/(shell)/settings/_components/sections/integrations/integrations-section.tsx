@@ -32,7 +32,7 @@ import {
   EmptyState,
   FailureNotice,
   LoadingRows,
-  SearchField,
+  SectionSearch,
 } from '@/platform/design-system/components'
 import {
   SettingsRow,
@@ -144,14 +144,7 @@ export default function IntegrationsSection({ organization: context }: SettingsS
     >
       <SectionStack>
         <SectionToolbar
-          grow={
-            <SearchField
-              label='Search sources'
-              placeholder='Search sources…'
-              value={search}
-              onValueChange={setSearch}
-            />
-          }
+          grow={<SectionSearch subject='sources' value={search} onValueChange={setSearch} />}
         >
           <Button
             variant='primary'

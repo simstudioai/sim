@@ -21,7 +21,7 @@ import {
   Button,
   ConfirmDialog,
   EmptyState,
-  SearchField,
+  SectionSearch,
 } from '@/platform/design-system/components'
 import {
   SettingsRow,
@@ -153,12 +153,7 @@ export function GroupProviders({
     <SectionStack>
       <SectionToolbar
         grow={
-          <SearchField
-            label='Search providers'
-            placeholder='Search providers…'
-            value={searchTerm}
-            onValueChange={setSearchTerm}
-          />
+          <SectionSearch subject='providers' value={searchTerm} onValueChange={setSearchTerm} />
         }
       >
         <Button

@@ -30,7 +30,7 @@ import {
   FailureNotice,
   LoadingRows,
   SaveActions,
-  SearchField,
+  SectionSearch,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
@@ -265,12 +265,7 @@ function SecretRows({ back, mode, refreshFailure, variables, save, isSaving }: S
         <DraftConflictNotice onKeepMine={secrets.keepMine} onTakeLatest={resetToSaved} />
       )}
       {refreshFailure}
-      <SearchField
-        label='Search secrets'
-        placeholder='Search secrets...'
-        value={searchTerm}
-        onValueChange={setSearchTerm}
-      />
+      <SectionSearch subject='secrets' value={searchTerm} onValueChange={setSearchTerm} />
       {(!term || entries.length > 0 || newRows.length > 0) && (
         <SettingsSection title={sectionLabel}>
           <div className={styles.rows}>

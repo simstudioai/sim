@@ -22,7 +22,7 @@ import {
   FailureNotice,
   LoadingRows,
   SearchableSelect,
-  SearchField,
+  SectionSearch,
   Select,
 } from '@/platform/design-system/components'
 import {
@@ -181,10 +181,9 @@ function ProvidersTab({
       </SettingsSection>
       <SectionToolbar
         grow={
-          <SearchField
+          <SectionSearch
+            subject='providers'
             key='providers'
-            label='Search providers'
-            placeholder='Search providers…'
             value={search}
             onValueChange={params.setSearch}
           />
@@ -231,10 +230,9 @@ function BlocksTab({ params, query, model, controls }: CatalogTabProps) {
     <SectionStack>
       <SectionToolbar
         grow={
-          <SearchField
+          <SectionSearch
+            subject='blocks'
             key='blocks'
-            label='Search blocks'
-            placeholder='Search blocks…'
             value={search}
             onValueChange={params.setSearch}
           />
@@ -330,10 +328,9 @@ function PlatformTab({
     <SectionStack>
       <SectionToolbar
         grow={
-          <SearchField
+          <SectionSearch
+            subject='features'
             key='platform'
-            label='Search features'
-            placeholder='Search features…'
             value={search}
             onValueChange={params.setSearch}
           />

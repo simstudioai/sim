@@ -16,7 +16,7 @@ import {
   InlineNotice,
   LoadingRows,
   QueryBoundary,
-  SearchField,
+  SectionSearch,
 } from '@/platform/design-system/components'
 import {
   SettingsRow,
@@ -66,9 +66,8 @@ export function GroupAccess({ organizationId }: GroupAccessProps) {
             organizationId={organizationId}
             access={data}
             search={
-              <SearchField
-                label='Search workspaces'
-                placeholder='Search workspaces…'
+              <SectionSearch
+                subject='workspaces'
                 value={searchTerm}
                 onValueChange={setSearchTerm}
               />

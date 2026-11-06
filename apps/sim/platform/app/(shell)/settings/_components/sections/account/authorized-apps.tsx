@@ -8,7 +8,7 @@ import {
   DataTable,
   EmptyState,
   FailureNotice,
-  SearchField,
+  SectionSearch,
 } from '@/platform/design-system/components'
 import { useAuthorizedAppsList } from '@/platform/lib/data/account'
 
@@ -28,12 +28,7 @@ export function AuthorizedApps() {
   const [revoking, setRevoking] = useState<{ id: string; name: string } | null>(null)
   return (
     <>
-      <SearchField
-        label='Search authorized apps'
-        placeholder='Search authorized apps…'
-        value={list.search}
-        onValueChange={list.setSearch}
-      />
+      <SectionSearch subject='authorized apps' value={list.search} onValueChange={list.setSearch} />
       {list.refreshFailed && (
         <FailureNotice
           message={list.error ?? 'Failed to refresh authorized apps'}

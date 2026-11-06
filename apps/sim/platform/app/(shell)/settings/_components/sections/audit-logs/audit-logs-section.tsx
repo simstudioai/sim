@@ -20,7 +20,7 @@ import {
   LoadingRows,
   MultiSelect,
   PropertyList,
-  SearchField,
+  SectionSearch,
   Select,
   StatusTag,
 } from '@/platform/design-system/components'
@@ -169,12 +169,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
     <SectionStack>
       <div className={styles.toolbar}>
         <span className={styles.search}>
-          <SearchField
-            label='Search audit logs'
-            placeholder='Search audit logs…'
-            value={feed.search}
-            onValueChange={feed.setSearch}
-          />
+          <SectionSearch subject='audit logs' value={feed.search} onValueChange={feed.setSearch} />
         </span>
         <span className={styles.filter}>
           <MultiSelect

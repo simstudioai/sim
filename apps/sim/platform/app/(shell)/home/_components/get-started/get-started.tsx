@@ -1,7 +1,7 @@
-import styles from '@/platform/app/(shell)/home/_components/get-started/get-started.module.css'
 import { HomeSection } from '@/platform/app/(shell)/home/_components/home-section/home-section'
 import type { HomeGetStartedStep } from '@/platform/app/(shell)/home/_components/model'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
+import { RowList } from '@/platform/design-system/components'
 import { ActivityRow } from '@/platform/design-system/components/activity-row/activity-row'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 
@@ -17,7 +17,7 @@ interface GetStartedProps {
 export function GetStarted({ steps }: GetStartedProps) {
   return (
     <HomeSection title='Get started'>
-      <ul className={styles.entries}>
+      <RowList dividers>
         {steps.map((step) => (
           <ActivityRow
             key={step.id}
@@ -28,7 +28,7 @@ export function GetStarted({ steps }: GetStartedProps) {
             href={step.href}
           />
         ))}
-      </ul>
+      </RowList>
     </HomeSection>
   )
 }

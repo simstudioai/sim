@@ -7,7 +7,7 @@ import {
   EmptyState,
   FailureNotice,
   Icon,
-  SearchField,
+  SectionSearch,
 } from '@/platform/design-system/components'
 import {
   SettingsRow,
@@ -38,9 +38,8 @@ export default function RecentlyDeletedSection({ organization }: SettingsSection
   const deleted = useDeletedChats(organizationId)
   return (
     <>
-      <SearchField
-        label='Search deleted chats'
-        placeholder='Search deleted chats…'
+      <SectionSearch
+        subject='deleted chats'
         value={deleted.search}
         onValueChange={deleted.setSearch}
       />

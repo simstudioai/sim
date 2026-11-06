@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
-  ResourceList,
   SectionStack,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -21,6 +20,7 @@ import {
   EmptyState,
   FailureNotice,
   LoadingRows,
+  RowList,
   SegmentedControl,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
@@ -139,7 +139,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
           ) : !creating && !selectedProvider ? (
             <>
               <SettingsSection title='Identity providers'>
-                <ResourceList>
+                <RowList>
                   {providerList.map((provider) => {
                     const providerId = provider.providerId ?? ''
                     const isMarkedPrimary =
@@ -147,6 +147,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
                       (providerCountByDomain.get(provider.domainKey ?? '') ?? 0) > 1
                     return (
                       <ActivityRow
+                        density='comfortable'
                         key={provider.id ?? providerId}
                         title={providerId}
                         detail={`${(provider.providerType ?? 'oidc').toUpperCase()} · ${provider.domain ?? 'no domain'}`}
@@ -157,7 +158,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
                       />
                     )
                   })}
-                </ResourceList>
+                </RowList>
               </SettingsSection>
               <RequireSso organizationId={organizationId} />
             </>

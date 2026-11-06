@@ -10,7 +10,7 @@ import {
   FailureNotice,
   LoadingRows,
   Pagination,
-  SearchField,
+  SectionSearch,
   Select,
   StatusTag,
   Switch,
@@ -44,9 +44,8 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
   const reviewId = params['request-id']
   return (
     <>
-      <SearchField
-        label='Search requests'
-        placeholder='Search requests…'
+      <SectionSearch
+        subject='requests'
         value={list.search}
         onValueChange={list.setSearch}
         maxLength={ACCESS_REQUEST_MAX_SEARCH_LENGTH}

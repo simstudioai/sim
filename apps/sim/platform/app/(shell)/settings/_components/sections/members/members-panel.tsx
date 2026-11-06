@@ -22,7 +22,7 @@ import {
   EmptyState,
   FailureNotice,
   LoadingRows,
-  SearchField,
+  SectionSearch,
   Tooltip,
 } from '@/platform/design-system/components'
 import {
@@ -68,14 +68,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
   return (
     <div className={styles.panel}>
       <SectionToolbar
-        grow={
-          <SearchField
-            label='Search members'
-            placeholder='Search members…'
-            value={search}
-            onValueChange={setSearch}
-          />
-        }
+        grow={<SectionSearch subject='members' value={search} onValueChange={setSearch} />}
       >
         {members.canManage && (
           <Tooltip label='Invitations are disabled' enabled={!members.canInvite}>

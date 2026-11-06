@@ -3,10 +3,10 @@
 import type { ReactNode } from 'react'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import styles from '@/platform/app/(shell)/links/_components/links-page/links-page.module.css'
+import { SectionSearch } from '@/platform/design-system/components'
 import { Button } from '@/platform/design-system/components/button/button'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { ActionMenu } from '@/platform/design-system/components/menu/action-menu'
-import { SearchField } from '@/platform/design-system/components/search-field/search-field'
 import { openChromeStore } from '@/platform/lib/data/links'
 
 interface LinksFrameProps {
@@ -47,12 +47,7 @@ export function LinksFrame({
         </div>
       </header>
       <div className={styles.options}>
-        <SearchField
-          label='Search links'
-          placeholder='Search links…'
-          value={search}
-          onValueChange={onSearch}
-        />
+        <SectionSearch subject='links' value={search} onValueChange={onSearch} />
         <ActionMenu label={sortLabel} align='end' actions={sortActions} />
       </div>
       {children}

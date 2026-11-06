@@ -18,7 +18,7 @@ import {
   Input,
   MultiSelect,
   SaveActions,
-  SearchField,
+  SectionSearch,
   SegmentedControl,
   SelectField,
 } from '@/platform/design-system/components'
@@ -149,12 +149,7 @@ function StagePanel({
         time match aggressively and frequently over-redact. Enable these only where false positives
         are acceptable.
       </Muted>
-      <SearchField
-        label='Search PII types'
-        placeholder='Search PII types…'
-        value={search}
-        onValueChange={onSearchChange}
-      />
+      <SectionSearch subject='PII types' value={search} onValueChange={onSearchChange} />
       <SelectField
         label='Language'
         options={PII_LANGUAGES}

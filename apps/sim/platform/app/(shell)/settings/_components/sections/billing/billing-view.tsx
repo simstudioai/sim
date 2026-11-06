@@ -8,6 +8,7 @@ import {
   FailureNotice,
   Icon,
   Input,
+  RowList,
   StatusTag,
   Switch,
   Tooltip,
@@ -155,7 +156,7 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
       )}
       {billing.invoices.length > 0 && (
         <SettingsSection title='Invoices'>
-          <ul className={styles.invoices}>
+          <RowList>
             {billing.invoices.map((invoice) => {
               const details = (
                 <>
@@ -185,7 +186,7 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
                 </li>
               )
             })}
-          </ul>
+          </RowList>
           {billing.hasMoreInvoices && (
             <Button
               size='compact'

@@ -21,7 +21,7 @@ import {
   FailureNotice,
   InlineNotice,
   QueryBoundary,
-  SearchField,
+  SectionSearch,
   StatusTag,
 } from '@/platform/design-system/components'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
@@ -84,12 +84,7 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
     <SectionStack>
       <SectionToolbar
         grow={
-          <SearchField
-            label='Search people'
-            placeholder='Search people…'
-            value={peopleSearch}
-            onValueChange={setPeopleSearch}
-          />
+          <SectionSearch subject='people' value={peopleSearch} onValueChange={setPeopleSearch} />
         }
       >
         <Button

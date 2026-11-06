@@ -5,7 +5,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
 import {
-  ResourceList,
   SectionStack,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -21,7 +20,8 @@ import {
   Modal,
   MultiSelect,
   QueryBoundary,
-  SearchField,
+  RowList,
+  SectionSearch,
   TextField,
 } from '@/platform/design-system/components'
 import {
@@ -206,9 +206,8 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
       {workspacesError}
       <SectionToolbar
         grow={
-          <SearchField
-            label='Search permission groups'
-            placeholder='Search permission groups…'
+          <SectionSearch
+            subject='permission groups'
             value={params.search}
             onValueChange={params.setSearch}
           />
@@ -224,9 +223,10 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
         <EmptyState title={`No groups found matching "${params.search}"`} />
       ) : (
         <SettingsSection title={`Permission groups ${permissionGroups.length}`}>
-          <ResourceList>
+          <RowList>
             {filtered.map((group) => (
               <ActivityRow
+                density='comfortable'
                 key={group.id}
                 title={group.name}
                 detail={groupSummary(group)}
@@ -234,7 +234,7 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
                 onOpen={() => params.openGroup(group.id)}
               />
             ))}
-          </ResourceList>
+          </RowList>
         </SettingsSection>
       )}
       <SettingsSection title='Manage'>
