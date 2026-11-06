@@ -672,6 +672,10 @@ export async function sidebarChecks() {
   await check('deleting the open chat returns to where its mode lives', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(orgUrl(`/search/chat/${MEMBER_CHATS.removable.id}`))
+      // A conversation mounting after the delete reads a chat that is gone; open it first.
+      await expect(
+        page.getByText(`Here is what I found about ${MEMBER_CHATS.removable.title}.`)
+      ).toBeVisible()
       await openRowMenu(page, MEMBER_CHATS.removable.title)
       await menuEntry(page, 'Delete').click()
       const modal = dialog(page, 'Delete chat')
