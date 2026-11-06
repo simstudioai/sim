@@ -31,7 +31,7 @@ export {
   MenuItem,
   VisibilityMenu,
 } from './menu/action-menu'
-export { RangePicker } from './menu/range-picker'
+export { ChoiceMenu } from './menu/choice-menu'
 export { Modal, MultiStepModal } from './modal/modal'
 export { ModalBody, ModalFooter, ModalHeader } from './modal/modal-parts'
 export { OverflowText } from './overflow-text/overflow-text'

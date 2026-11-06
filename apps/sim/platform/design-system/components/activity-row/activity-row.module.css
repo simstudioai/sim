@@ -1,12 +1,16 @@
 .entry {
+  display: flex;
+  align-items: center;
   min-inline-size: 0;
   container: activity-row / inline-size;
+  border-radius: var(--ui-control-radius);
 }
 .row {
   display: flex;
   align-items: center;
   gap: var(--ui-row-gap);
-  inline-size: 100%;
+  flex: 1;
+  min-inline-size: 0;
   padding: var(--ui-row-block) var(--ui-row-inset);
   border-radius: var(--ui-control-radius);
   text-align: start;
@@ -34,8 +38,15 @@
     grid-row: 1 / span 2;
   }
 }
-.row:hover {
+.entry:hover {
   background: var(--ui-hover);
+}
+.trailing {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: var(--ui-action-gap);
+  padding-inline-end: var(--ui-row-inset);
 }
 .body {
   display: flex;

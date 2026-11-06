@@ -1,4 +1,5 @@
 import { platformHref } from '@/platform/design-system/navigation'
+import { integrationCenterHref } from '@/platform/lib/integrations/center-navigation'
 import type { MemberSecretSource } from '@/platform/lib/integrations/member-secret-source'
 
 export type AccountMethod = 'oauth' | 'mcp' | 'slack'
@@ -51,9 +52,7 @@ export function memberIntegrationHref(
   search: Pick<URLSearchParams, 'get'>,
   query = search.get('q')
 ) {
-  const destination = platformHref(path, search)
-  if (!query) return destination
-  return `${destination}${destination.includes('?') ? '&' : '?'}${new URLSearchParams({ q: query })}`
+  return integrationCenterHref(platformHref(path, search), search, query)
 }
 
 export function memberStatus(item: OrganizationIntegration) {

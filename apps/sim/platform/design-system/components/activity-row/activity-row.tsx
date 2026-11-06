@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import Link from 'next/link'
 import { ActivityBody } from '@/platform/design-system/components/activity-row/activity-body'
 import styles from '@/platform/design-system/components/activity-row/activity-row.module.css'
@@ -7,6 +7,7 @@ import { CountedLabel } from '@/platform/design-system/components/overflow-text/
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 
 interface ActivityRowProps {
+  onNavigate?: ComponentProps<typeof Link>['onNavigate']
   leading?: ReactNode
   title: string
   count?: number
@@ -14,11 +15,13 @@ interface ActivityRowProps {
   detailLead?: string
   metadata?: string
   showChevron?: boolean
+  trailing?: ReactNode
 }
 
 type ActivityTarget = { href: string; onOpen?: never } | { href?: never; onOpen: () => void }
 
 export function ActivityRow({
+  onNavigate,
   leading,
   title,
   count,
@@ -26,6 +29,7 @@ export function ActivityRow({
   detailLead,
   metadata,
   showChevron = true,
+  trailing,
   onOpen,
   href,
 }: ActivityRowProps & ActivityTarget) {
@@ -57,7 +61,7 @@ export function ActivityRow({
   return (
     <li className={styles.entry}>
       {href !== undefined ? (
-        <Link href={href} className={styles.row}>
+        <Link href={href} className={styles.row} onNavigate={onNavigate}>
           {content}
         </Link>
       ) : (
@@ -65,6 +69,7 @@ export function ActivityRow({
           {content}
         </button>
       )}
+      {trailing && <span className={styles.trailing}>{trailing}</span>}
     </li>
   )
 }

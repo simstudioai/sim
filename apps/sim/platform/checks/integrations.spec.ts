@@ -7,7 +7,7 @@ test('an approved app can connect and disconnect a sample account during the sam
 }) => {
   await page.goto(`${origin}/integrations?state=full`)
   const list = page.getByRole('main')
-  await list.getByRole('searchbox', { name: 'Search integrations' }).fill('Linear issues')
+  await list.getByRole('searchbox', { name: 'Search apps' }).fill('Linear issues')
   await list.getByRole('link', { name: /^Linear / }).click()
   const guide = list.getByRole('link', { name: 'Docs (opens in a new tab)', exact: true })
   await expect(guide).toHaveAttribute('href', 'https://docs.sim.ai/search/linear')
@@ -31,9 +31,7 @@ test('an approved app can connect and disconnect a sample account during the sam
   await expect(title).toBeFocused()
   await list.getByRole('link', { name: 'Integrations', exact: true }).click()
   await expect(
-    list
-      .getByRole('region', { name: 'Available to connect' })
-      .getByRole('link', { name: /^Linear / })
+    list.getByRole('region', { name: 'Explore apps' }).getByRole('link', { name: /^Linear / })
   ).toBeVisible()
 })
 
@@ -69,7 +67,7 @@ test('a cleared integration search stays clear when opening a provider and retur
 }) => {
   await page.goto(`${origin}/integrations?state=full&q=Fireflies`)
   const main = page.getByRole('main')
-  const field = main.getByRole('searchbox', { name: 'Search integrations' })
+  const field = main.getByRole('searchbox', { name: 'Search apps' })
   await page
     .getByRole('region', { name: 'Platform navigation' })
     .getByRole('link', { name: 'Integrations', exact: true })
@@ -102,7 +100,7 @@ test('managed, unconfigured and retained connections expose only the actions the
   await expect(reads).toContainText('Read available meeting summaries')
   await expect(main.getByRole('radio')).toHaveCount(0)
   await main.getByRole('link', { name: 'Integrations', exact: true }).click()
-  const managed = main.getByRole('region', { name: 'Managed by your organization' })
+  const managed = main.getByRole('region', { name: 'Explore apps' })
   for (const provider of ['GitLab', 'Slack', 'Granola', 'Zoom']) {
     await managed.getByRole('link', { name: new RegExp(`^${provider} `) }).click()
     const docs = main.getByRole('link', { name: /Docs/ })
@@ -147,7 +145,7 @@ test('the fixture flag and member inventory gate both the index and deep links',
     [origin, 'empty'],
   ]) {
     await page.goto(`${site}/integrations?state=${state}`)
-    await expect(page.getByRole('heading', { name: 'No integrations available' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'No apps yet' })).toBeVisible()
     await page.goto(`${site}/integrations/gmail?state=${state}`)
     await expect(page.getByRole('heading', { name: 'Gmail', exact: true })).toHaveCount(0)
     await expect(page.getByText('emir@sim.ai', { exact: true })).toHaveCount(0)

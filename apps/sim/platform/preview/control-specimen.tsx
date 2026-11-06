@@ -12,6 +12,7 @@ import {
   BrowserActionsMenu,
   Button,
   Chip,
+  ChoiceMenu,
   ComposerInput,
   DataTable,
   DestinationTabs,
@@ -35,7 +36,6 @@ import {
   PeoplePopover,
   PersonRow,
   PropertyList,
-  RangePicker,
   RecentItems,
   RecipientField,
   RecipientTag,
@@ -108,11 +108,11 @@ const views = [
 
 function AgentFilter({ data }: { data: PreviewData | null }) {
   const agents = (data?.dashboard.rows ?? []).map((row) => String(row.values.agent))
-  return <RangePicker label='Agents' options={['All agents', ...agents]} />
+  return <ChoiceMenu label='Agents' options={['All agents', ...agents]} />
 }
 
 const requestFilter = (
-  <RangePicker label='Requests' options={['All requests', 'Succeeded', 'Retried']} />
+  <ChoiceMenu label='Requests' options={['All requests', 'Succeeded', 'Retried']} />
 )
 
 function FeedbackFields({ notes }: { notes?: string }) {
@@ -547,9 +547,9 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
         </ActionMenu>
       )
     }
-    case 'RangePicker':
+    case 'ChoiceMenu':
       return (
-        <RangePicker
+        <ChoiceMenu
           label='Range'
           options={sample?.ranges ?? ['Option one', 'Option two']}
           defaultValue={sample?.ranges.at(-1)}

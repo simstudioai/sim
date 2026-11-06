@@ -119,6 +119,9 @@ export const loadIntegrationsData = fixture(
     }
   }
 )
+export const loadIntegrationCenterData = fixture(async (scenario) =>
+  (await import('@/platform/fixtures/integration-center-data')).integrationCenterData(scenario)
+)
 export const loadPanelData = fixture(
   async (scenario) => (await import('@/platform/fixtures/panel-data')).panelScenarios[scenario]
 )

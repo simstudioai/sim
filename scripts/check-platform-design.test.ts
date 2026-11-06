@@ -68,11 +68,11 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       export default function Page() { return <Action variant="primary"/> }`
     )
     write(
-      'platform/app/settings/_components/panel.tsx',
-      `import classes from '@/platform/app/settings/_components/panel.module.css'
+      'platform/app/settings/_components/panel/panel.tsx',
+      `import classes from '@/platform/app/settings/_components/panel/panel.module.css'
       export function Panel(){return <section className={classes.panel}/>}`
     )
-    write('platform/app/settings/_components/panel.module.css', '.panel{padding:0}')
+    write('platform/app/settings/_components/panel/panel.module.css', '.panel{padding:0}')
     const modal = 'platform/design-system/components/modal'
     write(
       `${modal}/modal.tsx`,
@@ -102,6 +102,14 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
         <form><button>Cancel</button></form><ModalFooter/></>}`
     )
     expect(audit()).toEqual({ status: 0, output: expect.stringContaining('passed') })
+
+    const looseRecipe = 'platform/app/settings/_components/loose.module.css'
+    write(looseRecipe, '.loose{padding:0}')
+    expect(audit()).toEqual({
+      status: 1,
+      output: expect.stringContaining(`${looseRecipe} [component-folder]`),
+    })
+    rmSync(path.join(APP, looseRecipe))
 
     writeCatalog('evidence', [
       evidence,

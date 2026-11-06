@@ -12,7 +12,7 @@ interface SearchFieldProps {
   defaultValue?: string
   value?: string
   shortcut?: '⌘K' | '/'
-  variant?: 'outlined' | 'sidebar'
+  variant?: 'outlined' | 'sidebar' | 'quiet'
   onValueChange?: (query: string) => void
 }
 

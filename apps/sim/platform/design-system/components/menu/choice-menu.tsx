@@ -6,7 +6,7 @@ import { Button } from '@/platform/design-system/components/button/button'
 import { ActionMenuPopup, MenuItem } from '@/platform/design-system/components/menu/action-menu'
 import { usePopoverContainer } from '@/platform/design-system/components/menu/use-popover-container'
 
-interface RangePickerProps {
+interface ChoiceMenuProps {
   id?: string
   label: string
   options: readonly string[]
@@ -16,7 +16,7 @@ interface RangePickerProps {
   onValueChange?: (value: string) => void
 }
 
-export function RangePicker({
+export function ChoiceMenu({
   id,
   label,
   options,
@@ -24,7 +24,7 @@ export function RangePicker({
   defaultValue,
   defaultOpen = false,
   onValueChange,
-}: RangePickerProps) {
+}: ChoiceMenuProps) {
   const [localValue, setLocalValue] = useState(defaultValue)
   const selection = controlledValue ?? localValue
   const value = selection !== undefined && options.includes(selection) ? selection : options[0]

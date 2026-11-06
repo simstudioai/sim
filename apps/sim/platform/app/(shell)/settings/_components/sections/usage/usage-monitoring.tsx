@@ -21,8 +21,8 @@ import { UsageCalendar } from '@/platform/app/(shell)/settings/_components/secti
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
 import {
   Button,
+  ChoiceMenu,
   DateRangePicker,
-  RangePicker,
   ScrollArea,
   SegmentedControl,
 } from '@/platform/design-system/components'
@@ -123,7 +123,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
           />
         </ScrollArea>
         <div className={styles.actions}>
-          <RangePicker
+          <ChoiceMenu
             id={periodId}
             label='Period'
             options={view.periodOptions}

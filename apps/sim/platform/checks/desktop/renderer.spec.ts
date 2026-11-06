@@ -25,7 +25,7 @@ test('the actual desktop renderer shares product routes, reserves native chrome 
     const nav = page.getByRole('region', { name: 'Platform navigation' })
     await nav.getByRole('link', { name: 'Integrations', exact: true }).click()
     const memberPage = page.getByRole('main')
-    await memberPage.getByRole('searchbox', { name: 'Search integrations' }).fill('Gmail')
+    await memberPage.getByRole('searchbox', { name: 'Search apps' }).fill('Gmail')
     await memberPage.getByRole('link', { name: /^Gmail / }).click()
     const send = memberPage.getByRole('group', { name: 'Gmail Send permission' })
     await send.getByRole('radio', { name: 'Ask' }).press('ArrowRight')

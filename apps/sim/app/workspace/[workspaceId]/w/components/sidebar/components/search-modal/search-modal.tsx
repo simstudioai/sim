@@ -45,11 +45,13 @@ import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { getFolderPathNames } from '@/lib/folders/tree'
 import { sendMothershipMessage } from '@/lib/mothership/events'
+import { workspaceIntegrationsPath } from '@/lib/navigation/paths'
 import { captureEvent } from '@/lib/posthog/client'
 import { toSearchToken } from '@/lib/search/tokens'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   CommandFadedList,
   CommandSearch,
@@ -157,6 +159,8 @@ function SearchModalContent({
   const router = useRouter()
   const { chatEnabled } = useDeploymentShape()
   const workspaceId = params.workspaceId as string
+  const host = useWorkspaceHostContext()
+  const integrationsHref = workspaceIntegrationsPath(workspaceId, host)
   const currentWorkflowId = params.workflowId as string | undefined
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -249,7 +253,7 @@ function SearchModalContent({
           id: 'integrations',
           name: 'Integrations',
           icon: Integration,
-          href: `/workspace/${workspaceId}/integrations`,
+          href: integrationsHref,
           hidden:
             permissionConfig.hideIntegrationsTab &&
             !requestableFeatureKeys.has('hideIntegrationsTab'),
@@ -318,6 +322,7 @@ function SearchModalContent({
       permissionConfig.hideTablesTab,
       permissionConfig.hideFilesTab,
       permissionConfig.hideIntegrationsTab,
+      integrationsHref,
       requestableFeatureKeys,
     ]
   )

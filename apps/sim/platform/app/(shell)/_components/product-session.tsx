@@ -8,6 +8,7 @@ import { NotificationSession } from '@/platform/app/(shell)/_components/notifica
 import { PlatformShell } from '@/platform/app/(shell)/_components/platform-shell/platform-shell'
 import { ChatChangesProvider } from '@/platform/app/(shell)/_components/session/chat-changes'
 import { ComposerDrafts } from '@/platform/app/(shell)/_components/session/composer-drafts'
+import { IntegrationCenterChanges } from '@/platform/app/(shell)/_components/session/integration-center-changes'
 import { IntegrationChanges } from '@/platform/app/(shell)/_components/session/integration-changes'
 import { InterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
 import { SidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
@@ -59,9 +60,11 @@ export function ProductSession({
             <ComposerDrafts>
               <PlatformSurface theme={live?.appearance ?? readAppearance(search.get('theme'))}>
                 <IntegrationChanges>
-                  <PlatformShell data={data} banner={banner}>
-                    {children}
-                  </PlatformShell>
+                  <IntegrationCenterChanges enabled={Boolean(fixture) && !live}>
+                    <PlatformShell data={data} banner={banner}>
+                      {children}
+                    </PlatformShell>
+                  </IntegrationCenterChanges>
                 </IntegrationChanges>
               </PlatformSurface>
             </ComposerDrafts>

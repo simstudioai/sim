@@ -1,0 +1,16 @@
+.group {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-section-gap);
+}
+.rows {
+  display: grid;
+  gap: var(--ui-list-gap);
+  margin-inline: calc(-1 * var(--ui-row-inset));
+}
+.people {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  color: var(--ui-secondary);
+}

@@ -16,7 +16,7 @@
   inline-size: 100%;
   max-inline-size: 81rem;
   margin-inline: auto;
-  padding-block: 4rem 1.5rem;
+  padding-block: var(--ui-page-heading-inset, 4rem) 1.5rem;
 }
 /* The host page's canvas shows through, so the composer's row does not read as a band. */
 .dashboard > [data-platform-ui] {
@@ -32,11 +32,17 @@
   gap: var(--ui-product-section-gap);
   margin-block-end: var(--ui-section-gap);
 }
-.greeting {
+.greeting,
+.composerHeading {
   display: flex;
-  align-items: start;
   justify-content: space-between;
   gap: var(--ui-row-gap);
+}
+.composerHeading {
+  align-items: center;
+}
+.greeting {
+  align-items: start;
   margin-inline-end: calc(-1 * var(--ui-action-overhang));
 }
 .greeting > div {

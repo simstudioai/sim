@@ -47,6 +47,7 @@ export function LinksFrame({
       </header>
       <div className={styles.options}>
         <SearchField
+          variant='quiet'
           label='Search links'
           placeholder='Search links...'
           value={search}

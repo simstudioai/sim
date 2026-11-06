@@ -70,6 +70,7 @@
   "SearchField": {
     "variant": {
       "outlined": ["C0925", "C0926", "C0928"],
+      "quiet": [],
       "sidebar": ["C1083", "C1084", "C1086", "C1088"]
     }
   },

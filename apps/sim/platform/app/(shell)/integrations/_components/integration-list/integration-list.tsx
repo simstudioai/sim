@@ -1,31 +1,14 @@
-import styles from '@/platform/app/(shell)/integrations/_components/integration-list/integration-list.module.css'
-import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
-import { ActivityRow, EmptyState, SearchField } from '@/platform/design-system/components'
-import {
-  type GenericSecrets,
-  isConnectable,
-  type OrganizationIntegration,
+import { IntegrationCenter } from '@/platform/app/(shell)/integrations/_components/integration-center/integration-center'
+import type {
+  GenericSecrets,
+  OrganizationIntegration,
 } from '@/platform/lib/data/integrations-types'
-
-const SECTIONS = [
-  'Your accounts',
-  'Available to connect',
-  'Managed by your organization',
-  'Not available',
-] as const
-type Section = (typeof SECTIONS)[number]
-
-function sectionFor(item: OrganizationIntegration): Section {
-  if (item.accounts.length) return 'Your accounts'
-  if (isConnectable(item)) return 'Available to connect'
-  return item.availability === 'managed' ? 'Managed by your organization' : 'Not available'
-}
+import type { AppSummary } from '@/platform/lib/integrations/center-model'
+import { appCategory } from '@/platform/lib/integrations/center-navigation'
 
 interface IntegrationListProps {
   integrations: readonly OrganizationIntegration[]
   secrets: GenericSecrets | null
-  query: string
-  onQueryChange: (query: string) => void
   integrationHref: (id: string) => string
   secretsHref: string
   /** False while a read could still add rows, so an empty list is not claimed too early. */
@@ -35,83 +18,35 @@ interface IntegrationListProps {
 export function IntegrationList({
   integrations,
   secrets,
-  query,
-  onQueryChange,
   integrationHref,
   secretsHref,
   settled,
 }: IntegrationListProps) {
-  const term = query.trim().toLowerCase()
-  const entries = integrations.map((item) => ({
+  const apps: AppSummary[] = integrations.map((item) => ({
     id: item.id,
+    providerId: item.providerId,
+    icon: item.icon,
     href: integrationHref(item.id),
-    leading: <IntegrationMark providerId={item.providerId} icon={item.icon} />,
     name: item.name,
-    detail: item.description,
+    description: item.description,
+    category: appCategory(item.providerId),
+    connected: item.accounts.length > 0 || item.availability === 'managed',
     status: item.status,
-    section: sectionFor(item),
-    searchable: [
-      item.providerId,
-      item.name,
-      item.description,
-      ...item.accounts.map((account) => account.label),
-    ]
-      .join(' ')
-      .toLowerCase(),
+    searchable: [item.providerId, ...item.accounts.map((account) => account.label)].join(' '),
   }))
-  if (secrets) {
-    const managed = secrets.mode === 'organization'
-    entries.push({
-      id: 'generic-secrets',
-      href: secretsHref,
-      leading: <IntegrationMark />,
-      name: secrets.name,
-      detail: secrets.description,
-      status: managed ? 'Organization managed' : 'Personal secrets',
-      section: managed ? 'Managed by your organization' : 'Available to connect',
-      searchable: `${secrets.name} ${secrets.description}`.toLowerCase(),
-    })
-  }
-  const matches = entries.filter((entry) => entry.searchable.includes(term))
-  return (
-    <div className={styles.list}>
-      <SearchField
-        label='Search integrations'
-        placeholder='Search integrations…'
-        value={query}
-        onValueChange={onQueryChange}
-      />
-      {settled &&
-        matches.length === 0 &&
-        (term ? (
-          <EmptyState title='No matching integrations' />
-        ) : (
-          <EmptyState
-            title='No integrations available'
-            description='Apps enabled for your organization will appear here.'
-          />
-        ))}
-      {SECTIONS.map((section) => {
-        const items = matches.filter((item) => item.section === section)
-        if (!items.length) return null
-        return (
-          <section key={section} className={styles.group} aria-label={section}>
-            <h2 data-type='T059'>{section}</h2>
-            <ul className={styles.rows}>
-              {items.map((item) => (
-                <ActivityRow
-                  key={item.id}
-                  href={item.href}
-                  leading={item.leading}
-                  title={item.name}
-                  detail={item.detail}
-                  metadata={item.status}
-                />
-              ))}
-            </ul>
-          </section>
-        )
-      })}
-    </div>
-  )
+  const credentials: AppSummary[] = secrets
+    ? [
+        {
+          id: 'generic-secrets',
+          href: secretsHref,
+          name: secrets.name,
+          description: secrets.description,
+          category: 'Credentials',
+          scope: secrets.mode === 'organization' ? 'shared' : 'personal',
+          connected: secrets.mode === 'organization',
+          status: secrets.mode === 'organization' ? 'Organization managed' : 'Personal secrets',
+        },
+      ]
+    : []
+  return <IntegrationCenter apps={apps} credentials={credentials} settled={settled} />
 }

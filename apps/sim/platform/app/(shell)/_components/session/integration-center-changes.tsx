@@ -1,0 +1,72 @@
+'use client'
+
+import { createContext, type ReactNode, useContext, useState } from 'react'
+import type {
+  IntegrationCenterData,
+  IntegrationResource,
+} from '@/platform/lib/integrations/center-model'
+
+function useChanges(enabled: boolean) {
+  const [edits, setEdits] = useState<Record<string, IntegrationResource | null>>({})
+  return { enabled, edits, setEdits }
+}
+
+const Changes = createContext<ReturnType<typeof useChanges> | null>(null)
+
+interface IntegrationCenterChangesProps {
+  enabled: boolean
+  children: ReactNode
+}
+
+export function IntegrationCenterChanges({ enabled, children }: IntegrationCenterChangesProps) {
+  const changes = useChanges(enabled)
+  return <Changes.Provider value={changes}>{children}</Changes.Provider>
+}
+
+/** Only typed metadata survives a dialog; credentials and authentication tokens never enter it. */
+function resourceMetadata(resource: IntegrationResource): IntegrationResource {
+  const { id, name, description, scope, owner, people, canEdit } = resource
+  const identity = { id, name, description, scope, owner, people, canEdit }
+  switch (resource.kind) {
+    case 'skill':
+      return { ...identity, kind: 'skill', instructions: resource.instructions }
+    case 'mcp':
+      return { ...identity, kind: 'mcp', url: resource.url, auth: resource.auth }
+    case 'credential':
+      return {
+        ...identity,
+        kind: 'credential',
+        key: resource.key,
+        credentialType: resource.credentialType,
+      }
+  }
+}
+
+export function useIntegrationCenterResources(data: IntegrationCenterData | null) {
+  const changes = useContext(Changes)
+  if (!changes) throw new Error('Integration center controls require the product layout')
+  const { edits, enabled, setEdits } = changes
+  const initial = data?.resources ?? []
+  const ids = new Set(initial.map((resource) => resource.id))
+  const resources = initial
+    .map((resource) => (resource.id in edits ? edits[resource.id] : resource))
+    .filter((resource): resource is IntegrationResource => Boolean(resource))
+    .concat(
+      Object.values(edits).filter((resource): resource is IntegrationResource =>
+        Boolean(resource && !ids.has(resource.id))
+      )
+    )
+  return {
+    resources,
+    save(resource: IntegrationResource) {
+      if (!enabled || !data) return
+      const existing = resources.find((entry) => entry.id === resource.id)
+      if (existing && !existing.canEdit) return
+      setEdits((current) => ({ ...current, [resource.id]: resourceMetadata(resource) }))
+    },
+    remove(id: string) {
+      if (!enabled || !data || !resources.find((resource) => resource.id === id)?.canEdit) return
+      setEdits((current) => ({ ...current, [id]: null }))
+    },
+  }
+}

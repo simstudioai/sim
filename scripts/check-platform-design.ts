@@ -1107,7 +1107,10 @@ function checkJs(file: string, content: string) {
 for (const file of sourceFiles) {
   if (file.startsWith(`${system}features/`))
     report('feature-owner', file, 'Colocate product UI in the owning route’s _components directory')
-  if (/^platform\/design-system\/components\/[^/]+$/.test(file) && !file.endsWith('/index.ts'))
+  if (
+    (/^platform\/design-system\/components\/[^/]+$/.test(file) && !file.endsWith('/index.ts')) ||
+    (file.startsWith('platform/app/') && /\/_components\/[^/]+\.module\.css$/.test(file))
+  )
     report(
       'component-folder',
       file,

@@ -29,6 +29,7 @@ interface HomeDashboardProps {
   prompt: string
   /** The host's composer. It sits between surfaces: legacy chrome never renders inside one. */
   composer: ReactNode
+  composerActions?: ReactNode
   hiddenWidgets: readonly HomeWidget[]
   onWidgetHiddenChange: (widget: HomeWidget, hidden: boolean) => void
 }
@@ -43,6 +44,7 @@ export function HomeDashboard({
   mode,
   prompt,
   composer,
+  composerActions,
   hiddenWidgets,
   onWidgetHiddenChange,
 }: HomeDashboardProps) {
@@ -92,9 +94,12 @@ export function HomeDashboard({
                 }))}
               />
             </header>
-            <span className={styles.wordmark}>
-              <Icon name='I113' label='Sim' />
-            </span>
+            <div className={styles.composerHeading}>
+              <span className={styles.wordmark}>
+                <Icon name='I113' label='Sim' />
+              </span>
+              {composerActions}
+            </div>
           </div>
         </PlatformSurface>
         <section className={styles.composer} aria-label='Start a conversation'>

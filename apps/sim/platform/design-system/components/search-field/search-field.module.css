@@ -18,6 +18,13 @@
 .search[data-variant="sidebar"] {
   border-color: var(--ui-divider);
 }
+.search[data-variant="quiet"] {
+  border-color: transparent;
+  background: transparent;
+}
+.search[data-variant="quiet"]:hover {
+  background: var(--ui-hover);
+}
 .menuSearch {
   display: flex;
   flex: none;

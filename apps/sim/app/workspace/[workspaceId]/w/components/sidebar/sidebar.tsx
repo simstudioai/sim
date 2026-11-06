@@ -54,6 +54,7 @@ import { buildFolderTree, getFolderPathNames } from '@/lib/folders/tree'
 import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
 import { isIntegrationUsable } from '@/lib/integrations/access'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
+import { workspaceIntegrationsPath } from '@/lib/navigation/paths'
 import { captureEvent } from '@/lib/posthog/client'
 import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
@@ -415,6 +416,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
   const { data: sessionData, isPending: sessionLoading } = useSession()
   const { data: profile } = useUserProfile()
   const hostContext = useWorkspaceHostContext()
+  const integrationsHref = workspaceIntegrationsPath(workspaceId, hostContext)
   const { workspace: routeWorkspace } = hostContext
   const { hosted, chatEnabled } = useDeploymentShape()
   const { canAdmin, canEdit, isLoading: permissionsLoading } = useUserPermissionsContext()
@@ -798,7 +800,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
           id: 'integrations',
           label: 'Integrations',
           icon: Integration,
-          href: `/workspace/${workspaceId}/integrations`,
+          href: integrationsHref,
           additionalActivePaths: [`/workspace/${workspaceId}/skills`],
           hidden:
             permissionConfig.hideIntegrationsTab &&
@@ -812,6 +814,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
       canEdit,
       permissionsLoading,
       permissionConfig.hideIntegrationsTab,
+      integrationsHref,
       permissionConfig.hideCopilot,
       permissionConfig.hideFilesTab,
       requestableFeatureKeys,

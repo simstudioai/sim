@@ -4,6 +4,7 @@
   --ui-product-section-gap: var(--spacing-24);
   --ui-widget-max-size: var(--spacing-320);
   --ui-page-inset-block: var(--ui-product-section-gap);
+  --ui-page-heading-inset: var(--spacing-64);
   --ui-motion-color: 120ms;
   --ui-control-radius: var(--radius-control);
   --ui-stack-gap: var(--spacing-2);
