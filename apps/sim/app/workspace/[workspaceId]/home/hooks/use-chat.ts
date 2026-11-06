@@ -113,6 +113,7 @@ import {
   canSteer,
   deliveryOf,
   fromJournaled,
+  handedOffJournalKey,
   hasOutgoingFollowUp,
   holdAfterErroredTurn,
   isDeliveredAsTurn,
@@ -125,6 +126,7 @@ import {
   orphanSteeringRows,
   outgoingRetryDelay,
   type SteeringOutcome,
+  toHandedOff,
   toJournaled,
   toMessageContexts,
 } from '@/app/workspace/[workspaceId]/home/hooks/outgoing-state'
@@ -4234,6 +4236,31 @@ export function useChat(
   )
 
   /**
+   * A provisional key dies with this mount, so what it holds goes on to the next
+   * surface, in order: the first through the handoff, under its id, and the rest in
+   * the journal for the surface that resumes it, since a stored handoff holds one.
+   */
+  const handOffProvisionalOutgoing = useCallback(
+    (chatKey: string) => {
+      const undelivered = outgoingRef.current.filter(
+        (message) =>
+          message.chatKey === chatKey &&
+          message.status !== 'steered' &&
+          message.status !== 'applied'
+      )
+      writeOutgoing((current) => current.filter((message) => message.chatKey !== chatKey))
+      const resumed = undelivered.find((message) => message.status !== 'failed')
+      if (!resumed) return
+      const behind = undelivered.filter((message) => message !== resumed).map(toHandedOff)
+      if (behind.length > 0) {
+        useMothershipOutgoingStore.getState().record(handedOffJournalKey(resumed.id), behind)
+      }
+      handOffWithdrawnSend({ ...resumed.payload, userMessageId: resumed.id })
+    },
+    [handOffWithdrawnSend, writeOutgoing]
+  )
+
+  /**
    * The turn a message sent now would steer: the running one, or the one whose
    * admission is still out in this chat (a message waits for that answer rather
    * than open a second chat). None while a Stop is out or nothing runs.
@@ -4556,10 +4583,10 @@ export function useChat(
         }
         if (result.reason === 'withdrawn') {
           /* An unmount withdrew it before the server answered. A chat's journal keeps
-             it for the next mount of that chat; a new chat's goes to the next surface. */
+             it for the next mount of that chat; a new chat's goes to the next surface,
+             with whatever was waiting on its admission. */
           if (message.chatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
-            settled()
-            handOffWithdrawnSend({ ...message.payload, userMessageId: result.userMessageId })
+            handOffProvisionalOutgoing(message.chatKey)
           } else {
             updateOutgoing(message.id, { status: 'pending', unconfirmed: true })
           }
@@ -4610,7 +4637,7 @@ export function useChat(
     }
   }, [
     deferOutgoing,
-    handOffWithdrawnSend,
+    handOffProvisionalOutgoing,
     liveStreamId,
     outgoingTurnSends,
     queryClient,
@@ -4788,6 +4815,12 @@ export function useChat(
       })
       const id = options?.resumeUserMessageId ?? generateId()
       const chatKey = chatKeyRef.current
+      const journal = useMothershipOutgoingStore.getState()
+      const handedOff = options?.resumeUserMessageId
+        ? (journal.chats[handedOffJournalKey(id)] ?? [])
+        : []
+      if (handedOff.length > 0) journal.record(handedOffJournalKey(id), [])
+      const now = Date.now()
       /* A new message is the user asking again, so anything held back in this chat
          (an unreachable Sim, a busy chat) tries again with it, ahead of it. */
       writeOutgoing((current) => [
@@ -4805,8 +4838,9 @@ export function useChat(
           status: 'pending',
           attempts: 0,
           reads: 0,
-          writtenAt: Date.now(),
+          writtenAt: now,
         },
+        ...handedOff.map((entry) => fromJournaled(chatKey, entry, now)),
       ])
       void deliverOutgoing()
       /* A message that goes straight out as its own turn resolves with that turn,
@@ -4860,6 +4894,22 @@ export function useChat(
     deliverOutgoing,
     writeOutgoing,
   ])
+  /* Nothing is out to come back withdrawn (a retry waiting on its delay), so nothing
+     else would carry what a new chat holds past this unmount. */
+  useEffect(
+    () => () => {
+      if (surfaceMountedRef.current) return
+      const chatKey = chatKeyRef.current
+      if (!chatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) return
+      const sendOut = outgoingRef.current.some(
+        (message) =>
+          message.chatKey === chatKey &&
+          (message.status === 'sending' || message.status === 'steering')
+      )
+      if (!sendOut) handOffProvisionalOutgoing(chatKey)
+    },
+    [handOffProvisionalOutgoing]
+  )
   useEffect(() => {
     if (typeof window === 'undefined') return
     const retryOnline = () => {

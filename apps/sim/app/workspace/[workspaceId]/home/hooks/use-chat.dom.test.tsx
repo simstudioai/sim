@@ -2178,6 +2178,151 @@ describe('useChat remount send recovery', () => {
     expect(MothershipHandoffStorage.consume('ws-1')?.message).toBe('must survive my own teardown')
   })
 
+  describe('a new chat’s messages when its surface unmounts', () => {
+    const idOf = (view: { getResult: () => ReturnType<typeof useChat> }, content: string) =>
+      view.getResult().messages.find((message) => message.content === content)?.id
+
+    /** From here on a send is admitted and opens its chat; its turn ends at once. */
+    function admitSends() {
+      mockRequestJson.mockImplementation(() =>
+        Promise.resolve({
+          chat: {
+            id: DEDUPED_CHAT_ID,
+            mode: 'agent',
+            title: 'Handed off',
+            messages: [],
+            activeStreamId: null,
+            resources: [],
+          } satisfies MothershipChatHistory,
+        })
+      )
+      vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) !== '/api/mothership/chat' || init?.method !== 'POST') {
+          return fetchStub(input, init)
+        }
+        state.postBodies.push(JSON.parse(String(init.body)))
+        return Promise.resolve(
+          new Response(emptySseResponse().body, {
+            headers: {
+              'Content-Type': 'text/event-stream',
+              'x-mothership-chat-id': DEDUPED_CHAT_ID,
+            },
+          })
+        )
+      })
+    }
+
+    async function sendTwoDuringAdmission() {
+      const view = renderUseChat()
+      await act(async () => {
+        void view.getResult().sendMessage('First')
+      })
+      await waitFor(() => state.postBodies.length === 1)
+      await act(async () => {
+        void view.getResult().sendMessage('Second')
+        await settle()
+      })
+      return { view, secondId: idOf(view, 'Second') }
+    }
+
+    /** Sent while the first waited on its admission, the second has no chat to wait in. */
+    it('hands off a message sent during the admission, behind the first, from storage', async () => {
+      const { view, secondId } = await sendTwoDuringAdmission()
+      expect(secondId).toBeDefined()
+      view.unmount()
+      await waitFor(() => window.localStorage.getItem('sim_mothership_handoff') !== null)
+
+      const handoff = MothershipHandoffStorage.consume('ws-1')
+      expect(handoff?.message).toBe('First')
+      admitSends()
+      const next = renderUseChat()
+      await act(async () => {
+        await next.getResult().sendMessage(handoff?.message ?? '', undefined, undefined, {
+          resumeUserMessageId: handoff?.resumeUserMessageId,
+        })
+      })
+      await waitFor(() => state.postBodies.length === 3)
+
+      expect(state.postBodies.slice(1).map((body) => [body.message, body.userMessageId])).toEqual([
+        ['First', handoff?.resumeUserMessageId],
+        ['Second', secondId],
+      ])
+    })
+
+    it('hands off a message sent during the admission to a live replacement', async () => {
+      const replacement = renderHomeLikeSurface()
+      const { view, secondId } = await sendTwoDuringAdmission()
+      admitSends()
+      view.unmount()
+      await waitFor(() => state.postBodies.length === 3)
+
+      expect(replacement.claimedByOwnListener()).toBe(1)
+      expect(state.postBodies[1].message).toBe('First')
+      expect(state.postBodies[2]).toMatchObject({ message: 'Second', userMessageId: secondId })
+      expect(window.localStorage.getItem('sim_mothership_handoff')).toBeNull()
+    })
+
+    /** Its POST came back with no answer, so no send is out to come back withdrawn. */
+    it('hands off what waits on a retry delay when no send is out', async () => {
+      vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(true)
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
+          state.postBodies.push(JSON.parse(String(init.body)))
+          throw new TypeError('Failed to fetch')
+        }
+        return fetchStub(input, init)
+      })
+      const view = renderUseChat()
+      await act(async () => {
+        void view.getResult().sendMessage('First')
+        await settle()
+      })
+      await act(async () => {
+        void view.getResult().sendMessage('Second')
+        await settle()
+      })
+      const firstId = idOf(view, 'First')
+      const secondId = idOf(view, 'Second')
+      const postsBefore = state.postBodies.length
+
+      view.unmount()
+      const handoff = MothershipHandoffStorage.consume('ws-1')
+      expect(handoff?.resumeUserMessageId).toBe(firstId)
+
+      admitSends()
+      const next = renderUseChat()
+      await act(async () => {
+        await next.getResult().sendMessage(handoff?.message ?? '', undefined, undefined, {
+          resumeUserMessageId: handoff?.resumeUserMessageId,
+        })
+      })
+      await waitFor(() => state.postBodies.length >= postsBefore + 2)
+
+      expect(
+        state.postBodies.slice(postsBefore).map((body) => [body.message, body.userMessageId])
+      ).toEqual([
+        ['First', firstId],
+        ['Second', secondId],
+      ])
+    })
+
+    /** What a new send of its own carries is no resume, so it takes nothing behind it. */
+    it('leaves handed-off messages for the surface that resumes the first', async () => {
+      const { view } = await sendTwoDuringAdmission()
+      view.unmount()
+      await waitFor(() => window.localStorage.getItem('sim_mothership_handoff') !== null)
+
+      admitSends()
+      const next = renderUseChat()
+      await act(async () => {
+        await next.getResult().sendMessage('Unrelated')
+      })
+      await settle()
+
+      expect(state.postBodies.slice(1).map((body) => body.message)).toEqual(['Unrelated'])
+    })
+  })
+
   describe('retrying a withdrawn send', () => {
     /**
      * The whole point of carrying the id: the server sees one logical send, so

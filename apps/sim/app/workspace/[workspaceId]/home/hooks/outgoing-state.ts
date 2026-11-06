@@ -189,6 +189,29 @@ export function outgoingRetryDelay(attempts: number): number {
   })
 }
 
+/**
+ * Where the rest of a new chat's messages wait once its surface is gone: the handoff
+ * carries one message, and whichever surface resumes that one takes these behind it.
+ */
+export function handedOffJournalKey(resumedId: string): string {
+  return `handoff:${resumedId}`
+}
+
+/**
+ * What a new chat's message goes on to the next surface as. Nothing took it, since
+ * its chat never existed, so it starts over; one shown as not delivered stays that
+ * way until the user asks.
+ */
+export function toHandedOff(message: OutgoingMessage): JournaledOutgoing {
+  return {
+    id: message.id,
+    payload: message.payload,
+    status: message.status === 'failed' ? 'failed' : 'pending',
+    ...(message.unconfirmed ? { unconfirmed: true } : {}),
+    writtenAt: message.writtenAt,
+  }
+}
+
 type PersistedRow = MothershipChatHistory['messages'][number]
 
 /**
