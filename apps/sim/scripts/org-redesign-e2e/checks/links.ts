@@ -394,7 +394,8 @@ export async function linksChecks() {
         const loadingPrefetched = page.waitForResponse(
           async (response) =>
             isLinksPayload(new URL(response.url())) &&
-            (await response.text()).includes('Loading links')
+            // A prefetch the page moved past has no body left to read, and is not the one awaited.
+            (await response.text().catch(() => '')).includes('Loading links')
         )
         await page.goto(orgUrl('/home'))
         await loadingPrefetched
