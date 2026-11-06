@@ -1,6 +1,6 @@
 import type { PageSnapshot } from '@sim/browser-extension-protocol'
 import { generateId } from '@sim/utils/id'
-import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
+import { filterUndefined, isPlainRecord, isRecordLike, toRecord } from '@sim/utils/object'
 import { truncateAtCodePoint } from '@sim/utils/string'
 import type {
   PersistedContentBlock,
@@ -15,6 +15,7 @@ import {
   redactSensitiveContent,
   redactToolCallResult,
 } from '@/lib/mothership/chat/sim-key-redaction'
+import type { SteeringMessageMarker } from '@/lib/mothership/chat/steering'
 import type { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import {
   MothershipStreamV1CompletionStatus,
@@ -144,6 +145,8 @@ export interface PersistedMessage {
   timestamp: string
   /** Automation opened this turn, not the user (rendered as a system chip). */
   origin?: TurnOrigin
+  /** Sent into a running turn as steering, not as a turn of its own. */
+  steering?: SteeringMessageMarker
   requestId?: string
   contentBlocks?: PersistedContentBlock[]
   fileAttachments?: PersistedFileAttachment[]
@@ -287,8 +290,20 @@ export function compactToolCallParams(message: PersistedMessage): PersistedMessa
  * `content` is the stored form, already passed through {@link stripToolResultOutput}.
  */
 export function displayContentOf(content: PersistedMessage): PersistedMessage | null {
-  const display = compactToolCallParams(content)
+  const display = withoutSteeringInput(compactToolCallParams(content))
   return display === content ? null : display
+}
+
+/**
+ * A message as every reader outside the steering path sees it: a steering record's
+ * outbox (the exact input sent to the worker, `steering.input`) and its delivery
+ * bookkeeping stay out of transcripts, exports and forks.
+ */
+export function withoutSteeringInput<M extends { steering?: unknown }>(message: M): M {
+  const steering = toRecord(message.steering)
+  if (typeof steering.streamId !== 'string') return message
+  if (!('input' in steering) && !('disposition' in steering)) return message
+  return { ...message, steering: { streamId: steering.streamId } }
 }
 
 // Write: OrchestratorResult → PersistedMessage
@@ -345,6 +360,8 @@ function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
   switch (block.type) {
     case 'task':
       return { type: 'task', ...(block.task ? { task: block.task } : {}) }
+    case 'steering':
+      return { type: 'steering', ...(block.steering ? { steering: block.steering } : {}) }
     case 'text':
       return {
         type: MothershipStreamV1EventType.text,
@@ -612,6 +629,7 @@ interface RawBlock {
   type: string
   lane?: string
   task?: import('@/lib/mothership/request/types').TaskBlockInfo
+  steering?: { steeringId?: unknown }
   agent?: string
   /** Orchestrator-chosen subagent display name (legacy blocks store it as `subagentName`). */
   name?: string
@@ -809,6 +827,15 @@ function normalizeLegacyBlock(block: RawBlock): PersistedContentBlock {
     return { type: 'task', ...(block.task ? { task: block.task } : {}) }
   }
 
+  if (block.type === 'steering') {
+    return {
+      type: 'steering',
+      ...(typeof block.steering?.steeringId === 'string'
+        ? { steering: { steeringId: block.steering.steeringId } }
+        : {}),
+    }
+  }
+
   return {
     type: MothershipStreamV1EventType.text,
     channel: MothershipStreamV1TextChannel.assistant,
@@ -904,6 +931,10 @@ export function normalizeMessage(raw: Record<string, unknown>): PersistedMessage
   if (typeof raw.streamId === 'string') msg.streamId = raw.streamId
   const origin = TurnOrigin.safeParse(raw.origin)
   if (origin.success) msg.origin = origin.data
+  const steering = toRecord(raw.steering)
+  if (msg.role === 'user' && typeof steering.streamId === 'string' && steering.streamId) {
+    msg.steering = { streamId: steering.streamId }
+  }
 
   const rawBlocks = raw.contentBlocks as RawBlock[] | undefined
   const rawToolCalls = raw.toolCalls as LegacyToolCall[] | undefined

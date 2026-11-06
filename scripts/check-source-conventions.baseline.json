@@ -67,7 +67,7 @@
     "apps/sim/app/workspace/[workspaceId]/home/hooks/stream/handle-span-event.test.ts": 3,
     "apps/sim/app/workspace/[workspaceId]/home/hooks/stream/handle-tool-event.test.ts": 4,
     "apps/sim/app/workspace/[workspaceId]/home/hooks/stream/stream-context.test.ts": 2,
-    "apps/sim/app/workspace/[workspaceId]/home/hooks/use-chat.ts": 5,
+    "apps/sim/app/workspace/[workspaceId]/home/hooks/use-chat.ts": 3,
     "apps/sim/app/workspace/[workspaceId]/home/page.tsx": 2,
     "apps/sim/app/workspace/[workspaceId]/logs/components/dashboard/dashboard.tsx": 1,
     "apps/sim/app/workspace/[workspaceId]/logs/logs.tsx": 2,

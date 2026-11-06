@@ -39,8 +39,6 @@ export interface ConversationComposerProps {
     text: string,
     contexts?: ChatContext[]
   ) => undefined | false | PendingComposerSubmission
-  onSendQueuedHead: () => void
-  onEditQueuedTail: () => boolean
   messages: readonly ChatMessage[]
   onStop: () => void
 }
@@ -83,11 +81,8 @@ export function useComposer({
   draftKeys,
   files,
   submission,
-  isSending,
   restoredContexts,
   onSubmit,
-  onSendQueuedHead,
-  onEditQueuedTail,
   messages,
   waitsForFullLists,
   hasAdditionalAttachments = false,
@@ -148,7 +143,7 @@ export function useComposer({
   const { textareaRef, setValue, setContexts, getValue, getPlainValue, restorePrompt } = editor
   /**
    * The editor holds chips, the draft holds plain text, so neither can be the other's value. A write
-   * from outside, a queued message restored or a chat cleared, reaches the editor here.
+   * from outside, a chat cleared, reaches the editor here.
    */
   useEffect(() => {
     if (value === getPlainValue()) return
@@ -185,10 +180,7 @@ export function useComposer({
   const send = () => {
     const filesAtSend = files.getAttachedFiles()
     if (filesAtSend.some((file) => file.uploading)) return
-    if (!hasPayload(getValue(), filesAtSend)) {
-      if (isSending) onSendQueuedHead()
-      return
-    }
+    if (!hasPayload(getValue(), filesAtSend)) return
     const contexts = imagesOnly
       ? filterContextsPresentInMessage(
           editor.contexts.filter((context) => context.kind === 'browser_page'),
@@ -268,10 +260,6 @@ export function useComposer({
     const rect = event.currentTarget.getBoundingClientRect()
     editor.openResourceMenu({ left: rect.left, top: rect.top })
   }
-  const recallQueuedTail = () => {
-    if (hasAdditionalAttachments || files.getAttachedFiles().length > 0) return false
-    return onEditQueuedTail()
-  }
 
   return {
     editor,
@@ -284,7 +272,6 @@ export function useComposer({
     /** Enter and the arrow keys' policy, shared by the prompt editor and the plain Assistant field. */
     keyPolicy: {
       onNavigateHistory: hasAdditionalAttachments ? undefined : history.navigate,
-      onArrowUpOnEmpty: recallQueuedTail,
     },
     frameProps: {
       'aria-busy': preparingSubmission || Boolean(heldSend) || undefined,

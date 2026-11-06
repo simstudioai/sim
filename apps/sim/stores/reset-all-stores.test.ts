@@ -8,7 +8,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetQueryClient,
-  mockMothershipQueueReset,
   mockMothershipDraftsReset,
   mockOperationQueueReset,
   mockResetRegisteredUserData,
@@ -16,7 +15,6 @@ const {
   mockWorkflowSetState,
 } = vi.hoisted(() => ({
   mockGetQueryClient: vi.fn(),
-  mockMothershipQueueReset: vi.fn(),
   mockMothershipDraftsReset: vi.fn(),
   mockOperationQueueReset: vi.fn(),
   mockResetRegisteredUserData: vi.fn(),
@@ -36,9 +34,6 @@ vi.mock('@/stores/execution', () => ({
 vi.mock('@/stores/mothership-drafts/store', () => ({
   useMothershipDraftsStore: { getState: () => ({ reset: mockMothershipDraftsReset }) },
 }))
-vi.mock('@/stores/mothership-queue/store', () => ({
-  useMothershipQueueStore: { getState: () => ({ reset: mockMothershipQueueReset }) },
-}))
 vi.mock('@/stores/operation-queue/store', () => ({
   useOperationQueueStore: { getState: () => ({ reset: mockOperationQueueReset }) },
 }))
@@ -50,6 +45,7 @@ vi.mock('@/stores/workflows/workflow/store', () => ({
   useWorkflowStore: { setState: mockWorkflowSetState },
 }))
 
+import { useMothershipOutgoingStore } from '@/stores/mothership-outgoing/store'
 import { resetAllStores } from '@/stores/reset-all-stores'
 
 const mockRegistrySetState = workflowRegistryStoreMockFns.mockSetState
@@ -81,6 +77,18 @@ describe('resetAllStores', () => {
     expect(queryClient.getQueryCache().getAll()).toHaveLength(0)
   })
 
+  it('clears what the outgoing journal holds even if no chat loaded it this session', async () => {
+    useMothershipOutgoingStore
+      .getState()
+      .record('chat-a', [
+        { id: 'message-a', payload: { content: 'Hi' }, status: 'pending', writtenAt: 1 },
+      ])
+
+    await resetAllStores()
+
+    expect(useMothershipOutgoingStore.getState().chats).toEqual({})
+  })
+
   it('removes transient workflow state and replaces persisted console data', async () => {
     await resetAllStores()
 
@@ -95,7 +103,6 @@ describe('resetAllStores', () => {
     expect(mockResetRegisteredUserData).toHaveBeenCalledOnce()
     expect(mockConsoleReset).toHaveBeenCalledOnce()
     expect(mockClearAllExecutionPointers).toHaveBeenCalledOnce()
-    expect(mockMothershipQueueReset).toHaveBeenCalledOnce()
     expect(mockMothershipDraftsReset).toHaveBeenCalledOnce()
     expect(mockConsolePersist).toHaveBeenCalledWith({ merge: false })
   })

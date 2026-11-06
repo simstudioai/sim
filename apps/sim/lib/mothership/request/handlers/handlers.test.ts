@@ -2524,6 +2524,20 @@ describe('sse-handlers tool lifecycle', () => {
     expect(context.errors).toEqual(['subagent build failed'])
   })
 
+  it('notes when the worker refuses a turn because a run already applied its message', async () => {
+    await sseHandlers.error(
+      {
+        type: MothershipStreamV1EventType.error,
+        payload: { code: 'input_applied', message: 'Already included.' },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    expect(context.inputApplied).toBe(true)
+  })
+
   it('records the worker error copy the live view showed, not its diagnostic message', async () => {
     await sseHandlers.error(
       {

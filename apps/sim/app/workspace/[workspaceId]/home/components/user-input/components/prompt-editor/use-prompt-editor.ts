@@ -116,12 +116,6 @@ export interface PromptEditorKeyPolicy {
    * Enter inserts a newline. Omit to keep native newline insertion everywhere.
    */
   onSubmit?: () => void
-  /**
-   * Plain ArrowUp while the editor text is empty. Return `true` when handled
-   * to consume the event (e.g. chat recalls the queued tail message); return
-   * `false` to fall through to native caret movement.
-   */
-  onArrowUpOnEmpty?: () => boolean
   /** Plain arrows at a collapsed start/end caret; menus keep priority. */
   onNavigateHistory?: (direction: -1 | 1) => boolean
 }
@@ -315,7 +309,7 @@ export function usePromptEditor({
 
   /**
    * Bulk-chipifies a block of text on the non-keystroke paths (mount,
-   * template, draft restore, STT, queued message, multi-char paste): explicit
+   * template, draft restore, STT, multi-char paste): explicit
    * integration `@`-mentions first (casing canonicalized; bare names are never
    * touched), then skill `/` triggers (swapped to the sentinel). Returns the
    * fully converted text and registers both context kinds.
@@ -393,7 +387,7 @@ export function usePromptEditor({
 
   /**
    * Programmatically replaces the editor text. Chipifies by default so any
-   * seeded prose (template, transcript, queued message) registers its
+   * seeded prose (template, transcript) registers its
    * integration / skill chips; pass `{ chipify: false }` for verbatim text.
    * `{ seed: true }` treats the text like `initialValue`, re-chipified once
    * the skill list loads while it stays untouched.
@@ -1073,11 +1067,6 @@ export function usePromptEditor({
         !e.defaultPrevented &&
         e.currentTarget.selectionStart === e.currentTarget.selectionEnd
       ) {
-        if (e.key === 'ArrowUp' && valueRef.current.length === 0 && policy?.onArrowUpOnEmpty?.()) {
-          e.preventDefault()
-          return
-        }
-
         const direction = e.key === 'ArrowUp' ? -1 : 1
         const boundary = direction === -1 ? 0 : valueRef.current.length
         if (e.currentTarget.selectionStart === boundary && policy?.onNavigateHistory?.(direction)) {
@@ -1481,7 +1470,7 @@ export function usePromptEditor({
     value,
     /** Mention contexts currently registered in the text, reactive. */
     contexts: contextManagement.selectedContexts,
-    /** Replaces the registered contexts (draft / queued-message restore). */
+    /** Replaces the registered contexts (draft restore). */
     setContexts: contextManagement.setSelectedContexts,
     setValue,
     restorePrompt,

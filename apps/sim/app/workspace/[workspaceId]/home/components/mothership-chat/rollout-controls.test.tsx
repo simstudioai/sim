@@ -69,13 +69,6 @@ async function render(advanced: boolean, workspaceId?: string) {
             isSending={false}
             onSubmit={vi.fn()}
             onStopGeneration={vi.fn()}
-            messageQueue={[]}
-            editingQueuedId={null}
-            dispatchingHeadId={null}
-            onRemoveQueuedMessage={vi.fn()}
-            onSendQueuedMessage={async () => {}}
-            onEditQueuedMessage={() => undefined}
-            onCancelQueueEdit={vi.fn()}
             composer={<ModelSelector plan />}
           />
         </FeatureFlagsProvider>

@@ -121,6 +121,8 @@ function toRawPersistedContentBlockBody(block: ContentBlock): PersistedContentBl
       }
     case 'task':
       return block.task ? { type: 'task', task: block.task } : null
+    case 'steering':
+      return block.steering ? { type: 'steering', steering: block.steering } : null
     default:
       return null
   }
@@ -245,10 +247,11 @@ export function findStreamOwnerIndex(messages: PersistedMessage[], streamId: str
   return messages.findIndex((message) => message.role === 'user' && message.id === streamId)
 }
 
+/** The turn's response after its owner, past any steering the user sent into that turn. */
 export function findAssistantAfterOwner(messages: PersistedMessage[], ownerIndex: number): number {
   for (let index = ownerIndex + 1; index < messages.length; index++) {
     const message = messages[index]
-    if (message.role === 'user') return -1
+    if (message.role === 'user' && !message.steering) return -1
     if (message.role === 'assistant') return index
   }
   return -1

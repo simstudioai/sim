@@ -26,7 +26,7 @@ import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
 import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
-import { sendPayload } from '@/app/workspace/[workspaceId]/home/hooks/send-queue-policy'
+import { sendPayload } from '@/app/workspace/[workspaceId]/home/hooks/send-payload'
 import {
   useChatResourcePanel,
   useResourcePanelController,
@@ -176,13 +176,8 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
     stopGeneration,
     resolvedChatId,
     removeResource,
-    messageQueue,
-    removeFromQueue,
-    sendNow,
-    editQueuedMessage,
-    cancelQueueEdit,
-    editingQueuedId,
-    dispatchingHeadId,
+    retryMessage,
+    dismissMessage,
     getCurrentRequestId,
   } = chat
   const panel = useChatResourcePanel(chat, controller, userId)
@@ -490,13 +485,8 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
             isLoading={showChatSkeleton}
             onSubmit={handleSubmit}
             onStopGeneration={handleStopGeneration}
-            messageQueue={messageQueue}
-            editingQueuedId={editingQueuedId}
-            dispatchingHeadId={dispatchingHeadId}
-            onRemoveQueuedMessage={removeFromQueue}
-            onSendQueuedMessage={sendNow}
-            onEditQueuedMessage={editQueuedMessage}
-            onCancelQueueEdit={cancelQueueEdit}
+            onRetryMessage={retryMessage}
+            onDismissMessage={dismissMessage}
             userId={userId}
             chatId={resolvedChatId}
             onContextAdd={handleContextAdd}

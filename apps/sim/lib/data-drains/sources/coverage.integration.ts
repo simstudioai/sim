@@ -1,4 +1,5 @@
 import { generateId } from '@sim/utils/id'
+import { toArray } from '@sim/utils/object'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 async function loadRuntime() {
@@ -235,6 +236,36 @@ describe('Drain source coverage and payload safety in PostgreSQL', () => {
       await runtime.db
         .delete(runtime.schema.copilotMessages)
         .where(runtime.eq(runtime.schema.copilotMessages.id, messageId))
+    }
+  })
+
+  it('exports a steering record without its input, and does not count it against the budget', async () => {
+    const { db, schema, eq } = runtime
+    const messageId = generateId()
+    await db.insert(schema.copilotMessages).values({
+      id: messageId,
+      messageId: generateId(),
+      chatId,
+      role: 'user',
+      content: {
+        text: 'Steered',
+        steering: {
+          streamId: 'turn-1',
+          input: { assistantImages: [{ data: 'x'.repeat(1024 * 1024 + 1) }] },
+        },
+      },
+      createdAt: old,
+    })
+    try {
+      const exported: unknown[] = []
+      for await (const rows of runtime.copilotChatsSource.pages(input())) {
+        for (const row of rows) {
+          exported.push(...toArray(runtime.copilotChatsSource.serialize(row).messages))
+        }
+      }
+      expect(exported).toContainEqual({ text: 'Steered', steering: { streamId: 'turn-1' } })
+    } finally {
+      await db.delete(schema.copilotMessages).where(eq(schema.copilotMessages.id, messageId))
     }
   })
 

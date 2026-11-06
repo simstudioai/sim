@@ -6,14 +6,9 @@ import { sleep } from '@sim/utils/helpers'
 import type { MutationObserverOptions } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { suspendBrowserScope, suspendTerminalScope, clearChat } = vi.hoisted(() => ({
-  clearChat: vi.fn(),
+const { suspendBrowserScope, suspendTerminalScope } = vi.hoisted(() => ({
   suspendBrowserScope: vi.fn(async () => true),
   suspendTerminalScope: vi.fn(async () => true),
-}))
-
-vi.mock('@/stores/mothership-queue/store', () => ({
-  useMothershipQueueStore: { getState: () => ({ clearChat, cleared: {} }) },
 }))
 
 vi.mock('@tanstack/react-query', () => reactQueryMock)
@@ -69,14 +64,13 @@ describe('tasks query boundary parsing', () => {
     expect(fetch).toHaveBeenCalledTimes(2)
     expect(reconciled).not.toHaveBeenCalled()
     expect(queryClient.invalidateQueries).not.toHaveBeenCalled()
-    expect(clearChat).not.toHaveBeenCalled()
+    expect(queryClient.removeQueries).not.toHaveBeenCalled()
     pending.resolve(jsonResponse({ success: true }))
     await observed
     await expect(result).rejects.toThrow()
     expect(queryClient.invalidateQueries).toHaveBeenCalledExactlyOnceWith({
       queryKey: ['mothership-chats', 'list', 'organization', 'org-1'],
     })
-    expect(clearChat).toHaveBeenCalledExactlyOnceWith('chat-slow')
     expect(queryClient.removeQueries).toHaveBeenCalledExactlyOnceWith({
       queryKey: ['mothership-chats', 'detail', 'chat-slow'],
     })
@@ -96,8 +90,6 @@ describe('tasks query boundary parsing', () => {
     expect(suspendTerminalScope).toHaveBeenCalledWith('chat-a')
     expect(suspendBrowserScope).not.toHaveBeenCalledWith('chat-b')
     expect(suspendTerminalScope).not.toHaveBeenCalledWith('chat-b')
-    expect(clearChat).toHaveBeenCalledWith('chat-a')
-    expect(clearChat).not.toHaveBeenCalledWith('chat-b')
     expect(queryClient.removeQueries).toHaveBeenCalledWith({
       queryKey: ['mothership-chats', 'detail', 'chat-a'],
     })

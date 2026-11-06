@@ -26,6 +26,7 @@ import {
   useChatChrome,
   useChatSurface,
 } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import { isAnswerSegmentId } from '@/app/workspace/[workspaceId]/home/hooks/steered-messages'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useForkMothershipChat } from '@/hooks/queries/mothership-chats'
 import { useFolderStore } from '@/stores/folders/store'
@@ -185,7 +186,13 @@ export const MessageActions = memo(function MessageActions({
   // A live (just-streamed) assistant message carries a synthetic id that the
   // persisted transcript doesn't know — forking it would 400. The button
   // appears once the transcript refetch swaps in the persisted message id.
-  const canFork = Boolean(owner && chatId && messageId && !isLiveAssistantMessageId(messageId))
+  const canFork = Boolean(
+    owner &&
+      chatId &&
+      messageId &&
+      !isLiveAssistantMessageId(messageId) &&
+      !isAnswerSegmentId(messageId)
+  )
   if (!canCopyContent && !canSubmitFeedback && !canFork) return null
 
   if (ResponseActions) {

@@ -641,6 +641,20 @@ describe('runCopilotLifecycle', () => {
     expect(mockRunStreamLoop).not.toHaveBeenCalled()
   })
 
+  it('reports a turn the worker refused as already applied, with the code the view reads', async () => {
+    mockRunStreamLoop.mockImplementationOnce(async (_url, _request, context: StreamingContext) => {
+      context.inputApplied = true
+      context.errors.push('Already included.')
+    })
+
+    const result = await runCopilotLifecycle(
+      { message: 'read the report', messageId: 'input-applied' },
+      { userId: 'user-1', workspaceId: 'ws-1', chatId: 'chat-1', interactive: false }
+    )
+
+    expect(result).toMatchObject({ inputApplied: true, errorCode: 'input_applied' })
+  })
+
   it.each(['complete', 'error', 'cancelled'] as const)(
     'persists the headless %s outcome before returning',
     async (status) => {

@@ -11,10 +11,6 @@ import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
 import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { BrowserStorage } from '@/lib/core/utils/browser-storage'
-import {
-  getMothershipAttachmentPreviewUrl,
-  getMothershipAttachmentUrl,
-} from '@/lib/mothership/chat/attachment-preview'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { organizationDraftKey, SEARCH_ASSISTANT_DRAFT_SLOT } from '@/lib/organizations/draft-key'
 import { useOrganization } from '@/lib/organizations/provider'
@@ -373,35 +369,6 @@ export function useOrganizationConversation({
       : commit({ message: text.trim(), contexts })
   }
 
-  const editQueuedMessage = (id: string) => {
-    const queued = chat.editQueuedMessage(id)
-    if (queued) {
-      const store = useMothershipDraftsStore.getState()
-      store.setDraft(draftKey, {
-        ...store.drafts[draftKey],
-        text: queued.content,
-        contexts: queued.contexts,
-      })
-      setRestoredContexts(queued.contexts ?? [])
-      files.restoreAttachedFiles(
-        (queued.fileAttachments ?? []).map((file) => ({
-          id: file.id,
-          key: file.key,
-          name: file.filename,
-          type: file.media_type,
-          size: file.size,
-          path:
-            file.path ||
-            getMothershipAttachmentPreviewUrl(file) ||
-            getMothershipAttachmentUrl(file),
-          previewUrl: getMothershipAttachmentPreviewUrl(file),
-          uploading: false,
-        }))
-      )
-    }
-    return queued
-  }
-
   const allowBuildControls = requestMode !== 'assistant' && canBuild
   const stopGeneration = () => {
     void chat.stopGeneration()
@@ -416,17 +383,10 @@ export function useOrganizationConversation({
     draftKeys,
     restoredContexts,
     messages: chat.messages,
-    onEditQueuedTail: () => {
-      const tail = chat.messageQueue.at(-1)
-      return tail ? Boolean(editQueuedMessage(tail.id)) : false
-    },
     files,
     isInitialView: !hasChat,
     isSending: chat.isSending || chat.isReconnecting,
     onSubmit: submit,
-    onSendQueuedHead: () => {
-      void chat.sendNow()
-    },
     onStop: stopGeneration,
   }
   /** What both views' threads take; each adds its own layout around them. */
@@ -444,13 +404,8 @@ export function useOrganizationConversation({
     isLoading: Boolean(chatId) && !chat.messages.length && chat.isChatHistoryPending,
     onSubmit: send,
     onStopGeneration: stopGeneration,
-    messageQueue: chat.messageQueue,
-    editingQueuedId: chat.editingQueuedId,
-    dispatchingHeadId: chat.dispatchingHeadId,
-    onRemoveQueuedMessage: chat.removeFromQueue,
-    onSendQueuedMessage: chat.sendNow,
-    onEditQueuedMessage: editQueuedMessage,
-    onCancelQueueEdit: chat.cancelQueueEdit,
+    onRetryMessage: chat.retryMessage,
+    onDismissMessage: chat.dismissMessage,
     userId,
     chatId: chat.resolvedChatId,
     onWorkspaceResourceSelect: requestMode !== 'assistant' ? selectResource : undefined,

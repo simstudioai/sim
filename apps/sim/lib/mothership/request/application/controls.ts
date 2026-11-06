@@ -1,7 +1,6 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { CopilotChatSteerBody } from '@/lib/api/contracts/copilot'
 import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
@@ -16,12 +15,10 @@ import {
   type OwnedChatContextOptions,
   resolveOwnedChatContext,
 } from '@/lib/mothership/chat/application/context'
-import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import {
   deliverRunStop,
   readStoppedRunWork,
 } from '@/lib/mothership/request/application/stop-delivery'
-import { requestStreamSteering } from '@/lib/mothership/request/session/steer'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const logger = createLogger('MothershipRunControls')
@@ -50,7 +47,7 @@ interface RunControlInput {
   workspaceId?: string
   organizationId?: string
 }
-async function resolveRunContext({
+export async function resolveRunContext({
   principal,
   input,
 }: {
@@ -175,51 +172,5 @@ export const abortRun = defineAuthorizedChatUseCase({
       return false
     })
     return { aborted: true, settled: workerSettled && toolsSettled }
-  },
-})
-
-export class SteeringNotQueuedError extends Error {
-  constructor(readonly goStatus: number) {
-    super('Steering was not queued')
-  }
-}
-
-export const steerRun = defineAuthorizedChatUseCase({
-  operation: runControlOperations.steer,
-  organizationOperation: defineOrganizationOperation({
-    id: runControlOperations.steer.id,
-    minimumRole: 'member',
-    capability: runControlOperations.steer.capability,
-    principalKinds: ['session'],
-  }),
-  resolveContext: (args: { principal: SessionPrincipal; input: CopilotChatSteerBody }) =>
-    resolveRunContext(args),
-  authorizationOptions: {},
-  async execute({ input, context }) {
-    const { streamId, steeringId, content } = input
-    const { userId, chatId } = context
-    let queued = false
-    let goStatus = 0
-    try {
-      const result = await requestStreamSteering({ streamId, userId, chatId, steeringId, content })
-      queued = result.queued
-      goStatus = result.status
-    } catch (error) {
-      logger.warn('Steering could not reach worker', { streamId, error: getErrorMessage(error) })
-    }
-    if (!queued) throw new SteeringNotQueuedError(goStatus)
-    try {
-      await appendCopilotChatMessages(
-        chatId,
-        [{ id: steeringId, role: 'user', content, timestamp: new Date().toISOString() }],
-        { streamId }
-      )
-    } catch (error) {
-      logger.warn('Queued steering could not be saved to display history', {
-        streamId,
-        error: getErrorMessage(error),
-      })
-    }
-    return { ok: true, queued: true }
   },
 })

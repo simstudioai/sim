@@ -273,7 +273,6 @@ const seamHelpers = new Set([
   'lib/desktop',
   'lib/desktop/chat-scope',
   'lib/knowledge/search/connection-target',
-  'lib/mothership/chat/attachment-preview',
   'lib/mothership/generated/resources',
   'lib/mothership/generated/tool-catalog-v1',
   'lib/mothership/model-options',

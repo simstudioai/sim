@@ -13,6 +13,7 @@ import {
   useState,
 } from 'react'
 import {
+  Chip,
   type ClipboardContent,
   cn,
   overflowFadeSizeClass,
@@ -58,13 +59,13 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/copyable-markdown'
 import { nextSizerFloor } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/sizer-floor'
 import { useChatFind } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/use-chat-find'
-import { QueuedMessages } from '@/app/workspace/[workspaceId]/home/components/queued-messages'
 import {
   UserInput,
   type UserInputHandle,
 } from '@/app/workspace/[workspaceId]/home/components/user-input'
 import type { ModelSelectorOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
 import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
+import { findLiveResponseId } from '@/app/workspace/[workspaceId]/home/hooks/steered-messages'
 import {
   fetchWorkspaceResourceRef,
   readCachedWorkspaceResourceRef,
@@ -75,7 +76,6 @@ import type {
   ChatMessageContext,
   ContentBlock,
   FileAttachmentForApi,
-  QueuedMessage,
   WorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useOptionalWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -104,13 +104,9 @@ interface MothershipChatProps {
     contexts?: ChatContext[]
   ) => unknown
   onStopGeneration: () => void
-  messageQueue: QueuedMessage[]
-  editingQueuedId: string | null
-  dispatchingHeadId: string | null
-  onRemoveQueuedMessage: (id: string) => void
-  onSendQueuedMessage: (id?: string) => Promise<void>
-  onEditQueuedMessage: (id: string) => QueuedMessage | undefined
-  onCancelQueueEdit: () => void
+  /** Tries again to deliver a message shown as not delivered. */
+  onRetryMessage?: (messageId: string) => void
+  onDismissMessage?: (messageId: string) => void
   userId?: string
   chatId?: string
   onContextAdd?: (context: ChatContext) => void
@@ -202,7 +198,18 @@ const LAYOUT_STYLES = {
 
 const EMPTY_BLOCKS: ContentBlock[] = []
 
+/** What a message this client is still delivering shows beneath itself. */
+const DELIVERY_LABELS: Record<NonNullable<ChatMessage['delivery']>, string> = {
+  sending: 'Sending',
+  waiting: 'Sends after this response',
+  failed: 'Not delivered',
+}
+
 interface UserMessageRowProps {
+  messageId: string
+  delivery?: ChatMessage['delivery']
+  onRetry?: (messageId: string) => void
+  onDismiss?: (messageId: string) => void
   content: string
   contexts?: ChatMessageContext[]
   attachments?: ChatMessageAttachment[]
@@ -248,6 +255,10 @@ const AutomatedTurnRow = memo(function AutomatedTurnRow({
 })
 
 const UserMessageRow = memo(function UserMessageRow({
+  messageId,
+  delivery,
+  onRetry,
+  onDismiss,
   content,
   contexts,
   attachments,
@@ -268,6 +279,24 @@ const UserMessageRow = memo(function UserMessageRow({
       <div className={bubbleClassName} data-chat-find-content>
         <UserMessageContent content={content} contexts={contexts} />
       </div>
+      {delivery && (
+        <div
+          role='status'
+          className='flex items-center gap-[6px] text-[var(--text-muted)] text-caption'
+        >
+          {DELIVERY_LABELS[delivery]}
+          {delivery === 'failed' && onRetry && (
+            <Chip variant='border' onClick={() => onRetry(messageId)}>
+              Retry
+            </Chip>
+          )}
+          {delivery === 'failed' && onDismiss && (
+            <Chip variant='border' onClick={() => onDismiss(messageId)}>
+              Dismiss
+            </Chip>
+          )}
+        </div>
+      )}
     </div>
   )
 })
@@ -411,13 +440,8 @@ export function MothershipChat({
   onSubmit,
   onComposerSubmit,
   onStopGeneration,
-  messageQueue,
-  editingQueuedId,
-  dispatchingHeadId,
-  onRemoveQueuedMessage,
-  onSendQueuedMessage,
-  onEditQueuedMessage,
-  onCancelQueueEdit,
+  onRetryMessage,
+  onDismissMessage,
   userId,
   chatId,
   onContextAdd,
@@ -439,8 +463,12 @@ export function MothershipChat({
   const queryClient = useQueryClient()
   const styles = LAYOUT_STYLES[layout]
   const isStreamActive = isSending || isReconnecting
-  /** The deferred list may still end in the previous turn when a new send starts. */
-  const streamingMessageId = isStreamActive ? messagesProp.at(-1)?.id : undefined
+  /**
+   * The live response is the last assistant message: messages still on their way
+   * into the turn show after it. The deferred list may still end in the previous
+   * turn when a new send starts.
+   */
+  const streamingMessageId = isStreamActive ? findLiveResponseId(messagesProp) : undefined
   /**
    * Defer the streamed message list so its re-render (virtualizer + rows) is
    * low-priority: React yields it to urgent interactions (dragging/panning the
@@ -807,10 +835,6 @@ export function MothershipChat({
 
   const scrolledChatRef = useRef<string | undefined | typeof UNSCROLLED>(UNSCROLLED)
   const userInputRef = useRef<UserInputHandle>(null)
-  const messageQueueRef = useRef(messageQueue)
-  useEffect(() => {
-    messageQueueRef.current = messageQueue
-  }, [messageQueue])
 
   const onSubmitRef = useRef(onSubmit)
   useEffect(() => {
@@ -819,27 +843,6 @@ export function MothershipChat({
   const stableOnOptionSelect = useCallback((id: string) => {
     onSubmitRef.current(id)
   }, [])
-
-  const handleSendQueuedHead = useCallback(() => {
-    /** The first Enter can enqueue before this component has rendered the new queue. */
-    void onSendQueuedMessage()
-  }, [onSendQueuedMessage])
-
-  const handleEditQueued = useCallback(
-    (id: string) => {
-      const msg = onEditQueuedMessage(id)
-      if (!msg || !userInputRef.current) return false
-      userInputRef.current.loadQueuedMessage(msg)
-      return true
-    },
-    [onEditQueuedMessage, userInputRef]
-  )
-
-  const handleEditQueuedTail = useCallback(() => {
-    const tail = messageQueueRef.current[messageQueueRef.current.length - 1]
-    if (!tail) return false
-    return handleEditQueued(tail.id)
-  }, [handleEditQueued])
 
   /**
    * A drag-selection that overshoots a message's last line crosses the row
@@ -1007,6 +1010,10 @@ export function MothershipChat({
                           />
                         ) : (
                           <UserMessageRow
+                            messageId={msg.id}
+                            delivery={msg.delivery}
+                            onRetry={onRetryMessage}
+                            onDismiss={onDismissMessage}
                             content={msg.content}
                             contexts={msg.contexts}
                             attachments={msg.attachments}
@@ -1019,7 +1026,7 @@ export function MothershipChat({
                         <AssistantMessageRow
                           message={msg}
                           prepareContentForCopy={prepareContentForCopy}
-                          isStreaming={isLast && msg.id === streamingMessageId}
+                          isStreaming={msg.id === streamingMessageId}
                           isLast={isLast}
                           precedingUserContent={precedingUserByIndex[index]?.content}
                           requestMode={precedingUserByIndex[index]?.requestMode}
@@ -1030,7 +1037,11 @@ export function MothershipChat({
                           credentialAbandoned={interactionPairing.credentialAbandonedByIndex[index]}
                           rowClassName={cn(styles.assistantRow, styles.rowGap)}
                           onOptionSelect={isLast ? stableOnOptionSelect : undefined}
-                          onAnimatingChange={isLast ? setLastRowAnimating : undefined}
+                          onAnimatingChange={
+                            isLast || msg.id === streamingMessageId
+                              ? setLastRowAnimating
+                              : undefined
+                          }
                         />
                       )}
                     </AssistantActionReviewMessage>
@@ -1047,15 +1058,6 @@ export function MothershipChat({
         >
           <div className={styles.footerInner}>
             <ComputerUseActivity />
-            <QueuedMessages
-              messageQueue={messageQueue}
-              editingQueuedId={editingQueuedId}
-              dispatchingHeadId={dispatchingHeadId}
-              onRemove={onRemoveQueuedMessage}
-              onSendNow={onSendQueuedMessage}
-              onEdit={handleEditQueued}
-              onCancelEdit={onCancelQueueEdit}
-            />
             {isLoading
               ? loadingComposer
               : (composer ?? (
@@ -1071,8 +1073,6 @@ export function MothershipChat({
                     isSending={isStreamActive}
                     onStopGeneration={onStopGeneration}
                     isInitialView={false}
-                    onSendQueuedHead={handleSendQueuedHead}
-                    onEditQueuedTail={handleEditQueuedTail}
                     draftScopeKey={draftScopeKey}
                     getMessages={getHistoryMessages}
                   />

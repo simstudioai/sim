@@ -44,7 +44,7 @@ import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/mothership/requ
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
-import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
+import { useMothershipOutgoingStore } from '@/stores/mothership-outgoing/store'
 
 export interface MothershipChatMetadata {
   mode?: MothershipChat['mode']
@@ -404,19 +404,14 @@ function joinCachedOlderMessages(
 
 /**
  * Reads a chat from the server: the newest messages on first load, then everything from the
- * cached window's first message, joined to the older messages `readCached` holds. A chat this
- * tab saw deleted that the server returns again was restored, so it takes queued sends again.
- * Only a read that began after the delete counts: one already in flight can return the chat
- * from before it.
+ * cached window's first message, joined to the older messages `readCached` holds.
  */
 export async function fetchMothershipChatHistory(
   chatId: string,
   signal?: AbortSignal,
   readCached?: () => MothershipChatHistory | undefined
 ): Promise<MothershipChatHistory> {
-  const deleteSeen = useMothershipQueueStore.getState().cleared[chatId]
   const history = await readMothershipChatHistory(chatId, readCached?.()?.windowStartCursor, signal)
-  if (deleteSeen !== undefined) useMothershipQueueStore.getState().liftDelete(chatId, deleteSeen)
   return joinCachedOlderMessages(readCached?.(), history)
 }
 
@@ -527,7 +522,7 @@ export function useDeleteMothershipChat(owner?: MothershipChatOwner) {
     onSuccess: async (_data, chatId) => {
       await suspendDesktopChatScopes(chatId)
       queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(chatId) })
-      useMothershipQueueStore.getState().clearChat(chatId)
+      useMothershipOutgoingStore.getState().record(chatId, [])
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
@@ -550,12 +545,6 @@ export function useRestoreMothershipChat(owner?: MothershipChatOwner) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: restoreChat,
-    /** The delete this restore undoes; one that lands while it is in flight stays. */
-    onMutate: (chatId) => ({ deleteSeen: useMothershipQueueStore.getState().cleared[chatId] }),
-    onSuccess: (_data, chatId, context) => {
-      if (context?.deleteSeen === undefined) return
-      useMothershipQueueStore.getState().liftDelete(chatId, context.deleteSeen)
-    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: recentlyDeletedKeys.lists() })
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
@@ -576,7 +565,7 @@ export function useDeleteMothershipChats(owner?: MothershipChatOwner) {
           await deleteChat(chatId)
           await suspendDesktopChatScopes(chatId)
           queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(chatId) })
-          useMothershipQueueStore.getState().clearChat(chatId)
+          useMothershipOutgoingStore.getState().record(chatId, [])
         })
       )
       const failed = results.find((result) => result.status === 'rejected')

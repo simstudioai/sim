@@ -210,7 +210,7 @@ async function render(
   initialValue = 'Summarize',
   requestMode: 'agent' | 'assistant' | 'plan' = 'assistant',
   controls: Pick<ComponentProps<typeof Composer>, 'isSending'> &
-    Partial<Pick<ComponentProps<typeof Composer>, 'restoredContexts' | 'onSendQueuedHead'>> = {
+    Partial<Pick<ComponentProps<typeof Composer>, 'restoredContexts'>> = {
     isSending: false,
   }
 ) {
@@ -233,8 +233,6 @@ async function render(
         isInitialView={isInitialView}
         isSending={controls.isSending}
         onStop={vi.fn()}
-        onSendQueuedHead={controls.onSendQueuedHead ?? vi.fn()}
-        onEditQueuedTail={() => false}
         messages={[]}
         onSubmit={(text, contexts) => {
           mocks.submit(text, files.attachedFiles)
@@ -287,7 +285,7 @@ async function paste(files: File[]) {
 }
 
 it.each([false, true])(
-  'keeps restored queued skills scoped and warns about lost context (%s)',
+  'keeps restored skills scoped and warns about lost context (%s)',
   async (invalidContext) => {
     let restore: () => void = () => {}
     writeDraft('Original draft')
@@ -327,8 +325,6 @@ it.each([false, true])(
           isInitialView={false}
           isSending={false}
           onStop={() => {}}
-          onSendQueuedHead={() => {}}
-          onEditQueuedTail={() => false}
           messages={[]}
           onSubmit={mocks.submit}
         />
@@ -393,23 +389,19 @@ it.each([
   ['agent', true],
   ['assistant', true],
 ] as const)(
-  'queues once then sends immediately on rapid double Enter (%s, attachment: %s)',
+  'sends once on a rapid double Enter while a turn runs (%s, attachment: %s)',
   async (mode, withAttachment) => {
-    const sendHead = vi.fn()
     await render(false, withAttachment ? '' : 'Use the latest report', mode, {
       isSending: true,
-      onSendQueuedHead: sendHead,
     })
     if (withAttachment) await paste([new File(['image'], 'follow-up.png', { type: 'image/png' })])
     const input = container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
     await act(async () => {
       input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
       expect(mocks.submit).toHaveBeenCalledTimes(1)
-      expect(sendHead).not.toHaveBeenCalled()
       input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
     })
     expect(mocks.submit).toHaveBeenCalledTimes(1)
-    expect(sendHead).toHaveBeenCalledExactlyOnceWith()
     expect(input.value).toBe('')
   }
 )

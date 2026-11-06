@@ -14,7 +14,6 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/message-reconcile'
 import {
   selectDeletedWorkflowResources,
-  shouldQueueOutgoingMessage,
   waitForDetachedChatResolution,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
@@ -39,15 +38,6 @@ describe('selectDeletedWorkflowResources', () => {
     expect(
       selectDeletedWorkflowResources([resource('wf-new')], new Set(), [cached('wf-new')])
     ).toEqual([])
-  })
-})
-
-describe('shouldQueueOutgoingMessage', () => {
-  it('queues behind messages still waiting after the turn ended', () => {
-    // The regression: a message queued mid-stream must dispatch before one
-    // typed in the idle gap after the turn stopped — a direct send here would
-    // jump the queue and swap the user's message order.
-    expect(shouldQueueOutgoingMessage(false, false, 1)).toBe(true)
   })
 })
 

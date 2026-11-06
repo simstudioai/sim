@@ -3,7 +3,7 @@
 import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import { useExecutionStore } from '@/stores/execution'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
-import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
+import { useMothershipOutgoingStore } from '@/stores/mothership-outgoing/store'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import {
   clearAllExecutionPointers,
@@ -54,6 +54,6 @@ export async function resetAllStores(): Promise<void> {
   consolePersistence.reset()
   clearAllExecutionPointers()
   useMothershipDraftsStore.getState().reset()
-  useMothershipQueueStore.getState().reset()
+  useMothershipOutgoingStore.getState().reset()
   await consolePersistence.persist({ merge: false })
 }

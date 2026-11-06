@@ -54,21 +54,56 @@ test('A running turn streams, stops, and keeps what arrived', async ({ page }) =
   await expect(page.getByText('Count slowly from 1 to 50')).toBeVisible()
 })
 
-test('A message sent during a running turn waits in the queue and can be removed', async ({
-  page,
-}) => {
+test('A message sent during a running turn steers it', async ({ page }) => {
   test.skip(!orchestrator, 'Needs PLATFORM_LIVE_ORCHESTRATOR=1')
   await signInAsAdmin(page, '/org/chat')
+  const turnPosts: string[] = []
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().endsWith('/api/mothership/chat')) {
+      turnPosts.push(request.postDataJSON().message)
+    }
+  })
   const field = page.getByRole('textbox')
   await field.fill('Count slowly from 1 to 50, one number per line.')
   await page.getByRole('button', { name: 'Send message' }).click()
   await expect(page.getByRole('button', { name: 'Stop response' })).toBeVisible()
+  const steered = page.waitForRequest(
+    (request) => request.method() === 'POST' && request.url().includes('/api/copilot/chat/steer')
+  )
   await field.fill('And then say done.')
   await field.press('Enter')
-  const queue = page.getByRole('region', { name: 'Queued messages' })
-  await expect(queue.getByText('And then say done.')).toBeVisible()
-  await queue.getByRole('button', { name: 'Remove queued message' }).click()
-  await expect(queue).toHaveCount(0)
+  expect((await steered).postDataJSON().content).toBe('And then say done.')
+  const conversation = page.getByRole('region', { name: 'Conversation' })
+  await expect(conversation.getByText('And then say done.', { exact: true })).toBeVisible()
+  await expect(conversation.getByText('Applied: And then say done.')).toBeVisible()
+  await page.getByRole('button', { name: 'Stop response' }).click()
+  await expect(page.getByRole('button', { name: 'Send message' })).toBeVisible({ timeout: 30_000 })
+  expect(turnPosts).toEqual(['Count slowly from 1 to 50, one number per line.'])
+})
+
+test('A message the turn ends without applying goes out as the next turn', async ({ page }) => {
+  test.skip(!orchestrator, 'Needs PLATFORM_LIVE_ORCHESTRATOR=1')
+  await signInAsAdmin(page, '/org/chat')
+  const turnPosts: string[] = []
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().endsWith('/api/mothership/chat')) {
+      turnPosts.push(request.postDataJSON().message)
+    }
+  })
+  const field = page.getByRole('textbox')
+  await field.fill('Count slowly to 3 and ignore steering.')
+  await page.getByRole('button', { name: 'Send message' }).click()
+  await expect(page.getByRole('button', { name: 'Stop response' })).toBeVisible()
+  await field.fill('Then say done.')
+  await field.press('Enter')
+  const conversation = page.getByRole('region', { name: 'Conversation' })
+  await expect(conversation.getByText('Then say done.', { exact: true })).toBeVisible()
+  await expect(conversation.getByText('Hello from the scripted agent.')).toBeVisible({
+    timeout: 30_000,
+  })
+  await expect(page.getByRole('button', { name: 'Send message' })).toBeVisible()
+  expect(turnPosts).toEqual(['Count slowly to 3 and ignore steering.', 'Then say done.'])
+  await expect(conversation.getByText('Then say done.', { exact: true })).toHaveCount(1)
 })
 
 test('A gated tool holds the turn until the prompt is answered', async ({ page }) => {

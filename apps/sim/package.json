@@ -30,6 +30,7 @@
     "start": "next start",
     "test": "vitest run",
     "test:scim:e2e": "bun run scripts/test-scim-e2e.ts",
+    "test:chat-steering:e2e": "bash scripts/chat-steering-e2e.sh run",
     "test:sim-links:e2e": "bun run scripts/test-sim-links-e2e.ts",
     "test:people:e2e": "bun run scripts/test-people-e2e.ts",
     "test:browser-extension:e2e": "bun --no-env-file scripts/test-browser-extension-e2e.ts",
