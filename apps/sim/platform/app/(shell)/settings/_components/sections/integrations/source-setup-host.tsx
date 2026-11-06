@@ -3,6 +3,9 @@
 import type { ReactNode } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
+import { resourceScopeKey } from '@/lib/core/resource-scope'
+import { getSearchConnectionLabels } from '@/lib/sim-search/connection-labels'
+import { useSearchSourceSetup } from '@/app/o/[organizationId]/settings/components/integrations/use-search-source-setup'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import { Muted } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { SourceSetupForm } from '@/platform/app/(shell)/settings/_components/sections/integrations/source-setup'
@@ -15,11 +18,6 @@ import {
   SearchField,
 } from '@/platform/design-system/components'
 import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  getSearchConnectionLabels,
-  resourceScopeKey,
-  useSearchSourceSetup,
-} from '@/platform/lib/data/sources'
 
 interface SourceSetupProps {
   /** The page under setup, kept mounted behind everything but the connection form. */

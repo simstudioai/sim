@@ -1,9 +1,9 @@
 import styles from '@/platform/app/(shell)/home/_components/get-started/get-started.module.css'
 import { HomeSection } from '@/platform/app/(shell)/home/_components/home-section/home-section'
-import type { HomeGetStartedStep } from '@/platform/app/(shell)/home/_components/model'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import { ActivityRow } from '@/platform/design-system/components/activity-row/activity-row'
 import { Icon } from '@/platform/design-system/components/icon/icon'
+import type { HomeGetStartedStep } from '@/platform/lib/data/home-view'
 
 const STEP_ICONS: Readonly<Record<string, IconName>> = {
   'connect-integration': 'I070',

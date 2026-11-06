@@ -2,6 +2,11 @@ const LOCALE = 'en-US'
 export const MINUTE_MS = 60_000
 export const DAY_MS = 24 * 60 * MINUTE_MS
 
+/** The current time, floored to its minute, for reads and clocks that move only by the minute. */
+export function currentMinute() {
+  return Math.floor(Date.now() / MINUTE_MS) * MINUTE_MS
+}
+
 function utcFormat(options: Intl.DateTimeFormatOptions) {
   return new Intl.DateTimeFormat(LOCALE, { timeZone: 'UTC', ...options })
 }

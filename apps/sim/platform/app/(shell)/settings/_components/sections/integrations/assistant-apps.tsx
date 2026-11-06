@@ -6,6 +6,19 @@ import Link from 'next/link'
 import type { ViewerSearchSourceAccount } from '@/lib/api/contracts/knowledge/connectors'
 import type { SearchIntegrationStatus } from '@/lib/api/contracts/knowledge/search-integrations'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
+import { assistantSearchSourceForProvider } from '@/lib/assistant-actions/providers'
+import { assistantAccountOptions } from '@/lib/credential-groups/member-integrations'
+import {
+  getCredentialGroupProviderId,
+  getCredentialGroupProviderService,
+} from '@/lib/credential-groups/providers'
+import { organizationRoutes } from '@/lib/navigation/paths'
+import {
+  useConnectOrganizationAccount,
+  useDisconnectPersonalOrganizationAccount,
+  useEnsureOrganizationAccounts,
+  useReconnectPersonalOrganizationAccount,
+} from '@/hooks/queries/organization-accounts'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import { Muted } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { ActionMenu, Button, Modal, SearchableSelect } from '@/platform/design-system/components'
@@ -13,17 +26,6 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  assistantAccountOptions,
-  assistantSearchSourceForProvider,
-  getCredentialGroupProviderId,
-  getCredentialGroupProviderService,
-  organizationRoutes,
-  useConnectOrganizationAccount,
-  useDisconnectPersonalOrganizationAccount,
-  useEnsureOrganizationAccounts,
-  useReconnectPersonalOrganizationAccount,
-} from '@/platform/lib/data/sources'
 
 interface AssistantAppsProps {
   organizationId: string

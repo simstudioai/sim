@@ -4,6 +4,18 @@ import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
+import type { SearchIntegrationApproval } from '@/lib/api/contracts/knowledge/search-integrations'
+import { organizationRoutes } from '@/lib/navigation/paths'
+import { connectorDisplayName } from '@/lib/sim-search/connectors'
+import {
+  defaultLiveSearchPolicy,
+  LIVE_SEARCH_SERVICE_PROVIDERS,
+  type LiveSearchPolicy,
+  normalizeLiveSearchPolicy,
+} from '@/lib/sim-search/live/policy-schema'
+import { searchSetupParam, serializeSearchSetup } from '@/lib/sim-search/params'
+import { useSearchSources } from '@/hooks/queries/kb/connectors'
+import { useUpdateSearchIntegration } from '@/hooks/queries/search-integrations'
 import {
   ActionRow,
   Muted,
@@ -18,19 +30,6 @@ import {
   SearchableSelect,
   SegmentedControl,
 } from '@/platform/design-system/components'
-import {
-  connectorDisplayName,
-  defaultLiveSearchPolicy,
-  LIVE_SEARCH_SERVICE_PROVIDERS,
-  type LiveSearchPolicy,
-  normalizeLiveSearchPolicy,
-  organizationRoutes,
-  type SearchIntegrationApproval,
-  searchSetupParam,
-  serializeSearchSetup,
-  useSearchSources,
-  useUpdateSearchIntegration,
-} from '@/platform/lib/data/sources'
 
 interface PolicyModalProps {
   organizationId: string

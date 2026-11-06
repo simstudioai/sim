@@ -3,6 +3,11 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { resourceScopeFields } from '@/lib/core/resource-scope'
 import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
+import type { ConnectorSettingsFieldsProps } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/connector-settings-fields'
+import {
+  CONNECTOR_SWITCH_NOTICE,
+  useConnectorSettingsFields,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-fields'
 import { BesideSurface } from '@/platform/app/(shell)/settings/_components/section-parts/beside-surface'
 import {
   ActionRow,
@@ -24,11 +29,6 @@ import {
   SearchableSelect,
   SecretField,
 } from '@/platform/design-system/components'
-import {
-  CONNECTOR_SWITCH_NOTICE,
-  type ConnectorSettingsFieldsProps,
-  useConnectorSettingsFields,
-} from '@/platform/lib/data/sources'
 
 /** The editable settings of an existing Search connection. Stored credentials are never returned. */
 export function ConnectorSettingsFields({

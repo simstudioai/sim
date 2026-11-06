@@ -1,8 +1,8 @@
 'use client'
 
-import { readFormText } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import { TextField } from '@/platform/design-system/components/field/fields'
 import { Modal } from '@/platform/design-system/components/modal/modal'
+import { readFormText } from '@/platform/lib/row-links'
 
 interface NameModalProps {
   title: string

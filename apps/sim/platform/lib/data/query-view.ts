@@ -1,3 +1,16 @@
+import { isApiClientError } from '@/lib/api/client/errors'
+
+const REFUSAL_STATUSES: ReadonlySet<number> = new Set([400, 401, 403, 404, 409])
+
+/**
+ * The server's answer to this viewer's request, which retrying cannot change: a malformed link
+ * (400), no access (401, 403, 404), or a surface that is off for them (409). A rate limit, a timeout
+ * or a server failure is not one, and a view keeps what it has through those and offers a retry.
+ */
+export function isRefusal(error: unknown): boolean {
+  return isApiClientError(error) && REFUSAL_STATUSES.has(error.status)
+}
+
 interface ReadableQuery {
   data: unknown
   status: 'pending' | 'error' | 'success'

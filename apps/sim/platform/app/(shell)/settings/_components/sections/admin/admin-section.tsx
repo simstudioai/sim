@@ -1,6 +1,19 @@
 'use client'
 
 import { getErrorMessage } from '@sim/utils/errors'
+import type { MothershipEnvironment } from '@/lib/api/contracts'
+import {
+  EMAIL_STATUS_OPTIONS,
+  PASSWORD_MODE_OPTIONS,
+  type PasswordMode,
+  useAddUserForm,
+} from '@/app/workspace/[workspaceId]/settings/components/admin/use-add-user-form'
+import {
+  ADMIN_PAGE_SIZE,
+  MOTHERSHIP_ENV_OPTIONS,
+  useAdminConsole,
+} from '@/app/workspace/[workspaceId]/settings/components/admin/use-admin-console'
+import type { AdminUser } from '@/hooks/queries/admin-users'
 import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 import {
   ActionRow,
@@ -28,17 +41,6 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  ADMIN_PAGE_SIZE,
-  type AdminUser,
-  EMAIL_STATUS_OPTIONS,
-  MOTHERSHIP_ENV_OPTIONS,
-  type MothershipEnvironment,
-  PASSWORD_MODE_OPTIONS,
-  type PasswordMode,
-  useAddUserForm,
-  useAdminConsole,
-} from '@/platform/lib/data/admin'
 
 const USER_COLUMNS = [
   { key: 'name', label: 'Name', kind: 'text' },

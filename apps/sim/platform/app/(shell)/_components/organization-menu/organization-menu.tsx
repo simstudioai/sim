@@ -4,7 +4,6 @@ import { type RefObject, useId, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
 import { InviteModal } from '@/platform/app/(shell)/_components/invite-modal/invite-modal'
-import type { ShellData } from '@/platform/app/(shell)/_components/model'
 import styles from '@/platform/app/(shell)/_components/organization-menu/organization-menu.module.css'
 import { Avatar } from '@/platform/design-system/components/avatar/avatar'
 import { Button } from '@/platform/design-system/components/button/button'
@@ -13,6 +12,7 @@ import { IdentityButton } from '@/platform/design-system/components/identity-but
 import { MenuItem } from '@/platform/design-system/components/menu/action-menu'
 import { AnchoredPopover } from '@/platform/design-system/components/menu/anchored-popover'
 import { useOrganizationActions } from '@/platform/lib/data/shell-actions'
+import type { ShellData } from '@/platform/lib/data/shell-view'
 import { plural } from '@/platform/lib/plural'
 
 function focusNameField(frame: HTMLDivElement | null) {

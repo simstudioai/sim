@@ -2,6 +2,11 @@
 
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
+import { credentialGroupsParsers } from '@/ee/credential-groups/search-params'
+import {
+  useEnsureOrganizationAccounts,
+  useOrganizationAccounts,
+} from '@/hooks/queries/organization-accounts'
 import {
   ActionRow,
   LoadingState,
@@ -21,11 +26,6 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  credentialGroupsParsers,
-  useEnsureOrganizationAccounts,
-  useOrganizationAccounts,
-} from '@/platform/lib/data/credential-groups'
 
 const VIEWS = [
   { value: 'providers', label: 'Providers' },
