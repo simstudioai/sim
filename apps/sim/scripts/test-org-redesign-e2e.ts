@@ -15,7 +15,9 @@ import { finishRun, healthCheck, phase, startRun } from '@/scripts/org-redesign-
  */
 async function run() {
   await startRun()
-  for (const phaseChecks of PHASES[phase] ?? PHASES.main) await phaseChecks()
+  const checks = PHASES[phase]
+  if (!checks) throw new Error(`Unknown ORG_REDESIGN_E2E_PHASE: ${phase}`)
+  for (const phaseChecks of checks) await phaseChecks()
   await healthCheck()
 }
 

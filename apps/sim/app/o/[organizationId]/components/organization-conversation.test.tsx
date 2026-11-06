@@ -7,9 +7,21 @@ import {
   deploymentShapeMock,
   deploymentShapeMockFns,
 } from '@sim/testing/mocks/deployment-shape.mock'
+import {
+  featureFlagsProviderMock,
+  featureFlagsProviderMockFns,
+} from '@sim/testing/mocks/feature-flags-provider.mock'
 import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
 import { kbConnectorsQueriesMock } from '@sim/testing/mocks/kb-connectors-queries.mock'
 import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
+import {
+  chatResourcePanelMock,
+  mothershipChatMock,
+  mothershipChatsQueriesMock,
+  organizationConversationMockFns,
+  useChatMock,
+  useResourcePanelMock,
+} from '@sim/testing/mocks/organization-conversation.mock'
 import {
   organizationProviderMock,
   organizationProviderMockFns,
@@ -29,11 +41,7 @@ import { readDraft, useMothershipDraftsStore } from '@/stores/mothership-drafts/
 
 const mocks = vi.hoisted(() => ({
   plan: false,
-  resourcePanel: vi.fn(),
-  chat: vi.fn(),
   composer: vi.fn(),
-  renderer: vi.fn(),
-  markRead: vi.fn(),
   send: vi.fn(),
   apiKeys: vi.fn(),
   authorizedApps: vi.fn(),
@@ -43,51 +51,41 @@ const mocks = vi.hoisted(() => ({
   selectResource: vi.fn(),
   activeResource: null as string | null,
 }))
-vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => ({
-  useFeatureFlag: (name: string) => (name === 'mothership-plan-mode' ? mocks.plan : false),
-}))
+vi.mock(
+  '@/app/workspace/[workspaceId]/providers/feature-flags-provider',
+  () => featureFlagsProviderMock
+)
 vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@tanstack/react-query', () => reactQueryMock)
-vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-resource-panel', () => ({
-  useResourcePanelController: () => ({
-    onResourceEvent: undefined,
-    activeResourceState: undefined,
-    activeResourceParam: mocks.activeResource,
-    setActiveResourceUrl: mocks.selectResource,
-  }),
-  useChatResourcePanel: () => ({
-    isResourceCollapsed: true,
-    addResourceFromUser: mocks.addResource,
-    prepareResourceViewForAgentTurn: vi.fn(),
-  }),
-}))
-vi.mock('@/app/workspace/[workspaceId]/home/components/chat-resource-panel', () => ({
-  ChatResourcePanel: mocks.resourcePanel,
-}))
+vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-resource-panel', () => useResourcePanelMock)
+vi.mock(
+  '@/app/workspace/[workspaceId]/home/components/chat-resource-panel',
+  () => chatResourcePanelMock
+)
 vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/lib/uploads/client/session-upload', () => ({ uploadInternalFileSession: mocks.upload }))
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
-vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => ({
-  getMothershipUseChatOptions: (options: object) => ({ ...options, mothership: true }),
-  useChat: mocks.chat,
-}))
-vi.mock('@/hooks/queries/mothership-chats', () => ({
-  useMarkMothershipChatRead: () => ({ mutate: mocks.markRead }),
-}))
+vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => useChatMock)
+vi.mock('@/hooks/queries/mothership-chats', () => mothershipChatsQueriesMock)
 vi.mock('@/platform/app/(shell)/_components/conversation/page-composer', () => ({
   PageComposer: mocks.composer,
 }))
 vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
 vi.mock('@/hooks/queries/api-keys', () => ({ useApiKeys: mocks.apiKeys }))
 vi.mock('@/hooks/queries/oauth-provider', () => ({ useAuthorizedApps: mocks.authorizedApps }))
-vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => ({
-  MothershipChat: mocks.renderer,
-}))
+vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => mothershipChatMock)
 
 import type { ConversationComposerProps } from '@/app/o/[organizationId]/home/components/composer'
 import { PageConversation } from '@/platform/app/(shell)/_components/conversation/page-conversation'
+
+const {
+  mockMothershipChat,
+  mockUseChat,
+  mockUseChatResourcePanel,
+  mockUseResourcePanelController,
+} = organizationConversationMockFns
 
 const mockSession = authClientMockFns.mockUseSession
 const mockContext = organizationProviderMockFns.mockUseOrganizationContext
@@ -102,9 +100,22 @@ beforeEach(() => {
   reactQueryMockFns.mockUseMutation.mockReturnValue(createMutationResultMock())
   useMothershipDraftsStore.setState({ drafts: {} })
   mocks.plan = false
+  featureFlagsProviderMockFns.mockUseFeatureFlag.mockImplementation(
+    (name: string) => name === 'mothership-plan-mode' && mocks.plan
+  )
   mocks.activeResource = null
   mockSession.mockReturnValue({ data: { user: { id: 'reader' } } })
-  mocks.resourcePanel.mockImplementation(({ children }: { children: ReactNode }) => children)
+  mockUseResourcePanelController.mockImplementation(() => ({
+    onResourceEvent: undefined,
+    activeResourceState: undefined,
+    activeResourceParam: mocks.activeResource,
+    setActiveResourceUrl: mocks.selectResource,
+  }))
+  mockUseChatResourcePanel.mockImplementation(() => ({
+    isResourceCollapsed: true,
+    addResourceFromUser: mocks.addResource,
+    prepareResourceViewForAgentTurn: vi.fn(),
+  }))
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal(
     'URL',
@@ -123,7 +134,7 @@ beforeEach(() => {
   })
   mocks.apiKeys.mockReturnValue({ data: { personalKeys: [] } })
   mockAuthorizedApps([{ apps: [], nextCursor: null }])
-  mocks.chat.mockReturnValue({
+  mockUseChat.mockReturnValue({
     messages: [],
     resources: [],
     isChatHistoryPending: true,
@@ -131,7 +142,7 @@ beforeEach(() => {
   })
 
   mocks.composer.mockReturnValue(<div>Question composer</div>)
-  mocks.renderer.mockReturnValue(<div>Chat history</div>)
+  mockMothershipChat.mockReturnValue(<div>Chat history</div>)
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -190,13 +201,13 @@ function mockAuthorizedApps(
 
 describe('organization home', () => {
   it('isolates conversation state when switching cached chats', async () => {
-    mocks.chat.mockReturnValue({
+    mockUseChat.mockReturnValue({
       resources: [],
       messages: [],
       isChatHistoryPending: false,
       sendMessage: mocks.send,
     })
-    mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+    mockMothershipChat.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
     await act(async () =>
       renderHome(<PageConversation requestMode='agent' chatId='chat-a' fallback={null} />)
     )
@@ -209,7 +220,7 @@ describe('organization home', () => {
       renderHome(<PageConversation requestMode='agent' chatId='chat-b' fallback={null} />)
     )
     expect(draftText()).toBe('')
-    expect(mocks.chat).toHaveBeenLastCalledWith(
+    expect(mockUseChat).toHaveBeenLastCalledWith(
       { organizationId: 'organization-a' },
       'chat-b',
       expect.objectContaining({
@@ -221,7 +232,7 @@ describe('organization home', () => {
 })
 
 it('isolates saved drafts by user, organization, and conversation', async () => {
-  mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+  mockMothershipChat.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
   await act(async () =>
     renderHome(<PageConversation chatId='chat-a' requestMode='assistant' fallback={null} />)
   )

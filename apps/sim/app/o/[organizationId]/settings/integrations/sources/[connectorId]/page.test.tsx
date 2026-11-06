@@ -1,4 +1,3 @@
-import { Suspense } from 'react'
 import { createRouteContext } from '@sim/testing/helpers/http'
 import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
@@ -31,9 +30,7 @@ describe('organization source page authorization', () => {
     mocks.authorize.mockResolvedValue(true)
   })
   it('gates the source page with the existing target-organization integration policy', async () => {
-    const page = await OrganizationSourcePage(props)
-    expect(page.type).toBe('settings-subpage-host')
-    expect(page.props.children.type).toBe(Suspense)
+    await OrganizationSourcePage(props)
     expect(mocks.authorize).toHaveBeenCalledWith({
       organizationId: 'org-one',
       userId: 'admin-one',

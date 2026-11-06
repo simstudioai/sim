@@ -6,15 +6,26 @@
  * without its text, its chips, its attachments, or the viewer's focus once the conversation no longer
  * holds the draft.
  */
+
 import { act, type ReactNode } from 'react'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { stubResizeObserver } from '@sim/testing/mocks/browser-apis.mock'
 import {
   createMockDeploymentShape,
   deploymentShapeMock,
   deploymentShapeMockFns,
 } from '@sim/testing/mocks/deployment-shape.mock'
+import { featureFlagsProviderMock } from '@sim/testing/mocks/feature-flags-provider.mock'
 import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import {
+  chatResourcePanelMock,
+  mothershipChatMock,
+  mothershipChatsQueriesMock,
+  organizationConversationMockFns,
+  useChatMock,
+  useResourcePanelMock,
+} from '@sim/testing/mocks/organization-conversation.mock'
 import {
   organizationProviderMock,
   organizationProviderMockFns,
@@ -26,8 +37,6 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 
 const mocks = vi.hoisted(() => ({
-  chat: vi.fn(),
-  thread: vi.fn(),
   send: vi.fn(),
   editQueued: vi.fn(),
   speech: vi.fn(),
@@ -38,31 +47,17 @@ vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
-vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => ({
-  useFeatureFlag: () => false,
-}))
-vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => ({
-  getMothershipUseChatOptions: (options: object) => options,
-  useChat: mocks.chat,
-}))
-vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-resource-panel', () => ({
-  useResourcePanelController: () => ({
-    onResourceEvent: undefined,
-    activeResourceState: [null, vi.fn()],
-    activeResourceParam: null,
-  }),
-  useChatResourcePanel: () => ({
-    isResourceCollapsed: true,
-    addResourceFromUser: vi.fn(),
-    prepareResourceViewForAgentTurn: vi.fn(),
-  }),
-}))
-vi.mock('@/app/workspace/[workspaceId]/home/components/chat-resource-panel', () => ({
-  ChatResourcePanel: ({ children }: { children: ReactNode }) => children,
-}))
-vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => ({
-  MothershipChat: mocks.thread,
-}))
+vi.mock(
+  '@/app/workspace/[workspaceId]/providers/feature-flags-provider',
+  () => featureFlagsProviderMock
+)
+vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => useChatMock)
+vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-resource-panel', () => useResourcePanelMock)
+vi.mock(
+  '@/app/workspace/[workspaceId]/home/components/chat-resource-panel',
+  () => chatResourcePanelMock
+)
+vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => mothershipChatMock)
 vi.mock('@/components/assistant-actions', () => ({
   AssistantActionReviewProvider: ({ children }: { children: ReactNode }) => children,
 }))
@@ -83,12 +78,7 @@ vi.mock(
     }
   }
 )
-vi.mock('@/hooks/queries/mothership-chats', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  useMarkMothershipChatRead: () => ({ mutate: vi.fn() }),
-  useMothershipChatHistory: () => ({ data: undefined }),
-  useSetMothershipChatEffort: () => ({ mutate: vi.fn() }),
-}))
+vi.mock('@/hooks/queries/mothership-chats', () => mothershipChatsQueriesMock)
 vi.mock('@/hooks/queries/workspace', () => ({
   useWorkspacesQuery: () => ({ data: [] }),
 }))
@@ -98,6 +88,8 @@ vi.mock('@/hooks/use-chat-input-focus', () => ({ useChatInputFocus: vi.fn() }))
 vi.mock('@/hooks/use-animated-placeholder', () => ({ useAnimatedPlaceholder: () => 'Ask Sim to' }))
 
 import { PageConversation } from '@/platform/app/(shell)/_components/conversation/page-conversation'
+
+const { mockMothershipChat, mockUseChat } = organizationConversationMockFns
 
 /** The editor swaps a chipped skill's `/` for a wide sentinel so its icon fits the overlay. */
 const QUEUED_AS_EDITED = 'Run \u2003review on this'
@@ -123,14 +115,7 @@ let queryClient: QueryClient
 
 beforeEach(async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  vi.stubGlobal(
-    'ResizeObserver',
-    class {
-      observe() {}
-      disconnect() {}
-      unobserve() {}
-    }
-  )
+  stubResizeObserver()
   vi.stubGlobal(
     'matchMedia',
     vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
@@ -156,7 +141,7 @@ beforeEach(async () => {
     resetTranscript: vi.fn(),
   })
   mocks.editQueued.mockReturnValue(QUEUED)
-  mocks.chat.mockReturnValue({
+  mockUseChat.mockReturnValue({
     messages: [{ id: 'message-1', role: 'user', content: 'Earlier' }],
     messageQueue: [QUEUED],
     resources: [],
@@ -165,7 +150,7 @@ beforeEach(async () => {
     sendMessage: mocks.send,
     editQueuedMessage: mocks.editQueued,
   })
-  mocks.thread.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+  mockMothershipChat.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -205,15 +190,15 @@ function savedDraft() {
 }
 
 it('a keystroke reaches the draft without re-rendering the thread', async () => {
-  const rendersBefore = mocks.thread.mock.calls.length
-  const chatRendersBefore = mocks.chat.mock.calls.length
+  const rendersBefore = mockMothershipChat.mock.calls.length
+  const chatRendersBefore = mockUseChat.mock.calls.length
   await act(async () => typeInto(field(), 'a'))
   await act(async () => typeInto(field(), 'ab'))
   await act(async () => typeInto(field(), 'abc'))
   expect(field().value).toBe('abc')
   expect(savedDraft()?.text).toBe('abc')
-  expect(mocks.thread.mock.calls.length).toBe(rendersBefore)
-  expect(mocks.chat.mock.calls.length).toBe(chatRendersBefore)
+  expect(mockMothershipChat.mock.calls.length).toBe(rendersBefore)
+  expect(mockUseChat.mock.calls.length).toBe(chatRendersBefore)
 })
 
 it('recalling the queued tail brings back its text, chips, attachments, and focus', async () => {
@@ -242,7 +227,7 @@ it('recalling the queued tail brings back its text, chips, attachments, and focu
 
 it('the thread restoring a queued message over a typed draft replaces it', async () => {
   await act(async () => typeInto(field(), 'half a thought'))
-  const { onEditQueuedMessage } = mocks.thread.mock.lastCall?.[0] ?? {}
+  const { onEditQueuedMessage } = mockMothershipChat.mock.lastCall?.[0] ?? {}
   await act(async () => onEditQueuedMessage('queued-1'))
   expect(field().value).toBe(QUEUED_AS_EDITED)
   expect(savedDraft()?.contexts).toEqual(QUEUED.contexts)

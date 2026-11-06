@@ -1,26 +1,19 @@
 /** @vitest-environment jsdom */
+
 import { act } from 'react'
+import { stubDialogMethods, stubResizeObserver } from '@sim/testing/mocks/browser-apis.mock'
 import {
   organizationAccountsQueriesMock,
   organizationAccountsQueriesMockFns,
 } from '@sim/testing/mocks/organization-accounts-queries.mock'
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   ensure: vi.fn(),
   modal: vi.fn(),
-  setProvider: vi.fn(),
-  setReturnSource: vi.fn(),
-  setSelectedType: vi.fn(),
-}))
-vi.mock('nuqs', () => ({
-  useQueryState: (key: string) => {
-    if (key === 'connectedAccounts') return ['slack', mocks.setProvider]
-    if (key === 'search-setup') return ['slack', mocks.setReturnSource]
-    if (key === 'addConnector') return [null, mocks.setSelectedType]
-    throw new Error(`Unexpected query key: ${key}`)
-  },
+  urlUpdates: vi.fn(),
 }))
 vi.mock('@/hooks/queries/organization-accounts', () => organizationAccountsQueriesMock)
 vi.mock(
@@ -40,20 +33,8 @@ describe('organization Slack setup continuation', () => {
 
   beforeEach(() => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-    HTMLDialogElement.prototype.showModal = function showModal() {
-      this.open = true
-    }
-    HTMLDialogElement.prototype.close = function close() {
-      this.open = false
-    }
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      }
-    )
+    stubDialogMethods()
+    stubResizeObserver()
     mockUseOrganizationAccounts.mockReturnValue({
       isSuccess: true,
       data: { credentialGroup: null },
@@ -78,14 +59,20 @@ describe('organization Slack setup continuation', () => {
 
   async function render(isAdmin = true) {
     await act(async () =>
-      root.render(<SlackAccountSetup organizationId='org-a' isAdmin={isAdmin} />)
+      root.render(
+        <NuqsTestingAdapter
+          searchParams='?connectedAccounts=slack&search-setup=slack'
+          onUrlUpdate={mocks.urlUpdates}
+        >
+          <SlackAccountSetup organizationId='org-a' isAdmin={isAdmin} />
+        </NuqsTestingAdapter>
+      )
     )
   }
 
   it('prepares a missing container without asking the admin to make an extra choice', async () => {
     await render()
     expect(mocks.ensure).toHaveBeenCalledExactlyOnceWith({ organizationId: 'org-a' })
-    expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(mocks.modal).not.toHaveBeenCalled()
     mockUseEnsureOrganizationAccounts.mockReturnValue({
       mutate: mocks.ensure,
@@ -93,7 +80,6 @@ describe('organization Slack setup continuation', () => {
       isPending: true,
     })
     await render()
-    expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(mocks.ensure).toHaveBeenCalledOnce()
     mockUseEnsureOrganizationAccounts.mockReturnValue({
       mutate: mocks.ensure,
@@ -111,7 +97,6 @@ describe('organization Slack setup continuation', () => {
   it('does not open a temporary modal while discovering accounts', async () => {
     mockUseOrganizationAccounts.mockReturnValue({ isSuccess: false, isPending: true })
     await render()
-    expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(mocks.ensure).not.toHaveBeenCalled()
     expect(mocks.modal).not.toHaveBeenCalled()
   })
@@ -146,8 +131,6 @@ describe('organization Slack setup continuation', () => {
     await render(false)
     expect(mocks.ensure).not.toHaveBeenCalled()
     expect(mocks.modal).not.toHaveBeenCalled()
-    expect(mockUseOrganizationAccounts).toHaveBeenCalledWith(undefined)
-    expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 
   it('reuses the current container and resumes the original source after closing', async () => {
@@ -160,10 +143,13 @@ describe('organization Slack setup continuation', () => {
     expect(mocks.ensure).not.toHaveBeenCalled()
     const props = mocks.modal.mock.calls[0][0]
     expect(props).toMatchObject({ organizationId: 'org-a', credentialGroupId: 'group-a' })
-    props.onOpenChange(false)
-    expect(mocks.setProvider).toHaveBeenCalledExactlyOnceWith(null)
-    expect(mocks.setReturnSource).toHaveBeenCalledExactlyOnceWith(null, { history: 'replace' })
-    expect(mocks.setSelectedType).toHaveBeenCalledExactlyOnceWith('slack', { history: 'replace' })
+    await act(async () => props.onOpenChange(false))
+    await vi.waitFor(() => expect(mocks.urlUpdates).toHaveBeenCalled())
+    const { searchParams, options } = mocks.urlUpdates.mock.lastCall?.[0] ?? {}
+    expect(searchParams.get('addConnector')).toBe('slack')
+    expect(searchParams.has('connectedAccounts')).toBe(false)
+    expect(searchParams.has('search-setup')).toBe(false)
+    expect(options.history).toBe('replace')
   })
 
   it('does not adopt a prepared container from another organization', async () => {

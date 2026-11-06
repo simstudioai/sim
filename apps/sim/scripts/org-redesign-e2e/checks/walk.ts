@@ -58,7 +58,7 @@ function routesFor(persona: Persona): { name: string; path: string }[] {
     return [
       ...shared,
       ...(persona === ADMIN ? [{ name: 'agent-chat', path: `chat/${ADMIN_CHATS.agent.id}` }] : []),
-      ...settingsRoutes(SETTINGS_FOR_ADMIN),
+      ...settingsRoutes([...SETTINGS_FOR_ADMIN, 'search-mcp']),
     ]
   if (persona === CONNECTED)
     return [
@@ -128,11 +128,17 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
             font: getComputedStyle(document.body).fontFamily,
             overflow: document.documentElement.scrollWidth - innerWidth,
             surfaces: document.querySelectorAll('[data-platform-ui]').length,
-            text: (
-              document.querySelector('main')?.textContent ??
-              document.body.textContent ??
-              ''
-            ).trim().length,
+            // The rail and page header paint on every route, so only the page's own text counts.
+            text: (() => {
+              const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+              let length = 0
+              while (walker.nextNode()) {
+                const { parentElement, textContent } = walker.currentNode
+                if (parentElement?.closest('aside, nav, header, script, style, noscript')) continue
+                length += textContent?.trim().length ?? 0
+              }
+              return length
+            })(),
           }))
           routes.push({
             persona: persona.key,
@@ -153,6 +159,7 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
           if (/Times/.test(facts.font)) failures.push(`${route.name} has no stylesheet`)
           if (facts.overflow > 1) failures.push(`${route.name} overflows by ${facts.overflow}px`)
           if (facts.text === 0) failures.push(`${route.name} rendered an empty shell`)
+          if (facts.surfaces === 0) failures.push(`${route.name} mounted no design-system surface`)
         }
         assert.deepEqual(failures, [])
       },

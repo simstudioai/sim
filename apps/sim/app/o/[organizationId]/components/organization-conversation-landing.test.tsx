@@ -6,9 +6,18 @@
  */
 import { act, type ReactNode } from 'react'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { featureFlagsProviderMock } from '@sim/testing/mocks/feature-flags-provider.mock'
 import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
 import { kbConnectorsQueriesMock } from '@sim/testing/mocks/kb-connectors-queries.mock'
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import {
+  chatResourcePanelMock,
+  mothershipChatMock,
+  mothershipChatsQueriesMock,
+  organizationConversationMockFns,
+  useChatMock,
+  useResourcePanelMock,
+} from '@sim/testing/mocks/organization-conversation.mock'
 import {
   organizationProviderMock,
   organizationProviderMockFns,
@@ -24,39 +33,24 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  chat: vi.fn(),
   composer: vi.fn(),
 }))
-vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => ({
-  useFeatureFlag: () => false,
-}))
+vi.mock(
+  '@/app/workspace/[workspaceId]/providers/feature-flags-provider',
+  () => featureFlagsProviderMock
+)
 vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@tanstack/react-query', () => reactQueryMock)
-vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-resource-panel', () => ({
-  useResourcePanelController: () => ({
-    onResourceEvent: undefined,
-    activeResourceState: [null, vi.fn()],
-    activeResourceParam: null,
-  }),
-  useChatResourcePanel: () => ({
-    isResourceCollapsed: true,
-    addResourceFromUser: vi.fn(),
-    prepareResourceViewForAgentTurn: vi.fn(),
-  }),
-}))
-vi.mock('@/app/workspace/[workspaceId]/home/components/chat-resource-panel', () => ({
-  ChatResourcePanel: ({ children }: { children: ReactNode }) => children,
-}))
+vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-resource-panel', () => useResourcePanelMock)
+vi.mock(
+  '@/app/workspace/[workspaceId]/home/components/chat-resource-panel',
+  () => chatResourcePanelMock
+)
 vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
-vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => ({
-  getMothershipUseChatOptions: (options: object) => options,
-  useChat: mocks.chat,
-}))
-vi.mock('@/hooks/queries/mothership-chats', () => ({
-  useMarkMothershipChatRead: () => ({ mutate: vi.fn() }),
-}))
+vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => useChatMock)
+vi.mock('@/hooks/queries/mothership-chats', () => mothershipChatsQueriesMock)
 vi.mock('@/platform/app/(shell)/_components/conversation/page-composer', () => ({
   PageComposer: mocks.composer,
 }))
@@ -64,14 +58,14 @@ vi.mock('@/app/workspace/[workspaceId]/home/components/suggested-actions', () =>
   SuggestedActions: () => <div>Suggested actions</div>,
 }))
 vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
-vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => ({
-  MothershipChat: () => <div>Conversation view</div>,
-}))
+vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => mothershipChatMock)
 
 import {
   type ConversationLandingSlot,
   PageConversation,
 } from '@/platform/app/(shell)/_components/conversation/page-conversation'
+
+const { mockMothershipChat, mockUseChat } = organizationConversationMockFns
 
 const landing = ({ requestMode, composer }: ConversationLandingSlot) => (
   <div>
@@ -102,8 +96,9 @@ beforeEach(() => {
     canBuild: false,
     viewer: { isAdmin: false, canUseSearchMcp: true },
   })
-  mocks.chat.mockReturnValue({ messages: [], resources: [], sendMessage: vi.fn() })
+  mockUseChat.mockReturnValue({ messages: [], resources: [], sendMessage: vi.fn() })
   mocks.composer.mockReturnValue(<div>Question composer</div>)
+  mockMothershipChat.mockReturnValue(<div>Conversation view</div>)
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)

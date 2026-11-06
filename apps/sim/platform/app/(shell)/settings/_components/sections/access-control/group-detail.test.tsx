@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { act, type ReactNode } from 'react'
+import { stubResizeObserver } from '@sim/testing/mocks/browser-apis.mock'
 import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -117,14 +118,7 @@ describe('GroupDetail', () => {
 
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      }
-    )
+    stubResizeObserver()
     mocks.mutateAsync.mockReset()
     mocks.removeMember.mockReset().mockResolvedValue({})
     mocks.members = { data: [], isPending: false, error: null }

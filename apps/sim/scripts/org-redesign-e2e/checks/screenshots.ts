@@ -9,6 +9,7 @@ import {
   asPlatformAdmin,
   check,
   DESKTOP,
+  expect,
   orgUrl,
   type Persona,
   PHONE,
@@ -16,7 +17,7 @@ import {
   sql,
   withSession,
 } from '@/scripts/org-redesign-e2e/harness'
-import { orgChip } from '@/scripts/org-redesign-e2e/locators'
+import { expectPageNotFound, orgChip } from '@/scripts/org-redesign-e2e/locators'
 
 interface StateShot {
   name: string
@@ -136,8 +137,16 @@ export async function stateScreenshots() {
               shot.persona ?? ADMIN,
               async (session) => {
                 await shot.stub?.(session.page)
-                await session.page.goto(orgUrl(`/${shot.path}`), { timeout: 60_000 })
+                const response = await session.page.goto(orgUrl(`/${shot.path}`), {
+                  timeout: 60_000,
+                })
                 await session.settle()
+                if (shot.name === 'not-found') await expectPageNotFound(session.page)
+                else
+                  assert(
+                    (response?.status() ?? 500) < 400,
+                    `${shot.path} answered ${response?.status()}`
+                  )
                 const open = viewport === PHONE ? (shot.openOnPhone ?? shot.open) : shot.open
                 await open?.(session.page)
                 await sleep(200)
@@ -157,6 +166,9 @@ export async function stateScreenshots() {
           OUTSIDER,
           async (session) => {
             await session.page.goto(orgUrl('/home'), { timeout: 60_000 })
+            await expect(
+              session.page.getByRole('link', { name: 'View your workspaces' })
+            ).toBeVisible()
             await session.page.screenshot({
               path: resolve(artifactDirectory, `state__access-denied__${viewport.name}.png`),
               timeout: 20_000,
