@@ -116,7 +116,7 @@ let container: HTMLDivElement
 let queryClient: QueryClient
 
 beforeEach(() => {
-  vi.spyOn(toast, 'error')
+  vi.spyOn(toast, 'error').mockReturnValue('')
   mocks.advanced = false
   mocks.workspacesLoading = false
   useMothershipEffortStore.getState().reset()
@@ -615,6 +615,27 @@ it('tells the viewer when the lists never land, keeps the message, and sends pla
   await act(async () => required<HTMLButtonElement>('button[aria-label="Send"]').click())
   expect(mocks.submit).toHaveBeenCalledOnce()
   expect(mocks.submit.mock.lastCall?.[0]).toBe('/review this')
+})
+
+it('a declined message edited and typed again waits and warns again', async () => {
+  const firstExpiry = holdThenExpire()
+  mocks.skillQuery.mockReturnValue(new Promise(() => {}))
+  await render(true, '', 'agent')
+  const input = required<HTMLTextAreaElement>('[aria-label="Ask Sim"]')
+  const send = () => required<HTMLButtonElement>('button[aria-label="Send"]')
+  await act(async () => typeInto(input, '/review this'))
+  await act(async () => send().click())
+  await act(async () => firstExpiry.abort())
+  expect(toast.error).toHaveBeenCalledOnce()
+  await act(async () => typeInto(input, '/review this now'))
+  await act(async () => typeInto(input, '/review this'))
+  const secondExpiry = holdThenExpire()
+  await act(async () => send().click())
+  expect(mocks.submit).not.toHaveBeenCalled()
+  expect(input.closest('[aria-busy="true"]')).not.toBeNull()
+  await act(async () => secondExpiry.abort())
+  expect(toast.error).toHaveBeenCalledTimes(2)
+  expect(mocks.submit).not.toHaveBeenCalled()
 })
 
 it('a list that fails while the send waits tells the viewer the same way', async () => {

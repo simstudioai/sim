@@ -110,6 +110,7 @@ export function useComposer({
   const [heldSend, setHeldSend] = useState<HeldSend | null>(null)
   /** The text the viewer was told would go out unchipped if they sent it again. */
   const [declinedWaitText, setDeclinedWaitText] = useState<string | null>(null)
+  if (declinedWaitText !== null && value !== declinedWaitText) setDeclinedWaitText(null)
   const skillsWanted = resourceIntent || heldSend !== null || SLASH_TOKEN.test(value)
   const skillQueries = useQueries({
     queries: workspaces.map((workspace) => ({
