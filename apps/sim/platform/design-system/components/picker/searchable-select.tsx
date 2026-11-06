@@ -18,8 +18,6 @@ import { useScrollEdges } from '@/platform/design-system/components/scroll-area/
 interface SearchableSelectProps {
   label: string
   labelHidden?: boolean
-  /** `text` sits in a line of copy, such as a breadcrumb, with a popup wider than its label. */
-  variant?: 'field' | 'text'
   options: readonly PickerOption[]
   defaultValue?: string
   /** Controlled selection, where `null` holds nothing. It may be absent from the current `options`. */
@@ -44,7 +42,6 @@ interface SearchableSelectProps {
 export function SearchableSelect({
   label,
   labelHidden,
-  variant = 'field',
   options,
   defaultValue,
   value,
@@ -93,7 +90,6 @@ export function SearchableSelect({
           aria-invalid={error ? true : undefined}
           aria-describedby={fieldDescription(id, error, hint)}
           className={picker.trigger}
-          data-variant={variant === 'text' ? 'text' : undefined}
           data-empty={current === null && placeholder ? true : undefined}
           data-type='T043'
         >
@@ -108,7 +104,6 @@ export function SearchableSelect({
             searchLabel={searchLabel}
             container={selection.container}
             search={search}
-            detached={variant === 'text'}
           >
             {createLabel && (
               <>

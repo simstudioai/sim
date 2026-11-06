@@ -28,20 +28,11 @@ interface SearchPopupProps {
   searchLabel: string
   container: HTMLElement
   search?: PickerServerSearch
-  /** Size the popup for its rows instead of matching its trigger's width. */
-  detached?: boolean
   children?: ReactNode
 }
 
 /** The floating part of a searchable picker. Must sit inside a `Combobox.Root`. */
-export function SearchPopup({
-  label,
-  searchLabel,
-  container,
-  search,
-  detached,
-  children,
-}: SearchPopupProps) {
+export function SearchPopup({ label, searchLabel, container, search, children }: SearchPopupProps) {
   const input = useRef<HTMLInputElement>(null)
   const queryEdges = useScrollEdges('horizontal', { viewport: input })
   const scrollRef = useScrollEdges<HTMLDivElement>()
@@ -51,7 +42,7 @@ export function SearchPopup({
         align='start'
         positionMethod='fixed'
         sideOffset={8}
-        className={detached ? `${popup.positioner} ${picker.detachedPopup}` : popup.anchorWidth}
+        className={popup.anchorWidth}
       >
         <Combobox.Popup
           className={popup.popup}

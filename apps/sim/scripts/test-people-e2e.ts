@@ -566,40 +566,31 @@ async function run() {
           waitUntil: 'domcontentloaded',
           timeout: 180_000,
         })
-        const trail = page.getByRole('navigation', { name: 'Reporting path' })
-        const focused = (name: string) => trail.getByRole('heading', { name, exact: true })
-        const profileOf = (name: string) =>
+        const focused = (name: string) =>
           page.getByRole('link', { name: `View profile for ${name}` })
-        const viewTab = (name: string) =>
-          page
-            .getByRole('navigation', { name: 'People view' })
-            .getByRole('button', { name, exact: true })
         await expect(focused('Maya Chen')).toBeVisible({ timeout: 120_000 })
         await expect(page.getByRole('button', { name: 'Explore Felix Ward' })).toBeVisible()
         const longTitleLabel = page
           .getByRole('button', { name: 'Explore Amara Cole' })
           .getByText(longTitle, { exact: true })
-        await longTitleLabel.hover({ position: { x: 4, y: 4 } })
-        await expect(page.locator('[role=tooltip]').filter({ hasText: longTitle })).toBeVisible()
+        await longTitleLabel.hover()
+        await expect(
+          page.locator('[data-native-surface-overlay]').filter({ hasText: longTitle })
+        ).toBeVisible()
         await page.mouse.move(0, 0)
-        await expect(page.getByRole('button', { name: 'Import', exact: true })).toBeVisible()
-        await page.getByRole('button', { name: 'Directory sync', exact: true }).click()
-        await page.getByRole('heading', { name: 'Directory sync', level: 1 }).waitFor()
-        await page.goBack()
-        await expect(focused('Maya Chen')).toBeVisible()
         await page.screenshot({ path: join(screenshotDir, 'desktop.png') })
-        const card = page.getByRole('button', { name: 'Explore Felix Ward' })
+        const card = focused('Maya Chen')
         const cardWidth = await card.evaluate((node) => node.getBoundingClientRect().width)
         await page.getByRole('button', { name: 'Zoom in' }).click()
         await expect
           .poll(() => card.evaluate((node) => node.getBoundingClientRect().width))
           .toBeGreaterThan(cardWidth)
         await page.getByRole('button', { name: 'Fit chart' }).click()
-        const cardColor = () =>
-          card.evaluate((node) => getComputedStyle(node.parentElement as Element).backgroundColor)
-        const lightCardColor = await cardColor()
+        const lightCardColor = await card.evaluate((node) => getComputedStyle(node).backgroundColor)
         await page.emulateMedia({ colorScheme: 'dark' })
-        await expect.poll(cardColor).not.toBe(lightCardColor)
+        await expect
+          .poll(() => card.evaluate((node) => getComputedStyle(node).backgroundColor))
+          .not.toBe(lightCardColor)
         await page.screenshot({ path: join(screenshotDir, 'desktop-dark.png') })
         await page.emulateMedia({ colorScheme: 'light' })
         await page.getByRole('button', { name: 'Next reports' }).focus()
@@ -632,8 +623,8 @@ async function run() {
           (text) => navigator.clipboard.writeText(text),
           `${boundedPaste}${'界'.repeat(4096)}`
         )
-        const pickerSearch = page.getByRole('combobox', { name: 'Find a person' })
-        await pickerSearch.click()
+        await page.getByLabel('Find a person').click()
+        const pickerSearch = page.getByPlaceholder('Search name, title or email…')
         await pickerSearch.focus()
         await pickerSearch.press('ControlOrMeta+v')
         await expect(pickerSearch).toHaveValue(boundedPaste, { timeout: 5_000 })
@@ -648,6 +639,8 @@ async function run() {
         try {
           await pickerSearch.fill(pagedSearch)
           await expect(page.getByRole('option', { name: /^Directory colleague 001/ })).toBeVisible()
+          const more = page.getByRole('button', { name: 'Load more', exact: true })
+          await expect(more).toBeVisible({ timeout: 5_000 })
           await Promise.all([
             page.waitForResponse((response) => {
               const url = new URL(response.url())
@@ -658,15 +651,14 @@ async function run() {
                 response.ok()
               )
             }),
-            page
-              .getByRole('listbox', { name: 'Find a person' })
-              .evaluate((list) => list.scrollTo(0, list.scrollHeight)),
+            more.click(),
           ])
+          await more.scrollIntoViewIfNeeded()
           await page.getByRole('option', { name: /^Directory colleague 100/ }).click()
           await expect(
             page.getByText('No reporting lines for Directory colleague 100', { exact: true })
           ).toBeVisible()
-          assert.equal(requestedPages.length, 2, 'Reaching the end loads one additional page')
+          assert.equal(requestedPages.length, 2, 'One click loads exactly one additional page')
           assert.equal(requestedPages[0], null)
           assert(requestedPages[1], 'Page two resumes with a cursor')
           await page.goBack()
@@ -674,19 +666,17 @@ async function run() {
         } finally {
           await sql`delete from people_directory_sync where organization_id = ${teamOrg} and source_target = 'picker.okta.com'`
         }
-        await pickerSearch.click()
-        await pickerSearch.fill(' Engineering ')
-        await page.getByRole('option', { name: /^Ben Ortega.*Design Lead/ }).click()
-        await expect(focused('Ben Ortega')).toBeVisible()
-        await expect(pickerSearch).toHaveValue('')
-        await profileOf('Ben Ortega').click()
+        await page.getByLabel('Find a person').click()
+        await page.getByPlaceholder('Search name, title or email…').fill(' Engineering ')
+        await page.getByText(/Ben Ortega · Design Lead/).click()
+        await focused('Ben Ortega').click()
         await page.getByRole('link', { name: 'View in org chart' }).click()
         await expect(focused('Ben Ortega')).toBeVisible()
-        await page.getByRole('combobox', { name: 'Browse top-level teams' }).click()
-        await page.getByRole('option', { name: /^Maya Chen · VP Engineering/ }).click()
+        await page.getByLabel('Browse top-level teams').click()
+        await page.getByText(/Maya Chen · VP Engineering/).click()
         await expect(focused('Maya Chen')).toBeVisible()
-        await viewTab('Directory').click()
-        const directorySearch = page.getByRole('searchbox', { name: 'Search people' })
+        await page.getByRole('radio', { name: 'Directory' }).click()
+        const directorySearch = page.getByRole('textbox', { name: 'Search people...', exact: true })
         await directorySearch.focus()
         await directorySearch.press('ControlOrMeta+v')
         await expect(directorySearch).toHaveValue(boundedPaste)
@@ -702,12 +692,12 @@ async function run() {
           'People sent an oversized search'
         )
         await directorySearch.fill('Amara')
-        const profileLink = page.getByRole('link', { name: /^Amara Cole/ })
+        const profileLink = page.getByRole('link', { name: 'Amara Cole', exact: true })
         await profileLink.focus()
         await page.keyboard.press('Enter')
         await page.getByRole('link', { name: 'Open Maya Chen' }).click()
         const backToResults = page
-          .getByRole('link', { name: 'Back to directory', exact: true })
+          .getByRole('link', { name: 'People', exact: true })
           .and(page.locator('a[href*="search=Amara"]'))
         await backToResults.click()
         await expect(directorySearch).toHaveValue('Amara')
@@ -718,9 +708,9 @@ async function run() {
         chartOrigin.searchParams.set('search', 'Amara')
         chartOrigin.searchParams.set('department', 'Engineering')
         await page.goto(chartOrigin.href)
-        await profileOf('Maya Chen').click()
+        await focused('Maya Chen').click()
         await page
-          .getByRole('link', { name: 'Back to org chart', exact: true })
+          .getByRole('link', { name: 'People', exact: true })
           .and(page.locator('a[href*="department=Engineering"]'))
           .click()
         await page.waitForURL(
@@ -736,8 +726,8 @@ async function run() {
         await page.waitForURL(
           (url) => url.searchParams.get('view') === 'directory' && !url.searchParams.get('search')
         )
-        await expect(viewTab('Directory')).toHaveAttribute('aria-current', 'page')
-        await viewTab('Org chart').click()
+        await expect(page.getByRole('radio', { name: 'Directory' })).toBeChecked()
+        await page.getByRole('radio', { name: 'Org chart' }).click()
         await page.goto(new URL(`${path}?focus=${unlinked.memberId}`, baseUrl).href)
         await page.getByText('No reporting lines for Rae Dunn').waitFor()
         await page.getByRole('button', { name: 'Explore a team' }).click()
@@ -751,20 +741,15 @@ async function run() {
             { name: 'better-auth.session_token', value: outsider.cookie, url: baseUrl.origin },
           ])
         await empty.goto(new URL(`/o/${outsider.orgId}/people`, baseUrl).href)
-        await empty.getByText('Bring your organization into view', { exact: true }).waitFor()
+        await empty.getByText('No reporting lines yet', { exact: true }).waitFor()
         await empty.screenshot({ path: join(screenshotDir, 'empty-chart.png') })
-        await empty.getByRole('button', { name: 'Connect Okta', exact: true }).waitFor()
-        await expect(empty.getByRole('button', { name: 'Connect SCIM provisioning' })).toHaveCount(
-          0
-        )
-        await empty.getByRole('button', { name: 'Import profiles', exact: true }).click()
-        const importDialog = empty.getByRole('dialog', { name: 'Import profiles' })
-        await importDialog.getByRole('combobox', { name: 'Source' }).click()
-        await empty.getByRole('option', { name: 'Okta', exact: true }).waitFor()
-        await expect(empty.getByRole('option', { name: 'SCIM provisioning' })).toHaveCount(0)
+        await empty.getByRole('button', { name: 'Import people', exact: true }).click()
+        const picker = empty.getByRole('dialog', { name: 'Import people data' })
+        await picker.getByRole('button', { name: 'Okta', exact: true }).waitFor()
+        await expect(picker.getByRole('button', { name: 'SCIM provisioning' })).toHaveCount(0)
         await empty.screenshot({ path: join(screenshotDir, 'import-sources.png') })
-        await empty.getByRole('option', { name: 'Microsoft Entra ID' }).click()
-        await importDialog.getByLabel('Access token', { exact: true }).waitFor()
+        await picker.getByRole('button', { name: 'Microsoft Entra ID' }).click()
+        await empty.getByRole('dialog', { name: 'Import from Microsoft Entra ID' }).waitFor()
         await empty.close()
         const mobile = await browser.newPage({
           isMobile: true,
@@ -796,11 +781,11 @@ async function run() {
         }
         await mobile.getByRole('button', { name: 'Explore Amara Cole' }).tap()
         await mobile.getByRole('button', { name: 'Explore June Evans' }).tap()
-        const mobileTrail = mobile.getByRole('navigation', { name: 'Reporting path' })
-        const heading = mobileTrail.getByRole('heading', { name: 'June Evans' })
+        const trail = mobile.getByRole('navigation', { name: 'Reporting path' })
+        const heading = trail.getByRole('heading', { name: 'June Evans' })
         await heading.scrollIntoViewIfNeeded()
         await expect(heading).toBeInViewport()
-        const manager = mobileTrail.getByRole('button', { name: 'Maya Chen' })
+        const manager = trail.getByRole('button', { name: 'Maya Chen' })
         await manager.scrollIntoViewIfNeeded()
         await expect(manager).toBeInViewport()
         await manager.tap()
@@ -839,7 +824,7 @@ async function run() {
           })
           await page.clock.install()
           await page.goto(new URL(`/o/${teamOrg}/people?panel=sync`, baseUrl).href)
-          await page.getByRole('button', { name: 'Update connection' }).click()
+          await page.getByRole('button', { name: 'Update credentials' }).click()
           const token = page
             .getByRole('dialog', { name: 'Update Okta credentials' })
             .getByLabel('API token', { exact: true })

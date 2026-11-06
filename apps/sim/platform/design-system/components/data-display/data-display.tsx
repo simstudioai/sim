@@ -46,8 +46,6 @@ type TableColumn = {
   key: string
   label: string
   showFrom?: 'compact' | 'wide'
-  /** The column a row is read by, wider than the columns that share the rest. */
-  primary?: boolean
   /** Offer this column to `onSortChange`. The caller owns the order of `rows`. */
   sortable?: boolean
 } & (
@@ -87,8 +85,6 @@ interface DataTableProps {
   loadMore?: LoadMoreState
   /** Window a long list inside a bounded scroller with a sticky header. */
   virtualized?: boolean
-  /** Mark rows that open a destination with a trailing chevron, at every width. */
-  rowChevron?: boolean
 }
 
 function columnFormat(column: TableColumn, locale: string) {
@@ -126,7 +122,6 @@ interface TableRowViewProps {
   row: TableRow
   fields: readonly TableField[]
   actionColumn: boolean
-  rowChevron?: boolean
   index?: number
   rowRef?: Ref<HTMLTableRowElement>
 }
@@ -135,7 +130,6 @@ const TableRowView = memo(function TableRowView({
   row,
   fields,
   actionColumn,
-  rowChevron,
   index,
   rowRef,
 }: TableRowViewProps) {
@@ -155,7 +149,6 @@ const TableRowView = memo(function TableRowView({
             key={column.key}
             data-kind={column.kind}
             data-from={column.showFrom}
-            data-primary={column.primary || undefined}
             data-numeric={Boolean(column.format)}
             data-type={column.kind === 'text' ? 'T059' : 'T060'}
           >
@@ -173,11 +166,7 @@ const TableRowView = memo(function TableRowView({
           </td>
         )
       })}
-      {actionColumn && (
-        <td data-kind='action' data-passive={row.action ? undefined : true}>
-          {row.action ?? (rowChevron && <Icon name='I032' />)}
-        </td>
-      )}
+      {actionColumn && <td data-kind='action'>{row.action}</td>}
     </tr>
   )
 })
@@ -205,7 +194,6 @@ function TableHead({ fields, actionColumn, sort, onSortChange }: TableHeadProps)
               aria-sort={sortable ? ARIA_SORT[direction ?? 'none'] : undefined}
               data-kind={column.kind}
               data-from={column.showFrom}
-              data-primary={column.primary || undefined}
               data-numeric={Boolean(column.format)}
               data-type='T050'
             >
@@ -248,7 +236,6 @@ interface VirtualTableProps extends TableHeadProps {
   title: string
   rows: readonly TableRow[]
   loadMore?: LoadMoreState
-  rowChevron?: boolean
 }
 
 function VirtualTable({
@@ -259,7 +246,6 @@ function VirtualTable({
   sort,
   onSortChange,
   loadMore,
-  rowChevron,
 }: VirtualTableProps) {
   const viewport = useRef<HTMLDivElement>(null)
   const scrollRef = useScrollEdges('vertical', { viewport, tabStop: true })
@@ -299,7 +285,6 @@ function VirtualTable({
               row={rows[item.index]}
               fields={fields}
               actionColumn={actionColumn}
-              rowChevron={rowChevron}
               index={item.index}
               rowRef={virtualizer.measureElement}
             />
@@ -343,10 +328,9 @@ export function DataTable({
   onSortChange,
   loadMore,
   virtualized,
-  rowChevron,
 }: DataTableProps) {
   const fields = columns.map((column) => ({ ...column, format: columnFormat(column, locale) }))
-  const actionColumn = Boolean(rowChevron) || rows.some((row) => row.action)
+  const actionColumn = rows.some((row) => row.action)
   return (
     <section className={styles.section}>
       {(!titleHidden || control) && (
@@ -365,7 +349,6 @@ export function DataTable({
             sort={sort}
             onSortChange={onSortChange}
             loadMore={loadMore}
-            rowChevron={rowChevron}
           />
         ) : (
           <>
@@ -384,7 +367,6 @@ export function DataTable({
                       row={row}
                       fields={fields}
                       actionColumn={actionColumn}
-                      rowChevron={rowChevron}
                     />
                   ))}
                 </tbody>

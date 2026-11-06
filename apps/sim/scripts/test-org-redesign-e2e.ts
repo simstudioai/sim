@@ -3280,23 +3280,27 @@ async function peoplePhaseChecks() {
     })
   })
   await check(
-    'a member reads that an organization admin connects the directory, and no name',
+    'a member reads that an administrator connects the directory, and no name',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
         await page.goto(orgUrl('/people'))
-        await expect(page.getByRole('button', { name: 'Org chart' })).toBeVisible()
-        await expect(page.getByText(/organization admin/i).first()).toBeVisible()
+        await expect(
+          page
+            .getByRole('radio', { name: 'Org chart' })
+            .or(page.getByRole('button', { name: 'Org chart' }))
+            .first()
+        ).toBeVisible()
+        await expect(page.getByText(/administrator/i).first()).toBeVisible()
         await expect(page.getByRole('button', { name: 'Directory sync' })).toHaveCount(0)
-        await expect(page.getByRole('button', { name: 'Import', exact: true })).toHaveCount(0)
-        await expect(page.getByRole('button', { name: 'Connect Okta' })).toHaveCount(0)
+        await expect(page.getByRole('button', { name: 'Import people' })).toHaveCount(0)
       })
     }
   )
   await check('an admin can sync and import from the empty state', async () => {
     await withSession(ADMIN, async ({ page }) => {
       await page.goto(orgUrl('/people'))
-      await expect(page.getByRole('button', { name: 'Connect Okta' })).toBeVisible()
-      await expect(page.getByRole('button', { name: 'Import profiles' })).toBeVisible()
+      await expect(page.getByRole('button', { name: /Directory sync/ }).first()).toBeVisible()
+      await expect(page.getByRole('button', { name: /Import/ }).first()).toBeVisible()
     })
   })
   await check('the directory lists the organization', async () => {

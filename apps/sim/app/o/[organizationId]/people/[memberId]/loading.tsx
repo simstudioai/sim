@@ -1,10 +1,5 @@
-import { RedesignPageSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
-import { PersonSkeleton } from '@/platform/app/(shell)/people/_components/person/person-skeleton'
+import { ApplicationLoading } from '@/app/_shell/application-loading'
 
-export default function PersonLoading() {
-  return (
-    <RedesignPageSurface>
-      <PersonSkeleton />
-    </RedesignPageSurface>
-  )
+export default function Loading() {
+  return <ApplicationLoading />
 }

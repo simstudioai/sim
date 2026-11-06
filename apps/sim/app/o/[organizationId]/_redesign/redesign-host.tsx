@@ -18,12 +18,3 @@ interface RedesignSurfaceProps {
 export function RedesignSurface({ children }: RedesignSurfaceProps) {
   return <PlatformSurface theme='system'>{children}</PlatformSurface>
 }
-
-/** Fills the app's content slot, and the grid stretches the surface so its canvas reaches the end. */
-export function RedesignPageSurface({ children }: RedesignSurfaceProps) {
-  return (
-    <div className='grid h-full min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] overflow-y-auto'>
-      <RedesignSurface>{children}</RedesignSurface>
-    </div>
-  )
-}

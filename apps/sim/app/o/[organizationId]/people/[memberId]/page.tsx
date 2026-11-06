@@ -3,12 +3,10 @@ import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
-import { canBrowsePeople } from '@/lib/people/feature-flag'
+import { isPeopleEnabled } from '@/lib/people/feature-flag'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
-import { RedesignPageSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
-import { PersonProfile } from '@/platform/app/(shell)/people/_components/person/person'
-import { PersonSkeleton } from '@/platform/app/(shell)/people/_components/person/person-skeleton'
+import PageLoading from '@/app/o/[organizationId]/people/[memberId]/loading'
+import { Person } from '@/app/o/[organizationId]/people/[memberId]/person'
 
 export const metadata: Metadata = { title: 'People' }
 
@@ -26,13 +24,10 @@ export default async function PersonPage({ params }: PersonPageProps) {
         isInviteFlow: false,
       })
     )
-  const context = await getOrganizationSurfaceContext(organizationId, session.user.id)
-  if (!context || !(await canBrowsePeople(organizationId, context.viewer.role))) notFound()
+  if (!(await isPeopleEnabled(organizationId))) notFound()
   return (
-    <RedesignPageSurface>
-      <Suspense fallback={<PersonSkeleton />}>
-        <PersonProfile organizationId={organizationId} memberId={memberId} />
-      </Suspense>
-    </RedesignPageSurface>
+    <Suspense fallback={<PageLoading />}>
+      <Person organizationId={organizationId} memberId={memberId} />
+    </Suspense>
   )
 }

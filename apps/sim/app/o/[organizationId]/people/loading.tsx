@@ -1,10 +1,14 @@
-import { RedesignPageSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
-import { PeopleSkeleton } from '@/platform/app/(shell)/people/_components/people-page/people-skeleton'
+'use client'
+
+import { Users } from '@sim/emcn/icons'
+import { LoadingStatus } from '@/app/o/[organizationId]/people/loading-status'
+import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
 
 export default function PeopleLoading() {
   return (
-    <RedesignPageSurface>
-      <PeopleSkeleton />
-    </RedesignPageSurface>
+    <Resource>
+      <Resource.Header icon={Users} title='People' />
+      <LoadingStatus>Loading people…</LoadingStatus>
+    </Resource>
   )
 }
