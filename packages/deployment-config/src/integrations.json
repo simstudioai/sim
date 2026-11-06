@@ -9802,8 +9802,8 @@
       "name": "Flow Engineering",
       "description": "Manage engineering requirements and traceability",
       "longDescription": "Read and update Flow Engineering projects, requirements, tests, and other entities through its customer API. Search current project data, inspect categories and relationships, manage comments, and make controlled changes on a working branch using your connected account permissions.",
-      "bgColor": "#2448C7",
-      "iconName": "ApiIcon",
+      "bgColor": "#FFFFFF",
+      "iconName": "FlowIcon",
       "docsUrl": "https://docs.sim.ai/integrations/flow",
       "operations": [
         {
@@ -9906,7 +9906,7 @@
       "category": "tools",
       "integrationType": "devops",
       "tags": ["project-management", "automation", "version-control"],
-      "updatedAt": "2026-11-05"
+      "updatedAt": "2026-11-06"
     },
     {
       "type": "gamma",
@@ -14446,8 +14446,8 @@
       "name": "Jama Connect",
       "description": "Manage requirements, traceability, and verification in Jama Connect",
       "longDescription": "Search and manage requirements, inspect custom item types and pick lists, trace upstream and downstream relationships, collaborate with comments, compare item versions and baselines, and read test plans, cycles, and runs or update execution results. Connect with saved Jama API client credentials that retain the account owner’s permissions.",
-      "bgColor": "#E25100",
-      "iconName": "ApiIcon",
+      "bgColor": "#FFFFFF",
+      "iconName": "JamaIcon",
       "docsUrl": "https://docs.sim.ai/integrations/jama",
       "operations": [
         {
@@ -14619,7 +14619,7 @@
       "category": "tools",
       "integrationType": "devops",
       "tags": ["project-management", "knowledge-base"],
-      "updatedAt": "2026-11-05"
+      "updatedAt": "2026-11-06"
     },
     {
       "type": "jina",

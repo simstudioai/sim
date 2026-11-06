@@ -1,4 +1,4 @@
-import { ApiIcon } from '@/components/icons'
+import { JamaIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 
 export const JamaBlock: BlockConfig = {
@@ -10,8 +10,8 @@ export const JamaBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/integrations/jama',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
-  bgColor: '#E25100',
-  icon: ApiIcon,
+  bgColor: '#FFFFFF',
+  icon: JamaIcon,
   authMode: AuthMode.OAuth,
   canvasPresentation: {
     defaultTitle: 'Jama Connect',
@@ -813,7 +813,7 @@ export const JamaBlockMeta = {
   url: 'https://www.jamasoftware.com/',
   templates: [
     {
-      icon: ApiIcon,
+      icon: JamaIcon,
       title: 'Requirement change digest',
       prompt:
         'Build a scheduled workflow that searches Jama items modified since the previous day, reads their current descriptions, and produces a digest grouped by project with document keys.',
@@ -822,7 +822,7 @@ export const JamaBlockMeta = {
       tags: ['requirements', 'reporting'],
     },
     {
-      icon: ApiIcon,
+      icon: JamaIcon,
       title: 'Change impact analysis',
       prompt:
         'Build an agent that takes a Jama requirement ID, reads the item and its upstream and downstream related items, and explains the potential impact of a proposed change with the affected document keys.',
@@ -831,7 +831,7 @@ export const JamaBlockMeta = {
       tags: ['traceability', 'requirements'],
     },
     {
-      icon: ApiIcon,
+      icon: JamaIcon,
       title: 'Verification status report',
       prompt:
         'Build a workflow that lists the test cycles in a selected Jama test plan, reads their test runs, and summarizes the recorded execution results and unresolved tests.',
@@ -840,7 +840,7 @@ export const JamaBlockMeta = {
       tags: ['testing', 'reporting'],
     },
     {
-      icon: ApiIcon,
+      icon: JamaIcon,
       title: 'Baseline comparison',
       prompt:
         'Build an agent that reads the items in a selected Jama baseline, compares selected requirements against their current versions, and reports differences in the recorded fields.',
@@ -849,7 +849,7 @@ export const JamaBlockMeta = {
       tags: ['baselines', 'change-management'],
     },
     {
-      icon: ApiIcon,
+      icon: JamaIcon,
       title: 'Requirement discussion summary',
       prompt:
         'Build a workflow that reads a Jama requirement and its comments and summarizes the open questions, decisions, and action items without changing the requirement.',
@@ -858,7 +858,7 @@ export const JamaBlockMeta = {
       tags: ['collaboration', 'requirements'],
     },
     {
-      icon: ApiIcon,
+      icon: JamaIcon,
       title: 'Requirement creation assistant',
       prompt:
         'Build an agent that discovers the item types and required fields in a selected Jama project, drafts a new requirement using that schema, and creates the item after the user confirms the content.',
@@ -867,7 +867,7 @@ export const JamaBlockMeta = {
       tags: ['requirements', 'automation'],
     },
     {
-      icon: ApiIcon,
+      icon: JamaIcon,
       title: 'Requirement history review',
       prompt:
         'Build an agent that lists the versions of a Jama item, reads the selected historical snapshots, and produces a timeline of changes with authors and version numbers.',
