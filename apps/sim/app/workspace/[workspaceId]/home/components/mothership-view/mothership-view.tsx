@@ -2,9 +2,9 @@
 
 import {
   type ComponentProps,
+  type ComponentType,
   forwardRef,
   memo,
-  type ReactNode,
   useCallback,
   useRef,
   useState,
@@ -27,7 +27,7 @@ import {
   isPreviewable,
   RICH_PREVIEWABLE_EXTENSIONS,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
-import type { ShareDialogModel } from '@/app/workspace/[workspaceId]/files/components/share-modal'
+import type { ShareDialogProps } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import { ChatPanelContent } from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
@@ -115,7 +115,8 @@ interface MothershipViewProps {
   className?: string
   tabsClassName?: string
   sourcesClassName?: string
-  renderShareDialog?: (dialog: ShareDialogModel) => ReactNode
+  /** Draws the share dialog in place of the default one. `useShareDialog` keeps its behavior. */
+  ShareDialogComponent?: ComponentType<ShareDialogProps>
   previewSession?: FilePreviewSession | null
   isAgentResponding?: boolean
   onSummarize: (message: string, filters: WorkspaceSearchFilters) => void
@@ -139,7 +140,7 @@ export const MothershipView = memo(
       className,
       tabsClassName,
       sourcesClassName,
-      renderShareDialog,
+      ShareDialogComponent,
       previewSession,
       isAgentResponding,
       onSummarize,
@@ -271,7 +272,7 @@ export const MothershipView = memo(
                     workspaceId={activeWorkspaceId}
                     resource={active}
                     downloadSourceRef={fileDownloadSourceRef}
-                    renderShareDialog={renderShareDialog}
+                    ShareDialogComponent={ShareDialogComponent}
                   />
                 </ResourceWorkspaceHost>
               ) : null

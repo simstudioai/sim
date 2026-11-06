@@ -13,9 +13,16 @@ import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
 import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
-import { CONVERSATION_APPEARANCE } from '@/platform/app/(shell)/_components/conversation/appearance'
 import styles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
+import { PageContextDialog } from '@/platform/app/(shell)/_components/conversation/dialogs'
 import { PageComposer } from '@/platform/app/(shell)/_components/conversation/page-composer'
+import { ResponseActions } from '@/platform/app/(shell)/_components/conversation/response-actions'
+import { ShareDialog } from '@/platform/app/(shell)/_components/conversation/share-dialog'
+import {
+  ComposerPlaceholder,
+  TranscriptPlaceholder,
+} from '@/platform/app/(shell)/_components/conversation/skeletons'
+import hostBridge from '@/platform/design-system/styles/host-bridge.module.css'
 
 /** What a surface's own landing arranges. */
 export interface ConversationLandingSlot {
@@ -83,7 +90,10 @@ function PageConversationContent({
   const composer = <PageComposer {...composerProps} />
   return (
     <ChatResourcePanel
-      appearance={CONVERSATION_APPEARANCE.panel}
+      panelClassName={styles.panel}
+      tabsClassName={styles.tabs}
+      sourcesClassName={`${styles.palette} ${styles.sources}`}
+      ShareDialogComponent={ShareDialog}
       header={header}
       hideToggleUntilResource={!allowBuildControls || !hasChat}
       allowBuildControls={allowBuildControls}
@@ -103,7 +113,13 @@ function PageConversationContent({
             <MothershipChat
               {...threadProps}
               className={`${styles.palette} ${styles.thread}`}
-              appearance={CONVERSATION_APPEARANCE.chat}
+              ResponseActionsComponent={ResponseActions}
+              PageContextDialogComponent={PageContextDialog}
+              userBubbleClassName={styles.userBubble}
+              responseActionsClassName={styles.responseActions}
+              sourcesPopoverClassName={`${hostBridge.tokens} ${styles.sourcesPopover}`}
+              loadingTranscript={<TranscriptPlaceholder />}
+              loadingComposer={<ComposerPlaceholder />}
               reserveResourceHeader={!header && threadProps.reserveResourceHeader}
               SearchConnectionComponent={SearchIntegrationConnection}
               composer={composer}

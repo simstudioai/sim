@@ -1,1 +1,1 @@
-export { type ChatAppearance, ChatSurfaceProvider, useChatSurface } from './chat-surface-context'
+export { ChatSurfaceProvider, useChatSurface } from './chat-surface-context'

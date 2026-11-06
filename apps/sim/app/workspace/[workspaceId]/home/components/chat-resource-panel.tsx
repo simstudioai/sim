@@ -1,9 +1,9 @@
 'use client'
 
-import { lazy, type ReactNode, Suspense, useCallback } from 'react'
+import { type ComponentType, lazy, type ReactNode, Suspense, useCallback } from 'react'
 import { cn } from '@sim/emcn'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
-import type { ShareDialogModel } from '@/app/workspace/[workspaceId]/files/components/share-modal'
+import type { ShareDialogProps } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import { ChatPanelLayout } from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
 import { MothershipResourcesProvider } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { useBrowserTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-browser-tab-resources'
@@ -17,14 +17,6 @@ const MothershipView = lazy(() =>
   )
 )
 
-/** Another design language's look for the panel's own chrome, never for the resources inside it. */
-export interface ChatPanelAppearance {
-  panelClassName?: string
-  tabsClassName?: string
-  sourcesClassName?: string
-  renderShareDialog?: (dialog: ShareDialogModel) => ReactNode
-}
-
 interface ChatResourcePanelProps {
   workspaceId?: string
   organizationId?: string
@@ -36,7 +28,10 @@ interface ChatResourcePanelProps {
   /** Leaves out the panel toggle while there is no resource to show and the panel is closed. */
   hideToggleUntilResource?: boolean
   onSummarize?: (message: string, filters: WorkspaceSearchFilters) => void
-  appearance?: ChatPanelAppearance
+  panelClassName?: string
+  tabsClassName?: string
+  sourcesClassName?: string
+  ShareDialogComponent?: ComponentType<ShareDialogProps>
 }
 
 /** Shared resizable resource chrome for workspace and organization chat. */
@@ -50,7 +45,10 @@ export function ChatResourcePanel({
   header,
   hideToggleUntilResource = false,
   onSummarize,
-  appearance,
+  panelClassName,
+  tabsClassName,
+  sourcesClassName,
+  ShareDialogComponent,
 }: ChatResourcePanelProps) {
   useBrowserTabResources(panel.desktopTabResourceOptions)
   useTerminalTabResources(panel.desktopTabResourceOptions)
@@ -122,13 +120,10 @@ export function ChatResourcePanel({
               isAgentResponding={isSending}
               onSummarize={summarize}
               onUserInteraction={handleResourceInteraction}
-              className={cn(
-                skipResourceTransition && 'transition-none!',
-                appearance?.panelClassName
-              )}
-              tabsClassName={appearance?.tabsClassName}
-              sourcesClassName={appearance?.sourcesClassName}
-              renderShareDialog={appearance?.renderShareDialog}
+              className={cn(skipResourceTransition && 'transition-none!', panelClassName)}
+              tabsClassName={tabsClassName}
+              sourcesClassName={sourcesClassName}
+              ShareDialogComponent={ShareDialogComponent}
             />
           </Suspense>
         </MothershipResourcesProvider>

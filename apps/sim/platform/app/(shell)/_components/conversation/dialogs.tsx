@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
-import type { RenderPageContextDialog } from '@/app/workspace/[workspaceId]/home/components/message-content/components/page-context'
+import type { PageContextDialogProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/page-context'
 import styles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
 import { Modal } from '@/platform/design-system/components'
 
@@ -51,8 +51,6 @@ export function MicrophoneHelp({ onClose }: MicrophoneHelpProps) {
     </Modal>
   )
 }
-
-type PageContextDialogProps = Parameters<RenderPageContextDialog>[0]
 
 /**
  * What a chat captured from a page. Its trigger sits inside a message's paragraph, which could not
