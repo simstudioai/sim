@@ -4,10 +4,10 @@ import { useState } from 'react'
 import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
   ActionMenu,
+  ConfirmDialog,
   DataTable,
   EmptyState,
   FailureNotice,
-  Modal,
   SearchField,
 } from '@/platform/design-system/components'
 import { useAuthorizedAppsList } from '@/platform/lib/data/account'
@@ -82,15 +82,12 @@ export function AuthorizedApps() {
           }))}
         />
       )}
-      <Modal
-        open={revoking !== null}
-        onOpenChange={(open) => {
-          if (!open) setRevoking(null)
-        }}
-        variant='confirm'
-        destructive
+      <ConfirmDialog
+        target={revoking !== null}
+        onClose={() => setRevoking(null)}
         title='Revoke access'
         confirmLabel='Revoke'
+        pendingLabel='Revoking…'
         description={`Revoking ${revoking?.name ?? 'this app'} immediately signs it out everywhere. You will have to authorize it again to reconnect.`}
         onConfirm={() => (revoking ? list.revoke(revoking.id, revoking.name) : undefined)}
       />

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import styles from '@/platform/app/(shell)/integrations/_components/connected-credential/connected-credential.module.css'
 import { Button } from '@/platform/design-system/components/button/button'
 import { ActionMenu } from '@/platform/design-system/components/menu/action-menu'
-import { Modal } from '@/platform/design-system/components/modal/modal'
+import { ConfirmDialog } from '@/platform/design-system/components/modal/confirm-dialog'
 import type { IntegrationAccount } from '@/platform/lib/integrations/model'
 
 interface CredentialRow extends IntegrationAccount {
@@ -85,16 +85,13 @@ export function ConnectedCredential({
         </div>
       )}
       {confirming && (
-        <Modal
-          open
-          onOpenChange={(open) => {
-            if (!open) setConfirmingId(null)
-          }}
+        <ConfirmDialog
+          target
+          onClose={() => setConfirmingId(null)}
           title={`Disconnect ${integrationName}`}
-          variant='confirm'
-          destructive
           description={`Disconnect ${confirming.label} from all ${integrationName} connections in this organization. Workflows using this account will also lose access. You can reconnect later.`}
           confirmLabel='Disconnect'
+          pendingLabel='Disconnecting…'
           onConfirm={() => onDisconnect(confirming.id)}
         />
       )}

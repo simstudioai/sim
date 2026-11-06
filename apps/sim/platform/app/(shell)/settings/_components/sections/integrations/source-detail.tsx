@@ -20,10 +20,10 @@ import {
   Button,
   Checkbox,
   Chip,
+  ConfirmDialog,
   EmptyState,
   FailureNotice,
   InlineNotice,
-  Modal,
   SaveActions,
 } from '@/platform/design-system/components'
 import {
@@ -352,18 +352,17 @@ function SourceSettingsForm({
         onSave={form.save}
         onDiscard={onDiscard}
       />
-      <Modal
-        open={removal.open}
-        variant='confirm'
-        destructive
-        onOpenChange={removal.onOpenChange}
+      <ConfirmDialog
+        target={removal.open}
+        onClose={() => removal.onOpenChange(false)}
         title='Remove connection'
         description={
           removal.requiresDocumentDeletion
             ? 'This removes the connection, stops future syncs, and deletes its synced documents from Sim.'
             : 'This removes the connection and stops future syncs. Synced documents remain unless you delete them below.'
         }
-        confirmLabel={removal.pending ? 'Removing…' : 'Remove'}
+        confirmLabel='Remove'
+        pendingLabel='Removing…'
         confirmDisabled={removal.disabled}
         pending={removal.pending}
         onConfirm={() => {
@@ -380,7 +379,7 @@ function SourceSettingsForm({
           />
         )}
         {removal.error && <InlineNotice intent='danger' message={removal.error.message} />}
-      </Modal>
+      </ConfirmDialog>
     </SectionStack>
   )
 }

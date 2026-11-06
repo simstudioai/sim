@@ -14,6 +14,7 @@ import { GroupMappings } from '@/platform/app/(shell)/settings/_components/secti
 import {
   ActionMenu,
   Button,
+  ConfirmDialog,
   CopyField,
   Disclosure,
   FailureNotice,
@@ -306,16 +307,13 @@ function ConnectionDetails({
           hint='Copy it into your identity provider now. Sim stores only a digest and cannot show it again.'
         />
       </Modal>
-      <Modal
-        variant='confirm'
-        destructive
-        open={active && pendingRevoke !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingRevokeId(null)
-        }}
+      <ConfirmDialog
+        target={active && pendingRevoke !== null}
+        onClose={() => setPendingRevokeId(null)}
         title='Revoke token'
         description={`Revoke ${pendingRevoke?.tokenPrefix ?? ''}? Your identity provider stops syncing the moment it next uses this token. Issue a new token first if you are rotating.`}
-        confirmLabel={revokeCredential.isPending ? 'Revoking…' : 'Revoke'}
+        confirmLabel='Revoke'
+        pendingLabel='Revoking…'
         onConfirm={async () => {
           if (!pendingRevoke) return
           await revokeCredential.mutateAsync({ organizationId, credentialId: pendingRevoke.id })

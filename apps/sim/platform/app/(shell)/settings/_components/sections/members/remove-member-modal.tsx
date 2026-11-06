@@ -2,7 +2,7 @@
 
 import { formatQuotedNameList } from '@sim/utils/string'
 import styles from '@/platform/app/(shell)/settings/_components/sections/members/members.module.css'
-import { Modal } from '@/platform/design-system/components'
+import { ConfirmDialog } from '@/platform/design-system/components'
 import { useMemberRemoval } from '@/platform/lib/data/members'
 
 const MAX_LISTED_CREDENTIALS = 3
@@ -59,13 +59,12 @@ export function RemoveMemberModal({ target, onClose }: RemoveMemberModalProps) {
   const copy = removalCopy(target)
   const impact = describeImpact(target?.isSelf ?? false, removal.credentials, removal.checkFailed)
   return (
-    <Modal
-      variant='confirm'
-      destructive
-      open={target !== null}
-      onOpenChange={(open) => !open && onClose()}
+    <ConfirmDialog
+      target={target !== null}
+      onClose={onClose}
       title={copy.title}
       confirmLabel={copy.confirmLabel}
+      pendingLabel={target?.isSelf ? 'Leaving…' : 'Removing…'}
       confirmDisabled={removal.checking}
       onConfirm={removal.confirm}
     >
@@ -81,6 +80,6 @@ export function RemoveMemberModal({ target, onClose }: RemoveMemberModalProps) {
           </p>
         )
       )}
-    </Modal>
+    </ConfirmDialog>
   )
 }

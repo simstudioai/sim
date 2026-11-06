@@ -19,8 +19,8 @@ import { SlackMemberSetupModal } from '@/platform/app/(shell)/settings/_componen
 import {
   ActionMenu,
   Button,
+  ConfirmDialog,
   EmptyState,
-  Modal,
   SearchField,
 } from '@/platform/design-system/components'
 import {
@@ -266,19 +266,16 @@ export function GroupProviders({
         />
       )}
       {removing && (
-        <Modal
-          open
-          variant='confirm'
-          destructive
-          onOpenChange={(open) => {
-            if (!open) setRemoving(null)
-          }}
+        <ConfirmDialog
+          target
+          onClose={() => setRemoving(null)}
           title={`Remove ${removingName}`}
           confirmLabel='Remove'
+          pendingLabel='Removing…'
           onConfirm={removeProvider}
         >
           <Muted>Remove this provider and its connected accounts from the organization?</Muted>
-        </Modal>
+        </ConfirmDialog>
       )}
     </SectionStack>
   )

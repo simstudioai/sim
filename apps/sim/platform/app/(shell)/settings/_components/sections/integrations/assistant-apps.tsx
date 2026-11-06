@@ -8,7 +8,12 @@ import type { SearchIntegrationStatus } from '@/lib/api/contracts/knowledge/sear
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import { Muted } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { ActionMenu, Button, Modal, SearchableSelect } from '@/platform/design-system/components'
+import {
+  ActionMenu,
+  Button,
+  ConfirmDialog,
+  SearchableSelect,
+} from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
@@ -229,15 +234,12 @@ function AccountActions({
         ]}
       />
       {selected && (
-        <Modal
-          open
-          variant='confirm'
-          destructive
-          onOpenChange={(open) => {
-            if (!open) setSelectedId(null)
-          }}
+        <ConfirmDialog
+          target
+          onClose={() => setSelectedId(null)}
           title={`Disconnect ${integrationName}`}
           confirmLabel='Disconnect'
+          pendingLabel='Disconnecting…'
           onConfirm={async () => {
             await disconnect.mutateAsync({ credentialId: selected.credentialId, organizationId })
           }}
@@ -245,7 +247,7 @@ function AccountActions({
           <Muted>
             {`Disconnect ${selected.displayName} from all ${integrationName} connections in this organization. Workflows using this account will also lose access. You can reconnect later.`}
           </Muted>
-        </Modal>
+        </ConfirmDialog>
       )}
     </>
   )

@@ -29,9 +29,9 @@ import { SourceSetup } from '@/platform/app/(shell)/settings/_components/section
 import {
   ActionMenu,
   Button,
+  ConfirmDialog,
   EmptyState,
   FailureNotice,
-  Modal,
   SearchField,
 } from '@/platform/design-system/components'
 import {
@@ -326,15 +326,12 @@ export default function IntegrationsSection({ organization: context }: SettingsS
           />
         )}
         {removing !== null && (
-          <Modal
-            open
-            variant='confirm'
-            destructive
-            onOpenChange={(open) => {
-              if (!open) setRemoving(null)
-            }}
+          <ConfirmDialog
+            target
+            onClose={() => setRemoving(null)}
             title={`Remove ${removingName} source?`}
             confirmLabel='Remove source'
+            pendingLabel='Removing…'
             onConfirm={async () => {
               try {
                 await update.mutateAsync({
@@ -349,7 +346,7 @@ export default function IntegrationsSection({ organization: context }: SettingsS
             }}
           >
             <Muted>Members will no longer be able to search this source.</Muted>
-          </Modal>
+          </ConfirmDialog>
         )}
         {adding && (
           <AddSourceModal

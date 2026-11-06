@@ -18,9 +18,9 @@ import { ScimPanel } from '@/platform/app/(shell)/settings/_components/sections/
 import {
   ActivityRow,
   Button,
+  ConfirmDialog,
   EmptyState,
   FailureNotice,
-  Modal,
   SegmentedControl,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
@@ -191,35 +191,31 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
         </SectionStack>
       </div>
 
-      <Modal
-        variant='confirm'
-        open={tab === 'sign-in' && pendingPrimary !== undefined}
-        onOpenChange={(open) => {
-          if (!open) setPendingPrimaryId(null)
-        }}
+      <ConfirmDialog
+        target={tab === 'sign-in' && pendingPrimary !== undefined}
+        onClose={() => setPendingPrimaryId(null)}
         title='Make primary provider'
         description={`Make ${pendingPrimary?.providerId ?? 'this provider'} the primary provider for ${pendingPrimary?.domain ?? 'its domain'}? Everyone there signs in through it from their next sign-in. People already signed in stay signed in, and the current primary stays configured so you can switch back.`}
-        confirmLabel={setPrimaryProvider.isPending ? 'Switching…' : 'Make primary'}
+        confirmLabel='Make primary'
+        pendingLabel='Switching…'
         onConfirm={async () => {
           if (!pendingPrimary?.providerId) return
           await setPrimaryProvider.mutateAsync(pendingPrimary.providerId)
           toast.success(`${pendingPrimary.providerId} is now the primary provider`)
         }}
+        safe
       />
-      <Modal
-        variant='confirm'
-        destructive
-        open={tab === 'sign-in' && pendingDelete !== undefined}
-        onOpenChange={(open) => {
-          if (!open) setPendingDeleteId(null)
-        }}
+      <ConfirmDialog
+        target={tab === 'sign-in' && pendingDelete !== undefined}
+        onClose={() => setPendingDeleteId(null)}
         title='Delete identity provider'
         description={`Delete ${pendingDelete?.providerId ?? 'this provider'}? ${
           deleteSignInProvider
             ? `People at ${deleteDomain} ${pendingDelete?.isPrimary ? 'will sign in through' : 'keep signing in through'} ${deleteSignInProvider.providerId}.`
             : `People at ${deleteDomain} can no longer sign in through it.`
         } Their accounts and memberships stay.`}
-        confirmLabel={deleteProvider.isPending ? 'Deleting…' : 'Delete'}
+        confirmLabel='Delete'
+        pendingLabel='Deleting…'
         onConfirm={async () => {
           if (!pendingDelete?.providerId) return
           await deleteProvider.mutateAsync(pendingDelete.providerId)

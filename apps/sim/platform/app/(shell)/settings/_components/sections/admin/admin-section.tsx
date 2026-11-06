@@ -12,6 +12,7 @@ import {
   ActionMenu,
   Button,
   Chip,
+  ConfirmDialog,
   DataTable,
   EmptyState,
   InlineNotice,
@@ -296,16 +297,12 @@ export default function AdminSection() {
       </SettingsSection>
 
       {admin.pendingAction?.type === 'ban' && (
-        <Modal
-          open
-          variant='confirm'
-          destructive
-          onOpenChange={(open) => {
-            if (!open) admin.closePendingAction()
-          }}
+        <ConfirmDialog
+          target
+          onClose={() => admin.closePendingAction()}
           title='Ban user'
-          confirmLabel={admin.banUser.isPending ? 'Banning…' : 'Ban'}
-          confirmDisabled={admin.banUser.isPending}
+          confirmLabel='Ban'
+          pendingLabel='Banning…'
           pending={admin.banUser.isPending}
           onConfirm={() => {
             admin.handleConfirmBan()
@@ -325,27 +322,16 @@ export default function AdminSection() {
           {admin.banUser.error && (
             <InlineNotice intent='danger' message={admin.banUser.error.message} />
           )}
-        </Modal>
+        </ConfirmDialog>
       )}
       {admin.pendingAction?.type === 'role' && (
-        <Modal
-          open
-          variant='confirm'
-          destructive={admin.isDemotion}
-          onOpenChange={(open) => {
-            if (!open) admin.closePendingAction()
-          }}
+        <ConfirmDialog
+          target
+          safe={!admin.isDemotion}
+          onClose={() => admin.closePendingAction()}
           title={admin.isDemotion ? 'Demote user' : 'Promote user'}
-          confirmLabel={
-            admin.setUserRole.isPending
-              ? admin.isDemotion
-                ? 'Demoting…'
-                : 'Promoting…'
-              : admin.isDemotion
-                ? 'Demote'
-                : 'Promote'
-          }
-          confirmDisabled={admin.setUserRole.isPending}
+          confirmLabel={admin.isDemotion ? 'Demote' : 'Promote'}
+          pendingLabel={admin.isDemotion ? 'Demoting…' : 'Promoting…'}
           pending={admin.setUserRole.isPending}
           onConfirm={() => {
             admin.handleConfirmRoleChange()
@@ -360,7 +346,7 @@ export default function AdminSection() {
           {admin.setUserRole.error && (
             <InlineNotice intent='danger' message={admin.setUserRole.error.message} />
           )}
-        </Modal>
+        </ConfirmDialog>
       )}
       {admin.isAddUserOpen && (
         <AddUserModal

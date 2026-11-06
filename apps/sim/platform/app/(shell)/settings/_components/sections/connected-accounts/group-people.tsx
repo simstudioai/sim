@@ -16,10 +16,10 @@ import {
   ActionMenu,
   Avatar,
   Button,
+  ConfirmDialog,
   EmptyState,
   FailureNotice,
   InlineNotice,
-  Modal,
   SearchField,
   StatusTag,
 } from '@/platform/design-system/components'
@@ -174,15 +174,12 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
         <PeopleInviteModal organizationId={organizationId} onClose={() => setInviteOpen(false)} />
       )}
       {revoking && (
-        <Modal
-          open
-          variant='confirm'
-          destructive
-          onOpenChange={(open) => {
-            if (!open) setRevoking(null)
-          }}
+        <ConfirmDialog
+          target
+          onClose={() => setRevoking(null)}
           title={`Revoke ${revoking.email}`}
-          confirmLabel={revoke.isPending ? 'Revoking…' : 'Revoke'}
+          confirmLabel='Revoke'
+          pendingLabel='Revoking…'
           onConfirm={async () => {
             await revoke.mutateAsync({ organizationId, enrollmentId: revoking.id })
             toast.success('Access revoked')
@@ -192,7 +189,7 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
             This removes all accounts contributed by this person from organization workflows and
             Search. It does not remove their organization membership.
           </Muted>
-        </Modal>
+        </ConfirmDialog>
       )}
     </SectionStack>
   )

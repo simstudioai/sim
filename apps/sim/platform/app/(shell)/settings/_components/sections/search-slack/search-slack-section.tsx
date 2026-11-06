@@ -15,10 +15,10 @@ import { SlackSetupWizard } from '@/platform/app/(shell)/settings/_components/se
 import {
   ActionMenu,
   Button,
+  ConfirmDialog,
   FailureNotice,
   Icon,
   InlineNotice,
-  Modal,
   StatusTag,
 } from '@/platform/design-system/components'
 import {
@@ -202,25 +202,24 @@ export default function SearchSlackSection({ organization: context }: SettingsSe
       {configure.error && <InlineNotice intent='danger' message={configure.error.message} />}
       {configure.isPending && <Muted>Updating the Slack connection</Muted>}
       {removeTarget && (
-        <Modal
-          open
-          variant='confirm'
-          onOpenChange={(open) => {
-            if (!open) setRemoveTarget(null)
-          }}
+        <ConfirmDialog
+          target
+          onClose={() => setRemoveTarget(null)}
           title='Remove Slack Search'
-          confirmLabel={remove.isPending ? 'Removing' : 'Remove'}
+          confirmLabel='Remove'
+          pendingLabel='Removing'
           onConfirm={async () => {
             await remove.mutateAsync({
               organizationId: organization.id,
               installationId: removeTarget.id,
             })
           }}
+          safe
         >
           <Muted>
             {`Remove ${removeTarget.name} from Slack Search? Pending replies will be cancelled.`}
           </Muted>
-        </Modal>
+        </ConfirmDialog>
       )}
       {wizard && (
         <SlackSetupWizard

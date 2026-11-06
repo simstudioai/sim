@@ -20,7 +20,7 @@ import { EmptyState } from '@/platform/design-system/components/empty-state/empt
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { ActionMenu, ContextActionMenu } from '@/platform/design-system/components/menu/action-menu'
-import { Modal } from '@/platform/design-system/components/modal/modal'
+import { ConfirmDialog } from '@/platform/design-system/components/modal/confirm-dialog'
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 import type { LoadMoreState } from '@/platform/design-system/components/scroll-area/use-load-more'
 import { FailureNotice } from '@/platform/design-system/components/status/status'
@@ -294,15 +294,12 @@ export function LinksPage({ organizationId }: LinksPageProps) {
           onClose={() => setEditing(null)}
         />
       )}
-      <Modal
-        open={deleting !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeleting(null)
-        }}
-        variant='confirm'
-        destructive
+      <ConfirmDialog
+        target={deleting !== null}
+        onClose={() => setDeleting(null)}
         title='Delete link'
         confirmLabel='Delete'
+        pendingLabel='Deleting…'
         description={`${deleting?.name ?? 'This link'} will stop working for everyone in your organization.`}
         onConfirm={() => (deleting ? links.remove(deleting.id) : undefined)}
       />

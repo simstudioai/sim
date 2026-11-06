@@ -14,6 +14,7 @@ import {
   ActionMenu,
   Avatar,
   Button,
+  ConfirmDialog,
   FieldFrame,
   Modal,
   SegmentedControl,
@@ -125,13 +126,12 @@ export function GenericSecretSourceRow({ organizationId, source }: GenericSecret
         />
       )}
       {removing && (
-        <Modal
-          open
-          variant='confirm'
-          destructive
-          onOpenChange={setRemoving}
+        <ConfirmDialog
+          target
+          onClose={() => setRemoving(false)}
           title='Remove Generic Secrets source?'
           confirmLabel='Remove source'
+          pendingLabel='Removing…'
           onConfirm={async () => {
             try {
               await remove.mutateAsync(source.id)
@@ -142,7 +142,7 @@ export function GenericSecretSourceRow({ organizationId, source }: GenericSecret
           }}
         >
           <Muted>This deletes its organization and member secrets.</Muted>
-        </Modal>
+        </ConfirmDialog>
       )}
     </>
   )

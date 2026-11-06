@@ -12,9 +12,9 @@ import {
 import {
   ActionMenu,
   Button,
+  ConfirmDialog,
   FailureNotice,
   InlineNotice,
-  Modal,
   SearchableSelect,
   Select,
 } from '@/platform/design-system/components'
@@ -283,16 +283,13 @@ export function GroupMappings({
           </div>
         )
       })}
-      <Modal
-        variant='confirm'
-        destructive
-        open={active && pendingRemove !== undefined}
-        onOpenChange={(open) => {
-          if (!open) setPendingRemoveId(null)
-        }}
+      <ConfirmDialog
+        target={active && pendingRemove !== undefined}
+        onClose={() => setPendingRemoveId(null)}
         title='Remove mapping'
         description={`Remove the mapping to ${pendingRemove ? describeScimMapping(pendingRemove, names) : ''}? ${removeMappingConsequence(pendingRemove, automaticMatchRemains)}`}
-        confirmLabel={deleteMapping.isPending ? 'Removing…' : 'Remove'}
+        confirmLabel='Remove'
+        pendingLabel='Removing…'
         onConfirm={async () => {
           if (!pendingRemove) return
           await deleteMapping.mutateAsync({ organizationId, mappingId: pendingRemove.id })

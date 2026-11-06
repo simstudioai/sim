@@ -12,8 +12,8 @@ import {
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
   Button,
+  ConfirmDialog,
   FailureNotice,
-  Modal,
   PropertyList,
   StatusTag,
   Switch,
@@ -251,14 +251,13 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
           </Button>
         </SettingsRow>
       </SettingsSection>
-      <Modal
-        variant='confirm'
-        destructive
-        open={confirmingDelete}
-        onOpenChange={setConfirmingDelete}
+      <ConfirmDialog
+        target={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
         title='Delete drain'
         description={`Are you sure you want to delete ${drain.name}? This action cannot be undone.`}
         confirmLabel='Delete'
+        pendingLabel='Deleting…'
         onConfirm={async () => {
           await deleteDrain.mutateAsync({ organizationId, drainId: drain.id })
           toast.success('Drain deleted')

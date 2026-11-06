@@ -8,7 +8,7 @@ import { DetailHeader } from '@/platform/app/(shell)/settings/_components/sectio
 import { AuthorizedApps } from '@/platform/app/(shell)/settings/_components/sections/account/authorized-apps'
 import { DeleteAccount } from '@/platform/app/(shell)/settings/_components/sections/account/delete-account'
 import { OrganizationAccounts } from '@/platform/app/(shell)/settings/_components/sections/account/organization-accounts'
-import { Button, Modal } from '@/platform/design-system/components'
+import { Button, ConfirmDialog } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
@@ -119,16 +119,15 @@ function SignedInRows({
           Delete account
         </Button>
       </SettingsRow>
-      <Modal
-        open={dialog === 'reset'}
-        onOpenChange={(open) => {
-          if (!open) setDialog(null)
-        }}
-        variant='confirm'
+      <ConfirmDialog
+        target={dialog === 'reset'}
+        onClose={() => setDialog(null)}
         title='Reset password'
         confirmLabel='Send reset email'
+        pendingLabel='Sending…'
         description={`A password reset link will be sent to ${email ?? 'your account email'}. Click the link in the email to create a new password.`}
         onConfirm={() => (email ? resetPassword(email) : undefined)}
+        safe
       />
       {dialog === 'delete' && email && (
         <DeleteAccount email={email} onClose={() => setDialog(null)} />

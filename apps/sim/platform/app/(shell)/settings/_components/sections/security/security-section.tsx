@@ -15,10 +15,10 @@ import { useServerDraft } from '@/platform/app/(shell)/settings/_components/sect
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import {
   Button,
+  ConfirmDialog,
   CopyField,
   EmptyState,
   FailureNotice,
-  Modal,
   SaveActions,
   TextField,
 } from '@/platform/design-system/components'
@@ -139,14 +139,13 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
             Sign out all members
           </Button>
         </SettingsRow>
-        <Modal
-          variant='confirm'
-          destructive
-          open={confirmingRevoke}
-          onOpenChange={setConfirmingRevoke}
+        <ConfirmDialog
+          target={confirmingRevoke}
+          onClose={() => setConfirmingRevoke(false)}
           title='Sign out all members'
           description='Every member of this organization will be signed out on their next request, except your current session. Members will need to sign in again.'
-          confirmLabel={revokeSessions.isPending ? 'Signing out…' : 'Sign out all'}
+          confirmLabel='Sign out all'
+          pendingLabel='Signing out…'
           onConfirm={async () => {
             const result = await revokeSessions.mutateAsync({ orgId: organizationId })
             toast.success(`Signed out ${plural(result.data.revokedSessions, 'session')}`)

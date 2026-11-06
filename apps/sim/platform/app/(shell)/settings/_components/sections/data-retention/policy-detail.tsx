@@ -12,10 +12,10 @@ import styles from '@/platform/app/(shell)/settings/_components/sections/data-re
 import {
   Button,
   Checkbox,
+  ConfirmDialog,
   FieldFrame,
   IconButton,
   Input,
-  Modal,
   MultiSelect,
   SaveActions,
   SearchField,
@@ -376,18 +376,17 @@ export function PolicyDetail({
           </SettingsRow>
         </SettingsSection>
       )}
-      <Modal
-        variant='confirm'
-        destructive
-        open={confirmingRemove}
-        onOpenChange={setConfirmingRemove}
+      <ConfirmDialog
+        target={confirmingRemove}
+        onClose={() => setConfirmingRemove(false)}
         title='Remove override'
         description={`This removes the retention and PII redaction override for ${
           draft.workspaceIds.length === 1
             ? 'this workspace'
             : `these ${draft.workspaceIds.length} workspaces`
         }. They will fall back to the organization defaults.`}
-        confirmLabel={isSaving ? 'Removing…' : 'Remove override'}
+        confirmLabel='Remove override'
+        pendingLabel='Removing…'
         onConfirm={onRemove}
       />
     </>

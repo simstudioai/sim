@@ -15,7 +15,7 @@ import { ConnectionPrompt } from '@/platform/design-system/components/connection
 import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { ActionMenu } from '@/platform/design-system/components/menu/action-menu'
-import { Modal } from '@/platform/design-system/components/modal/modal'
+import { ConfirmDialog } from '@/platform/design-system/components/modal/confirm-dialog'
 import { InlineNotice } from '@/platform/design-system/components/status/status'
 
 const DISCONNECT_NOTICE =
@@ -176,15 +176,12 @@ export function ConnectedWidget<T>({
           {children(state.data)}
         </>
       )}
-      <Modal
-        open={disconnecting !== null}
-        onOpenChange={(open) => {
-          if (!open) setDisconnecting(null)
-        }}
-        variant='confirm'
+      <ConfirmDialog
+        target={disconnecting !== null}
+        onClose={() => setDisconnecting(null)}
         title={`Disconnect ${several && disconnecting ? disconnecting.label : title}?`}
         confirmLabel='Disconnect'
-        destructive
+        pendingLabel='Disconnecting…'
         description={DISCONNECT_NOTICE}
         onConfirm={async () => {
           if (disconnecting) await actions.disconnect(disconnecting.id)

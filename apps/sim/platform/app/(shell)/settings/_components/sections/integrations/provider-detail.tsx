@@ -17,9 +17,9 @@ import { SourceSetup } from '@/platform/app/(shell)/settings/_components/section
 import {
   ActivityRow,
   Button,
+  ConfirmDialog,
   EmptyState,
   FailureNotice,
-  Modal,
   SearchField,
   Tooltip,
 } from '@/platform/design-system/components'
@@ -310,13 +310,12 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
         </SettingsSection>
         <SlackAccountSetup organizationId={organization.id} isAdmin={viewer.isAdmin} />
         {removingSlackAccounts && group && (
-          <Modal
-            open
-            variant='confirm'
-            destructive
-            onOpenChange={setRemovingSlackAccounts}
+          <ConfirmDialog
+            target
+            onClose={() => setRemovingSlackAccounts(false)}
             title='Remove Slack app setup?'
             confirmLabel='Remove'
+            pendingLabel='Removing…'
             onConfirm={async () => {
               await removeSlackAccounts.mutateAsync({
                 organizationId: organization.id,
@@ -338,7 +337,7 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
               This disconnects your organization’s Slack accounts and clears their saved app
               configuration. Remove any connections using these accounts first.
             </Muted>
-          </Modal>
+          </ConfirmDialog>
         )}
       </SectionStack>
     </SourceSetup>

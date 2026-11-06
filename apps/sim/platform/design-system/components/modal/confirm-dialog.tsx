@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { Modal } from '@/platform/design-system/components/modal/modal'
 
 interface ConfirmDialogProps<T> {
@@ -16,6 +16,10 @@ interface ConfirmDialogProps<T> {
   /** A confirm for an action that loses nothing. */
   safe?: boolean
   confirmDisabled?: boolean
+  /** Work tracked outside the confirm, for a handler that returns `false` and settles elsewhere. */
+  pending?: boolean
+  /** Anything the choice needs beyond the description: a reason field, a warning. */
+  children?: ReactNode
 }
 
 /** The one question asked before a destructive or far-reaching action. */
@@ -29,6 +33,8 @@ export function ConfirmDialog<T>({
   onConfirm,
   safe,
   confirmDisabled,
+  pending,
+  children,
 }: ConfirmDialogProps<T>) {
   const [running, setRunning] = useState(false)
   const [held, setHeld] = useState<T | null>(null)
@@ -48,8 +54,9 @@ export function ConfirmDialog<T>({
       }}
       title={resolve(title) ?? ''}
       description={resolve(description)}
-      confirmLabel={running ? pendingLabel : confirmLabel}
+      confirmLabel={running || pending ? pendingLabel : confirmLabel}
       confirmDisabled={confirmDisabled}
+      pending={pending}
       onConfirm={async () => {
         if (shown === null) return
         setRunning(true)
@@ -59,6 +66,8 @@ export function ConfirmDialog<T>({
           setRunning(false)
         }
       }}
-    />
+    >
+      {children}
+    </Modal>
   )
 }
