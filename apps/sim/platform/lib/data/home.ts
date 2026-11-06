@@ -354,9 +354,7 @@ function useHomeWorkspaces(organizationId: string, hidden: boolean) {
   })
   const state = ((): HomeListState<HomeWorkspaceItem> => {
     if (!list.data)
-      return list.isError
-        ? { status: 'error', retrying: list.isFetching }
-        : { status: 'ready', items: [] }
+      return list.isError ? { status: 'error', retrying: list.isFetching } : { status: 'loading' }
     if (workspaces.length === 0) return { status: 'ready', items: [] }
     if (!activity.data && !activity.isError) return { status: 'loading' }
     return {
