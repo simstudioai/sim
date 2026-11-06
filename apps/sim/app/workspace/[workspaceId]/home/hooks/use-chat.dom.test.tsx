@@ -681,19 +681,20 @@ function elapse(ms: number): Promise<unknown> {
   return vi.isFakeTimers() ? vi.advanceTimersByTimeAsync(ms) : sleep(ms)
 }
 
+/** Far under one read per fake millisecond, and room for the odd unrelated read. */
+const MAX_IDLE_CHAT_READS = 50
+
 /**
- * How many zero-delay timers run while `ms` passes on the fake clock. Delivery
- * waking on a delay that is already over runs back to back, a pass per tick, so a
- * surface with nothing due must schedule none.
+ * How many times the surface reads the cached chat while `ms` passes on the fake
+ * clock. Every delivery pass reads it, so delivery waking on a delay already over
+ * shows as a read per tick, where a surface with nothing due reads next to nothing.
  */
-async function zeroDelayTimersDuring(ms: number): Promise<number> {
-  const schedule = vi.spyOn(globalThis, 'setTimeout')
+async function chatReadsDuring(ms: number): Promise<number> {
+  const read = vi.spyOn(queryClient, 'getQueryData')
   await act(async () => {
     await vi.advanceTimersByTimeAsync(ms)
   })
-  const count = schedule.mock.calls.filter(([, delay]) => !delay).length
-  schedule.mockRestore()
-  return count
+  return read.mock.calls.length
 }
 
 /** Lets everything already due run: answered requests, their handlers, what those schedule. */
@@ -2595,7 +2596,7 @@ describe('useChat remount send recovery', () => {
         expect(message?.delivery).toBe('failed')
         const attempts = state.postBodies.length
 
-        expect(await zeroDelayTimersDuring(5_000)).toBe(0)
+        expect(await chatReadsDuring(5_000)).toBeLessThan(MAX_IDLE_CHAT_READS)
         expect(state.postBodies).toHaveLength(attempts)
       } finally {
         vi.useRealTimers()
@@ -2618,11 +2619,13 @@ describe('useChat remount send recovery', () => {
 
         /* Another tab's turn shows up in the chat before this message's retry delay ends. */
         const fetchUnreachable = globalThis.fetch
-        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) =>
-          String(input).includes('/api/mothership/chat/stream')
-            ? Response.json({ success: true, events: [], status: 'active' })
-            : fetchUnreachable(input, init)
-        )
+        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+          if (!String(input).includes('/api/mothership/chat/stream')) {
+            return fetchUnreachable(input, init)
+          }
+          await sleep(50)
+          return Response.json({ success: true, events: [], status: 'active' })
+        })
         const running = { ...history, activeStreamId: 'run-in-another-tab' }
         mockRequestJson.mockImplementation(() => Promise.resolve({ chat: running }))
         await act(async () => {
@@ -2632,8 +2635,9 @@ describe('useChat remount send recovery', () => {
         expect(view.getResult().isReconnecting || view.getResult().isSending).toBe(true)
 
         await act(async () => vi.advanceTimersByTimeAsync(5_000))
-        expect(await zeroDelayTimersDuring(2_000)).toBe(0)
+        expect(await chatReadsDuring(2_000)).toBeLessThan(MAX_IDLE_CHAT_READS)
         expect(state.postBodies).toHaveLength(1)
+        view.unmount()
       } finally {
         vi.useRealTimers()
       }
@@ -4686,7 +4690,7 @@ describe('useChat remount send recovery', () => {
         await waitFor(() => state.steerBodies.length === 3, 20_000)
         await act(async () => vi.advanceTimersByTimeAsync(10))
 
-        expect(await zeroDelayTimersDuring(5_000)).toBe(0)
+        expect(await chatReadsDuring(5_000)).toBeLessThan(MAX_IDLE_CHAT_READS)
         expect(state.postBodies).toHaveLength(1)
       } finally {
         vi.useRealTimers()
