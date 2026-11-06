@@ -125,7 +125,7 @@ export const imapPollingHandler: PollingProviderHandler = {
       const config = getProviderConfig<ImapWebhookConfig>(webhookData.providerConfig)
 
       if (!config.host || !config.username || !config.password) {
-        logger.error(`Missing IMAP credentials for webhook ${webhookId}`, { requestId })
+        logger.error(`Missing IMAP credentials for webhook ${webhookId}`)
         await markWebhookFailed(webhookId, logger)
         return 'failure'
       }
@@ -140,7 +140,7 @@ export const imapPollingHandler: PollingProviderHandler = {
       try {
         await client.connect()
 
-        const result = await fetchNewEmails(client, config, requestId, logger)
+        const result = await fetchNewEmails(client, config, logger)
         emails = result.emails
         latestUidByMailbox = result.latestUidByMailbox
         uidValidityByMailbox = result.uidValidityByMailbox
@@ -157,12 +157,12 @@ export const imapPollingHandler: PollingProviderHandler = {
             uidValidityByMailbox
           )
           await markWebhookSuccess(webhookId, logger)
-          logger.info(`No new emails found for webhook ${webhookId}`, { requestId })
+          logger.info(`No new emails found for webhook ${webhookId}`)
           await client.logout()
           return 'success'
         }
 
-        logger.info(`Found ${emails.length} new emails for webhook ${webhookId}`, { requestId })
+        logger.info(`Found ${emails.length} new emails for webhook ${webhookId}`)
 
         const { processedCount, failedCount } = await processEmails(
           emails,
@@ -187,16 +187,13 @@ export const imapPollingHandler: PollingProviderHandler = {
 
         if (failedCount > 0 && processedCount === 0) {
           await markWebhookFailed(webhookId, logger)
-          logger.warn(`All ${failedCount} emails failed to process for webhook ${webhookId}`, {
-            requestId,
-          })
+          logger.warn(`All ${failedCount} emails failed to process for webhook ${webhookId}`)
           return 'failure'
         }
 
         await markWebhookSuccess(webhookId, logger)
         logger.info(
-          `Successfully processed ${processedCount} emails for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`,
-          { requestId }
+          `Successfully processed ${processedCount} emails for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
         )
         return 'success'
       } catch (innerError) {
@@ -207,9 +204,9 @@ export const imapPollingHandler: PollingProviderHandler = {
       }
     } catch (error) {
       if (error instanceof PollAdmissionRefusedError) {
-        return skipAdmissionRefusedPoll(logger, requestId, webhookId)
+        return skipAdmissionRefusedPoll(logger, webhookId)
       }
-      logger.error(`Error processing IMAP webhook ${webhookId}`, { requestId })
+      logger.error(`Error processing IMAP webhook ${webhookId}`)
       await markWebhookFailed(webhookId, logger)
       return 'failure'
     }
@@ -263,12 +260,7 @@ async function updateImapState(
   )
 }
 
-async function fetchNewEmails(
-  client: ImapFlow,
-  config: ImapWebhookConfig,
-  requestId: string,
-  logger: Logger
-) {
+async function fetchNewEmails(client: ImapFlow, config: ImapWebhookConfig, logger: Logger) {
   const emails: Array<{
     uid: number
     mailboxPath: string
@@ -295,8 +287,7 @@ async function fetchNewEmails(
 
       if (storedUidValidity && storedUidValidity !== currentUidValidity) {
         logger.warn(
-          `UIDVALIDITY changed for ${mailboxPath} (${storedUidValidity} -> ${currentUidValidity}), discarding stored UID`,
-          { requestId }
+          `UIDVALIDITY changed for ${mailboxPath} (${storedUidValidity} -> ${currentUidValidity}), discarding stored UID`
         )
         delete latestUidByMailbox[mailboxPath]
       }
@@ -310,7 +301,7 @@ async function fetchNewEmails(
           try {
             searchCriteria = JSON.parse(config.searchCriteria)
           } catch {
-            logger.warn('Invalid search criteria JSON, using default', { requestId })
+            logger.warn('Invalid search criteria JSON, using default')
           }
         }
       }
@@ -362,7 +353,7 @@ async function fetchNewEmails(
         totalEmailsCollected++
       }
     } catch {
-      logger.warn(`Error processing mailbox ${mailboxPath}`, { requestId })
+      logger.warn(`Error processing mailbox ${mailboxPath}`)
     }
   }
 
@@ -587,8 +578,7 @@ async function processEmails(
               logger.error(
                 `Failed to process webhook for email ${email.uid}:`,
                 result.statusCode,
-                result.error,
-                { requestId }
+                result.error
               )
               throw new Error(`Webhook processing failed (${result.statusCode}): ${result.error}`)
             }
@@ -605,7 +595,7 @@ async function processEmails(
                 }
                 await client.messageFlagsAdd(email.uid, ['\\Seen'], { uid: true })
               } catch {
-                logger.warn(`Failed to mark message ${email.uid} as read`, { requestId })
+                logger.warn(`Failed to mark message ${email.uid} as read`)
               }
             }
 
@@ -614,13 +604,12 @@ async function processEmails(
         )
 
         logger.info(
-          `Successfully processed email ${email.uid} from ${email.mailboxPath} for webhook ${webhookData.id}`,
-          { requestId }
+          `Successfully processed email ${email.uid} from ${email.mailboxPath} for webhook ${webhookData.id}`
         )
         processedCount++
       } catch (error) {
         if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
-        logger.error(`Error processing email ${email.uid}`, { requestId })
+        logger.error(`Error processing email ${email.uid}`)
         failedCount++
       }
     }
