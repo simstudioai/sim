@@ -45,6 +45,8 @@ Connect to Google Ads to list accessible accounts, list campaigns, view ad group
 
 List Google Ads accounts directly accessible by the authenticated user; query customer_client for manager subaccounts
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -57,9 +59,13 @@ List Google Ads accounts directly accessible by the authenticated user; query cu
 | `customerIds` | array | Customer IDs directly accessible by the user |
 | `totalCount` | number | Total number of accessible customer accounts |
 
+</ReferenceDetails>
+
 ### Google Ads Search (GAQL)
 
 Run a custom Google Ads Query Language (GAQL) query
+
+<ReferenceDetails>
 
 #### Input
 
@@ -78,9 +84,13 @@ Run a custom Google Ads Query Language (GAQL) query
 | `totalResultsCount` | number | Total matching rows ignoring LIMIT, when returned by Google |
 | `nextPageToken` | string | Token for the next page; keep the same query and customer |
 
+</ReferenceDetails>
+
 ### List Google Ads Campaigns
 
 List campaigns in a Google Ads account with optional status filtering
+
+<ReferenceDetails>
 
 #### Input
 
@@ -107,9 +117,13 @@ List campaigns in a Google Ads account with optional status filtering
 |   ↳ `budgetAmountMicros` | string | Daily budget in micros \(divide by 1,000,000 for currency value\) |
 | `totalCount` | number | Number of campaigns in this page |
 
+</ReferenceDetails>
+
 ### Google Ads Campaign Performance
 
 Get performance metrics for Google Ads campaigns over a date range
+
+<ReferenceDetails>
 
 #### Input
 
@@ -140,9 +154,13 @@ Get performance metrics for Google Ads campaigns over a date range
 |   ↳ `date` | string | Date for this row \(YYYY-MM-DD\) |
 | `totalCount` | number | Number of rows in this page |
 
+</ReferenceDetails>
+
 ### List Google Ads Ad Groups
 
 List ad groups in a Google Ads campaign
+
+<ReferenceDetails>
 
 #### Input
 
@@ -168,6 +186,8 @@ List ad groups in a Google Ads campaign
 |   ↳ `campaignId` | string | Parent campaign ID |
 |   ↳ `campaignName` | string | Parent campaign name |
 | `totalCount` | number | Number of ad groups in this page |
+
+</ReferenceDetails>
 
 ### Google Ads Ad Performance
 

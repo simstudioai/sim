@@ -6,11 +6,12 @@ integration:
   color: "#1D1C1A"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Parallel AI](https://parallel.ai/) to search the web, extract content from URLs, or start a deep-research task. Search accepts an objective and query controls, while extraction accepts the target URLs. Set the available result and content limits to keep downstream inputs bounded, and connect a Parallel API key.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -21,6 +22,8 @@ Search the web, extract information from URLs, and conduct deep research.
 ### Parallel AI Search
 
 Search the web with Parallel AI and return matching pages with content excerpts.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -46,9 +49,13 @@ Search the web with Parallel AI and return matching pages with content excerpts.
 |   ↳ `publish_date` | string | Publication date of the page \(YYYY-MM-DD\) |
 |   ↳ `excerpts` | array | LLM-optimized excerpts from the page |
 
+</ReferenceDetails>
+
 ### Parallel AI Extract
 
 Extract targeted information from specific URLs using Parallel AI. Processes provided URLs to pull relevant content based on your objective.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -76,9 +83,13 @@ Extract targeted information from specific URLs using Parallel AI. Processes pro
 |   ↳ `http_status_code` | number | HTTP status returned by the page, if any |
 |   ↳ `content` | string | Error detail |
 
+</ReferenceDetails>
+
 ### Parallel AI Deep Research
 
 Research the web with Parallel AI and synthesize findings from multiple sources with citations. Can take up to 45 minutes to complete.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -107,5 +118,7 @@ Research the web with Parallel AI and synthesize findings from multiple sources 
 |     ↳ `title` | string | Source title |
 |     ↳ `excerpts` | array | Relevant excerpts from the source |
 |   ↳ `confidence` | string | Confidence level \(low, medium, high\) |
+
+</ReferenceDetails>
 
 

@@ -25,6 +25,8 @@ Run NRQL queries, search monitored entities, fetch entity details, and record de
 
 Run a NRQL query against a New Relic account using NerdGraph.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -42,9 +44,13 @@ Run a NRQL query against a New Relic account using NerdGraph.
 | `results` | array | NRQL result rows. Row fields depend on the query projection. |
 | `resultCount` | number | Number of NRQL result rows returned |
 
+</ReferenceDetails>
+
 ### New Relic Search Entities
 
 Search New Relic entities by name, GUID, domain type, tags, or reporting state.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -73,9 +79,13 @@ Search New Relic entities by name, GUID, domain type, tags, or reporting state.
 |     ↳ `values` | array | Tag values |
 | `nextCursor` | string | Cursor for the next page of results |
 
+</ReferenceDetails>
+
 ### New Relic Get Entity
 
 Fetch a New Relic entity by GUID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -99,6 +109,8 @@ Fetch a New Relic entity by GUID.
 |   ↳ `tags` | array | Entity tags |
 |     ↳ `key` | string | Tag key |
 |     ↳ `values` | array | Tag values |
+
+</ReferenceDetails>
 
 ### New Relic Create Deployment Event
 

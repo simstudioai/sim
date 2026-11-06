@@ -23,6 +23,8 @@ Query or modify PostgreSQL rows, execute SQL, and inspect tables, columns, keys,
 
 Execute a SELECT query on PostgreSQL database
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -43,9 +45,13 @@ Execute a SELECT query on PostgreSQL database
 | `rows` | array | Array of rows returned from the query |
 | `rowCount` | number | Number of rows returned |
 
+</ReferenceDetails>
+
 ### PostgreSQL Insert
 
 Insert data into PostgreSQL database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -68,9 +74,13 @@ Insert data into PostgreSQL database
 | `rows` | array | Inserted data \(if RETURNING clause used\) |
 | `rowCount` | number | Number of rows inserted |
 
+</ReferenceDetails>
+
 ### PostgreSQL Update
 
 Update data in PostgreSQL database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -94,9 +104,13 @@ Update data in PostgreSQL database
 | `rows` | array | Updated data \(if RETURNING clause used\) |
 | `rowCount` | number | Number of rows updated |
 
+</ReferenceDetails>
+
 ### PostgreSQL Delete
 
 Delete data from PostgreSQL database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -119,9 +133,13 @@ Delete data from PostgreSQL database
 | `rows` | array | Deleted data \(if RETURNING clause used\) |
 | `rowCount` | number | Number of rows deleted |
 
+</ReferenceDetails>
+
 ### PostgreSQL Execute
 
 Execute raw SQL query on PostgreSQL database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -142,6 +160,8 @@ Execute raw SQL query on PostgreSQL database
 | `message` | string | Operation status message |
 | `rows` | array | Array of rows returned from the query |
 | `rowCount` | number | Number of rows affected |
+
+</ReferenceDetails>
 
 ### PostgreSQL Introspect
 

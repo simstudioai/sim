@@ -23,6 +23,8 @@ Add, search, and retrieve memories.
 
 Add memories to Mem0 for persistent storage and retrieval
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -39,9 +41,13 @@ Add memories to Mem0 for persistent storage and retrieval
 | `status` | string | Processing status returned by Mem0 |
 | `event_id` | string | Event ID for polling memory processing status |
 
+</ReferenceDetails>
+
 ### Search Memories
 
 Search for memories in Mem0 using semantic search
+
+<ReferenceDetails>
 
 #### Input
 
@@ -70,6 +76,8 @@ Search for memories in Mem0 using semantic search
 |   ↳ `updated_at` | string | ISO 8601 timestamp when the memory was last updated |
 |   ↳ `score` | number | Similarity score from vector search |
 | `ids` | array | Array of memory IDs found in the search results |
+
+</ReferenceDetails>
 
 ### Get Memories
 
