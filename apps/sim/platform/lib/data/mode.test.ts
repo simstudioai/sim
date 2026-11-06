@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 
@@ -6,8 +6,6 @@ import { assertDeployableMode } from '@/platform/lib/data/mode'
 
 /** Failure mode: a stray env serves fixtures or an ungated shell from a deployed zone. */
 describe('assertDeployableMode', () => {
-  afterEach(() => vi.unstubAllEnvs())
-
   const deployed = (env: Record<string, string>) => {
     vi.stubEnv('NODE_ENV', 'production')
     vi.stubEnv('NEXT_PUBLIC_SIM_PLATFORM_BASE_PATH', '/org')

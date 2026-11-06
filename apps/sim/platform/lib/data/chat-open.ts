@@ -1,4 +1,8 @@
-import type { OrganizationChatAccess } from '@/lib/organizations/chat-access'
+interface ChatOpenAccess {
+  mothershipAvailable: boolean
+  canBuild: boolean
+  searchAccess: { memberScoped: boolean }
+}
 
 /**
  * Whether the chat routes would open a chat of this mode for the viewer. An agent or Plan chat is
@@ -6,13 +10,7 @@ import type { OrganizationChatAccess } from '@/lib/organizations/chat-access'
  * offered. A chat with no mode is an optimistic entry the viewer just started.
  */
 export function canOpenOrganizationChat(
-  {
-    mothershipAvailable,
-    canBuild,
-    searchAccess,
-  }: Pick<OrganizationChatAccess, 'mothershipAvailable' | 'canBuild'> & {
-    searchAccess: Pick<OrganizationChatAccess['searchAccess'], 'memberScoped'>
-  },
+  { mothershipAvailable, canBuild, searchAccess }: ChatOpenAccess,
   planEnabled: boolean,
   mode: string | undefined
 ): boolean {
