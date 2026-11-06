@@ -521,8 +521,8 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
           </div>
         </div>
         {!subscription.isEnterprise &&
+          marketplaceBilling.isResolved &&
           !billedThroughMarketplace &&
-          !marketplaceBilling.isPending &&
           (canExplorePlans && upgradeHref ? (
             <ChipLink
               href={upgradeHref}

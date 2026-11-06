@@ -40,6 +40,10 @@ export interface UpgradeState {
   }
   showUpgradePlans: boolean
   billedThroughMarketplace: boolean
+  /** How this workspace is billed could not be read, so plans stay hidden until a retry succeeds. */
+  billingLookupFailed: boolean
+  isRetryingBillingLookup: boolean
+  retryBillingLookup: () => void
   proTier: { credits: number; dollars: number; name: string }
   maxTier: { credits: number; dollars: number; name: string }
   isOnPro: boolean
@@ -201,8 +205,11 @@ export function useUpgradeState({
     setIsAnnual,
     subscription,
     showUpgradePlans:
-      !subscription.isEnterprise && !marketplace.isPending && !marketplace.billedThroughMarketplace,
+      !subscription.isEnterprise && marketplace.isResolved && !marketplace.billedThroughMarketplace,
     billedThroughMarketplace: marketplace.billedThroughMarketplace,
+    billingLookupFailed: !marketplace.isResolved && marketplace.isError,
+    isRetryingBillingLookup: marketplace.isRetrying,
+    retryBillingLookup: marketplace.retry,
     proTier: PRO_TIER,
     maxTier: MAX_TIER,
     isOnPro,

@@ -3,6 +3,8 @@ import { subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { APIError } from 'better-auth/api'
 import { and, eq, isNotNull } from 'drizzle-orm'
+import { getAwsMarketplaceProductCode } from '@/lib/billing/aws-marketplace/config'
+import { holdsMarketplaceLicense } from '@/lib/billing/aws-marketplace/repository'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import {
   getOrganizationCoverageForMember,
@@ -56,6 +58,22 @@ async function assertNoBoundIncompleteSubscription(referenceId: string): Promise
 }
 
 /**
+ * Refuse a Stripe checkout for a reference AWS Marketplace bills. A listed product must be billed
+ * entirely through AWS, and such a customer looks Free to Stripe, so a checkout would start a
+ * second, real subscription. The client hides plans too, but only this check holds when its
+ * license lookup fails.
+ */
+async function assertNotBilledThroughMarketplace(referenceId: string): Promise<void> {
+  if (!getAwsMarketplaceProductCode()) return
+  if (!(await holdsMarketplaceLicense(referenceId))) return
+
+  logger.warn('Blocking checkout - reference is billed through AWS Marketplace', { referenceId })
+  throw new APIError('CONFLICT', {
+    message: 'This subscription is billed through AWS Marketplace. Contact support to change it.',
+  })
+}
+
+/**
  * Classify a `/subscription/upgrade` request as a personal checkout using
  * the same reference resolution as the Better Auth Stripe plugin
  * (`@better-auth/stripe` 1.6.23, `referenceMiddleware` — classification
@@ -81,9 +99,10 @@ export function isPersonalCheckoutRequest(
 /**
  * Guard for personal (user-referenced) checkouts on `/subscription/upgrade`.
  *
- * Blocks both a bound, incomplete Stripe subscription and a member already
- * covered by an entitled organization subscription. Throws {@link APIError}
- * with a user-facing message; the checkout UI surfaces it as-is.
+ * Blocks an account AWS Marketplace bills, a bound, incomplete Stripe
+ * subscription, and a member already covered by an entitled organization
+ * subscription. Throws {@link APIError} with a user-facing message; the
+ * checkout UI surfaces it as-is.
  *
  * Called from the Better Auth `hooks.before` middleware, NOT from
  * `authorizeReference`: the Stripe plugin skips `authorizeReference`
@@ -94,6 +113,7 @@ export function isPersonalCheckoutRequest(
  * rejected rather than risking a duplicate subscription.
  */
 export async function assertPersonalCheckoutAllowed(userId: string): Promise<void> {
+  await assertNotBilledThroughMarketplace(userId)
   await assertNoBoundIncompleteSubscription(userId)
 
   const coverage = await getOrganizationCoverageForMember(userId)
@@ -130,6 +150,7 @@ export async function assertPersonalCheckoutAllowed(userId: string): Promise<voi
  * For `upgrade-subscription` (checkout) this enforces, each thrown as an
  * {@link APIError} with a descriptive message so callers see the real
  * reason instead of a generic "Unauthorized":
+ * - An organization AWS Marketplace bills cannot check out through Stripe.
  * - Organizations can only check out Team or Enterprise plans — a `pro_*`
  *   plan can never become org-referenced.
  * - A bound, incomplete Stripe subscription must finish before another
@@ -146,6 +167,10 @@ export async function authorizeSubscriptionReference(
 ): Promise<boolean> {
   if (!isOrgScopedSubscription({ referenceId }, userId)) {
     return true
+  }
+
+  if (action === 'upgrade-subscription') {
+    await assertNotBilledThroughMarketplace(referenceId)
   }
 
   if (action === 'upgrade-subscription' && !isOrgPlan(plan)) {

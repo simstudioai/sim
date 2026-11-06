@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
@@ -70,12 +71,21 @@ export function useSaveAwsMarketplaceClaimContact() {
 
 /**
  * Whether AWS Marketplace bills this scope: the organization, or with null the viewer's account.
- * A failed read reports false, so a lookup error never blocks a customer who pays through Stripe.
+ * Until `isResolved`, how the scope is billed is unknown, and an unknown state gates plan changes
+ * the same as Marketplace billing does: a failed lookup must not open Stripe checkout to a
+ * customer AWS bills. `retry` reads it again.
  */
 export function useAwsMarketplaceBilling(organizationId: string | null) {
   const licenses = useAwsMarketplaceLicenses(organizationId)
+  const { refetch } = licenses
+  const retry = useCallback(() => {
+    void refetch()
+  }, [refetch])
   return {
-    isPending: licenses.isPending,
+    isResolved: licenses.data !== undefined,
+    isError: licenses.isError,
+    isRetrying: licenses.isFetching,
+    retry,
     billedThroughMarketplace:
       licenses.data?.some((license) => license.status !== 'inactive') ?? false,
   }
