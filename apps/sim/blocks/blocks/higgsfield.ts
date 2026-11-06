@@ -50,11 +50,9 @@ export const HiggsfieldBlock: BlockConfig = {
           { text: 'Train character', field: 'name', core: true },
           { text: 'from', field: 'imageUrls' },
         ],
-        higgsfield_get_character: [{ text: 'Read character', field: 'characterId', core: true }],
+        higgsfield_get_character: [{ text: 'Read', field: 'characterId', core: true }],
         higgsfield_list_characters: ['List Soul ID characters'],
-        higgsfield_delete_character: [
-          { text: 'Delete character', field: 'characterId', core: true },
-        ],
+        higgsfield_delete_character: [{ text: 'Delete', field: 'characterId', core: true }],
       },
     },
   },
@@ -470,7 +468,7 @@ export const HiggsfieldBlockMeta = {
       name: 'train-higgsfield-soul-id-character',
       description: 'Train a reusable Soul ID character and use it for consistent SOUL images.',
       content:
-        '# Train a Higgsfield Soul ID Character\n\nKeep the same person or mascot consistent across generated images.\n\n## Steps\n1. Collect 1 to 100 public URLs of clear reference photos with varied angles and lighting.\n2. Create the character with the SOUL version it will be used with (v1, v2, or cinema).\n3. Check the character with Get Character until its status is completed or failed.\n4. Pass the completed character ID to Generate SOUL Image; adjust character strength if the likeness is too weak or too strong.\n5. Delete characters that are no longer needed.\n\n## Output\nThe character ID and status, plus any generated image URLs.\n\nReference: https://docs.higgsfield.ai/docs/models/soul-id/create-character',
+        '# Train a Higgsfield Soul ID Character\n\nKeep the same person or mascot consistent across generated images.\n\n## Steps\n1. Collect 1 to 100 public URLs of clear reference photos with varied angles and lighting.\n2. Create the character with SOUL version v1, the version Generate SOUL Image accepts.\n3. Check the character with Get Character until its status is completed or failed.\n4. Pass the completed character ID to Generate SOUL Image; adjust character strength if the likeness is too weak or too strong.\n5. Delete characters that are no longer needed.\n\n## Output\nThe character ID and status, plus any generated image URLs.\n\nReference: https://docs.higgsfield.ai/docs/models/soul-id/create-character',
     },
     {
       name: 'manage-higgsfield-requests',

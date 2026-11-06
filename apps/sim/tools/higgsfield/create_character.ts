@@ -14,7 +14,7 @@ import type { ToolConfig } from '@/tools/types'
 
 const MAX_TRAINING_IMAGES = 100
 
-/** Accepts a JSON array or a newline/comma-separated list of image URLs. */
+/** Accepts a JSON array or one image URL per line; URLs may themselves contain commas. */
 function parseImageUrls(value: HiggsfieldCreateCharacterParams['imageUrls']): string[] {
   let items: unknown = value
   if (typeof value === 'string') {
@@ -26,7 +26,7 @@ function parseImageUrls(value: HiggsfieldCreateCharacterParams['imageUrls']): st
         throw new Error('Image URLs must be a JSON array or a list of URLs')
       }
     } else {
-      items = trimmed.split(/[\n,]/)
+      items = trimmed.split('\n')
     }
   }
   if (!Array.isArray(items)) throw new Error('Image URLs must be a list of URLs')

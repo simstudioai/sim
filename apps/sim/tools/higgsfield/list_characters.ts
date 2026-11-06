@@ -70,9 +70,9 @@ export const higgsfieldListCharactersTool: ToolConfig<
       description: 'Character references on this page',
       items: { type: 'object', properties: HIGGSFIELD_CHARACTER_PROPERTIES },
     },
-    total: { type: 'number', description: 'Total number of characters', optional: true },
-    page: { type: 'number', description: 'Current page number', optional: true },
-    pageSize: { type: 'number', description: 'Characters per page', optional: true },
-    totalPages: { type: 'number', description: 'Total number of pages', optional: true },
+    total: { type: 'number', description: 'Total number of characters', nullable: true },
+    page: { type: 'number', description: 'Current page number', nullable: true },
+    pageSize: { type: 'number', description: 'Characters per page', nullable: true },
+    totalPages: { type: 'number', description: 'Total number of pages', nullable: true },
   },
 }
