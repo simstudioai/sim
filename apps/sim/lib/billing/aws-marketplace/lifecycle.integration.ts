@@ -1065,6 +1065,62 @@ describe('reconcileAwsMarketplaceLicenses', () => {
     )
   })
 
+  it('does not tell the team to cancel when a retried notice arrives after the license recovered', async () => {
+    const organizationId = await createOrganization([{ userId: await createUser(), role: 'owner' }])
+    const license = await insertLicense({ organizationId })
+    const event = {
+      'detail-type': 'License Updated - Manufacturer',
+      detail: { license: { arn: license.licenseArn }, product: { code: PRODUCT } },
+    }
+    entitlementsByLicense.set(license.licenseArn, [lapsedEntitlement()])
+    deliverOnce([event])
+    await reconcileAwsMarketplaceLicenses()
+    entitlementsByLicense.set(license.licenseArn, [currentEntitlement()])
+    deliverOnce([event])
+    await reconcileAwsMarketplaceLicenses()
+
+    const notices = await emailsTo(TEAM)
+
+    expect(notices.length).toBeGreaterThan(1)
+    for (const notice of notices) expect(notice.text).not.toMatch(CANCEL_CALL)
+  })
+
+  it('does not ask the team to provision a license that lapsed before setup', async () => {
+    const licenseArn = uniqueArn()
+    entitlementsByLicense.set(licenseArn, [lapsedEntitlement()])
+    deliverOnce([
+      {
+        'detail-type': 'License Updated - Manufacturer',
+        detail: {
+          license: { arn: licenseArn },
+          product: { code: PRODUCT },
+          acceptor: { accountId: ACCOUNT },
+        },
+      },
+    ])
+
+    await reconcileAwsMarketplaceLicenses()
+
+    const [notice] = await emailsTo(TEAM)
+    expect(notice.text).toMatch(/Do not provision this license/)
+    expect(notice.text).not.toMatch(/pausePaymentCollection/)
+  })
+
+  it('re-verifies only the configured product', async () => {
+    const longAgo = new Date(Date.now() - 3 * DAY_MS)
+    const other = await insertLicense({
+      productCode: 'another-product',
+      lastVerifiedAt: longAgo,
+      lastVerificationAttemptAt: longAgo,
+    })
+    entitlementsByLicense.set(other.licenseArn, [lapsedEntitlement()])
+    queueSend.mockResolvedValue({ Messages: [] })
+
+    await reconcileAwsMarketplaceLicenses()
+
+    expect((await readLicense(other.licenseArn))?.lastVerificationAttemptAt).toEqual(longAgo)
+  })
+
   it('sends the team nothing when a re-verify finds the same terms', async () => {
     const expiresAt = new Date(Date.now() + 30 * DAY_MS)
     const { licenseArn } = await insertLicense({

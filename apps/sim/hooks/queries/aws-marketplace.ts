@@ -9,6 +9,7 @@ import {
   registerAwsMarketplaceLicenseToAccountContract,
   saveAwsMarketplaceClaimContactContract,
 } from '@/lib/api/contracts/aws-marketplace'
+import { useSession } from '@/lib/auth/client'
 
 const AWS_MARKETPLACE_CLAIM_STALE_TIME = 30 * 1000
 const AWS_MARKETPLACE_LICENSES_STALE_TIME = 60 * 1000
@@ -19,9 +20,9 @@ const awsMarketplaceKeys = {
   /** The claim rides in an httpOnly cookie; the viewer scopes which organizations it lists. */
   claim: (viewerId: string) => [...awsMarketplaceKeys.claims(), viewerId] as const,
   licenses: () => [...awsMarketplaceKeys.all, 'licenses'] as const,
-  /** An organization's licenses, or with null the viewer's own account's. */
-  licenseList: (organizationId: string | null) =>
-    [...awsMarketplaceKeys.licenses(), organizationId ?? ''] as const,
+  /** An organization's licenses, or one viewer's own account's: the session scopes that read. */
+  licenseList: (scope: { organizationId: string } | { viewerId: string }) =>
+    [...awsMarketplaceKeys.licenses(), scope] as const,
 }
 
 export function useAwsMarketplaceClaim(viewerId: string | null) {
@@ -68,25 +69,25 @@ export function useSaveAwsMarketplaceClaimContact() {
 }
 
 /**
- * Whether AWS Marketplace bills this organization or the viewer's own account: a pending or active
- * license on either. Pending until both reads settle.
+ * Whether AWS Marketplace bills this scope: the organization, or with null the viewer's account.
+ * A failed read reports false, so a lookup error never blocks a customer who pays through Stripe.
  */
 export function useAwsMarketplaceBilling(organizationId: string | null) {
-  const organizationLicenses = useAwsMarketplaceLicenses(organizationId)
-  const accountLicenses = useAwsMarketplaceLicenses(null)
+  const licenses = useAwsMarketplaceLicenses(organizationId)
   return {
-    isPending: organizationLicenses.isPending || accountLicenses.isPending,
-    billedThroughMarketplace: [
-      ...(organizationLicenses.data ?? []),
-      ...(accountLicenses.data ?? []),
-    ].some((license) => license.status !== 'inactive'),
+    isPending: licenses.isPending,
+    billedThroughMarketplace:
+      licenses.data?.some((license) => license.status !== 'inactive') ?? false,
   }
 }
 
 /** The Marketplace subscriptions an organization holds, or with null the viewer's own account. */
 export function useAwsMarketplaceLicenses(organizationId: string | null) {
+  const { data: session } = useSession()
+  const viewerId = session?.user?.id ?? ''
   return useQuery({
-    queryKey: awsMarketplaceKeys.licenseList(organizationId),
+    queryKey: awsMarketplaceKeys.licenseList(organizationId ? { organizationId } : { viewerId }),
+    enabled: Boolean(organizationId || viewerId),
     queryFn: ({ signal }) =>
       organizationId
         ? requestJson(listOrganizationAwsMarketplaceLicensesContract, {

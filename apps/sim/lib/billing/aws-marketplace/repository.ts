@@ -452,12 +452,21 @@ export async function listLicensesForAgreement(
   return rows.map((row) => row.licenseArn)
 }
 
-/** The licenses longest since a verification attempt, up to `limit`, none attempted after `cutoff`. */
-export async function listLicensesDueForReverify(cutoff: Date, limit: number): Promise<string[]> {
+/** This product's licenses longest since an attempt, up to `limit`, none attempted after `cutoff`. */
+export async function listLicensesDueForReverify(
+  productCode: string,
+  cutoff: Date,
+  limit: number
+): Promise<string[]> {
   const rows = await db
     .select({ licenseArn: awsMarketplaceLicense.licenseArn })
     .from(awsMarketplaceLicense)
-    .where(lt(awsMarketplaceLicense.lastVerificationAttemptAt, cutoff))
+    .where(
+      and(
+        eq(awsMarketplaceLicense.productCode, productCode),
+        lt(awsMarketplaceLicense.lastVerificationAttemptAt, cutoff)
+      )
+    )
     .orderBy(asc(awsMarketplaceLicense.lastVerificationAttemptAt))
     .limit(limit)
   return rows.map((row) => row.licenseArn)

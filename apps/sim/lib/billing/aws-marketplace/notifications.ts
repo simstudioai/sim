@@ -76,18 +76,18 @@ License Updated event: ${
   }`
 }
 
-/** What is left for the team to do about one license AWS has just changed. */
-function nextStepForTerms(
-  license: AwsMarketplaceLicenseRecord,
-  after: AwsMarketplaceNoticeTerms
-): string {
-  if (after.status === 'inactive' && license.renewedAgreementId) {
+/**
+ * What is left for the team to do about one license AWS has just changed. It reads the license as
+ * it stands now, because an outbox retry can deliver a notice after a newer change.
+ */
+function nextStepForTerms(license: AwsMarketplaceLicenseRecord): string {
+  if (license.status === 'inactive' && license.renewedAgreementId) {
     return `Agreement ${license.renewedAgreementId} replaced this license's agreement. Do not cancel on this notice: AWS grants the replacement its own license, so check that one.`
   }
-  if (after.status === 'inactive') {
+  if (license.status === 'inactive') {
     return license.organizationId ? CANCEL : NO_ORGANIZATION_TO_CANCEL
   }
-  if (after.status === 'active' && !license.organizationId) return `${PROVISION} ${LINK}`
+  if (license.status === 'active' && !license.organizationId) return `${PROVISION} ${LINK}`
   return 'Update the Enterprise provisioning to match. Never send a Stripe invoice for a Marketplace customer: AWS bills them.'
 }
 
@@ -117,7 +117,9 @@ async function teamNoticeCopy(
 Organizations linked to other licenses of this account: ${others}`,
         next: license.organizationId
           ? 'It carries on the organization of the license it replaces. Keep that organization provisioned to the terms above.'
-          : `${PROVISION} ${LINK}`,
+          : license.status === 'active'
+            ? `${PROVISION} ${LINK}`
+            : 'Do not provision this license. A notice follows if AWS reports it active.',
       }
     }
     case 'taken': {
@@ -164,7 +166,7 @@ Organizations linked to other licenses of this account: ${others}`,
         opening: `AWS Marketplace changed what this license grants.
 Before: ${formatTerms(notice.before)}
 After: ${formatTerms(notice.after)}`,
-        next: nextStepForTerms(license, notice.after),
+        next: nextStepForTerms(license),
       }
     case 'renewed':
       return {
@@ -224,8 +226,9 @@ Questions? Contact ${brand.supportEmail}.
 }
 
 /**
- * Sends one rendered notice. A failure throws, so the outbox retries it with backoff; the
- * checkpoint keeps a crash between the send and the completion from sending it twice.
+ * Sends one rendered notice. A failure throws, so the outbox retries it with backoff. Delivery is
+ * at least once: the checkpoint narrows the window for a repeat but a crash right after the send
+ * can still repeat it, which a person reading these emails can absorb.
  */
 function noticeHandler<T extends object>(
   render: (notice: T) => Promise<RenderedEmail | null>

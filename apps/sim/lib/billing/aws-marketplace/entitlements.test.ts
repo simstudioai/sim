@@ -60,6 +60,15 @@ describe('verifyLicense', () => {
     expect((await read(entitlement({ ExpirationDate: NOW }))).active).toBe(false)
   })
 
+  it('reads the same lapsed dimension whichever order AWS returns ties in', async () => {
+    const expired = new Date('2026-01-01T00:00:00.000Z')
+    const alpha = entitlement({ Dimension: 'alpha', ExpirationDate: expired })
+    const zeta = entitlement({ Dimension: 'zeta', ExpirationDate: expired })
+
+    expect((await read(alpha, zeta)).dimension).toBe('alpha')
+    expect((await read(zeta, alpha)).dimension).toBe('alpha')
+  })
+
   it('describes the current entitlement when another one has lapsed', async () => {
     const summary = await read(
       entitlement({

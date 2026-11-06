@@ -18,12 +18,13 @@ import {
   AWS_MARKETPLACE_SETUP_TURNAROUND,
   type AwsMarketplaceOnboardingError,
 } from '@/lib/billing/aws-marketplace/onboarding'
-import { organizationRoutes, WORKSPACE_BILLING_PATH } from '@/lib/navigation/paths'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
 import { useBrandConfig } from '@/ee/whitelabeling'
 import {
   useAwsMarketplaceClaim,
+  useAwsMarketplaceLicenses,
   useLinkAwsMarketplaceLicense,
   useRegisterAwsMarketplaceLicenseToAccount,
   useSaveAwsMarketplaceClaimContact,
@@ -59,6 +60,12 @@ const REGISTRATION_ERROR_COPY: Record<
 /** AWS's manual-setup guidance: being set up, wait to be contacted, turnaround, contact. */
 const BEING_SET_UP = `Your account is being set up. Please wait for us to contact you. We expect to finish ${AWS_MARKETPLACE_SETUP_TURNAROUND}.`
 
+const LICENSE_STATUS_LABELS = {
+  active: 'Active',
+  pending: 'Confirming with AWS',
+  inactive: 'Inactive',
+} as const
+
 function authLink(path: '/login' | '/signup'): string {
   return buildAuthCrossLink(path, {
     callbackUrl: AWS_MARKETPLACE_ONBOARDING_PATH,
@@ -77,6 +84,69 @@ function SupportContact({ supportEmail }: SupportContactProps) {
     <p className='au:text-center au:text-sm'>
       Questions? Email <AuthTextLink href={`mailto:${supportEmail}`}>{supportEmail}</AuthTextLink>
     </p>
+  )
+}
+
+/** Status for a buyer with no organization, who may not be able to open any billing page. */
+function AccountSubscriptionStatus() {
+  const { data: licenses } = useAwsMarketplaceLicenses(null)
+  if (!licenses?.length) return null
+  return (
+    <ul className='au:w-full au:space-y-1 au:text-center au:text-sm'>
+      {licenses.map((license) => (
+        <li key={license.id}>
+          {LICENSE_STATUS_LABELS[license.status]}
+          {license.expiresAt && `, expires ${formatDate(new Date(license.expiresAt))}`}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+interface NoSetupInProgressProps {
+  supportContact: ReactNode
+  actions: Array<{ label: string; onClick: () => void }>
+}
+
+/** A finished buyer who returns sees their account's status; anyone else, how to start. */
+function NoSetupInProgress({ supportContact, actions }: NoSetupInProgressProps) {
+  const { data: licenses, isPending } = useAwsMarketplaceLicenses(null)
+  if (isPending) {
+    return (
+      <InviteLayout>
+        <InviteStatusCard type='loading' title='' description='Loading your subscription...' />
+      </InviteLayout>
+    )
+  }
+  if (licenses?.length) {
+    const underway = licenses.some((license) => license.status !== 'inactive')
+    return (
+      <InviteLayout>
+        <InviteStatusCard
+          type={underway ? 'success' : 'warning'}
+          title='Your AWS Marketplace subscription'
+          description={underway ? BEING_SET_UP : 'This subscription is no longer active.'}
+          details={
+            <div className='au:w-full au:space-y-2'>
+              <AccountSubscriptionStatus />
+              {supportContact}
+            </div>
+          }
+          actions={actions}
+        />
+      </InviteLayout>
+    )
+  }
+  return (
+    <InviteLayout>
+      <InviteStatusCard
+        type='warning'
+        title='No setup in progress'
+        description={`${RESTART_FROM_AWS} If you already finished setup, we will contact you ${AWS_MARKETPLACE_SETUP_TURNAROUND}.`}
+        details={supportContact}
+        actions={actions}
+      />
+    </InviteLayout>
   )
 }
 
@@ -134,7 +204,11 @@ export function AwsMarketplaceOnboarding({
         <InviteStatusCard
           type='login'
           title='Set up your AWS Marketplace subscription'
-          description='Sign in or create an account to set up this subscription.'
+          description={
+            registrationDisabled
+              ? 'Sign in to set up this subscription.'
+              : 'Sign in or create an account to set up this subscription.'
+          }
           details={supportContact}
           actions={[
             ...(registrationDisabled
@@ -157,17 +231,17 @@ export function AwsMarketplaceOnboarding({
           description={BEING_SET_UP}
           details={
             <div className='au:w-full au:space-y-2 au:text-center au:text-sm'>
-              <p>
-                <AuthTextLink
-                  href={
-                    organizationId
-                      ? organizationRoutes(organizationId).settingsSection('billing')
-                      : WORKSPACE_BILLING_PATH
-                  }
-                >
-                  View subscription status
-                </AuthTextLink>
-              </p>
+              {organizationId ? (
+                <p>
+                  <AuthTextLink
+                    href={organizationRoutes(organizationId).settingsSection('billing')}
+                  >
+                    View subscription status
+                  </AuthTextLink>
+                </p>
+              ) : (
+                <AccountSubscriptionStatus />
+              )}
               {supportContact}
             </div>
           }
@@ -200,17 +274,7 @@ export function AwsMarketplaceOnboarding({
 
   const claim = claimQuery.data
   if (claim.status === 'missing') {
-    return (
-      <InviteLayout>
-        <InviteStatusCard
-          type='warning'
-          title='No setup in progress'
-          description={`${RESTART_FROM_AWS} If you already finished setup, we will contact you ${AWS_MARKETPLACE_SETUP_TURNAROUND}.`}
-          details={supportContact}
-          actions={[returnHome]}
-        />
-      </InviteLayout>
-    )
+    return <NoSetupInProgress supportContact={supportContact} actions={[returnHome]} />
   }
 
   if (claim.status === 'linked') {

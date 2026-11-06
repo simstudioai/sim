@@ -38,7 +38,9 @@ function summarizeEntitlements(
     .filter((entitlement) => isCurrent(entitlement, now))
     .sort((left, right) => compareStrings(left.Dimension ?? '', right.Dimension ?? ''))
   const lapsed = [...entitlements].sort(
-    (left, right) => (right.ExpirationDate?.getTime() ?? 0) - (left.ExpirationDate?.getTime() ?? 0)
+    (left, right) =>
+      (right.ExpirationDate?.getTime() ?? 0) - (left.ExpirationDate?.getTime() ?? 0) ||
+      compareStrings(left.Dimension ?? '', right.Dimension ?? '')
   )
   const chosen = current[0] ?? lapsed[0]
   return {

@@ -408,7 +408,7 @@ async function reverifyStaleLicenses(
   fits: BudgetCheck
 ): Promise<void> {
   const cutoff = new Date(Date.now() - REVERIFY_AFTER_MS)
-  const licenseArns = await listLicensesDueForReverify(cutoff, REVERIFY_BATCH_SIZE)
+  const licenseArns = await listLicensesDueForReverify(productCode, cutoff, REVERIFY_BATCH_SIZE)
   for (const licenseArn of licenseArns) {
     if (!fits(LICENSE_READ_BUDGET_MS)) {
       summary.outOfBudget = true

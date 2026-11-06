@@ -135,7 +135,8 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     enabled: !isOrganizationScope,
   })
   const billingOrganizationId = isOrganizationScope ? (organizationId ?? null) : null
-  const { billedThroughMarketplace } = useAwsMarketplaceBilling(billingOrganizationId)
+  const marketplaceBilling = useAwsMarketplaceBilling(billingOrganizationId)
+  const { billedThroughMarketplace } = marketplaceBilling
 
   const {
     data: organizationBillingData,
@@ -521,6 +522,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
         </div>
         {!subscription.isEnterprise &&
           !billedThroughMarketplace &&
+          !marketplaceBilling.isPending &&
           (canExplorePlans && upgradeHref ? (
             <ChipLink
               href={upgradeHref}
