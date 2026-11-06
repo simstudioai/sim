@@ -18,6 +18,9 @@ interface Steering {
   streamId: string
   content: string
   status: 'queued' | 'applied' | 'not_applied'
+  /** Where it applied: its frame's seq and the answer's length then, as the worker reports. */
+  eventSeq?: number
+  textOffset?: number
 }
 
 const steerings = new Map<string, Steering>()
@@ -35,6 +38,7 @@ function streamTurn(body: Record<string, unknown>, response: ServerResponse) {
   const streamId = typeof body.messageId === 'string' ? body.messageId : `${Date.now()}`
   const chatId = typeof body.chatId === 'string' ? body.chatId : undefined
   let seq = 0
+  let answerLength = 0
   let open = true
   const emit = (type: string, payload: Record<string, unknown>) => {
     if (!open) return
@@ -49,6 +53,7 @@ function streamTurn(body: Record<string, unknown>, response: ServerResponse) {
       payload,
     }
     response.write(`data: ${JSON.stringify(envelope)}\n\n`)
+    if (type === 'text' && typeof payload.text === 'string') answerLength += payload.text.length
   }
   const finish = () => {
     if (!open) return
@@ -77,7 +82,14 @@ function streamTurn(body: Record<string, unknown>, response: ServerResponse) {
     for (const [steeringId, steering] of steerings) {
       if (steering.streamId !== streamId || steering.status !== 'queued') continue
       steering.status = 'applied'
-      emit('run', { kind: 'steering_applied', steeringId })
+      steering.eventSeq = seq + 1
+      steering.textOffset = answerLength
+      emit('run', {
+        kind: 'steering_applied',
+        steeringId,
+        eventSeq: steering.eventSeq,
+        textOffset: steering.textOffset,
+      })
       emit('text', { channel: 'assistant', text: `Applied: ${steering.content}\n` })
     }
   }
@@ -132,7 +144,15 @@ createServer((request, response) => {
           steerings.set(steeringId, steering)
         }
         response.writeHead(200, { 'Content-Type': 'application/json' })
-        response.end(JSON.stringify({ steeringId, status: steering.status }))
+        response.end(
+          JSON.stringify({
+            steeringId,
+            status: steering.status,
+            ...(steering.status === 'applied'
+              ? { eventSeq: steering.eventSeq, textOffset: steering.textOffset }
+              : {}),
+          })
+        )
         return
       }
       response.writeHead(200, { 'Content-Type': 'application/json' })
