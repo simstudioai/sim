@@ -213,19 +213,27 @@ export function refused(status: number, method: string, path: string) {
   return new RegExp(`^http \\S+ ${status} ${method} ${escapeRegExp(path)}${query}$`)
 }
 
+/** What a page paints with rather than reads. An SVG `<use href>` reports its type as `other`. */
+const ASSET_RESOURCE = new Set(['image', 'font', 'media'])
+const STATIC_ASSET_PATH = /^\/(?!api\/).*\.(?:svg|png|jpe?g|webp|avif|gif|ico|woff2?|ttf)$/
+
 /**
- * A read this page is waiting on. Router prefetches, static chunks and other hosts come and go on
+ * A read this page is waiting on. Router prefetches, static assets and other hosts come and go on
  * their own schedule, and no check reasons about them.
  */
 function isPageRead(request: Request) {
   if (request.resourceType() === 'eventsource' || !isSameOrigin(request.url())) return false
-  if (new URL(request.url()).pathname.startsWith('/_next/static/')) return false
+  if (ASSET_RESOURCE.has(request.resourceType())) return false
+  const { pathname } = new URL(request.url())
+  if (pathname.startsWith('/_next/static/') || STATIC_ASSET_PATH.test(pathname)) return false
   return request.headers()['next-router-prefetch'] === undefined
 }
 
 class Session {
   private readonly inflight = new Set<Request>()
   private lastActivity = Date.now()
+  /** The document a navigation is loading, until it replaces the page. */
+  private loadingDocument: Request | null = null
   readonly requests: { method: string; path: string; type: string }[] = []
 
   constructor(
@@ -249,9 +257,8 @@ class Session {
     })
     page.on('request', (request) => {
       if (HIGH_VOLUME_REQUEST.test(request.url())) return
-      // A navigation does not report every request it cancels, and none of them still matters.
       if (request.isNavigationRequest() && request.frame() === page.mainFrame())
-        this.inflight.clear()
+        this.loadingDocument = request
       if (isPageRead(request)) {
         this.inflight.add(request)
         this.lastActivity = Date.now()
@@ -263,12 +270,21 @@ class Session {
           type: request.resourceType(),
         })
     })
+    // The browser never reports the end of a read the old document was running or sent while this
+    // one loaded, including after the request that started the navigation.
+    page.on('framenavigated', (frame) => {
+      if (frame !== page.mainFrame() || !this.loadingDocument) return
+      for (const request of this.inflight)
+        if (request !== this.loadingDocument) this.inflight.delete(request)
+      this.loadingDocument = null
+    })
     const settled = (request: Request) => {
       if (this.inflight.delete(request)) this.lastActivity = Date.now()
     }
     page.on('requestfinished', settled)
     page.on('requestfailed', (request) => {
       settled(request)
+      if (request === this.loadingDocument) this.loadingDocument = null
       const reason = request.failure()?.errorText ?? 'failed'
       if (
         isSameOrigin(request.url()) &&
