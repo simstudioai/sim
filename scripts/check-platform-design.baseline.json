@@ -19,9 +19,6 @@
   "platform/embedded/app/(shell)/_components/conversation/skeletons.tsx": {
     "consumer-style": 2
   },
-  "platform/embedded/app/(shell)/home/_components/calendar/calendar-day.tsx": {
-    "consumer-style": 4
-  },
   "platform/embedded/app/(shell)/settings/_components/sections/integrations/api-key-field.module.css": {
     "css-owner": 1
   },

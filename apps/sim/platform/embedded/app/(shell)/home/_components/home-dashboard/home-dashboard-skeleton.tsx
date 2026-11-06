@@ -2,6 +2,7 @@
 
 import { useOrganization } from '@/lib/organizations/provider'
 import { Surface } from '@/platform/design-system/components/surface/surface'
+import { ComposerPlaceholder } from '@/platform/embedded/app/(shell)/_components/conversation/skeletons'
 import styles from '@/platform/embedded/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css'
 import {
   SkeletonBlock,
@@ -31,9 +32,9 @@ export function HomeDashboardSkeleton() {
             <div className={styles.placeholderWordmark} />
           </div>
         </Surface>
-        <Surface>
-          <div className={styles.composer} />
-        </Surface>
+        <div className={styles.composer}>
+          <ComposerPlaceholder />
+        </div>
         <Surface>
           <div className={styles.sections}>
             {searchAccess.memberScoped && <SkeletonLane label='Loading recents' silent />}

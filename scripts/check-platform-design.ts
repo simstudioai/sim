@@ -1122,7 +1122,7 @@ function checkJs(file: string, content: string) {
             }
           }
           const calendarPlacement =
-            file === 'platform/app/(shell)/home/_components/calendar/calendar-day.tsx' &&
+            file.endsWith('app/(shell)/home/_components/calendar/calendar-day.tsx') &&
             native &&
             attr === 'style' &&
             expr &&
