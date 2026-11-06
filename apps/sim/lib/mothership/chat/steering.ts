@@ -10,6 +10,12 @@ import { MothershipStreamV1RunKind } from '@/lib/mothership/generated/mothership
  */
 export interface SteeringMessageMarker {
   streamId: string
+  /**
+   * The exact input Sim sent the worker for it, stored server-side so a later
+   * read of its disposition re-sends identical bytes. Never read back into a
+   * transcript (`normalizeMessage` keeps only `streamId`).
+   */
+  input?: unknown
 }
 
 /** Where a turn applied a steering message: its assistant's `steering` block. */

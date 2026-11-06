@@ -95,8 +95,12 @@ describe('POST /api/copilot/chat/steer', () => {
     mockAppend.mockResolvedValue(undefined)
   })
 
-  it('returns the worker disposition and records a queued message as steering of its turn', async () => {
+  it('records the message with the exact input it sends before asking the worker', async () => {
     worker.v2.push(Response.json({ steeringId: STEERING_ID, status: 'queued' }))
+    let callsWhenRecorded: string[] | undefined
+    mockAppend.mockImplementationOnce(async () => {
+      callsWhenRecorded = [...worker.calls]
+    })
 
     const response = await POST(steerRequest())
 
@@ -109,9 +113,81 @@ describe('POST /api/copilot/chat/steer', () => {
     })
     expect(mockAppend).toHaveBeenCalledWith(
       'chat-1',
-      [expect.objectContaining({ id: STEERING_ID, steering: { streamId: STREAM_ID } })],
+      [
+        expect.objectContaining({
+          id: STEERING_ID,
+          content: 'focus on the tests',
+          steering: { streamId: STREAM_ID, input: { context: [] } },
+        }),
+      ],
       { streamId: STREAM_ID }
     )
+    expect(callsWhenRecorded).toEqual([])
+  })
+
+  it('reports a message its run never applied, so the sender sends it on its own', async () => {
+    worker.v2.push(Response.json({ steeringId: STEERING_ID, status: 'not_applied' }))
+
+    const response = await POST(steerRequest())
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ steeringId: STEERING_ID, status: 'not_applied' })
+  })
+
+  it('refuses to steer through a worker without v2, and never tries v1', async () => {
+    worker.v2.push(new Response('404 page not found', { status: 404 }))
+    const missingRoute = await POST(steerRequest())
+    worker.v2.push(new Response(null, { status: 405 }))
+    const wrongMethod = await POST(steerRequest())
+
+    expect(missingRoute.status).toBe(409)
+    expect(wrongMethod.status).toBe(409)
+    expect(worker.calls).toEqual(['/api/streams/steer/v2', '/api/streams/steer/v2'])
+  })
+
+  it('refuses a run the worker never learns of', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      for (let attempt = 0; attempt < 5; attempt++) worker.v2.push(targetMissing())
+
+      const pending = POST(steerRequest())
+      await vi.advanceTimersByTimeAsync(5_000)
+      const response = await pending
+
+      expect(response.status).toBe(409)
+      expect(worker.calls).toEqual(Array(5).fill('/api/streams/steer/v2'))
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('retries a run at its pending-input budget, then refuses it', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const full = () => Response.json({ code: 'steering_capacity' }, { status: 429 })
+      worker.v2.push(full(), full(), Response.json({ steeringId: STEERING_ID, status: 'queued' }))
+      const eased = POST(steerRequest())
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(await (await eased).json()).toEqual({ steeringId: STEERING_ID, status: 'queued' })
+
+      worker.calls = []
+      for (let attempt = 0; attempt < 4; attempt++) worker.v2.push(full())
+      const stillFull = POST(steerRequest())
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect((await stillFull).status).toBe(409)
+      expect(worker.calls).toHaveLength(4)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('refuses a message past the run image limit at once, without retrying the steer', async () => {
+    worker.v2.push(Response.json({ code: 'steering_image_limit' }, { status: 422 }))
+
+    const response = await POST(steerRequest())
+
+    expect(response.status).toBe(409)
+    expect(worker.calls).toEqual(['/api/streams/steer/v2'])
   })
 
   it('passes on where an applied message landed', async () => {
@@ -127,34 +203,6 @@ describe('POST /api/copilot/chat/steer', () => {
       eventSeq: 4,
       textOffset: 12,
     })
-  })
-
-  it('records nothing for a message its run never applied, so the sender sends it on its own', async () => {
-    worker.v2.push(Response.json({ steeringId: STEERING_ID, status: 'not_applied' }))
-
-    const response = await POST(steerRequest())
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ steeringId: STEERING_ID, status: 'not_applied' })
-    expect(mockAppend).not.toHaveBeenCalled()
-  })
-
-  it('falls back to v1 while the worker has no v2 route, and refuses what v1 refused', async () => {
-    worker.v2.push(new Response('404 page not found', { status: 404 }))
-    worker.v1.push(new Response(null, { status: 200 }))
-    const queued = await POST(steerRequest())
-    expect(await queued.json()).toEqual({ steeringId: STEERING_ID, status: 'queued' })
-
-    worker.v2.push(new Response(null, { status: 405 }))
-    worker.v1.push(new Response(null, { status: 404 }))
-    const refused = await POST(steerRequest())
-    expect(refused.status).toBe(409)
-    expect(worker.calls).toEqual([
-      '/api/streams/steer/v2',
-      '/api/streams/steer',
-      '/api/streams/steer/v2',
-      '/api/streams/steer',
-    ])
   })
 
   it('retries a run the worker has not inserted yet, then answers for it', async () => {
@@ -175,32 +223,6 @@ describe('POST /api/copilot/chat/steer', () => {
     } finally {
       vi.useRealTimers()
     }
-  })
-
-  it('refuses a run the worker never learns of, without trying v1', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    try {
-      for (let attempt = 0; attempt < 5; attempt++) worker.v2.push(targetMissing())
-
-      const pending = POST(steerRequest())
-      await vi.advanceTimersByTimeAsync(5_000)
-      const response = await pending
-
-      expect(response.status).toBe(409)
-      expect(worker.calls).not.toContain('/api/streams/steer')
-      expect(mockAppend).not.toHaveBeenCalled()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('refuses a message the run has no room for', async () => {
-    worker.v2.push(Response.json({ code: 'steering_capacity' }, { status: 429 }))
-
-    const response = await POST(steerRequest())
-
-    expect(response.status).toBe(409)
-    expect(mockAppend).not.toHaveBeenCalled()
   })
 
   it('does not read a worker failure as a refusal, since the worker may hold the message', async () => {

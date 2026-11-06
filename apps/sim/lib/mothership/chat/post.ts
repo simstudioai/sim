@@ -47,6 +47,7 @@ import {
   loadChatMcpServerIds,
   resolveOrCreateChat,
 } from '@/lib/mothership/chat/lifecycle'
+import { normalizeContexts } from '@/lib/mothership/chat/normalize-contexts'
 import { authorizeOrganizationChat } from '@/lib/mothership/chat/organization-chats'
 import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
 import { processContextsServer } from '@/lib/mothership/chat/process-contents'
@@ -340,21 +341,6 @@ type UnifiedChatBranch =
         messageId: string
       }) => Promise<ExecutionContext>
     })
-
-function normalizeContexts(contexts: UnifiedChatRequest['contexts']) {
-  if (!Array.isArray(contexts)) {
-    return contexts
-  }
-
-  return contexts.map((ctx) => {
-    if (ctx.kind === 'table' && ctx.currentView)
-      return { ...ctx, viewId: ctx.currentView.viewId ?? undefined }
-    if (ctx.kind !== 'blocks') return ctx
-    if (Array.isArray(ctx.blockIds) && ctx.blockIds.length > 0) return ctx
-    if (ctx.blockId) return { ...ctx, blockIds: [ctx.blockId] }
-    return ctx
-  })
-}
 
 /**
  * An MCP server tagged with `/name` stays tagged for the rest of the chat, not
@@ -998,7 +984,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           chatId: actualChatId,
           messageId: userMessageId,
           userId: authenticatedUserId,
-          content: body.message,
         })
         if (fallback.kind !== 'send') {
           activeOtelRoot.finish('success')

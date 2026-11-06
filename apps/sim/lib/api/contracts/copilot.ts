@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { persistedContentBlockSchema } from '@/lib/api/contracts/copilot-messages'
 import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/search'
+import { chatContextsSchema } from '@/lib/api/contracts/mothership-chat-context'
 import {
   mothershipResourceRemovalSchema,
   mothershipResourceSchema,
@@ -147,13 +148,28 @@ export const copilotChatAbortBodySchema = z
   })
 export type CopilotChatAbortBody = z.input<typeof copilotChatAbortBodySchema>
 
+/** A file the composer already uploaded, as a turn's body carries it. */
+const copilotChatSteerFileAttachmentSchema = z.object({
+  id: z.string(),
+  key: z.string(),
+  filename: z.string(),
+  media_type: z.string(),
+  size: z.number(),
+  path: z.string().optional(),
+})
+
+/** A steering message: what a turn sends, sent into a running turn. Contexts share the turn's cap. */
 export const copilotChatSteerBodySchema = z.object({
   streamId: z.string().min(1, 'streamId is required'),
   chatId: z.string().min(1, 'chatId is required'),
-  steeringId: z.string().min(1, 'steeringId is required'),
+  steeringId: z.string().uuid(),
   content: z.string().min(1, 'content is required').max(32_768, 'content is too long'),
+  contexts: chatContextsSchema.optional(),
+  fileAttachments: z.array(copilotChatSteerFileAttachmentSchema).max(100).optional(),
 })
 export type CopilotChatSteerBody = z.input<typeof copilotChatSteerBodySchema>
+/** The steer body as the route hands it to its use case, once parsed. */
+export type CopilotChatSteerInput = z.output<typeof copilotChatSteerBodySchema>
 
 export const copilotToolExecuteInternalBodySchema = z
   .object({
