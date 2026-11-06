@@ -95,6 +95,9 @@ export async function fullPageScreenshot(page: Page, path: string, viewport: Vie
   if (grows) await page.setViewportSize({ width: viewport.width, height: viewport.height })
 }
 
+/** A persona's walk lists every route that failed, which the usual limit cut off after four. */
+const WALK_ERROR_LIMIT = 16_000
+
 async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
   const name = `${persona.key} ${viewport.name} ${theme}: every route renders healthy`
   const started = performance.now()
@@ -157,7 +160,7 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
     )
     record(name, 'Route walk', started)
   } catch (error) {
-    record(name, 'Route walk', started, truncate(getErrorMessage(error), 2000))
+    record(name, 'Route walk', started, truncate(getErrorMessage(error), WALK_ERROR_LIMIT))
   }
 }
 
