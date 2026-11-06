@@ -75,14 +75,20 @@ function ConnectionInstructions({ endpoint, client }: ConnectionInstructionsProp
         ? 'codex mcp add sim-search --url'
         : 'claude mcp add --transport http sim-search'
     return (
-      <CopyField
-        label='Terminal command'
-        value={`${prefix} ${quotedEndpoint}`}
-        hint={client.hint}
-      />
+      <FieldStack>
+        <CopyField
+          label='Terminal command'
+          value={`${prefix} ${quotedEndpoint}`}
+          hint={client.hint}
+        />
+      </FieldStack>
     )
   }
-  return <CopyField label='Server URL' value={endpoint} hint={client.hint} />
+  return (
+    <FieldStack>
+      <CopyField label='Server URL' value={endpoint} hint={client.hint} />
+    </FieldStack>
+  )
 }
 
 export default function SearchMcpSection({ organization }: SettingsSectionProps) {
