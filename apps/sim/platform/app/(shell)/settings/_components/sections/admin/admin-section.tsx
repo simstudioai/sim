@@ -77,50 +77,46 @@ export default function AdminSection() {
       },
       action:
         user.id === admin.session?.user?.id ? undefined : (
-          <ActionRow>
-            <Button
-              size='compact'
-              disabled={
-                importWorkflow.isPending || admin.isImpersonating || pendingUserIds.has(user.id)
-              }
-              onClick={() => admin.handleImpersonate(user.id, user.email)}
-            >
-              {admin.impersonatingUserId === user.id ? 'Switching…' : 'Impersonate'}
-            </Button>
-            <ActionMenu
-              label={`${user.email} actions`}
-              icon='I108'
-              actions={[
-                {
-                  id: 'reset',
-                  label: 'Reset password',
-                  disabled: pendingUserIds.has(user.id),
-                  onSelect: () => admin.sendReset(user),
-                },
-                {
-                  id: 'role',
-                  label: user.role === 'admin' ? 'Demote' : 'Promote',
-                  disabled: pendingUserIds.has(user.id),
-                  onSelect: () => admin.startRoleChange(user),
-                },
-                user.banned
-                  ? {
-                      id: 'unban',
-                      label: 'Unban',
-                      disabled: pendingUserIds.has(user.id),
-                      onSelect: () => admin.unbanUser.mutate({ userId: user.id }),
-                    }
-                  : {
-                      id: 'ban',
-                      label: 'Ban',
-                      destructive: true,
-                      separatorBefore: true,
-                      disabled: pendingUserIds.has(user.id),
-                      onSelect: () => admin.startBan(user),
-                    },
-              ]}
-            />
-          </ActionRow>
+          <ActionMenu
+            label={`${user.email} actions`}
+            icon='I108'
+            actions={[
+              {
+                id: 'impersonate',
+                label: admin.impersonatingUserId === user.id ? 'Switching…' : 'Impersonate',
+                disabled:
+                  importWorkflow.isPending || admin.isImpersonating || pendingUserIds.has(user.id),
+                onSelect: () => admin.handleImpersonate(user.id, user.email),
+              },
+              {
+                id: 'reset',
+                label: 'Reset password',
+                disabled: pendingUserIds.has(user.id),
+                onSelect: () => admin.sendReset(user),
+              },
+              {
+                id: 'role',
+                label: user.role === 'admin' ? 'Demote' : 'Promote',
+                disabled: pendingUserIds.has(user.id),
+                onSelect: () => admin.startRoleChange(user),
+              },
+              user.banned
+                ? {
+                    id: 'unban',
+                    label: 'Unban',
+                    disabled: pendingUserIds.has(user.id),
+                    onSelect: () => admin.unbanUser.mutate({ userId: user.id }),
+                  }
+                : {
+                    id: 'ban',
+                    label: 'Ban',
+                    destructive: true,
+                    separatorBefore: true,
+                    disabled: pendingUserIds.has(user.id),
+                    onSelect: () => admin.startBan(user),
+                  },
+            ]}
+          />
         ),
     }))
 
@@ -250,6 +246,7 @@ export default function AdminSection() {
           {admin.provisionWarning && (
             <InlineNotice intent='warning' message={admin.provisionWarning} />
           )}
+          {admin.isImpersonating && <Muted>Switching to that user…</Muted>}
           {admin.sendPasswordReset.isPending && admin.sendPasswordReset.variables && (
             <Muted>
               {`Sending a password reset email to ${admin.sendPasswordReset.variables.email}...`}

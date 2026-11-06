@@ -3352,7 +3352,7 @@ async function settingsChecks() {
   await check('the settings frame: breadcrumb and a section on the design', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(orgUrl('/settings/general'))
-      await expect(page.getByLabel('Settings location')).toContainText('General')
+      await expect(page.getByRole('banner', { name: 'Settings location' })).toContainText('General')
       await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible()
       await expect(page.getByRole('button', { name: 'Reset password', exact: true })).toBeVisible()
       await expect(sidebar(page).locator('[data-platform-ui]').first()).toBeVisible()
@@ -3369,12 +3369,14 @@ async function settingsChecks() {
         ['/settings/search-slack', 'Sim Search in Slack'],
       ] as const) {
         await page.goto(orgUrl(path))
-        await expect(page.getByLabel('Settings location')).toContainText(title)
+        await expect(page.getByRole('banner', { name: 'Settings location' })).toContainText(title)
         await expect(
           page
             .locator('[data-platform-ui]')
             .getByRole('heading', { level: 1, name: title, exact: true })
         ).toBeVisible()
+        // A second copy may exist for a moment while the document streams; one must not stay.
+        await expect(page.getByLabel('Settings location')).toHaveCount(1)
       }
     })
   })
@@ -3388,7 +3390,7 @@ async function settingsChecks() {
   await check('a legacy alias opens its section under the same URL', async () => {
     await withSession(ADMIN, async ({ page }) => {
       await page.goto(orgUrl('/settings/team'))
-      await expect(page.getByLabel('Settings location')).toContainText('Members')
+      await expect(page.getByRole('banner', { name: 'Settings location' })).toContainText('Members')
       await expect(page.getByPlaceholder('Search members…')).toBeVisible()
     })
   })
@@ -3521,12 +3523,13 @@ async function settingsChecks() {
           await reason.press('Enter')
           await sleep(300)
           assert.equal(banRequests, 0, 'Enter in the reason submitted the ban')
-          await expect(modal).toBeVisible()
+          await expect(modal, 'Enter in the reason closed the dialog').toBeVisible()
           await modal.getByRole('button', { name: 'Ban', exact: true }).click()
           await expect.poll(() => banRequests).toBe(1)
+          await expect(modal, 'Starting the ban closed the dialog').toBeVisible()
           await page.keyboard.press('Escape')
           await sleep(300)
-          await expect(modal).toBeVisible()
+          await expect(modal, 'Escape dismissed a running ban').toBeVisible()
           await expect(modal.getByRole('button', { name: 'Cancel' })).toBeDisabled()
           held.resolve()
           await expect(modal.getByText('Ban refused')).toBeVisible()
@@ -3536,26 +3539,32 @@ async function settingsChecks() {
     )
   )
   await check('Permission groups: Enter in Add members search adds nobody', async () => {
-    await withSession(ADMIN, async ({ page }) => {
-      let writes = 0
-      await page.route('**/permission-groups/*/members', async (route) => {
-        if (route.request().method() !== 'GET') writes += 1
-        await route.continue()
+    // A default group governs everyone, so it has no members to add until it is not the default.
+    await sql`update permission_group set is_default = false where id = ${STANDARD_GROUP_ID}`
+    try {
+      await withSession(ADMIN, async ({ page }) => {
+        let writes = 0
+        await page.route('**/permission-groups/*/members', async (route) => {
+          if (route.request().method() !== 'GET') writes += 1
+          await route.continue()
+        })
+        await page.goto(orgUrl(`/settings/access-control?group-id=${STANDARD_GROUP_ID}`))
+        await page.getByRole('button', { name: 'Add', exact: true }).click()
+        const modal = dialog(page, 'Add members')
+        const search = modal.getByRole('searchbox')
+        await search.fill('member')
+        await search.press('Enter')
+        await sleep(300)
+        assert.equal(writes, 0, 'Enter in the search changed the group')
+        await expect(modal).toBeVisible()
       })
-      await page.goto(orgUrl(`/settings/access-control?group-id=${STANDARD_GROUP_ID}`))
-      await page.getByRole('button', { name: 'Add members', exact: true }).click()
-      const modal = dialog(page, 'Add members')
-      const search = modal.getByRole('searchbox')
-      await search.fill('member')
-      await search.press('Enter')
-      await sleep(300)
-      assert.equal(writes, 0, 'Enter in the search changed the group')
-      await expect(modal).toBeVisible()
-    })
+    } finally {
+      await sql`update permission_group set is_default = true where id = ${STANDARD_GROUP_ID}`
+    }
   })
   await check('Usage events: Description shows at the Settings column width', async () => {
     await withSession(ADMIN, async ({ page }) => {
-      await page.route('**/usage/events**', (route) =>
+      await page.route('**/api/organizations/*/usage/events**', (route) =>
         route.fulfill({
           json: {
             events: [
@@ -3628,10 +3637,13 @@ async function settingsChecks() {
         await issuer.fill('https://idp.org-redesign.test')
         await page.getByRole('textbox', { name: 'Domain', exact: true }).fill('org-redesign.test')
         await page.getByRole('textbox', { name: 'Client ID', exact: true }).fill('e2e-client')
-        await page.getByRole('textbox', { name: 'Client secret' }).fill('e2e-secret')
+        const secret = page.getByRole('textbox', { name: 'Client secret' })
+        await secret.focus()
+        await secret.fill('e2e-secret')
         await page.getByRole('button', { name: 'Save', exact: true }).click()
         await expect.poll(() => bodies.length).toBe(1)
         assert.equal(toRecord(bodies[0]).providerId, 'e2e-oidc')
+        assert.match(JSON.stringify(bodies[0]), /e2e-secret/)
       })
     },
     { allow: [/500 POST .*sso\/register/] }
@@ -3702,32 +3714,28 @@ async function settingsChecks() {
     },
     { allow: [/500 POST .*data-drains/] }
   )
-  await check('Data retention: a policy edit saves', async () => {
+  await check('Data retention: a policy edit saves, and saves back', async () => {
     await withSession(ADMIN, async ({ page }) => {
       await page.goto(orgUrl('/settings/data-retention'))
       await page
         .getByRole('button', { name: /Organization/ })
         .first()
         .click()
-      const picker = page.getByRole('combobox').first()
-      await picker.click()
-      const options = page.getByRole('option')
-      const selected = await picker.textContent()
-      const count = await options.count()
-      for (let index = 0; index < count; index += 1) {
-        const option = options.nth(index)
-        if ((await option.textContent())?.trim() !== selected?.trim()) {
-          await option.click()
-          break
-        }
+      const picker = page.getByRole('combobox', { name: 'Log retention' })
+      const original = (await picker.textContent())?.trim() ?? ''
+      for (const name of ['5 years', original]) {
+        await picker.click()
+        await page.getByRole('option', { name, exact: true }).click()
+        const write = page.waitForResponse(
+          (response) =>
+            pathOf(response.url()).endsWith('/data-retention') &&
+            response.request().method() !== 'GET'
+        )
+        const save = page.getByRole('button', { name: 'Save', exact: true })
+        await save.click()
+        assert.ok((await write).ok(), 'The policy did not save')
+        await expect(save).toBeDisabled()
       }
-      const write = page.waitForResponse(
-        (response) =>
-          pathOf(response.url()).endsWith('/data-retention') &&
-          response.request().method() !== 'GET'
-      )
-      await page.getByRole('button', { name: 'Save', exact: true }).click()
-      assert.ok((await write).ok(), 'The policy did not save')
     })
   })
   await check('Insights: heatmap pinning, metric explanations, and View all', async () => {
@@ -4361,18 +4369,60 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
 interface StateShot {
   name: string
   path: string
+  /** Before the page loads, for a read this suite has no upstream for. */
+  stub?: (page: Page) => Promise<void>
   /** Opens the state after the page loads. */
   open?: (page: Page) => Promise<void>
+  /** On a phone, where the sidebar sits behind the navigation toggle. */
+  openOnPhone?: (page: Page) => Promise<void>
+  /** A state the phone layout does not have. */
+  desktopOnly?: boolean
   persona?: Persona
 }
 
 const STATE_SHOTS: readonly StateShot[] = [
   { name: 'settings-admin', path: 'settings/admin?q=member' },
-  { name: 'settings-mothership', path: 'settings/mothership' },
+  {
+    name: 'settings-mothership',
+    path: 'settings/mothership',
+    // The proxy needs an upstream and super admin mode; the page's own gate is what the shot shows.
+    stub: async (page) => {
+      await page.route('**/api/admin/mothership**', (route) =>
+        route.fulfill({
+          json: {
+            total_requests: 3,
+            total_users: 1,
+            count: 1,
+            users: [
+              {
+                user_id: 'user-1',
+                request_count: 3,
+                total_cost: 0.25,
+                last_request: '2026-11-05T10:00:00.000Z',
+              },
+            ],
+            requests: [
+              {
+                request_id: 'request-1',
+                model: 'claude-model',
+                duration_ms: 1200,
+                billed_total_cost: 0.25,
+                tool_call_count: 1,
+                error: false,
+                aborted: false,
+                created_at: '2026-11-05T10:00:00.000Z',
+              },
+            ],
+          },
+        })
+      )
+    },
+  },
   { name: 'not-found', path: 'settings/does-not-exist' },
   {
     name: 'collapsed-sidebar',
     path: 'home',
+    desktopOnly: true,
     open: (page) => page.getByRole('button', { name: 'Collapse sidebar', exact: true }).click(),
   },
   {
@@ -4380,7 +4430,6 @@ const STATE_SHOTS: readonly StateShot[] = [
     path: 'settings/members',
     open: (page) =>
       page
-        .getByRole('main')
         .getByRole('button', { name: /^Actions for / })
         .first()
         .click(),
@@ -4389,6 +4438,13 @@ const STATE_SHOTS: readonly StateShot[] = [
     name: 'flyout-organization',
     path: 'home',
     open: (page) => orgChip(page).click(),
+    openOnPhone: async (page) => {
+      await page
+        .getByRole('button', { name: /open (sidebar|menu|navigation)/i })
+        .first()
+        .click()
+      await orgChip(page).click()
+    },
   },
   {
     name: 'modal-invite',
@@ -4420,22 +4476,31 @@ async function stateScreenshots() {
     await check(`${viewport.name}: states capture`, () =>
       asPlatformAdmin(async () => {
         const failures: string[] = []
-        for (const shot of STATE_SHOTS) {
-          await withSession(
-            shot.persona ?? ADMIN,
-            async (session) => {
-              await session.page.goto(orgUrl(`/${shot.path}`), { timeout: 60_000 })
-              await session.settle()
-              await shot.open?.(session.page)
-              await sleep(200)
-              await session.page.screenshot({
-                path: resolve(artifactDirectory, `state__${shot.name}__${viewport.name}.png`),
-                animations: 'disabled',
-                timeout: 20_000,
-              })
-            },
-            { viewport, theme: 'light' }
-          ).catch((error) => failures.push(`${shot.name}: ${getErrorMessage(error)}`))
+        // The fixture's default group forbids invitations, and the invite modal is a state to shoot.
+        await sql`update permission_group set config = config - 'disableInvitations' where id = ${STANDARD_GROUP_ID}`
+        try {
+          for (const shot of STATE_SHOTS) {
+            if (shot.desktopOnly && viewport === PHONE) continue
+            await withSession(
+              shot.persona ?? ADMIN,
+              async (session) => {
+                await shot.stub?.(session.page)
+                await session.page.goto(orgUrl(`/${shot.path}`), { timeout: 60_000 })
+                await session.settle()
+                const open = viewport === PHONE ? (shot.openOnPhone ?? shot.open) : shot.open
+                await open?.(session.page)
+                await sleep(200)
+                await session.page.screenshot({
+                  path: resolve(artifactDirectory, `state__${shot.name}__${viewport.name}.png`),
+                  animations: 'disabled',
+                  timeout: 20_000,
+                })
+              },
+              { viewport, theme: 'light' }
+            ).catch((error) => failures.push(`${shot.name}: ${getErrorMessage(error)}`))
+          }
+        } finally {
+          await sql`update permission_group set config = config || '{"disableInvitations":true}'::jsonb where id = ${STANDARD_GROUP_ID}`
         }
         await withSession(
           OUTSIDER,

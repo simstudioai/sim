@@ -780,9 +780,10 @@ async function run() {
         await mobile.goto(new URL(`${path}?view=directory`, baseUrl).href, {
           waitUntil: 'domcontentloaded',
         })
+        // A report's row also holds this name, in its manager cell, which a phone keeps hidden.
         const mobileRow = mobile
           .getByRole('row')
-          .filter({ has: mobile.getByText('Amara Cole', { exact: true }) })
+          .filter({ has: mobile.getByRole('link', { name: /^Amara Cole/ }) })
         await expect(mobileRow.getByText(/^Reports to /)).toBeVisible({ timeout: 120_000 })
         await mobile.goto(new URL(path, baseUrl).href, { waitUntil: 'domcontentloaded' })
         await mobile

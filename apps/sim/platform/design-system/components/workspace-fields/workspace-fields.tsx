@@ -179,7 +179,7 @@ export function RecipientField({
             aria-describedby={fieldDescription(id, error, hint)}
             onChange={(event) => {
               const value = event.currentTarget.value
-              const last = Math.max(value.lastIndexOf(','), value.lastIndexOf(';'))
+              const last = value.search(/[,;\s][^,;\s]*$/)
               if (
                 last >= 0 &&
                 !('isComposing' in event.nativeEvent && event.nativeEvent.isComposing)
