@@ -664,6 +664,7 @@ export const GaugeBlock: BlockConfig = {
       id: 'topic',
       title: 'Topic Filters',
       type: 'code',
+      dependsOn: ['operation'],
       condition: { field: 'operation', value: ['gauge_list_answers', 'gauge_list_citations'] },
       language: 'json',
       placeholder: '["top_..."]',
@@ -970,21 +971,29 @@ export const GaugeBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = context?.operation ?? params.operation
+        const patch = ['gauge_bulk_update_prompts', 'gauge_update_prompt'].includes(operation)
         return {
           ...params,
           limit: params.limit === '' || params.limit == null ? undefined : Number(params.limit),
-          topic: params.topicFilter ?? params.topic,
+          topic:
+            operation === 'gauge_list_prompts'
+              ? (params.topicFilter ?? (context?.operation ? params.topic : undefined))
+              : params.topic,
           topicId: params.topicId === '' ? undefined : params.topicId,
-          trackingType:
-            params.promptTrackingType === 'unchanged'
+          trackingType: patch
+            ? params.promptTrackingType === 'unchanged'
               ? undefined
-              : (params.promptTrackingType ?? params.trackingType),
+              : (params.promptTrackingType ?? params.trackingType)
+            : params.trackingType,
           name: params.name === '' ? undefined : params.name,
           dataset:
-            params.metadataDataset === 'all'
-              ? undefined
-              : (params.metadataDataset ?? params.dataset),
+            operation === 'gauge_get_query_metadata'
+              ? params.metadataDataset === 'all'
+                ? undefined
+                : (params.metadataDataset ?? params.dataset)
+              : params.dataset,
         }
       },
     },

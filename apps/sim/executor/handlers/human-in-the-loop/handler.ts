@@ -423,6 +423,9 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
     ).filter(isCanonicalPair)
 
     const { paramsTransform } = buildBlockToolParamsTransform({
+      operation:
+        toolConfig.operation ??
+        (typeof storedParams.operation === 'string' ? storedParams.operation : undefined),
       blockSubBlocks: subBlocks,
       blockParamsFn: notificationBlock?.tools?.config?.params,
       blockInputDefs: notificationBlock?.inputs,

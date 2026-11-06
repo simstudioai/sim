@@ -48,10 +48,15 @@ import {
 } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 import { gaugeGetQueryMetadataTool } from '@/tools/gauge/get_query_metadata'
+import { gaugeListAnswersTool } from '@/tools/gauge/list_answers'
+import { gaugeListCitationsTool } from '@/tools/gauge/list_citations'
 import { gaugeListPromptsTool } from '@/tools/gauge/list_prompts'
+import { gaugeQueryTool } from '@/tools/gauge/query'
 import type {
   GaugeGetQueryMetadataParams,
+  GaugeListAnswersParams,
   GaugeListPromptsParams,
+  GaugeQueryParams,
   GaugeUpdatePromptParams,
 } from '@/tools/gauge/types'
 import { gaugeUpdatePromptTool } from '@/tools/gauge/update_prompt'
@@ -88,6 +93,84 @@ const mockGetRotatingApiKey = vi.fn().mockReturnValue('rotating-server-key')
 const originalRequire = module.require
 
 describe('integration filters through agent execution', () => {
+  it.each([
+    { tool: gaugeListAnswersTool, field: 'topicFilterSelector' },
+    { tool: gaugeListAnswersTool, field: 'manualTopicFilter' },
+    { tool: gaugeListCitationsTool, field: 'topicFilterSelector' },
+    { tool: gaugeListCitationsTool, field: 'manualTopicFilter' },
+  ])('ignores stale $field aliases for $tool.id', async ({ tool, field }) => {
+    const providerTool = await transformBlockTool(
+      {
+        type: 'gauge',
+        params: {
+          org: 'example',
+          category: 'example',
+          [field]: 'top_stale',
+          topic: '["top_active"]',
+          promptTrackingType: 'branded_own',
+          trackingType: 'all',
+        },
+      },
+      { selectedOperation: tool.id, getAllBlocks: () => [GaugeBlock], getTool: () => tool }
+    )
+    if (!providerTool) throw new Error('Gauge agent tool was not created')
+    const { executionParams } = prepareToolExecution(providerTool, {}, {}, undefined)
+    const params = { ...executionParams, accessToken: 'fixture-token' } as GaugeListAnswersParams
+    const url = typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
+    expect(new URL(url).searchParams.getAll('topic')).toEqual(['top_active'])
+    expect(new URL(url).searchParams.get('trackingType')).toBe('all')
+  })
+
+  it.each(['answers', 'all'])(
+    'ignores a stale %s metadata selection when querying a different dataset',
+    async (metadataDataset) => {
+      const tool = gaugeQueryTool
+      const providerTool = await transformBlockTool(
+        {
+          type: 'gauge',
+          params: {
+            org: 'example',
+            dataset: 'citations',
+            metrics: '["citations"]',
+            metadataDataset,
+          },
+        },
+        { selectedOperation: tool.id, getAllBlocks: () => [GaugeBlock], getTool: () => tool }
+      )
+      if (!providerTool) throw new Error('Gauge agent tool was not created')
+      const { executionParams } = prepareToolExecution(providerTool, {}, {}, undefined)
+      const params = { ...executionParams, accessToken: 'fixture-token' } as GaugeQueryParams
+      expect(tool.request.body?.(params)).toMatchObject({ dataset: 'citations' })
+    }
+  )
+
+  it('clears an incompatible Gauge topic array when switching an agent to List Prompts', async () => {
+    const tool = gaugeListPromptsTool
+    vi.spyOn(blockRegistry, 'getBlock').mockReturnValue(GaugeBlock)
+    const params = getParamsForToolOperation(
+      { type: 'gauge', params: { org: 'example', category: 'example', topic: '["top_stale"]' } },
+      tool
+    )
+    const providerTool = await transformBlockTool(
+      { type: 'gauge', params },
+      { selectedOperation: tool.id, getAllBlocks: () => [GaugeBlock], getTool: () => tool }
+    )
+    if (!providerTool) throw new Error('Gauge agent tool was not created')
+    const { executionParams } = prepareToolExecution(
+      providerTool,
+      { topic: 'top_model' },
+      {},
+      undefined
+    )
+    const requestParams = {
+      ...executionParams,
+      accessToken: 'fixture-token',
+    } as GaugeListPromptsParams
+    const url =
+      typeof tool.request.url === 'function' ? tool.request.url(requestParams) : tool.request.url
+    expect(new URL(url).searchParams.get('topic')).toBe('top_model')
+  })
+
   it.each(['configured', 'model'] as const)(
     'retains the %s Gauge topic filter without a stored operation',
     async (source) => {
