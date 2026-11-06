@@ -19,6 +19,7 @@ import {
   useReconnectPersonalOrganizationAccount,
 } from '@/hooks/queries/organization-accounts'
 import { useOrganizationSecretSource } from '@/hooks/queries/organization-secrets'
+import { useRemovePersonalSearchCredential } from '@/hooks/queries/personal-search-integrations'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useDesktopOAuthConnectListener, useOAuthReturnRouter } from '@/hooks/use-oauth-return'
@@ -31,6 +32,8 @@ import type {
   OrganizationIntegration,
   ToolPermissionChange,
 } from '@/platform/lib/data/integrations-types'
+import { useOrganization } from '@/platform/lib/data/organization'
+import { legacyRoutes } from '@/platform/lib/data/organization-model'
 import { toast } from '@/platform/lib/data/toast'
 
 const ACTION_NOTICE_ID = 'integrations-action'
@@ -57,24 +60,43 @@ export function useMemberIntegrations(organizationId: string) {
   }
 }
 
+/** A saved provider's id is its integration's URL segment plus this. */
+const SAVED_PROVIDER_SUFFIX = /-service-account$/
+
+/**
+ * The zone has no dialog for an account the member saves by hand, so connecting one happens on the
+ * legacy provider page, a route the legacy layout does not map back here.
+ */
 export function useIntegrationActions(organizationId: string) {
+  const organization = useOrganization()
+  const savedAccounts = useOrganizationAccounts(organizationId).data?.viewerSavedAccounts ?? []
+  const removeSaved = useRemovePersonalSearchCredential()
   const connect = useConnectOrganizationAccount()
   const reconnect = useReconnectPersonalOrganizationAccount()
   const disconnect = useDisconnectPersonalOrganizationAccount()
   const onError = reportActionFailure
   const connecting = connect.isPending || reconnect.isPending
+  const openSavedConnection = (providerId: string) =>
+    window.location.assign(
+      legacyRoutes(organization).integration(providerId.replace(SAVED_PROVIDER_SUFFIX, ''))
+    )
   return {
     connecting,
-    pending: connecting || disconnect.isPending,
+    pending: connecting || disconnect.isPending || removeSaved.isPending,
     connect: (target: NonNullable<OrganizationIntegration['connectionTarget']>) => {
-      if ('savedProviderId' in target) {
-        onError(new Error('Connect this service account from the organization app.'))
-        return
-      }
-      connect.mutate({ organizationId, ...target }, { onError })
+      if ('savedProviderId' in target) openSavedConnection(target.savedProviderId)
+      else connect.mutate({ organizationId, ...target }, { onError })
     },
-    reconnect: (credentialId: string) => reconnect.mutate(credentialId, { onError }),
-    disconnect: (credentialId: string) => disconnect.mutateAsync({ credentialId, organizationId }),
+    reconnect: (credentialId: string) => {
+      const saved = savedAccounts.find((account) => account.credentialId === credentialId)
+      if (saved) openSavedConnection(saved.providerId)
+      else reconnect.mutate(credentialId, { onError })
+    },
+    disconnect: async (credentialId: string) => {
+      if (savedAccounts.some((account) => account.credentialId === credentialId))
+        await removeSaved.mutateAsync({ organizationId, credentialId })
+      else await disconnect.mutateAsync({ credentialId, organizationId })
+    },
   }
 }
 
