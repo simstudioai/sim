@@ -22,7 +22,10 @@ import { useParams, useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { isLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import {
+  useChatChrome,
+  useChatSurface,
+} from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useForkMothershipChat } from '@/hooks/queries/mothership-chats'
 import { useFolderStore } from '@/stores/folders/store'
@@ -76,7 +79,8 @@ export const MessageActions = memo(function MessageActions({
   const owner = params.organizationId
     ? { organizationId: params.organizationId }
     : params.workspaceId
-  const { chatId, onNavigateToChat, ResponseActionsComponent: ResponseActions } = useChatSurface()
+  const { chatId, onNavigateToChat } = useChatSurface()
+  const { ResponseActionsComponent: ResponseActions } = useChatChrome()
   const { copied, copy: copyMessage } = useCopyToClipboard({ resetMs: 1500 })
   const [copiedRequestId, setCopiedRequestId] = useState(false)
   const [pendingFeedback, setPendingFeedback] = useState<'up' | 'down' | null>(null)

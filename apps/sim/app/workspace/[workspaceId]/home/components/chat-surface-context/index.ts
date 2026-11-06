@@ -1,6 +1,7 @@
 export {
-  ChatFontProvider,
+  type ChatChrome,
+  ChatChromeProvider,
   ChatSurfaceProvider,
-  useChatFontClass,
+  useChatChrome,
   useChatSurface,
 } from './chat-surface-context'

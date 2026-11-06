@@ -9,7 +9,10 @@ import {
   useOrganizationConversation,
 } from '@/app/o/[organizationId]/components/use-organization-conversation'
 import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
-import { ChatFontProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import {
+  type ChatChrome,
+  ChatChromeProvider,
+} from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
@@ -24,6 +27,21 @@ import {
   TranscriptPlaceholder,
 } from '@/platform/app/(shell)/_components/conversation/skeletons'
 import hostBridge from '@/platform/design-system/styles/host-bridge.module.css'
+
+const PAGE_CHAT_CHROME: ChatChrome = {
+  fontClassName: styles.font,
+  panelClassName: styles.panel,
+  tabsClassName: cn(styles.tabs, styles.font),
+  sourcesClassName: cn(styles.palette, styles.font),
+  userBubbleClassName: styles.userBubble,
+  responseActionsClassName: styles.responseActions,
+  sourcesPopoverClassName: hostBridge.tokens,
+  loadingTranscript: <TranscriptPlaceholder />,
+  loadingComposer: <ComposerPlaceholder />,
+  ResponseActionsComponent: ResponseActions,
+  PageContextDialogComponent: PageContextDialog,
+  ShareDialogComponent: ShareDialog,
+}
 
 /** What a surface's own landing arranges. */
 export interface ConversationLandingSlot {
@@ -90,12 +108,8 @@ function PageConversationContent({
   const header = frameHeader ?? (hasChat ? chatHeader : undefined)
   const composer = <PageComposer {...composerProps} />
   return (
-    <ChatFontProvider value={styles.font}>
+    <ChatChromeProvider value={PAGE_CHAT_CHROME}>
       <ChatResourcePanel
-        panelClassName={styles.panel}
-        tabsClassName={`${styles.tabs} ${styles.font}`}
-        sourcesClassName={`${styles.palette} ${styles.font}`}
-        ShareDialogComponent={ShareDialog}
         header={header}
         hideToggleUntilResource={!allowBuildControls || !hasChat}
         allowBuildControls={allowBuildControls}
@@ -114,14 +128,7 @@ function PageConversationContent({
             <AssistantActionReviewProvider {...reviewProps}>
               <MothershipChat
                 {...threadProps}
-                className={`${styles.palette} ${styles.thread}`}
-                ResponseActionsComponent={ResponseActions}
-                PageContextDialogComponent={PageContextDialog}
-                userBubbleClassName={styles.userBubble}
-                responseActionsClassName={styles.responseActions}
-                sourcesPopoverClassName={hostBridge.tokens}
-                loadingTranscript={<TranscriptPlaceholder />}
-                loadingComposer={<ComposerPlaceholder />}
+                className={cn(styles.palette, styles.thread)}
                 reserveResourceHeader={!header && threadProps.reserveResourceHeader}
                 SearchConnectionComponent={SearchIntegrationConnection}
                 composer={composer}
@@ -133,6 +140,6 @@ function PageConversationContent({
           )}
         </div>
       </ChatResourcePanel>
-    </ChatFontProvider>
+    </ChatChromeProvider>
   )
 }

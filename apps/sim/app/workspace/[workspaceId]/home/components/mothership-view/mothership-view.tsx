@@ -1,14 +1,6 @@
 'use client'
 
-import {
-  type ComponentProps,
-  type ComponentType,
-  forwardRef,
-  memo,
-  useCallback,
-  useRef,
-  useState,
-} from 'react'
+import { type ComponentProps, forwardRef, memo, useCallback, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
@@ -27,8 +19,8 @@ import {
   isPreviewable,
   RICH_PREVIEWABLE_EXTENSIONS,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
-import type { ShareDialogProps } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import { ChatPanelContent } from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
+import { useChatChrome } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
@@ -113,10 +105,6 @@ interface MothershipViewProps {
   activityResourceIds?: ReadonlySet<string>
   isCollapsed: boolean
   className?: string
-  tabsClassName?: string
-  sourcesClassName?: string
-  /** Draws the share dialog in place of the default one. `useShareDialog` keeps its behavior. */
-  ShareDialogComponent?: ComponentType<ShareDialogProps>
   previewSession?: FilePreviewSession | null
   isAgentResponding?: boolean
   onSummarize: (message: string, filters: WorkspaceSearchFilters) => void
@@ -138,9 +126,6 @@ export const MothershipView = memo(
       activityResourceIds,
       isCollapsed,
       className,
-      tabsClassName,
-      sourcesClassName,
-      ShareDialogComponent,
       previewSession,
       isAgentResponding,
       onSummarize,
@@ -148,6 +133,7 @@ export const MothershipView = memo(
     }: MothershipViewProps,
     ref
   ) {
+    const { tabsClassName, sourcesClassName } = useChatChrome()
     const active = resources.find((r) => getChatResourceSelectionId(r) === activeResourceId) ?? null
     const activeWorkspaceId = active ? getChatResourceWorkspaceId(active, workspaceId) : workspaceId
     const inheritedPermissions = useUserPermissionsContext()
@@ -272,7 +258,6 @@ export const MothershipView = memo(
                     workspaceId={activeWorkspaceId}
                     resource={active}
                     downloadSourceRef={fileDownloadSourceRef}
-                    ShareDialogComponent={ShareDialogComponent}
                   />
                 </ResourceWorkspaceHost>
               ) : null

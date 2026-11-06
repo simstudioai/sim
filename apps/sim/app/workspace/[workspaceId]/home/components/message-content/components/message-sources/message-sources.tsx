@@ -14,7 +14,7 @@ import {
   useScrollEdges,
 } from '@sim/emcn'
 import { BookOpen } from '@sim/emcn/icons'
-import { useChatFontClass } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import { useChatChrome } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 
@@ -35,7 +35,7 @@ interface MessageSourcesProps {
  * popover of one dense row per document.
  */
 export function MessageSources({ sources, onViewAll, popoverClassName }: MessageSourcesProps) {
-  const fontClassName = useChatFontClass()
+  const { fontClassName } = useChatChrome()
   const [open, setOpen] = useState(false)
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
   const edges = useScrollEdges(scrollElement, { enabled: open })

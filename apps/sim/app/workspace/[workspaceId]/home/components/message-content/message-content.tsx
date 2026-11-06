@@ -27,7 +27,10 @@ import {
   humanizeToolName,
   normalizeToolActivityDescription,
 } from '@/lib/mothership/tools/display'
-import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import {
+  useChatChrome,
+  useChatSurface,
+} from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
   hasAgentGroupItemContent,
   hasPendingAgentGroup,
@@ -994,12 +997,8 @@ function MessageContentInner({
   onPhaseChange,
   actions,
 }: MessageContentProps) {
-  const {
-    onWorkspaceResourceSelect,
-    onViewSources,
-    responseActionsClassName,
-    sourcesPopoverClassName,
-  } = useChatSurface()
+  const { onWorkspaceResourceSelect, onViewSources } = useChatSurface()
+  const { responseActionsClassName, sourcesPopoverClassName } = useChatChrome()
   const blockOverlayVersion = useCustomBlockOverlayVersion()
   const cited = useMemo(
     () => resolveMessageCitations(blocks, fallbackContent, requestMode === 'assistant'),

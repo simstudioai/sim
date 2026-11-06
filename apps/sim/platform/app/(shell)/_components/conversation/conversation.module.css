@@ -12,7 +12,7 @@
   --surface-hover: var(--design-ui-hover);
 }
 
-/* The chat's typeface, through `ChatFontProvider` and on the panel chrome that frames it. */
+/* The chat's typeface, through its chrome and on the panel chrome that frames it. */
 .font {
   font-family: var(--design-font-sans), sans-serif;
   letter-spacing: normal;

@@ -24,7 +24,7 @@ import {
   useSimLinkOrganizationId,
 } from '@/app/o/[organizationId]/links/sim-link-organization-provider'
 import { SimLinkMenuItem } from '@/app/o/[organizationId]/links/sim-link-shortcut'
-import { useChatFontClass } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import { useChatChrome } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
   SourceIcon,
   sourceLabel,
@@ -144,7 +144,7 @@ interface SourceCardProps {
 
 /** Source results share the same document identity and actions across search and cited evidence. */
 export function SourceCard({ source, query, onSummarize, dense = false }: SourceCardProps) {
-  const fontClassName = useChatFontClass()
+  const { fontClassName } = useChatChrome()
   const navigate = useSourceNavigation(source)
   const meta = sourceMeta(source)
 

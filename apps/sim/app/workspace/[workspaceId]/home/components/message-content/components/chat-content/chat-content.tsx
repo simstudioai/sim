@@ -40,7 +40,7 @@ import {
   isInlineFileReference,
 } from '@/lib/mothership/chat/inline-image-reference'
 import {
-  useChatFontClass,
+  useChatChrome,
   useChatSurface,
 } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { sanitizeChatDisplayContent } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/chat-sanitize'
@@ -578,7 +578,7 @@ function ChatContentInner({
   linkSources,
 }: ChatContentProps) {
   const { chatId } = useChatSurface()
-  const fontClassName = useChatFontClass()
+  const { fontClassName } = useChatChrome()
   const imageRehypePlugins = useMemo<
     NonNullable<ComponentPropsWithoutRef<typeof Streamdown>['rehypePlugins']>
   >(

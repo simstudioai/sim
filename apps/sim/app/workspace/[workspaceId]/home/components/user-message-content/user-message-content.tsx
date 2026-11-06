@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { cn } from '@sim/emcn'
-import { useChatFontClass } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import { useChatChrome } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import { PageContext } from '@/app/workspace/[workspaceId]/home/components/message-content/components/page-context'
 import { ResourceMention } from '@/app/workspace/[workspaceId]/home/components/message-content/components/resource-mention'
@@ -54,7 +54,7 @@ export function UserMessageContent({
   compact = false,
 }: UserMessageContentProps) {
   const trimmed = content.trim()
-  const fontClassName = useChatFontClass()
+  const { fontClassName } = useChatChrome()
   const classes = cn(fontClassName, compact ? COMPACT_CLASSES : USER_MESSAGE_CLASSES, className)
 
   const ranges = useMemo(() => computeMentionRanges(content, contexts ?? []), [content, contexts])

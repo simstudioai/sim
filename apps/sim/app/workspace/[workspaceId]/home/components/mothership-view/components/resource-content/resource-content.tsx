@@ -1,16 +1,6 @@
 'use client'
 
-import {
-  type ComponentType,
-  lazy,
-  memo,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   OverflowText,
@@ -51,10 +41,8 @@ import {
   type PreviewMode,
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
-import {
-  type ShareDialogProps,
-  ShareModal,
-} from '@/app/workspace/[workspaceId]/files/components/share-modal'
+import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
+import { useChatChrome } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
@@ -431,14 +419,12 @@ interface ResourceActionsProps {
   workspaceId: string
   resource: MothershipResource
   downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
-  ShareDialogComponent?: ComponentType<ShareDialogProps>
 }
 
 export function ResourceActions({
   workspaceId,
   resource,
   downloadSourceRef,
-  ShareDialogComponent,
 }: ResourceActionsProps) {
   switch (resource.type) {
     case 'workflow':
@@ -451,7 +437,6 @@ export function ResourceActions({
           fileId={resource.id}
           filePath={resource.path}
           downloadSourceRef={downloadSourceRef}
-          ShareDialogComponent={ShareDialogComponent}
         />
       )
     case 'knowledgebase':
@@ -761,7 +746,6 @@ interface EmbeddedFileActionsProps {
   fileId: string
   filePath?: string
   downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
-  ShareDialogComponent?: ComponentType<ShareDialogProps>
 }
 
 function EmbeddedFileActions({
@@ -769,13 +753,13 @@ function EmbeddedFileActions({
   fileId,
   filePath,
   downloadSourceRef,
-  ShareDialogComponent,
 }: EmbeddedFileActionsProps) {
   const router = useRouter()
   const { canEdit } = useUserPermissionsContext()
   const [isShareOpen, setIsShareOpen] = useState(false)
   const { file } = useEmbeddedWorkspaceFile(workspaceId, fileId, filePath)
   const isUpload = file?.vfsNamespace === 'uploads'
+  const { ShareDialogComponent } = useChatChrome()
   const ShareDialog = ShareDialogComponent ?? ShareModal
 
   const handleDownload = async () => {

@@ -13,7 +13,7 @@ import {
   useScrollEdges,
 } from '@sim/emcn'
 import { Globe } from '@sim/emcn/icons'
-import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import { useChatChrome } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ResourceMention } from '@/app/workspace/[workspaceId]/home/components/message-content/components/resource-mention'
 
 export interface PageContextDialogProps {
@@ -31,7 +31,7 @@ interface PageContextProps {
 }
 
 export function PageContext({ snapshot, onRemove, label }: PageContextProps) {
-  const { PageContextDialogComponent: PageContextDialog } = useChatSurface()
+  const { PageContextDialogComponent: PageContextDialog } = useChatChrome()
   const [open, setOpen] = useState(false)
   const [preview, setPreview] = useState<HTMLPreElement | null>(null)
   const edges = useScrollEdges(preview)

@@ -1,10 +1,10 @@
 'use client'
 
-import { type ComponentType, lazy, type ReactNode, Suspense, useCallback } from 'react'
+import { lazy, type ReactNode, Suspense, useCallback } from 'react'
 import { cn } from '@sim/emcn'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
-import type { ShareDialogProps } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import { ChatPanelLayout } from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
+import { useChatChrome } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { MothershipResourcesProvider } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { useBrowserTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-browser-tab-resources'
 import type { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
@@ -28,10 +28,6 @@ interface ChatResourcePanelProps {
   /** Leaves out the panel toggle while there is no resource to show and the panel is closed. */
   hideToggleUntilResource?: boolean
   onSummarize?: (message: string, filters: WorkspaceSearchFilters) => void
-  panelClassName?: string
-  tabsClassName?: string
-  sourcesClassName?: string
-  ShareDialogComponent?: ComponentType<ShareDialogProps>
 }
 
 /** Shared resizable resource chrome for workspace and organization chat. */
@@ -45,11 +41,8 @@ export function ChatResourcePanel({
   header,
   hideToggleUntilResource = false,
   onSummarize,
-  panelClassName,
-  tabsClassName,
-  sourcesClassName,
-  ShareDialogComponent,
 }: ChatResourcePanelProps) {
+  const { panelClassName } = useChatChrome()
   useBrowserTabResources(panel.desktopTabResourceOptions)
   useTerminalTabResources(panel.desktopTabResourceOptions)
   const {
@@ -121,9 +114,6 @@ export function ChatResourcePanel({
               onSummarize={summarize}
               onUserInteraction={handleResourceInteraction}
               className={cn(skipResourceTransition && 'transition-none!', panelClassName)}
-              tabsClassName={tabsClassName}
-              sourcesClassName={sourcesClassName}
-              ShareDialogComponent={ShareDialogComponent}
             />
           </Suspense>
         </MothershipResourcesProvider>
