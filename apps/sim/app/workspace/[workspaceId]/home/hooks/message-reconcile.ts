@@ -248,7 +248,10 @@ export function findStreamOwnerIndex(messages: PersistedMessage[], streamId: str
 }
 
 /** The turn's response after its owner, past any steering the user sent into that turn. */
-export function findAssistantAfterOwner(messages: PersistedMessage[], ownerIndex: number): number {
+export function findAssistantAfterOwner(
+  messages: ReadonlyArray<Pick<PersistedMessage, 'role' | 'steering'>>,
+  ownerIndex: number
+): number {
   for (let index = ownerIndex + 1; index < messages.length; index++) {
     const message = messages[index]
     if (message.role === 'user' && !message.steering) return -1

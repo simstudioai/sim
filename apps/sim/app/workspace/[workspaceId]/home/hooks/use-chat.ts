@@ -196,6 +196,7 @@ import type {
 import {
   buildAssistantSnapshotMessage,
   buildChatHistoryHydrationKey,
+  findAssistantAfterOwner,
   getReplayCompletedWorkflowToolCallIds,
   hasTerminalPersistedAssistantForStream,
   markMessageStopped,
@@ -1438,15 +1439,16 @@ export function useChat(
         ownerIndex = assistantIndex < 0 ? source.length : assistantIndex
         source.splice(ownerIndex, 0, pendingTurn.optimisticUserMessage)
       }
-      const assistant = source[ownerIndex + 1]
+      const assistantIndex = findAssistantAfterOwner(source, ownerIndex)
+      const assistant = assistantIndex < 0 ? undefined : source[assistantIndex]
       const liveAssistant = {
         ...pendingTurn.optimisticAssistantMessage,
         content: liveContent,
         contentBlocks: liveBlocks,
       }
       if (assistant?.id === pendingTurn.assistantMessageId) {
-        source[ownerIndex + 1] = { ...assistant, ...liveAssistant }
-      } else if (assistant?.role !== 'assistant') {
+        source[assistantIndex] = { ...assistant, ...liveAssistant }
+      } else if (!assistant) {
         source.splice(ownerIndex + 1, 0, liveAssistant)
       }
     }

@@ -4560,6 +4560,44 @@ describe('useChat remount send recovery', () => {
       }
     }, 30_000)
 
+    /** The server saved the turn's answer, after the steering row, before this surface saw it end. */
+    it('shows one answer when a refetch saves it after a steering row mid-turn', async () => {
+      const { view, turn } = await startTurn()
+      const at = '2026-11-05T00:00:00.000Z'
+      const saved: MothershipChatHistory = {
+        ...history,
+        messages: [
+          { id: turn.firstStreamId(), role: 'user', content: 'Count to fifty', timestamp: at },
+          {
+            id: 'steering-row',
+            role: 'user',
+            content: 'Stop at two',
+            timestamp: at,
+            steering: { streamId: turn.firstStreamId() },
+          },
+          {
+            id: 'saved-answer',
+            streamId: turn.firstStreamId(),
+            role: 'assistant',
+            content: '1 2.',
+            timestamp: at,
+          },
+        ],
+      }
+      await act(async () => {
+        queryClient.setQueryData(mothershipChatKeys.detail(chatId), saved)
+        await settle()
+      })
+
+      expect(view.getResult().isSending).toBe(true)
+      expect(
+        view
+          .getResult()
+          .messages.filter((message) => message.role === 'assistant')
+          .map((message) => message.id)
+      ).toEqual(['saved-answer'])
+    })
+
     const SUMMARY_SCOPE = { startDate: '2026-11-01T00:00:00.000Z' }
 
     it('holds a message with a search scope for its own turn, keeping the scope', async () => {
