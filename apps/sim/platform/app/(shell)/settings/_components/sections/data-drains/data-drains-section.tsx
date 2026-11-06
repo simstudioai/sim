@@ -1,6 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
+import { useDataDrains } from '@/ee/data-drains/hooks/data-drains'
+import { CADENCE_LABELS, DESTINATION_LABELS, SOURCE_LABELS } from '@/ee/data-drains/labels'
 import {
   SectionStack,
   SectionToolbar,
@@ -18,14 +21,7 @@ import {
   SectionSearch,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  CADENCE_LABELS,
-  DESTINATION_LABELS,
-  SOURCE_LABELS,
-  useDataDrainParam,
-  useDataDrains,
-  useSettingsSearch,
-} from '@/platform/lib/data/data-drains'
+import { useDataDrainParam } from '@/platform/lib/data/data-drains/params'
 import { formatTimestamp } from '@/platform/lib/time'
 
 export default function DataDrainsSection({ organization }: SettingsSectionProps) {

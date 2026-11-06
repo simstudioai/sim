@@ -1,6 +1,22 @@
 'use client'
 
 import { useState } from 'react'
+import { customPatternError, MAX_CUSTOM_PII_PATTERNS } from '@/lib/guardrails/custom-patterns'
+import {
+  getEntityGroupsForLanguage,
+  PII_LANGUAGES,
+  PII_STAGE_META,
+  type PIILanguage,
+  type PiiStageKey,
+  type PiiStagePolicy,
+} from '@/lib/guardrails/pii-entities'
+import {
+  type PolicyDraft,
+  pruneEntitiesForLanguage,
+  retentionSelectOptions,
+  stageHasContent,
+  updateStagePolicy,
+} from '@/ee/data-retention/lib/policy-draft'
 import {
   ActionRow,
   DetailHeader,
@@ -26,21 +42,6 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  customPatternError,
-  getEntityGroupsForLanguage,
-  MAX_CUSTOM_PII_PATTERNS,
-  PII_LANGUAGES,
-  PII_STAGE_META,
-  type PIILanguage,
-  type PiiStageKey,
-  type PiiStagePolicy,
-  type PolicyDraft,
-  pruneEntitiesForLanguage,
-  retentionSelectOptions,
-  stageHasContent,
-  updateStagePolicy,
-} from '@/platform/lib/data/data-retention'
 import { plural } from '@/platform/lib/plural'
 
 function CustomPatternsEditor({

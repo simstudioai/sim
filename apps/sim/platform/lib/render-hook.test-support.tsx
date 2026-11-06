@@ -18,6 +18,8 @@ interface RenderHookOptions {
   search?: string
   /** Rendered beside the probe, inside the same providers. */
   children?: ReactNode
+  /** A client already holding what the server seeded. */
+  queryClient?: QueryClient
 }
 
 const mounted = new Set<() => Promise<void>>()
@@ -30,10 +32,13 @@ export async function unmountDataHooks() {
 /** Test support: mounts a hook under the query client and URL adapter the app's data hooks read. */
 export async function renderDataHook<T>(
   useHook: () => T,
-  { search = '', children }: RenderHookOptions = {}
+  {
+    search = '',
+    children,
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  }: RenderHookOptions = {}
 ): Promise<RenderedHook<T>> {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)

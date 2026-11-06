@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -130,4 +130,106 @@ describe('package boundary command', () => {
       rmSync(fixture, { recursive: true, force: true })
     }
   }, 30_000)
+
+  describe('organization surface seam', () => {
+    const LIB_FILE = 'apps/sim/platform/lib/data/widget.ts'
+    const VIEW_FILE = 'apps/sim/platform/app/(shell)/widget/widget.tsx'
+
+    function withFixture(
+      run: (fixture: string, audit: (...args: string[]) => ReturnType<typeof spawnSync>) => void
+    ) {
+      const fixture = mkdtempSync(path.join(ROOT, 'node_modules/.boundary-audit-'))
+      try {
+        mkdirSync(path.join(fixture, 'scripts'))
+        mkdirSync(path.join(fixture, 'packages'))
+        mkdirSync(path.join(fixture, 'apps/sim/platform/lib/data'), { recursive: true })
+        mkdirSync(path.join(fixture, 'apps/sim/platform/app/(shell)/widget'), { recursive: true })
+        copyFileSync(
+          path.join(ROOT, 'scripts/check-monorepo-boundaries.ts'),
+          path.join(fixture, 'scripts/check-monorepo-boundaries.ts')
+        )
+        run(fixture, (...args) =>
+          spawnSync('bun', [path.join(fixture, 'scripts/check-monorepo-boundaries.ts'), ...args], {
+            cwd: fixture,
+            encoding: 'utf8',
+          })
+        )
+      } finally {
+        rmSync(fixture, { recursive: true, force: true })
+      }
+    }
+
+    it('keeps platform/lib from importing a view, even for a type', () => {
+      withFixture((fixture, audit) => {
+        const cases = [
+          ["import { Row } from '@/platform/app/(shell)/row'", false],
+          ["import type { Row } from '@/platform/app/(shell)/model'", false],
+          ["export { Row } from '../../app/(shell)/row'", false],
+          ["const row = import('@/platform/app/(shell)/row')", false],
+          ["import { value } from '@/platform/lib/data/value'", true],
+        ] as const
+        for (const [source, allowed] of cases) {
+          writeFileSync(path.join(fixture, LIB_FILE), `${source}\n`)
+          const result = audit()
+          expect.soft(result.status, `${source}\n${result.stderr}`).toBe(allowed ? 0 : 1)
+          if (!allowed) expect.soft(result.stderr).toContain(`${LIB_FILE}:1`)
+        }
+      })
+    })
+
+    it('keeps a view from reading data around platform/lib/data', () => {
+      withFixture((fixture, audit) => {
+        const cases = [
+          ["import { useWidgets } from '@/hooks/queries/widgets'", false],
+          ["import { useWidgets } from '@/ee/widgets/hooks/widgets'", false],
+          ["export { useWidgets } from '@/ee/widgets/hooks/widgets'", false],
+          ["import { useDeep } from '@/ee/widgets/parts/hooks/deep'", false],
+          ["import { useFlat } from '@/ee/hooks'", false],
+          ["const widgets = import('@/hooks/queries/widgets')", false],
+          ["import { useWidgets } from '../../../../hooks/queries/widgets'", false],
+          ["import type { Widget } from '@/hooks/queries/widgets'", true],
+          ["import { useWidgets } from '@/platform/lib/data/widgets'", true],
+          ["import { useDebounce } from '@/hooks/use-debounce'", true],
+          ["import { WIDGET_LABELS } from '@/ee/widgets/labels'", true],
+          ["import { widgetSummary } from '@/ee/widgets/lib/summary'", true],
+          ["import { WIDGET_LIMIT } from '@/ee/widgets/constants'", true],
+          ["import { hooksDoc } from '@/ee/hooks-docs/lib'", true],
+        ] as const
+        for (const [source, allowed] of cases) {
+          writeFileSync(path.join(fixture, VIEW_FILE), `${source}\n`)
+          const result = audit()
+          expect.soft(result.status, `${source}\n${result.stderr}`).toBe(allowed ? 0 : 1)
+          if (!allowed) expect.soft(result.stderr).toContain(`${VIEW_FILE}:1`)
+        }
+      })
+    })
+
+    it('ratchets view edges: a new one fails, and the baseline only shrinks', () => {
+      withFixture((fixture, audit) => {
+        const baselinePath = path.join(fixture, 'scripts/check-monorepo-boundaries.baseline.json')
+        const one = "import { useWidgets } from '@/hooks/queries/widgets'\n"
+        const two = `${one}import { useGears } from '@/ee/gears/hooks/gears'\n`
+
+        writeFileSync(path.join(fixture, VIEW_FILE), two)
+        expect(audit('--update').status).toBe(1)
+        expect(audit('--update', '--init').status).toBe(0)
+        expect(JSON.parse(readFileSync(baselinePath, 'utf8'))).toEqual({ [VIEW_FILE]: 2 })
+        expect(audit().status).toBe(0)
+
+        writeFileSync(
+          path.join(fixture, VIEW_FILE),
+          `${two}import { useCogs } from '@/ee/cogs/hooks/cogs'\n`
+        )
+        expect(audit().status).toBe(1)
+        expect(audit('--update').status).toBe(1)
+        expect(JSON.parse(readFileSync(baselinePath, 'utf8'))).toEqual({ [VIEW_FILE]: 2 })
+
+        writeFileSync(path.join(fixture, VIEW_FILE), one)
+        expect(audit().status).toBe(1)
+        expect(audit('--update').status).toBe(0)
+        expect(JSON.parse(readFileSync(baselinePath, 'utf8'))).toEqual({ [VIEW_FILE]: 1 })
+        expect(audit().status).toBe(0)
+      })
+    })
+  })
 })

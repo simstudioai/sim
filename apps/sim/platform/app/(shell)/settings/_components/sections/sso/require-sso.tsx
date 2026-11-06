@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useOrganizationSsoPolicy, useUpdateOrganizationSsoPolicy } from '@/ee/sso/hooks/sso-policy'
+import { describeSsoPolicy, SSO_POLICY_OPTIONS } from '@/ee/sso/lib/provider-form'
 import {
   FieldStack,
   Muted,
@@ -14,12 +16,6 @@ import {
   SegmentedControl,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  describeSsoPolicy,
-  SSO_POLICY_OPTIONS,
-  useOrganizationSsoPolicy,
-  useUpdateOrganizationSsoPolicy,
-} from '@/platform/lib/data/sso'
 
 /**
  * Whether members must sign in through the organization's identity provider. Read when a session is

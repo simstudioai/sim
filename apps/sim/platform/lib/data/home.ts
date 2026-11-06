@@ -261,7 +261,8 @@ function useHomeActivity(
   return { state: withoutResult(summary), ...range }
 }
 
-function useHomeRecents(organization: OrganizationSurfaceContext, userId: string | undefined) {
+function useHomeRecents(organization: OrganizationSurfaceContext) {
+  const { userId } = organization.viewer
   const organizationId = organization.organization.id
   const allowed = organization.searchAccess.memberScoped
   const history = useSearchHistory(allowed ? organizationId : undefined, userId)
@@ -380,17 +381,11 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
   const organization = useOrganizationContext()
   const { data: session } = useSession()
   const organizationId = organization.organization.id
-  const userId = session?.user?.id
-  const viewer = userId ? `${userId}:${organizationId}` : null
-  const hiddenWidgets = useOrganizationHomeStore((state) =>
-    viewer ? (state.hiddenWidgets[viewer] ?? NO_WIDGETS) : NO_WIDGETS
+  const { userId } = organization.viewer
+  const viewer = `${userId}:${organizationId}`
+  const hiddenWidgets = useOrganizationHomeStore(
+    (state) => state.hiddenWidgets[viewer] ?? NO_WIDGETS
   )
-  /**
-   * What a viewer hid is keyed by who they are, and the organization layout seeds no session, so a
-   * first load does not know yet. Until it does every widget paints as loading and reads nothing,
-   * since any of them might be one this viewer turned off.
-   */
-  const readHeld = (widget: OrganizationHomeWidget) => !viewer || hiddenWidgets.includes(widget)
   const setWidgetHidden = useOrganizationHomeStore((state) => state.setWidgetHidden)
   const nowMs = useMinuteClock()
   const [timeZone] = useState(getBrowserTimezone)
@@ -406,7 +401,7 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
     organizationId,
     connectionFor(HOME_EMAIL_SOURCES),
     integrations.retry,
-    readHeld('Email')
+    hiddenWidgets.includes('Email')
   )
   const calendar = useHomeCalendar(
     organizationId,
@@ -415,11 +410,16 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
     clock,
     selectedDay,
     timeZone,
-    readHeld('Calendar')
+    hiddenWidgets.includes('Calendar')
   )
-  const activity = useHomeActivity(organization, today, timeZone, readHeld('Activity'))
-  const workspaces = useHomeWorkspaces(organizationId, readHeld('Workspaces'))
-  const recents = useHomeRecents(organization, userId)
+  const activity = useHomeActivity(
+    organization,
+    today,
+    timeZone,
+    hiddenWidgets.includes('Activity')
+  )
+  const workspaces = useHomeWorkspaces(organizationId, hiddenWidgets.includes('Workspaces'))
+  const recents = useHomeRecents(organization)
   const attention = useHomeAttention(
     organization,
     integrations,
@@ -464,9 +464,7 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
       retryWorkspaces: workspaces.retry,
       retryRecents: recents.retry,
       removeRecent: recents.remove,
-      setWidgetHidden: (widget, hidden) => {
-        if (viewer) setWidgetHidden(viewer, widget, hidden)
-      },
+      setWidgetHidden: (widget, hidden) => setWidgetHidden(viewer, widget, hidden),
     },
   }
 }

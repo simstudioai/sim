@@ -11,9 +11,10 @@ interface SearchProps {
 }
 
 vi.mock('@sim/emcn', () => emcnMock)
-vi.mock('@/platform/lib/data/sso', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/platform/lib/data/sso')>()),
+vi.mock('@/ee/sso/hooks/sso', () => ({
   useConfigureSSO: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}))
+vi.mock('@/platform/lib/data/sso/params', () => ({
   useSsoOrigin: () => 'http://localhost',
 }))
 vi.mock('@/platform/design-system/components', async (importOriginal) => ({

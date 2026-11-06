@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { maskedClientSecret } from '@/ee/sso/lib/provider-form'
 import { ActionRow } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { Button, SecretField, TextField } from '@/platform/design-system/components'
-import { maskedClientSecret } from '@/platform/lib/data/sso'
 
 interface ClientSecretFieldProps {
   /** A secret is saved, so the field opens as a masked fact rather than an input. */

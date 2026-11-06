@@ -13,8 +13,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/emcn', () => emcnMock)
-vi.mock('@/platform/lib/data/data-retention', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/platform/lib/data/data-retention')>()),
+vi.mock('@/ee/data-retention/hooks/data-retention', () => ({
   useOrganizationRetention: () => ({
     data: mocks.retention.current,
     isLoading: false,
@@ -22,6 +21,8 @@ vi.mock('@/platform/lib/data/data-retention', async (importOriginal) => ({
     refetch: mocks.refetch,
   }),
   useUpdateOrganizationRetention: () => ({ mutateAsync: mocks.mutateAsync, isPending: false }),
+}))
+vi.mock('@/hooks/queries/workspace', () => ({
   useWorkspacesQuery: () => ({
     data: [
       { id: 'ws-1', name: 'One', organizationId: 'org-1' },

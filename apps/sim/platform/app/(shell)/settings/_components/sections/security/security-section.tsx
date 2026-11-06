@@ -3,6 +3,14 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
+import {
+  useOrganizationSessionPolicy,
+  useRevokeOrganizationSessions,
+  useUpdateOrganizationSessionPolicy,
+} from '@/ee/session-policy/hooks/session-policy'
+import { parseSessionPolicyHours } from '@/ee/session-policy/lib/policy-form'
+import { useOrganizationNetwork } from '@/hooks/queries/organization-network'
 import {
   DraftConflictNotice,
   FieldStack,
@@ -26,14 +34,6 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  MIN_IDLE_TIMEOUT_HOURS,
-  parseSessionPolicyHours,
-  useOrganizationNetwork,
-  useOrganizationSessionPolicy,
-  useRevokeOrganizationSessions,
-  useUpdateOrganizationSessionPolicy,
-} from '@/platform/lib/data/security'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { plural } from '@/platform/lib/plural'
 
