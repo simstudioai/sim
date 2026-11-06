@@ -35,6 +35,7 @@
   padding-inline: var(--spacing-8);
   background: transparent;
   color: inherit;
+  text-overflow: ellipsis;
 }
 
 .input::placeholder {
