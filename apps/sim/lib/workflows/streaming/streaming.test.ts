@@ -1444,7 +1444,7 @@ describe('createStreamingResponse agent-events-v1', () => {
       )
     )
     expect(
-      workflowStreamingLogger.error.mock.calls.some(([message]) => message === 'Stream error')
+      workflowStreamingLogger.error.mock.calls.some((call: unknown[]) => call[0] === 'Stream error')
     ).toBe(false)
   })
 

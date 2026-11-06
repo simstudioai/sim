@@ -137,6 +137,29 @@ describe('Logger', () => {
       expect(lines()[0]).toMatchObject({ requestId: 'task-run' })
     })
 
+    test('exports scalar fields passed with a line as OpenTelemetry attributes', () => {
+      const emit = vi.fn()
+      const getLoggerSpy = vi
+        .spyOn(logs, 'getLogger')
+        .mockReturnValue({ emit, enabled: () => true })
+      try {
+        const logger = jsonLogger()
+        logger.info('Outside a request', { requestId: 'task-run', documentId: 'doc-1' })
+        runWithRequestContext({ requestId: 'req-context' }, () => {
+          logger.info('Inside a request', { requestId: 'replay-key', attempt: 2, nested: { a: 1 } })
+        })
+        const attributes = emit.mock.calls.map(
+          ([record]) => (record as { attributes: Record<string, string> }).attributes
+        )
+        expect(attributes[0]).toMatchObject({ requestId: 'task-run', documentId: 'doc-1' })
+        expect(attributes[1]).toMatchObject({ requestId: 'req-context', attempt: '2' })
+        expect(attributes[1]).not.toHaveProperty('nested')
+        expect(attributes[1]['log.args']).toContain('"nested"')
+      } finally {
+        getLoggerSpy.mockRestore()
+      }
+    })
+
     test('never lets an absent optional field erase one the line carries', () => {
       const logger = jsonLogger().withMetadata({ workflowId: 'workflow-1' })
       runWithRequestContext({ requestId: 'req-context' }, () => {

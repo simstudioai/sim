@@ -411,7 +411,7 @@ export const {service}PollingHandler: PollingProviderHandler = {
       await markWebhookSuccess(webhookId, logger)
       return 'success'
     } catch (error) {
-      logger.error(`Error processing {service} webhook ${webhookId}:`, error, { requestId })
+      logger.error('Error processing {service} webhook:', error)
       await markWebhookFailed(webhookId, logger)
       return 'failure'
     }

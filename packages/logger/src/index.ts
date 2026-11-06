@@ -504,7 +504,7 @@ export class Logger {
     const effectiveMetadata = reqCtx
       ? { ...requestContextMetadata(reqCtx), ...this.metadata, ...owned }
       : this.metadata
-    emitOtelLogRecord(level, this.module, message, effectiveMetadata, args)
+    emitOtelLogRecord(level, this.module, message, effectiveMetadata, args, owned)
     const metadataEntries = Object.entries(filterUndefined(effectiveMetadata))
     const metadataStr =
       metadataEntries.length > 0
@@ -638,6 +638,12 @@ const OTEL_LOG_SEVERITY: Record<LogLevel, { number: SeverityNumber; text: string
 
 const OTEL_LOG_ARG_MAX_CHARS = 2000
 
+const isOtelScalar = (value: unknown): value is string | number | boolean | bigint =>
+  typeof value === 'string' ||
+  typeof value === 'number' ||
+  typeof value === 'boolean' ||
+  typeof value === 'bigint'
+
 /**
  * Fans every accepted log line out through the OTel Logs API. Until an
  * application installs a global LoggerProvider (apps/sim does in
@@ -652,7 +658,8 @@ function emitOtelLogRecord(
   module: string,
   message: string,
   metadata: Record<string, unknown>,
-  args: unknown[]
+  args: unknown[],
+  owned: Record<string, unknown>
 ): void {
   try {
     const severity = OTEL_LOG_SEVERITY[level]
@@ -660,6 +667,19 @@ function emitOtelLogRecord(
     for (const [key, value] of Object.entries(filterUndefined(metadata))) {
       attributes[key] = String(value)
     }
+    // Scalar fields passed with the line become attributes, as they are top-level keys in the JSON
+    // line, so `{ documentId }` filters the same way in both; nested values stay in `log.args`.
+    for (const arg of args) {
+      if (!isRecordLike(arg) || arg instanceof Error) continue
+      try {
+        for (const [key, value] of Object.entries(arg)) {
+          if (isOtelScalar(value)) attributes[key] = String(value)
+        }
+      } catch {
+        // A throwing getter loses only its own argument's fields; `log.args` still records it.
+      }
+    }
+    for (const [key, value] of Object.entries(owned)) attributes[key] = String(value)
     const error = primaryError(args)
     if (error) {
       const logged = toLoggedError(error)
