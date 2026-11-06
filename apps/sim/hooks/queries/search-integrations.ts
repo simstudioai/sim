@@ -13,7 +13,7 @@ import {
   searchIntegrationKeys,
 } from '@/hooks/queries/utils/search-integration-keys'
 
-export function searchIntegrationsQueryOptions(organizationId: string) {
+function searchIntegrationsQueryOptions(organizationId: string) {
   return queryOptions({
     queryKey: searchIntegrationKeys.list(organizationId),
     queryFn: async ({ signal }) =>

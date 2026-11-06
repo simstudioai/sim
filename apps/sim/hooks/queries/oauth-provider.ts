@@ -113,17 +113,3 @@ export function useOAuthSwitchAccount() {
     },
   })
 }
-
-/** Whether an app the viewer authorized can read Search, paging until one is found or none is left. */
-export function useHasSearchAuthorization(enabled: boolean): boolean {
-  const apps = useAuthorizedApps('', { enabled })
-  const authorized =
-    apps.data?.pages.some((page) =>
-      page.apps.some((app) => oauthScopeSatisfies(app.scopes, OAUTH_SEARCH_READ_SCOPE))
-    ) ?? false
-  const { hasNextPage, isFetching, isError, fetchNextPage } = apps
-  useEffect(() => {
-    if (enabled && !authorized && hasNextPage && !isFetching && !isError) void fetchNextPage()
-  }, [enabled, authorized, hasNextPage, isFetching, isError, fetchNextPage])
-  return authorized
-}

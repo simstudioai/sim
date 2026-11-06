@@ -69,7 +69,7 @@ interface WorkspaceChromeProps {
    * The rail this chrome hosts. Rendered once inside the shell and never re-mounted
    * across collapse, peek, or fullscreen; it reads collapse and peek state through
    * {@link useSidebarChrome}. The workspace passes its own `Sidebar`; the organization
-   * surface passes the design-system `Sidebar`.
+   * surface passes `OrganizationSidebar`.
    */
   sidebar: ReactNode
   /** Cookie-derived collapse state from the server layout; seeds the sidebar's first render. */

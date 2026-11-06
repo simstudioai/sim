@@ -1,25 +1,18 @@
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { slackSearchOnboardingInputSchema } from '@/lib/api/contracts/knowledge/slack'
+import { getSession } from '@/lib/auth'
 import {
   searchConnectionPath,
   searchConnectionTargetSchema,
 } from '@/lib/knowledge/search/connection-target'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
 import { slackSearchIntegrationsPath } from '@/lib/slack-search/onboarding'
-import { requireIntegrationsViewer } from '@/app/o/[organizationId]/integrations/access'
-import { HydratedIntegrations } from '@/app/o/[organizationId]/integrations/hydrated-integrations'
-import {
-  loadIntegrationConnectionParams,
-  loadIntegrationView,
-  serializeIntegrationView,
-} from '@/app/o/[organizationId]/integrations/search-params'
-import {
-  GENERIC_SECRETS_SEGMENT,
-  integrationPath,
-  integrationSegment,
-} from '@/platform/lib/integrations/model'
+import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
+import { OrganizationIntegrations } from '@/app/o/[organizationId]/integrations/integrations'
+import { loadIntegrationConnectionParams } from '@/app/o/[organizationId]/integrations/search-params'
 
 export const metadata: Metadata = {
   title: 'Integrations',
@@ -37,10 +30,6 @@ interface OrganizationIntegrationsPageProps {
     connectorType?: string | string[]
     connectorId?: string | string[]
     credentialId?: string | string[]
-    integration?: string | string[]
-    account?: string | string[]
-    tools?: string | string[]
-    q?: string | string[]
   }>
 }
 
@@ -78,34 +67,26 @@ export default async function OrganizationIntegrationsPage({
     slack === undefined ? undefined : slackSearchOnboardingInputSchema.safeParse({ token: slack })
   if (context && !context.success) notFound()
   const slackToken = context?.data?.token
-  const viewer = await requireIntegrationsViewer(
-    organizationId,
-    connectionTarget
-      ? searchConnectionPath(organizationId, connectionTarget)
-      : slackToken
-        ? slackSearchIntegrationsPath(organizationId, slackToken)
-        : organizationRoutes(organizationId).integrations
-  )
-  const { userId } = viewer.principal
-  const view = await loadIntegrationView(query)
-  if (view.integration) {
-    const segment =
-      view.integration === 'secrets'
-        ? GENERIC_SECRETS_SEGMENT
-        : integrationSegment(view.integration)
+  const session = await getSession()
+  if (!session?.user)
     redirect(
-      serializeIntegrationView(integrationPath(organizationId, segment), {
-        q: view.q,
-        account: view.account,
-        tools: view.tools,
+      buildAuthCrossLink('/login', {
+        callbackUrl: connectionTarget
+          ? searchConnectionPath(organizationId, connectionTarget)
+          : slackToken
+            ? slackSearchIntegrationsPath(organizationId, slackToken)
+            : organizationRoutes(organizationId).integrations,
+        isInviteFlow: false,
       })
     )
-  }
+  const organizationContext = await getOrganizationSurfaceContext(organizationId, session.user.id)
+  if (!organizationContext?.searchAccess.memberScoped) notFound()
   return (
-    <HydratedIntegrations
-      {...viewer}
-      connectionRequest={connectionTarget ? { target: connectionTarget, userId } : undefined}
-      slackOnboarding={slackToken ? { token: slackToken, userId } : undefined}
+    <OrganizationIntegrations
+      connectionRequest={
+        connectionTarget ? { target: connectionTarget, userId: session.user.id } : undefined
+      }
+      slackOnboarding={slackToken ? { token: slackToken, userId: session.user.id } : undefined}
     />
   )
 }

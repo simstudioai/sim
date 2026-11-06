@@ -58,7 +58,7 @@ export interface OrganizationSurfaceContext extends OrganizationChatAccess {
   deployment: DeploymentShape
 }
 
-export function canConnectSearchIntegrations(config: PermissionGroupConfig | null): boolean {
+function canConnectSearchIntegrations(config: PermissionGroupConfig | null): boolean {
   return (
     !capabilityDeniedBy('integrations.manage', config) &&
     !capabilityDeniedBy('knowledge.use', config)

@@ -2,10 +2,8 @@ import type { Metadata } from 'next'
 import { createLoader, type SearchParams } from 'nuqs/server'
 import { OrganizationSecretsPage } from '@/components/secrets/organization-secrets-page'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import {
-  integrationSearchParsers,
-  serializeIntegrationView,
-} from '@/app/o/[organizationId]/integrations/search-params'
+import { organizationPageParsers } from '@/app/o/[organizationId]/components/organization-page/search-params'
+import { serializeIntegrationView } from '@/app/o/[organizationId]/integrations/search-params'
 
 export const metadata: Metadata = { title: 'Generic Secrets' }
 
@@ -14,7 +12,7 @@ interface MemberSecretsPageProps {
   searchParams: Promise<SearchParams>
 }
 
-const loadSearch = createLoader(integrationSearchParsers)
+const loadSearch = createLoader(organizationPageParsers)
 
 export default async function Page({ params, searchParams }: MemberSecretsPageProps) {
   const { organizationId } = await params

@@ -165,7 +165,7 @@ export function useDisconnectPersonalOrganizationAccount() {
   })
 }
 
-export function organizationAccountsQueryOptions(organizationId?: string) {
+function organizationAccountsQueryOptions(organizationId?: string) {
   return queryOptions({
     queryKey: organizationAccountsKeys.detail(organizationId),
     staleTime: ORGANIZATION_ACCOUNTS_STALE_TIME,

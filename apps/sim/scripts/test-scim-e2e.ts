@@ -421,16 +421,18 @@ async function run() {
             waitUntil: 'domcontentloaded',
             timeout: 180_000,
           })
-          await page.getByRole('button', { name: /^Import( profiles)?$/ }).click()
-          const importDialog = page.getByRole('dialog', { name: 'Import profiles' })
-          await importDialog.getByRole('combobox', { name: 'Source' }).click()
-          await page.getByRole('option', { name: 'SCIM provisioning' }).click()
-          await importDialog.getByRole('button', { name: 'Preview import' }).click()
-          const modal = page.getByRole('dialog', { name: 'Review profile import' })
-          await expect(modal.getByText('To update', { exact: true })).toBeVisible()
+          await page.getByRole('button', { name: 'Import people', exact: true }).click()
+          const picker = page.getByRole('dialog', { name: 'Import people data' })
+          await picker.getByRole('button', { name: 'SCIM provisioning' }).click()
+          await page
+            .getByRole('dialog', { name: 'Import from SCIM provisioning' })
+            .getByRole('button', { name: 'Preview import' })
+            .click()
+          const modal = page.getByRole('dialog', { name: 'Review import' })
+          await expect(modal.getByText(/1 profile will be updated/)).toBeVisible()
           await mkdir(screenshotDir, { recursive: true })
           await page.screenshot({ path: join(screenshotDir, 'provisioned-import.png') })
-          await modal.getByRole('button', { name: 'Import 1 profile', exact: true }).click()
+          await modal.getByRole('button', { name: 'Import', exact: true }).click()
           await expect(modal).toHaveCount(0)
         } finally {
           await browser.close()
@@ -535,33 +537,30 @@ async function run() {
             .addCookies([
               { name: 'better-auth.session_token', value: primary.cookie, url: baseUrl.origin },
             ])
+          await page.goto(
+            new URL(`/o/${primary.orgId}/people?focus=${aliceMemberId}`, baseUrl).href
+          )
           const statusUrl = new URL(syncPath, baseUrl).href
           await page.route(statusUrl, (route) =>
             route.fulfill({ status: 503, json: { error: 'Unavailable' } })
           )
-          await page.goto(
-            new URL(`/o/${primary.orgId}/people?focus=${aliceMemberId}`, baseUrl).href
-          )
-          const openSync = page.getByRole('button', { name: 'Directory sync', exact: true })
-          await openSync.click()
-          await page.getByRole('heading', { name: 'Directory sync', level: 1 }).waitFor()
-          await page.getByRole('button', { name: 'Retry', exact: true }).waitFor()
+          await page.getByRole('button', { name: 'Directory sync', exact: true }).click()
+          const modal = page.getByRole('dialog', { name: 'Directory sync', exact: true })
+          await modal.getByRole('button', { name: 'Retry connection' }).waitFor()
           await page.unroute(statusUrl)
-          await expect(page.getByText('Sync failed', { exact: true })).toBeVisible({
+          await expect(modal.getByText('Sync failed', { exact: true })).toBeVisible({
             timeout: 60_000,
           })
-          await expect(page.getByText(/reporting loop/)).toBeVisible()
+          await expect(modal.getByText(/reporting loop/)).toBeVisible()
           await page.screenshot({ path: join(screenshotDir, 'sync-failure.png') })
-          await page.getByRole('button', { name: 'Retry sync' }).click()
-          await expect(page.getByText('Connected', { exact: true })).toBeVisible()
-          await expect(page.getByText('Last successful sync')).toBeVisible()
+          await modal.getByRole('button', { name: 'Retry sync' }).click()
+          await expect(modal.getByText('Connected', { exact: true })).toBeVisible()
+          await expect(modal.getByText('Last successful sync')).toBeVisible()
           await page.setViewportSize({ width: 390, height: 844 })
           await page.screenshot({ path: join(screenshotDir, 'sync-recovered-mobile.png') })
-          assert(
-            await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
-          )
+          const dialogBox = await modal.boundingBox()
+          assert(dialogBox && dialogBox.x >= 0 && dialogBox.x + dialogBox.width <= 391)
           assert.equal(record((await chart()).manager).email, bobEmail)
-          await page.getByRole('button', { name: 'Back to people' }).click()
           await expect(page.getByText('Principal Engineer', { exact: true })).toBeAttached()
           await patch(token, `/Users/${aliceId}`, [
             { op: 'replace', path: 'title', value: 'Staff Platform Engineer' },
@@ -570,20 +569,20 @@ async function run() {
           await expect(page.getByText('Staff Platform Engineer', { exact: true })).toBeAttached({
             timeout: 60_000,
           })
-          await openSync.click()
-          await page.getByRole('button', { name: 'Disconnect SCIM provisioning' }).click()
+          await modal.getByRole('button', { name: 'Disconnect', exact: true }).click()
           await page
             .getByRole('dialog', { name: 'Disconnect directory' })
             .getByRole('button', { name: 'Disconnect', exact: true })
             .click()
-          const connectScim = page.getByRole('button', { name: 'Connect SCIM provisioning' })
-          await expect(connectScim).toBeVisible()
-          await connectScim.click()
+          await expect(
+            modal.getByRole('button', { name: 'Connect SCIM provisioning' })
+          ).toBeVisible()
+          await modal.getByRole('button', { name: 'Connect SCIM provisioning' }).click()
           await page
             .getByRole('dialog', { name: 'Connect SCIM provisioning' })
             .getByRole('button', { name: 'Connect and sync' })
             .click()
-          await expect(page.getByText('Connected', { exact: true })).toBeVisible()
+          await expect(modal.getByText('Connected', { exact: true })).toBeVisible()
         } finally {
           await browser.close()
         }

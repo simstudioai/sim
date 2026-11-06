@@ -37,11 +37,6 @@
         "lib/execution/sandbox/bundles/*.{ts,cjs}",
         // Bundled by build:xlsx-worker and spawned as a worker thread by filename.
         "lib/file-parsers/xlsx-worker-entry.ts",
-        // The design system's public surface: a snapshot consumers pick from, kept whole so it stays
-        // identical to its source and rebases cleanly.
-        "platform/design-system/**/*.{ts,tsx}",
-        // CSS Modules reach this through `@reference`, which knip does not follow.
-        "platform/design-system/styles/theme.css",
         // Compile-time fixture compatibility assertion, included by tsconfig.
         "lib/table/fixture-contract.ts",
         // scripts/generate-docs.ts imports this through pathToFileURL.
@@ -83,9 +78,6 @@
         "app/(landing)/customers/components/customer-story-page/index.ts": ["files"]
       },
       "ignoreDependencies": [
-        // Holds the hoisted copy at the version zustand/traditional resolved to before @base-ui/react
-        // required ^1.7.0, which it now takes as a nested copy.
-        "use-sync-external-store",
         // docker/app.Dockerfile invokes this binary to rebuild isolated-vm.
         "node-gyp",
         // Imported inside the generated source string in sandbox/bundles/build.ts.

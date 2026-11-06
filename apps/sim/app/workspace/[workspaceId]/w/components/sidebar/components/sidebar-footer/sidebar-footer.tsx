@@ -2,6 +2,7 @@
 
 import type { ComponentType } from 'react'
 import { ANONYMOUS_USER_ID } from '@sim/auth/principal'
+import type { DesktopUpdateState } from '@sim/desktop-bridge'
 import {
   Chip,
   chipContentLabelClass,
@@ -22,6 +23,7 @@ import { useRouter } from 'next/navigation'
 import { SlackIcon } from '@/components/icons'
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { signOutAndRedirect } from '@/lib/auth/sign-out'
+import { getDesktopUpdates } from '@/lib/desktop'
 import { rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip'
@@ -30,13 +32,21 @@ import {
   SIDEBAR_RAIL_CHIP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { useUserProfile } from '@/hooks/queries/user-profile'
-import {
-  desktopUpdateActionLabel,
-  hasAvailableDesktopUpdate,
-  runDesktopUpdateAction,
-  useDesktopUpdateState,
-} from '@/hooks/use-desktop-update-state'
+import { useDesktopUpdateState } from '@/hooks/use-desktop-update-state'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
+
+function hasAvailableDesktopUpdate(state: DesktopUpdateState): boolean {
+  return state.status === 'available' || state.status === 'downloading' || state.status === 'ready'
+}
+
+function desktopUpdateActionLabel(state: DesktopUpdateState): string {
+  if (state.status === 'downloading') {
+    return state.percent === undefined
+      ? 'Downloading update…'
+      : `Downloading update ${state.percent}%`
+  }
+  return state.status === 'ready' ? 'Restart to update' : 'Update'
+}
 
 /** Compact primary update circle using the same footprint as the surrounding sidebar icons. */
 function DesktopUpdateIcon({ className }: { className?: string }) {
@@ -120,7 +130,14 @@ export function SidebarFooter({
   const updateAvailable = hasAvailableDesktopUpdate(updateState)
   const canSignOut = Boolean(profile && profile.id !== ANONYMOUS_USER_ID)
 
-  const handleUpdateSelect = () => runDesktopUpdateAction(updateState)
+  const handleUpdateSelect = () => {
+    const updates = getDesktopUpdates()
+    if (updateState.status === 'ready') {
+      updates?.install()
+    } else if (updateState.status === 'available') {
+      updates?.check()
+    }
+  }
 
   /**
    * Built from plain `img`/`div` rather than the emcn `Avatar`, whose Radix root

@@ -1,6 +1,0 @@
-[data-platform-ui] {
-  --panel-tab-width: 11.5rem;
-}
-[data-sim-desktop-title-bar] [data-platform-ui] {
-  --panel-tab-width: var(--container-208);
-}

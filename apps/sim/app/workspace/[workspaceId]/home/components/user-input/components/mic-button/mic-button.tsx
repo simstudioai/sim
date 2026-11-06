@@ -21,7 +21,7 @@ interface VoiceWaveformProps {
   isListening: boolean
 }
 
-export function VoiceWaveform({ audioLevels, isListening }: VoiceWaveformProps) {
+function VoiceWaveform({ audioLevels, isListening }: VoiceWaveformProps) {
   const prefersReducedMotion = usePrefersReducedMotion()
   const barRefs = useRef<Array<SVGLineElement | null>>([])
 

@@ -207,7 +207,7 @@ jobs:
     needs: [changes, e2e-build]
     if: needs.changes.outputs.http == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: ${{ matrix.group == 'org-redesign' && 45 || 20 }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.changes.outputs.http_matrix) }}
@@ -227,7 +227,7 @@ jobs:
           --health-retries 10
       # Desktop inbox, browser extension, and Project Files use Redis.
       redis:
-        image: ${{ (matrix.group == 'desktop-inbox' || matrix.group == 'assistant-actions' || matrix.group == 'organization-search' || matrix.group == 'org-redesign' || startsWith(matrix.group, 'browser-extension-') || matrix.group == 'project-files') && 'redis:8.2-alpine' || '' }}
+        image: ${{ (matrix.group == 'desktop-inbox' || matrix.group == 'assistant-actions' || matrix.group == 'organization-search' || startsWith(matrix.group, 'browser-extension-') || matrix.group == 'project-files') && 'redis:8.2-alpine' || '' }}
         ports:
           - 6379:6379
         options: >-
@@ -292,10 +292,6 @@ jobs:
       - name: Map the hosted SCIM fixture to loopback
         if: matrix.group == 'scim'
         run: printf '127.0.0.1 scim-e2e.sim.ai\n' | sudo tee -a /etc/hosts
-
-      - name: Map the hosted organization fixture to loopback
-        if: matrix.group == 'org-redesign'
-        run: printf '127.0.0.1 org-redesign.sim.ai\n' | sudo tee -a /etc/hosts
 
       # No step timeout: the job's bound covers a hang without cutting a slow but healthy suite
       # short of writing its report.

@@ -25,10 +25,6 @@
       "task": "ci:e2e-organization-search"
     },
     {
-      "group": "org-redesign",
-      "task": "ci:e2e-org-redesign"
-    },
-    {
       "group": "browser-extension-navigation",
       "task": "ci:e2e-browser-extension"
     },

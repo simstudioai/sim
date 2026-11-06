@@ -1,19 +1,27 @@
 'use client'
 
+import { useEffect, useMemo, useState } from 'react'
 import { Chip, ChipLink } from '@sim/emcn'
+import { useQueryStates } from 'nuqs'
 import { ActivityStatus } from '@/components/ui/activity-status'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { useSession } from '@/lib/auth/client'
-import type { ResourceScope } from '@/lib/core/resource-scope'
+import { type ResourceScope, resourceScopeKey } from '@/lib/core/resource-scope'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { SearchFilters } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/search-filters'
-import { useLiveSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/use-live-search-results'
 import {
+  groupResultsByDocument,
   handleResultsKeyDown,
-  liveSearchResultsKey,
   type SearchResultsProps,
   toSource,
 } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/utils'
 import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
+import {
+  resourceUrlKeys,
+  searchFilterParsers,
+  searchFiltersFromParams,
+} from '@/app/workspace/[workspaceId]/home/search-params'
+import { useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
 
 type KnowledgeSearchResultsProps = (
   | { workspaceId: string; scope?: never }
@@ -34,6 +42,7 @@ export function KnowledgeSearchResults({
   nativeQueries,
   reuseFreshResult,
   onSummarize,
+  onSearchChange,
 }: KnowledgeSearchResultsProps) {
   const scope: ResourceScope = suppliedScope ?? { kind: 'workspace', workspaceId: workspaceId! }
   const { data: session } = useSession()
@@ -41,7 +50,7 @@ export function KnowledgeSearchResults({
   const Results = LiveSearchResults
   return (
     <Results
-      key={liveSearchResultsKey(scope, session?.user?.id, trimmed)}
+      key={JSON.stringify([resourceScopeKey(scope), session?.user?.id, trimmed])}
       scope={scope}
       query={trimmed}
       suppliedFilters={suppliedFilters}
@@ -49,28 +58,65 @@ export function KnowledgeSearchResults({
       nativeQueries={nativeQueries}
       reuseFreshResult={reuseFreshResult}
       onSummarize={onSummarize}
+      onSearchChange={onSearchChange}
     />
   )
 }
 
 /** Live results do not mount index or sync-status queries. */
-function LiveSearchResults(props: SearchResultsProps) {
-  const { scope, query } = props
-  const {
-    awaitingRange,
-    isPending,
-    isFetching,
-    isError,
-    refetch,
-    documents,
-    showFilterControls,
-    sourceTypes,
-    noResults,
-    connectAppsHref,
-    someAppsUnavailable,
-    coverageIncomplete,
-    summarizerFor,
-  } = useLiveSearchResults(props)
+function LiveSearchResults({
+  scope,
+  query,
+  suppliedFilters,
+  topK,
+  nativeQueries,
+  reuseFreshResult,
+  onSummarize,
+  onSearchChange,
+}: SearchResultsProps) {
+  const [hasShownFilters, setHasShownFilters] = useState(false)
+  const [searchedAt] = useState(() => Date.now())
+  const [params] = useQueryStates(searchFilterParsers, resourceUrlKeys)
+  const filters = useMemo(
+    () => suppliedFilters ?? searchFiltersFromParams(params, searchedAt),
+    [suppliedFilters, params.source, params.updated, params.from, params.to, searchedAt]
+  )
+  const awaitingRange =
+    !suppliedFilters && params.updated === 'custom' && !(params.from && params.to)
+  const { data, isPending, isFetching, isError, refetch } = useWorkspaceKnowledgeSearch(
+    scope,
+    awaitingRange ? '' : query,
+    filters,
+    topK ?? 20,
+    { nativeQueries, reuseFreshResult }
+  )
+  useEffect(() => {
+    onSearchChange?.({
+      scope,
+      query,
+      filters,
+      ...(topK ? { topK } : {}),
+      ...(nativeQueries ? { nativeQueries } : {}),
+    })
+  }, [
+    scope.kind,
+    scope.kind === 'organization' ? scope.organizationId : scope.workspaceId,
+    query,
+    filters,
+    topK,
+    nativeQueries,
+    onSearchChange,
+  ])
+  const showFilters = hasShownFilters || data !== undefined || awaitingRange || isError
+  if (showFilters && !hasShownFilters) setHasShownFilters(true)
+  const documents = groupResultsByDocument(data?.results ?? [])
+  const accounts = data?.live?.accounts ?? []
+  const sources = [
+    ...new Set([
+      ...accounts.map((account) => account.provider),
+      ...(filters.source ? [filters.source] : []),
+    ]),
+  ]
   return (
     <div aria-busy={!awaitingRange && isFetching} className='flex flex-col'>
       {!awaitingRange && isFetching && (
@@ -94,26 +140,42 @@ function LiveSearchResults(props: SearchResultsProps) {
           )}
         </div>
       )}
-      {showFilterControls && <SearchFilters sourceTypes={sourceTypes} />}
-      {noResults && (
-        <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>Search found no results.</p>
-      )}
-      {connectAppsHref && (
+      {!suppliedFilters && showFilters && <SearchFilters sourceTypes={sources} />}
+      {!awaitingRange &&
+        !isPending &&
+        !isFetching &&
+        !isError &&
+        data?.retrieval.status === 'complete' &&
+        documents.length === 0 && (
+          <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>
+            Search found no results.
+          </p>
+        )}
+      {!isFetching && data?.live && accounts.length === 0 && (
         <div className='flex items-center gap-2 px-2 py-2'>
           <p role='status' className='text-[var(--text-muted)] text-caption'>
             No connected apps are available for this search.
           </p>
-          <ChipLink variant='border' href={connectAppsHref}>
+          <ChipLink
+            variant='border'
+            href={
+              scope.kind === 'organization'
+                ? organizationRoutes(scope.organizationId).integrations
+                : `/workspace/${scope.workspaceId}/integrations`
+            }
+          >
             Connect apps
           </ChipLink>
         </div>
       )}
-      {someAppsUnavailable && (
+      {accounts.some((account) =>
+        ['unavailable', 'timeout', 'rate_limited', 'reconnect'].includes(account.status)
+      ) && (
         <p role='status' className='px-2 py-1 text-[var(--text-muted)] text-caption'>
           Some apps couldn’t be searched. Showing available results.
         </p>
       )}
-      {coverageIncomplete && (
+      {!data?.live && data?.retrieval.status === 'partial' && (
         <p className='px-2 py-1 text-[var(--text-muted)] text-caption'>
           Coverage is incomplete. Narrow the query or ask Assistant to refine it.
         </p>
@@ -130,7 +192,15 @@ function LiveSearchResults(props: SearchResultsProps) {
             key={result.documentId}
             source={toSource(result, query, scope)}
             query={query}
-            onSummarize={summarizerFor(result.documentId)}
+            onSummarize={
+              isFetching || !onSummarize
+                ? undefined
+                : (cited) =>
+                    onSummarize(`Summarize "${cited.title ?? cited.url}"`, {
+                      ...filters,
+                      documentIds: [result.documentId],
+                    })
+            }
           />
         ))}
       </div>

@@ -5,7 +5,7 @@ type QueryFilterKey = NonNullable<
 >
 
 /** Removes a speculative read that failed and that nothing is mounted to report. */
-export function dropFailedSpeculativeQuery(queryClient: QueryClient, queryKey: QueryKey): void {
+function dropFailedSpeculativeQuery(queryClient: QueryClient, queryKey: QueryKey): void {
   const state = queryClient.getQueryState(queryKey)
   if (state?.status !== 'error' || state.data !== undefined) return
 
