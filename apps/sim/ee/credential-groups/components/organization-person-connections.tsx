@@ -49,7 +49,7 @@ export function OrganizationPersonConnections({ person }: OrganizationPersonConn
       .map((connection) => ({
         key: `mcp:${connection.mcpServerId}`,
         name: connection.name,
-        count: 1,
+        count: connection.count,
         icon: undefined,
       })),
   ]

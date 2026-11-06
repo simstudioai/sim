@@ -791,7 +791,7 @@ try {
         await expect(
           page.getByRole('main').getByText('Connections unavailable', { exact: true })
         ).toBeVisible()
-        await expect(page.getByRole('region', { name: 'Connected credential' })).toHaveCount(0)
+        await expect(page.getByRole('region', { name: 'Connected account' })).toHaveCount(0)
         await expect(page.getByRole('button', { name: 'Salesforce', exact: true })).toBeDisabled()
         await capture('integration-disabled-app-empty')
       } finally {

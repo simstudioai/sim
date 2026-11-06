@@ -66,23 +66,36 @@ describe('Credential organization operations', () => {
         workspaceId: 'child-workspace',
         email: account.email,
         credentialProviderIds: ['google-email'],
-        limit: 2,
+        limit: 1,
         cursor: undefined,
       },
     })
   })
-  it.each([0, 2])('rejects an ambiguous or missing account (%i matches)', async (count) => {
-    mocks.oauth.mockResolvedValue({
-      credentials: Array.from({ length: count }, () => account),
-      hasMore: false,
-    })
+  it('rejects a missing account', async () => {
+    mocks.oauth.mockResolvedValue({ credentials: [], hasMore: false })
     await expect(
       handler.execute(ctx, block, {
         operation: 'find_organization_account',
         email: account.email,
         organizationProvider: 'google-email',
       })
-    ).rejects.toThrow('Expected exactly one')
+    ).rejects.toThrow('No organization account')
+  })
+  it('keeps returning the first connected account when a person adds another', async () => {
+    mocks.oauth.mockResolvedValue({
+      credentials: [
+        { ...account, credentialId: 'first', accountEmail: 'first@example.com' },
+        { ...account, credentialId: 'added', accountEmail: account.email },
+      ],
+      hasMore: false,
+    })
+    expect(
+      await handler.execute(ctx, block, {
+        operation: 'find_organization_account',
+        email: account.email,
+        organizationProvider: 'google-email',
+      })
+    ).toMatchObject({ credentialId: 'first' })
   })
   it('returns the person’s MCP credential separately from the shared server', async () => {
     const connection = {
@@ -103,7 +116,7 @@ describe('Credential organization operations', () => {
         input: expect.objectContaining({
           connectorId: 'fireflies',
           email: account.email,
-          limit: 2,
+          limit: 1,
         }),
       })
     )

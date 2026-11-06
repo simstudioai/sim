@@ -2,6 +2,8 @@ import type { ComponentType } from 'react'
 import type { SearchIntegrationStatus } from '@/lib/api/contracts/knowledge/search-integrations'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import { assistantSearchSourceForProvider } from '@/lib/assistant-actions/providers'
+import { CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT } from '@/lib/credential-groups/limits'
+import { managedMcpAccountLimit } from '@/lib/credential-groups/managed-mcp-connectors'
 import {
   findCredentialGroupProviderFromProviderId,
   getCredentialGroupProviderId,
@@ -138,13 +140,14 @@ export function memberIntegrationEntries(
       : []
     const option = options.find(
       (candidate) =>
-        !accounts.some((account) => 'optionId' in account && account.optionId === candidate.id)
+        accounts.filter((account) => 'optionId' in account && account.optionId === candidate.id)
+          .length < CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT
     )
     const server = servers.find(
       (candidate) =>
-        !accounts.some(
+        accounts.filter(
           (account) => 'mcpServerId' in account && account.mcpServerId === candidate.id
-        )
+        ).length < managedMcpAccountLimit(candidate.managedConnectorId)
     )
     const ready =
       (mcp
@@ -217,7 +220,9 @@ export function memberIntegrationEntries(
         (!source || (policy?.approved === true && policy.available !== false))
     )
     const target = readyOptions.find(
-      (option) => !accounts.some((account) => account.optionId === option.id)
+      (option) =>
+        accounts.filter((account) => account.optionId === option.id).length <
+        CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT
     )
     const service = getCredentialGroupProviderService(provider)
     entries.push({

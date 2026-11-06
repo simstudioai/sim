@@ -52,6 +52,7 @@ export const organizationAccountsQueriesMockFns = {
  * ```
  */
 export const organizationAccountsQueriesMock = {
+  refreshConnectedAccounts: vi.fn(async () => undefined),
   useReconnectPersonalOrganizationAccount:
     organizationAccountsQueriesMockFns.mockUseReconnectPersonalOrganizationAccount,
   useDisconnectPersonalOrganizationAccount:
