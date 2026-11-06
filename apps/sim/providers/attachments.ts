@@ -36,6 +36,7 @@ export type AttachmentProvider =
   | 'together'
   | 'baseten'
   | 'nebius'
+  | 'atlascloud'
   | 'ollama'
   | 'vllm'
   | 'litellm'
@@ -175,6 +176,7 @@ const PROVIDER_SUPPORTED_LABELS: Record<AttachmentProvider, string> = {
   together: 'images through image_url message parts on vision models',
   baseten: 'images through image_url message parts on vision models',
   nebius: 'images through image_url message parts on vision models',
+  atlascloud: 'images through image_url message parts on vision models',
   ollama: 'images through image_url message parts on vision models',
   vllm: 'images through image_url message parts on multimodal models',
   litellm: 'images through image_url message parts on multimodal models',
@@ -200,6 +202,7 @@ export function getAttachmentProvider(providerId: ProviderId | string): Attachme
   if (providerId === 'together') return 'together'
   if (providerId === 'baseten') return 'baseten'
   if (providerId === 'nebius') return 'nebius'
+  if (providerId === 'atlascloud') return 'atlascloud'
   if (providerId === 'ollama' || providerId === 'ollama-cloud') return 'ollama'
   if (providerId === 'vllm') return 'vllm'
   if (providerId === 'litellm') return 'litellm'
@@ -415,6 +418,7 @@ function isMimeTypeSupportedByProvider(
     case 'together':
     case 'baseten':
     case 'nebius':
+    case 'atlascloud':
     case 'ollama':
     case 'vllm':
     case 'litellm':

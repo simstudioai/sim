@@ -117,6 +117,7 @@ export const providerHistoryProtocols: Record<
   together: 'chat-completions',
   baseten: 'chat-completions',
   nebius: 'chat-completions',
+  atlascloud: 'chat-completions',
   vllm: 'chat-completions',
   litellm: 'chat-completions',
 }
