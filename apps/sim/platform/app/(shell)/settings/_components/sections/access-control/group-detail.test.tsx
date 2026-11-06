@@ -106,7 +106,6 @@ describe('GroupDetail', () => {
           group={group}
           organizationId='org-1'
           hosted={false}
-          projectsEnabled={false}
           workspaceOptions={WORKSPACES.map(({ id, name }) => ({ value: id, label: name }))}
           organizationWorkspaces={WORKSPACES as never}
           workspacesLoading={false}

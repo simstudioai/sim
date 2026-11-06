@@ -6,6 +6,30 @@ import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import type { SearchIntegrationApproval } from '@/lib/api/contracts/knowledge/search-integrations'
+import { assistantAccountOptions } from '@/lib/credential-groups/member-integrations'
+import { hasSlackSearchUserScopes } from '@/lib/credential-groups/slack-managed-user-scopes'
+import { organizationRoutes } from '@/lib/navigation/paths'
+import {
+  defaultLiveSearchPolicy,
+  LIVE_SEARCH_SCOPE_FIELDS,
+  LIVE_SEARCH_SERVICE_PROVIDERS,
+} from '@/lib/sim-search/live/policy-schema'
+import {
+  getLiveSearchAccessAvailability,
+  LIVE_SEARCH_SOURCE_TYPES,
+  liveSearchMcpConnector,
+  liveSearchMemberAccountProvider,
+} from '@/lib/sim-search/live/source-catalog'
+import { connectedAccountsParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
+import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
+import { useOrganizationSecretSource } from '@/hooks/queries/organization-secrets'
+import {
+  useSearchIntegrations,
+  useUpdateSearchIntegration,
+} from '@/hooks/queries/search-integrations'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import {
   ActionRow,
@@ -38,26 +62,6 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  assistantAccountOptions,
-  connectedAccountsParam,
-  defaultLiveSearchPolicy,
-  getLiveSearchAccessAvailability,
-  hasSlackSearchUserScopes,
-  LIVE_SEARCH_SCOPE_FIELDS,
-  LIVE_SEARCH_SERVICE_PROVIDERS,
-  LIVE_SEARCH_SOURCE_TYPES,
-  liveSearchMcpConnector,
-  liveSearchMemberAccountProvider,
-  organizationRoutes,
-  type SearchIntegrationApproval,
-  useOrganizationAccounts,
-  useOrganizationSecretSource,
-  usePermissionConfig,
-  useSearchIntegrations,
-  useSettingsSearch,
-  useUpdateSearchIntegration,
-} from '@/platform/lib/data/sources'
 
 export default function IntegrationsSection({ organization: context }: SettingsSectionProps) {
   const { organization, viewer, searchAccess } = context

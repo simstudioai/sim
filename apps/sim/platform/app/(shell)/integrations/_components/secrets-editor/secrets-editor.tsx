@@ -6,7 +6,14 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { countPasteRows } from '@sim/utils/paste'
 import { useRouter } from 'next/navigation'
+import { organizationRoutes } from '@/lib/navigation/paths'
+import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
+import {
+  useOrganizationSecrets,
+  useSaveOrganizationSecrets,
+} from '@/hooks/queries/organization-secrets'
 import {
   NewRow,
   SavedRow,
@@ -33,23 +40,7 @@ import {
   SectionSearch,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  applyVariableEdits,
-  createEmptyEnvVar,
-  parseEnvVarLine,
-  parseValidEnvVars,
-  setRecordValue,
-  updateEnvVarArray,
-  validateEnvVarKey,
-} from '@/platform/lib/data/secrets'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
-import {
-  organizationRoutes,
-  type SecretSourceMode,
-  useOrganizationSecrets,
-  useSaveOrganizationSecrets,
-  useSettingsSearch,
-} from '@/platform/lib/data/sources'
 
 const logger = createLogger('SecretsManager')
 const MAX_ENV_PASTE_ROWS = 10_000

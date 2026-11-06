@@ -4,6 +4,10 @@ import { useState } from 'react'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
+import {
+  type OrganizationAccountProviderChoice,
+  organizationAccountCatalogEntries,
+} from '@/ee/credential-groups/provider-rows'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import {
   Button,
@@ -13,10 +17,6 @@ import {
   SectionSearch,
 } from '@/platform/design-system/components'
 import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  type OrganizationAccountProviderChoice,
-  organizationAccountCatalogEntries,
-} from '@/platform/lib/data/credential-groups'
 
 interface ProviderCatalogModalProps {
   group: NonNullable<OrganizationAccountsSettings['credentialGroup']>

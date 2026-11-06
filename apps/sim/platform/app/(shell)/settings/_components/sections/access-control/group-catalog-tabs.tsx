@@ -272,7 +272,6 @@ interface PlatformTabProps extends CatalogTabProps {
   deferredSearch: string
   isDefault: boolean
   organizationId: string
-  projectsEnabled: boolean
   config: PermissionGroupConfig
   onConfigChange: (patch: Partial<PermissionGroupConfig>) => void
 }
@@ -284,7 +283,6 @@ function PlatformTab({
   controls,
   isDefault,
   organizationId,
-  projectsEnabled,
   config,
   onConfigChange,
 }: PlatformTabProps) {
@@ -359,7 +357,6 @@ function PlatformTab({
       ))}
       <ProjectIssueRestrictions
         organizationId={organizationId}
-        projectsEnabled={projectsEnabled}
         value={config.deniedPartialAccessProjectIssues}
         onChange={(deniedPartialAccessProjectIssues) =>
           onConfigChange({ deniedPartialAccessProjectIssues })
@@ -377,7 +374,6 @@ interface GroupCatalogTabProps {
   isDefault: boolean
   hosted: boolean
   organizationId: string
-  projectsEnabled: boolean
   onConfigChange: (patch: Partial<PermissionGroupConfig>) => void
 }
 
@@ -390,7 +386,6 @@ export function GroupCatalogTab({
   isDefault,
   hosted,
   organizationId,
-  projectsEnabled,
   onConfigChange,
 }: GroupCatalogTabProps) {
   const deferredSearch = useDeferredValue(params.search)
@@ -424,7 +419,6 @@ export function GroupCatalogTab({
       deferredSearch={deferredSearch}
       isDefault={isDefault}
       organizationId={organizationId}
-      projectsEnabled={projectsEnabled}
       config={config}
       onConfigChange={onConfigChange}
     />

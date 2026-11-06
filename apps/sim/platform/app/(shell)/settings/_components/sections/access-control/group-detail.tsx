@@ -46,7 +46,6 @@ interface GroupDetailProps {
   group: PermissionGroup
   organizationId: string
   hosted: boolean
-  projectsEnabled: boolean
   workspaceOptions: { value: string; label: string }[]
   organizationWorkspaces: PermissionGroupWorkspaceRef[]
   workspacesLoading: boolean
@@ -61,7 +60,6 @@ export function GroupDetail({
   group,
   organizationId,
   hosted,
-  projectsEnabled,
   workspaceOptions,
   organizationWorkspaces,
   workspacesLoading,
@@ -139,7 +137,6 @@ export function GroupDetail({
           isDefault={isDefault}
           hosted={hosted}
           organizationId={organizationId}
-          projectsEnabled={projectsEnabled}
           onConfigChange={groupDraft.patchConfig}
         />
       )}

@@ -10,6 +10,7 @@ import type { PlatformSettingsSection } from '@/platform/app/(shell)/settings/_c
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { SettingsScreen } from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen'
 import { LoadingRows } from '@/platform/design-system/components'
+import { useSettingRowReveal } from '@/platform/lib/data/settings-search'
 
 /** A tab with its own guide, in the section's one Docs position. */
 const TAB_DOCS: Partial<Record<PlatformSettingsSection, Readonly<Record<string, string>>>> = {
@@ -153,6 +154,7 @@ export function PlatformSettingsSectionHost({
 }: PlatformSettingsSectionHostProps) {
   const organization = useOrganizationContext()
   const params = useSearchParams()
+  const revealRoot = useSettingRowReveal<HTMLDivElement>()
   const meta = resolveOrganizationSurfaceHeaderMeta(section)
   const query: SettingsSectionProps['query'] = {}
   for (const key of new Set(params.keys())) {
@@ -161,7 +163,10 @@ export function PlatformSettingsSectionHost({
   }
   const Section = PLATFORM_SECTIONS[section]
   return (
-    <div className='grid h-full min-h-0 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)]'>
+    <div
+      ref={revealRoot}
+      className='grid h-full min-h-0 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)]'
+    >
       <RedesignSurface>
         <SettingsScreen
           title={meta?.title ?? 'Settings'}

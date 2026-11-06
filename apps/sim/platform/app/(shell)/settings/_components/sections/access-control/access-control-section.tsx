@@ -36,7 +36,6 @@ import {
   usePermissionEditorCatalog,
   usePermissionGroups,
 } from '@/platform/lib/data/access-control'
-import { useProjectsEnabled } from '@/platform/lib/data/organization'
 import { plural } from '@/platform/lib/plural'
 
 function groupSummary(group: PermissionGroup): string {
@@ -135,7 +134,6 @@ function CreateGroupModal({
 
 export default function AccessControlSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id
-  const projectsEnabled = useProjectsEnabled()
   usePermissionEditorCatalog(organizationId)
   const groups = usePermissionGroups(organizationId)
   const workspaces = useOrganizationWorkspaces(organizationId)
@@ -190,7 +188,6 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
           group={selectedGroup}
           organizationId={organizationId}
           hosted={organization.deployment.hosted}
-          projectsEnabled={projectsEnabled}
           workspaceOptions={workspaceOptions}
           organizationWorkspaces={organizationWorkspaces}
           workspacesLoading={workspaces.isPending}

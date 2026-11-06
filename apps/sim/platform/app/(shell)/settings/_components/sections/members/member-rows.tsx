@@ -13,15 +13,18 @@ import {
 import { useClipboard } from '@/platform/design-system/components/feedback/use-clipboard'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
+import type { MembersActions } from '@/platform/lib/data/members'
 import type {
   InvitationRowModel,
   MemberRowModel,
-  MembersActions,
   WorkspaceInvitationRowModel,
   WorkspaceMemberRowModel,
   WorkspacePermission,
-} from '@/platform/lib/data/members'
-import { ORGANIZATION_ROLE_LABELS, ORGANIZATION_ROLE_OPTIONS } from '@/platform/lib/data/members'
+} from '@/platform/lib/data/members-model'
+import {
+  ORGANIZATION_ROLE_LABELS,
+  ORGANIZATION_ROLE_OPTIONS,
+} from '@/platform/lib/data/members-model'
 
 const WORKSPACE_ROLES = [
   { value: 'read', label: 'Read' },

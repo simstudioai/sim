@@ -1,6 +1,6 @@
 import { organizationRoutes } from '@/lib/navigation/paths'
-import type { ShellDestination } from '@/platform/app/(shell)/_components/model'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
+import type { ShellDestination } from '@/platform/lib/data/shell-view'
 
 type OrganizationNavRoute = 'home' | 'search' | 'people' | 'integrations' | 'simLinks' | 'benchmark'
 

@@ -4,15 +4,12 @@ import { useState } from 'react'
 import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
 import { HomeSection } from '@/platform/app/(shell)/home/_components/home-section/home-section'
 import styles from '@/platform/app/(shell)/home/_components/home-workspaces/home-workspaces.module.css'
-import type {
-  HomeListState,
-  HomeWorkspaceItem,
-} from '@/platform/app/(shell)/home/_components/model'
 import { WidgetSkeleton } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import { FailureNotice } from '@/platform/design-system/components'
 import { ActivityRow } from '@/platform/design-system/components/activity-row/activity-row'
 import { Chip } from '@/platform/design-system/components/button/button'
 import { Spinner } from '@/platform/design-system/components/status/status'
+import type { HomeListState, HomeWorkspaceItem } from '@/platform/lib/data/home-view'
 import { formatRelativeTime } from '@/platform/lib/time'
 
 /** The sidebar's own page size, so "See more" advances the same way in both places. */

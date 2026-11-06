@@ -2,9 +2,9 @@
 
 import { type ClipboardEvent, useId, useState } from 'react'
 import { toast } from '@sim/emcn'
+import { type UIEnvironmentVariable, validateEnvVarKey } from '@/components/secrets/secret-rows'
 import styles from '@/platform/app/(shell)/integrations/_components/secrets-editor/secrets-editor.module.css'
 import { ActionMenu, Input } from '@/platform/design-system/components'
-import { type UIEnvironmentVariable, validateEnvVarKey } from '@/platform/lib/data/secrets'
 
 function copyName(key: string) {
   void navigator.clipboard.writeText(key)

@@ -1,9 +1,9 @@
 import {
   applyVariableEdits,
   createEmptyEnvVar,
-  setRecordValue,
   type UIEnvironmentVariable,
-} from '@/platform/lib/data/secrets'
+} from '@/components/secrets/secret-rows'
+import { setRecordValue } from '@/lib/core/utils/records'
 
 /** Saved variables as edited, and the new rows not yet part of them. */
 export interface SecretsDraft {

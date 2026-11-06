@@ -4,6 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
+import { slackSetupResultParam } from '@/app/o/[organizationId]/settings/components/search-params'
+import {
+  useConfigureSlackSearch,
+  useRemoveSlackSearch,
+  useSlackSearchInstallations,
+} from '@/hooks/queries/slack-search'
 import {
   ActionRow,
   Muted,
@@ -25,12 +31,6 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  slackSetupResultParam,
-  useConfigureSlackSearch,
-  useRemoveSlackSearch,
-  useSlackSearchInstallations,
-} from '@/platform/lib/data/slack-search'
 
 interface WizardState {
   mode?: 'custom' | 'shared'

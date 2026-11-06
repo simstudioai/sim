@@ -3,7 +3,6 @@
 import type { ReactNode } from 'react'
 import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
-import { usePlatformNotices } from '@/platform/app/(shell)/_components/notification-tray/notification-tray'
 import { HomeActivityChart } from '@/platform/app/(shell)/home/_components/activity-chart/activity-chart'
 import {
   AttentionList,
@@ -14,12 +13,13 @@ import { ConnectedWidget } from '@/platform/app/(shell)/home/_components/connect
 import { GetStarted } from '@/platform/app/(shell)/home/_components/get-started/get-started'
 import styles from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css'
 import { HomeWorkspaces } from '@/platform/app/(shell)/home/_components/home-workspaces/home-workspaces'
-import type { HomeActions, HomeView } from '@/platform/app/(shell)/home/_components/model'
 import { SkeletonLane } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import { FailureNotice } from '@/platform/design-system/components'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { ActionMenu } from '@/platform/design-system/components/menu/action-menu'
 import { RecentItems } from '@/platform/design-system/components/recent-items/recent-items'
+import type { HomeActions, HomeView } from '@/platform/lib/data/home-view'
+import { usePlatformNotices } from '@/platform/lib/notices'
 import type { OrganizationHomeWidget } from '@/stores/organization-home/store'
 
 const WIDGETS: readonly OrganizationHomeWidget[] = ['Activity', 'Workspaces', 'Email', 'Calendar']

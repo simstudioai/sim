@@ -3,11 +3,9 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { useInviteOrganizationAccountPeople } from '@/hooks/queries/organization-accounts'
 import { InlineNotice, Modal, RecipientField } from '@/platform/design-system/components'
-import {
-  quickValidateEmail,
-  useInviteOrganizationAccountPeople,
-} from '@/platform/lib/data/credential-groups'
 
 interface PeopleInviteModalProps {
   organizationId: string

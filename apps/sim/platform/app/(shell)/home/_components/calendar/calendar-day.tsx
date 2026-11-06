@@ -7,10 +7,6 @@ import {
   MAX_MEETING_LANES,
   maxLanesForWidth,
 } from '@/platform/app/(shell)/home/_components/calendar/day-layout'
-import type {
-  CalendarMeeting,
-  HomeCalendarDay,
-} from '@/platform/app/(shell)/home/_components/model'
 import { SkeletonBlock } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import { FailureNotice } from '@/platform/design-system/components'
 import { AvatarGroup } from '@/platform/design-system/components/avatar/avatar'
@@ -18,6 +14,7 @@ import { Button, IconButton } from '@/platform/design-system/components/button/b
 import { ActionMenu } from '@/platform/design-system/components/menu/action-menu'
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
+import type { CalendarMeeting, HomeCalendarDay } from '@/platform/lib/data/home-view'
 import { formatCalendarDate, formatClockTime, formatTimeRange } from '@/platform/lib/time'
 
 interface CalendarDayProps {

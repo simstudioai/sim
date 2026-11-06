@@ -3,9 +3,23 @@
 import { type ReactNode, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
+import { isApiClientError } from '@/lib/api/client/errors'
 import type { ConnectorData, ConnectorDetailData } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
+import { organizationRoutes } from '@/lib/navigation/paths'
+import { describeSearchSource } from '@/lib/sim-search/source-identity'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { getConnectorSyncState } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-sync-state'
+import { useConnectorActions } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
+import { useConnectorSettingsForm } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form'
+import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import {
+  isConnectorSyncingOrPending,
+  useConnectorDetail,
+  useSearchIndex,
+} from '@/hooks/queries/kb/connectors'
+import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
+import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
 import {
   ActionRow,
   DetailHeader,
@@ -31,20 +45,6 @@ import {
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
-import {
-  CONNECTOR_META_REGISTRY,
-  describeSearchSource,
-  getConnectorSyncState,
-  isApiClientError,
-  isConnectorSyncingOrPending,
-  organizationRoutes,
-  useConnectorActions,
-  useConnectorDetail,
-  useConnectorSettingsForm,
-  useOAuthReturnForKBConnectors,
-  useSearchIndex,
-  useSearchIntegrations,
-} from '@/platform/lib/data/sources'
 
 interface SourceDetailProps {
   connectorId: string
