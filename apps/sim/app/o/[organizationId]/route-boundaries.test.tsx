@@ -1,8 +1,8 @@
 /** @vitest-environment jsdom */
 import { act, type ReactNode } from 'react'
 import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
-import { createRoot } from 'react-dom/client'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
 import OrganizationError from '@/app/o/[organizationId]/error'
 import OrganizationNotFound from '@/app/o/[organizationId]/not-found'
@@ -10,11 +10,23 @@ import OrganizationNotFound from '@/app/o/[organizationId]/not-found'
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/app/_shell/desktop-title-bar', () => ({ DesktopTitleBarLane: () => null }))
 
+const mountedRoots: Root[] = []
+
 function mount(element: ReactNode) {
   const container = document.body.appendChild(document.createElement('div'))
-  act(() => createRoot(container).render(element))
+  const root = createRoot(container)
+  mountedRoots.push(root)
+  act(() => root.render(element))
   return container
 }
+
+// A root left mounted lets React's scheduler run after jsdom's teardown removes `window`.
+afterEach(() => {
+  act(() => {
+    for (const root of mountedRoots.splice(0)) root.unmount()
+  })
+  document.body.replaceChildren()
+})
 
 /**
  * Failure mode: the thing that failed is what a boundary would otherwise read. Each renders here

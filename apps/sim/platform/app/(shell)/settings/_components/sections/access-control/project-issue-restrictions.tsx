@@ -7,11 +7,10 @@ import {
 import { Checkbox, FailureNotice } from '@/platform/design-system/components'
 import { LoadMoreFooter } from '@/platform/design-system/components/scroll-area/load-more-footer'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import { isApiClientError, useProjectList } from '@/platform/lib/data/access-control'
+import { isApiClientError, useProjects } from '@/platform/lib/data/access-control'
 
 interface ProjectIssueRestrictionsProps {
   organizationId: string
-  projectsEnabled: boolean
   value: string[]
   onChange: (value: string[]) => void
 }
@@ -19,11 +18,10 @@ interface ProjectIssueRestrictionsProps {
 /** Project choices use the authorized inventory; policy remains enforced at the application boundary. */
 export function ProjectIssueRestrictions({
   organizationId,
-  projectsEnabled,
   value,
   onChange,
 }: ProjectIssueRestrictionsProps) {
-  const projects = useProjectList(organizationId, projectsEnabled)
+  const projects = useProjects(organizationId)
   if (
     !projects.isEnabled ||
     projects.isPending ||

@@ -1,6 +1,14 @@
 'use client'
 
+import { useEffect } from 'react'
+import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import {
+  ADMIN_PAGE_SIZE,
+  MOTHERSHIP_ENV_OPTIONS,
+  useAdminConsole,
+} from '@/app/workspace/[workspaceId]/settings/components/admin/use-admin-console'
+import type { AdminUser } from '@/hooks/queries/admin-users'
 import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 import {
   ActionRow,
@@ -8,17 +16,17 @@ import {
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { AddUserModal } from '@/platform/app/(shell)/settings/_components/sections/admin/add-user-modal'
 import {
   ActionMenu,
   Button,
   Chip,
+  ConfirmDialog,
   DataTable,
   EmptyState,
   InlineNotice,
-  Modal,
   Pagination,
   SearchField,
-  SecretField,
   SelectField,
   StatusTag,
   Switch,
@@ -28,17 +36,6 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  ADMIN_PAGE_SIZE,
-  type AdminUser,
-  EMAIL_STATUS_OPTIONS,
-  MOTHERSHIP_ENV_OPTIONS,
-  type MothershipEnvironment,
-  PASSWORD_MODE_OPTIONS,
-  type PasswordMode,
-  useAddUserForm,
-  useAdminConsole,
-} from '@/platform/lib/data/admin'
 
 const USER_COLUMNS = [
   { key: 'name', label: 'Name', kind: 'text' },
@@ -77,50 +74,46 @@ export default function AdminSection() {
       },
       action:
         user.id === admin.session?.user?.id ? undefined : (
-          <ActionRow>
-            <Button
-              size='compact'
-              disabled={
-                importWorkflow.isPending || admin.isImpersonating || pendingUserIds.has(user.id)
-              }
-              onClick={() => admin.handleImpersonate(user.id, user.email)}
-            >
-              {admin.impersonatingUserId === user.id ? 'Switching…' : 'Impersonate'}
-            </Button>
-            <ActionMenu
-              label={`${user.email} actions`}
-              icon='I108'
-              actions={[
-                {
-                  id: 'reset',
-                  label: 'Reset password',
-                  disabled: pendingUserIds.has(user.id),
-                  onSelect: () => admin.sendReset(user),
-                },
-                {
-                  id: 'role',
-                  label: user.role === 'admin' ? 'Demote' : 'Promote',
-                  disabled: pendingUserIds.has(user.id),
-                  onSelect: () => admin.startRoleChange(user),
-                },
-                user.banned
-                  ? {
-                      id: 'unban',
-                      label: 'Unban',
-                      disabled: pendingUserIds.has(user.id),
-                      onSelect: () => admin.unbanUser.mutate({ userId: user.id }),
-                    }
-                  : {
-                      id: 'ban',
-                      label: 'Ban',
-                      destructive: true,
-                      separatorBefore: true,
-                      disabled: pendingUserIds.has(user.id),
-                      onSelect: () => admin.startBan(user),
-                    },
-              ]}
-            />
-          </ActionRow>
+          <ActionMenu
+            label={`${user.email} actions`}
+            icon='I108'
+            actions={[
+              {
+                id: 'impersonate',
+                label: admin.impersonatingUserId === user.id ? 'Switching…' : 'Impersonate',
+                disabled:
+                  importWorkflow.isPending || admin.isImpersonating || pendingUserIds.has(user.id),
+                onSelect: () => admin.handleImpersonate(user.id, user.email),
+              },
+              {
+                id: 'reset',
+                label: 'Reset password',
+                disabled: pendingUserIds.has(user.id),
+                onSelect: () => admin.sendReset(user),
+              },
+              {
+                id: 'role',
+                label: user.role === 'admin' ? 'Demote' : 'Promote',
+                disabled: pendingUserIds.has(user.id),
+                onSelect: () => admin.startRoleChange(user),
+              },
+              user.banned
+                ? {
+                    id: 'unban',
+                    label: 'Unban',
+                    disabled: pendingUserIds.has(user.id),
+                    onSelect: () => admin.unbanUser.mutate({ userId: user.id }),
+                  }
+                : {
+                    id: 'ban',
+                    label: 'Ban',
+                    destructive: true,
+                    separatorBefore: true,
+                    disabled: pendingUserIds.has(user.id),
+                    onSelect: () => admin.startBan(user),
+                  },
+            ]}
+          />
         ),
     }))
 
@@ -131,6 +124,14 @@ export default function AdminSection() {
         'Action failed. Try again.')
       : null)
   const pendingEmail = admin.pendingUser?.email ?? 'this user'
+  const importError = importWorkflow.error?.message
+  // These mutations live in the shared admin console, so failure is reported from where it surfaces.
+  useEffect(() => {
+    if (actionError) toast.error(actionError)
+  }, [actionError])
+  useEffect(() => {
+    if (importError) toast.error(importError)
+  }, [importError])
 
   return (
     <SectionStack>
@@ -159,9 +160,7 @@ export default function AdminSection() {
               value={settings?.mothershipEnvironment ?? 'default'}
               options={MOTHERSHIP_ENV_OPTIONS}
               disabled={admin.updateSetting.isPending}
-              onValueChange={(value) =>
-                void admin.handleMothershipEnvironmentChange(value as MothershipEnvironment)
-              }
+              onValueChange={(value) => void admin.handleMothershipEnvironmentChange(value)}
             />
           </SettingsRow>
         )}
@@ -205,9 +204,6 @@ export default function AdminSection() {
               {importWorkflow.isPending ? 'Importing…' : 'Import'}
             </Button>
           </ActionRow>
-          {importWorkflow.error && (
-            <InlineNotice intent='danger' message={importWorkflow.error.message} />
-          )}
           {importWorkflow.isSuccess && (
             <InlineNotice
               intent='success'
@@ -246,10 +242,10 @@ export default function AdminSection() {
               message={getErrorMessage(admin.usersError, 'Failed to fetch users')}
             />
           )}
-          {actionError && <InlineNotice intent='danger' message={actionError} />}
           {admin.provisionWarning && (
             <InlineNotice intent='warning' message={admin.provisionWarning} />
           )}
+          {admin.isImpersonating && <Muted>Switching to that user…</Muted>}
           {admin.sendPasswordReset.isPending && admin.sendPasswordReset.variables && (
             <Muted>
               {`Sending a password reset email to ${admin.sendPasswordReset.variables.email}...`}
@@ -299,16 +295,12 @@ export default function AdminSection() {
       </SettingsSection>
 
       {admin.pendingAction?.type === 'ban' && (
-        <Modal
-          open
-          variant='confirm'
-          destructive
-          onOpenChange={(open) => {
-            if (!open) admin.closePendingAction()
-          }}
+        <ConfirmDialog
+          target
+          onClose={() => admin.closePendingAction()}
           title='Ban user'
-          confirmLabel={admin.banUser.isPending ? 'Banning…' : 'Ban'}
-          confirmDisabled={admin.banUser.isPending}
+          confirmLabel='Ban'
+          pendingLabel='Banning…'
           pending={admin.banUser.isPending}
           onConfirm={() => {
             admin.handleConfirmBan()
@@ -328,27 +320,16 @@ export default function AdminSection() {
           {admin.banUser.error && (
             <InlineNotice intent='danger' message={admin.banUser.error.message} />
           )}
-        </Modal>
+        </ConfirmDialog>
       )}
       {admin.pendingAction?.type === 'role' && (
-        <Modal
-          open
-          variant='confirm'
-          destructive={admin.isDemotion}
-          onOpenChange={(open) => {
-            if (!open) admin.closePendingAction()
-          }}
+        <ConfirmDialog
+          target
+          safe={!admin.isDemotion}
+          onClose={() => admin.closePendingAction()}
           title={admin.isDemotion ? 'Demote user' : 'Promote user'}
-          confirmLabel={
-            admin.setUserRole.isPending
-              ? admin.isDemotion
-                ? 'Demoting…'
-                : 'Promoting…'
-              : admin.isDemotion
-                ? 'Demote'
-                : 'Promote'
-          }
-          confirmDisabled={admin.setUserRole.isPending}
+          confirmLabel={admin.isDemotion ? 'Demote' : 'Promote'}
+          pendingLabel={admin.isDemotion ? 'Demoting…' : 'Promoting…'}
           pending={admin.setUserRole.isPending}
           onConfirm={() => {
             admin.handleConfirmRoleChange()
@@ -363,7 +344,7 @@ export default function AdminSection() {
           {admin.setUserRole.error && (
             <InlineNotice intent='danger' message={admin.setUserRole.error.message} />
           )}
-        </Modal>
+        </ConfirmDialog>
       )}
       {admin.isAddUserOpen && (
         <AddUserModal
@@ -372,112 +353,5 @@ export default function AdminSection() {
         />
       )}
     </SectionStack>
-  )
-}
-
-interface AddUserModalProps {
-  onClose: () => void
-  onCreated: (user: AdminUser, resetEmailError?: string) => void
-}
-
-function AddUserModal({ onClose, onCreated }: AddUserModalProps) {
-  const form = useAddUserForm({
-    onOpenChange: (open) => {
-      if (!open) onClose()
-    },
-    onCreated,
-  })
-  const { addUser, isSubmissionPending } = form
-  return (
-    <Modal
-      open
-      onOpenChange={(open) => {
-        if (!open) form.handleClose()
-      }}
-      title='Add user'
-      confirmLabel={isSubmissionPending ? 'Adding…' : 'Add user'}
-      confirmDisabled={!form.canSubmit}
-      pending={isSubmissionPending}
-      onConfirm={() => {
-        form.handleAddUser()
-        return false
-      }}
-    >
-      <TextField
-        label='Name'
-        placeholder='Canary Writer'
-        maxLength={100}
-        autoComplete='off'
-        required
-        value={form.name}
-        error={form.nameError}
-        disabled={isSubmissionPending}
-        onChange={(value) => {
-          form.setName(value)
-          addUser.reset()
-        }}
-      />
-      <TextField
-        label='Email'
-        type='email'
-        placeholder='writer@synthetics.example.com'
-        autoComplete='off'
-        required
-        value={form.email}
-        error={form.emailError}
-        disabled={isSubmissionPending}
-        onChange={(value) => {
-          form.setEmail(value)
-          addUser.reset()
-        }}
-      />
-      <SelectField
-        label='Credentials'
-        value={form.passwordMode}
-        options={PASSWORD_MODE_OPTIONS}
-        hint={
-          form.setsPassword
-            ? undefined
-            : 'They pick their own password from the emailed reset link.'
-        }
-        disabled={isSubmissionPending}
-        onValueChange={(value) => {
-          form.setPasswordMode(value as PasswordMode)
-          addUser.reset()
-        }}
-      />
-      {form.setsPassword && (
-        <SecretField
-          label='Password'
-          placeholder='At least 8 characters'
-          autoComplete='new-password'
-          required
-          value={form.password}
-          error={form.passwordError}
-          disabled={isSubmissionPending}
-          onChange={(value) => {
-            form.setPassword(value)
-            addUser.reset()
-          }}
-        />
-      )}
-      <SelectField
-        label='Email status'
-        value={form.emailVerified ? 'verified' : 'unverified'}
-        options={EMAIL_STATUS_OPTIONS}
-        hint='Verified users can sign in when email verification is required.'
-        disabled={isSubmissionPending}
-        onValueChange={(value) => {
-          form.setEmailVerified(value === 'verified')
-          addUser.reset()
-        }}
-      />
-      {addUser.error && (
-        <InlineNotice
-          intent='danger'
-          message={getErrorMessage(addUser.error, 'Failed to add user')}
-        />
-      )}
-    </Modal>
   )
 }

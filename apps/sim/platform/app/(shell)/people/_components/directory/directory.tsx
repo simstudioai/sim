@@ -2,13 +2,13 @@
 
 import { useMemo } from 'react'
 import styles from '@/platform/app/(shell)/people/_components/directory/directory.module.css'
-import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
 import { PersonIdentity } from '@/platform/app/(shell)/people/_components/person-identity/person-identity'
 import {
   Button,
   DataTable,
   EmptyState,
-  FailureNotice,
+  errorMessageOr,
+  QueryBoundary,
   SearchableSelect,
   SearchField,
 } from '@/platform/design-system/components'
@@ -110,38 +110,43 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
           People in your organization
         </span>
       </div>
-      {directory.loading ? (
-        <PeopleStatus>Loading people…</PeopleStatus>
-      ) : directory.error ? (
-        <FailureNotice
-          title='Could not load people'
-          message={directory.error.message}
-          onRetry={directory.retry}
-        />
-      ) : rows.length === 0 ? (
-        !directory.query && !directory.hasDepartment ? (
-          <EmptyState
-            title='No people to show'
-            description='Organization members and people from a connected directory appear here.'
-          />
-        ) : (
-          <EmptyState
-            title='No people found'
-            description='Try another name, title, email address, or department.'
-            action={<Button onClick={directory.clearFilters}>Clear search</Button>}
-          />
-        )
-      ) : (
-        <DataTable
-          title='People'
-          titleHidden
-          virtualized
-          rowChevron
-          columns={COLUMNS}
-          rows={rows}
-          loadMore={directory.loadMore}
-        />
-      )}
+      <QueryBoundary
+        query={{
+          data: directory.loading || directory.error ? undefined : rows,
+          error: directory.loading ? undefined : directory.error,
+          refetch: directory.retry,
+        }}
+        failure={errorMessageOr('The directory is unavailable.')}
+        failureTitle='Could not load people'
+        loadingLabel='Loading people…'
+      >
+        {() =>
+          rows.length === 0 ? (
+            !directory.query && !directory.hasDepartment ? (
+              <EmptyState
+                title='No people to show'
+                description='Organization members and people from a connected directory appear here.'
+              />
+            ) : (
+              <EmptyState
+                title='No people found'
+                description='Try another name, title, email address, or department.'
+                action={<Button onClick={directory.clearFilters}>Clear search</Button>}
+              />
+            )
+          ) : (
+            <DataTable
+              title='People'
+              titleHidden
+              virtualized
+              rowChevron
+              columns={COLUMNS}
+              rows={rows}
+              loadMore={directory.loadMore}
+            />
+          )
+        }
+      </QueryBoundary>
     </section>
   )
 }

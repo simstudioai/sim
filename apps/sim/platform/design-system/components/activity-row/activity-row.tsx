@@ -19,6 +19,8 @@ interface ActivityRowProps {
   /** A glyph held beside `metadata`, such as a running spinner. */
   metadataLeading?: ReactNode
   showChevron?: boolean
+  /** `comfortable` for a settings list, where each row is a resource rather than a line of activity. */
+  density?: 'regular' | 'comfortable'
 }
 
 type ActivityTarget =
@@ -27,8 +29,14 @@ type ActivityTarget =
   /** The row's own link, for a destination whose navigation carries a guard. */
   | { href?: never; onOpen?: never; render: ReactElement }
 
-function RenderedRow({ render, children }: { render: ReactElement; children: ReactNode }) {
-  return useRender({ render, props: { className: styles.row, children } })
+interface RenderedRowProps {
+  render: ReactElement
+  density: ActivityRowProps['density']
+  children: ReactNode
+}
+
+function RenderedRow({ render, density, children }: RenderedRowProps) {
+  return useRender({ render, props: { className: styles.row, 'data-density': density, children } })
 }
 
 export function ActivityRow({
@@ -40,6 +48,7 @@ export function ActivityRow({
   metadata,
   metadataLeading,
   showChevron = true,
+  density = 'regular',
   onOpen,
   href,
   render,
@@ -79,13 +88,15 @@ export function ActivityRow({
   return (
     <li className={styles.entry}>
       {render ? (
-        <RenderedRow render={render}>{content}</RenderedRow>
+        <RenderedRow render={render} density={density}>
+          {content}
+        </RenderedRow>
       ) : href !== undefined ? (
-        <Link href={href} className={styles.row}>
+        <Link href={href} className={styles.row} data-density={density}>
           {content}
         </Link>
       ) : (
-        <button type='button' className={styles.row} onClick={onOpen}>
+        <button type='button' className={styles.row} data-density={density} onClick={onOpen}>
           {content}
         </button>
       )}

@@ -6,16 +6,16 @@ import { getErrorMessage } from '@sim/utils/errors'
 import {
   ActionRow,
   FieldStack,
-  LoadingState,
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
   ActionMenu,
   Button,
+  ConfirmDialog,
   CopyField,
   FailureNotice,
-  Modal,
+  LoadingRows,
   StatusTag,
   TextField,
 } from '@/platform/design-system/components'
@@ -159,7 +159,7 @@ export function DomainsPanel({
         </form>
         {isLoading ? (
           <FieldStack>
-            <LoadingState label='Loading domains…' />
+            <LoadingRows label='Loading domains…' />
           </FieldStack>
         ) : data === undefined && isError ? (
           <FieldStack>
@@ -184,16 +184,13 @@ export function DomainsPanel({
           ))
         )}
       </SettingsSection>
-      <Modal
-        variant='confirm'
-        destructive
-        open={active && pendingRemoval !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingRemovalId(null)
-        }}
+      <ConfirmDialog
+        target={active && pendingRemoval !== null}
+        onClose={() => setPendingRemovalId(null)}
         title='Remove domain'
         description={`Remove ${pendingRemoval?.domain ?? ''}? This immediately disables SSO sign-in for anyone on that domain, because the proof is what grants your identity provider its authority. Verifying the domain again restores it.`}
-        confirmLabel={removeDomain.isPending ? 'Removing…' : 'Remove'}
+        confirmLabel='Remove'
+        pendingLabel='Removing…'
         onConfirm={async () => {
           if (!pendingRemoval) return
           await removeDomain.mutateAsync({ orgId: organizationId, domainId: pendingRemoval.id })

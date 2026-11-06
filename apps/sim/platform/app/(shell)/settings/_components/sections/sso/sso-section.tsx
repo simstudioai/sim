@@ -4,8 +4,6 @@ import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
-  LoadingState,
-  ResourceList,
   SectionStack,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -18,9 +16,11 @@ import { ScimPanel } from '@/platform/app/(shell)/settings/_components/sections/
 import {
   ActivityRow,
   Button,
+  ConfirmDialog,
   EmptyState,
   FailureNotice,
-  Modal,
+  LoadingRows,
+  RowList,
   SegmentedControl,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
@@ -67,7 +67,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
   const openDomains = () => void setParams({ tab: 'domains' })
 
   if (billingEnabled && billing.isLoading) {
-    return <LoadingState label='Loading sign-in settings…' />
+    return <LoadingRows label='Loading sign-in settings…' />
   }
   if (billingEnabled && billing.data === undefined && billing.error) {
     return (
@@ -129,7 +129,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
       <div hidden={tab !== 'sign-in'}>
         <SectionStack>
           {providers.isLoading ? (
-            <LoadingState label='Loading identity providers…' />
+            <LoadingRows label='Loading identity providers…' />
           ) : providers.data === undefined && providers.error ? (
             <FailureNotice
               message={getErrorMessage(providers.error, 'Failed to load Single Sign-On settings')}
@@ -139,7 +139,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
           ) : !creating && !selectedProvider ? (
             <>
               <SettingsSection title='Identity providers'>
-                <ResourceList>
+                <RowList>
                   {providerList.map((provider) => {
                     const providerId = provider.providerId ?? ''
                     const isMarkedPrimary =
@@ -147,6 +147,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
                       (providerCountByDomain.get(provider.domainKey ?? '') ?? 0) > 1
                     return (
                       <ActivityRow
+                        density='comfortable'
                         key={provider.id ?? providerId}
                         title={providerId}
                         detail={`${(provider.providerType ?? 'oidc').toUpperCase()} · ${provider.domain ?? 'no domain'}`}
@@ -157,7 +158,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
                       />
                     )
                   })}
-                </ResourceList>
+                </RowList>
               </SettingsSection>
               <RequireSso organizationId={organizationId} />
             </>
@@ -191,35 +192,31 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
         </SectionStack>
       </div>
 
-      <Modal
-        variant='confirm'
-        open={tab === 'sign-in' && pendingPrimary !== undefined}
-        onOpenChange={(open) => {
-          if (!open) setPendingPrimaryId(null)
-        }}
+      <ConfirmDialog
+        target={tab === 'sign-in' && pendingPrimary !== undefined}
+        onClose={() => setPendingPrimaryId(null)}
         title='Make primary provider'
         description={`Make ${pendingPrimary?.providerId ?? 'this provider'} the primary provider for ${pendingPrimary?.domain ?? 'its domain'}? Everyone there signs in through it from their next sign-in. People already signed in stay signed in, and the current primary stays configured so you can switch back.`}
-        confirmLabel={setPrimaryProvider.isPending ? 'Switching…' : 'Make primary'}
+        confirmLabel='Make primary'
+        pendingLabel='Switching…'
         onConfirm={async () => {
           if (!pendingPrimary?.providerId) return
           await setPrimaryProvider.mutateAsync(pendingPrimary.providerId)
           toast.success(`${pendingPrimary.providerId} is now the primary provider`)
         }}
+        safe
       />
-      <Modal
-        variant='confirm'
-        destructive
-        open={tab === 'sign-in' && pendingDelete !== undefined}
-        onOpenChange={(open) => {
-          if (!open) setPendingDeleteId(null)
-        }}
+      <ConfirmDialog
+        target={tab === 'sign-in' && pendingDelete !== undefined}
+        onClose={() => setPendingDeleteId(null)}
         title='Delete identity provider'
         description={`Delete ${pendingDelete?.providerId ?? 'this provider'}? ${
           deleteSignInProvider
             ? `People at ${deleteDomain} ${pendingDelete?.isPrimary ? 'will sign in through' : 'keep signing in through'} ${deleteSignInProvider.providerId}.`
             : `People at ${deleteDomain} can no longer sign in through it.`
         } Their accounts and memberships stay.`}
-        confirmLabel={deleteProvider.isPending ? 'Deleting…' : 'Delete'}
+        confirmLabel='Delete'
+        pendingLabel='Deleting…'
         onConfirm={async () => {
           if (!pendingDelete?.providerId) return
           await deleteProvider.mutateAsync(pendingDelete.providerId)

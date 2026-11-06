@@ -12,12 +12,13 @@ import styles from '@/platform/app/(shell)/settings/_components/sections/data-re
 import {
   Button,
   Checkbox,
+  ConfirmDialog,
   FieldFrame,
   IconButton,
   Input,
-  Modal,
   MultiSelect,
-  SearchField,
+  SaveActions,
+  SectionSearch,
   SegmentedControl,
   SelectField,
 } from '@/platform/design-system/components'
@@ -148,12 +149,7 @@ function StagePanel({
         time match aggressively and frequently over-redact. Enable these only where false positives
         are acceptable.
       </Muted>
-      <SearchField
-        label='Search PII types'
-        placeholder='Search PII types…'
-        value={search}
-        onValueChange={onSearchChange}
-      />
+      <SectionSearch subject='PII types' value={search} onValueChange={onSearchChange} />
       <SelectField
         label='Language'
         options={PII_LANGUAGES}
@@ -201,6 +197,8 @@ interface PolicyDetailProps {
   draft: PolicyDraft
   isNew: boolean
   changed: boolean
+  /** A newer version is waiting on the editor's choice, so nothing can be saved yet. */
+  conflict?: boolean
   isSaving: boolean
   canRemove: boolean
   workspaceOptions: { value: string; label: string }[]
@@ -221,6 +219,7 @@ export function PolicyDetail({
   draft,
   isNew,
   changed,
+  conflict,
   isSaving,
   canRemove,
   workspaceOptions,
@@ -349,24 +348,15 @@ export function PolicyDetail({
           </FieldStack>
         </SettingsSection>
       </FormFieldset>
-      <SettingsSection title='Policy changes'>
-        <SettingsRow label='Changes to this policy'>
-          <ActionRow>
-            {changed && (
-              <Button variant='quiet' disabled={isSaving} onClick={onDiscard}>
-                Discard
-              </Button>
-            )}
-            <Button
-              variant='primary'
-              disabled={!changed || isSaving || (!isOrg && draft.workspaceIds.length === 0)}
-              onClick={onSave}
-            >
-              {isSaving ? 'Saving…' : 'Save'}
-            </Button>
-          </ActionRow>
-        </SettingsRow>
-        {canRemove && (
+      <SaveActions
+        dirty={changed}
+        saving={isSaving}
+        blocked={conflict || (!isOrg && draft.workspaceIds.length === 0)}
+        onSave={onSave}
+        onDiscard={onDiscard}
+      />
+      {canRemove && (
+        <SettingsSection title='Manage'>
           <SettingsRow
             label='Workspace override'
             description='Use the organization defaults for these workspaces.'
@@ -379,20 +369,19 @@ export function PolicyDetail({
               Remove override
             </Button>
           </SettingsRow>
-        )}
-      </SettingsSection>
-      <Modal
-        variant='confirm'
-        destructive
-        open={confirmingRemove}
-        onOpenChange={setConfirmingRemove}
+        </SettingsSection>
+      )}
+      <ConfirmDialog
+        target={confirmingRemove}
+        onClose={() => setConfirmingRemove(false)}
         title='Remove override'
         description={`This removes the retention and PII redaction override for ${
           draft.workspaceIds.length === 1
             ? 'this workspace'
             : `these ${draft.workspaceIds.length} workspaces`
         }. They will fall back to the organization defaults.`}
-        confirmLabel={isSaving ? 'Removing…' : 'Remove override'}
+        confirmLabel='Remove override'
+        pendingLabel='Removing…'
         onConfirm={onRemove}
       />
     </>

@@ -10,8 +10,7 @@ interface ChartEmptyStateProps {
   onFocus: (memberId: string, event: MouseEvent<HTMLButtonElement>) => void
   onBrowseDirectory: () => void
   currentPersonRef: RefCallback<HTMLElement>
-  /** Present for an administrator, whose connection is what a first chart waits on. */
-  onSync?: () => void
+  canSync?: boolean
 }
 
 export function ChartEmptyState({
@@ -21,7 +20,7 @@ export function ChartEmptyState({
   onFocus,
   onBrowseDirectory,
   currentPersonRef,
-  onSync,
+  canSync,
 }: ChartEmptyStateProps) {
   const { firstTeam, emptyOrganization } = useChartRoots(organizationId)
   if (emptyOrganization)
@@ -29,16 +28,11 @@ export function ChartEmptyState({
       <EmptyState
         title='Reporting lines aren’t available yet'
         description={
-          onSync
+          canSync
             ? 'Your chart appears once your directory’s first sync finishes. You can still browse people in the directory.'
             : 'You can still browse people in the directory. An organization admin can connect your directory or add reporting lines.'
         }
-        action={
-          <>
-            <Button onClick={onBrowseDirectory}>Browse directory</Button>
-            {onSync && <Button onClick={onSync}>Directory sync</Button>}
-          </>
-        }
+        action={<Button onClick={onBrowseDirectory}>Browse directory</Button>}
       />
     )
   return (

@@ -12,19 +12,8 @@
   --surface-hover: var(--design-ui-hover);
 }
 
-/* The element itself also carries the host's Inter class, so this needs the extra specificity. */
-div.thread,
-.thread
-  :not(
-    code,
-    pre,
-    code *,
-    pre *,
-    [class*="font-mono"],
-    [class*="font-mono"] *,
-    [data-platform-ui],
-    [data-platform-ui] *
-  ) {
+/* The chat's typeface, through `ChatFontProvider` and on the panel chrome that frames it. */
+.font {
   font-family: var(--design-font-sans), sans-serif;
   letter-spacing: normal;
 }
@@ -113,32 +102,23 @@ div.thread,
   color: var(--ui-secondary);
 }
 
-/* Portalled out of the thread, so it holds its own type. */
-div.sourcesPopover,
-.sourcesPopover :not(code, pre, code *, pre *) {
-  font-family: var(--design-font-sans), sans-serif;
-  letter-spacing: normal;
-}
-
 .panel {
   border-color: var(--design-ui-divider);
 }
 .tabs [data-tab-strip-button] {
-  font-family: var(--design-font-sans), sans-serif;
   font-size: var(--design-text-control);
   line-height: var(--design-leading-16);
-  letter-spacing: normal;
-}
-.sources,
-.sources * {
-  font-family: var(--design-font-sans), sans-serif;
-  letter-spacing: normal;
 }
 
 /*
  * Assistant's landing, on Search's lines: the heading hangs `--landing-offset` below the view
  * switch, so what follows it can differ in height without moving it across a switch.
  */
+.landingHeading {
+  margin-block-end: var(--spacing-28);
+  text-align: center;
+  text-wrap: balance;
+}
 .landingScroll {
   flex: 1;
   min-block-size: 0;
@@ -194,6 +174,11 @@ div.sourcesPopover,
   inline-size: var(--container-208);
   max-inline-size: 100%;
   margin-block-end: var(--spacing-28);
+}
+.placeholderComposer {
+  block-size: var(--composer-block);
+  border-radius: var(--radius-composer);
+  background: var(--control-muted-fill);
 }
 .placeholderField {
   block-size: calc(

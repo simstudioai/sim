@@ -1,11 +1,11 @@
-import { LoadingState } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { SettingsSubpageHost } from '@/platform/app/(shell)/settings/_components/settings-subpage-host'
+import { LoadingRows } from '@/platform/design-system/components'
 
 /** Keeps the section's heading visible while authorization and content load. */
 export default function OrganizationSourceLoading() {
   return (
     <SettingsSubpageHost section='integrations'>
-      <LoadingState label='Loading connection' />
+      <LoadingRows label='Loading connection' />
     </SettingsSubpageHost>
   )
 }

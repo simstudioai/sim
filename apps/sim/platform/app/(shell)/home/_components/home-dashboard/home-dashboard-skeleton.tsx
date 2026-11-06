@@ -1,4 +1,5 @@
 import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
+import conversationStyles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
 import styles from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css'
 import {
   SkeletonBlock,
@@ -23,7 +24,7 @@ export function HomeDashboardSkeleton({ requestMode }: HomeDashboardSkeletonProp
         </RedesignSurface>
         <RedesignSurface>
           <div className={styles.composer}>
-            <div className={styles.placeholderComposer} />
+            <div className={conversationStyles.placeholderComposer} />
           </div>
         </RedesignSurface>
         <RedesignSurface>

@@ -122,7 +122,7 @@ export function PeoplePage({ organizationId }: PeoplePageProps) {
           firstUse={firstUse}
           onConnect={setConnecting}
           onImport={openImport}
-          onSync={isAdmin ? openSync : undefined}
+          canSync={isAdmin}
         />
       ) : (
         <PeopleDirectory organizationId={organizationId} />

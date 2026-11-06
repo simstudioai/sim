@@ -202,19 +202,32 @@ export function useUpdateUsageLimit() {
   })
 }
 
-/**
- * Open billing portal mutation
- */
 type OpenBillingPortalParams = ContractBodyInput<typeof createBillingPortalContract>
 
+/**
+ * Opens the billing portal in a new tab. The tab opens before the request so a popup blocker still
+ * treats it as the viewer's click; if one blocks it anyway, the portal takes the current tab. A failed
+ * request closes the tab and reports through `onError`.
+ */
 export function useOpenBillingPortal() {
-  return useMutation({
-    mutationFn: async (body: OpenBillingPortalParams) => {
-      const data = await requestJson(createBillingPortalContract, {
-        body,
-      })
-
-      return data
-    },
+  const portal = useMutation({
+    mutationFn: (body: OpenBillingPortalParams) =>
+      requestJson(createBillingPortalContract, { body }),
   })
+  return {
+    isPending: portal.isPending,
+    open: (body: OpenBillingPortalParams, onError: (error: Error) => void) => {
+      const portalWindow = window.open('', '_blank')
+      portal.mutate(body, {
+        onSuccess: (data) => {
+          if (portalWindow) portalWindow.location.href = data.url
+          else window.location.href = data.url
+        },
+        onError: (error) => {
+          portalWindow?.close()
+          onError(error)
+        },
+      })
+    },
+  }
 }

@@ -8,7 +8,6 @@ import {
   isOrganizationSettingsSectionAvailable,
   resolveOrganizationSectionAccess,
 } from '@/components/settings/navigation'
-import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/client'
 import { addCalendarDays, getBrowserTimezone } from '@/lib/core/utils/timezone'
 import {
@@ -32,22 +31,6 @@ import { useRemoveSearchHistorySource, useSearchHistory } from '@/hooks/queries/
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useOrderedWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
-import {
-  ACTIVITY_WINDOW_DAYS,
-  type ActivityWindowDays,
-  type AttentionItem,
-  type EmailItem,
-  type HomeAccountView,
-  type HomeActions,
-  type HomeActivityState,
-  type HomeCalendarDay,
-  type HomeListState,
-  type HomeView,
-  type HomeWidgetActions,
-  type HomeWidgetState,
-  type HomeWorkspaceItem,
-} from '@/platform/app/(shell)/home/_components/model'
-import { homeDayParam } from '@/platform/app/(shell)/home/search-params'
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
 import { organizationChatHref, useCanOpenOrganizationChat } from '@/platform/lib/data/chat-list'
 import {
@@ -68,9 +51,26 @@ import {
   toTaskPoints,
   wallClockMinute,
 } from '@/platform/lib/data/home-model'
+import { homeDayParam } from '@/platform/lib/data/home-params'
+import {
+  ACTIVITY_WINDOW_DAYS,
+  type ActivityWindowDays,
+  type AttentionItem,
+  type EmailItem,
+  type HomeAccountView,
+  type HomeActions,
+  type HomeActivityState,
+  type HomeCalendarDay,
+  type HomeListState,
+  type HomeView,
+  type HomeWidgetActions,
+  type HomeWidgetState,
+  type HomeWorkspaceItem,
+} from '@/platform/lib/data/home-view'
 import { useIntegrationActions } from '@/platform/lib/data/integrations'
+import { isRefusal } from '@/platform/lib/data/query-view'
 import { workspaceHref } from '@/platform/lib/data/workspaces'
-import { MINUTE_MS } from '@/platform/lib/time'
+import { currentMinute, MINUTE_MS } from '@/platform/lib/time'
 import {
   type OrganizationHomeWidget,
   useOrganizationHomeStore,
@@ -78,7 +78,6 @@ import {
 
 /** How long a day must stay chosen before it is read, so a run of clicks is one read at the provider. */
 const CALENDAR_DAY_SETTLE_MS = 250
-const REFUSAL_STATUSES: ReadonlySet<number> = new Set([401, 403, 404, 409])
 const NO_WIDGETS: readonly OrganizationHomeWidget[] = []
 
 function subscribeToMinutes(onChange: () => void) {
@@ -90,18 +89,9 @@ function subscribeToMinutes(onChange: () => void) {
   }
 }
 
-function currentMinute() {
-  return Math.floor(Date.now() / MINUTE_MS) * MINUTE_MS
-}
-
 /** Home mounts only after hydration, behind the conversation's own gate, so no markup can disagree. */
 function useMinuteClock(): number {
   return useSyncExternalStore(subscribeToMinutes, currentMinute, currentMinute)
-}
-
-/** An answer about the viewer, which retrying cannot change, unlike a failure or a rate limit. */
-function isRefusal(error: unknown) {
-  return isApiClientError(error) && REFUSAL_STATUSES.has(error.status)
 }
 
 function useHomeIntegrations(organization: OrganizationSurfaceContext) {
@@ -358,9 +348,7 @@ function useHomeWorkspaces(organizationId: string, hidden: boolean) {
   })
   const state = ((): HomeListState<HomeWorkspaceItem> => {
     if (!list.data)
-      return list.isError
-        ? { status: 'error', retrying: list.isFetching }
-        : { status: 'ready', items: [] }
+      return list.isError ? { status: 'error', retrying: list.isFetching } : { status: 'loading' }
     if (workspaces.length === 0) return { status: 'ready', items: [] }
     if (!activity.data && !activity.isError) return { status: 'loading' }
     return {
@@ -392,10 +380,17 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
   const organization = useOrganizationContext()
   const { data: session } = useSession()
   const organizationId = organization.organization.id
-  const viewer = `${session?.user?.id}:${organizationId}`
-  const hiddenWidgets = useOrganizationHomeStore(
-    (state) => state.hiddenWidgets[viewer] ?? NO_WIDGETS
+  const userId = session?.user?.id
+  const viewer = userId ? `${userId}:${organizationId}` : null
+  const hiddenWidgets = useOrganizationHomeStore((state) =>
+    viewer ? (state.hiddenWidgets[viewer] ?? NO_WIDGETS) : NO_WIDGETS
   )
+  /**
+   * What a viewer hid is keyed by who they are, and the organization layout seeds no session, so a
+   * first load does not know yet. Until it does every widget paints as loading and reads nothing,
+   * since any of them might be one this viewer turned off.
+   */
+  const readHeld = (widget: OrganizationHomeWidget) => !viewer || hiddenWidgets.includes(widget)
   const setWidgetHidden = useOrganizationHomeStore((state) => state.setWidgetHidden)
   const nowMs = useMinuteClock()
   const [timeZone] = useState(getBrowserTimezone)
@@ -411,7 +406,7 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
     organizationId,
     connectionFor(HOME_EMAIL_SOURCES),
     integrations.retry,
-    hiddenWidgets.includes('Email')
+    readHeld('Email')
   )
   const calendar = useHomeCalendar(
     organizationId,
@@ -420,16 +415,11 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
     clock,
     selectedDay,
     timeZone,
-    hiddenWidgets.includes('Calendar')
+    readHeld('Calendar')
   )
-  const activity = useHomeActivity(
-    organization,
-    today,
-    timeZone,
-    hiddenWidgets.includes('Activity')
-  )
-  const workspaces = useHomeWorkspaces(organizationId, hiddenWidgets.includes('Workspaces'))
-  const recents = useHomeRecents(organization, session?.user?.id)
+  const activity = useHomeActivity(organization, today, timeZone, readHeld('Activity'))
+  const workspaces = useHomeWorkspaces(organizationId, readHeld('Workspaces'))
+  const recents = useHomeRecents(organization, userId)
   const attention = useHomeAttention(
     organization,
     integrations,
@@ -474,7 +464,9 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
       retryWorkspaces: workspaces.retry,
       retryRecents: recents.retry,
       removeRecent: recents.remove,
-      setWidgetHidden: (widget, hidden) => setWidgetHidden(viewer, widget, hidden),
+      setWidgetHidden: (widget, hidden) => {
+        if (viewer) setWidgetHidden(viewer, widget, hidden)
+      },
     },
   }
 }

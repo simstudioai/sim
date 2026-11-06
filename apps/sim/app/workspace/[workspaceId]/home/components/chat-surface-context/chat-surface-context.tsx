@@ -11,27 +11,23 @@ import {
   useRef,
 } from 'react'
 import { noop } from '@sim/utils/helpers'
-import type { RenderMessageActions } from '@/app/workspace/[workspaceId]/components/message-actions/message-actions'
-import type { RenderPageContextDialog } from '@/app/workspace/[workspaceId]/home/components/message-content/components/page-context'
+import { inter } from '@/app/_styles/fonts/inter/inter'
+import type { MessageActionsModel } from '@/app/workspace/[workspaceId]/components/message-actions/message-actions'
+import type { PageContextDialogProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/page-context'
 import type { SearchIntegrationConnectionProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import type { WorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/types'
 import type { ChatContext } from '@/stores/panel'
 
+const ChatFontContext = createContext(inter.className)
+
 /**
- * Another design language's look for a chat's own chrome, supplied by its host so these components
- * import none of it. Absent, the chat renders exactly as it does by default.
+ * Supplies the chat's typeface, in place of Inter. Context reaches what the chat portals out of its
+ * own tree, so this is the one place a host names it.
  */
-export interface ChatAppearance {
-  userBubbleClassName?: string
-  /** The reply's action row: copy, votes, fork, and sources. */
-  responseActionsClassName?: string
-  sourcesPopoverClassName?: string
-  renderResponseActions?: RenderMessageActions
-  renderPageContextDialog?: RenderPageContextDialog
-  /** Replaces the transcript's skeleton while its history loads. */
-  loadingTranscript?: ReactNode
-  /** Holds the composer's place while the history loads. */
-  loadingComposer?: ReactNode
+export const ChatFontProvider = ChatFontContext.Provider
+
+export function useChatFontClass() {
+  return useContext(ChatFontContext)
 }
 
 /**
@@ -42,6 +38,13 @@ export interface ChatAppearance {
  */
 interface ChatSurfaceContextValue {
   SearchConnectionComponent?: ComponentType<SearchIntegrationConnectionProps>
+  /** Draws a reply's action row in place of the default one. `MessageActions` keeps its behavior. */
+  ResponseActionsComponent?: ComponentType<MessageActionsModel>
+  /** Draws the open page-context dialog in place of the default one. */
+  PageContextDialogComponent?: ComponentType<PageContextDialogProps>
+  /** The reply's action row: copy, votes, fork, and sources. */
+  responseActionsClassName?: string
+  sourcesPopoverClassName?: string
   /** Resolved id of the chat backing this surface, if one exists yet. */
   chatId?: string
   /** Id of the user interacting with this surface. */
@@ -59,7 +62,6 @@ interface ChatSurfaceContextValue {
   onNavigateToChat?: (chatId: string) => void
   /** Opens a workspace resource referenced from rendered message content. */
   onWorkspaceResourceSelect: (resource: WorkspaceResourceRef) => void
-  appearance?: ChatAppearance
 }
 
 const ChatSurfaceContext = createContext<ChatSurfaceContextValue>({
@@ -70,6 +72,10 @@ const ChatSurfaceContext = createContext<ChatSurfaceContextValue>({
 
 interface ChatSurfaceProviderProps {
   SearchConnectionComponent?: ComponentType<SearchIntegrationConnectionProps>
+  ResponseActionsComponent?: ComponentType<MessageActionsModel>
+  PageContextDialogComponent?: ComponentType<PageContextDialogProps>
+  responseActionsClassName?: string
+  sourcesPopoverClassName?: string
   chatId?: string
   userId?: string
   onContextAdd?: (context: ChatContext) => void
@@ -77,7 +83,6 @@ interface ChatSurfaceProviderProps {
   onViewSources?: (messageId: string, requestId?: string) => void
   onNavigateToChat?: (chatId: string) => void
   onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
-  appearance?: ChatAppearance
   children: ReactNode
 }
 
@@ -88,6 +93,10 @@ interface ChatSurfaceProviderProps {
  */
 export function ChatSurfaceProvider({
   SearchConnectionComponent,
+  ResponseActionsComponent,
+  PageContextDialogComponent,
+  responseActionsClassName,
+  sourcesPopoverClassName,
   chatId,
   userId,
   onContextAdd,
@@ -95,7 +104,6 @@ export function ChatSurfaceProvider({
   onWorkspaceResourceSelect,
   onViewSources,
   onNavigateToChat,
-  appearance,
   children,
 }: ChatSurfaceProviderProps) {
   const onViewSourcesRef = useRef(onViewSources)
@@ -136,12 +144,15 @@ export function ChatSurfaceProvider({
       onViewSources: hasSourcePanel ? stableOnViewSources : undefined,
       onNavigateToChat: hasChatNavigation ? stableOnNavigateToChat : undefined,
       SearchConnectionComponent,
+      ResponseActionsComponent,
+      PageContextDialogComponent,
+      responseActionsClassName,
+      sourcesPopoverClassName,
       chatId,
       userId,
       onContextAdd: stableOnContextAdd,
       onContextRemove: stableOnContextRemove,
       onWorkspaceResourceSelect: stableOnWorkspaceResourceSelect,
-      appearance,
     }),
     [
       hasSourcePanel,
@@ -149,12 +160,15 @@ export function ChatSurfaceProvider({
       stableOnNavigateToChat,
       stableOnViewSources,
       SearchConnectionComponent,
+      ResponseActionsComponent,
+      PageContextDialogComponent,
+      responseActionsClassName,
+      sourcesPopoverClassName,
       chatId,
       userId,
       stableOnContextAdd,
       stableOnContextRemove,
       stableOnWorkspaceResourceSelect,
-      appearance,
     ]
   )
 

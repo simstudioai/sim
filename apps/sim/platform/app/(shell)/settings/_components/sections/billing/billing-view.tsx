@@ -8,6 +8,7 @@ import {
   FailureNotice,
   Icon,
   Input,
+  RowList,
   StatusTag,
   Switch,
   Tooltip,
@@ -17,15 +18,14 @@ import {
   SettingsSection,
   SettingsSurface,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { useBillingSection, useUsageLimitField } from '@/platform/lib/data/billing'
+import { useBillingSection } from '@/platform/lib/data/billing'
 
 const ON_DEMAND_LABEL = 'Allow usage to go past included usage'
 const EXPLORE_PLANS_LABEL = 'Explore organization plans'
 const ON_DEMAND_LOCKED =
   "Your usage is above your plan's included amount, so on-demand can't be turned off yet. It turns off once usage drops below it — at the latest when your billing period resets."
 
-function UsageLimit(props: Parameters<typeof useUsageLimitField>[0]) {
-  const field = useUsageLimitField(props)
+function UsageLimit({ field }: { field: ReturnType<typeof useBillingSection>['usageLimit'] }) {
   return (
     <SettingsSection title='Usage limit'>
       <SettingsRow
@@ -74,14 +74,7 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
           )}
         </SettingsRow>
       </SettingsSurface>
-      {billing.showUsageLimit && (
-        <UsageLimit
-          current={billing.usageLimit.current}
-          minimum={billing.usageLimit.minimum}
-          canEdit={billing.usageLimit.canEdit}
-          organizationId={billing.usageLimit.organizationId}
-        />
-      )}
+      {billing.showUsageLimit && <UsageLimit field={billing.usageLimit} />}
       {billing.showOnDemand && (
         <SettingsSection title='Enable on-demand usage'>
           <SettingsRow label={ON_DEMAND_LABEL}>
@@ -155,7 +148,7 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
       )}
       {billing.invoices.length > 0 && (
         <SettingsSection title='Invoices'>
-          <ul className={styles.invoices}>
+          <RowList>
             {billing.invoices.map((invoice) => {
               const details = (
                 <>
@@ -185,7 +178,7 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
                 </li>
               )
             })}
-          </ul>
+          </RowList>
           {billing.hasMoreInvoices && (
             <Button
               size='compact'

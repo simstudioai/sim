@@ -79,3 +79,6 @@
   max-inline-size: 45%;
   overflow-wrap: anywhere;
 }
+.row[data-density="comfortable"] {
+  min-block-size: var(--spacing-64);
+}

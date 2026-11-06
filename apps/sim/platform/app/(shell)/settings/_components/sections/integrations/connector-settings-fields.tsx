@@ -3,19 +3,24 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { resourceScopeFields } from '@/lib/core/resource-scope'
 import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
+import type { ConnectorSettingsFieldsProps } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/connector-settings-fields'
+import {
+  CONNECTOR_SWITCH_NOTICE,
+  useConnectorSettingsFields,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-fields'
 import { BesideSurface } from '@/platform/app/(shell)/settings/_components/section-parts/beside-surface'
 import {
   ActionRow,
   Muted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { ConnectorAccess } from '@/platform/app/(shell)/settings/_components/sections/integrations/connector-access'
+import { ConnectorConfigFields } from '@/platform/app/(shell)/settings/_components/sections/integrations/connector-config-fields'
+import { ContentCredentialField } from '@/platform/app/(shell)/settings/_components/sections/integrations/content-credential-field'
+import { GitHubConnectionField } from '@/platform/app/(shell)/settings/_components/sections/integrations/github-connection-field'
 import {
-  ConnectorAccess,
-  ConnectorConfigFields,
-  ContentCredentialField,
-  GitHubConnectionField,
   GitLabCsvUploads,
   GitLabTokenTabs,
-} from '@/platform/app/(shell)/settings/_components/sections/integrations/connector-fields'
+} from '@/platform/app/(shell)/settings/_components/sections/integrations/gitlab-fields'
 import {
   Button,
   Disclosure,
@@ -24,11 +29,6 @@ import {
   SearchableSelect,
   SecretField,
 } from '@/platform/design-system/components'
-import {
-  CONNECTOR_SWITCH_NOTICE,
-  type ConnectorSettingsFieldsProps,
-  useConnectorSettingsFields,
-} from '@/platform/lib/data/sources'
 
 /** The editable settings of an existing Search connection. Stored credentials are never returned. */
 export function ConnectorSettingsFields({

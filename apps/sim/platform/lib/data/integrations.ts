@@ -12,7 +12,6 @@ import {
 } from '@/hooks/queries/organization-accounts'
 import { useOrganizationSecretSource } from '@/hooks/queries/organization-secrets'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
-import { usePlatformNotices } from '@/platform/app/(shell)/_components/notification-tray/notification-tray'
 import {
   toGenericSecrets,
   toOrganizationIntegrations,
@@ -22,6 +21,7 @@ import type {
   OrganizationIntegration,
   ToolPermissionChange,
 } from '@/platform/lib/integrations/model'
+import { usePlatformNotices } from '@/platform/lib/notices'
 
 const ACTION_NOTICE_ID = 'integrations-action'
 

@@ -5,11 +5,9 @@ import { Favicon } from '@/components/favicon'
 import type { SimLink } from '@/lib/api/contracts/sim-links'
 import { simLinkOrigin } from '@/lib/sim-links/validation'
 import { LinkEditor } from '@/platform/app/(shell)/links/_components/links-page/link-editor'
-import {
-  LinkRowsSkeleton,
-  LinksFrame,
-} from '@/platform/app/(shell)/links/_components/links-page/links-frame'
+import { LinksFrame } from '@/platform/app/(shell)/links/_components/links-page/links-frame'
 import styles from '@/platform/app/(shell)/links/_components/links-page/links-page.module.css'
+import { QueryBoundary } from '@/platform/design-system/components'
 import { Avatar } from '@/platform/design-system/components/avatar/avatar'
 import { Button } from '@/platform/design-system/components/button/button'
 import {
@@ -20,12 +18,13 @@ import { EmptyState } from '@/platform/design-system/components/empty-state/empt
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { ActionMenu, ContextActionMenu } from '@/platform/design-system/components/menu/action-menu'
-import { Modal } from '@/platform/design-system/components/modal/modal'
+import { ConfirmDialog } from '@/platform/design-system/components/modal/confirm-dialog'
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 import type { LoadMoreState } from '@/platform/design-system/components/scroll-area/use-load-more'
-import { FailureNotice } from '@/platform/design-system/components/status/status'
 import { openLink, useLinksPage } from '@/platform/lib/data/links'
 import { formatRelativeTime } from '@/platform/lib/time'
+
+const LINK_SKELETON_ROWS = 6
 
 const COLUMNS = [
   { key: 'name', label: 'Name', kind: 'text' },
@@ -245,39 +244,48 @@ export function LinksPage({ organizationId }: LinksPageProps) {
       sortLabel={links.sortLabel}
       sortActions={links.sortActions}
     >
-      {links.status === 'error' ? (
-        <FailureNotice message={links.error ?? 'Failed to load links'} onRetry={links.retry} />
-      ) : links.status === 'pending' || (links.isPlaceholder && links.rows.length === 0) ? (
-        <LinkRowsSkeleton />
-      ) : links.rows.length === 0 ? (
-        links.term ? (
-          <EmptyState
-            title={`No results for “${links.term}”`}
-            description='Searched every link you can see.'
-            action={<Button onClick={() => links.setSearch('')}>Clear search</Button>}
-          />
-        ) : (
-          <EmptyState
-            graphic={<Icon name='I041' />}
-            title='No links yet'
-            description='Create short links like handbook for the pages your team opens most.'
-            action={
-              <Button variant='primary' onClick={links.startCreate}>
-                New link
-              </Button>
-            }
-          />
-        )
-      ) : (
-        <LinksTable
-          links={links.rows}
-          loadMore={links.loadMore}
-          asOf={links.asOf}
-          onCopy={links.copy}
-          onEdit={setEditing}
-          onDelete={setDeleting}
-        />
-      )}
+      <QueryBoundary
+        query={{
+          data:
+            links.status === 'error' ||
+            links.status === 'pending' ||
+            (links.isPlaceholder && links.rows.length === 0)
+              ? undefined
+              : links.rows,
+          error: links.status === 'error',
+          refetch: links.retry,
+        }}
+        failure={links.error ?? 'Failed to load links'}
+        loadingLabel='Loading links'
+        rows={LINK_SKELETON_ROWS}
+      >
+        {() =>
+          links.rows.length === 0 ? (
+            links.term ? (
+              <EmptyState
+                title={`No results for “${links.term}”`}
+                description='Searched every link you can see.'
+                action={<Button onClick={() => links.setSearch('')}>Clear search</Button>}
+              />
+            ) : (
+              <EmptyState
+                graphic={<Icon name='I041' />}
+                title='No links yet'
+                description='Create short links like handbook for the pages your team opens most.'
+              />
+            )
+          ) : (
+            <LinksTable
+              links={links.rows}
+              loadMore={links.loadMore}
+              asOf={links.asOf}
+              onCopy={links.copy}
+              onEdit={setEditing}
+              onDelete={setDeleting}
+            />
+          )
+        }
+      </QueryBoundary>
       {links.createName !== null && (
         <LinkEditor
           key={links.createName}
@@ -294,15 +302,12 @@ export function LinksPage({ organizationId }: LinksPageProps) {
           onClose={() => setEditing(null)}
         />
       )}
-      <Modal
-        open={deleting !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeleting(null)
-        }}
-        variant='confirm'
-        destructive
+      <ConfirmDialog
+        target={deleting !== null}
+        onClose={() => setDeleting(null)}
         title='Delete link'
         confirmLabel='Delete'
+        pendingLabel='Deleting…'
         description={`${deleting?.name ?? 'This link'} will stop working for everyone in your organization.`}
         onConfirm={() => (deleting ? links.remove(deleting.id) : undefined)}
       />

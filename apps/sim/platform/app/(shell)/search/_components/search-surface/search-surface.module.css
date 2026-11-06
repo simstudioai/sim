@@ -56,17 +56,6 @@
 .views .view:focus-visible {
   outline: var(--spacing-stroke-default) solid var(--ui-secondary);
 }
-.newShort {
-  display: none;
-}
-@media (width < 48rem) {
-  .newFull {
-    display: none;
-  }
-  .newShort {
-    display: inline;
-  }
-}
 .newButton {
   position: relative;
 }
@@ -170,11 +159,6 @@
 }
 .landing {
   padding-block: var(--landing-offset) var(--spacing-32);
-}
-.heading {
-  margin-block-end: var(--spacing-28);
-  text-align: center;
-  text-wrap: balance;
 }
 .historyAnchor {
   position: relative;

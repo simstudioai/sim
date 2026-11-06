@@ -29,13 +29,13 @@ import {
 import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
 import type { TurnOrigin } from '@/lib/mothership/generated/protocol'
-import { inter } from '@/app/_styles/fonts/inter/inter'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components/message-actions'
+import type { MessageActionsModel } from '@/app/workspace/[workspaceId]/components/message-actions/message-actions'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
 import {
-  type ChatAppearance,
   ChatSurfaceProvider,
+  useChatFontClass,
 } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ComposerScrollArea } from '@/app/workspace/[workspaceId]/home/components/composer-scroll-area'
 import {
@@ -44,6 +44,7 @@ import {
   MessageContent,
   type MessagePhase,
 } from '@/app/workspace/[workspaceId]/home/components/message-content'
+import type { PageContextDialogProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/page-context'
 import { parseQuestionAnswerMessage } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
 import {
   type CredentialSubmissionPayload,
@@ -134,7 +135,15 @@ interface MothershipChatProps {
   animateInput?: boolean
   onInputAnimationEnd?: () => void
   className?: string
-  appearance?: ChatAppearance
+  ResponseActionsComponent?: ComponentType<MessageActionsModel>
+  PageContextDialogComponent?: ComponentType<PageContextDialogProps>
+  userBubbleClassName?: string
+  responseActionsClassName?: string
+  sourcesPopoverClassName?: string
+  /** Replaces the transcript's skeleton while its history loads. */
+  loadingTranscript?: ReactNode
+  /** Holds the composer's place while the history loads. */
+  loadingComposer?: ReactNode
 }
 
 /**
@@ -432,8 +441,15 @@ export function MothershipChat({
   animateInput = false,
   onInputAnimationEnd,
   className,
-  appearance,
+  ResponseActionsComponent,
+  PageContextDialogComponent,
+  userBubbleClassName,
+  responseActionsClassName,
+  sourcesPopoverClassName,
+  loadingTranscript,
+  loadingComposer,
 }: MothershipChatProps) {
+  const fontClassName = useChatFontClass()
   const queryClient = useQueryClient()
   const styles = LAYOUT_STYLES[layout]
   const isStreamActive = isSending || isReconnecting
@@ -923,7 +939,10 @@ export function MothershipChat({
       onViewSources={onViewSources}
       onNavigateToChat={onNavigateToChat}
       onWorkspaceResourceSelect={onWorkspaceResourceSelect}
-      appearance={appearance}
+      ResponseActionsComponent={ResponseActionsComponent}
+      PageContextDialogComponent={PageContextDialogComponent}
+      responseActionsClassName={responseActionsClassName}
+      sourcesPopoverClassName={sourcesPopoverClassName}
     >
       <div
         ref={containerRef}
@@ -934,7 +953,7 @@ export function MothershipChat({
           layout === 'mothership-view' &&
             reserveResourceHeader &&
             'max-md:mt-[var(--resource-header-controls-height)] max-md:h-auto max-md:flex-1',
-          inter.className,
+          fontClassName,
           className
         )}
       >
@@ -961,7 +980,7 @@ export function MothershipChat({
           onCopy={handleCopy}
         >
           {isLoading && !hasMessages ? (
-            (appearance?.loadingTranscript ?? <MothershipChatSkeleton layout={layout} />)
+            (loadingTranscript ?? <MothershipChatSkeleton layout={layout} />)
           ) : (
             <div
               ref={sizerRef}
@@ -1010,7 +1029,7 @@ export function MothershipChat({
                             contexts={msg.contexts}
                             attachments={msg.attachments}
                             rowClassName={cn(styles.userRow, styles.rowGap)}
-                            bubbleClassName={cn(styles.userBubble, appearance?.userBubbleClassName)}
+                            bubbleClassName={cn(styles.userBubble, userBubbleClassName)}
                             attachmentWidthClassName={styles.attachmentWidth}
                           />
                         )
@@ -1056,7 +1075,7 @@ export function MothershipChat({
               onCancelEdit={onCancelQueueEdit}
             />
             {isLoading
-              ? appearance?.loadingComposer
+              ? loadingComposer
               : (composer ?? (
                   <UserInput
                     key={composerKey ?? draftScopeKey}

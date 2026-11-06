@@ -4,12 +4,26 @@ import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
+import { organizationRoutes } from '@/lib/navigation/paths'
+import { getSearchConnectionLabels } from '@/lib/sim-search/connection-labels'
+import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
+import { searchSetupAccessParam, searchSetupParam } from '@/lib/sim-search/params'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { connectedAccountsParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
+import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import { useSearchSources } from '@/hooks/queries/kb/connectors'
+import {
+  useOrganizationAccounts,
+  useUpdateOrganizationAccounts,
+} from '@/hooks/queries/organization-accounts'
+import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import {
   DetailHeader,
-  LoadingState,
   Muted,
-  ResourceList,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { SlackAccountSetup } from '@/platform/app/(shell)/settings/_components/sections/integrations/slack-account-setup'
@@ -17,30 +31,15 @@ import { SourceSetup } from '@/platform/app/(shell)/settings/_components/section
 import {
   ActivityRow,
   Button,
+  ConfirmDialog,
   EmptyState,
   FailureNotice,
-  Modal,
+  LoadingRows,
+  RowList,
   SearchField,
   Tooltip,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  CONNECTOR_META_REGISTRY,
-  connectedAccountsParam,
-  getConnectorAccessAvailability,
-  getSearchConnectionLabels,
-  organizationRoutes,
-  SEARCH_DEBOUNCE_MS,
-  searchSetupAccessParam,
-  searchSetupParam,
-  useDebounce,
-  useOrganizationAccounts,
-  usePermissionConfig,
-  useSearchIntegrations,
-  useSearchSources,
-  useSettingsSearch,
-  useUpdateOrganizationAccounts,
-} from '@/platform/lib/data/sources'
 
 interface ProviderDetailProps {
   connectorType: string
@@ -51,7 +50,7 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
   const router = useRouter()
   const meta = CONNECTOR_META_REGISTRY[connectorType]
   const [search, setSearch] = useSettingsSearch()
-  const sourceSearch = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
+  const sourceSearch = useSearchFilterValue(search, SEARCH_DEBOUNCE_MS).trim()
   const [removingSlackAccounts, setRemovingSlackAccounts] = useState(false)
   const scope = { kind: 'organization', organizationId: organization.id } as const
   const overview = useSearchIntegrations(organization.id)
@@ -156,7 +155,7 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
     return (
       <SectionStack>
         {header()}
-        <LoadingState label='Loading integration' />
+        <LoadingRows label='Loading integration' />
       </SectionStack>
     )
 
@@ -264,19 +263,20 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
               onRetry={() => void sources.refetch()}
             />
           ) : sources.isPending ? (
-            <LoadingState label='Loading connections' />
+            <LoadingRows label='Loading connections' />
           ) : (
             <>
-              <ResourceList>
+              <RowList>
                 {listed?.map((source) => (
                   <ActivityRow
+                    density='comfortable'
                     key={source.connectorId}
                     title={source.sourceDescription || meta.name}
                     detail={!approved ? 'Unavailable' : !source.enabled ? 'Paused' : undefined}
                     href={routes.searchSource(source.connectorId)}
                   />
                 ))}
-              </ResourceList>
+              </RowList>
               {!listed?.length && !sources.hasNextPage && (
                 <EmptyState
                   title={
@@ -310,13 +310,12 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
         </SettingsSection>
         <SlackAccountSetup organizationId={organization.id} isAdmin={viewer.isAdmin} />
         {removingSlackAccounts && group && (
-          <Modal
-            open
-            variant='confirm'
-            destructive
-            onOpenChange={setRemovingSlackAccounts}
+          <ConfirmDialog
+            target
+            onClose={() => setRemovingSlackAccounts(false)}
             title='Remove Slack app setup?'
             confirmLabel='Remove'
+            pendingLabel='Removing…'
             onConfirm={async () => {
               await removeSlackAccounts.mutateAsync({
                 organizationId: organization.id,
@@ -338,7 +337,7 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
               This disconnects your organization’s Slack accounts and clears their saved app
               configuration. Remove any connections using these accounts first.
             </Muted>
-          </Modal>
+          </ConfirmDialog>
         )}
       </SectionStack>
     </SourceSetup>

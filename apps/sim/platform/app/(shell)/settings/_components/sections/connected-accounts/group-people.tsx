@@ -3,9 +3,17 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import { personConnectionSummaries } from '@/ee/credential-groups/person-connections'
+import {
+  useOrganizationAccountPeople,
+  useResendOrganizationAccountInvitation,
+  useRevokeOrganizationAccountEnrollment,
+} from '@/hooks/queries/organization-accounts'
+import { useOrganizationAccountPeopleSearch } from '@/hooks/use-organization-account-people-search'
+import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import {
-  LoadingState,
   Muted,
   SectionStack,
   SectionToolbar,
@@ -16,11 +24,13 @@ import {
   ActionMenu,
   Avatar,
   Button,
+  ConfirmDialog,
   EmptyState,
+  errorMessageOr,
   FailureNotice,
   InlineNotice,
-  Modal,
-  SearchField,
+  QueryBoundary,
+  SectionSearch,
   StatusTag,
 } from '@/platform/design-system/components'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
@@ -28,15 +38,6 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  personConnectionSummaries,
-  SEARCH_DEBOUNCE_MS,
-  useDebounce,
-  useOrganizationAccountPeople,
-  useOrganizationAccountPeopleSearch,
-  useResendOrganizationAccountInvitation,
-  useRevokeOrganizationAccountEnrollment,
-} from '@/platform/lib/data/credential-groups'
 
 interface PersonConnectionsProps {
   person: Parameters<typeof personConnectionSummaries>[0]
@@ -70,7 +71,7 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
   const resend = useResendOrganizationAccountInvitation()
   const revoke = useRevokeOrganizationAccountEnrollment()
   const [peopleSearch, setPeopleSearch] = useOrganizationAccountPeopleSearch()
-  const search = useDebounce(peopleSearch.trim(), SEARCH_DEBOUNCE_MS)
+  const search = useSearchFilterValue(peopleSearch, SEARCH_DEBOUNCE_MS).trim()
   const people = useOrganizationAccountPeople(organizationId, search, { enabled: true })
   const [inviteOpen, setInviteOpen] = useState(false)
   const [revoking, setRevoking] = useState<{ id: string; email: string } | null>(null)
@@ -83,12 +84,7 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
     <SectionStack>
       <SectionToolbar
         grow={
-          <SearchField
-            label='Search people'
-            placeholder='Search people…'
-            value={peopleSearch}
-            onValueChange={setPeopleSearch}
-          />
+          <SectionSearch subject='people' value={peopleSearch} onValueChange={setPeopleSearch} />
         }
       >
         <Button
@@ -103,54 +99,62 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
       </SectionToolbar>
       {error && !revoking && <InlineNotice intent='danger' message={error.message} />}
       <SettingsSection title='People'>
-        {people.isPending ? (
-          <LoadingState label='Loading people…' />
-        ) : listFailed ? (
-          <FailureNotice
-            message={getErrorMessage(people.error, 'Could not load people')}
-            retrying={people.isFetching}
-            onRetry={() => void people.refetch()}
-          />
-        ) : enrollments.length === 0 ? (
-          <EmptyState title={search ? 'No people match your search' : 'No people invited yet'} />
-        ) : (
-          enrollments.map((person) => (
-            <SettingsRow
-              key={person.id}
-              label={person.email}
-              description={<PersonConnections person={person} />}
-              leading={<Avatar name={person.email} />}
-            >
-              <ActionMenu
-                label={`${person.email} actions`}
-                icon='I108'
-                actions={[
-                  {
-                    id: 'resend',
-                    label: 'Resend',
-                    disabled: pending || person.status === 'revoked',
-                    onSelect: () =>
-                      resend.mutate(
-                        { organizationId, enrollmentId: person.id },
-                        { onSuccess: () => toast.success('Invitation sent') }
-                      ),
-                  },
-                  {
-                    id: 'revoke',
-                    label: 'Revoke',
-                    destructive: true,
-                    separatorBefore: true,
-                    disabled: pending || person.status === 'revoked',
-                    onSelect: () => {
-                      revoke.reset()
-                      setRevoking({ id: person.id, email: person.email })
-                    },
-                  },
-                ]}
+        <QueryBoundary
+          query={{
+            data: listFailed ? undefined : people.data,
+            error: people.error,
+            isFetching: people.isFetching,
+            refetch: people.refetch,
+          }}
+          failure={errorMessageOr('Could not load people')}
+          loadingLabel='Loading people…'
+          empty={() =>
+            enrollments.length === 0 && (
+              <EmptyState
+                title={search ? 'No people match your search' : 'No people invited yet'}
               />
-            </SettingsRow>
-          ))
-        )}
+            )
+          }
+        >
+          {() =>
+            enrollments.map((person) => (
+              <SettingsRow
+                key={person.id}
+                label={person.email}
+                description={<PersonConnections person={person} />}
+                leading={<Avatar name={person.email} />}
+              >
+                <ActionMenu
+                  label={`${person.email} actions`}
+                  icon='I108'
+                  actions={[
+                    {
+                      id: 'resend',
+                      label: 'Resend',
+                      disabled: pending || person.status === 'revoked',
+                      onSelect: () =>
+                        resend.mutate(
+                          { organizationId, enrollmentId: person.id },
+                          { onSuccess: () => toast.success('Invitation sent') }
+                        ),
+                    },
+                    {
+                      id: 'revoke',
+                      label: 'Revoke',
+                      destructive: true,
+                      separatorBefore: true,
+                      disabled: pending || person.status === 'revoked',
+                      onSelect: () => {
+                        revoke.reset()
+                        setRevoking({ id: person.id, email: person.email })
+                      },
+                    },
+                  ]}
+                />
+              </SettingsRow>
+            ))
+          }
+        </QueryBoundary>
         {people.hasNextPage && !people.isFetchNextPageError && !listFailed && (
           <SettingsRow label='More people'>
             <Button
@@ -174,15 +178,12 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
         <PeopleInviteModal organizationId={organizationId} onClose={() => setInviteOpen(false)} />
       )}
       {revoking && (
-        <Modal
-          open
-          variant='confirm'
-          destructive
-          onOpenChange={(open) => {
-            if (!open) setRevoking(null)
-          }}
+        <ConfirmDialog
+          target
+          onClose={() => setRevoking(null)}
           title={`Revoke ${revoking.email}`}
-          confirmLabel={revoke.isPending ? 'Revoking…' : 'Revoke'}
+          confirmLabel='Revoke'
+          pendingLabel='Revoking…'
           onConfirm={async () => {
             await revoke.mutateAsync({ organizationId, enrollmentId: revoking.id })
             toast.success('Access revoked')
@@ -192,7 +193,7 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
             This removes all accounts contributed by this person from organization workflows and
             Search. It does not remove their organization membership.
           </Muted>
-        </Modal>
+        </ConfirmDialog>
       )}
     </SectionStack>
   )

@@ -19,12 +19,12 @@ import {
 import { Check, Link as LinkIcon, MoreHorizontal, Sparkles } from '@sim/emcn/icons'
 import { formatDate } from '@sim/utils/formatting'
 import { findTermMatches, queryTerms } from '@/lib/knowledge/search/snippet'
-import { inter } from '@/app/_styles/fonts/inter/inter'
 import {
   useOpenSimLinkForm,
   useSimLinkOrganizationId,
 } from '@/app/o/[organizationId]/links/sim-link-organization-provider'
 import { SimLinkMenuItem } from '@/app/o/[organizationId]/links/sim-link-shortcut'
+import { useChatFontClass } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
   SourceIcon,
   sourceLabel,
@@ -36,8 +36,7 @@ import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/component
 const SOURCE_ROW_CLASSES = cn(
   'not-prose flex items-start gap-2 px-2 py-2 transition-colors focus-within:bg-[var(--surface-hover)]',
   chipHoverSurfaceClass,
-  chipRadiusClass,
-  inter.className
+  chipRadiusClass
 )
 const SOURCE_ROW_MARK_CLASSES = cn(chipIconSlotClass, 'mt-0.5')
 
@@ -145,6 +144,7 @@ interface SourceCardProps {
 
 /** Source results share the same document identity and actions across search and cited evidence. */
 export function SourceCard({ source, query, onSummarize, dense = false }: SourceCardProps) {
+  const fontClassName = useChatFontClass()
   const navigate = useSourceNavigation(source)
   const meta = sourceMeta(source)
 
@@ -156,7 +156,7 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
             chipGeometryClass,
             chipHoverSurfaceClass,
             'flex transition-colors focus-within:bg-[var(--surface-hover)]',
-            inter.className
+            fontClassName
           )}
         >
           <span className={chipIconSlotClass}>
@@ -187,7 +187,7 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
   }
 
   return (
-    <div className={SOURCE_ROW_CLASSES}>
+    <div className={cn(SOURCE_ROW_CLASSES, fontClassName)}>
       <div className='flex min-w-0 flex-1 flex-col gap-1'>
         <div className='relative flex items-start gap-2 pr-8'>
           <span className={SOURCE_ROW_MARK_CLASSES}>

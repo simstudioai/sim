@@ -1,13 +1,14 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import { notFound, redirect } from 'next/navigation'
-import { getSession } from '@/lib/auth'
-import { WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
-import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { redirect } from 'next/navigation'
+import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { Hydrated } from '@/app/o/[organizationId]/_redesign/hydrated'
 import { loadOrganizationSearchView } from '@/app/o/[organizationId]/search/search-params'
-import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
-import { LandingSkeleton } from '@/platform/app/(shell)/_components/conversation/skeletons'
+import { requireOrganizationViewer } from '@/app/o/[organizationId]/viewer'
+import {
+  LandingSkeleton,
+  ResultsSkeleton,
+} from '@/platform/app/(shell)/_components/conversation/skeletons'
 import { OrganizationSearchSurface } from '@/platform/app/(shell)/search/_components/search-surface/search-surface'
 import { prefetchSearch } from '@/platform/lib/data/prefetch'
 
@@ -21,18 +22,19 @@ export default async function OrganizationSearchPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const [{ organizationId }, query] = await Promise.all([params, searchParams])
-  const session = await getSession()
-  if (!session?.user?.id) notFound()
-  const context = await getOrganizationSurfaceContext(organizationId, session.user.id)
-  if (!context) notFound()
+  const {
+    userId,
+    principal,
+    surface: context,
+  } = await requireOrganizationViewer(organizationId, organizationRoutes(organizationId).search)
   if (!context.searchAccess.memberScoped) redirect(WORKSPACE_SETTINGS_PATH)
-  const surface = <OrganizationSearchSurface userId={session.user.id} />
+  const surface = <OrganizationSearchSurface userId={userId} />
   const { q, mode } = loadOrganizationSearchView(query)
   const fallback =
     mode === 'assistant' ? (
       <LandingSkeleton field='composer' />
     ) : q.trim() ? (
-      <HomeFallback />
+      <ResultsSkeleton />
     ) : (
       <LandingSkeleton field='search' />
     )
@@ -41,15 +43,7 @@ export default async function OrganizationSearchPage({
       {q.trim() || mode === 'assistant' ? (
         surface
       ) : (
-        <Hydrated
-          state={prefetchSearch(organizationId, {
-            kind: 'session',
-            userId: session.user.id,
-            sessionId: session.session.id,
-          })}
-        >
-          {surface}
-        </Hydrated>
+        <Hydrated state={prefetchSearch(organizationId, principal)}>{surface}</Hydrated>
       )}
     </Suspense>
   )

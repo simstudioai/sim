@@ -4,8 +4,15 @@ import { type ReactNode, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
+import type { OrganizationAccountWorkspaceAccess } from '@/lib/api/contracts/organization-accounts'
+import { ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT } from '@/lib/credential-groups/limits'
+import { credentialGroupWorkspaceSearchParam } from '@/ee/credential-groups/search-params'
 import {
-  LoadingState,
+  useOrganizationAccountWorkspaceAccess,
+  useUpdateOrganizationAccountWorkspaceAccess,
+} from '@/hooks/queries/organization-accounts'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
+import {
   SectionStack,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -13,22 +20,16 @@ import { WorkspaceGrantModal } from '@/platform/app/(shell)/settings/_components
 import {
   Button,
   EmptyState,
-  FailureNotice,
+  errorMessageOr,
   InlineNotice,
-  SearchField,
+  LoadingRows,
+  QueryBoundary,
+  SectionSearch,
 } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  credentialGroupWorkspaceSearchParam,
-  ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT,
-  type OrganizationAccountWorkspaceAccess,
-  useDebouncedSearchSetter,
-  useOrganizationAccountWorkspaceAccess,
-  useUpdateOrganizationAccountWorkspaceAccess,
-} from '@/platform/lib/data/credential-groups'
 
 type Grant = OrganizationAccountWorkspaceAccess['grants'][number]
 type GrantEditor =
@@ -49,32 +50,32 @@ export function GroupAccess({ organizationId }: GroupAccessProps) {
   const setSearchTerm = useDebouncedSearchSetter(setSearchParam)
   return (
     <SectionStack>
-      {access.error ? (
-        <FailureNotice
-          message={getErrorMessage(access.error, 'Could not load workspace access')}
-          retrying={access.isFetching}
-          onRetry={() => void access.refetch()}
-        />
-      ) : !access.data ? (
-        <SettingsSection title='Workspaces'>
-          <LoadingState label='Loading workspace access…' />
-        </SettingsSection>
-      ) : (
-        <WorkspaceAccessList
-          key={organizationId}
-          organizationId={organizationId}
-          access={access.data}
-          search={
-            <SearchField
-              label='Search workspaces'
-              placeholder='Search workspaces…'
-              value={searchTerm}
-              onValueChange={setSearchTerm}
-            />
-          }
-          searchTerm={searchTerm}
-        />
-      )}
+      <QueryBoundary
+        query={access}
+        failure={errorMessageOr('Could not load workspace access')}
+        loadingLabel='Loading workspace access…'
+        loading={
+          <SettingsSection title='Workspaces'>
+            <LoadingRows label='Loading workspace access…' />
+          </SettingsSection>
+        }
+      >
+        {(data) => (
+          <WorkspaceAccessList
+            key={organizationId}
+            organizationId={organizationId}
+            access={data}
+            search={
+              <SectionSearch
+                subject='workspaces'
+                value={searchTerm}
+                onValueChange={setSearchTerm}
+              />
+            }
+            searchTerm={searchTerm}
+          />
+        )}
+      </QueryBoundary>
     </SectionStack>
   )
 }

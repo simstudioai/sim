@@ -11,13 +11,14 @@ import {
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { ClientSecretField } from '@/platform/app/(shell)/settings/_components/sections/sso/client-secret-field'
 import {
   Button,
   Checkbox,
   CopyField,
   Disclosure,
+  SaveActions,
   SearchableSelect,
-  SecretField,
   SegmentedControl,
   SelectField,
   TextAreaField,
@@ -29,7 +30,6 @@ import {
   buildSsoRegistrationBody,
   DEFAULT_SSO_FORM,
   hasSsoFormErrors,
-  maskedClientSecret,
   OIDC_DEFAULT_MAPPING,
   readProviderConfigString,
   SAML_DEFAULT_MAPPING,
@@ -43,109 +43,10 @@ import {
   validateSsoProviderForm,
 } from '@/platform/lib/data/sso'
 
-const PROVIDER_TYPE_OPTIONS = [
+const PROVIDER_TYPE_OPTIONS: { value: SsoProviderForm['providerType']; label: string }[] = [
   { label: 'OIDC', value: 'oidc' },
   { label: 'SAML', value: 'saml' },
 ]
-
-interface ClientSecretFieldProps {
-  /** A secret is saved, so the field opens as a masked fact rather than an input. */
-  hasStoredSecret: boolean
-  storedHint: string | null
-  isReplacing: boolean
-  onReplace: () => void
-  onKeepSaved: () => void
-  value: string
-  onChange: (value: string) => void
-  error?: string
-}
-
-/**
- * A saved client secret is a fact, not an editable value: the browser never receives it, so nothing
- * here can reveal or copy it. A static masked row with an explicit Replace avoids the "will blank
- * clear it?" ambiguity an empty input invites, and keeps a stray keystroke from arming a replacement.
- */
-function ClientSecretField({
-  hasStoredSecret,
-  storedHint,
-  isReplacing,
-  onReplace,
-  onKeepSaved,
-  value,
-  onChange,
-  error,
-}: ClientSecretFieldProps) {
-  const [unlocked, setUnlocked] = useState(false)
-  if (hasStoredSecret && !isReplacing) {
-    return (
-      <>
-        <TextField
-          label='Client secret'
-          value={maskedClientSecret(storedHint)}
-          readOnly
-          autoComplete='off'
-          hint={storedHint ? `Saved client secret ending ${storedHint}` : 'Saved client secret'}
-        />
-        <ActionRow>
-          <Button size='compact' onClick={onReplace}>
-            Replace
-          </Button>
-        </ActionRow>
-      </>
-    )
-  }
-  return (
-    <div className='contents' onFocusCapture={() => setUnlocked(true)}>
-      {/* Offscreen rather than hidden: managers skip hidden fields, so they would fill the real one. */}
-      <input
-        type='text'
-        name='fakeusernameremembered'
-        autoComplete='username'
-        aria-hidden='true'
-        className='-left-[9999px] pointer-events-none absolute opacity-0'
-        tabIndex={-1}
-        readOnly
-      />
-      <input
-        type='password'
-        name='fakepasswordremembered'
-        autoComplete='current-password'
-        aria-hidden='true'
-        className='-left-[9999px] pointer-events-none absolute opacity-0'
-        tabIndex={-1}
-        readOnly
-      />
-      <input
-        type='email'
-        name='fakeemailremembered'
-        autoComplete='email'
-        aria-hidden='true'
-        className='-left-[9999px] pointer-events-none absolute opacity-0'
-        tabIndex={-1}
-        readOnly
-      />
-      <SecretField
-        label='Client secret'
-        name='sso_client_key'
-        placeholder='Enter Client Secret'
-        autoComplete='off'
-        readOnly={!unlocked}
-        maskAsText
-        hint={isReplacing ? 'Replaces the saved secret when you save.' : undefined}
-        error={error}
-        value={value}
-        onChange={onChange}
-      />
-      {hasStoredSecret && (
-        <ActionRow>
-          <Button size='compact' onClick={onKeepSaved}>
-            Keep saved
-          </Button>
-        </ActionRow>
-      )}
-    </div>
-  )
-}
 
 interface ProviderFormProps {
   organizationId: string
@@ -279,7 +180,7 @@ export function ProviderForm({
                 hint='Choose the protocol configured in your identity provider.'
                 options={PROVIDER_TYPE_OPTIONS}
                 value={form.providerType}
-                onValueChange={(value) => changeType(value as SsoProviderForm['providerType'])}
+                onValueChange={changeType}
               />
               {isEditing ? (
                 <CopyField
@@ -302,8 +203,8 @@ export function ProviderForm({
                     query: providerIdQuery,
                     onQueryChange: (query, { reason }) => {
                       setProviderIdQuery(query)
-                      if (reason === 'input-change' || reason === 'input-clear')
-                        set('providerId', query.trim())
+                      // Closing the popup clears its query as `input-clear`; that is not an edit.
+                      if (reason === 'input-change') set('providerId', query.trim())
                     },
                   }}
                 />
@@ -529,22 +430,8 @@ export function ProviderForm({
               </Muted>
             </FieldStack>
           </SettingsSection>
-          <ActionRow>
-            {/* Enabled by an edit, never by validity: errors show only once a save is attempted. */}
-            <Button variant='primary' submit disabled={!dirty || configure.isPending}>
-              {configure.isPending ? 'Saving…' : 'Save'}
-            </Button>
-            {dirty && (
-              <Button variant='quiet' disabled={configure.isPending} onClick={discard}>
-                Discard
-              </Button>
-            )}
-            {isEditing && !dirty && onBack && (
-              <Button variant='quiet' onClick={onBack}>
-                Cancel
-              </Button>
-            )}
-          </ActionRow>
+          {/* Enabled by an edit, never by validity: errors show only once a save is attempted. */}
+          <SaveActions dirty={dirty} saving={configure.isPending} onDiscard={discard} />
         </FormFieldset>
       </form>
     </SectionStack>

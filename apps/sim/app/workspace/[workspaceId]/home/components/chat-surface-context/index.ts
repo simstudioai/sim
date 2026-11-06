@@ -1,1 +1,6 @@
-export { type ChatAppearance, ChatSurfaceProvider, useChatSurface } from './chat-surface-context'
+export {
+  ChatFontProvider,
+  ChatSurfaceProvider,
+  useChatFontClass,
+  useChatSurface,
+} from './chat-surface-context'

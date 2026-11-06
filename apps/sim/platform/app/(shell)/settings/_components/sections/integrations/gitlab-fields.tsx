@@ -1,0 +1,79 @@
+'use client'
+
+import {
+  GITLAB_CSV_FILES,
+  GITLAB_TOKEN_TABS,
+} from '@/connectors/gitlab/permission-config/csv-files'
+import type { GitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
+import { Muted } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { Button, FileField, SegmentedControl } from '@/platform/design-system/components'
+
+interface GitLabFieldsProps {
+  form: GitLabPermissionForm
+  disabled?: boolean
+}
+
+export function GitLabTokenTabs({ form, disabled }: GitLabFieldsProps) {
+  return (
+    <SegmentedControl
+      label='GitLab token type'
+      value={form.mode}
+      options={GITLAB_TOKEN_TABS.map((tab) => ({ ...tab, disabled }))}
+      onSelect={(value) => {
+        if (!disabled) form.setMode(value)
+      }}
+    />
+  )
+}
+
+/** Uploaded mappings stay in the form's ephemeral state, never in a saved draft. */
+export function GitLabCsvUploads({ form, disabled }: GitLabFieldsProps) {
+  if (form.mode !== 'csv') return null
+  return (
+    <>
+      <Muted>Update these files when access changes. Confidential issues are excluded.</Muted>
+      {(['userMapping', 'projectPermissions'] as const).map((kind) => {
+        const definition = GITLAB_CSV_FILES[kind]
+        const selected = form.files[kind]
+        const saved = form.saved?.[kind]
+        const filename = selected?.upload?.filename ?? saved?.filename
+        const count = selected?.rowCount ?? saved?.rowCount
+        return (
+          <div key={kind}>
+            <FileField
+              label={definition.title}
+              accept='.csv,text/csv'
+              disabled={disabled || selected?.loading}
+              prompt={selected?.loading ? 'Validating…' : 'Drop CSV or click to upload'}
+              selection={
+                filename
+                  ? {
+                      name: filename,
+                      detail:
+                        count !== undefined && !selected?.loading
+                          ? `${count.toLocaleString()} ${count === 1 ? 'row' : 'rows'} · ${selected?.upload ? 'Ready to save' : 'Saved'}`
+                          : undefined,
+                    }
+                  : undefined
+              }
+              error={selected?.error}
+              onFileChange={(file) => void form.selectFile(kind, file)}
+            />
+            <Button
+              variant='quiet'
+              size='compact'
+              onClick={() => {
+                const link = document.createElement('a')
+                link.href = `data:text/csv;charset=utf-8,${encodeURIComponent(definition.template)}`
+                link.download = definition.filename
+                link.click()
+              }}
+            >
+              Download template
+            </Button>
+          </div>
+        )
+      })}
+    </>
+  )
+}
