@@ -1508,6 +1508,7 @@ try {
             .poll(() => link.evaluate((element) => getComputedStyle(element).textDecorationLine))
             .toBe('underline')
           const next = toc.getByRole('link', { name: 'Next steps', exact: true })
+          const color = await next.evaluate((element) => getComputedStyle(element).color)
           await next.hover()
           await next.evaluate((element) =>
             Promise.all(element.getAnimations().map((animation) => animation.finished))
@@ -1515,6 +1516,21 @@ try {
           await expect
             .poll(() => next.evaluate((element) => getComputedStyle(element).backgroundColor))
             .toBe('rgba(0, 0, 0, 0)')
+          await expect(next).toHaveCSS('color', color)
+          await expect(next).toHaveCSS('text-decoration-line', 'none')
+          await expect
+            .poll(() =>
+              toc
+                .getByRole('link')
+                .filter({ visible: true })
+                .evaluateAll(
+                  (links) =>
+                    links.filter((element) =>
+                      getComputedStyle(element).textDecorationLine.includes('underline')
+                    ).length
+                )
+            )
+            .toBe(1)
           await page.screenshot({ path: join(directory, `toc-hover-${theme}.png`) })
         }
       } finally {
