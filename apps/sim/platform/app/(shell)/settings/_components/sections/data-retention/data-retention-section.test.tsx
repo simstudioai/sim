@@ -4,7 +4,7 @@ import { act, type ReactNode } from 'react'
 import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { PolicyDraft } from '@/platform/lib/data/data-retention'
+import type { PolicyDraft } from '@/ee/data-retention/lib/policy-draft'
 
 const mocks = vi.hoisted(() => ({
   retention: { current: undefined as unknown },
