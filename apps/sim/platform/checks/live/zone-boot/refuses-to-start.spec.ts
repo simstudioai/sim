@@ -3,8 +3,9 @@ import { expect, test } from '@playwright/test'
 
 /**
  * Starts the zone's real production build as its own process, the way a container does, under the
- * base path it was built with. `instrumentation.ts` runs `assertDeployableMode`, and Next exits the
- * server when that throws. A second zone, because the first must keep serving the suite before this.
+ * base path it was built with. `instrumentation.ts` runs `assertDeployableMode` and exits when that
+ * throws. A second zone, because the first must keep serving the suite before this. The message
+ * arrives through the logger, whose JSON output escapes its quotes.
  */
 const PORT = 3035
 const ORIGIN = `http://127.0.0.1:${PORT}`
@@ -56,7 +57,7 @@ test.afterEach(async () => {
 test('a production zone with no API origin refuses to start', async () => {
   const { exitCode, output } = startZone({})
   expect(await exitCode).toBe(1)
-  expect(output.join('')).toContain('its data mode is "none"')
+  expect(output.join('')).toMatch(/its data mode is \\?"none\\?"/)
 })
 
 test('a production zone on fixtures refuses to start', async () => {
@@ -65,7 +66,7 @@ test('a production zone on fixtures refuses to start', async () => {
     SIM_PLATFORM_FIXTURES: '1',
   })
   expect(await exitCode).toBe(1)
-  expect(output.join('')).toContain('its data mode is "fixture"')
+  expect(output.join('')).toMatch(/its data mode is \\?"fixture\\?"/)
 })
 
 test('a production zone with an API origin starts under the same command', async () => {
