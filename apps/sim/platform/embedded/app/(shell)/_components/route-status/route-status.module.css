@@ -22,5 +22,5 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: var(--ui-action-gap);
+  gap: var(--spacing-8);
 }
