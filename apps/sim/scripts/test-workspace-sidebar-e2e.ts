@@ -21,6 +21,7 @@ import {
   organization,
   permissionGroup,
   permissionGroupMember,
+  permissionGroupWorkspace,
   permissions,
   pinnedItem,
   project,
@@ -92,6 +93,14 @@ const MOD = 'ControlOrMeta'
 let currentSection = 'Setup'
 let currentCheck = 'Setup'
 let clientAddress = 0
+/** Failures the running check provokes on purpose; anything else fails the Health check. */
+let allowedUnexpected: RegExp[] = []
+
+function recordUnexpected(kind: string, url: string, detail: string) {
+  const signature = `${kind} ${url} ${detail}`
+  if (allowedUnexpected.some((pattern) => pattern.test(signature))) return
+  unexpected.push({ check: currentCheck, kind, url, detail: truncate(detail, 1500) })
+}
 
 const run = generateShortId(8)
   .toLowerCase()
@@ -126,8 +135,13 @@ function section(name: string) {
   writeReport()
 }
 
-async function check(name: string, body: () => Promise<void>) {
+interface CheckOptions {
+  allow?: RegExp[]
+}
+
+async function check(name: string, body: () => Promise<void>, options: CheckOptions = {}) {
   currentCheck = `${currentSection}: ${name}`
+  allowedUnexpected = options.allow ?? []
   const started = performance.now()
   const deadline = createDeferred<never>()
   const timer = setTimeout(
@@ -155,6 +169,7 @@ async function check(name: string, body: () => Promise<void>) {
     logger.error(`FAIL ${currentCheck}`, { error: message })
   } finally {
     clearTimeout(timer)
+    allowedUnexpected = []
     writeReport()
   }
 }
@@ -197,6 +212,13 @@ const SWITCHER = persona('switcher')
 const EVERYONE = [OWNER, EDITOR, VIEWER, REQUESTABLE, NO_CHAT, GUEST, SOLO, INVITEE, SWITCHER]
 const ORGANIZATION_MEMBERS = [OWNER, EDITOR, VIEWER, REQUESTABLE, NO_CHAT, SWITCHER]
 const BRAND_COLOR = '#123456'
+const REQUESTABLE_GROUP_ID = `sidebar-group-requestable-${run}`
+const NO_CHAT_GROUP_ID = `sidebar-group-nochat-${run}`
+/** A non-default group governs only the workspaces it targets, so each workspace links its own. */
+const GROUP_BY_PERSONA = new Map([
+  [REQUESTABLE.key, REQUESTABLE_GROUP_ID],
+  [NO_CHAT.key, NO_CHAT_GROUP_ID],
+])
 
 async function seedOrganization() {
   const now = new Date()
@@ -266,7 +288,7 @@ async function seedOrganization() {
     })
     await tx.insert(permissionGroup).values([
       {
-        id: `sidebar-group-requestable-${run}`,
+        id: REQUESTABLE_GROUP_ID,
         organizationId: ORGANIZATION_ID,
         name: 'Restricted, requestable',
         createdBy: OWNER.userId,
@@ -280,7 +302,7 @@ async function seedOrganization() {
         },
       },
       {
-        id: `sidebar-group-nochat-${run}`,
+        id: NO_CHAT_GROUP_ID,
         organizationId: ORGANIZATION_ID,
         name: 'No chat',
         createdBy: OWNER.userId,
@@ -291,13 +313,13 @@ async function seedOrganization() {
     await tx.insert(permissionGroupMember).values([
       {
         id: `sidebar-group-member-requestable-${run}`,
-        permissionGroupId: `sidebar-group-requestable-${run}`,
+        permissionGroupId: REQUESTABLE_GROUP_ID,
         organizationId: ORGANIZATION_ID,
         userId: REQUESTABLE.userId,
       },
       {
         id: `sidebar-group-member-nochat-${run}`,
-        permissionGroupId: `sidebar-group-nochat-${run}`,
+        permissionGroupId: NO_CHAT_GROUP_ID,
         organizationId: ORGANIZATION_ID,
         userId: NO_CHAT.userId,
       },
@@ -343,6 +365,13 @@ async function createWorkspace(options: WorkspaceOptions = {}) {
       permissionType,
     }))
   )
+  const groupLinks = members.flatMap(([who]) => {
+    const permissionGroupId = GROUP_BY_PERSONA.get(who.key)
+    return permissionGroupId && organizationId
+      ? [{ id: generateId(), permissionGroupId, workspaceId: id, organizationId }]
+      : []
+  })
+  if (groupLinks.length > 0) await db.insert(permissionGroupWorkspace).values(groupLinks)
   return { id, name, owner }
 }
 
@@ -448,6 +477,7 @@ interface OpenOptions {
   sidebarWidth?: number
 }
 
+const FORCED_REORDER_FAILURE = /^http \S+\/api\/(folders|workflows)\/reorder 500 PUT$/
 const HANDLED_RUNTIME = /NEXT_REDIRECT|NEXT_HTTP_ERROR_FALLBACK|Minified React error #419/
 
 async function openContext(who: Persona, options: OpenOptions = {}) {
@@ -491,22 +521,12 @@ async function newPage(context: BrowserContext) {
   const page = await context.newPage()
   page.on('pageerror', (error) => {
     if (HANDLED_RUNTIME.test(error.message)) return
-    unexpected.push({
-      check: currentCheck,
-      kind: 'runtime',
-      url: page.url(),
-      detail: truncate(error.message, 400),
-    })
+    recordUnexpected('runtime', page.url(), `${error.message}\n${error.stack ?? ''}`)
   })
   page.on('response', (response) => {
     if (response.status() < 500) return
     if (!response.url().startsWith(origin)) return
-    unexpected.push({
-      check: currentCheck,
-      kind: 'http',
-      url: response.url(),
-      detail: `${response.status()} ${response.request().method()}`,
-    })
+    recordUnexpected('http', response.url(), `${response.status()} ${response.request().method()}`)
   })
   return page
 }
@@ -747,6 +767,7 @@ async function workflowTreeChecks() {
     const { id } = await createWorkspace()
     const target = await createFolder(id, OWNER)
     const inside = await createWorkflow(id, OWNER, { folderId: target.id })
+    const remaining = await createWorkflow(id, OWNER, { sortOrder: 1 })
     await withPage(OWNER, async (page) => {
       await visit(page, id)
       await openRowMenu(page, folderRow(page, target.name))
@@ -757,7 +778,23 @@ async function workflowTreeChecks() {
       await expect.poll(async () => (await folderDbRow(target.id)).deletedAt).not.toBeNull()
       await expect.poll(async () => (await workflowRow(inside.id)).archivedAt).not.toBeNull()
       await expect(folderRow(page, target.name)).toHaveCount(0)
+      assert.equal((await workflowRow(remaining.id)).archivedAt, null)
     })
+  })
+  await check('delete is refused when it would leave the workspace no workflows', async () => {
+    const { id } = await createWorkspace()
+    const holder = await createFolder(id, OWNER)
+    const only = await createWorkflow(id, OWNER, { folderId: holder.id })
+    await withPage(OWNER, async (page) => {
+      await visit(page, id)
+      await openRowMenu(page, folderRow(page, holder.name))
+      await expect(menuItem(page, 'Delete')).toBeDisabled()
+      await page.keyboard.press('Escape')
+      await folderRow(page, holder.name).click()
+      await openRowMenu(page, row(page, only.id))
+      await expect(menuItem(page, 'Delete')).toBeDisabled()
+    })
+    assert.equal((await workflowRow(only.id)).archivedAt, null)
   })
   await check('an expanded folder stays expanded across navigation', async () => {
     const { id } = await createWorkspace()
@@ -877,40 +914,58 @@ async function dragAndDropChecks() {
       assert.equal((await workflowRow(stays.id)).folderId, null)
     })
   })
-  await check('a half-failed mixed drop says so and rolls the failed half back', async () => {
-    const { id } = await createWorkspace()
-    const target = await createFolder(id, OWNER, { sortOrder: 0 })
-    const movingFolder = await createFolder(id, OWNER, { sortOrder: 1 })
-    const movingWorkflow = await createWorkflow(id, OWNER, { sortOrder: 2 })
-    await withPage(OWNER, async (page) => {
-      await visit(page, id)
-      await page.route('**/api/folders/reorder', (route) =>
-        route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"forced"}' })
-      )
-      await folderRow(page, movingFolder.name).click({ modifiers: [MOD] })
-      await row(page, movingWorkflow.id).click({ modifiers: ['Shift'] })
-      await drag(page, row(page, movingWorkflow.id), folderRow(page, target.name), 'middle')
-      await expect(page.getByText('Only some items moved', { exact: true })).toBeVisible()
-      await expect.poll(async () => (await workflowRow(movingWorkflow.id)).folderId).toBe(target.id)
-      assert.equal((await folderDbRow(movingFolder.id)).parentId, null)
-      await expect(folderRow(page, movingFolder.name)).toBeVisible()
-    })
-  })
-  await check('a failed drop says so and leaves every row where it was', async () => {
-    const { id } = await createWorkspace()
-    const target = await createFolder(id, OWNER, { sortOrder: 0 })
-    const moving = await createWorkflow(id, OWNER, { sortOrder: 1 })
-    await withPage(OWNER, async (page) => {
-      await visit(page, id)
-      await page.route('**/api/workflows/reorder', (route) =>
-        route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"forced"}' })
-      )
-      await drag(page, row(page, moving.id), folderRow(page, target.name), 'middle')
-      await expect(page.getByText('Failed to move items', { exact: true })).toBeVisible()
-      await expect(row(page, moving.id)).toBeVisible()
-      assert.equal((await workflowRow(moving.id)).folderId, null)
-    })
-  })
+  await check(
+    'a half-failed mixed drop says so and rolls the failed half back',
+    async () => {
+      const { id } = await createWorkspace()
+      const target = await createFolder(id, OWNER, { sortOrder: 0 })
+      const movingFolder = await createFolder(id, OWNER, { sortOrder: 1 })
+      const movingWorkflow = await createWorkflow(id, OWNER, { sortOrder: 2 })
+      await withPage(OWNER, async (page) => {
+        await visit(page, id)
+        await page.route('**/api/folders/reorder', (route) =>
+          route.fulfill({
+            status: 500,
+            contentType: 'application/json',
+            body: '{"error":"forced"}',
+          })
+        )
+        await folderRow(page, movingFolder.name).click({ modifiers: [MOD] })
+        await row(page, movingWorkflow.id).click({ modifiers: ['Shift'] })
+        await drag(page, row(page, movingWorkflow.id), folderRow(page, target.name), 'middle')
+        await expect(page.getByText('Only some items moved', { exact: true })).toBeVisible()
+        await expect
+          .poll(async () => (await workflowRow(movingWorkflow.id)).folderId)
+          .toBe(target.id)
+        assert.equal((await folderDbRow(movingFolder.id)).parentId, null)
+        await expect(folderRow(page, movingFolder.name)).toBeVisible()
+      })
+    },
+    { allow: [FORCED_REORDER_FAILURE] }
+  )
+  await check(
+    'a failed drop says so and leaves every row where it was',
+    async () => {
+      const { id } = await createWorkspace()
+      const target = await createFolder(id, OWNER, { sortOrder: 0 })
+      const moving = await createWorkflow(id, OWNER, { sortOrder: 1 })
+      await withPage(OWNER, async (page) => {
+        await visit(page, id)
+        await page.route('**/api/workflows/reorder', (route) =>
+          route.fulfill({
+            status: 500,
+            contentType: 'application/json',
+            body: '{"error":"forced"}',
+          })
+        )
+        await drag(page, row(page, moving.id), folderRow(page, target.name), 'middle')
+        await expect(page.getByText('Failed to move items', { exact: true })).toBeVisible()
+        await expect(row(page, moving.id)).toBeVisible()
+        assert.equal((await workflowRow(moving.id)).folderId, null)
+      })
+    },
+    { allow: [FORCED_REORDER_FAILURE] }
+  )
   await check('hovering a collapsed folder springs it open and a drop in keeps it', async () => {
     const { id } = await createWorkspace()
     const target = await createFolder(id, OWNER, { sortOrder: 0 })
@@ -1113,6 +1168,7 @@ async function multiSelectChecks() {
       const b = await createFolder(id, OWNER, { sortOrder: 1 })
       const c = await createFolder(id, OWNER, { sortOrder: 2 })
       const flow = await createWorkflow(id, OWNER, { sortOrder: 3 })
+      const remaining = await createWorkflow(id, OWNER, { sortOrder: 4 })
       await withPage(OWNER, async (page) => {
         await visit(page, id)
         await folderRow(page, a.name).click({ modifiers: [MOD] })
@@ -1128,6 +1184,7 @@ async function multiSelectChecks() {
         await expect.poll(async () => (await folderDbRow(b.id)).deletedAt).not.toBeNull()
         await expect.poll(async () => (await folderDbRow(c.id)).deletedAt).not.toBeNull()
         await expect.poll(async () => (await workflowRow(flow.id)).archivedAt).not.toBeNull()
+        assert.equal((await workflowRow(remaining.id)).archivedAt, null)
       })
     }
   )
@@ -1251,9 +1308,7 @@ async function workspaceHeaderChecks() {
             ).length
         )
         .toBe(1)
-      await expect(
-        menuItem(page, new RegExp(escapeRegExp(second.name))).getByRole('img', { name: 'Pinned' })
-      ).toBeVisible()
+      await expect(page.getByRole('menu').getByRole('img', { name: 'Pinned' })).toHaveCount(1)
       await expect
         .poll(async () => {
           const rows = await page.getByRole('menuitem').allInnerTexts()
@@ -1587,6 +1642,24 @@ async function navGatingChecks() {
         await expect(navLink(page, name)).toBeVisible()
     })
   })
+  await check('the seeded restriction reaches the policy read the sidebar uses', async () => {
+    const { id } = await createWorkspace({ members: [[REQUESTABLE, 'write']] })
+    const context = await openContext(REQUESTABLE)
+    try {
+      const response = await context.request.get(
+        `${origin}/api/permission-groups/user?workspaceId=${id}`
+      )
+      assert.equal(response.status(), 200)
+      const policy = (await response.json()) as {
+        permissionGroupId: string | null
+        config: { hideTablesTab: boolean } | null
+      }
+      assert.equal(policy.permissionGroupId, REQUESTABLE_GROUP_ID)
+      assert.equal(policy.config?.hideTablesTab, true)
+    } finally {
+      await context.close().catch(() => {})
+    }
+  })
   await check('a requestable restriction keeps the entry, marked access required', async () => {
     const { id } = await createWorkspace({ members: [[REQUESTABLE, 'write']] })
     await withPage(REQUESTABLE, async (page) => {
@@ -1690,7 +1763,10 @@ async function chromeChecks() {
     await withPage(OWNER, async (page) => {
       await visit(page, id)
       const handle = page.getByRole('separator', { name: 'Resize sidebar' })
-      const point = await pointOf(handle, 'middle')
+      // The rail's shell clips the handle at its own edge, so only its left half can be grabbed.
+      const box = await handle.boundingBox()
+      assert(box, 'The resize handle has no box')
+      const point = { x: box.x + 2, y: box.y + box.height / 2 }
       await page.mouse.move(point.x, point.y)
       await page.mouse.down()
       await page.mouse.move(360, point.y, { steps: 6 })
@@ -1819,7 +1895,16 @@ async function chromeChecks() {
         async (page, context) => {
           // The attribute the desktop shell's pre-paint script sets; the rest is the web build.
           await context.addInitScript(() => {
-            document.documentElement.setAttribute('data-sim-desktop-title-bar', 'inset')
+            const mark = () => {
+              if (!document.documentElement) return false
+              document.documentElement.setAttribute('data-sim-desktop-title-bar', 'inset')
+              return true
+            }
+            if (mark()) return
+            const observer = new MutationObserver(() => {
+              if (mark()) observer.disconnect()
+            })
+            observer.observe(document, { childList: true })
           })
           await visit(page, id)
           await expect(tree(page)).toHaveCount(0)
@@ -1897,7 +1982,16 @@ async function commandChecks() {
       await visit(page, id)
       await page.keyboard.press(`${MOD}+k`)
       await expect(palette(page)).toBeVisible()
-      await expect(paletteInput(page)).toBeFocused()
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const active = document.activeElement
+            return `${active?.tagName}[${active?.getAttribute('aria-label') ?? ''}] hasFocus=${document.hasFocus()}`
+          })
+        )
+        .toBe('INPUT[Search anything] hasFocus=true')
+      await page.keyboard.type('ab')
+      await expect(paletteInput(page)).toHaveValue('ab')
       await page.keyboard.press(`${MOD}+k`)
       await expect(palette(page)).toHaveCount(0)
     })
@@ -2356,7 +2450,15 @@ async function main() {
   await settingsChecks()
 }
 
+async function healthCheck() {
+  section('Health')
+  await check('no unexplained browser runtime errors or same-origin 5xx responses', async () => {
+    assert.deepEqual(unexpected, [])
+  })
+}
+
 await main()
+  .then(healthCheck)
   .catch((error) => {
     logger.error('Workspace sidebar E2E aborted', { error: getErrorMessage(error) })
     process.exitCode = 1
