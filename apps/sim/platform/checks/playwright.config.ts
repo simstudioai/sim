@@ -15,6 +15,7 @@ export default defineConfig({
   ],
   workers: 1,
   timeout: existingOrigin ? 60_000 : 30_000,
+  expect: { timeout: existingOrigin ? 10_000 : 5_000 },
   reporter: [['list'], ['json', { outputFile: report }]],
   outputDir: path.join(path.dirname(report), 'artifacts'),
   use: { screenshot: 'only-on-failure', trace: 'retain-on-failure' },

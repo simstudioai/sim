@@ -284,7 +284,7 @@ export function IntegrationDetails({
       )}
       {enrollment && (
         <CredentialConnect
-          key={enrollment.credential?.id ?? enrollment.connection.id}
+          key={`connect:${enrollment.credential?.id ?? enrollment.connection.id}`}
           integrationName={integration.name}
           connection={enrollment.connection}
           access={integration.searchReads}
