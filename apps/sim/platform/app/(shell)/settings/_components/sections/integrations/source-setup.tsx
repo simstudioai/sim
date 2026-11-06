@@ -16,15 +16,15 @@ import {
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { ApiKeyField } from '@/platform/app/(shell)/settings/_components/sections/integrations/api-key-field'
+import { ConnectorAccess } from '@/platform/app/(shell)/settings/_components/sections/integrations/connector-access'
+import { ConnectorConfigFields } from '@/platform/app/(shell)/settings/_components/sections/integrations/connector-config-fields'
+import { ContentCredentialField } from '@/platform/app/(shell)/settings/_components/sections/integrations/content-credential-field'
+import { GitHubConnectionField } from '@/platform/app/(shell)/settings/_components/sections/integrations/github-connection-field'
 import {
-  ApiKeyField,
-  ConnectorAccess,
-  ConnectorConfigFields,
-  ContentCredentialField,
-  GitHubConnectionField,
   GitLabCsvUploads,
   GitLabTokenTabs,
-} from '@/platform/app/(shell)/settings/_components/sections/integrations/connector-fields'
+} from '@/platform/app/(shell)/settings/_components/sections/integrations/gitlab-fields'
 import {
   Button,
   Checkbox,

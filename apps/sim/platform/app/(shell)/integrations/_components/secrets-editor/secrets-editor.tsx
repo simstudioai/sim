@@ -6,6 +6,15 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { countPasteRows } from '@sim/utils/paste'
 import { useRouter } from 'next/navigation'
+import {
+  applyVariableEdits,
+  createEmptyEnvVar,
+  parseEnvVarLine,
+  parseValidEnvVars,
+  updateEnvVarArray,
+  validateEnvVarKey,
+} from '@/components/secrets/secret-rows'
+import { setRecordValue } from '@/lib/core/utils/records'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
