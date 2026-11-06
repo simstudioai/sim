@@ -13,7 +13,6 @@
 button.bubble {
   cursor: pointer;
   background: color-mix(in srgb, var(--control-muted-fill) var(--opacity-0-6), transparent);
-  transition: background var(--ui-motion-color);
 }
 
 button.bubble:hover {
