@@ -1,6 +1,14 @@
 'use client'
 
-import { type MouseEvent, memo, type ReactNode, type TouchEvent, useMemo, useState } from 'react'
+import {
+  type MouseEvent,
+  memo,
+  type ReactNode,
+  type TouchEvent,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import type { SimLink } from '@/lib/api/contracts/sim-links'
 import { simLinkOrigin } from '@/lib/sim-links/validation'
 import { QueryBoundary } from '@/platform/design-system/components'
@@ -18,6 +26,7 @@ import { ConfirmDialog } from '@/platform/design-system/components/modal/confirm
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 import type { LoadMoreState } from '@/platform/design-system/components/scroll-area/use-load-more'
 import { SiteMark } from '@/platform/embedded/app/(shell)/_components/site-mark/site-mark'
+import { useRemovedRowFocus } from '@/platform/embedded/app/(shell)/_components/use-removed-row-focus'
 import { LinkEditor } from '@/platform/embedded/app/(shell)/links/_components/links-page/link-editor'
 import { LinksFrame } from '@/platform/embedded/app/(shell)/links/_components/links-page/links-frame'
 import styles from '@/platform/embedded/app/(shell)/links/_components/links-page/links-page.module.css'
@@ -223,9 +232,17 @@ export function LinksPage({ organizationId }: LinksPageProps) {
   const links = useLinksPage(organizationId)
   const [editing, setEditing] = useState<SimLink | null>(null)
   const [deleting, setDeleting] = useState<SimLink | null>(null)
+  const page = useRef<HTMLElement>(null)
+  const removeRow = useRemovedRowFocus({
+    rowIds: links.rows.map((link) => link.id),
+    rowAt: (index) => page.current?.querySelector(`tr[data-index="${index}"]`),
+    list: page,
+    confirming: deleting !== null,
+  })
 
   return (
     <LinksFrame
+      mainRef={page}
       search={links.search}
       onSearch={links.setSearch}
       onCreate={links.startCreate}
@@ -297,7 +314,9 @@ export function LinksPage({ organizationId }: LinksPageProps) {
         confirmLabel='Delete'
         pendingLabel='Deleting…'
         description={`${deleting?.name ?? 'This link'} will stop working for everyone in your organization.`}
-        onConfirm={() => (deleting ? links.remove(deleting.id) : undefined)}
+        onConfirm={() =>
+          deleting ? removeRow(deleting.id, () => links.remove(deleting.id)) : undefined
+        }
       />
     </LinksFrame>
   )

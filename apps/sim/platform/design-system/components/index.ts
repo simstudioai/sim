@@ -32,7 +32,6 @@ export {
   MenuItem,
   VisibilityMenu,
 } from './menu/action-menu'
-export { HoverPopover } from './menu/hover-popover'
 export { PopupNote, PopupRow } from './menu/popup-row'
 export { RangePicker } from './menu/range-picker'
 export { ConfirmDialog } from './modal/confirm-dialog'

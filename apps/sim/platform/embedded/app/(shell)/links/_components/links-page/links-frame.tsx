@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { SectionSearch } from '@/platform/design-system/components'
 import { Button } from '@/platform/design-system/components/button/button'
@@ -17,6 +17,7 @@ interface LinksFrameProps {
   sortActions?: readonly MenuAction[]
   /** Holds the page's controls still while the route loads. */
   loading?: boolean
+  mainRef?: Ref<HTMLElement>
   children: ReactNode
 }
 
@@ -28,11 +29,12 @@ export function LinksFrame({
   sortLabel = 'Sort',
   sortActions = [],
   loading,
+  mainRef,
   children,
 }: LinksFrameProps) {
   const { hosted } = useDeploymentShape()
   return (
-    <main className={styles.page} inert={loading} aria-busy={loading || undefined}>
+    <main ref={mainRef} className={styles.page} inert={loading} aria-busy={loading || undefined}>
       <header className={styles.heading}>
         <h1 data-type='T076'>Links</h1>
         <div className={styles.actions}>

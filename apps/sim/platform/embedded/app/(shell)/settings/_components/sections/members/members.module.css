@@ -4,6 +4,11 @@
   gap: var(--spacing-24);
 }
 
+/* Holds no box: the rows stay the surface's own, and this only tells them apart from invitations. */
+.memberRows {
+  display: contents;
+}
+
 .controls {
   display: grid;
   grid-template-columns: var(--spacing-96) auto;
