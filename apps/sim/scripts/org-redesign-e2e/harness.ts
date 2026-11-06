@@ -124,8 +124,8 @@ const STREAMED_FAILURE = /Minified React error #419/
 /** The browser's own line for a failed load, which the response and requestfailed listeners judge. */
 const BROWSER_LOAD_FAILURE = /^Failed to load resource/
 /**
- * What this environment says that production would not: the suite runs over plain HTTP, where the
- * browser ignores COOP, and the Inth analytics host refuses CI's origin, which production's allows.
+ * What this environment says, not the app: the suite runs over plain HTTP, where the browser ignores
+ * COOP, and the Inth analytics host refuses this test origin's CORS request.
  */
 const ENVIRONMENT_CONSOLE_NOISE = [
   /^The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy\./,
