@@ -356,10 +356,16 @@ export async function homeChecks() {
       const row = recents.getByRole('link', { name: SEEDED_SOURCE.title })
       await expect(row).toBeVisible()
       await row.hover()
+      const removed = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'DELETE' &&
+          new URL(response.url()).pathname.endsWith('/search/history/sources')
+      )
       await recents
         .getByRole('button', { name: `Remove ${SEEDED_SOURCE.title} from recents` })
         .click()
       await expect(row).toHaveCount(0)
+      assert.ok((await removed).ok(), 'The server refused the removal')
       await page.reload()
       await expect(homeRegion(page, 'Email')).toBeVisible()
       await session.settle()

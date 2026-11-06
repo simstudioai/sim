@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import type { Locator, Page } from '@playwright/test'
+import type { Locator, Page, Request } from '@playwright/test'
 import { expect } from '@/scripts/org-redesign-e2e/harness'
 
 declare global {
@@ -68,6 +68,29 @@ export async function openRowMenu(page: Page, label: string) {
     .getByRole('button', { name: `Actions for ${label}`, exact: true })
     .click()
   return page.getByRole('menu', { name: `Actions for ${label}` })
+}
+
+/**
+ * Resolves once the route's prefetch has landed: a response arrived and none is outstanding. The
+ * router can only show a loading boundary a prefetch already delivered, and it fetches a route in
+ * several requests whose order and timing are its own.
+ */
+export function routePrefetched(page: Page, isPayload: (address: URL) => boolean) {
+  let outstanding = 0
+  let landed = 0
+  const matches = (request: Request) =>
+    isPayload(new URL(request.url())) && request.headers()['next-router-prefetch'] !== undefined
+  page.on('request', (request) => {
+    if (matches(request)) outstanding += 1
+  })
+  const finish = (request: Request) => {
+    if (!matches(request)) return
+    outstanding -= 1
+    landed += 1
+  }
+  page.on('requestfinished', finish)
+  page.on('requestfailed', finish)
+  return () => expect.poll(() => landed > 0 && outstanding === 0).toBe(true)
 }
 
 export async function clipboard(page: Page) {

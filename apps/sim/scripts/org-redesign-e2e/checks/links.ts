@@ -32,6 +32,7 @@ import {
   mainNav,
   menuEntry,
   pageTurn,
+  routePrefetched,
 } from '@/scripts/org-redesign-e2e/locators'
 
 export async function linksChecks() {
@@ -391,14 +392,10 @@ export async function linksChecks() {
           if (route.request().headers()['next-router-prefetch'] === undefined) await hold.promise
           await route.continue()
         })
-        const loadingPrefetched = page.waitForResponse(
-          async (response) =>
-            isLinksPayload(new URL(response.url())) &&
-            // A prefetch the page moved past has no body left to read, and is not the one awaited.
-            (await response.text().catch(() => '')).includes('Loading links')
-        )
+        const prefetched = routePrefetched(page, isLinksPayload)
         await page.goto(orgUrl('/home'))
-        await loadingPrefetched
+        await mainNav(page).getByRole('link', { name: 'Links', exact: true }).hover()
+        await prefetched()
         await mainNav(page).getByRole('link', { name: 'Links', exact: true }).click()
         await expect(page.getByRole('status', { name: 'Loading links' })).toBeVisible()
         await expect(page.getByRole('button', { name: 'New link', exact: true })).toBeVisible()

@@ -14,7 +14,7 @@ import {
   section,
   withSession,
 } from '@/scripts/org-redesign-e2e/harness'
-import { mainNav, navLabels } from '@/scripts/org-redesign-e2e/locators'
+import { mainNav, navLabels, routePrefetched } from '@/scripts/org-redesign-e2e/locators'
 
 export async function peoplePhaseChecks() {
   section('People with its flag on')
@@ -32,14 +32,11 @@ export async function peoplePhaseChecks() {
         if (route.request().headers()['next-router-prefetch'] === undefined) await hold.promise
         await route.continue()
       })
-      // The router can only show a loading boundary a prefetch has already delivered.
-      const prefetched = page.waitForResponse((response) =>
-        isPeoplePayload(new URL(response.url()))
-      )
+      const prefetched = routePrefetched(page, isPeoplePayload)
       await page.goto(orgUrl('/home'))
       const link = mainNav(page).getByRole('link', { name: 'People', exact: true })
       await link.hover()
-      await prefetched
+      await prefetched()
       await link.click()
       const rows = page.getByRole('status', { name: 'Loading people…' })
       await expect(rows).toBeVisible()
