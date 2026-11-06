@@ -68,7 +68,7 @@ export function HomeDashboard({ view, actions, requestMode, composer }: HomeDash
     }
   }
   return (
-    <div className={styles.scroller}>
+    <main className={styles.scroller}>
       <div className={styles.dashboard}>
         <RedesignSurface>
           <div className={styles.lead}>
@@ -182,6 +182,6 @@ export function HomeDashboard({ view, actions, requestMode, composer }: HomeDash
           </div>
         </RedesignSurface>
       </div>
-    </div>
+    </main>
   )
 }

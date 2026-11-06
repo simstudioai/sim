@@ -16,7 +16,7 @@ export const orgChip = (page: Page) => page.getByRole('button', { name: 'Organiz
 export const orgCard = (page: Page) => dialog(page, 'Organization menu')
 /** Outside the sidebar, which has a section with the same name as Home's Workspaces. */
 export const homeRegion = (page: Page, name: string) =>
-  page.getByRole('region', { name, exact: true }).locator('xpath=self::*[not(ancestor::aside)]')
+  page.getByRole('main').getByRole('region', { name, exact: true })
 
 export async function navLabels(page: Page) {
   const links = mainNav(page).getByRole('link')
