@@ -4,9 +4,8 @@ import { useQueryStates } from 'nuqs'
 import { integrationViewParsers } from '@/app/o/[organizationId]/integrations/search-params'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
-import { QueryFailure } from '@/platform/app/(shell)/integrations/_components/query-failure/query-failure'
 import { ToolPermissions } from '@/platform/app/(shell)/integrations/_components/tool-permissions/tool-permissions'
-import { InlineNotice } from '@/platform/design-system/components/status/status'
+import { QueryBoundary } from '@/platform/design-system/components'
 import { useToolPermissions } from '@/platform/lib/data/integrations'
 
 interface ToolPermissionsPanelProps {
@@ -26,8 +25,17 @@ export function ToolPermissionsPanel({
   const setSearch = useDebouncedSearchSetter((value, options) =>
     setParams({ tools: value }, options)
   )
-  if (query.error) return <QueryFailure message='Could not load tool permissions' query={query} />
-  if (!view) return <InlineNotice message='Loading tool permissions' />
+  if (!view) {
+    return (
+      <QueryBoundary
+        query={{ ...query, data: undefined }}
+        failure='Could not load tool permissions'
+        loadingLabel='Loading tool permissions'
+      >
+        {() => null}
+      </QueryBoundary>
+    )
+  }
   return (
     <>
       {showHeading && (

@@ -6,15 +6,15 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
   ActionRow,
-  LoadingState,
   Muted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
   ActionMenu,
   Button,
+  ConfirmDialog,
   FailureNotice,
   InlineNotice,
-  Modal,
+  LoadingRows,
   SearchableSelect,
   Select,
 } from '@/platform/design-system/components'
@@ -179,7 +179,7 @@ export function GroupMappings({
   }
   const automaticMatchRemains = automaticMatchWouldRemain(pendingRemove, autoMapByName, names)
 
-  if (isLoading) return <LoadingState label='Loading groups…' />
+  if (isLoading) return <LoadingRows label='Loading groups…' />
   if (groups === undefined && isError) {
     return (
       <FailureNotice
@@ -190,7 +190,7 @@ export function GroupMappings({
     )
   }
   if (permissionGroupsQuery.isPending || workspacesQuery.isPending) {
-    return <LoadingState label='Loading groups…' />
+    return <LoadingRows label='Loading groups…' />
   }
   /**
    * Mappings stay manageable when a target list is missing. Permission groups refuse outright where
@@ -283,16 +283,13 @@ export function GroupMappings({
           </div>
         )
       })}
-      <Modal
-        variant='confirm'
-        destructive
-        open={active && pendingRemove !== undefined}
-        onOpenChange={(open) => {
-          if (!open) setPendingRemoveId(null)
-        }}
+      <ConfirmDialog
+        target={active && pendingRemove !== undefined}
+        onClose={() => setPendingRemoveId(null)}
         title='Remove mapping'
         description={`Remove the mapping to ${pendingRemove ? describeScimMapping(pendingRemove, names) : ''}? ${removeMappingConsequence(pendingRemove, automaticMatchRemains)}`}
-        confirmLabel={deleteMapping.isPending ? 'Removing…' : 'Remove'}
+        confirmLabel='Remove'
+        pendingLabel='Removing…'
         onConfirm={async () => {
           if (!pendingRemove) return
           await deleteMapping.mutateAsync({ organizationId, mappingId: pendingRemove.id })

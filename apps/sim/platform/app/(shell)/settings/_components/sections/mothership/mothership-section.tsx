@@ -3,11 +3,30 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
+import {
+  defaultTimeRange,
+  ENV_OPTIONS,
+  formatCost,
+  formatDate,
+  TABS,
+  toRFC3339,
+} from '@/app/workspace/[workspaceId]/settings/components/mothership/format'
+import {
+  type MothershipTab,
+  mothershipParsers,
+  mothershipUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/components/mothership/search-params'
+import { useLicenseForm } from '@/app/workspace/[workspaceId]/settings/components/mothership/use-license-form'
+import {
+  type MothershipEnv,
+  useMothershipLicenses,
+  useMothershipRequests,
+  useMothershipUserBreakdown,
+} from '@/hooks/queries/mothership-admin'
 import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 import {
   ActionRow,
   FieldStack,
-  LoadingState,
   Muted,
   SectionStack,
   SectionToolbar,
@@ -18,6 +37,7 @@ import {
   DataTable,
   EmptyState,
   InlineNotice,
+  LoadingRows,
   MetricGroup,
   SegmentedControl,
   SelectField,
@@ -25,22 +45,6 @@ import {
   TextField,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  defaultTimeRange,
-  ENV_OPTIONS,
-  formatCost,
-  formatDate,
-  type MothershipEnv,
-  type MothershipTab,
-  mothershipParsers,
-  mothershipUrlKeys,
-  TABS,
-  toRFC3339,
-  useLicenseForm,
-  useMothershipLicenses,
-  useMothershipRequests,
-  useMothershipUserBreakdown,
-} from '@/platform/lib/data/mothership-admin'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const REQUEST_LIMIT = 100
@@ -185,7 +189,7 @@ function Overview({ environment, start, end }: OverviewProps) {
       />
       {breakdownLoading && (
         <SettingsSection title='User breakdown'>
-          <LoadingState label='Loading user breakdown' rows={5} />
+          <LoadingRows label='Loading user breakdown' rows={5} />
         </SettingsSection>
       )}
       {breakdown?.users && (
@@ -212,7 +216,7 @@ function Overview({ environment, start, end }: OverviewProps) {
       )}
       {requestsLoading && (
         <SettingsSection title='Recent requests'>
-          <LoadingState label='Loading recent requests' rows={5} />
+          <LoadingRows label='Loading recent requests' rows={5} />
         </SettingsSection>
       )}
       {requests?.requests && (
@@ -334,7 +338,7 @@ function Licenses({ environment }: LicensesProps) {
       </SettingsSection>
       {isLoading && (
         <SettingsSection title='All licenses'>
-          <LoadingState label='Loading licenses' />
+          <LoadingRows label='Loading licenses' />
         </SettingsSection>
       )}
       {data?.licenses &&

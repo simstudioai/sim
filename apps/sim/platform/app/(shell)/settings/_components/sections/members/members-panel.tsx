@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { InviteModal } from '@/platform/app/(shell)/_components/invite-modal/invite-modal'
 import { ManageCreditsModal } from '@/platform/app/(shell)/settings/_components/section-parts/manage-credits-modal'
 import { SectionToolbar } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -21,19 +22,16 @@ import {
   Button,
   EmptyState,
   FailureNotice,
-  SearchField,
+  LoadingRows,
+  SectionSearch,
   Tooltip,
 } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  filterRoster,
-  type MemberRowModel,
-  useMemberSearch,
-  useMembers,
-} from '@/platform/lib/data/members'
+import { useMembers } from '@/platform/lib/data/members'
+import { filterRoster, type MemberRowModel } from '@/platform/lib/data/members-model'
 import type { PlatformOrganization } from '@/platform/lib/data/organization'
 
 interface MembersPanelProps {
@@ -44,7 +42,7 @@ const LOAD_FAILED = 'Failed to load organization members'
 
 export function MembersPanel({ organization }: MembersPanelProps) {
   const members = useMembers(organization)
-  const { search, setSearch } = useMemberSearch()
+  const [search, setSearch] = useSettingsSearch()
   const [inviting, setInviting] = useState(false)
   const [removal, setRemoval] = useState<RemovalTarget | null>(null)
   const [transferring, setTransferring] = useState(false)
@@ -67,14 +65,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
   return (
     <div className={styles.panel}>
       <SectionToolbar
-        grow={
-          <SearchField
-            label='Search members'
-            placeholder='Search members…'
-            value={search}
-            onValueChange={setSearch}
-          />
-        }
+        grow={<SectionSearch subject='members' value={search} onValueChange={setSearch} />}
       >
         {members.canManage && (
           <Tooltip label='Invitations are disabled' enabled={!members.canInvite}>
@@ -118,9 +109,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
 
       {roster.status === 'pending' ? (
         <SettingsSection title='Members'>
-          <p className={styles.status} role='status' data-type='T060'>
-            Loading members…
-          </p>
+          <LoadingRows label='Loading members…' />
         </SettingsSection>
       ) : !visible ? (
         <FailureNotice
@@ -136,9 +125,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
           {(!searching || visible.members.length + visible.invitations.length > 0) && (
             <SettingsSection title={`Members ${visible.total}`}>
               {visible.members.length + visible.invitations.length === 0 && (
-                <p className={styles.status} data-type='T060'>
-                  No members yet
-                </p>
+                <EmptyState title='No members yet' />
               )}
               {visible.members.map((row) => (
                 <MemberRow
@@ -163,9 +150,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
           {visible.workspaces.map((workspace) => (
             <SettingsSection key={workspace.id} title={`${workspace.name} ${workspace.total}`}>
               {workspace.members.length + workspace.invitations.length === 0 && (
-                <p className={styles.status} data-type='T060'>
-                  No members in this workspace
-                </p>
+                <EmptyState title='No members in this workspace' />
               )}
               {workspace.members.map((row) => (
                 <WorkspaceMemberRow

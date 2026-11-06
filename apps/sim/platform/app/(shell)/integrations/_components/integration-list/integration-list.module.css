@@ -1,6 +1,5 @@
 .list,
-.group,
-.rows {
+.group {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   min-inline-size: 0;
@@ -11,7 +10,4 @@
 .group,
 .rows {
   gap: var(--ui-list-gap);
-}
-.rows {
-  margin-inline: calc(-1 * var(--ui-row-inset));
 }

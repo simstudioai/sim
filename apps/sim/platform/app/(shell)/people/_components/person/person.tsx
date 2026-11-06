@@ -2,15 +2,20 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
 import { ProfileUnavailable } from '@/platform/app/(shell)/people/_components/people-page/profile-unavailable'
 import styles from '@/platform/app/(shell)/people/_components/person/person.module.css'
 import { PersonModal } from '@/platform/app/(shell)/people/_components/person/person-modal'
 import { PersonIdentity } from '@/platform/app/(shell)/people/_components/person-identity/person-identity'
-import { Avatar, Button, FailureNotice, Icon } from '@/platform/design-system/components'
+import {
+  Avatar,
+  Button,
+  FailureNotice,
+  Icon,
+  LoadingRows,
+  RowList,
+} from '@/platform/design-system/components'
 import { useClipboard } from '@/platform/design-system/components/feedback/use-clipboard'
 import {
-  isRefusal,
   type Person,
   type PersonSummary,
   personHref,
@@ -18,6 +23,7 @@ import {
   usePeopleViewer,
   usePersonProfile,
 } from '@/platform/lib/data/people'
+import { isRefusal } from '@/platform/lib/data/query-view'
 import { formatCalendarDate } from '@/platform/lib/time'
 
 const NOT_PROVIDED = 'Not provided'
@@ -107,7 +113,7 @@ interface PersonRowsProps {
 
 function PersonRows({ organizationId, originQuery, people }: PersonRowsProps) {
   return (
-    <ul className={styles.list}>
+    <RowList>
       {people.map((person) => (
         <li key={person.memberId}>
           <Link
@@ -120,7 +126,7 @@ function PersonRows({ organizationId, originQuery, people }: PersonRowsProps) {
           </Link>
         </li>
       ))}
-    </ul>
+    </RowList>
   )
 }
 
@@ -174,7 +180,7 @@ export function PersonProfile({ organizationId, memberId }: PersonProfileProps) 
           />
         )
       ) : !data ? (
-        <PeopleStatus>Loading profile…</PeopleStatus>
+        <LoadingRows label='Loading profile…' />
       ) : (
         <>
           <header className={styles.heading}>

@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, type ReactNode, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import {
   Check,
   ChipModal,
@@ -49,9 +49,6 @@ export interface MessageActionsModel {
   onFork: () => void
 }
 
-/** Draws the action row in another design language. The behavior stays in `MessageActions`. */
-export type RenderMessageActions = (actions: MessageActionsModel) => ReactNode
-
 interface MessageActionsProps {
   content: string
   getCopyContent?: () => string
@@ -79,7 +76,7 @@ export const MessageActions = memo(function MessageActions({
   const owner = params.organizationId
     ? { organizationId: params.organizationId }
     : params.workspaceId
-  const { chatId, onNavigateToChat, appearance } = useChatSurface()
+  const { chatId, onNavigateToChat, ResponseActionsComponent: ResponseActions } = useChatSurface()
   const { copied, copy: copyMessage } = useCopyToClipboard({ resetMs: 1500 })
   const [copiedRequestId, setCopiedRequestId] = useState(false)
   const [pendingFeedback, setPendingFeedback] = useState<'up' | 'down' | null>(null)
@@ -187,21 +184,23 @@ export const MessageActions = memo(function MessageActions({
   const canFork = Boolean(owner && chatId && messageId && !isLiveAssistantMessageId(messageId))
   if (!canCopyContent && !canSubmitFeedback && !canFork) return null
 
-  if (appearance?.renderResponseActions) {
-    return appearance.renderResponseActions({
-      canCopy: canCopyContent,
-      copied,
-      onCopy: copyToClipboard,
-      canRate: canSubmitFeedback,
-      rating: pendingFeedback,
-      onRate: handleFeedbackClick,
-      onDismissRating: () => handleModalClose(false),
-      onSubmitRating: handleSubmitFeedback,
-      requestId,
-      canFork,
-      forking: forkChat.isPending,
-      onFork: handleFork,
-    })
+  if (ResponseActions) {
+    return (
+      <ResponseActions
+        canCopy={canCopyContent}
+        copied={copied}
+        onCopy={copyToClipboard}
+        canRate={canSubmitFeedback}
+        rating={pendingFeedback}
+        onRate={handleFeedbackClick}
+        onDismissRating={() => handleModalClose(false)}
+        onSubmitRating={handleSubmitFeedback}
+        requestId={requestId}
+        canFork={canFork}
+        forking={forkChat.isPending}
+        onFork={handleFork}
+      />
+    )
   }
 
   return (

@@ -8,7 +8,6 @@ import {
 import { ChartCanvas } from '@/platform/app/(shell)/people/_components/org-chart/chart-canvas'
 import { ChartEmptyState } from '@/platform/app/(shell)/people/_components/org-chart/chart-empty-state'
 import styles from '@/platform/app/(shell)/people/_components/org-chart/org-chart.module.css'
-import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
 import { ProfileUnavailable } from '@/platform/app/(shell)/people/_components/people-page/profile-unavailable'
 import {
   Avatar,
@@ -16,17 +15,18 @@ import {
   FailureNotice,
   Icon,
   IconButton,
+  LoadingRows,
   SearchableSelect,
   SearchCombobox,
 } from '@/platform/design-system/components'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import {
-  isRefusal,
   type SyncSource,
   useOrgChart,
   usePeoplePicker,
   usePeopleViewer,
 } from '@/platform/lib/data/people'
+import { isRefusal } from '@/platform/lib/data/query-view'
 
 function ReportingLinesGraphic() {
   return (
@@ -107,10 +107,16 @@ interface OrgChartProps {
   firstUse: boolean
   onConnect: (source: SyncSource) => void
   onImport: () => void
-  onSync?: () => void
+  canSync?: boolean
 }
 
-export function OrgChart({ organizationId, firstUse, onConnect, onImport, onSync }: OrgChartProps) {
+export function OrgChart({
+  organizationId,
+  firstUse,
+  onConnect,
+  onImport,
+  canSync,
+}: OrgChartProps) {
   const { organizationName, canProvision } = usePeopleViewer()
   const chart = useOrgChart(organizationId)
   const { branch, focus, page, size, compact, setView, profileQuery } = chart
@@ -247,7 +253,7 @@ export function OrgChart({ organizationId, firstUse, onConnect, onImport, onSync
             onFocus={focusPerson}
             onBrowseDirectory={browseDirectory}
             currentPersonRef={setCurrentPerson}
-            onSync={onSync}
+            canSync={canSync}
           />
         </div>
       ) : branch ? (
@@ -308,7 +314,7 @@ export function OrgChart({ organizationId, firstUse, onConnect, onImport, onSync
           )}
         </div>
       ) : (
-        <PeopleStatus>Loading org chart…</PeopleStatus>
+        <LoadingRows label='Loading org chart…' />
       )}
     </section>
   )

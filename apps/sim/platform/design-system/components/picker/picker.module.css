@@ -141,3 +141,7 @@
 .trigger[data-empty] .value {
   color: var(--ui-secondary);
 }
+
+.trigger[data-block] {
+  inline-size: 100%;
+}

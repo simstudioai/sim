@@ -6,7 +6,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import {
   ActionRow,
   FieldStack,
-  LoadingState,
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -14,10 +13,15 @@ import { GroupMappings } from '@/platform/app/(shell)/settings/_components/secti
 import {
   ActionMenu,
   Button,
+  ConfirmDialog,
   CopyField,
   Disclosure,
+  EmptyState,
+  errorMessageOr,
   FailureNotice,
+  LoadingRows,
   Modal,
+  QueryBoundary,
   Select,
   StatusTag,
   Switch,
@@ -63,21 +67,19 @@ function formatRelative(iso: string | null): string {
 }
 
 function ActivityList({ organizationId, active }: { organizationId: string; active: boolean }) {
-  const { data, isLoading, isError, error, isFetching, refetch } = useScimActivity(
-    organizationId,
-    active
-  )
-  if (isLoading) return <LoadingState label='Loading activity…' />
-  if (data === undefined && isError) {
+  const { data, isError, error, isFetching, refetch } = useScimActivity(organizationId, active)
+  if (!data) {
     return (
-      <FailureNotice
-        message={getErrorMessage(error, 'Failed to load directory activity')}
-        retrying={isFetching}
-        onRetry={() => void refetch()}
-      />
+      <QueryBoundary
+        query={{ data, error: isError ? error : undefined, isFetching, refetch }}
+        failure={errorMessageOr('Failed to load directory activity')}
+        loadingLabel='Loading activity…'
+      >
+        {() => null}
+      </QueryBoundary>
     )
   }
-  if (!data || data.length === 0) return <Muted>No requests yet.</Muted>
+  if (data.length === 0) return <EmptyState title='No requests yet' />
   const now = Date.now()
   return (
     <>
@@ -306,16 +308,13 @@ function ConnectionDetails({
           hint='Copy it into your identity provider now. Sim stores only a digest and cannot show it again.'
         />
       </Modal>
-      <Modal
-        variant='confirm'
-        destructive
-        open={active && pendingRevoke !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingRevokeId(null)
-        }}
+      <ConfirmDialog
+        target={active && pendingRevoke !== null}
+        onClose={() => setPendingRevokeId(null)}
         title='Revoke token'
         description={`Revoke ${pendingRevoke?.tokenPrefix ?? ''}? Your identity provider stops syncing the moment it next uses this token. Issue a new token first if you are rotating.`}
-        confirmLabel={revokeCredential.isPending ? 'Revoking…' : 'Revoke'}
+        confirmLabel='Revoke'
+        pendingLabel='Revoking…'
         onConfirm={async () => {
           if (!pendingRevoke) return
           await revokeCredential.mutateAsync({ organizationId, credentialId: pendingRevoke.id })
@@ -390,7 +389,7 @@ export function ScimPanel({ organizationId, active, onOpenDomains }: ScimPanelPr
           </SettingsRow>
         )}
       </SettingsSection>
-      {isLoading && <LoadingState label='Loading directory provisioning…' />}
+      {isLoading && <LoadingRows label='Loading directory provisioning…' />}
       {connection && enabled && (
         <ConnectionDetails
           organizationId={organizationId}

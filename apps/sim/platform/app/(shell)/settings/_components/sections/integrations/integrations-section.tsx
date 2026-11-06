@@ -6,10 +6,33 @@ import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import type { SearchIntegrationApproval } from '@/lib/api/contracts/knowledge/search-integrations'
+import { assistantAccountOptions } from '@/lib/credential-groups/member-integrations'
+import { hasSlackSearchUserScopes } from '@/lib/credential-groups/slack-managed-user-scopes'
+import { organizationRoutes } from '@/lib/navigation/paths'
+import {
+  defaultLiveSearchPolicy,
+  LIVE_SEARCH_SCOPE_FIELDS,
+  LIVE_SEARCH_SERVICE_PROVIDERS,
+} from '@/lib/sim-search/live/policy-schema'
+import {
+  getLiveSearchAccessAvailability,
+  LIVE_SEARCH_SOURCE_TYPES,
+  liveSearchMcpConnector,
+  liveSearchMemberAccountProvider,
+} from '@/lib/sim-search/live/source-catalog'
+import { connectedAccountsParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
+import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
+import { useOrganizationSecretSource } from '@/hooks/queries/organization-secrets'
+import {
+  useSearchIntegrations,
+  useUpdateSearchIntegration,
+} from '@/hooks/queries/search-integrations'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import {
   ActionRow,
-  LoadingState,
   Muted,
   SectionStack,
   SectionToolbar,
@@ -29,35 +52,16 @@ import { SourceSetup } from '@/platform/app/(shell)/settings/_components/section
 import {
   ActionMenu,
   Button,
+  ConfirmDialog,
   EmptyState,
   FailureNotice,
-  Modal,
-  SearchField,
+  LoadingRows,
+  SectionSearch,
 } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  assistantAccountOptions,
-  connectedAccountsParam,
-  defaultLiveSearchPolicy,
-  getLiveSearchAccessAvailability,
-  hasSlackSearchUserScopes,
-  LIVE_SEARCH_SCOPE_FIELDS,
-  LIVE_SEARCH_SERVICE_PROVIDERS,
-  LIVE_SEARCH_SOURCE_TYPES,
-  liveSearchMcpConnector,
-  liveSearchMemberAccountProvider,
-  organizationRoutes,
-  type SearchIntegrationApproval,
-  useOrganizationAccounts,
-  useOrganizationSecretSource,
-  usePermissionConfig,
-  useSearchIntegrations,
-  useSettingsSearch,
-  useUpdateSearchIntegration,
-} from '@/platform/lib/data/sources'
 
 export default function IntegrationsSection({ organization: context }: SettingsSectionProps) {
   const { organization, viewer, searchAccess } = context
@@ -144,14 +148,7 @@ export default function IntegrationsSection({ organization: context }: SettingsS
     >
       <SectionStack>
         <SectionToolbar
-          grow={
-            <SearchField
-              label='Search sources'
-              placeholder='Search sources…'
-              value={search}
-              onValueChange={setSearch}
-            />
-          }
+          grow={<SectionSearch subject='sources' value={search} onValueChange={setSearch} />}
         >
           <Button
             variant='primary'
@@ -181,7 +178,7 @@ export default function IntegrationsSection({ organization: context }: SettingsS
             }}
           />
         ) : !policies.data || !secrets.data ? (
-          <LoadingState label='Loading sources' />
+          <LoadingRows label='Loading sources' />
         ) : added.length === 0 && !secretSource && !search && !assistantVisible ? (
           <EmptyState title='No sources yet. Add a source to get started.' />
         ) : (
@@ -326,15 +323,12 @@ export default function IntegrationsSection({ organization: context }: SettingsS
           />
         )}
         {removing !== null && (
-          <Modal
-            open
-            variant='confirm'
-            destructive
-            onOpenChange={(open) => {
-              if (!open) setRemoving(null)
-            }}
+          <ConfirmDialog
+            target
+            onClose={() => setRemoving(null)}
             title={`Remove ${removingName} source?`}
             confirmLabel='Remove source'
+            pendingLabel='Removing…'
             onConfirm={async () => {
               try {
                 await update.mutateAsync({
@@ -349,7 +343,7 @@ export default function IntegrationsSection({ organization: context }: SettingsS
             }}
           >
             <Muted>Members will no longer be able to search this source.</Muted>
-          </Modal>
+          </ConfirmDialog>
         )}
         {adding && (
           <AddSourceModal

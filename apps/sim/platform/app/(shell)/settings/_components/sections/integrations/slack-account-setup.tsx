@@ -3,15 +3,14 @@
 import { useEffect } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
-import { SlackMemberSetupModal } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/slack-member-setup-modal'
-import { FailureNotice, Modal } from '@/platform/design-system/components'
+import { searchSetupParam, searchSetupReturnParam } from '@/lib/sim-search/params'
+import { connectedAccountsParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
 import {
-  connectedAccountsParam,
-  searchSetupParam,
-  searchSetupReturnParam,
   useEnsureOrganizationAccounts,
   useOrganizationAccounts,
-} from '@/platform/lib/data/sources'
+} from '@/hooks/queries/organization-accounts'
+import { SlackMemberSetupModal } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/slack-member-setup-modal'
+import { FailureNotice, Modal } from '@/platform/design-system/components'
 
 interface SlackAccountSetupProps {
   organizationId: string

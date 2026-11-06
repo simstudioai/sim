@@ -6,24 +6,31 @@ import Link from 'next/link'
 import type { ViewerSearchSourceAccount } from '@/lib/api/contracts/knowledge/connectors'
 import type { SearchIntegrationStatus } from '@/lib/api/contracts/knowledge/search-integrations'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
-import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
-import { Muted } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { ActionMenu, Button, Modal, SearchableSelect } from '@/platform/design-system/components'
+import { assistantSearchSourceForProvider } from '@/lib/assistant-actions/providers'
+import { assistantAccountOptions } from '@/lib/credential-groups/member-integrations'
 import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  assistantAccountOptions,
-  assistantSearchSourceForProvider,
   getCredentialGroupProviderId,
   getCredentialGroupProviderService,
-  organizationRoutes,
+} from '@/lib/credential-groups/providers'
+import { organizationRoutes } from '@/lib/navigation/paths'
+import {
   useConnectOrganizationAccount,
   useDisconnectPersonalOrganizationAccount,
   useEnsureOrganizationAccounts,
   useReconnectPersonalOrganizationAccount,
-} from '@/platform/lib/data/sources'
+} from '@/hooks/queries/organization-accounts'
+import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
+import { Muted } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import {
+  ActionMenu,
+  Button,
+  ConfirmDialog,
+  SearchableSelect,
+} from '@/platform/design-system/components'
+import {
+  SettingsRow,
+  SettingsSection,
+} from '@/platform/design-system/components/settings-section/settings-section'
 
 interface AssistantAppsProps {
   organizationId: string
@@ -229,15 +236,12 @@ function AccountActions({
         ]}
       />
       {selected && (
-        <Modal
-          open
-          variant='confirm'
-          destructive
-          onOpenChange={(open) => {
-            if (!open) setSelectedId(null)
-          }}
+        <ConfirmDialog
+          target
+          onClose={() => setSelectedId(null)}
           title={`Disconnect ${integrationName}`}
           confirmLabel='Disconnect'
+          pendingLabel='Disconnecting…'
           onConfirm={async () => {
             await disconnect.mutateAsync({ credentialId: selected.credentialId, organizationId })
           }}
@@ -245,7 +249,7 @@ function AccountActions({
           <Muted>
             {`Disconnect ${selected.displayName} from all ${integrationName} connections in this organization. Workflows using this account will also lose access. You can reconnect later.`}
           </Muted>
-        </Modal>
+        </ConfirmDialog>
       )}
     </>
   )

@@ -5,7 +5,24 @@ import { toast } from '@sim/emcn'
 import { useQueryState } from 'nuqs'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
+import { MANAGED_MCP_CONNECTORS } from '@/lib/credential-groups/managed-mcp-connectors'
+import { getOrganizationAccountUpdateOptions } from '@/lib/credential-groups/organization-account-options'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
+import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
+import {
+  credentialGroupProviderSearchParam,
+  credentialGroupProviderSearchUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
+import {
+  type OrganizationAccountProviderChoice,
+  organizationAccountProviderRows,
+} from '@/ee/credential-groups/provider-rows'
+import {
+  useAddOrganizationAccountMcpProvider,
+  useRemoveOrganizationAccountMcpProvider,
+  useUpdateOrganizationAccounts,
+} from '@/hooks/queries/organization-accounts'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import {
   ActionRow,
@@ -19,27 +36,14 @@ import { SlackMemberSetupModal } from '@/platform/app/(shell)/settings/_componen
 import {
   ActionMenu,
   Button,
+  ConfirmDialog,
   EmptyState,
-  Modal,
-  SearchField,
+  SectionSearch,
 } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  credentialGroupProviderSearchParam,
-  credentialGroupProviderSearchUrlKeys,
-  getCredentialGroupProviderService,
-  getOrganizationAccountUpdateOptions,
-  MANAGED_MCP_CONNECTORS,
-  type OrganizationAccountProviderChoice,
-  organizationAccountProviderRows,
-  useAddOrganizationAccountMcpProvider,
-  useDebouncedSearchSetter,
-  useRemoveOrganizationAccountMcpProvider,
-  useUpdateOrganizationAccounts,
-} from '@/platform/lib/data/credential-groups'
 
 interface GroupProvidersProps {
   organizationId: string
@@ -153,12 +157,7 @@ export function GroupProviders({
     <SectionStack>
       <SectionToolbar
         grow={
-          <SearchField
-            label='Search providers'
-            placeholder='Search providers…'
-            value={searchTerm}
-            onValueChange={setSearchTerm}
-          />
+          <SectionSearch subject='providers' value={searchTerm} onValueChange={setSearchTerm} />
         }
       >
         <Button
@@ -266,19 +265,16 @@ export function GroupProviders({
         />
       )}
       {removing && (
-        <Modal
-          open
-          variant='confirm'
-          destructive
-          onOpenChange={(open) => {
-            if (!open) setRemoving(null)
-          }}
+        <ConfirmDialog
+          target
+          onClose={() => setRemoving(null)}
           title={`Remove ${removingName}`}
           confirmLabel='Remove'
+          pendingLabel='Removing…'
           onConfirm={removeProvider}
         >
           <Muted>Remove this provider and its connected accounts from the organization?</Muted>
-        </Modal>
+        </ConfirmDialog>
       )}
     </SectionStack>
   )

@@ -18,7 +18,7 @@
   min-inline-size: 0;
 }
 
-.role > span:has(button) {
+.roleTooltip {
   inline-size: 100%;
 }
 

@@ -4,11 +4,11 @@ import { useState } from 'react'
 import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
   ActionMenu,
+  ConfirmDialog,
   DataTable,
   EmptyState,
   FailureNotice,
   Icon,
-  Modal,
   StatusTag,
   TableLabel,
 } from '@/platform/design-system/components'
@@ -86,15 +86,12 @@ export function OrganizationAccounts() {
           }))}
         />
       ))}
-      <Modal
-        open={pending !== null}
-        onOpenChange={(open) => {
-          if (!open) setPending(null)
-        }}
-        variant='confirm'
-        destructive
+      <ConfirmDialog
+        target={pending !== null}
+        onClose={() => setPending(null)}
         title='Disconnect account'
         confirmLabel='Disconnect'
+        pendingLabel='Disconnecting…'
         description={`Disconnecting ${pending?.name ?? 'this account'} removes it from ${pending?.organizationName ?? 'the organization'}. Workflows using this account will lose access.`}
         onConfirm={() =>
           pending ? list.disconnect(pending.id, pending.organizationId, pending.name) : undefined

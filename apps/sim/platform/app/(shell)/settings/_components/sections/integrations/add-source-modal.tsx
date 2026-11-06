@@ -2,9 +2,14 @@
 
 import type { ComponentType, ReactNode } from 'react'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
-import { ResourceList } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { GENERIC_SECRETS_SOURCE_TYPE } from '@/platform/app/(shell)/settings/_components/sections/integrations/generic-secrets'
-import { ActivityRow, Avatar, EmptyState, Modal } from '@/platform/design-system/components'
+import {
+  ActivityRow,
+  Avatar,
+  EmptyState,
+  Modal,
+  RowList,
+} from '@/platform/design-system/components'
 import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 
 interface SourceMarkProps {
@@ -59,7 +64,7 @@ export function AddSourceModal({
       confirmLabel='Done'
     >
       {feedback}
-      <ResourceList>
+      <RowList>
         {sources.map(({ type, name, icon, access, availabilityStatus }) => {
           const available = access.admin || access.members
           const sourceReady = ready && !availabilityStatus
@@ -81,6 +86,7 @@ export function AddSourceModal({
             </li>
           ) : (
             <ActivityRow
+              density='comfortable'
               key={type}
               leading={<SourceMark organization={organization} type={type} icon={icon} />}
               title={name}
@@ -90,7 +96,7 @@ export function AddSourceModal({
           )
         })}
         {sources.length === 0 && <EmptyState title='No matching sources' />}
-      </ResourceList>
+      </RowList>
     </Modal>
   )
 }

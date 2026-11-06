@@ -30,9 +30,9 @@ import {
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
-import { usePlatformNotices } from '@/platform/app/(shell)/_components/notification-tray/notification-tray'
-import { openLinkInNewTab } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
+import { usePlatformNotices } from '@/platform/lib/notices'
+import { openLinkInNewTab } from '@/platform/lib/row-links'
 
 const logger = createLogger('SimLinks')
 

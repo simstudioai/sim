@@ -84,6 +84,19 @@ export function useWorkspacesQuery(enabled = true, scope: WorkspaceQueryScope = 
   })
 }
 
+/** Resolves the list through the cache, for a caller that must wait for it outside a render. */
+export async function fetchWorkspacesList(
+  queryClient: QueryClient,
+  scope: WorkspaceQueryScope = 'active'
+) {
+  const data = await queryClient.fetchQuery({
+    queryKey: workspaceKeys.list(scope),
+    queryFn: ({ signal }) => fetchWorkspaces(scope, signal),
+    staleTime: WORKSPACE_LIST_STALE_TIME,
+  })
+  return selectWorkspaces(data)
+}
+
 /**
  * Fetches workspaces with the user's last active workspace ID.
  * Used by the redirect page to determine which workspace to open.

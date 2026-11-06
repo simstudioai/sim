@@ -3,14 +3,27 @@
 import { type ReactNode, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
+import { isApiClientError } from '@/lib/api/client/errors'
 import type { ConnectorData, ConnectorDetailData } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
+import { organizationRoutes } from '@/lib/navigation/paths'
+import { describeSearchSource } from '@/lib/sim-search/source-identity'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { getConnectorSyncState } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-sync-state'
+import { useConnectorActions } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
+import { useConnectorSettingsForm } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form'
+import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import {
+  isConnectorSyncingOrPending,
+  useConnectorDetail,
+  useSearchIndex,
+} from '@/hooks/queries/kb/connectors'
+import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
+import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
 import {
   ActionRow,
   DetailHeader,
   FieldStack,
-  LoadingState,
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -20,31 +33,18 @@ import {
   Button,
   Checkbox,
   Chip,
+  ConfirmDialog,
   EmptyState,
   FailureNotice,
   InlineNotice,
-  Modal,
-  Tooltip,
+  LoadingRows,
+  SaveActions,
 } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
-import {
-  CONNECTOR_META_REGISTRY,
-  describeSearchSource,
-  getConnectorSyncState,
-  isApiClientError,
-  isConnectorSyncingOrPending,
-  organizationRoutes,
-  useConnectorActions,
-  useConnectorDetail,
-  useConnectorSettingsForm,
-  useOAuthReturnForKBConnectors,
-  useSearchIndex,
-  useSearchIntegrations,
-} from '@/platform/lib/data/sources'
 
 interface SourceDetailProps {
   connectorId: string
@@ -104,7 +104,7 @@ export function SourceDetail({ connectorId }: SourceDetailProps) {
     detail.data.id !== connectorId ||
     detail.data.knowledgeBaseId !== knowledgeBaseId
   )
-    return shell('Connection', <LoadingState label='Loading connection' />)
+    return shell('Connection', <LoadingRows label='Loading connection' />)
   if (
     detail.data.accessMode === 'members' &&
     !(detail.data.connectorType === 'github' && detail.data.sourceConfig.githubRepositoryId)
@@ -330,23 +330,6 @@ function SourceSettingsForm({
           </Button>
         )}
         <ActionMenu label='Connection actions' icon='I108' actions={menu} />
-        {form.dirty && (
-          <Button size='compact' disabled={form.saving} onClick={onDiscard}>
-            Discard
-          </Button>
-        )}
-        <Tooltip label={form.saveBlockedReason ?? ''} enabled={Boolean(form.saveBlockedReason)}>
-          <span>
-            <Button
-              variant='primary'
-              size='compact'
-              disabled={!form.dirty || !form.canSave || form.saving}
-              onClick={form.save}
-            >
-              {form.saving ? 'Saving…' : 'Save'}
-            </Button>
-          </span>
-        </Tooltip>
       </DetailHeader>
       {lifecycle.error && <InlineNotice intent='danger' message={lifecycle.error.message} />}
       {queryError}
@@ -361,18 +344,25 @@ function SourceSettingsForm({
           <ConnectorSettingsFields {...form.fieldsProps} />
         </FieldStack>
       </SettingsSection>
-      <Modal
-        open={removal.open}
-        variant='confirm'
-        destructive
-        onOpenChange={removal.onOpenChange}
+      <SaveActions
+        dirty={form.dirty}
+        saving={form.saving}
+        blocked={!form.canSave}
+        blockedReason={form.saveBlockedReason}
+        onSave={form.save}
+        onDiscard={onDiscard}
+      />
+      <ConfirmDialog
+        target={removal.open}
+        onClose={() => removal.onOpenChange(false)}
         title='Remove connection'
         description={
           removal.requiresDocumentDeletion
             ? 'This removes the connection, stops future syncs, and deletes its synced documents from Sim.'
             : 'This removes the connection and stops future syncs. Synced documents remain unless you delete them below.'
         }
-        confirmLabel={removal.pending ? 'Removing…' : 'Remove'}
+        confirmLabel='Remove'
+        pendingLabel='Removing…'
         confirmDisabled={removal.disabled}
         pending={removal.pending}
         onConfirm={() => {
@@ -389,7 +379,7 @@ function SourceSettingsForm({
           />
         )}
         {removal.error && <InlineNotice intent='danger' message={removal.error.message} />}
-      </Modal>
+      </ConfirmDialog>
     </SectionStack>
   )
 }

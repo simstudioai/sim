@@ -16,9 +16,6 @@
 .dayControls {
   gap: var(--ui-stack-gap);
 }
-.dayControls [aria-label="Previous day"] svg {
-  transform: scaleX(-1);
-}
 .viewport {
   position: relative;
   block-size: var(--ui-widget-max-size);

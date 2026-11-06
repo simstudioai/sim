@@ -1,7 +1,7 @@
 import styles from '@/platform/app/(shell)/integrations/_components/tool-permissions/tool-permissions.module.css'
+import { SectionSearch } from '@/platform/design-system/components'
 import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
-import { SearchField } from '@/platform/design-system/components/search-field/search-field'
 import { SegmentedControl } from '@/platform/design-system/components/segmented-control/segmented-control'
 import type {
   ToolPermissionChange,
@@ -60,12 +60,7 @@ export function ToolPermissions({
         )}
       </div>
       {permissions.tools.length > 0 && (
-        <SearchField
-          label='Search tools'
-          placeholder='Search tools…'
-          value={query}
-          onValueChange={onQueryChange}
-        />
+        <SectionSearch subject='tools' value={query} onValueChange={onQueryChange} />
       )}
       {GROUPS.map(({ kind, label }) => {
         const matching = matches.filter((tool) => tool.kind === kind)

@@ -70,11 +70,11 @@ async function fetchInboxTasks(
   })
 }
 
-export function useInboxConfig(workspaceId: string) {
+export function useInboxConfig(workspaceId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: inboxKeys.config(workspaceId),
     queryFn: ({ signal }) => fetchInboxConfig(workspaceId, signal),
-    enabled: Boolean(workspaceId),
+    enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     staleTime: INBOX_CONFIG_STALE_TIME,
   })
 }

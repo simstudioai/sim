@@ -9,8 +9,8 @@ import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { IntegrationsHost } from '@/app/o/[organizationId]/integrations/integrations-host'
 import { IntegrationsPage } from '@/platform/app/(shell)/integrations/_components/integrations-page/integrations-page'
 import { SecretsEditor } from '@/platform/app/(shell)/integrations/_components/secrets-editor/secrets-editor'
-import { LoadingState } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { SettingsSubpageHost } from '@/platform/app/(shell)/settings/_components/settings-subpage-host'
+import { LoadingRows } from '@/platform/design-system/components'
 
 interface OrganizationSecretsPageProps {
   organizationId: string
@@ -41,7 +41,7 @@ export async function OrganizationSecretsPage({
   if (source?.mode !== mode)
     redirect(mode === 'organization' ? routes.settingsSection('integrations') : routes.integrations)
   const editor = (
-    <Suspense fallback={<LoadingState label='Loading secrets…' />}>
+    <Suspense fallback={<LoadingRows label='Loading secrets…' />}>
       <SecretsEditor mode={mode} backHref={backHref} />
     </Suspense>
   )

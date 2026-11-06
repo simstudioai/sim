@@ -8,7 +8,10 @@ import {
   useSimLinkOrganizationId,
 } from '@/app/o/[organizationId]/links/sim-link-organization-provider'
 import { useExistingSimLink } from '@/app/o/[organizationId]/links/sim-link-shortcut'
-import type { ShareDialogModel } from '@/app/workspace/[workspaceId]/files/components/share-modal'
+import {
+  type ShareDialogProps,
+  useShareDialog,
+} from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import styles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
 import { BodyDialog } from '@/platform/app/(shell)/_components/conversation/dialogs'
 import {
@@ -150,11 +153,13 @@ function SimLinkButton({ organizationId, url, title }: SimLinkButtonProps) {
 }
 
 /**
- * The design's share dialog. `ShareModal` keeps every rule and request; a save stays in the dialog
- * on success, so `onConfirm` answers `false`, and a failure shows here as the page's toast sits
- * under the native dialog.
+ * The design's share dialog. `useShareDialog` keeps every rule and request; a save stays in the
+ * dialog on success, so `onConfirm` answers `false`, and a failure shows here as the page's toast
+ * sits under the native dialog. It only mounts open.
  */
-export function ShareDialog(dialog: ShareDialogModel) {
+export function ShareDialog(props: ShareDialogProps) {
+  const { fileName } = props
+  const dialog = useShareDialog(props)
   const organizationId = useSimLinkOrganizationId()
   const { saved, mode, pending, error } = dialog
   const url = saved?.isActive ? saved.url : undefined
@@ -164,15 +169,15 @@ export function ShareDialog(dialog: ShareDialogModel) {
       <Modal
         open
         onOpenChange={() => {
-          if (!pending) dialog.onClose()
+          if (!pending) dialog.close()
         }}
         title='Share file'
-        accessibleName={`Share ${dialog.fileName}`}
+        accessibleName={`Share ${fileName}`}
         confirmLabel={dialog.primaryLabel}
         confirmDisabled={dialog.primaryDisabled}
         destructive={dialog.isUnshareAction}
         onConfirm={() => {
-          dialog.onPrimaryAction()
+          dialog.runPrimaryAction()
           return false
         }}
       >
@@ -197,13 +202,13 @@ export function ShareDialog(dialog: ShareDialogModel) {
                 ...option,
                 disabled: pending,
               }))}
-              onSelect={dialog.onModeChange}
+              onSelect={dialog.setMode}
             />
           </FieldFrame>
           {mode === 'password' && (
             <PasswordField
               value={dialog.password}
-              onChange={dialog.onPasswordChange}
+              onChange={dialog.setPassword}
               disabled={pending}
               placeholder={saved?.hasPassword ? '••••••••' : 'Enter a password'}
               hint={
@@ -216,22 +221,22 @@ export function ShareDialog(dialog: ShareDialogModel) {
           {(mode === 'email' || mode === 'sso') && (
             <AllowedEmailsField
               value={dialog.emails}
-              onChange={dialog.onEmailsChange}
-              validator={dialog.emailValidator}
+              onChange={dialog.setEmails}
+              validator={dialog.validateEmail}
               disabled={pending}
             />
           )}
         </div>
         {url && (
           <div className={styles.shareLinks}>
-            <Button variant='secondary' size='compact' onClick={() => dialog.onCopyLink(url)}>
+            <Button variant='secondary' size='compact' onClick={() => void dialog.copy(url)}>
               {dialog.copied ? 'Copied!' : 'Copy link'}
             </Button>
             {organizationId && (
               <SimLinkButton
                 organizationId={organizationId}
                 url={url}
-                title={dialog.fileName.replace(/\.[^.]+$/, '')}
+                title={fileName.replace(/\.[^.]+$/, '')}
               />
             )}
           </div>
@@ -243,7 +248,7 @@ export function ShareDialog(dialog: ShareDialogModel) {
         destructive
         open={dialog.unshareConfirmOpen}
         onOpenChange={(open) => {
-          if (!pending) dialog.onUnshareConfirmOpenChange(open)
+          if (!pending) dialog.setUnshareConfirmOpen(open)
         }}
         title='Unshare file?'
         description='Are you sure you want to unshare this file? Anyone with the link will lose access.'
@@ -251,7 +256,7 @@ export function ShareDialog(dialog: ShareDialogModel) {
         confirmDisabled={pending}
         pending={pending}
         onConfirm={() => {
-          dialog.onConfirmUnshare()
+          dialog.confirmUnshare()
           return false
         }}
       >

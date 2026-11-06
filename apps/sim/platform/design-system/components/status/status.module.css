@@ -79,3 +79,27 @@
     animation: none;
   }
 }
+.loadingRows {
+  display: grid;
+  min-inline-size: 0;
+}
+.loadingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-24);
+  min-block-size: var(--spacing-64);
+}
+.loadingLabel,
+.loadingControl {
+  display: block;
+  block-size: var(--spacing-12);
+  border-radius: var(--radius-4);
+  background: var(--control-muted-fill);
+}
+.loadingLabel {
+  inline-size: var(--spacing-128);
+}
+.loadingControl {
+  inline-size: var(--spacing-64);
+}

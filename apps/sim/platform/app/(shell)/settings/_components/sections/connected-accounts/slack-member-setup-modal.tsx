@@ -1,5 +1,6 @@
 'use client'
 
+import { useSlackManagedUsersSetup } from '@/ee/credential-groups/hooks/use-slack-managed-users-setup'
 import { Muted } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { SlackSetupWizard } from '@/platform/app/(shell)/settings/_components/sections/search-slack/slack-setup-wizard'
 import {
@@ -9,7 +10,6 @@ import {
   Modal,
   SearchableSelect,
 } from '@/platform/design-system/components'
-import { useSlackManagedUsersSetup } from '@/platform/lib/data/credential-groups'
 
 interface SlackMemberSetupModalProps {
   organizationId: string
