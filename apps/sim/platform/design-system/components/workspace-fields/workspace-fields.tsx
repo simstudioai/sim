@@ -4,28 +4,9 @@ import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { IconButton } from '@/platform/design-system/components/button/button'
 import fieldStyles from '@/platform/design-system/components/field/field.shared.module.css'
 import { FieldFrame, fieldDescription } from '@/platform/design-system/components/field/fields'
-import { Icon } from '@/platform/design-system/components/icon/icon'
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import styles from '@/platform/design-system/components/workspace-fields/workspace-fields.module.css'
-
-interface LogoUploadFieldProps {
-  label: string
-  optional?: boolean
-}
-
-export function LogoUploadField({ label, optional }: LogoUploadFieldProps) {
-  const id = useId()
-  return (
-    <FieldFrame id={id} label={label} optional={optional}>
-      <div className={styles.upload} data-type='T052'>
-        <Icon name='I117' />
-        Upload
-        <input id={id} type='file' accept='image/*' className={styles.uploadInput} />
-      </div>
-    </FieldFrame>
-  )
-}
 
 interface Recipient {
   address: string
@@ -65,7 +46,7 @@ interface RecipientFieldProps {
   hint?: string
   disabled?: boolean
   name?: string
-  placeholder?: string
+  placeholder: string
 }
 
 function isEmailAddress(address: string) {

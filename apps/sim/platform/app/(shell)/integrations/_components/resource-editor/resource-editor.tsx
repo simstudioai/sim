@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { generateId } from '@sim/utils/id'
+import { ManualSecretFields } from '@/platform/app/(shell)/integrations/_components/manual-secret-fields/manual-secret-fields'
 import {
   Button,
   Modal,
@@ -12,17 +13,25 @@ import {
   TextField,
 } from '@/platform/design-system/components'
 import type {
+  AppSummary,
   IntegrationCenterData,
   IntegrationResource,
 } from '@/platform/lib/integrations/center-model'
+import {
+  MANUAL_SECRET_TYPES,
+  type ManualSecretType,
+  validateManualSecret,
+} from '@/platform/lib/integrations/manual-secret'
 
 interface ResourceEditorProps {
   kind: IntegrationResource['kind']
-  resource?: IntegrationResource
+  resource?: Exclude<IntegrationResource, { kind: 'credential' }>
   data: IntegrationCenterData
   onSave: (resource: IntegrationResource) => void
   onClose: () => void
   onDelete?: () => void
+  apps?: readonly Pick<AppSummary, 'id' | 'name'>[]
+  appId?: string
 }
 
 const TITLES = { skill: 'skill', mcp: 'MCP', credential: 'credential' } as const
@@ -34,6 +43,8 @@ export function ResourceEditor({
   onSave,
   onClose,
   onDelete,
+  apps = [],
+  appId,
 }: ResourceEditorProps) {
   const [scope, setScope] = useState(resource?.scope ?? 'personal')
   const [people, setPeople] = useState(
@@ -42,6 +53,8 @@ export function ResourceEditor({
       .map((person) => person.id) ?? []
   )
   const [auth, setAuth] = useState(resource?.kind === 'mcp' ? resource.auth : 'none')
+  const [secretType, setSecretType] = useState<ManualSecretType>('secret')
+  const [provider, setProvider] = useState(appId ?? '')
 
   function save(values: FormData) {
     if (resource?.canEdit === false) return
@@ -80,11 +93,28 @@ export function ResourceEditor({
       onSave({ ...identity, kind, url: url.toString(), auth })
     } else {
       if (!read('key')) throw new Error('Enter a credential key.')
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(read('key')))
+        throw new Error('Use letters, numbers, and underscores for the key.')
+      validateManualSecret(secretType, values)
       onSave({
         ...identity,
         kind,
         key: read('key'),
-        credentialType: read('credentialType') === 'api-key' ? 'api-key' : 'secret',
+        credentialType: secretType,
+        appId: provider || undefined,
+        scope: 'personal',
+        people: [data.viewer],
+        owner: data.viewer,
+        members: [
+          {
+            ...data.viewer,
+            userId: data.viewer.id,
+            role: 'admin',
+            roleSource: 'explicit',
+            explicitAdmin: true,
+            status: 'active',
+          },
+        ],
       })
     }
     onClose()
@@ -100,9 +130,6 @@ export function ResourceEditor({
       }}
       onConfirm={save}
     >
-      {kind === 'credential' && resource && (
-        <TextField label='Credential ID' placeholder='Credential ID' value={resource.id} viewOnly />
-      )}
       <TextField
         label='Name'
         placeholder={`${TITLES[kind]} name`}
@@ -165,45 +192,50 @@ export function ResourceEditor({
       {kind === 'credential' && (
         <>
           <SelectField
-            label='Type'
-            name='credentialType'
-            defaultValue={resource?.kind === 'credential' ? resource.credentialType : 'secret'}
+            label='App'
+            value={provider}
+            onValueChange={setProvider}
+            disabled={Boolean(appId)}
             options={[
-              { value: 'secret', label: 'Secret' },
-              { value: 'api-key', label: 'API key' },
+              { value: '', label: 'No app' },
+              ...apps.map((app) => ({ value: app.id, label: app.name })),
             ]}
+          />
+          <SelectField
+            label='Type'
+            value={secretType}
+            onValueChange={(value) => {
+              const option = MANUAL_SECRET_TYPES.find((option) => option.value === value)
+              if (option) setSecretType(option.value)
+            }}
+            options={MANUAL_SECRET_TYPES}
           />
           <TextField
             label='Key'
             name='key'
-            defaultValue={resource?.kind === 'credential' ? resource.key : ''}
             placeholder='API_KEY'
             pattern='[A-Za-z_][A-Za-z0-9_]*'
             hint='Use letters, numbers, and underscores.'
             required
           />
-          <SecretField
-            label={resource ? 'Replace value' : 'Value'}
-            placeholder='Paste the secret value'
-            name='value'
-            optional={Boolean(resource)}
-            required={!resource}
-          />
+          <ManualSecretFields key={secretType} type={secretType} />
         </>
       )}
-      <SelectField
-        label='Access'
-        value={scope}
-        disabled={Boolean(resource && resource.owner.id !== data.viewer.id)}
-        onValueChange={(value) => {
-          if (value === 'shared' || value === 'personal') setScope(value)
-        }}
-        options={[
-          { value: 'personal', label: 'Personal' },
-          { value: 'shared', label: 'Shared' },
-        ]}
-      />
-      {scope === 'shared' && (
+      {kind !== 'credential' && (
+        <SelectField
+          label='Access'
+          value={scope}
+          disabled={Boolean(resource && resource.owner.id !== data.viewer.id)}
+          onValueChange={(value) => {
+            if (value === 'shared' || value === 'personal') setScope(value)
+          }}
+          options={[
+            { value: 'personal', label: 'Personal' },
+            { value: 'shared', label: 'Shared' },
+          ]}
+        />
+      )}
+      {kind !== 'credential' && scope === 'shared' && (
         <MultiSelect
           label='People with access'
           searchLabel='Find people'

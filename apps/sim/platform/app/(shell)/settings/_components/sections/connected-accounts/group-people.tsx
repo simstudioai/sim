@@ -135,6 +135,7 @@ export function GroupPeople({ people, nextCursor, editable, onChange }: GroupPeo
         <FieldStack>
           <RecipientField
             label='Emails'
+            placeholder='name@company.com'
             recipients={recipients}
             onRecipientsChange={setRecipients}
           />

@@ -87,6 +87,7 @@ interface ImageFieldProps {
 function ImageField({ label, hint, disabled, image }: ImageFieldProps) {
   return (
     <FileField
+      kind='image'
       label={label}
       hint={hint}
       accept={IMAGE_ACCEPT}

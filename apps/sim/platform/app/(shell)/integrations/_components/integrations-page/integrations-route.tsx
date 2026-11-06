@@ -127,7 +127,7 @@ export function IntegrationsRoute({
   const integration = integrations.find((item) => item.id === section)
   const back =
     account && integration
-      ? { href: integrationHref(integration.id), label: integration.name }
+      ? { href: integrationHref(integration.id), label: `Back to ${integration.name}` }
       : { href: indexHref, label: 'Integrations' }
   const unavailable = (loading: boolean) =>
     loading ? (

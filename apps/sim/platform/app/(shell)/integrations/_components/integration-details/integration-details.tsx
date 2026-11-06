@@ -103,7 +103,13 @@ export function IntegrationDetails({
             : `${integration.description.replace(/[.!?]+$/, '')}. Bring that context into your next conversation with Sim.`
         }
       />
-      <IntegrationControls leading={<IntegrationUsage people={people ?? []} total={peopleTotal} />}>
+      <IntegrationControls
+        leading={
+          accounts.length === 0 ? (
+            <IntegrationUsage people={people ?? []} total={peopleTotal} />
+          ) : undefined
+        }
+      >
         <Button
           variant='quiet'
           size='compact'

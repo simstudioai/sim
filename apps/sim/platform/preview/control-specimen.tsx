@@ -22,7 +22,6 @@ import {
   FieldFrame,
   IconButton,
   Input,
-  LogoUploadField,
   MenuItem,
   MenuSearchField,
   MetricGroup,
@@ -64,6 +63,7 @@ import {
 } from '@/platform/design-system/components/settings-section/settings-section'
 import type { PreviewData } from '@/platform/fixtures'
 import { formatCalendarDate } from '@/platform/lib/time'
+import { FileFieldSpecimen } from '@/platform/preview/file-field-specimen'
 import { HomeChartSpecimen } from '@/platform/preview/home-chart-specimen'
 import styles from '@/platform/preview/specimen.module.css'
 
@@ -453,8 +453,8 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
           createLabel='Create permission group…'
         />
       )
-    case 'LogoUploadField':
-      return <LogoUploadField label='Logo' optional />
+    case 'FileField':
+      return <FileFieldSpecimen label='Logo' />
     case 'RecipientTag':
       return <RecipientTag address={sample?.recipients[0]?.address ?? 'Recipient'} />
     case 'RecipientField':
@@ -629,7 +629,7 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
                 />
               ),
             },
-            { content: <LogoUploadField label='Logo' optional /> },
+            { content: <FileFieldSpecimen label='Logo' /> },
             {
               content: (
                 <SearchableSelect
@@ -642,7 +642,13 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
               ),
             },
             {
-              content: <RecipientField label='Recipients' defaultRecipients={sample?.recipients} />,
+              content: (
+                <RecipientField
+                  label='Recipients'
+                  placeholder='name@company.com'
+                  defaultRecipients={sample?.recipients}
+                />
+              ),
             },
           ]}
         />

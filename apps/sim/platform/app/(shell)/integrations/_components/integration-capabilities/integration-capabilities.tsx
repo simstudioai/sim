@@ -21,12 +21,14 @@ interface IntegrationCapabilitiesProps {
   catalog: IntegrationCatalogEntry
   addedSkills?: readonly string[]
   onAddSkill?: (skill: CatalogSkill) => void
+  onRemoveSkill?: (name: string) => void
 }
 
 export function IntegrationCapabilities({
   catalog,
   addedSkills = [],
   onAddSkill,
+  onRemoveSkill,
 }: IntegrationCapabilitiesProps) {
   const [skill, setSkill] = useState<CatalogSkill | null>(null)
   const [template, setTemplate] = useState<CatalogTemplate | null>(null)
@@ -83,12 +85,16 @@ export function IntegrationCapabilities({
             open
             title={skill.name}
             description={skill.description}
-            confirmLabel={installed.has(skill.name) ? 'Added to Skills' : 'Add to Skills'}
-            confirmDisabled={installed.has(skill.name)}
+            confirmLabel={installed.has(skill.name) ? 'Remove from Skills' : 'Add to Skills'}
+            confirmDisabled={installed.has(skill.name) && !onRemoveSkill}
             onOpenChange={(open) => {
               if (!open) setSkill(null)
             }}
             onConfirm={() => {
+              if (installed.has(skill.name)) {
+                onRemoveSkill?.(skill.name)
+                return
+              }
               const content = skill.content.trim()
               if (!content) throw new Error('Add instructions for this skill.')
               onAddSkill({ ...skill, content })

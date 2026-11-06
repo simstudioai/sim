@@ -140,7 +140,7 @@ const nativeOwners = {
   OverflowText: ['C0806', 'C0807'],
   MenuSearchField: ['C1308', 'C1309'],
   SearchableSelect: ['C1294', 'C1295'],
-  LogoUploadField: ['C1298', 'C1299'],
+  FileField: ['C1298', 'C1299'],
   RecipientTag: ['C1304', 'C1305'],
   RecipientField: ['C1306', 'C1307'],
   Chip: ['C0332', 'C0333', 'C0338', 'C0340'],

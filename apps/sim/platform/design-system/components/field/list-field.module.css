@@ -1,11 +1,9 @@
-.section,
 .groups,
 .group,
 .items {
   display: grid;
   min-inline-size: 0;
 }
-.section,
 .groups {
   gap: var(--ui-section-gap);
 }
@@ -29,10 +27,10 @@
 }
 .viewport {
   display: grid;
+  grid-template-rows: minmax(0, 1fr);
   min-block-size: 0;
   max-block-size: min(var(--spacing-192), 30dvh);
 }
-
 .copy {
   display: grid;
   gap: var(--ui-stack-gap);

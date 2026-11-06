@@ -1,4 +1,5 @@
-import type { ReactNode, Ref } from 'react'
+import type { ComponentProps, ReactNode, Ref } from 'react'
+import type Link from 'next/link'
 import styles from '@/platform/app/(shell)/_components/resource-directory/resource-directory.module.css'
 import { Chip, PageColumn } from '@/platform/design-system/components'
 
@@ -51,11 +52,12 @@ export function DirectoryHeading({
 interface DirectoryBackProps {
   href: string
   label: string
+  onNavigate?: ComponentProps<typeof Link>['onNavigate']
 }
-export function DirectoryBack({ href, label }: DirectoryBackProps) {
+export function DirectoryBack({ href, label, onNavigate }: DirectoryBackProps) {
   return (
     <nav aria-label={`${label} navigation`} className={styles.back}>
-      <Chip href={href} icon='I093'>
+      <Chip href={href} icon='I093' onNavigate={onNavigate}>
         {label}
       </Chip>
     </nav>

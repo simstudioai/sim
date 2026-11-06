@@ -33,7 +33,12 @@ export function Checkbox({
 }: CheckboxProps) {
   const id = useId()
   return (
-    <label htmlFor={id} className={styles.checkbox} data-disabled={disabled || undefined}>
+    <label
+      htmlFor={id}
+      className={styles.checkbox}
+      data-disabled={disabled || undefined}
+      data-label-hidden={labelHidden || undefined}
+    >
       <BaseCheckbox.Root
         id={id}
         className={styles.box}

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
 
-test('app discovery opens skills and templates and preserves installed skills through navigation', async ({
+test('app discovery preserves edited skills and removes installed examples by source identity', async ({
   page,
   context,
 }) => {
@@ -27,7 +27,7 @@ test('app discovery opens skills and templates and preserves installed skills th
   await skill.getByRole('button', { name: 'Add to Skills', exact: true }).click()
   await expect(skill).toHaveCount(0)
   await suggested.getByRole('button', { name: /^fetch-secret-for-runtime / }).click()
-  await expect(skill.getByRole('button', { name: 'Added to Skills', exact: true })).toBeDisabled()
+  await expect(skill.getByRole('button', { name: 'Remove from Skills', exact: true })).toBeEnabled()
   await skill.getByRole('button', { name: 'Cancel', exact: true }).click()
   await main
     .getByRole('region', { name: 'Agent templates', exact: true })
@@ -63,7 +63,7 @@ test('app discovery opens skills and templates and preserves installed skills th
     .click()
   await main.getByRole('link', { name: /^1Password / }).click()
   await suggested.getByRole('button', { name: /^fetch-secret-for-runtime / }).click()
-  await expect(skill.getByRole('button', { name: 'Added to Skills', exact: true })).toBeDisabled()
+  await expect(skill.getByRole('button', { name: 'Remove from Skills', exact: true })).toBeEnabled()
   await skill.getByRole('button', { name: 'Cancel', exact: true }).click()
   await main.getByRole('link', { name: 'Integrations', exact: true }).click()
   await main
@@ -76,6 +76,26 @@ test('app discovery opens skills and templates and preserves installed skills th
   await expect(editor.getByRole('textbox', { name: 'Instructions', exact: true })).toHaveValue(
     editedInstructions
   )
+  await editor.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await main
+    .getByRole('navigation', { name: 'Integration categories' })
+    .getByRole('link', { name: 'Apps', exact: true })
+    .click()
+  await main.getByRole('link', { name: /^1Password / }).click()
+  await suggested.getByRole('button', { name: /^fetch-secret-for-runtime / }).click()
+  await skill.getByRole('button', { name: 'Remove from Skills', exact: true }).click()
+  await expect(skill).toHaveCount(0)
+  await suggested.getByRole('button', { name: /^fetch-secret-for-runtime / }).click()
+  await expect(skill.getByRole('button', { name: 'Add to Skills', exact: true })).toBeEnabled()
+  await skill.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await main.getByRole('link', { name: 'Integrations', exact: true }).click()
+  await main
+    .getByRole('navigation', { name: 'Integration categories' })
+    .getByRole('link', { name: 'Skills', exact: true })
+    .click()
+  await expect(installed).toHaveCount(0)
+  await expect(main.getByRole('button', { name: /^fetch-secret-for-runtime / })).toHaveCount(0)
+  await expect(main.getByRole('button', { name: /^Weekly customer review / })).toBeVisible()
 })
 
 test('adding another credential preserves existing accounts and its details survive immediate browser back', async ({
@@ -106,6 +126,7 @@ test('adding another credential preserves existing accounts and its details surv
     .getByRole('textbox', { name: 'Display name', exact: true })
     .fill('Gmail account review')
   await list.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await list.getByRole('link', { name: 'Back to Gmail', exact: true }).click()
   await list.getByRole('link', { name: 'Integrations', exact: true }).click()
   await expect(list.getByRole('searchbox')).toHaveValue('gmail')
   await list.getByRole('link', { name: /^Gmail / }).click()
@@ -152,18 +173,12 @@ test('a private connection keeps its identity when shared and protects its only 
   await expect(main.getByRole('textbox', { name: 'Description', exact: true })).toHaveValue(
     'Personal follow-up drafts.'
   )
-  await main.getByRole('link', { name: 'Integrations', exact: true }).click()
-  await main
-    .getByRole('navigation', { name: 'Integration categories' })
-    .getByRole('link', { name: 'Credentials', exact: true })
-    .click()
-  const row = main.getByRole('link', { name: /^Account follow-ups / })
-  await main.getByRole('button', { name: /^Category:/ }).click()
-  await page.getByRole('menuitemradio', { name: 'Shared', exact: true }).click()
-  await expect(row).toHaveCount(0)
-  await main.getByRole('button', { name: /^Category:/ }).click()
-  await page.getByRole('menuitemradio', { name: 'Personal', exact: true }).click()
+  await main.getByRole('link', { name: 'Back to Gmail', exact: true }).click()
+  const row = main
+    .getByRole('region', { name: 'Connected credentials', exact: true })
+    .getByRole('button', { name: /^Account follow-ups / })
   await row.click()
+  await expect(id).toHaveValue(originalId)
   await main.getByRole('tab', { name: 'Access', exact: true }).click()
   await main.getByRole('combobox', { name: /^People:/ }).click()
   await page.getByRole('option', { name: 'Nina Patel', exact: true }).click()
@@ -172,10 +187,13 @@ test('a private connection keeps its identity when shared and protects its only 
   await expect(people.getByRole('row')).toHaveCount(3)
   await main.getByRole('tab', { name: 'Details', exact: true }).click()
   await expect(id).toHaveValue(originalId)
+  await main.getByRole('link', { name: 'Back to Gmail', exact: true }).click()
   await main.getByRole('link', { name: 'Integrations', exact: true }).click()
-  await expect(row).toHaveCount(0)
-  await main.getByRole('button', { name: /^Category:/ }).click()
-  await page.getByRole('menuitemradio', { name: 'Shared', exact: true }).click()
+  const tabs = main.getByRole('navigation', { name: 'Integration categories' })
+  await tabs.getByRole('link', { name: 'Credentials', exact: true }).click()
+  await expect(main.getByRole('link', { name: /^Account follow-ups / })).toHaveCount(0)
+  await tabs.getByRole('link', { name: 'Apps', exact: true }).click()
+  await main.getByRole('link', { name: /^Gmail / }).click()
   await row.click()
   await expect(id).toHaveValue(originalId)
   await main.getByRole('tab', { name: 'Access', exact: true }).click()
@@ -265,6 +283,7 @@ test('shared family credential edits and access changes propagate without removi
     .getByRole('textbox', { name: 'Display name', exact: true })
     .fill('Shared Google operations')
   await main.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await main.getByRole('link', { name: 'Back to Gmail', exact: true }).click()
   await main.getByRole('link', { name: 'Integrations', exact: true }).click()
   const tabs = main.getByRole('navigation', { name: 'Integration categories' })
   await tabs.getByRole('link', { name: 'Credentials', exact: true }).click()
@@ -579,6 +598,7 @@ test('individual permissions inherit their default without changing other tools'
   const draft = tools.getByRole('group', { name: 'Gmail Draft permission' })
   await send.getByRole('radio', { name: 'Block' }).check()
   await expect(draft.getByRole('radio', { name: 'Ask' })).toBeChecked()
+  await page.getByRole('main').getByRole('link', { name: 'Back to Gmail', exact: true }).click()
   await page.getByRole('main').getByRole('link', { name: 'Integrations', exact: true }).click()
   await page.getByRole('link', { name: /^Gmail / }).click()
   await page
@@ -643,6 +663,7 @@ test('managed, unconfigured and retained connections expose only the actions the
   await expect(page.getByRole('menuitem', { name: 'Reconnect', exact: true })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(main.getByRole('radio')).toHaveCount(0)
+  await main.getByRole('link', { name: 'Back to Fireflies', exact: true }).click()
   await main.getByRole('link', { name: 'Integrations', exact: true }).click()
   for (const provider of ['GitLab', 'Slack', 'Granola', 'Zoom']) {
     await main.getByRole('link', { name: new RegExp(`^${provider} `) }).click()

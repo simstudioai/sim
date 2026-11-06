@@ -1,6 +1,6 @@
 'use client'
 
-import type { MouseEventHandler, ReactElement, ReactNode } from 'react'
+import type { ComponentProps, MouseEventHandler, ReactElement, ReactNode } from 'react'
 import { useRender } from '@base-ui/react/use-render'
 import Link from 'next/link'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
@@ -117,6 +117,7 @@ type ChipProps = {
 } & (
   | {
       href: string
+      onNavigate?: ComponentProps<typeof Link>['onNavigate']
       onClick?: never
       action?: ReactNode
       status?: ReactNode
@@ -124,6 +125,7 @@ type ChipProps = {
     }
   | {
       href?: never
+      onNavigate?: never
       onClick?: MouseEventHandler<HTMLButtonElement>
       action?: never
       status?: never
@@ -137,11 +139,13 @@ export function Chip({
   selected = false,
   onClick,
   href,
+  onNavigate,
   action,
   status,
   replaceActionOnTouch,
 }: ChipProps) {
-  const LinkElement = href && isAbsoluteHref(href) ? 'a' : Link
+  const external = href && isAbsoluteHref(href)
+  const LinkElement = external ? 'a' : Link
   return (
     <ControlRow
       label={children}
@@ -151,7 +155,11 @@ export function Chip({
       replaceActionOnTouch={replaceActionOnTouch}
       render={
         href ? (
-          <LinkElement href={href} aria-current={selected ? 'page' : undefined} />
+          <LinkElement
+            href={href}
+            {...(!external ? { onNavigate } : {})}
+            aria-current={selected ? 'page' : undefined}
+          />
         ) : (
           <button type='button' aria-pressed={selected} onClick={onClick} />
         )

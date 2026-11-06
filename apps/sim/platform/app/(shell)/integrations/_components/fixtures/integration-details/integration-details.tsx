@@ -12,10 +12,16 @@ import { IntegrationCapabilities } from '@/platform/app/(shell)/integrations/_co
 import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
 import { IntegrationIdea } from '@/platform/app/(shell)/integrations/_components/integration-idea/integration-idea'
 import { IntegrationUsage } from '@/platform/app/(shell)/integrations/_components/integration-usage/integration-usage'
+import { ManualCredentialDetail } from '@/platform/app/(shell)/integrations/_components/manual-credential-detail/manual-credential-detail'
 import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
+import { ResourceEditor } from '@/platform/app/(shell)/integrations/_components/resource-editor/resource-editor'
 import { ActionMenu, Button, Modal } from '@/platform/design-system/components'
 import type { IntegrationCatalogEntry } from '@/platform/lib/integrations/catalog-model'
-import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
+import type {
+  IntegrationCenterData,
+  IntegrationPerson,
+  IntegrationResource,
+} from '@/platform/lib/integrations/center-model'
 import { validCredentialMembers } from '@/platform/lib/integrations/credential-access'
 import type {
   CredentialConnection,
@@ -26,6 +32,10 @@ import {
   credentialParams,
 } from '@/platform/lib/integrations/credential-navigation'
 import type { OrganizationIntegration } from '@/platform/lib/integrations/fixture-model'
+import {
+  type ManualCredential,
+  manualCredentialAccess,
+} from '@/platform/lib/integrations/manual-secret'
 
 interface IntegrationDetailsProps {
   integration: OrganizationIntegration
@@ -40,6 +50,13 @@ interface IntegrationDetailsProps {
   catalog?: IntegrationCatalogEntry | null
   addedSkills?: readonly string[]
   onAddSkill?: (skill: IntegrationCatalogEntry['skills'][number]) => void
+  onRemoveSkill?: (name: string) => void
+  library: {
+    data: IntegrationCenterData
+    save: (resource: IntegrationResource) => void
+    remove: (id: string) => void
+    leave: (id: string) => void
+  }
 }
 
 export function IntegrationDetails({
@@ -55,6 +72,8 @@ export function IntegrationDetails({
   catalog,
   addedSkills,
   onAddSkill,
+  onRemoveSkill,
+  library,
 }: IntegrationDetailsProps) {
   const [view, setView] = useQueryStates(credentialParams)
   const [isOpening, startOpening] = useTransition()
@@ -63,10 +82,22 @@ export function IntegrationDetails({
     credential?: IntegrationCredential
   } | null>(null)
   const [disconnecting, setDisconnecting] = useState<IntegrationCredential | null>(null)
+  const [creatingSecret, setCreatingSecret] = useState(false)
+  const manualCredentials = library.data.resources.filter(
+    (resource): resource is ManualCredential =>
+      resource.kind === 'credential' && resource.appId === integration.providerId
+  )
+  const selectedSecret = !isOpening
+    ? manualCredentials.find((resource) => resource.id === view.credential)
+    : undefined
   const selected = isOpening
     ? undefined
     : integration.credentials.find((credential) => credential.id === view.credential)
   const connections = catalog?.connections ?? []
+  const hasOAuth = connections.some(
+    (connection) => connection.setup === 'oauth' || connection.setup === 'mcp-oauth'
+  )
+  const connectLabel = hasOAuth ? 'Connect integration' : 'Create credential'
   const selectedScope = selected?.scope
   const workspace =
     selectedScope?.kind === 'workspace'
@@ -215,14 +246,29 @@ export function IntegrationDetails({
   }
   return (
     <>
-      {selected ? (
+      {selectedSecret ? (
+        <ManualCredentialDetail
+          key={selectedSecret.id}
+          resource={selectedSecret}
+          data={library.data}
+          appName={integration.name}
+          onSave={library.save}
+          onRemove={() => {
+            library.remove(selectedSecret.id)
+            void setView({ ...clearCredentialView, credential: null })
+          }}
+          onLeave={() => {
+            library.leave(selectedSecret.id)
+            void setView({ ...clearCredentialView, credential: null })
+          }}
+        />
+      ) : selected ? (
         <CredentialDetail
           key={selected.id}
           credential={selected}
           integrationName={integration.name}
           viewer={viewer}
           people={allowedPeople}
-          onBack={() => void setView({ ...clearCredentialView, credential: null })}
           onChange={save}
           onReconnect={canReconnect(selected) ? () => reconnect(selected) : undefined}
           onDisconnect={() => setDisconnecting(selected)}
@@ -244,7 +290,11 @@ export function IntegrationDetails({
             }
           />
           <IntegrationControls
-            leading={<IntegrationUsage people={people ?? []} total={peopleTotal} />}
+            leading={
+              !integration.credentials.length && !manualCredentials.length ? (
+                <IntegrationUsage people={people ?? []} total={peopleTotal} />
+              ) : undefined
+            }
           >
             <Button
               variant='quiet'
@@ -256,38 +306,77 @@ export function IntegrationDetails({
             >
               Docs
             </Button>
-            {integration.canAddCredential && connections.length === 1 ? (
+            {hasOAuth && integration.canAddCredential && (
+              <Button variant='quiet' size='compact' onClick={() => setCreatingSecret(true)}>
+                Create credential
+              </Button>
+            )}
+            {integration.canAddCredential && connections.length === 1 && hasOAuth ? (
               <Button
                 icon='I074'
                 size='compact'
                 onClick={() => setEnrollment({ connection: connections[0] })}
               >
-                Connect integration
+                {connectLabel}
               </Button>
-            ) : integration.canAddCredential && connections.length > 1 ? (
+            ) : integration.canAddCredential && connections.length > 0 ? (
               <ActionMenu
-                label='Connect integration'
+                label={connectLabel}
                 triggerSize='compact'
                 triggerVariant='secondary'
                 icon={null}
                 tooltip={false}
-                actions={connections.map((connection) => ({
-                  id: connection.id,
-                  label: connection.label,
-                  onSelect: () => setEnrollment({ connection }),
-                }))}
+                actions={[
+                  ...connections.map((connection) => ({
+                    id: connection.id,
+                    label: connection.label,
+                    onSelect: () => setEnrollment({ connection }),
+                  })),
+                  ...(!hasOAuth
+                    ? [
+                        {
+                          id: 'manual',
+                          label: 'Manual secret',
+                          onSelect: () => setCreatingSecret(true),
+                        },
+                      ]
+                    : []),
+                ]}
               />
-            ) : null}
+            ) : (
+              <Button size='compact' icon='I074' onClick={() => setCreatingSecret(true)}>
+                Create credential
+              </Button>
+            )}
           </IntegrationControls>
-          <CredentialList credentials={integration.credentials} onOpen={open} />
+          <CredentialList
+            credentials={[
+              ...integration.credentials,
+              ...manualCredentials.map((resource) =>
+                manualCredentialAccess(resource, library.data)
+              ),
+            ]}
+            onOpen={open}
+          />
           {catalog && (
             <IntegrationCapabilities
               catalog={catalog}
               addedSkills={addedSkills}
               onAddSkill={onAddSkill}
+              onRemoveSkill={onRemoveSkill}
             />
           )}
         </>
+      )}
+      {creatingSecret && (
+        <ResourceEditor
+          kind='credential'
+          appId={integration.providerId}
+          apps={[{ id: integration.providerId, name: integration.name }]}
+          data={library.data}
+          onSave={library.save}
+          onClose={() => setCreatingSecret(false)}
+        />
       )}
       {enrollment && (
         <CredentialConnect

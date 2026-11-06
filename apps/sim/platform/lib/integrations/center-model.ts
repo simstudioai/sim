@@ -1,4 +1,6 @@
 import type { ComponentType } from 'react'
+import type { CredentialMember } from '@/platform/lib/integrations/credential-model'
+import type { ManualSecretType } from '@/platform/lib/integrations/manual-secret'
 
 export type IntegrationTab = 'apps' | 'skills' | 'mcps' | 'credentials'
 type IntegrationScope = 'shared' | 'personal'
@@ -40,7 +42,13 @@ export type IntegrationResource = ResourceIdentity &
   (
     | { kind: 'skill'; instructions: string; source?: { providerId: string; name: string } }
     | { kind: 'mcp'; url: string; auth: 'none' | 'bearer' | 'oauth' }
-    | { kind: 'credential'; key: string; credentialType: 'secret' | 'api-key' }
+    | {
+        kind: 'credential'
+        key: string
+        credentialType: ManualSecretType
+        appId?: string
+        members?: readonly CredentialMember[]
+      }
   )
 
 export interface IntegrationCenterData {

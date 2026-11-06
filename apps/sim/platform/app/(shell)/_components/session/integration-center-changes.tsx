@@ -5,6 +5,8 @@ import type {
   IntegrationCenterData,
   IntegrationResource,
 } from '@/platform/lib/integrations/center-model'
+import { validCredentialMembers } from '@/platform/lib/integrations/credential-access'
+import { manualCredentialAccess } from '@/platform/lib/integrations/manual-secret'
 
 function useChanges(enabled: boolean) {
   const [edits, setEdits] = useState<Record<string, IntegrationResource | null>>({})
@@ -45,6 +47,20 @@ function resourceMetadata(resource: IntegrationResource): IntegrationResource {
         kind: 'credential',
         key: resource.key,
         credentialType: resource.credentialType,
+        appId: resource.appId,
+        members: resource.members?.map(
+          ({ id, userId, name, email, src, role, roleSource, explicitAdmin, status }) => ({
+            id,
+            userId,
+            name,
+            email,
+            src,
+            role,
+            roleSource,
+            explicitAdmin,
+            status,
+          })
+        ),
       }
   }
 }
@@ -69,10 +85,36 @@ export function useIntegrationCenterResources(data: IntegrationCenterData | null
       if (!enabled || !data) return
       const existing = resources.find((entry) => entry.id === resource.id)
       if (existing && !existing.canEdit) return
+      if (
+        existing?.kind === 'credential' &&
+        resource.kind === 'credential' &&
+        resource.members &&
+        !validCredentialMembers(manualCredentialAccess(existing, data), resource.members)
+      )
+        return
       setEdits((current) => ({ ...current, [resource.id]: resourceMetadata(resource) }))
     },
     remove(id: string) {
       if (!enabled || !data || !resources.find((resource) => resource.id === id)?.canEdit) return
+      setEdits((current) => ({ ...current, [id]: null }))
+    },
+    leave(id: string) {
+      if (!enabled || !data) return
+      const resource = resources.find((resource) => resource.id === id)
+      if (resource?.kind !== 'credential') return
+      const credential = manualCredentialAccess(resource, data)
+      const member = credential.members.find(
+        (member) => member.userId === data.viewer.id && member.status === 'active'
+      )
+      if (
+        !member ||
+        member.roleSource !== 'explicit' ||
+        !validCredentialMembers(
+          credential,
+          credential.members.filter((member) => member.userId !== data.viewer.id)
+        )
+      )
+        return
       setEdits((current) => ({ ...current, [id]: null }))
     },
   }

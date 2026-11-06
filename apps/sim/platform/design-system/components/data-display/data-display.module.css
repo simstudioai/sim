@@ -59,6 +59,10 @@
   text-align: start;
   color: var(--ui-secondary);
   overflow-wrap: anywhere;
+  vertical-align: middle;
+}
+.table[data-columns="2"] {
+  table-layout: auto;
 }
 .table [data-primary] {
   inline-size: 32%;

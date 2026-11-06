@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import styles from '@/platform/app/(shell)/integrations/_components/fixtures/tool-permissions/tool-permissions.module.css'
+import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
 import { EmptyState, SearchField, SegmentedControl } from '@/platform/design-system/components'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 import type { IntegrationAccount, ToolPolicy } from '@/platform/lib/integrations/fixture-model'
@@ -63,7 +64,16 @@ export function ToolPermissions({
           </p>
         )}
       </div>
-      <SearchField label='Search tools' placeholder='Search tools…' onValueChange={setQuery} />
+      <IntegrationControls
+        leading={
+          <SearchField
+            variant='quiet'
+            label='Search tools'
+            placeholder='Search tools…'
+            onValueChange={setQuery}
+          />
+        }
+      />
       {GROUPS.map(({ kind, label }) => {
         const matching = matches.filter((tool) => tool.kind === kind)
         if (!matching.length) return null

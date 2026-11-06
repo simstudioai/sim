@@ -2,6 +2,7 @@
 
 import { generateId } from '@sim/utils/id'
 import { useSearchParams } from 'next/navigation'
+import { useQueryStates } from 'nuqs'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { useIntegrationCenterResources } from '@/platform/app/(shell)/_components/session/integration-center-changes'
 import { useOrganizationIntegrations } from '@/platform/app/(shell)/_components/session/integration-changes'
@@ -19,7 +20,11 @@ import {
   credentialDescription,
   credentialSharing,
 } from '@/platform/lib/integrations/credential-display'
-import { serializeCredential } from '@/platform/lib/integrations/credential-navigation'
+import {
+  clearCredentialView,
+  credentialParams,
+  serializeCredential,
+} from '@/platform/lib/integrations/credential-navigation'
 import {
   type IntegrationsData,
   memberIntegrationHref,
@@ -42,14 +47,31 @@ export function IntegrationsPage({ data, center, section, catalog }: Integration
 
 function IntegrationsContent({ data, center, section, catalog }: IntegrationsPageProps) {
   const search = useSearchParams()
+  const [, setCredentialView] = useQueryStates(credentialParams)
   const { integrations, save } = useOrganizationIntegrations(data)
   const library = useIntegrationCenterResources(center)
   const item = integrations.find((entry) => entry.providerId === section)
   const secrets = section === 'secrets' ? data?.genericSecrets : null
+  const manualCredentials = library.resources.filter((resource) => resource.kind === 'credential')
+  const editingSecret = manualCredentials.some((resource) => resource.id === search.get('resource'))
+  const selected =
+    item &&
+    search.get('credential') &&
+    (item.credentials.some((credential) => credential.id === search.get('credential')) ||
+      manualCredentials.some(
+        (resource) => resource.appId === item.providerId && resource.id === search.get('credential')
+      ))
   const credentialLinks: AppSummary[] = [
     ...new Map(
       integrations.flatMap((integration) =>
-        integration.credentials.map((credential) => [credential.id, credential] as const)
+        integration.credentials
+          .filter(
+            (credential) =>
+              credential.type === 'service_account' ||
+              credential.type === 'personal_token' ||
+              credential.type === 'slack'
+          )
+          .map((credential) => [credential.id, credential] as const)
       )
     ).values(),
   ].map((credential) => ({
@@ -68,9 +90,27 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
   return (
     <PageFrame
       back={
-        item || secrets
-          ? { href: memberIntegrationHref('/integrations', search), label: 'Integrations' }
-          : undefined
+        selected && item
+          ? {
+              href: serializeCredential(
+                memberIntegrationHref(
+                  `/integrations/${encodeURIComponent(item.providerId)}`,
+                  search
+                ),
+                { ...clearCredentialView, credential: null }
+              ),
+              label: `Back to ${item.name}`,
+              onNavigate: (event) => {
+                event.preventDefault()
+                void setCredentialView(
+                  { ...clearCredentialView, credential: null },
+                  { history: 'push', scroll: false }
+                )
+              },
+            }
+          : item || secrets
+            ? { href: memberIntegrationHref('/integrations', search), label: 'Integrations' }
+            : undefined
       }
     >
       {item || secrets ? (
@@ -86,6 +126,12 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
               eligiblePeople={center.people}
               workspaces={center.workspaces}
               catalog={catalog}
+              library={{
+                data: { ...center, resources: library.resources },
+                save: library.save,
+                remove: library.remove,
+                leave: library.leave,
+              }}
               people={center?.appPeople[item.providerId]}
               peopleTotal={center?.appUsageTotal[item.providerId]}
               addedSkills={catalog?.skills
@@ -125,6 +171,15 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
                     }
                   : undefined
               }
+              onRemoveSkill={(name) => {
+                const skill = library.resources.find(
+                  (entry) =>
+                    entry.kind === 'skill' &&
+                    entry.source?.providerId === item.providerId &&
+                    entry.source.name === name
+                )
+                if (skill) library.remove(skill.id)
+              }}
             />
           )}
           {secrets && (
@@ -136,7 +191,7 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
         </>
       ) : (
         <>
-          <IntegrationsHeading />
+          {!editingSecret && <IntegrationsHeading />}
           <IntegrationCenter
             apps={integrations.map((integration) => ({
               id: integration.providerId,
@@ -144,8 +199,14 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
               description: integration.description,
               category: integration.category ?? 'Other',
               href: memberIntegrationHref(`/integrations/${integration.providerId}`, search),
-              connected: integration.credentials.length > 0,
-              credentialCount: integration.credentials.length,
+              connected:
+                integration.credentials.length > 0 ||
+                manualCredentials.some((credential) => credential.appId === integration.providerId),
+              credentialCount:
+                integration.credentials.length +
+                manualCredentials.filter(
+                  (credential) => credential.appId === integration.providerId
+                ).length,
               searchable: integration.credentials
                 .map((credential) => `${credential.displayName} ${credential.accountLabel ?? ''}`)
                 .join(' '),
@@ -158,6 +219,7 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
                     data: { ...center, resources: library.resources },
                     save: library.save,
                     remove: library.remove,
+                    leave: library.leave,
                   }
                 : undefined
             }

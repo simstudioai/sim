@@ -1,3 +1,4 @@
+import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
 import styles from '@/platform/app/(shell)/integrations/_components/tool-permissions/tool-permissions.module.css'
 import { EmptyState, SearchField, SegmentedControl } from '@/platform/design-system/components'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
@@ -58,11 +59,16 @@ export function ToolPermissions({
         )}
       </div>
       {permissions.tools.length > 0 && (
-        <SearchField
-          label='Search tools'
-          placeholder='Search tools…'
-          value={query}
-          onValueChange={onQueryChange}
+        <IntegrationControls
+          leading={
+            <SearchField
+              variant='quiet'
+              label='Search tools'
+              placeholder='Search tools…'
+              value={query}
+              onValueChange={onQueryChange}
+            />
+          }
         />
       )}
       {GROUPS.map(({ kind, label }) => {

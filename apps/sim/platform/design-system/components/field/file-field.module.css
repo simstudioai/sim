@@ -1,0 +1,81 @@
+.fileDrop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 0;
+  min-block-size: var(--spacing-128);
+  padding: var(--spacing-16) var(--spacing-32);
+  gap: var(--ui-row-gap);
+  border: var(--spacing-stroke-default) dashed var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  color: var(--ui-secondary);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.fileDrop[data-kind="image"] {
+  inline-size: var(--spacing-64);
+  min-block-size: var(--spacing-64);
+  padding: var(--spacing-8);
+  border-style: solid;
+}
+
+.fileDrop:where(:not([data-disabled]):is(:hover, [data-dragging])) {
+  border-color: var(--control-hover-border);
+}
+
+.fileDrop[data-invalid] {
+  border-color: var(--control-danger);
+}
+
+.fileDrop[data-disabled] {
+  opacity: var(--opacity-disabled);
+}
+
+.fileInput {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.fileInput:disabled {
+  cursor: not-allowed;
+}
+
+.fileDrop:has(.fileInput:focus-visible) {
+  outline: var(--spacing-stroke-focus) solid var(--ui-secondary);
+}
+
+.fileCopy {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-stack-gap);
+}
+
+.fileCopy > [data-selected] {
+  color: var(--ui-ink);
+}
+
+.filePreview {
+  inline-size: auto;
+  max-inline-size: 100%;
+  block-size: var(--spacing-48);
+  border-radius: var(--radius-item);
+  object-fit: contain;
+}
+
+.fileDrop[data-kind="image"] .filePreview {
+  block-size: calc(var(--spacing-48) - 2 * var(--spacing-stroke-default));
+}
+
+.fileRemove {
+  position: absolute;
+  inset-block-start: var(--spacing-2);
+  inset-inline-end: var(--spacing-2);
+}

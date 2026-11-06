@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import {
   DirectoryBack,
   DirectoryHeading,
@@ -7,14 +7,14 @@ import {
 
 interface IntegrationsPageProps {
   /** A detail page's way back. The index has none. */
-  back?: { href: string; label: string }
+  back?: ComponentProps<typeof DirectoryBack>
   children: ReactNode
 }
 
 export function IntegrationsPage({ back, children }: IntegrationsPageProps) {
   return (
     <DirectoryPage>
-      {back && <DirectoryBack href={back.href} label={back.label} />}
+      {back && <DirectoryBack {...back} />}
       {children}
     </DirectoryPage>
   )

@@ -6,6 +6,7 @@ import {
   type TextEntryProps,
   type TextValueProps,
 } from '@/platform/design-system/components/field/inputs'
+import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 import { Select } from '@/platform/design-system/components/picker/select'
 
 interface FieldProps {
@@ -21,6 +22,7 @@ interface FieldProps {
 interface FieldFrameProps {
   id?: string
   label: string
+  count?: number
   optional?: boolean
   error?: string
   hint?: string
@@ -38,6 +40,7 @@ export function fieldDescription(id: string, error?: string, hint?: string) {
 export function FieldFrame({
   id,
   label,
+  count,
   optional,
   error,
   hint,
@@ -46,7 +49,7 @@ export function FieldFrame({
 }: FieldFrameProps) {
   const caption = (
     <>
-      {label}
+      {count === undefined ? label : <CountedLabel label={label} count={count} />}
       {optional && (
         <span className={styles.optional} data-type='T060'>
           {' '}
@@ -136,6 +139,8 @@ export function TextField({
 
 interface TextAreaFieldProps extends FieldProps, TextValueProps {
   placeholder: string
+  autoComplete?: string
+  spellCheck?: boolean
   required?: boolean
   maxLength?: number
   readOnly?: boolean
@@ -159,6 +164,8 @@ export function TextAreaField({
   readOnly,
   viewOnly,
   defaultSize,
+  autoComplete,
+  spellCheck,
 }: TextAreaFieldProps) {
   const id = useId()
   return (
@@ -170,6 +177,8 @@ export function TextAreaField({
         readOnly={readOnly}
         viewOnly={viewOnly}
         defaultSize={defaultSize}
+        autoComplete={autoComplete}
+        spellCheck={spellCheck}
         label={label}
         name={name}
         defaultValue={defaultValue}

@@ -8,13 +8,3 @@
   gap: var(--ui-list-gap);
   margin-inline: calc(-1 * var(--ui-row-inset));
 }
-.usage,
-.person {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-4);
-  white-space: nowrap;
-}
-.person > [aria-hidden] {
-  display: inline-flex;
-}

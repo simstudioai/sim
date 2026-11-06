@@ -11,6 +11,12 @@
   opacity: var(--opacity-disabled);
   cursor: default;
 }
+.checkbox[data-label-hidden] {
+  vertical-align: middle;
+}
+.checkbox[data-label-hidden] .box {
+  margin-block-start: 0;
+}
 
 .box {
   display: inline-grid;

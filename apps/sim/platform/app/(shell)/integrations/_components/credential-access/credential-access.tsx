@@ -14,9 +14,9 @@ import {
   Modal,
   OverflowText,
   Select,
+  TableLabel,
   Tooltip,
 } from '@/platform/design-system/components'
-import { ActivityBody } from '@/platform/design-system/components/activity-row/activity-body'
 import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
 import {
   canShareCredential,
@@ -249,18 +249,18 @@ export function CredentialAccess({
             selectionDisabled: Boolean(reason),
             cells: {
               person: (
-                <ActivityBody
-                  leading={<Avatar name={member.name} src={member.src} size='inline' />}
-                >
-                  <OverflowText text={member.name} />
-                  {member.email && (
-                    <OverflowText text={member.email}>
-                      <span className={styles.detail} data-type='T050'>
-                        {member.email}
-                      </span>
-                    </OverflowText>
-                  )}
-                </ActivityBody>
+                <TableLabel leading={<Avatar name={member.name} src={member.src} size='inline' />}>
+                  <span className={styles.person}>
+                    <OverflowText text={member.name} />
+                    {member.email && (
+                      <OverflowText text={member.email}>
+                        <span className={styles.detail} data-type='T050'>
+                          {member.email}
+                        </span>
+                      </OverflowText>
+                    )}
+                  </span>
+                </TableLabel>
               ),
               role: (
                 <Tooltip

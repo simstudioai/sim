@@ -195,11 +195,13 @@ export function integrationCenterData(scenario: Scenario): IntegrationCenterData
     workspaces,
     people,
     appUsageTotal: {
+      onepassword: 15,
       gmail: scenario === 'stress' ? 1002 : 15,
       google_drive: 24,
       notion: scenario === 'stress' ? 1002 : 15,
     },
     appPeople: {
+      onepassword: [nina, alex, maya, emir, daniel],
       gmail: [nina, alex, maya, emir, daniel],
       google_calendar: [nina, alex, maya, emir],
       google_drive: [nina, alex, maya, emir, daniel],

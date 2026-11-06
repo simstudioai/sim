@@ -108,8 +108,7 @@ export function Input({
   )
 }
 
-interface TextAreaProps
-  extends Omit<InputProps, 'pattern' | 'type' | 'inputMode' | 'spellCheck' | 'trailing'> {
+interface TextAreaProps extends Omit<InputProps, 'pattern' | 'type' | 'inputMode' | 'trailing'> {
   defaultSize?: 'regular' | 'expanded' | 'large'
 }
 
@@ -127,6 +126,7 @@ export function TextArea({
   defaultSize = 'regular',
   required,
   autoComplete,
+  spellCheck,
   maxLength,
   readOnly,
   viewOnly,
@@ -142,6 +142,7 @@ export function TextArea({
         ref={scrollRef}
         id={id}
         autoComplete={autoComplete}
+        spellCheck={spellCheck}
         maxLength={maxLength}
         readOnly={readOnly || viewOnly}
         required={required}

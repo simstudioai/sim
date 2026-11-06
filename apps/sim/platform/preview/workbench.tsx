@@ -2,7 +2,6 @@ import {
   Avatar,
   AvatarGroup,
   EmptyState,
-  LogoUploadField,
   Modal,
   MultiStepModal,
   PlatformSurface,
@@ -13,6 +12,7 @@ import {
   TextField,
 } from '@/platform/design-system/components'
 import type { PreviewData, Scenario } from '@/platform/fixtures'
+import { FileFieldSpecimen } from '@/platform/preview/file-field-specimen'
 import { RecipeSpecimen } from '@/platform/preview/recipe-specimen'
 import styles from '@/platform/preview/workbench.module.css'
 
@@ -110,7 +110,7 @@ export function Workbench({ theme, scenario, data, recipe, destination }: Workbe
                             placeholder='Workspace name'
                             defaultValue={workspace?.name}
                           />
-                          <LogoUploadField label='Logo' optional />
+                          <FileFieldSpecimen label='Logo' />
                         </>
                       ),
                     },

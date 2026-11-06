@@ -5154,7 +5154,7 @@
     "family": "LogoUpload",
     "theme": "L",
     "scope": "shared",
-    "owner": "LogoUploadField",
+    "owner": "FileField",
     "icon": "I117",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "B79-0"],
     "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "B87-0"]
@@ -5164,7 +5164,7 @@
     "family": "LogoUpload",
     "theme": "D",
     "scope": "shared",
-    "owner": "LogoUploadField",
+    "owner": "FileField",
     "icon": "I117",
     "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "9XL-0"],
     "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "B8E-0"]

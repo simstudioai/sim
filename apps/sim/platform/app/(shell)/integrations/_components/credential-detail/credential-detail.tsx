@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
 import { CredentialAccess } from '@/platform/app/(shell)/integrations/_components/credential-access/credential-access'
@@ -11,7 +11,6 @@ import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components
 import {
   ActionMenu,
   Button,
-  Chip,
   ContentTabs,
   TextAreaField,
   TextField,
@@ -25,11 +24,12 @@ interface CredentialDetailProps {
   integrationName: string
   viewer: IntegrationPerson
   people: readonly IntegrationPerson[]
-  onBack: () => void
   onChange: (credential: IntegrationCredential) => void
   onReconnect?: () => void
   onDisconnect: () => void
   onLeave: () => void
+  fields?: ReactNode
+  onReplace?: () => void
 }
 
 export function CredentialDetail({
@@ -37,11 +37,12 @@ export function CredentialDetail({
   integrationName,
   viewer,
   people,
-  onBack,
   onChange,
   onReconnect,
   onDisconnect,
   onLeave,
+  fields,
+  onReplace,
 }: CredentialDetailProps) {
   const [view, setView] = useQueryStates(credentialDetailParams)
   const [displayName, setDisplayName] = useState(credential.displayName)
@@ -56,33 +57,30 @@ export function CredentialDetail({
         description={credential.accountLabel ?? integrationName}
         providerId={credential.appId}
       />
-      <IntegrationControls
-        leading={
-          <Chip icon='I093' onClick={onBack}>
-            {integrationName}
-          </Chip>
-        }
-      >
-        {editable && (
+      {editable && (
+        <IntegrationControls leading={null}>
           <ActionMenu
             label='Credential actions'
             icon='I108'
             tooltip={false}
             actions={[
+              ...(onReplace
+                ? [{ id: 'replace', label: 'Replace value', onSelect: onReplace }]
+                : []),
               ...(onReconnect
                 ? [{ id: 'reconnect', label: 'Reconnect', onSelect: onReconnect }]
                 : []),
               {
                 id: 'disconnect',
-                label: 'Disconnect',
-                separatorBefore: Boolean(onReconnect),
+                label: credential.type === 'secret' ? 'Delete credential' : 'Disconnect',
+                separatorBefore: Boolean(onReconnect || onReplace),
                 destructive: true,
                 onSelect: onDisconnect,
               },
             ]}
           />
-        )}
-      </IntegrationControls>
+        </IntegrationControls>
+      )}
       <ContentTabs
         label='Credential details'
         current={
@@ -158,6 +156,7 @@ export function CredentialDetail({
                     viewOnly
                   />
                 )}
+                {fields}
                 {credential.scope.kind === 'organization-managed' && (
                   <p className={styles.managed} data-type='T060'>
                     Managed by {credential.scope.name}

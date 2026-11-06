@@ -3,8 +3,10 @@
 import { useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { DirectoryBack } from '@/platform/app/(shell)/_components/resource-directory/resource-directory'
 import styles from '@/platform/app/(shell)/integrations/_components/integration-center/integration-center.module.css'
 import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
+import { ManualCredentialDetail } from '@/platform/app/(shell)/integrations/_components/manual-credential-detail/manual-credential-detail'
 import { ResourceDetails } from '@/platform/app/(shell)/integrations/_components/resource-details/resource-details'
 import { ResourceEditor } from '@/platform/app/(shell)/integrations/_components/resource-editor/resource-editor'
 import {
@@ -30,11 +32,18 @@ import {
   centerParams,
   serializeCenter,
 } from '@/platform/lib/integrations/center-navigation'
+import {
+  clearCredentialView,
+  credentialAccessParams,
+  credentialDetailParams,
+  serializeCredential,
+} from '@/platform/lib/integrations/credential-navigation'
 
 interface ResourceLibrary {
   data: IntegrationCenterData
   save: (resource: IntegrationResource) => void
   remove: (id: string) => void
+  leave: (id: string) => void
 }
 
 interface IntegrationCenterProps {
@@ -61,7 +70,10 @@ export function IntegrationCenter({
   const pathname = usePathname()
   const router = useRouter()
   const search = useSearchParams()
-  const [view, setView] = useQueryStates(centerParams, { history: 'replace', shallow: true })
+  const [view, setView] = useQueryStates(
+    { ...centerParams, ...credentialDetailParams, ...credentialAccessParams },
+    { history: 'replace', shallow: true }
+  )
   const [isOpening, startOpening] = useTransition()
   const [creating, setCreating] = useState<IntegrationResource['kind'] | null>(null)
   const [deleting, setDeleting] = useState<IntegrationResource | null>(null)
@@ -127,7 +139,10 @@ export function IntegrationCenter({
   function open(resource: IntegrationResource) {
     startOpening(async () => {
       await setView({})
-      await setView({ resource: resource.id }, { history: 'push', scroll: false })
+      await setView(
+        { ...clearCredentialView, resource: resource.id },
+        { history: 'push', scroll: false }
+      )
     })
   }
 
@@ -136,6 +151,38 @@ export function IntegrationCenter({
     await setView({})
     router.push(href)
   }
+
+  if (editing?.kind === 'credential' && library)
+    return (
+      <>
+        <DirectoryBack
+          href={serializeCredential(serializeCenter(base, { resource: null }), clearCredentialView)}
+          label='Back to Credentials'
+          onNavigate={(event) => {
+            event.preventDefault()
+            void setView(
+              { ...clearCredentialView, resource: null },
+              { history: 'push', scroll: false }
+            )
+          }}
+        />
+        <ManualCredentialDetail
+          key={editing.id}
+          resource={editing}
+          data={library.data}
+          appName={apps.find((app) => app.id === editing.appId)?.name}
+          onSave={library.save}
+          onRemove={() => {
+            library.remove(editing.id)
+            void setView({ ...clearCredentialView, resource: null })
+          }}
+          onLeave={() => {
+            library.leave(editing.id)
+            void setView({ ...clearCredentialView, resource: null })
+          }}
+        />
+      </>
+    )
 
   return (
     <div className={styles.center}>
@@ -274,16 +321,17 @@ export function IntegrationCenter({
           </section>
         )}
       </div>
-      {editing?.canEdit === false ? (
+      {editing?.canEdit === false && editing.kind !== 'credential' ? (
         <ResourceDetails resource={editing} onClose={() => void setView({ resource: null })} />
       ) : (
         library &&
         (creating || editing) && (
           <ResourceEditor
             key={editing?.id ?? creating}
-            resource={editing}
+            resource={editing?.kind !== 'credential' ? editing : undefined}
             kind={editing?.kind ?? creating ?? 'skill'}
             data={library.data}
+            apps={apps}
             onClose={() => {
               setCreating(null)
               void setView({ resource: null })

@@ -76,14 +76,14 @@ test('available app usage stays inline and passive while connected counts includ
   page,
 }) => {
   for (const [scenario, others, githubCount] of [
-    ['full', '12 others', '1 connected credential'],
-    ['stress', '999 others', '2 connected credentials'],
+    ['full', '13 others', '1 connected credential'],
+    ['stress', '1,000 others', '2 connected credentials'],
   ]) {
     await page.goto(`${origin}/integrations?state=${scenario}`)
     const main = page.getByRole('main')
     const notion = main.getByRole('link', { name: /^Notion / })
     await expect(notion).toContainText('Used by')
-    await expect(notion.locator('img')).toHaveCount(3)
+    await expect(notion.locator('img')).toHaveCount(2)
     await expect(notion.getByRole('button')).toHaveCount(0)
     await expect
       .poll(() =>
@@ -93,16 +93,22 @@ test('available app usage stays inline and passive while connected counts includ
           .evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)
       )
       .toBe(true)
-    const overflow = notion.getByText(`and ${others}`, { exact: true })
+    await expect(notion).toContainText(`Nina Patel, Alex Chen, and ${others}`)
+    const overflow = notion.getByText(others, { exact: true })
     await expect(overflow).toBeVisible()
     const gmail = main.getByRole('link', { name: /^Gmail / })
     await expect(gmail).toContainText('2 connected credentials')
     await expect(gmail.getByRole('img')).toHaveCount(0)
+    await expect(gmail).not.toContainText('Used by')
     await expect(main.getByRole('link', { name: /^GitHub / })).toContainText(githubCount)
     await overflow.click()
     await expect(page).toHaveURL(/\/integrations\/notion/)
     await expect(page.getByRole('heading', { name: 'Notion', exact: true })).toBeVisible()
     await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(main).toContainText(`Used by Nina Patel, Alex Chen, and ${others}`)
+    await main.getByRole('link', { name: 'Integrations', exact: true }).click()
+    await gmail.click()
+    await expect(main).not.toContainText('Used by')
   }
 })
 
@@ -221,10 +227,13 @@ test('MCP and credential examples retain metadata without sending writes or reta
   await credential.getByLabel('Value', { exact: true }).fill('integration-center-test-secret')
   await credential.getByRole('button', { name: 'Create', exact: true }).click()
   await main.getByRole('button', { name: /^Test research key(?: |$)/ }).click()
-  const editCredential = page.getByRole('dialog', { name: 'Edit credential', exact: true })
-  await expect(editCredential.getByLabel('Key', { exact: true })).toHaveValue('RESEARCH_KEY')
-  await expect(editCredential.getByLabel('Replace value', { exact: true })).toHaveValue('')
-  await editCredential.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(main.getByLabel('Key', { exact: true })).toHaveValue('RESEARCH_KEY')
+  await expect(main.getByRole('tab', { name: 'Access', exact: true })).toBeVisible()
+  await main.getByRole('button', { name: 'Credential actions', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Replace value', exact: true }).click()
+  const replacement = page.getByRole('dialog', { name: 'Replace Test research key', exact: true })
+  await expect(replacement.getByLabel('Replace value', { exact: true })).toHaveValue('')
+  await replacement.getByRole('button', { name: 'Cancel', exact: true }).click()
   const storage = await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage }))
   expect(storage).not.toContain('integration-center-test-token')
   expect(storage).not.toContain('integration-center-test-secret')

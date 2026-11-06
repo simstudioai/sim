@@ -15,7 +15,7 @@ export interface IntegrationCredential {
   id: string
   appId: string
   providerId: string
-  type: 'oauth' | 'service_account' | 'personal_token' | 'mcp' | 'slack'
+  type: 'oauth' | 'service_account' | 'personal_token' | 'mcp' | 'slack' | 'secret'
   displayName: string
   description: string
   accountLabel?: string
@@ -48,7 +48,7 @@ export interface CredentialField {
 /** Public enrollment requirements projected from the existing connection definitions. */
 export interface CredentialConnection {
   id: string
-  kind: IntegrationCredential['type']
+  kind: Exclude<IntegrationCredential['type'], 'secret'>
   label: string
   providerId: string
   setup: 'oauth' | 'mcp-oauth' | 'fields' | 'google-json' | 'slack-bot' | 'oracle-database'

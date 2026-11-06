@@ -1,7 +1,6 @@
 'use client'
 
-import { RequestText } from '@/platform/app/(shell)/settings/_components/sections/requests/request-text'
-import { FailureNotice, Modal, StatusTag } from '@/platform/design-system/components'
+import { DetailsField, FailureNotice, Modal, StatusTag } from '@/platform/design-system/components'
 import { type RequestScope, useRequestDetails } from '@/platform/lib/data/requests'
 import { toast } from '@/platform/lib/data/toast'
 
@@ -46,12 +45,12 @@ export function MyRequestModal({ scope, requestId, onClose }: MyRequestModalProp
       )}
       {request && (
         <>
-          <RequestText label='Status'>
+          <DetailsField label='Status'>
             <StatusTag label={request.status.label} intent={request.status.intent} /> {request.date}
-          </RequestText>
-          {request.reason && <RequestText label='Reason'>{request.reason}</RequestText>}
+          </DetailsField>
+          {request.reason && <DetailsField label='Reason'>{request.reason}</DetailsField>}
           {request.decisionReason && (
-            <RequestText label='Response'>{request.decisionReason}</RequestText>
+            <DetailsField label='Response'>{request.decisionReason}</DetailsField>
           )}
         </>
       )}

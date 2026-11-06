@@ -25,6 +25,7 @@
 }
 
 .count {
+  margin-inline-start: var(--ui-action-gap);
   color: var(--ui-secondary);
   font-variant-numeric: tabular-nums;
 }

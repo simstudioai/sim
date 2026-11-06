@@ -1,8 +1,10 @@
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
+import { IntegrationUsageText } from '@/platform/app/(shell)/integrations/_components/integration-usage/integration-usage'
 import styles from '@/platform/app/(shell)/integrations/_components/resource-list/resource-list.module.css'
-import { ActivityRow, Avatar, Icon } from '@/platform/design-system/components'
+import { ActivityRow, Icon } from '@/platform/design-system/components'
 import type { AppSummary, IntegrationResource } from '@/platform/lib/integrations/center-model'
 import { credentialDescription } from '@/platform/lib/integrations/credential-display'
+import { integrationUsageSummary } from '@/platform/lib/integrations/usage'
 
 interface AppGroupProps {
   title: string
@@ -30,23 +32,14 @@ interface AppEntryProps {
 }
 
 function AppEntry({ app, onNavigate }: AppEntryProps) {
-  const people = app.scope || app.connected ? [] : (app.people ?? []).slice(0, 3)
-  const total = Math.max(app.peopleTotal ?? 0, app.people?.length ?? 0)
-  const others = Math.max(0, total - people.length)
   const usage =
-    !app.scope && !app.connected && total > 0
-      ? `Used by ${people.map((person) => person.name).join(', ')}${
-          others > 0
-            ? people.length
-              ? `, and ${others} ${others === 1 ? 'other' : 'others'}`
-              : `${others} ${others === 1 ? 'person' : 'people'}`
-            : ''
-        }`
+    !app.scope && !app.connected
+      ? integrationUsageSummary(app.people ?? [], app.peopleTotal)
       : undefined
   const detail =
     !app.scope && app.connected && app.credentialCount !== undefined
       ? `${app.credentialCount} connected ${app.credentialCount === 1 ? 'credential' : 'credentials'}`
-      : (usage ?? app.description)
+      : (usage?.label ?? app.description)
   return (
     <ActivityRow
       href={app.href}
@@ -58,26 +51,8 @@ function AppEntry({ app, onNavigate }: AppEntryProps) {
       title={app.name}
       detail={detail}
       detailContent={
-        usage && people.length > 0 ? (
-          <span className={styles.usage}>
-            Used by{' '}
-            {people.map((person, index) => (
-              <span key={person.id} className={styles.person}>
-                <span aria-hidden>
-                  <Avatar name={person.name} src={person.src} size='inline' />
-                </span>
-                <span>
-                  {person.name}
-                  {index < people.length - 1 || others > 0 ? ',' : ''}
-                </span>
-              </span>
-            ))}
-            {others > 0 && (
-              <span>
-                and {others} {others === 1 ? 'other' : 'others'}
-              </span>
-            )}
-          </span>
+        usage ? (
+          <IntegrationUsageText people={app.people ?? []} total={app.peopleTotal} />
         ) : undefined
       }
     />
@@ -114,11 +89,15 @@ export function ResourceGroup({
             <ActivityRow
               key={resource.id}
               leading={
-                <Icon
-                  name={
-                    resource.kind === 'skill' ? 'I044' : resource.kind === 'mcp' ? 'I126' : 'I137'
-                  }
-                />
+                resource.kind === 'credential' && resource.appId ? (
+                  <IntegrationMark providerId={resource.appId} />
+                ) : (
+                  <Icon
+                    name={
+                      resource.kind === 'skill' ? 'I044' : resource.kind === 'mcp' ? 'I126' : 'I137'
+                    }
+                  />
+                )
               }
               title={resource.name}
               detail={
