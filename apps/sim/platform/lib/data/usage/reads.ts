@@ -1,6 +1,5 @@
 'use client'
 
-import { useMemo } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
@@ -91,7 +90,7 @@ export function useUsageOverview(
   options: { enabled: boolean; workspaceId?: string }
 ) {
   const query = useOrganizationUsageOverview(organizationId, window, options)
-  const chart = useMemo(() => toCreditChart(query.data, query.isError), [query.data, query.isError])
+  const chart = toCreditChart(query.data, query.isError)
   return {
     data: query.data,
     loading: query.isLoading,
@@ -142,23 +141,19 @@ export function useActivitySummary(
   const query = useOrganizationActivitySummary(organizationId, window, { workspaceId })
   const totals = query.data?.totals
   const failed = query.isError
-  const { outcomeBars, chatPoints } = useMemo(() => {
-    const series = query.data?.series ?? []
-    return {
-      outcomeBars: series.map((point) => ({
-        label: dayLabel(point.timestamp),
-        values: [
-          point.completed,
-          point.failed,
-          Math.max(0, point.workflowRuns - point.completed - point.failed),
-        ],
-      })),
-      chatPoints: series.map((point) => ({
-        label: dayLabel(point.timestamp),
-        value: point.chatRuns,
-      })),
-    }
-  }, [query.data])
+  const series = query.data?.series ?? []
+  const outcomeBars = series.map((point) => ({
+    label: dayLabel(point.timestamp),
+    values: [
+      point.completed,
+      point.failed,
+      Math.max(0, point.workflowRuns - point.completed - point.failed),
+    ],
+  }))
+  const chatPoints = series.map((point) => ({
+    label: dayLabel(point.timestamp),
+    value: point.chatRuns,
+  }))
   return {
     pending: query.isPending,
     failed,

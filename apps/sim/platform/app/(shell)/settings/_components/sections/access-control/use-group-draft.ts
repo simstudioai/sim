@@ -57,11 +57,13 @@ function groupDraftOf(
 /** The group's editing buffer and its one write. Members are not in it: each is its own action. */
 export function useGroupDraft(group: PermissionGroup, organizationId: string) {
   const update = useUpdatePermissionGroup()
-  const serverWorkspaceIds = group.workspaces.map((workspace) => workspace.id)
-  const workspaceKey = serverWorkspaceIds.join(',')
   const server = useMemo(
-    () => groupDraftOf(group, workspaceKey ? workspaceKey.split(',') : []),
-    [group, workspaceKey]
+    () =>
+      groupDraftOf(
+        group,
+        group.workspaces.map((workspace) => workspace.id)
+      ),
+    [group]
   )
   const draft = useServerDraft({
     server,
