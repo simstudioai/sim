@@ -632,12 +632,17 @@ function userMessages(result: ReturnType<typeof useChat>): string[] {
   return result.messages.filter((message) => message.role === 'user').map((m) => m.content)
 }
 
+/** Lets `ms` pass, on the fake clock when a test runs one. */
+function elapse(ms: number): Promise<unknown> {
+  return vi.isFakeTimers() ? vi.advanceTimersByTimeAsync(ms) : sleep(ms)
+}
+
 async function waitFor(predicate: () => boolean, budgetMs = 2000): Promise<void> {
   const deadline = Date.now() + budgetMs
   while (!predicate()) {
     if (Date.now() > deadline) throw new Error('waitFor timed out')
     await act(async () => {
-      await sleep(10)
+      await elapse(10)
     })
   }
 }
@@ -3295,7 +3300,7 @@ describe('useChat remount send recovery', () => {
       const emit = async (type: string, payload: Record<string, unknown>) => {
         await act(async () => {
           controller?.enqueue(frame(firstStreamId(), type, payload))
-          await sleep(100)
+          await elapse(100)
         })
       }
       return {
@@ -3307,7 +3312,7 @@ describe('useChat remount send recovery', () => {
           await emit('complete', { status: 'complete' })
           await act(async () => {
             controller?.close()
-            await sleep(30)
+            await elapse(30)
           })
         },
       }
@@ -3408,20 +3413,26 @@ describe('useChat remount send recovery', () => {
     })
 
     it('does not send a message the worker reports applied after the turn ended', async () => {
-      const { turn, view } = await startTurn()
-      state.steerDispositions = ['queued', 'applied']
-      await act(async () => {
-        await view.getResult().sendMessage('Then summarize')
-      })
-      await waitFor(() => state.steerBodies.length === 1)
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+      try {
+        const { turn, view } = await startTurn()
+        state.steerDispositions = ['queued', 'applied']
+        await act(async () => {
+          await view.getResult().sendMessage('Then summarize')
+        })
+        await waitFor(() => state.steerBodies.length === 1)
 
-      await turn.end()
-      await waitFor(() => state.steerBodies.length === 2)
-      await act(async () => {
-        await sleep(100)
-      })
+        await turn.end()
+        await waitFor(() => state.steerBodies.length === 2)
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10_000)
+        })
 
-      expect(state.postBodies).toHaveLength(1)
+        expect(state.steerBodies).toHaveLength(2)
+        expect(state.postBodies).toHaveLength(1)
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('waits for the end of a turn that refused the steer, then sends it as the next turn', async () => {
@@ -3496,41 +3507,41 @@ describe('useChat remount send recovery', () => {
     })
 
     it('treats a fallback the worker says was already applied as delivered, not as an error', async () => {
-      const turn = stubRunningTurn({
-        fallback: Response.json(
-          {
-            error: 'This message was already included in the response it steered.',
-            code: 'input_applied',
-          },
-          { status: 409 }
-        ),
-      })
-      const view = renderUseChatInChat(chatId, history)
-      await act(async () => {
-        void view.getResult().sendMessage('Count to fifty')
-      })
-      await waitFor(() => view.getResult().isSending)
-      state.steerDispositions = ['queued', 'not_applied']
-      await act(async () => {
-        await view.getResult().sendMessage('Then summarize')
-      })
-      await waitFor(() => state.steerBodies.length === 1)
-
-      await turn.end()
-      await waitFor(() => state.postBodies.length === 2)
-      await waitFor(() => !view.getResult().isSending)
-
-      /** Nothing is left to retry: a later attempt would only be refused the same way. */
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
       try {
-        await act(async () => {
-          await vi.advanceTimersByTimeAsync(5_000)
+        const turn = stubRunningTurn({
+          fallback: Response.json(
+            {
+              error: 'This message was already included in the response it steered.',
+              code: 'input_applied',
+            },
+            { status: 409 }
+          ),
         })
+        const view = renderUseChatInChat(chatId, history)
+        await act(async () => {
+          void view.getResult().sendMessage('Count to fifty')
+        })
+        await waitFor(() => view.getResult().isSending)
+        state.steerDispositions = ['queued', 'not_applied']
+        await act(async () => {
+          await view.getResult().sendMessage('Then summarize')
+        })
+        await waitFor(() => state.steerBodies.length === 1)
+
+        await turn.end()
+        await waitFor(() => state.postBodies.length === 2)
+        await waitFor(() => !view.getResult().isSending)
+        /** Nothing is left to retry: a later attempt would only be refused the same way. */
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10_000)
+        })
+
+        expect(view.getResult().error).toBeNull()
+        expect(state.postBodies).toHaveLength(2)
       } finally {
         vi.useRealTimers()
       }
-      expect(view.getResult().error).toBeNull()
-      expect(state.postBodies).toHaveLength(2)
     })
   })
 })
