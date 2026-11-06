@@ -254,6 +254,6 @@ describe('DataRetentionSection across saves', () => {
 
     await click('Save')
 
-    expect(container.textContent).toContain('Log 90d')
+    await vi.waitFor(() => expect(container.textContent).toContain('Log 90d'))
   })
 })
