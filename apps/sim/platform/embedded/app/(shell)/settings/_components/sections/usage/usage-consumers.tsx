@@ -11,6 +11,7 @@ import {
   DataTable,
   EmptyState,
   FailureNotice,
+  LoadingRows,
   OverflowText,
   TableLabel,
 } from '@/platform/design-system/components'
@@ -105,7 +106,7 @@ export function UsageConsumers({
   const state = failed ? (
     <FailureNotice message={`Couldn’t load ${title}.`} onRetry={onRetry} />
   ) : loading || !breakdown ? (
-    <span className={styles.listPlaceholder} role='status' aria-label={`Loading ${title}`} />
+    <LoadingRows label={`Loading ${title}`} />
   ) : breakdown.rows.length === 0 ? (
     <EmptyState title={EMPTY_COPY[dimension]} />
   ) : null

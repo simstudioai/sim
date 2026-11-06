@@ -25,6 +25,9 @@ interface HomeWorkspacesProps {
   onRetry: () => void
 }
 
+/** Shown while a row's activity is read, since an empty slot would claim the workspace is idle. */
+const SETTLING_METADATA = '…'
+
 function metadataOf(item: HomeWorkspaceItem, asOf: number) {
   if (item.status) return STATUS_LABEL[item.status]
   return item.lastRunAt === undefined ? undefined : formatRelativeTime(item.lastRunAt, asOf)
@@ -40,7 +43,7 @@ export function HomeWorkspaces({ state, count, asOf, onRetry }: HomeWorkspacesPr
       {state.status === 'loading' && (
         <WidgetSkeleton
           label='Loading workspaces'
-          rows={Math.min(count, PAGE_SIZE)}
+          rows={Math.min(count || PAGE_SIZE, PAGE_SIZE)}
           glyph={false}
         />
       )}
@@ -68,7 +71,7 @@ export function HomeWorkspaces({ state, count, asOf, onRetry }: HomeWorkspacesPr
                   key={item.id}
                   title={item.name}
                   detail={item.detail}
-                  metadata={metadataOf(item, asOf)}
+                  metadata={state.settling ? SETTLING_METADATA : metadataOf(item, asOf)}
                   metadataLeading={item.status === 'running' ? <Spinner /> : undefined}
                   render={<SettingsGuardedLink href={item.href} />}
                 />

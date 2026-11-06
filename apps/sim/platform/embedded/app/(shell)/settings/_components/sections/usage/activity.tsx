@@ -8,6 +8,7 @@ import {
   DataTable,
   EmptyState,
   FailureNotice,
+  LoadingRows,
   MetricGroup,
   OverflowText,
   Pagination,
@@ -162,7 +163,7 @@ export function ActivityPanel({ organizationId }: { organizationId: string }) {
         {breakdown.failed ? (
           <FailureNotice message='Couldn’t load the breakdown.' onRetry={breakdown.retry} />
         ) : !breakdown.rows ? (
-          <span className={styles.listPlaceholder} role='status' aria-label='Loading breakdown' />
+          <LoadingRows label='Loading breakdown' />
         ) : breakdown.rows.length === 0 ? (
           <EmptyState title='No activity in this period.' />
         ) : (
