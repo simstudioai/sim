@@ -4,7 +4,7 @@
  * billing-events API is stubbed.
  */
 import { db } from '@sim/db'
-import { usageLog, user, userStats } from '@sim/db/schema'
+import { organization, usageLog, user, userStats } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,6 +12,7 @@ import { type FalAICostSettlementPayload, settleFalAICost } from '@/lib/tools/fa
 
 const HOSTED_KEY_ENV_VAR = 'FALAI_API_KEY_1'
 const userIds: string[] = []
+const organizationIds: string[] = []
 
 async function createUser(): Promise<string> {
   const id = `falai-settlement-user-${generateId()}`
@@ -29,8 +30,17 @@ async function createUser(): Promise<string> {
   return id
 }
 
+async function createOrganization(): Promise<string> {
+  const id = `falai-settlement-org-${generateId()}`
+  await db.insert(organization).values({ id, name: 'Fal Settlement Org', slug: id })
+  organizationIds.push(id)
+  return id
+}
+
+/** A settlement billed to an organization payer, the snapshot shape for a run outside a workspace. */
 function payloadFor(
   userId: string,
+  organizationId: string,
   billedProviderCostDollars: number,
   billingPeriod = { start: '2026-11-01T00:00:00.000Z', end: '2026-12-01T00:00:00.000Z' }
 ): FalAICostSettlementPayload {
@@ -45,9 +55,9 @@ function payloadFor(
       billingAttribution: {
         actorUserId: userId,
         workspaceId: null,
-        organizationId: null,
+        organizationId,
         billedAccountUserId: userId,
-        billingEntity: { type: 'user', id: userId },
+        billingEntity: { type: 'organization', id: organizationId },
         billingPeriod,
         payerSubscription: null,
       },
@@ -103,12 +113,16 @@ afterAll(async () => {
     await db.delete(usageLog).where(inArray(usageLog.userId, userIds))
     await db.delete(user).where(inArray(user.id, userIds))
   }
+  if (organizationIds.length > 0) {
+    await db.delete(organization).where(inArray(organization.id, organizationIds))
+  }
 })
 
 describe('settleFalAICost', () => {
   it('bills the shortfall once when the exact charge exceeds the estimate, however often it runs', async () => {
     const userId = await createUser()
-    const payload = payloadFor(userId, 6.49)
+    const organizationId = await createOrganization()
+    const payload = payloadFor(userId, organizationId, 6.49)
     stubFalBillingEvents({ requestId: payload.requestId, costDollars: 15 })
 
     expect(await settleFalAICost(payload)).toBe('charged')
@@ -125,8 +139,9 @@ describe('settleFalAICost', () => {
 
   it('bills a settlement that outlives its billing period to the payer current period', async () => {
     const userId = await createUser()
+    const organizationId = await createOrganization()
     const endedPeriod = { start: '2026-01-01T00:00:00.000Z', end: '2026-02-01T00:00:00.000Z' }
-    const payload = payloadFor(userId, 6.49, endedPeriod)
+    const payload = payloadFor(userId, organizationId, 6.49, endedPeriod)
     stubFalBillingEvents({ requestId: payload.requestId, costDollars: 15 })
 
     expect(await settleFalAICost(payload)).toBe('charged')
@@ -138,19 +153,21 @@ describe('settleFalAICost', () => {
 
   it('bills nothing while fal has not recorded the charge', async () => {
     const userId = await createUser()
+    const organizationId = await createOrganization()
     stubFalBillingEvents(null)
 
-    expect(await settleFalAICost(payloadFor(userId, 0.25))).toBe('pending')
+    expect(await settleFalAICost(payloadFor(userId, organizationId, 0.25))).toBe('pending')
 
     expect(await settlementRows(userId)).toHaveLength(0)
   })
 
   it('refuses to settle when the hosted key that ran the request is not configured', async () => {
     const userId = await createUser()
+    const organizationId = await createOrganization()
     vi.stubEnv(HOSTED_KEY_ENV_VAR, '')
     const fetchMock = stubFalBillingEvents(null)
 
-    await expect(settleFalAICost(payloadFor(userId, 6.49))).rejects.toThrow(
+    await expect(settleFalAICost(payloadFor(userId, organizationId, 6.49))).rejects.toThrow(
       'Hosted fal key FALAI_API_KEY_1 is not configured'
     )
     expect(fetchMock).not.toHaveBeenCalled()

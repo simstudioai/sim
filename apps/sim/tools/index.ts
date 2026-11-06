@@ -957,7 +957,7 @@ async function processHostedKeyCost(
 
   const { cost, metadata } = calculateToolCost(tool.hosting.pricing, params, response, tool.id)
 
-  if (cost <= 0) return { cost: 0 }
+  if (cost <= 0) return { cost: 0, metadata }
 
   logger.debug(`Hosted key cost for ${tool.id}: $${cost}`, metadata ? { metadata } : {}, {
     requestId,
@@ -1126,11 +1126,13 @@ async function applyHostedKeyCostToResult(
   hostedKeyMetrics.recordUsed({ provider, tool: tool.id, key })
   hostedKeyMetrics.recordCostCharged(hostedKeyCost, { provider, tool: tool.id })
 
+  const scope = resolveToolScope(params, executionContext)
+  // A zero estimate is not proof the generation was free; settlement bills the receipt.
+  await scheduleExactCostSettlement(tool, metadata, scope, envVarName)
+
   if (hostedKeyCost > 0) {
-    const scope = resolveToolScope(params, executionContext)
     const { copilotToolExecution } = scope
     if (copilotToolExecution) await recordServiceCost(provider, hostedKeyCost)
-    await scheduleExactCostSettlement(tool, metadata, scope, envVarName)
     finalResult.output = {
       ...finalResult.output,
       cost: {
