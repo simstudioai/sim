@@ -65,7 +65,7 @@ export const POST = withRouteHandler(
       const isDeployed = Boolean(result.activeDeployment)
       const attemptActivated = result.latestDeploymentAttempt?.status === 'active'
       logger.info(
-        `[${requestId}] Admin API: Deployment ${attemptActivated ? 'activated' : 'accepted'} for workflow ${workflowId}`
+        `Admin API: Deployment ${attemptActivated ? 'activated' : 'accepted'} for workflow ${workflowId}`
       )
 
       const response: AdminV1DeployResult = {

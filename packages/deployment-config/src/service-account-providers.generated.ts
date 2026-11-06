@@ -26,6 +26,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   greenhouse: 'greenhouse-service-account',
   helpscout: 'helpscout-service-account',
   hubspot: 'hubspot-service-account',
+  jama: 'jama-service-account',
   jira: 'atlassian-service-account',
   linear: 'linear-service-account',
   monday: 'monday-service-account',

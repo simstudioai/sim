@@ -3,6 +3,7 @@ description: Tailwind CSS and styling conventions
 paths:
   - "apps/sim/**/*.tsx"
   - "apps/sim/**/*.css"
+  - "packages/workflow-renderer/**/*.tsx"
 ---
 
 # Styling Rules
@@ -88,6 +89,8 @@ Neutral border geometry comes from `--border-width`: `1px` by default, dropping 
 Draw a line with a real `border-*` utility. Never hand-roll one as `shadow-[inset_0_-1px_0_…]` — box-shadow has its own width and cannot follow the token, so such a line silently renders at double weight against every neighbor. Use an explicit numeric width (or a `ring`/`outline`) only when the line is intentionally emphasized, e.g. focus and selection affordances.
 
 ## Chip Components (consumer usage)
+
+The chip family is the canonical chrome: `ChipInput`, `ChipTextarea`, `ChipModal`/`ChipModalField`, `ChipSelect`/`ChipCombobox`/`ChipDropdown`, `ChipSwitch` (a segmented choice; a boolean toggle stays `Switch`), `ChipDatePicker`, `Chip`/`ChipLink`, `ChipTag`; `DropdownMenu` for context/action menus. Import components, `cn`, and tokens from the `@sim/emcn` barrel and icons from `@sim/emcn/icons`; never deep-import other component subpaths. Never update global styles; keep styling local to the component.
 
 `ChipInput`, `ChipTextarea`, `ChipModal*` own their full chrome. Consumers describe intent through PROPS; they never re-style the chrome. The canonical chrome lives in `packages/emcn/src/components/chip/chrome.ts` (all tokens are re-exported from the `@sim/emcn` barrel — no subpath import needed) — never hand-roll `rounded-lg`/`border`/`bg-[var(--surface-5)]`/`h-[30px]`/`px-2`/`text-sm`/focus rings.
 

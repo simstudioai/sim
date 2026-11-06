@@ -9,7 +9,7 @@ import { parseRequest } from '@/lib/api/server'
 import { env } from '@/lib/core/config/env'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
-import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
+import { getClientIp } from '@/lib/core/utils/request'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -25,12 +25,10 @@ const PUBLIC_ENDPOINT_RATE_LIMIT: TokenBucketConfig = {
 }
 
 export const POST = withRouteHandler(async (req: NextRequest) => {
-  const requestId = generateRequestId()
-
   try {
     const ip = getClientIp(req)
     if (!ip) {
-      logger.warn(`[${requestId}] Unable to resolve client IP for public rate limit`)
+      logger.warn('Unable to resolve client IP for public rate limit')
       return NextResponse.json(
         { error: 'Too many requests. Please try again later.' },
         { status: 429 }
@@ -43,7 +41,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     )
 
     if (!allowed) {
-      logger.warn(`[${requestId}] Rate limit exceeded for IP ${ip}`, { remaining, resetAt })
+      logger.warn(`Rate limit exceeded for IP ${ip}`, { remaining, resetAt })
       return NextResponse.json(
         { error: 'Too many requests. Please try again later.' },
         {
@@ -55,7 +53,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     const parsed = await parseRequest(submitDemoRequestContract, req, {})
     if (!parsed.success) {
-      logger.warn(`[${requestId}] Invalid demo request data`)
+      logger.warn('Invalid demo request data')
       return parsed.response
     }
 
@@ -63,7 +61,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       parsed.data.body
     const attribution = formatAttributionForNotification((name) => req.cookies.get(name)?.value)
 
-    logger.info(`[${requestId}] Processing demo request`, {
+    logger.info('Processing demo request', {
       email: `${companyEmail.substring(0, 3)}***`,
       companySize,
     })
@@ -89,18 +87,18 @@ ${attribution ? `\nAttribution:\n${attribution}\n` : ''}`
     })
 
     if (!emailResult.success) {
-      logger.error(`[${requestId}] Error sending demo request email`, emailResult.message)
+      logger.error('Error sending demo request email', emailResult.message)
       return NextResponse.json({ error: 'Failed to submit request' }, { status: 500 })
     }
 
-    logger.info(`[${requestId}] Demo request email sent successfully`)
+    logger.info('Demo request email sent successfully')
 
     return NextResponse.json(
       { success: true, message: 'Thanks! Our team will reach out shortly.' },
       { status: 201 }
     )
   } catch (error) {
-    logger.error(`[${requestId}] Error processing demo request`, error)
+    logger.error('Error processing demo request', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })

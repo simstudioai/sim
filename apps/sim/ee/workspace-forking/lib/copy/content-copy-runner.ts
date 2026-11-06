@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { finishBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
 import { clearFailedForkResourceReferences } from '@/ee/workspace-forking/lib/copy/cleanup-failed'
 import type { BlobCopyTask } from '@/ee/workspace-forking/lib/copy/copy-files'
@@ -219,7 +220,7 @@ export async function scheduleForkContentCopy(
   payload: ForkContentCopyPayload,
   options: { detachedLabel: string; requestId?: string }
 ): Promise<void> {
-  const { detachedLabel, requestId = 'unknown' } = options
+  const { detachedLabel, requestId = generateRequestId() } = options
   try {
     if (isTriggerDevEnabled) {
       const [{ forkContentCopyTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
@@ -234,7 +235,8 @@ export async function scheduleForkContentCopy(
       runDetached(detachedLabel, () => runForkContentCopy(payload))
     }
   } catch (error) {
-    logger.error(`[${requestId}] Failed to schedule fork content copy`, {
+    logger.error('Failed to schedule fork content copy', {
+      requestId,
       detachedLabel,
       error: getErrorMessage(error),
     })

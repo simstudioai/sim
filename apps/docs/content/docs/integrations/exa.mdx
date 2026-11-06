@@ -172,6 +172,8 @@ Find webpages similar to a given URL using Exa AI. Deprecated by Exa in favor of
 
 Get an AI-generated answer to a question with citations from the web using Exa AI.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -195,9 +197,13 @@ Get an AI-generated answer to a question with citations from the web using Exa A
 |   ↳ `publishedDate` | string | Publication date of the cited source |
 | `requestId` | string | Exa request identifier, useful for support |
 
+</ReferenceDetails>
+
 ### Exa Agent
 
 Run a deep research task with Exa Agent. Handles multi-step list building, enrichment, and research, returning a written answer with field-level citations and optional structured output.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -221,5 +227,7 @@ Run a deep research task with Exa Agent. Handles multi-step list building, enric
 | `structured` | json | Structured result matching outputSchema, when one was supplied |
 | `grounding` | json | Field-level citations backing the agent output |
 | `research` | array | The agent answer in the shape the retired Research operation emitted, so workflows that reference it keep resolving |
+
+</ReferenceDetails>
 
 

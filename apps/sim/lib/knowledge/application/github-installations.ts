@@ -8,10 +8,11 @@ import {
   member,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { LIVE_ENROLLMENT_STATUSES } from '@/lib/credential-groups/credentials'
+import { CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT } from '@/lib/credential-groups/limits'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import {
   ManagedOAuthCredentialError,
@@ -43,8 +44,8 @@ interface ConnectInstallationInput extends InstallationInput {
   installationId: string
 }
 
-/** Selects only the acting person's live, organization-bound GitHub connection. */
-export async function findGitHubSearchReaderCredential(
+/** Selects only the acting person's live, organization-bound GitHub connections. */
+export async function listGitHubSearchReaderCredentials(
   executor: DbOrTx,
   organizationId: string,
   userId: string
@@ -53,7 +54,7 @@ export async function findGitHubSearchReaderCredential(
     undefined,
     { organizationId }
   )
-  const rows = await executor
+  return executor
     .select({
       id: credential.id,
       authorizationAppId: credential.authorizationAppId,
@@ -85,13 +86,8 @@ export async function findGitHubSearchReaderCredential(
           AND option->>'provider' = 'github-repositories' AND option->>'status' = 'active')`
       )
     )
-    .limit(2)
-  if (rows.length > 1)
-    throw new OrchestrationError(
-      'conflict',
-      'Connect one GitHub account for this organization before choosing an installation'
-    )
-  return rows[0] ?? null
+    .orderBy(asc(credential.id))
+    .limit(CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT)
 }
 
 async function readerToken(organizationId: string, credentialId: string) {
@@ -103,6 +99,54 @@ async function readerToken(organizationId: string, credentialId: string) {
   })
 }
 
+const MAX_LISTED_INSTALLATIONS = 1000
+
+/** A null answer means only this account needs reconnecting; App JWT failures stay errors. */
+async function listInstallationsThroughReader(
+  organizationId: string,
+  credentialId: string,
+  signal?: AbortSignal
+): Promise<GitHubInstallationSummary[] | null> {
+  try {
+    return await listUserAdminGitHubInstallations(
+      (await readerToken(organizationId, credentialId)).accessToken,
+      { signal }
+    )
+  } catch (error) {
+    if (error instanceof GitHubInstallationError && error.operation === 'membership-permissions')
+      throw new OrchestrationError('validation', error.message)
+    if (
+      (error instanceof GitHubInstallationError && error.status === 401) ||
+      (error instanceof ManagedOAuthCredentialError &&
+        error.code === 'MANAGED_CREDENTIAL_NEEDS_REAUTH')
+    )
+      return null
+    throw error
+  }
+}
+
+/** The person may administer the installation through only one of their GitHub accounts. */
+async function verifyInstallationThroughReaders(
+  organizationId: string,
+  readers: Awaited<ReturnType<typeof listGitHubSearchReaderCredentials>>,
+  installationId: string,
+  signal?: AbortSignal
+) {
+  let failure: unknown
+  for (const reader of readers) {
+    try {
+      const { accessToken } = await readerToken(organizationId, reader.id)
+      return {
+        reader,
+        binding: await verifyGitHubInstallationBinding(accessToken, installationId, { signal }),
+      }
+    } catch (error) {
+      failure = error
+    }
+  }
+  throw failure
+}
+
 export const listGitHubSearchInstallations = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listGitHubInstallations,
   resolveContext: ({ input }: { input: InstallationInput }) =>
@@ -110,33 +154,28 @@ export const listGitHubSearchInstallations = defineAuthorizedKnowledgeUseCase({
   async execute({ principal, input, context }) {
     await requireOrganizationSearchAvailable(context.organizationId)
     const configuration = getGitHubInstallationConfiguration()
-    const reader = configuration.configured
-      ? await findGitHubSearchReaderCredential(db, context.organizationId, principal.userId)
-      : null
-    let needsUserConnection = configuration.configured && !reader
-    let installations: GitHubInstallationSummary[] = []
-    if (reader) {
-      try {
-        installations = await listUserAdminGitHubInstallations(
-          (await readerToken(context.organizationId, reader.id)).accessToken,
-          { signal: input.signal }
-        )
-      } catch (error) {
-        if (
-          error instanceof GitHubInstallationError &&
-          error.operation === 'membership-permissions'
-        )
-          throw new OrchestrationError('validation', error.message)
-        /** Only reader-token discovery can request reauthorization; App JWT failures stay errors. */
-        if (
-          (error instanceof GitHubInstallationError && error.status === 401) ||
-          (error instanceof ManagedOAuthCredentialError &&
-            error.code === 'MANAGED_CREDENTIAL_NEEDS_REAUTH')
-        )
-          needsUserConnection = true
-        else throw error
-      }
+    const readers = configuration.configured
+      ? await listGitHubSearchReaderCredentials(db, context.organizationId, principal.userId)
+      : []
+    const answers = await Promise.allSettled(
+      readers.map((reader) =>
+        listInstallationsThroughReader(context.organizationId, reader.id, input.signal)
+      )
+    )
+    const answered = answers.flatMap((answer) =>
+      answer.status === 'fulfilled' && answer.value ? [answer.value] : []
+    )
+    // One account's failure stays hidden while another account still answers.
+    if (answered.length === 0) {
+      const failed = answers.find((answer) => answer.status === 'rejected')
+      if (failed) throw failed.reason
     }
+    const needsUserConnection = configuration.configured && answered.length === 0
+    const installations = [
+      ...new Map(
+        answered.flat().map((installation) => [installation.installationId, installation])
+      ).values(),
+    ].slice(0, MAX_LISTED_INSTALLATIONS)
     return {
       available: configuration.configured,
       installUrl: configuration.installUrl,
@@ -157,20 +196,22 @@ export const connectGitHubSearchInstallation = defineAuthorizedKnowledgeUseCase(
         'validation',
         'GitHub App installation indexing is not configured for this environment'
       )
-    const reader = await findGitHubSearchReaderCredential(
+    const readers = await listGitHubSearchReaderCredentials(
       db,
       context.organizationId,
       principal.userId
     )
-    if (!reader)
+    if (readers.length === 0)
       throw new OrchestrationError(
         'validation',
         'Connect your GitHub account before choosing an installation'
       )
-    const { accessToken } = await readerToken(context.organizationId, reader.id)
-    const binding = await verifyGitHubInstallationBinding(accessToken, input.installationId, {
-      signal: input.signal,
-    })
+    const { reader, binding } = await verifyInstallationThroughReaders(
+      context.organizationId,
+      readers,
+      input.installationId,
+      input.signal
+    )
     const { encrypted } = await encryptSecret(JSON.stringify(binding))
     return db.transaction(async (tx) => {
       await acquireAdvisoryXactLock(
@@ -204,13 +245,11 @@ export const connectGitHubSearchInstallation = defineAuthorizedKnowledgeUseCase(
         )
         .for('update')
         .limit(1)
-      const current = await findGitHubSearchReaderCredential(
-        tx,
-        context.organizationId,
-        principal.userId
-      )
+      const current = (
+        await listGitHubSearchReaderCredentials(tx, context.organizationId, principal.userId)
+      ).find((candidate) => candidate.id === reader.id)
       if (
-        current?.id !== reader.id ||
+        !current ||
         current.authorizationAppId !== reader.authorizationAppId ||
         current.subjectId !== reader.subjectId
       )

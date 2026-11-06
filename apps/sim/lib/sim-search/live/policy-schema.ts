@@ -99,6 +99,16 @@ export const LIVE_SEARCH_SCOPE_FIELDS: Record<
     hint: 'Use owner/repository or paste a GitHub repository URL.',
     example: 'simstudioai/sim',
   },
+  jama: {
+    label: 'Items',
+    hint: 'Member accounts search the Jama Connect items they can access.',
+    example: '',
+  },
+  flow: {
+    label: 'Engineering items',
+    hint: 'Member accounts search the Flow projects and items they can access.',
+    example: '',
+  },
   gitlab: {
     label: 'Projects',
     hint: 'Use project IDs or namespace/project paths. Restrict the instance below when connecting multiple GitLab hosts.',

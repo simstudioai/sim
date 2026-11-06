@@ -2,7 +2,6 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getActiveWorkflowRecord } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1ExportWorkflowContract } from '@/lib/api/contracts/v1/workflows'
 import { parseRequest } from '@/lib/api/server'
@@ -33,8 +32,6 @@ export const revalidate = 0
  */
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateId().slice(0, 8)
-
     try {
       const rateLimit = await checkRateLimit(request, 'workflow-export')
       if (!rateLimit.allowed) {
@@ -50,7 +47,7 @@ export const GET = withRouteHandler(
 
       const { id } = parsed.data.params
 
-      logger.info(`[${requestId}] Exporting workflow ${id}`, { userId })
+      logger.info(`Exporting workflow ${id}`, { userId })
 
       const workflowData = await getActiveWorkflowRecord(id)
       if (!workflowData?.workspaceId) {
@@ -95,7 +92,7 @@ export const GET = withRouteHandler(
       return NextResponse.json(apiResponse.body, { headers: apiResponse.headers })
     } catch (error: unknown) {
       const message = getErrorMessage(error, 'Unknown error')
-      logger.error(`[${requestId}] Workflow export error`, { error: message })
+      logger.error('Workflow export error', { error: message })
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
   }

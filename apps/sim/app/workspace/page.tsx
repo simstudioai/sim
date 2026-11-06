@@ -16,6 +16,7 @@ import {
   isUpgradeReason,
   UPGRADE_REASON_PARAM,
 } from '@/lib/billing/upgrade-reasons'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { ApplicationLoading } from '@/app/_shell/application-loading'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { useWorkspacesWithMetadata } from '@/hooks/queries/workspace'
@@ -133,9 +134,17 @@ export default function WorkspacePage() {
           ? `/workspace/${id}/settings/general`
           : `/workspace/${id}`
 
-    const { workspaces, lastActiveWorkspaceId, creationPolicy } = data
+    const { workspaces, lastActiveWorkspaceId, creationPolicy, forwardOrganizationId } = data
 
     if (workspaces.length === 0) {
+      if (forwardOrganizationId) {
+        hasRedirectedRef.current = true
+        const routes = organizationRoutes(forwardOrganizationId)
+        router.replace(
+          redirectTarget === 'settings' ? routes.settingsSection('general') : routes.home
+        )
+        return
+      }
       /**
        * Blocked state is derived in render and deliberately does NOT set
        * hasRedirectedRef: a later refetch that shows granted access resumes
@@ -174,6 +183,7 @@ export default function WorkspacePage() {
     isAuthenticated &&
     data &&
     data.workspaces.length === 0 &&
+    !data.forwardOrganizationId &&
     data.creationPolicy &&
     !data.creationPolicy.canCreate
       ? data.creationPolicy

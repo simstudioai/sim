@@ -106,7 +106,7 @@ export const rssPollingHandler: PollingProviderHandler = {
       const config = getProviderConfig<RssWebhookConfig>(webhookData.providerConfig)
 
       if (!config?.feedUrl) {
-        logger.error(`[${requestId}] Missing feedUrl for webhook ${webhookId}`)
+        logger.error(`Missing feedUrl for webhook ${webhookId}`)
         await markWebhookFailed(webhookId, logger)
         return 'failure'
       }
@@ -117,16 +117,16 @@ export const rssPollingHandler: PollingProviderHandler = {
         items: newItems,
         etag,
         lastModified,
-      } = await fetchNewRssItems(config, webhookData.createdAt, requestId, logger)
+      } = await fetchNewRssItems(config, webhookData.createdAt, logger)
 
       if (!newItems.length) {
         await updateRssState(webhookId, now.toISOString(), [], config, logger, etag, lastModified)
         await markWebhookSuccess(webhookId, logger)
-        logger.info(`[${requestId}] No new items found for webhook ${webhookId}`)
+        logger.info(`No new items found for webhook ${webhookId}`)
         return 'success'
       }
 
-      logger.info(`[${requestId}] Found ${newItems.length} new items for webhook ${webhookId}`)
+      logger.info(`Found ${newItems.length} new items for webhook ${webhookId}`)
 
       const { processedCount, failedCount, admissionRejectedAt } = await processRssItems(
         newItems,
@@ -148,7 +148,7 @@ export const rssPollingHandler: PollingProviderHandler = {
           await updateRssState(webhookId, now.toISOString(), newGuids, config, logger)
         }
         logger.info(
-          `[${requestId}] Stopped polling webhook ${webhookId}: execution admission refused, ${newItems.length - attemptedItems.length} items left for a later poll`
+          `Stopped polling webhook ${webhookId}: execution admission refused, ${newItems.length - attemptedItems.length} items left for a later poll`
         )
         return 'skipped'
       }
@@ -165,15 +165,13 @@ export const rssPollingHandler: PollingProviderHandler = {
 
       if (failedCount > 0 && processedCount === 0) {
         await markWebhookFailed(webhookId, logger)
-        logger.warn(
-          `[${requestId}] All ${failedCount} items failed to process for webhook ${webhookId}`
-        )
+        logger.warn(`All ${failedCount} items failed to process for webhook ${webhookId}`)
         return 'failure'
       }
 
       await markWebhookSuccess(webhookId, logger)
       logger.info(
-        `[${requestId}] Successfully processed ${processedCount} items for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
+        `Successfully processed ${processedCount} items for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
       )
       return 'success'
     } catch (error) {
@@ -181,7 +179,7 @@ export const rssPollingHandler: PollingProviderHandler = {
         webhookData,
         pollStartedAt,
         error,
-        `[${requestId}] Error polling RSS webhook ${webhookId}`,
+        `Error polling RSS webhook ${webhookId}`,
         logger
       )
       return 'failure'
@@ -223,7 +221,6 @@ async function updateRssState(
 async function fetchNewRssItems(
   config: RssWebhookConfig,
   subscriptionStartedAt: Date,
-  requestId: string,
   logger: Logger
 ): Promise<{ feed: RssFeed; items: RssItem[]; etag?: string; lastModified?: string }> {
   const urlValidation = await validateUrlWithDNS(config.feedUrl, 'feedUrl', 'requestTarget')
@@ -250,7 +247,7 @@ async function fetchNewRssItems(
   })
 
   if (response.status === 304) {
-    logger.info(`[${requestId}] RSS feed not modified (304) for ${config.feedUrl}`)
+    logger.info(`RSS feed not modified (304) for ${config.feedUrl}`)
     return {
       feed: { items: [] } as RssFeed,
       items: [],
@@ -308,9 +305,7 @@ async function fetchNewRssItems(
 
   const limitedItems = newItems.slice(0, 25)
 
-  logger.info(
-    `[${requestId}] Found ${newItems.length} new items (processing ${limitedItems.length})`
-  )
+  logger.info(`Found ${newItems.length} new items (processing ${limitedItems.length})`)
 
   return {
     feed: feed as RssFeed,
@@ -336,9 +331,7 @@ async function processRssItems(
       const itemGuid = getRssItemGuid(item)
 
       if (!itemGuid) {
-        logger.warn(
-          `[${requestId}] Skipping RSS item with no identifiable GUID for webhook ${webhookData.id}`
-        )
+        logger.warn(`Skipping RSS item with no identifiable GUID for webhook ${webhookData.id}`)
         continue
       }
 
@@ -381,7 +374,7 @@ async function processRssItems(
           if (!result.success) {
             throwIfAdmissionRefused(result)
             logger.error(
-              `[${requestId}] Failed to process webhook for item ${itemGuid}:`,
+              `Failed to process webhook for item ${itemGuid}:`,
               result.statusCode,
               result.error
             )
@@ -393,7 +386,7 @@ async function processRssItems(
       )
 
       logger.info(
-        `[${requestId}] Successfully processed item ${item.title || itemGuid} for webhook ${webhookData.id}`
+        `Successfully processed item ${item.title || itemGuid} for webhook ${webhookData.id}`
       )
       processedCount++
     } catch (error) {
@@ -401,7 +394,7 @@ async function processRssItems(
         return { processedCount, failedCount, admissionRejectedAt: index }
       }
       const errorMessage = getErrorMessage(error, 'Unknown error')
-      logger.error(`[${requestId}] Error processing item:`, errorMessage)
+      logger.error('Error processing item:', errorMessage)
       failedCount++
     }
   }

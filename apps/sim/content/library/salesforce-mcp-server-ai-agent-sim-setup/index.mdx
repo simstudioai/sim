@@ -1,0 +1,320 @@
+---
+slug: salesforce-mcp-server-ai-agent-sim-setup
+title: 'How Do You Connect Salesforce’s Hosted MCP Server to an AI Agent in Sim?'
+seoTitle: 'Salesforce MCP Server Setup for AI Agents'
+description: 'Connect Salesforce''s hosted MCP server to an AI agent in Sim with least-privilege access, read-only testing, and approval gates for CRM writes.'
+date: 2026-11-05
+updated: 2026-11-05
+authors:
+  - andrew
+readingTime: 14
+tags: [Salesforce, MCP, AI Agents, CRM, Sim]
+ogImage: /library/salesforce-mcp-server-ai-agent-sim-setup/cover.jpg
+draft: false
+faq:
+  - q: "What is the Salesforce MCP server?"
+    a: "Salesforce’s hosted MCP server is a Salesforce-operated remote server that exposes approved Salesforce capabilities as MCP tools for compatible clients."
+  - q: "Does Sim provide the Salesforce MCP server?"
+    a: "Sim does not provide or host Salesforce’s MCP server; Salesforce provides the server, and Sim connects to it as an MCP client."
+  - q: "How do you connect Salesforce’s hosted MCP server to Sim?"
+    a: "Sim connects to Salesforce’s hosted MCP server by using the Salesforce-provided remote endpoint, selecting the matching transport, completing the required authentication, and enabling only the necessary tools."
+  - q: "Can you connect the Salesforce MCP server to an AI agent in Sim?"
+    a: "Salesforce’s hosted MCP server can connect to an AI agent in Sim when its remote transport and authentication requirements are supported by Sim’s current MCP client."
+  - q: "Does Salesforce MCP replace Sim’s native Salesforce integration?"
+    a: "Salesforce MCP does not replace Sim’s native Salesforce integration because native actions remain the simpler option for many known Salesforce operations."
+  - q: "Should you use Sim’s native Salesforce integration or Salesforce MCP?"
+    a: "Sim’s native Salesforce integration fits supported, predictable actions, while Salesforce MCP is useful when a compatible Salesforce-hosted server exposes a required tool through MCP."
+  - q: "Can Sim use Salesforce MCP and the native Salesforce integration in the same workflow?"
+    a: "Sim can use Salesforce MCP and native Salesforce integration actions in the same workflow when each connection serves a distinct, permission-scoped purpose."
+  - q: "What permissions does a Salesforce MCP agent need?"
+    a: "A Salesforce MCP agent needs only the server, object, field, record, and operation permissions required for its specific task."
+  - q: "Should a Salesforce MCP agent use an administrator account?"
+    a: "A Salesforce MCP agent should not use a general administrator account because a dedicated least-privilege integration identity limits the impact of mistakes or credential misuse."
+  - q: "How do you test Salesforce MCP safely?"
+    a: "Salesforce MCP should first be tested in a sandbox with read-only tools, a known non-sensitive record, a small field set, and a strict result limit."
+  - q: "How do you prevent a Salesforce MCP agent from changing CRM records?"
+    a: "Salesforce MCP writes can be prevented by withholding mutation permissions, disabling write tools, and keeping the first workflow read-only."
+  - q: "How do you approve Salesforce MCP updates before they run?"
+    a: "Sim can pause a proposed Salesforce MCP update with Human in the Loop and use a downstream Condition to invoke the write tool only when the reviewer approves it."
+  - q: "Does Human in the Loop automatically block rejected Salesforce updates?"
+    a: "Sim’s Human in the Loop block does not automatically enforce rejection because a downstream Condition must evaluate the submitted decision and route rejected runs away from the write tool."
+  - q: "Why is the Salesforce MCP server returning an authentication error?"
+    a: "Salesforce MCP authentication errors usually result from an incorrect endpoint, environment mismatch, redirect URI mismatch, revoked authorization, or insufficient Salesforce permissions."
+  - q: "Why can Sim connect to Salesforce MCP but not see any tools?"
+    a: "Sim may connect without seeing Salesforce MCP tools when the URL is not the MCP endpoint, the transport is mismatched, authorization is incomplete, or Salesforce has not exposed tools to that identity."
+  - q: "Why does Salesforce MCP return no CRM records?"
+    a: "Salesforce MCP may return no CRM records when the authenticated identity cannot see the records or fields, or when the requested filters do not match the data."
+  - q: "Can Salesforce MCP bypass Salesforce permissions?"
+    a: "Salesforce MCP cannot bypass the object, field, record, sharing, and operation permissions enforced for the authenticated Salesforce identity."
+  - q: "Is Salesforce MCP the same as the Salesforce API?"
+    a: "Salesforce MCP is not the same interface as a direct Salesforce API integration because MCP presents server-defined tools that a compatible AI client can discover and invoke."
+  - q: "Is Salesforce MCP better than a native Salesforce integration?"
+    a: "Salesforce MCP fits cases where a compatible hosted server exposes the exact tools an MCP-centered architecture needs, while a native Salesforce integration fits straightforward supported actions."
+  - q: "Can n8n connect AI agents to Salesforce MCP?"
+    a: "n8n can be evaluated as an alternative MCP client, but buyers must confirm its current transport, authentication, tool-control, and approval capabilities against the selected Salesforce endpoint."
+  - q: "What is the safest first Salesforce MCP query?"
+    a: "Salesforce MCP is safest to test with a bounded read of one known record or a maximum of five records using only non-sensitive fields."
+  - q: "Should Salesforce MCP credentials be placed in an AI prompt?"
+    a: "Salesforce MCP credentials should never be placed in an AI prompt because prompts and model-visible workflow fields are not appropriate credential storage locations."
+---
+
+## TL;DR
+
+Salesforce’s hosted MCP server can expose CRM tools to an agent in Sim, while Sim acts as the MCP client rather than providing or hosting the Salesforce server. Integration teams should verify Salesforce’s endpoint and OAuth requirements against [Salesforce’s hosted MCP documentation](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/hosted-mcp-servers-overview.html) and Sim’s current [external MCP server documentation](https://docs.sim.ai/agents/mcp).
+
+Start with a dedicated, least-privilege Salesforce identity and a read-only server or tool set. Before any write, place Human in the Loop in the workflow and route its approve-or-reject field through a downstream Condition. Sim’s native Salesforce integration remains the simpler choice when its prebuilt actions already cover the task.
+
+> **Key distinction:** Salesforce hosts and defines the MCP server and its tools; Sim connects to that remote server as an MCP client; Sim’s native Salesforce integration connects through prebuilt Salesforce actions without requiring MCP.
+
+## What is the Salesforce MCP server?
+
+[Salesforce’s hosted MCP server](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/hosted-mcp-servers-overview.html) is a Salesforce-operated remote server that exposes approved Salesforce capabilities as Model Context Protocol tools.
+
+MCP gives an AI agent a standardized way to discover and invoke tools. In this setup, Salesforce controls the server endpoint, authentication requirements, available tools, and underlying access to CRM data. Sim consumes those tools inside an agent workflow.
+
+As of October 2026, integration teams should use the Salesforce hosted MCP server documentation as the source of truth for the current server URL, supported transport, authentication flow, and available tools.
+
+A Salesforce-hosted MCP connection is not the same as:
+
+- Sim hosting a Salesforce MCP server
+- Sim’s native Salesforce integration
+- An agent receiving unrestricted access to every Salesforce record
+- A locally installed stdio MCP server
+
+## Can you connect the Salesforce MCP server to an AI agent in Sim?
+
+Salesforce’s hosted MCP server can connect to Sim when the selected Salesforce endpoint uses the remote Streamable HTTP transport and its OAuth setup is compatible with Sim. Sim supports remote Streamable HTTP registrations, not local stdio commands, according to the [Sim MCP client documentation](https://docs.sim.ai/agents/mcp).
+
+As of October 2026, confirm both sides of the connection before entering production credentials:
+
+1. Salesforce documents the endpoint as a remote MCP server rather than a local stdio server.
+2. The server uses Streamable HTTP, the remote transport accepted by Sim.
+3. Sim can complete the OAuth method required by that Salesforce endpoint.
+4. The Salesforce identity has permission to use the requested CRM objects and operations.
+5. The server exposes the specific read or write tools the workflow needs.
+
+Do not substitute a local command, package name, or stdio configuration for Salesforce’s hosted URL.
+
+## What should you verify before connecting Salesforce MCP to Sim?
+
+Salesforce and Sim require a compatible endpoint, transport, authentication flow, and permission model before the first tool call can succeed. Salesforce’s [client connection guide](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/client-connection-overview.html) requires an External Client App for OAuth registration, while Sim lets a workspace owner register a remote server and provide OAuth client details when automatic registration is unavailable.
+
+Collect these items before configuring the connection:
+
+- The exact hosted MCP server URL from Salesforce
+- The Streamable HTTP transport used by Sim
+- The Salesforce environment, such as production or a sandbox
+- The External Client App and OAuth requirements documented by Salesforce
+- The Salesforce user who will authorize access
+- The minimum object, field, and operation permissions required
+- The list of MCP tools the agent should be allowed to use
+- A non-sensitive Account, Contact, Lead, or Opportunity record for the first read test
+
+Use a Salesforce sandbox for initial testing when one is available. Salesforce publishes [separate hosted MCP URL formats for production and sandbox organizations](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/connection-issues.html), so confirm that the URL and authorizing identity belong to the same environment.
+
+## How do you connect Salesforce’s hosted MCP server to Sim?
+
+Sim connects to Salesforce’s hosted MCP server by registering the remote endpoint in its MCP client configuration, supplying the Salesforce External Client App details, authenticating the Salesforce identity, and selecting only the tools the agent needs.
+
+### Which Salesforce identity should you use for an MCP agent?
+
+Salesforce should be authorized with a dedicated, least-privilege user rather than a sales administrator’s everyday account. Salesforce states that each MCP tool call inherits the authorizing user’s object access, field-level security, and record sharing rules in its [hosted MCP security guidance](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/security-best-practices.html).
+
+Give that identity access only to the required objects, fields, records, and operations. For a read-only proof of concept, use Salesforce’s read-only SObject server or omit create, update, delete, merge, and other mutation permissions wherever the Salesforce permission model allows it.
+
+Also confirm whether Salesforce sharing rules, permission sets, field-level security, and record ownership narrow what the identity can retrieve. An MCP server does not override the Salesforce permissions of the authenticated identity.
+
+### Where do you get the Salesforce MCP server URL?
+
+Salesforce provides the hosted MCP server URL in its first-party hosted-server documentation or the applicable Salesforce setup surface. Its [connection troubleshooting guide](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/connection-issues.html) lists different URL formats for production, sandbox, standard, and custom servers.
+
+Copy the exact URL for the intended Salesforce environment. Do not infer the URL from the organization’s normal Lightning domain, and do not copy an endpoint from a third-party tutorial without comparing it with the current Salesforce documentation.
+
+### Which transport should you choose for the Salesforce MCP server?
+
+Configure the Salesforce hosted endpoint as Streamable HTTP in Sim. Salesforce’s client examples connect to its hosted servers over HTTP, and [Sim registers external MCP servers through Streamable HTTP](https://docs.sim.ai/agents/mcp).
+
+A hosted remote endpoint should not be configured as a local stdio process. Confirm that the current Salesforce documentation still identifies the URL as its hosted HTTP endpoint before authorizing it.
+
+### How do you authenticate Salesforce MCP in Sim?
+
+Salesforce hosted MCP uses OAuth 2.0, and its setup requires an [External Client App](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/create-external-client-app.html). In Sim, open **Settings → MCP tools**, add the Salesforce server URL, and use Advanced settings to enter the External Client App’s client ID and secret when automatic registration is unavailable. Save the server, but register the exact Sim deployment callback URL in Salesforce before selecting **Authorize**: `https://<your-sim-deployment>/api/mcp/oauth/callback`. Then complete browser sign-in with the intended Salesforce user.
+
+The callback URL must use the same Sim deployment origin as the connection. The client configuration, Salesforce environment, and authorizing identity must also belong to that intended connection. If authorization fails, compare the callback exactly with the value registered in Salesforce because its [authentication troubleshooting guide](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/authentication-issues.html) identifies redirect mismatch as a common failure point.
+
+Do not paste a long-lived Salesforce access token into an agent prompt or ordinary workflow field. Credentials should remain in the platform’s credential handling path rather than becoming model-visible context.
+
+### Which Salesforce MCP tools should you enable first?
+
+Salesforce MCP should initially expose only the smallest set of read tools needed for the test scenario. Salesforce offers separate standard SObject servers for read, mutation, delete, and broader CRUD access in its [standard server reference](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/servers-reference.html).
+
+Start with tools that retrieve, search, describe, or query CRM data. Leave create, update, delete, send, merge, convert, and other state-changing tools unavailable until the read path works and the approval design has been tested.
+
+A sensible first allowlist might cover:
+
+- Reading an Account by ID
+- Searching for Accounts by name
+- Retrieving a small set of non-sensitive Account fields
+- Describing the fields available to the authenticated identity
+
+Actual tool names are defined by the Salesforce-hosted server and may differ by server. Select tools by documented behavior rather than assuming a name.
+
+### How do you run a read-only Salesforce MCP test in Sim?
+
+Sim should make the first Salesforce MCP call with a bounded request that retrieves a few non-sensitive records and makes no changes.
+
+After authorizing the server, add an **Agent** block and choose a model that supports tool calling. Open the Agent block’s **Tools** input, select **Add tool...**, open **MCP Servers**, choose the Salesforce server, and add only the read tools needed for this test. Authorizing a server makes the connection available to the workspace, but the Agent can call only the tools added to its **Tools** input.
+
+Use a prompt such as:
+
+> Find up to five Salesforce Accounts whose names contain “Acme.” Return only the Account ID, Name, and Last Modified Date. Do not create, update, delete, merge, convert, or send anything.
+
+Inspect the selected tool, arguments, returned fields, record count, and errors. A successful test should demonstrate that:
+
+- Sim discovered an appropriate read tool.
+- Salesforce accepted the authenticated identity.
+- The identity could access the requested object and fields.
+- The tool returned no more records than requested.
+- No write operation was selected or executed.
+
+If the server exposes a general query tool, constrain the object, fields, filters, and result limit. Do not begin with an open-ended request to retrieve all customer data.
+
+## How do you require approval before Salesforce MCP writes?
+
+Sim can place Human in the Loop before a Salesforce MCP write, but a downstream Condition must evaluate the reviewer’s approve-or-reject response before the write tool can run.
+
+A safe write path is:
+
+1. Sim reads the relevant Salesforce record.
+2. Sim drafts the proposed field changes.
+3. Sim presents the record ID, current values, proposed values, and reason to Human in the Loop.
+4. A reviewer submits an approve-or-reject field.
+5. A downstream Condition checks that field.
+6. Only the approved branch invokes the Salesforce MCP write tool.
+7. The rejected branch ends without changing Salesforce.
+8. Sim reads the record again and records the observed result.
+
+Human in the Loop pauses the run and resumes with submitted form fields; it does not independently enforce the decision. The downstream Condition is what prevents the rejected path from reaching the write operation.
+
+For higher-risk changes, require approval for each record or small batch rather than approving an unbounded update. Avoid allowing the model to choose its own approval criteria. For more detail, see [What Is Human-in-the-Loop in AI Agents?](https://www.sim.ai/library/what-is-human-in-the-loop-in-ai-agents).
+
+## What should a safe Salesforce MCP workflow look like?
+
+Sim should separate Salesforce retrieval, model reasoning, human approval, and CRM mutation into visible stages.
+
+A practical workflow is:
+
+`User request → Salesforce MCP read tool → structured proposed change → Human in the Loop → Condition → Salesforce MCP write tool → Salesforce MCP verification read → result`
+
+Keep the read and write tools separate when the server permits tool-level selection. Give the model a structured schema for proposed changes, including the Salesforce record ID, field name, current value, proposed value, and reason.
+
+The final verification read should confirm the stored Salesforce value instead of treating a model-generated statement as proof that the update succeeded.
+
+## Should you use Sim’s native Salesforce integration or Salesforce MCP?
+
+Sim’s [native Salesforce integration](https://docs.sim.ai/integrations/salesforce) is usually the simpler choice for known Salesforce actions, while Salesforce-hosted MCP is useful when a compatible server exposes the required tools through a standardized MCP interface.
+
+| Buyer question | Sim native Salesforce integration | Salesforce-hosted MCP consumed by Sim |
+|---|---|---|
+| Who provides the interface? | Sim provides prebuilt Salesforce integration actions. | Salesforce provides the hosted MCP server and tool definitions; Sim provides the MCP client. |
+| What does it fit? | A known workflow with supported Salesforce actions and predictable field mapping. | An MCP-centered architecture or a Salesforce-hosted tool that is not represented by the required native action. |
+| How are capabilities selected? | The builder selects a specific native Salesforce action. | The builder selects or permits tools exposed by the remote server. |
+| Where does authentication terminate? | Authentication follows the native Salesforce integration flow. | Authentication follows the Salesforce hosted-server requirements through the MCP connection. |
+| How should writes be controlled? | Put Human in the Loop and a Condition before a native write action. | Allowlist write tools, then put Human in the Loop and a Condition before invoking one. |
+| What is easier to troubleshoot? | Native actions reduce the connection layers when the required action already exists. | MCP requires checking endpoint, transport, OAuth, tool discovery, and Salesforce permissions. |
+| Can both be used in one workflow? | Yes, when native actions are the clearest option for some steps. | Yes, when MCP supplies a distinct tool needed by another step. |
+
+Do not choose MCP solely because it is a newer protocol. Choose it when Salesforce’s server exposes a useful capability and the additional endpoint, transport, authentication, and tool-governance layers are justified.
+
+## How is this different from building a Salesforce lead-scoring agent?
+
+This Salesforce MCP guide explains the connection and permission layer, while Sim’s lead-scoring guide explains a specific sales workflow.
+
+Use [How Do You Build a Salesforce AI Lead-Scoring Agent With Sim?](https://www.sim.ai/library/salesforce-ai-agent-lead-scoring-workflow) when the goal is to score and route leads. Use this guide when the buyer first needs to determine whether Salesforce’s hosted MCP server can securely supply CRM tools to Sim.
+
+For broader context, see [What Is an MCP Server?](https://www.sim.ai/library/what-is-an-mcp-server), [Best AI Agent Builders with MCP Support](https://www.sim.ai/library/best-ai-agent-builders-with-mcp-support), and [MCP Security: A Practical Guide to Secure MCP Server Development](https://www.sim.ai/library/mcp-security).
+
+## How does Sim compare with n8n for Salesforce MCP?
+
+Sim and n8n can both be evaluated as MCP clients for agent workflows. n8n documents an [MCP Client Tool node for agents](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolmcp) and a [native Salesforce node](https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.salesforce). Buyers should compare each product’s current remote-transport support, OAuth handling, tool controls, approval design, and execution visibility against the selected Salesforce endpoint.
+
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, including workflows that consume remote MCP tools. Sim fits teams that want a visual agent workflow with explicit tool selection, approval steps, and execution logs.
+
+For this use case, evaluate both products with the same test:
+
+1. Connect the same Salesforce sandbox identity.
+2. Permit the same read-only tools.
+3. Run the same bounded Account lookup.
+4. Inspect the selected tool and arguments.
+5. Add an approval gate before the same controlled write.
+6. Confirm the result with a second Salesforce read.
+
+The right fit depends on whether the team wants an AI workspace for building and managing agents in Sim or already operates its automations in n8n. Neither client changes the permissions enforced by Salesforce.
+
+## Why is the Salesforce MCP server returning an authentication error?
+
+Salesforce MCP authentication errors usually come from a mismatched environment, External Client App configuration, redirect URI, expired authorization, or insufficient Salesforce access. Salesforce’s [authentication troubleshooting steps](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/authentication-issues.html) recommend checking the registered app, callback, and client OAuth compatibility.
+
+| Symptom | Likely cause | What to check |
+|---|---|---|
+| Authorization page does not open | The endpoint or authentication mode is incorrect. | Compare the URL and OAuth method with Salesforce’s current hosted-server documentation. |
+| Redirect URI mismatch | The callback registered in Salesforce differs from the one used by Sim. | Copy the exact callback value generated by Sim. |
+| Login succeeds but tools fail | The identity lacks server, object, field, or record access. | Review permission sets, field-level security, sharing rules, and server eligibility. |
+| Production works but sandbox fails | The connection points to the wrong Salesforce environment. | Confirm the sandbox endpoint and sandbox-authorized identity. |
+| Connection worked and later stopped | Authorization may have expired or been revoked. | Reauthorize the credential and inspect Salesforce access policies. |
+
+Do not solve an authentication failure by granting broad administrator access. Identify the missing permission and add only what the intended tool requires.
+
+## Why can Sim connect to Salesforce MCP but not see any tools?
+
+Sim may establish a network connection without discovering usable Salesforce tools when authorization, server configuration, or tool exposure is incomplete. Sim’s MCP documentation notes that a [successful connection can expose no tools](https://docs.sim.ai/agents/mcp).
+
+Check these items in order:
+
+1. Confirm that the URL is an MCP endpoint rather than a normal Salesforce REST or Lightning URL.
+2. Confirm that the endpoint uses Streamable HTTP.
+3. Reauthorize the intended Salesforce identity.
+4. Verify that Salesforce exposes tools for that server and identity.
+5. Refresh tool discovery in the Sim MCP configuration.
+6. Check whether an allowlist or server policy hides every tool.
+7. Test one documented read tool before adding model-driven selection.
+
+A successful connection is not proof that the authenticated identity can invoke every advertised tool.
+
+## Why does a Salesforce MCP query return no records?
+
+Salesforce MCP can return no records when the authenticated identity lacks record visibility, the query uses inaccessible fields, or the filter does not match the intended data. Salesforce confirms that hosted MCP calls respect [field-level security, object permissions, and sharing rules](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/servers-reference.html).
+
+Test with a record that the integration identity can open directly in Salesforce. Then reduce the request to a known object, a known record ID, and a small set of permitted fields. If that works, add filters and additional fields one at a time.
+
+An empty result should not automatically trigger a broader query. Expanding scope can expose unrelated customer data without fixing the underlying permission or filter problem.
+
+## How do you secure Salesforce CRM data used through MCP?
+
+Salesforce CRM data used through MCP should be protected with least-privilege identities, narrow tool access, bounded queries, human approval for writes, and logs that show which tool ran with which arguments.
+
+Apply these controls:
+
+- Use a dedicated Salesforce integration user.
+- Start in a sandbox and with read-only permissions.
+- Restrict object, field, record, and operation access in Salesforce.
+- Permit only the MCP tools required by the workflow.
+- Keep credentials out of prompts and model-visible fields.
+- Limit record counts and returned fields.
+- Require Human in the Loop plus a downstream Condition before writes.
+- Verify successful writes with a follow-up read.
+- Remove credentials and server access when the workflow is retired.
+- Review Salesforce and Sim execution records during incident investigation.
+
+For general server-side threat modeling, use [MCP Security: A Practical Guide to Secure MCP Server Development](https://www.sim.ai/library/mcp-security).
+
+## Which first-party documentation should integration buyers use?
+
+Salesforce and Sim first-party documentation should be the source of truth for endpoint, transport, authentication, and client configuration details.
+
+As of October 2026, use:
+
+- [Salesforce hosted MCP server overview](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/hosted-mcp-servers-overview.html)
+- [Sim external MCP server documentation](https://docs.sim.ai/agents/mcp)
+
+Third-party walkthroughs can provide examples, but they should not override the current Salesforce endpoint, OAuth, permission, or transport requirements.

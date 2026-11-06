@@ -37,7 +37,7 @@ import { readZoomMcp, searchZoomMcp } from '@/lib/sim-search/live/zoom-mcp'
 
 type Reference = Pick<
   NativeDocument,
-  'id' | 'container' | 'kind' | 'revision' | 'threadId' | 'accessMetadata'
+  'id' | 'container' | 'kind' | 'revision' | 'threadId' | 'accessMetadata' | 'connectionBinding'
 >
 
 /** One member account's provider clients and the source boundary that bounds its results. */
@@ -88,6 +88,9 @@ export async function openLiveAccountSession(
   const { owner, userId, resolved, signal } = input
   const { account } = resolved
   const provider = account.provider
+  const connectionBinding = 'connectionBinding' in resolved ? resolved.connectionBinding : undefined
+  const bind = (document: NativeDocument): NativeDocument =>
+    connectionBinding ? { ...document, connectionBinding } : document
   if (!(await isSearchProviderEnabled(provider, resourceScopeFromOwner(owner))))
     throw new NativeSearchError(
       'unavailable',
@@ -95,11 +98,15 @@ export async function openLiveAccountSession(
     )
   const origin =
     'origin' in resolved ? resolved.origin : LIVE_SEARCH_PROVIDER_CATALOG[provider].origin
+  if (!origin)
+    throw new NativeSearchError('reconnect', 'Reconnect this provider to restore its API host.')
   const client =
     account.type === 'managed_mcp'
       ? null
       : createNativeClient({
           origin,
+          credentialHeaders:
+            'credentialHeaders' in resolved ? resolved.credentialHeaders : undefined,
           accessToken: resolved.accessToken,
           signal,
           pool: input.pool,
@@ -213,28 +220,33 @@ export async function openLiveAccountSession(
         if (scoped === null) return { documents: [] }
         if (admin) return admin.search(scoped)
         return searchWithinPolicy(provider, client, scoped, (native) =>
-          client ? searchNativeProvider(provider, client, native) : searchMcp(native)
+          client ? searchNativeProvider(provider, client, native, origin) : searchMcp(native)
         )
       }
       /** Providers see the session's cancellation, whatever its reason, on every request. */
       const request = search.signal ? search : { ...search, signal }
-      return client && requiresEveryTerm(provider)
+      const page = await (client && requiresEveryTerm(provider)
         ? searchWithAnyTermFallback(searchOnce, request, signal)
-        : searchOnce(request)
+        : searchOnce(request))
+      return connectionBinding ? { ...page, documents: page.documents.map(bind) } : page
     },
     async verify(document) {
+      if (connectionBinding && document.connectionBinding !== connectionBinding) return false
       if (!(await boundary.verify(document))) return false
       return !admin || admin.verify(document, document.accessMetadata)
     },
-    read(reference, filters) {
+    async read(reference, filters) {
       if (admin) return admin.read(reference)
       if (client)
-        return readNativeProvider(provider, client, reference, {
-          policy: boundary.policy,
-          filters,
-          signal,
-          verify: boundary.verify,
-        })
+        return bind(
+          await readNativeProvider(provider, client, reference, {
+            policy: boundary.policy,
+            origin,
+            filters,
+            signal,
+            verify: boundary.verify,
+          })
+        )
       return readMcp(reference)
     },
     async previewText(document, previewSignal) {

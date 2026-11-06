@@ -2393,6 +2393,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Trigger workflow when an alert is created in incident.io
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2417,13 +2419,14 @@ Trigger workflow when an alert is created in incident.io
 | `updated_at` | string | ISO 8601 timestamp when the alert was last updated. |
 | `resolved_at` | string | ISO 8601 timestamp when the alert was resolved, when applicable. |
 
-
----
+</ReferenceDetails>
 
 ### incident.io Incident Created
 
 Trigger workflow when an incident is created in incident.io
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2452,13 +2455,14 @@ Trigger workflow when an incident is created in incident.io
 | `previous_status` | json | Previous status object \(status-updated events only; null otherwise\). |
 | `update_message` | string | Update message accompanying a status change \(status-updated events only; null otherwise\). |
 
-
----
+</ReferenceDetails>
 
 ### incident.io Incident Status Updated
 
 Trigger workflow when an incident's status changes in incident.io
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2487,13 +2491,14 @@ Trigger workflow when an incident's status changes in incident.io
 | `previous_status` | json | Previous status object \(status-updated events only; null otherwise\). |
 | `update_message` | string | Update message accompanying a status change \(status-updated events only; null otherwise\). |
 
-
----
+</ReferenceDetails>
 
 ### incident.io Incident Updated
 
 Trigger workflow when an incident is updated in incident.io
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2521,4 +2526,6 @@ Trigger workflow when an incident is updated in incident.io
 | `new_status` | json | New status object \(status-updated events only; null otherwise\). |
 | `previous_status` | json | Previous status object \(status-updated events only; null otherwise\). |
 | `update_message` | string | Update message accompanying a status change \(status-updated events only; null otherwise\). |
+
+</ReferenceDetails>
 

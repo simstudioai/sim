@@ -120,6 +120,7 @@ const oauthTokenResponseSchema = z.object({
   apiDomain: z.string().optional(),
   cloudId: z.string().optional(),
   domain: z.string().optional(),
+  providerWorkspaceId: z.string().optional(),
   realmId: z.string().optional(),
   quickBooksEnvironment: z.enum(['sandbox', 'production']).optional(),
   authStyle: z.enum(['x-api-token']).optional(),

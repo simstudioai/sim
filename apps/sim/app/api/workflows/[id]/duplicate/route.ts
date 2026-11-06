@@ -22,9 +22,7 @@ export const POST = withRouteHandler(
 
     const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
-      logger.warn(
-        `[${requestId}] Unauthorized workflow duplication attempt for ${sourceWorkflowId}`
-      )
+      logger.warn(`Unauthorized workflow duplication attempt for ${sourceWorkflowId}`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     const userId = auth.userId
@@ -34,7 +32,7 @@ export const POST = withRouteHandler(
       if (!parsed.success) return parsed.response
       const { name, description, workspaceId, folderId, newId } = parsed.data.body
 
-      logger.info(`[${requestId}] Duplicating workflow ${sourceWorkflowId} for user ${userId}`)
+      logger.info(`Duplicating workflow ${sourceWorkflowId} for user ${userId}`)
 
       const result = await duplicateWorkflow({
         sourceWorkflowId,
@@ -70,7 +68,7 @@ export const POST = withRouteHandler(
 
       const elapsed = Date.now() - startTime
       logger.info(
-        `[${requestId}] Successfully duplicated workflow ${sourceWorkflowId} to ${result.id} in ${elapsed}ms`
+        `Successfully duplicated workflow ${sourceWorkflowId} to ${result.id} in ${elapsed}ms`
       )
 
       recordAudit({
@@ -99,20 +97,18 @@ export const POST = withRouteHandler(
         }
 
         if (error.message === 'Source workflow not found') {
-          logger.warn(`[${requestId}] Source workflow ${sourceWorkflowId} not found`)
+          logger.warn(`Source workflow ${sourceWorkflowId} not found`)
           return NextResponse.json({ error: 'Source workflow not found' }, { status: 404 })
         }
 
         if (error.message === 'Source workflow not found or access denied') {
-          logger.warn(
-            `[${requestId}] User ${userId} denied access to source workflow ${sourceWorkflowId}`
-          )
+          logger.warn(`User ${userId} denied access to source workflow ${sourceWorkflowId}`)
           return NextResponse.json({ error: 'Access denied' }, { status: 403 })
         }
 
         if (error.message === 'Cross-workspace workflow duplication is not supported') {
           logger.warn(
-            `[${requestId}] User ${userId} attempted cross-workspace workflow duplication for ${sourceWorkflowId}`
+            `User ${userId} attempted cross-workspace workflow duplication for ${sourceWorkflowId}`
           )
           return NextResponse.json({ error: error.message }, { status: 400 })
         }
@@ -127,10 +123,7 @@ export const POST = withRouteHandler(
       }
 
       const elapsed = Date.now() - startTime
-      logger.error(
-        `[${requestId}] Error duplicating workflow ${sourceWorkflowId} after ${elapsed}ms:`,
-        error
-      )
+      logger.error(`Error duplicating workflow ${sourceWorkflowId} after ${elapsed}ms:`, error)
       return NextResponse.json({ error: 'Failed to duplicate workflow' }, { status: 500 })
     }
   }

@@ -162,6 +162,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
               sourceDate: row.sourceDate,
               sourceContainerName: row.sourceContainerName,
               sourceContainerUrl: row.sourceContainerUrl,
+              ...(row.queryIndexes ? { queryIndexes: row.queryIndexes } : {}),
               connectorType: row.connectorType,
               content: row.content,
               chunkIndex: row.chunkIndex,

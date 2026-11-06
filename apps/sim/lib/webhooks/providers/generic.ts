@@ -117,8 +117,8 @@ function mergeRequestData(
 
   if (!isRecordLike(body)) {
     logger.debug(
-      `[${requestId}] Dropping webhook request metadata: the body is not an object, so there is no field to merge it into`,
-      { keys: entries.map(([key]) => key) }
+      'Dropping webhook request metadata: the body is not an object, so there is no field to merge it into',
+      { requestId, keys: entries.map(([key]) => key) }
     )
     return body
   }
@@ -127,9 +127,9 @@ function mergeRequestData(
 
   for (const [key, value] of entries) {
     if (Object.hasOwn(body, key)) {
-      logger.debug(
-        `[${requestId}] Dropping webhook ${key}: the body already defines a "${key}" field`
-      )
+      logger.debug(`Dropping webhook ${key}: the body already defines a "${key}" field`, {
+        requestId,
+      })
       continue
     }
     merged[key] = value
@@ -168,7 +168,7 @@ export const genericHandler: WebhookProviderHandler = {
       )
 
       if (!clientIp || !clientIpAllowed) {
-        logger.warn(`[${requestId}] Forbidden webhook access attempt - IP not allowed: ${clientIp}`)
+        logger.warn(`Forbidden webhook access attempt - IP not allowed: ${clientIp}`, { requestId })
         return new NextResponse('Forbidden - IP not allowed', {
           status: 403,
         })
@@ -300,7 +300,8 @@ export const genericHandler: WebhookProviderHandler = {
             if (uploadedFiles.length > 0) {
               input[fileField.name] = uploadedFiles
               logger.info(
-                `[${requestId}] Successfully processed ${uploadedFiles.length} file(s) for field: ${fileField.name}`
+                `Successfully processed ${uploadedFiles.length} file(s) for field: ${fileField.name}`,
+                { requestId }
               )
             }
           }

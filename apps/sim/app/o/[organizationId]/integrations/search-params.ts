@@ -16,6 +16,7 @@ export const integrationConnectionParams = {
   connectorType: parseAsString.withDefault(''),
   connectionMode: parseAsString.withDefault(''),
   optionId: parseAsString.withDefault(''),
+  savedProviderId: parseAsString.withDefault(''),
   provider: parseAsString.withDefault(''),
   connectorId: parseAsString.withDefault(''),
   credentialId: parseAsString.withDefault(''),

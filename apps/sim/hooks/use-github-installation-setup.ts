@@ -19,7 +19,7 @@ import {
   useStartGitHubSearchSetup,
 } from '@/hooks/queries/github-search-setup'
 import { fetchOAuthCredentials, oauthCredentialKeys } from '@/hooks/queries/oauth/credentials'
-import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
+import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
 
 interface GitHubInstallationSetupProps {
   organizationId?: string

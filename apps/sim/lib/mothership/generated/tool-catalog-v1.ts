@@ -7,9 +7,11 @@ export interface ToolCatalogEntry {
   clientExecutable?: boolean
   description?:
     | 'Create a workspace in the conversation’s organization under the current user’s workspace-creation policy. Returns its ID for subsequent explicitly workspace-scoped commands. Includes a starter workflow unless skipDefaultWorkflow is true.'
+    | 'Create and run the selected workspace’s workflow tests. create takes a name, a one-line title for the concern, and an optional description, and returns tests/<name>.test.js; write the cases into that file with the file tools. A test file is plain vitest: import { describe, it, expect, vi } from "vitest" and { runWorkflow, mockBlock, mockTool, spyOnBlock } from "sim:test", one top-level describe, an it per case. runWorkflow(name, input) runs a workflow and returns { output } (pass { trigger: "Trigger block name" } as a third argument when it has several triggers); mockBlock(blockName) returns a vi.fn whose value replaces that block’s output and records its inputs; mockTool(toolId) or mockTool(agentBlockName, toolId) answers an Agent’s calls to that tool the same way while the model still runs, naming built-in tools by id (slack_message), MCP tools by server as mockTool({ mcp: "Server name", tool: "tool_name" }), and custom tools by title as mockTool({ customTool: "Title" }); .mockSampleOutput({ ...overrides }) on either mock makes it answer with a placeholder output shaped like the real one, with your fields merged in; await expect(value).toMatchRubric(rubric) asks a model judge for pass or fail. Every write is checked and refused if the file does not load. run takes a version (draft while editing, deployed before shipping), waits, and returns each file’s failures with line numbers and messages. list and get report status; update changes title or description.'
     | 'Discover and configure organization Search sources. list/get return accessible sources and indexing status; providers returns available integration approvals; approve changes a provider approval when authorized; setup returns the existing connection UI for the user to complete. Put the returned setupUrl in a clickable Markdown link at the end of the reply. Setup does not mean connected or indexed. Use search_workspace and read_document to retrieve source content.'
     | 'List accessible Projects within this conversation, with visible environments and current capabilities. Follow nextCursor for more results; discovery does not grant file write access.'
     | 'List currently accessible workspaces with roles and explicit capability restrictions. Bulk results report copilotAllowed and deniedCapabilities; exact workspaceId returns the full capability map. Omitted restrictions never authorize an operation.'
+    | 'Publish and edit the selected workspace’s changelog. publish takes a title, a markdown body, the changes (one line each, with the workflowId, deploymentVersionId, and chatId they came from when known), and bump: major, minor, or patch for how significant the release is, with a one-line bumpReason. The server computes the version from the workspace’s highest one; never write a version number on publish. It returns the release with its revision and changelog/<id>.md, the body file: edit the body there with the file tools, for example to add impact charts once there is data. update changes the title, bumpReason, version label, or the whole change list, and requires expectedRevision from get, list, or publish so a concurrent edit is never overwritten. A deployment ships in one release: a deploymentVersionId already in another release is rejected. list pages newest first; get returns one release with its revision and its changelog/<id>.md path.'
     | 'Read and manage account, organization, and workspace settings. list finds sections; get returns current values, updateSchema and operation names; describe returns one operation’s exact input schema; update changes narrow preferences; execute performs a listed operation; open returns the existing user setup flow. When user setup is needed, put the returned setupUrl in a clickable Markdown link at the end of the reply. Workspace resources retain their CLI commands. Account is the acting user; organization is the conversation’s organization. Every operation checks current permissions and entitlements.'
     | 'Read and save the selected workspace’s single dashboard, validated YAML over live tables. Load the create-dashboard skill for the schema. get returns content and revision, or nulls when the workspace has no dashboard yet; set with no revision creates it. Replacing an existing dashboard requires expectedRevision from get, so a concurrent edit is never overwritten. Use open_resource with type dashboard to show the result.'
   hidden?: boolean
@@ -51,6 +53,7 @@ export interface ToolCatalogEntry {
     | 'browser_zoom'
     | 'call_integration_tool'
     | 'cancel_workflow_run'
+    | 'changelog'
     | 'connect_slack_bot'
     | 'cp'
     | 'create_empty_file'
@@ -147,6 +150,7 @@ export interface ToolCatalogEntry {
     | 'table_views'
     | 'tail_agent'
     | 'terminal'
+    | 'tests'
     | 'update_deployment_version'
     | 'update_workspace_mcp_server'
     | 'user_table'
@@ -1041,23 +1045,6 @@ export const BrowserFillForm: ToolCatalogEntry = {
         description:
           "Ordered list of 1–8 fields with unique elementId refs from the current top page's latest snapshot. Supply exactly one matching value parameter per kind.",
         items: {
-          oneOf: [
-            {
-              additionalProperties: false,
-              properties: { elementId: {}, kind: { enum: ['text'] }, text: {} },
-              required: ['text'],
-            },
-            {
-              additionalProperties: false,
-              properties: { elementId: {}, kind: { enum: ['select'] }, value: {} },
-              required: ['value'],
-            },
-            {
-              additionalProperties: false,
-              properties: { checked: {}, elementId: {}, kind: { enum: ['checked'] } },
-              required: ['checked'],
-            },
-          ],
           properties: {
             checked: {
               description:
@@ -1959,7 +1946,6 @@ export const BrowserSelectOption: ToolCatalogEntry = {
   route: 'client',
   mode: 'async',
   parameters: {
-    oneOf: [{ required: ['value'] }, { required: ['values'] }],
     properties: {
       elementId: {
         description:
@@ -6120,6 +6106,8 @@ export const SearchWorkspace: ToolCatalogEntry = {
                 'jira',
                 'confluence',
                 'github',
+                'jama',
+                'flow',
                 'gitlab',
                 'linear',
                 'lucid',
@@ -7712,6 +7700,21 @@ export const Workflow: ToolCatalogEntry = {
   internal: true,
 }
 
+export const ListUserProjects: ToolCatalogEntry = {
+  id: 'list_user_projects',
+  description:
+    'List accessible Projects within this conversation, with visible environments and current capabilities. Follow nextCursor for more results; discovery does not grant file write access.',
+  route: 'sim',
+  parameters: {
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
+    properties: {
+      cursor: { type: 'string', minLength: 1 },
+      limit: { default: 50, type: 'integer', minimum: 1, maximum: 100 },
+    },
+  },
+}
+
 export const ListWorkspaces: ToolCatalogEntry = {
   id: 'list_workspaces',
   description:
@@ -7773,6 +7776,264 @@ export const Dashboards: ToolCatalogEntry = {
         type: 'string',
         minLength: 1,
         maxLength: 256,
+      },
+    },
+    required: ['action'],
+    additionalProperties: false,
+  },
+}
+
+export const Tests: ToolCatalogEntry = {
+  id: 'tests',
+  description:
+    'Create and run the selected workspace’s workflow tests. create takes a name, a one-line title for the concern, and an optional description, and returns tests/<name>.test.js; write the cases into that file with the file tools. A test file is plain vitest: import { describe, it, expect, vi } from "vitest" and { runWorkflow, mockBlock, mockTool, spyOnBlock } from "sim:test", one top-level describe, an it per case. runWorkflow(name, input) runs a workflow and returns { output } (pass { trigger: "Trigger block name" } as a third argument when it has several triggers); mockBlock(blockName) returns a vi.fn whose value replaces that block’s output and records its inputs; mockTool(toolId) or mockTool(agentBlockName, toolId) answers an Agent’s calls to that tool the same way while the model still runs, naming built-in tools by id (slack_message), MCP tools by server as mockTool({ mcp: "Server name", tool: "tool_name" }), and custom tools by title as mockTool({ customTool: "Title" }); .mockSampleOutput({ ...overrides }) on either mock makes it answer with a placeholder output shaped like the real one, with your fields merged in; await expect(value).toMatchRubric(rubric) asks a model judge for pass or fail. Every write is checked and refused if the file does not load. run takes a version (draft while editing, deployed before shipping), waits, and returns each file’s failures with line numbers and messages. list and get report status; update changes title or description.',
+  route: 'sim',
+  parameters: {
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
+    properties: {
+      workspaceId: { type: 'string', minLength: 1, maxLength: 100 },
+      action: {
+        anyOf: [
+          { type: 'string', const: 'create' },
+          { type: 'string', const: 'update' },
+          { type: 'string', const: 'list' },
+          { type: 'string', const: 'get' },
+          { type: 'string', const: 'run' },
+          { type: 'string', const: 'delete' },
+        ],
+      },
+      name: {
+        description:
+          'Test file name: tests/<name>.test.js, lowercase letters, numbers, and dashes. Required for action: create, update, get, delete. Only used for action: create, update, get, delete. Omit for other actions.',
+        type: 'string',
+        pattern: '^(?!run$)[a-z0-9][a-z0-9-]{0,79}$',
+      },
+      title: {
+        description:
+          'Required for action: create. Only used for action: create, update. Omit for other actions.',
+        anyOf: [
+          {
+            type: 'string',
+            minLength: 1,
+            maxLength: 200,
+            description: 'The concern this file tests, in one line.',
+          },
+          { type: 'string', minLength: 1, maxLength: 200 },
+        ],
+      },
+      description: {
+        description: 'Only used for action: create, update. Omit for other actions.',
+        anyOf: [
+          { type: 'string', maxLength: 2000 },
+          { anyOf: [{ type: 'string', maxLength: 2000 }, { type: 'null' }] },
+        ],
+      },
+      version: {
+        description:
+          'Which version of the workflows to test: draft while editing, deployed before shipping. Required for action: list, get, run. Only used for action: list, get, run. Omit for other actions.',
+        type: 'string',
+        enum: ['draft', 'deployed'],
+      },
+      names: {
+        description:
+          'Omit to run every test file. Only used for action: run. Omit for other actions.',
+        minItems: 1,
+        maxItems: 100,
+        type: 'array',
+        items: {
+          type: 'string',
+          pattern: '^(?!run$)[a-z0-9][a-z0-9-]{0,79}$',
+          description:
+            'Test file name: tests/<name>.test.js, lowercase letters, numbers, and dashes.',
+        },
+      },
+      only: {
+        description:
+          'With exactly one name: the "describe > it" test names to run in it. Only used for action: run. Omit for other actions.',
+        minItems: 1,
+        maxItems: 100,
+        type: 'array',
+        items: { type: 'string', minLength: 1, maxLength: 500 },
+      },
+    },
+    required: ['action'],
+    additionalProperties: false,
+  },
+}
+
+export const Changelog: ToolCatalogEntry = {
+  id: 'changelog',
+  description:
+    'Publish and edit the selected workspace’s changelog. publish takes a title, a markdown body, the changes (one line each, with the workflowId, deploymentVersionId, and chatId they came from when known), and bump: major, minor, or patch for how significant the release is, with a one-line bumpReason. The server computes the version from the workspace’s highest one; never write a version number on publish. It returns the release with its revision and changelog/<id>.md, the body file: edit the body there with the file tools, for example to add impact charts once there is data. update changes the title, bumpReason, version label, or the whole change list, and requires expectedRevision from get, list, or publish so a concurrent edit is never overwritten. A deployment ships in one release: a deploymentVersionId already in another release is rejected. list pages newest first; get returns one release with its revision and its changelog/<id>.md path.',
+  route: 'sim',
+  parameters: {
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
+    properties: {
+      workspaceId: { type: 'string', minLength: 1, maxLength: 100 },
+      action: {
+        anyOf: [
+          { type: 'string', const: 'list' },
+          { type: 'string', const: 'get' },
+          { type: 'string', const: 'publish' },
+          { type: 'string', const: 'update' },
+        ],
+      },
+      cursor: {
+        description:
+          'nextCursor from the previous list. Only used for action: list. Omit for other actions.',
+        type: 'string',
+        minLength: 1,
+        maxLength: 256,
+      },
+      releaseId: {
+        description:
+          'The release id from list or publish. Required for action: get, update. Only used for action: get, update. Omit for other actions.',
+        type: 'string',
+        minLength: 1,
+        maxLength: 128,
+      },
+      title: {
+        description:
+          'Required for action: publish. Only used for action: publish, update. Omit for other actions.',
+        anyOf: [
+          {
+            type: 'string',
+            minLength: 1,
+            maxLength: 200,
+            description: 'The release headline: what people get, not how.',
+          },
+          { type: 'string', minLength: 1, maxLength: 200 },
+        ],
+      },
+      body: {
+        description:
+          'Markdown body: a short summary, then evidence (```dashboard embeds for impact charts and stats). Required for action: publish. Only used for action: publish. Omit for other actions.',
+        type: 'string',
+        minLength: 1,
+        maxLength: 262144,
+      },
+      bump: {
+        description:
+          'How significant the release is. The server computes the version from the highest one. Required for action: publish. Only used for action: publish. Omit for other actions.',
+        type: 'string',
+        enum: ['major', 'minor', 'patch'],
+      },
+      bumpReason: {
+        description:
+          'Required for action: publish. Only used for action: publish, update. Omit for other actions.',
+        anyOf: [
+          {
+            type: 'string',
+            minLength: 1,
+            maxLength: 500,
+            description: 'Why this release is a major, minor, or patch release, in one line.',
+          },
+          {
+            type: 'string',
+            minLength: 1,
+            maxLength: 500,
+            description: 'Why this release is a major, minor, or patch release, in one line.',
+          },
+        ],
+      },
+      changes: {
+        description:
+          'Required for action: publish. Only used for action: publish, update. Omit for other actions.',
+        anyOf: [
+          {
+            minItems: 1,
+            maxItems: 50,
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                text: {
+                  type: 'string',
+                  minLength: 1,
+                  maxLength: 500,
+                  description: 'What changed, in one line a user reads.',
+                },
+                workflowId: {
+                  description: 'The workflow it changed.',
+                  type: 'string',
+                  minLength: 1,
+                  maxLength: 128,
+                },
+                deploymentVersionId: {
+                  description:
+                    'The deployment it shipped in; requires workflowId of that workflow.',
+                  type: 'string',
+                  minLength: 1,
+                  maxLength: 128,
+                },
+                chatId: {
+                  description:
+                    'The chat where the change was made; defaults to the chat publishing it.',
+                  type: 'string',
+                  format: 'uuid',
+                  pattern:
+                    '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
+                },
+              },
+              required: ['text'],
+              additionalProperties: false,
+            },
+          },
+          {
+            description: 'Replaces every change line of the release.',
+            maxItems: 50,
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                text: {
+                  type: 'string',
+                  minLength: 1,
+                  maxLength: 500,
+                  description: 'What changed, in one line a user reads.',
+                },
+                workflowId: {
+                  description: 'The workflow it changed.',
+                  type: 'string',
+                  minLength: 1,
+                  maxLength: 128,
+                },
+                deploymentVersionId: {
+                  description:
+                    'The deployment it shipped in; requires workflowId of that workflow.',
+                  type: 'string',
+                  minLength: 1,
+                  maxLength: 128,
+                },
+                chatId: {
+                  description:
+                    'The chat where the change was made; defaults to the chat publishing it.',
+                  type: 'string',
+                  format: 'uuid',
+                  pattern:
+                    '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
+                },
+              },
+              required: ['text'],
+              additionalProperties: false,
+            },
+          },
+        ],
+      },
+      expectedRevision: {
+        description:
+          'The revision from get, list, or publish. Required for action: update. Only used for action: update. Omit for other actions.',
+        type: 'string',
+        minLength: 1,
+        maxLength: 32,
+      },
+      version: {
+        description: 'Only used for action: update. Omit for other actions.',
+        type: 'string',
+        minLength: 5,
+        maxLength: 40,
       },
     },
     required: ['action'],
@@ -7923,21 +8184,6 @@ export const SearchSources: ToolCatalogEntry = {
     },
     required: ['action'],
     additionalProperties: false,
-  },
-}
-
-export const ListUserProjects: ToolCatalogEntry = {
-  id: 'list_user_projects',
-  description:
-    'List accessible Projects within this conversation, with visible environments and current capabilities. Follow nextCursor for more results; discovery does not grant file write access.',
-  route: 'sim',
-  parameters: {
-    $schema: 'http://json-schema.org/draft-07/schema#',
-    type: 'object',
-    properties: {
-      cursor: { type: 'string', minLength: 1 },
-      limit: { default: 50, type: 'integer', minimum: 1, maximum: 100 },
-    },
   },
 }
 
@@ -8509,10 +8755,12 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [WebScrape.id]: WebScrape,
   [WebSearch.id]: WebSearch,
   [Workflow.id]: Workflow,
+  [ListUserProjects.id]: ListUserProjects,
   [ListWorkspaces.id]: ListWorkspaces,
   [Dashboards.id]: Dashboards,
+  [Tests.id]: Tests,
+  [Changelog.id]: Changelog,
   [Workspaces.id]: Workspaces,
   [Settings.id]: Settings,
   [SearchSources.id]: SearchSources,
-  [ListUserProjects.id]: ListUserProjects,
 }

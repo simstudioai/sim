@@ -85,10 +85,15 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
     return null
   }
 
-  if (!canManageBilling) {
-    const description = hostContext.hostOrganizationId
-      ? `Plans for ${hostContext.workspace.name} are managed by its organization administrators. Contact an organization admin to change this workspace’s plan.`
-      : `Only the owner of ${hostContext.workspace.name} can change this workspace’s plan.`
+  if (!canManageBilling || state.billedThroughMarketplace || state.billingLookupFailed) {
+    const description = !canManageBilling
+      ? hostContext.hostOrganizationId
+        ? `Plans for ${hostContext.workspace.name} are managed by its organization administrators. Contact an organization admin to change this workspace’s plan.`
+        : `Only the owner of ${hostContext.workspace.name} can change this workspace’s plan.`
+      : state.billedThroughMarketplace
+        ? 'Your subscription is billed through AWS Marketplace, so plans can’t be changed here.'
+        : 'We couldn’t confirm how this workspace is billed.'
+    const canRetryLookup = canManageBilling && state.billingLookupFailed
 
     return (
       <div className='flex h-full flex-col bg-[var(--bg)]'>
@@ -101,6 +106,15 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
           <div className='flex max-w-md flex-col items-center gap-3 text-center'>
             <h1 className='text-[var(--text-body)] text-lg'>Workspace plans unavailable</h1>
             <p className='text-[var(--text-muted)] text-sm'>{description}</p>
+            {canRetryLookup && (
+              <Chip
+                variant='border'
+                disabled={state.isRetryingBillingLookup}
+                onClick={state.retryBillingLookup}
+              >
+                {state.isRetryingBillingLookup ? 'Retrying…' : 'Try again'}
+              </Chip>
+            )}
           </div>
         </div>
       </div>

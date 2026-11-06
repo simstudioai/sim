@@ -143,7 +143,8 @@ export async function getZoomMeetingRecordings(
             413
           )
         }
-        logger.warn(`[${context.requestId}] Failed to download Zoom recording file`, {
+        logger.warn('Failed to download Zoom recording file', {
+          requestId: context.requestId,
           fileId: file.id,
         })
       }

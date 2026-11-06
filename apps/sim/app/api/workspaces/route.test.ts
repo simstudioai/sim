@@ -16,8 +16,9 @@ import {
 } from '@sim/testing/mocks/workspaces-policy.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCreateWorkspace } = vi.hoisted(() => ({
+const { mockCreateWorkspace, mockResolveRolledOutOrganizationId } = vi.hoisted(() => ({
   mockCreateWorkspace: vi.fn(),
+  mockResolveRolledOutOrganizationId: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/session-response', () => ({
@@ -30,6 +31,10 @@ vi.mock('@/lib/workspaces/create', () => ({
 
 vi.mock('@/lib/workspaces/list', () => ({
   listWorkspacesForViewer: vi.fn(),
+}))
+
+vi.mock('@/lib/navigation/resolve-app-entry', () => ({
+  resolveRolledOutOrganizationId: mockResolveRolledOutOrganizationId,
 }))
 
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
@@ -97,5 +102,45 @@ describe('POST /api/workspaces capability refusal', () => {
 
     expect(response.status).toBe(401)
     await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' })
+  })
+})
+
+describe('GET /api/workspaces blocked viewer forwarding', () => {
+  const blockedList = {
+    workspaces: [],
+    lastActiveWorkspaceId: null,
+    pinnedWorkspaceIds: [],
+    creationPolicy: { canCreate: false },
+  }
+  const routeContext = { params: Promise.resolve({}) }
+  const listRequest = () =>
+    createMockRequest('GET', undefined, {}, 'http://localhost/api/workspaces')
+
+  beforeEach(() => {
+    mockGetSession.mockResolvedValue({
+      user: { id: 'user-1', name: 'A', email: 'a@example.com' },
+    })
+    vi.mocked(listWorkspacesForViewer).mockResolvedValue(
+      blockedList as unknown as Awaited<ReturnType<typeof listWorkspacesForViewer>>
+    )
+  })
+
+  it('names the organization that can serve a viewer with nothing to pick', async () => {
+    mockResolveRolledOutOrganizationId.mockResolvedValue('org-1')
+    const response = await GET(listRequest(), routeContext)
+    expect((await response.json()).forwardOrganizationId).toBe('org-1')
+  })
+
+  it('leaves the blocked picker in place when no organization can serve them', async () => {
+    mockResolveRolledOutOrganizationId.mockResolvedValue(null)
+    const response = await GET(listRequest(), routeContext)
+    expect(await response.json()).not.toHaveProperty('forwardOrganizationId')
+  })
+
+  it('still returns the list when the organization lookup fails', async () => {
+    mockResolveRolledOutOrganizationId.mockRejectedValue(new Error('down'))
+    const response = await GET(listRequest(), routeContext)
+    expect(response.status).toBe(200)
+    expect(await response.json()).not.toHaveProperty('forwardOrganizationId')
   })
 })

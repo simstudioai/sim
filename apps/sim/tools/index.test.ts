@@ -3,6 +3,10 @@ import { createSessionPrincipal } from '@sim/testing/factories/principal.factory
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
 import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
 import { billingUsageLogMock } from '@sim/testing/mocks/billing-usage-log.mock'
 import {
   executorPrincipalMock,
@@ -80,6 +84,8 @@ import { fileGetContentTool } from '@/tools/file/get'
 import { fileFetchTool } from '@/tools/file/parser'
 import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
 import { searchUsersV2Tool } from '@/tools/github/search_users'
+import { jamaDeleteItemTool } from '@/tools/jama/delete_item'
+import { jamaDeleteRelationshipTool } from '@/tools/jama/delete_relationship'
 import { memoryAddTool } from '@/tools/memory/add'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
@@ -109,7 +115,9 @@ const {
   mockExecuteChatFunction,
   mockGetInternalToolOperationHandler,
   mockExecuteInternalToolOperation,
+  mockPayerHasPaidAccess,
 } = vi.hoisted(() => ({
+  mockPayerHasPaidAccess: vi.fn(),
   mockGetToolAsync: vi.fn(),
   mockRateLimiterFns: {
     acquireKey: vi.fn(),
@@ -171,6 +179,12 @@ vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
   getHostedKeyRateLimiter: () => mockRateLimiterFns,
 }))
 
+vi.mock('@/lib/billing/core/chat-access', () => ({
+  payerHasPaidAccess: mockPayerHasPaidAccess,
+}))
+
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
+
 vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock(
@@ -202,6 +216,8 @@ const mockRegistryTools: Record<string, any> = {
   stripe_search_subscriptions: stripeSearchSubscriptionsTool,
   slack_lists_items_list: slackListsItemsListTool,
   github_search_users_v2: searchUsersV2Tool,
+  jama_delete_item: jamaDeleteItemTool,
+  jama_delete_relationship: jamaDeleteRelationshipTool,
   bitbucket_get_pipeline_step_log: bitbucketGetPipelineStepLogTool,
   deployed_block_executor: customBlockExecutorTool,
   workflow_executor: workflowExecutorTool,
@@ -438,6 +454,7 @@ import { createToolConfig, getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
 
 const mockGetBYOKKey = apiKeyByokMockFns.mockGetBYOKKey
+const mockResolveWorkspaceBillingPayer = billingAttributionMockFns.mockResolveWorkspaceBillingPayer
 const mockGenerateInternalToken = authInternalMockFns.mockGenerateInternalToken
 const mockCreateExecutorPrincipalFromExecutionContext =
   executorPrincipalMockFns.mockCreateExecutorPrincipalFromExecutionContext
@@ -1149,8 +1166,10 @@ describe('executeTool Function', () => {
       expect(result.success).toBe(false)
     }
 
-    const toolFailureLogs = mockToolsLogger.error.mock.calls.filter(([message]) =>
-      String(message).includes('Error executing tool http_request')
+    const toolFailureLogs = mockToolsLogger.error.mock.calls.filter(
+      ([message, fields]) =>
+        message === 'Error executing tool' &&
+        (fields as Record<string, unknown> | undefined)?.toolId === 'http_request'
     )
     expect(toolFailureLogs).toHaveLength(2)
   })
@@ -1998,7 +2017,7 @@ describe('executeTool Function', () => {
     expect(logged).not.toContain('__sim_')
     expect(mockToolsLogger.warn).toHaveBeenCalledWith(
       expect.stringContaining('Failed to read non-OK response body for function_execute'),
-      { errorName: 'Error' }
+      { requestId: 'mock-request-id', errorName: 'Error' }
     )
   })
 
@@ -6303,6 +6322,28 @@ describe('MCP Tool Execution', () => {
       expect(result.success).toBe(false)
     })
 
+    it.each([
+      ['jama_delete_item', { itemId: '42' }],
+      ['jama_delete_relationship', { relationshipId: '42' }],
+    ])('does not repeat %s after an ambiguous server failure', async (toolId, params) => {
+      mockResolveExecutorCredentialToken.mockResolvedValueOnce({
+        accessToken: 'jama-token',
+        credentialType: 'service_account',
+        instanceUrl: 'https://example.jamacloud.com',
+      })
+      mockSecureFetchWithPinnedIP
+        .mockReset()
+        .mockResolvedValueOnce(makeJsonResponse(500, { error: 'Delete outcome unknown' }))
+        .mockResolvedValueOnce(makeJsonResponse(404, { error: 'Item already deleted' }))
+
+      const pending = executeTool(toolId, { credential: 'jama-credential', ...params })
+      await vi.runAllTimersAsync()
+      const result = await pending
+
+      expect(result.success).toBe(false)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(1)
+    })
+
     it('stops retrying after max attempts for http_request', async () => {
       mockSecureFetchWithPinnedIP.mockResolvedValue(makeJsonResponse(502, { error: 'bad gateway' }))
 
@@ -6521,6 +6562,153 @@ describe('Hosted Key Injection', () => {
       Reflect.deleteProperty(tools, 'test_byok_failure')
       resetEnvFlagsMock()
     }
+  })
+
+  describe('requiresPaidPlan', () => {
+    const PAID_ONLY_TOOL_ID = 'test_paid_only_hosting'
+
+    beforeEach(() => {
+      setEnvFlags({ isHosted: true, isBillingEnabled: true })
+      mockRateLimiterFns.acquireKey.mockResolvedValue({
+        success: true,
+        key: 'platform-fixture-key',
+        keyIndex: 0,
+        envVarName: 'TEST_HOSTED_KEY',
+      })
+      tools[PAID_ONLY_TOOL_ID] = {
+        id: PAID_ONLY_TOOL_ID,
+        name: 'Paid-only fixture',
+        description: 'Hosted key reserved for paying payers',
+        version: '1.0.0',
+        params: {},
+        request: { url: 'https://example.com/fixture', method: 'GET', headers: () => ({}) },
+        hosting: {
+          envKeyPrefix: 'TEST_HOSTED_KEY',
+          apiKeyParam: 'apiKey',
+          byokProviderId: 'falai',
+          requiresPaidPlan: true,
+          pricing: { type: 'per_request', cost: 0.5 },
+          rateLimit: { mode: 'per_request', requestsPerMinute: 100 },
+        },
+        transformResponse: async () => ({ success: true, output: {} }),
+      }
+    })
+
+    afterEach(() => {
+      Reflect.deleteProperty(tools, PAID_ONLY_TOOL_ID)
+      resetEnvFlagsMock()
+    })
+
+    async function runPaidOnlyTool() {
+      mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+      mockSecureFetchWithPinnedIP.mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: { get: () => null, toRecord: () => ({}) },
+        json: async () => ({ ok: true }),
+        text: async () => '{"ok":true}',
+      })
+      const request = mockSecureFetchWithPinnedIP
+      const result = await executeTool(
+        PAID_ONLY_TOOL_ID,
+        {},
+        { executionContext: createToolExecutionContext({ userId: 'user-1' }) }
+      )
+      return { result, request }
+    }
+
+    it('refuses the hosted key to a payer without paid access before acquiring one', async () => {
+      mockGetBYOKKey.mockResolvedValue(null)
+      mockPayerHasPaidAccess.mockResolvedValue(false)
+
+      const { result, request } = await runPaidOnlyTool()
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('available on paid plans')
+      expect(mockPayerHasPaidAccess).toHaveBeenCalledWith(TEST_BILLING_ATTRIBUTION, {
+        onBalanceUnavailable: 'deny',
+      })
+      expect(mockRateLimiterFns.acquireKey).not.toHaveBeenCalled()
+      expect(request).not.toHaveBeenCalled()
+    })
+
+    it('grants the hosted key to a payer with paid access', async () => {
+      mockGetBYOKKey.mockResolvedValue(null)
+      mockPayerHasPaidAccess.mockResolvedValue(true)
+
+      const { result, request } = await runPaidOnlyTool()
+
+      expect(result.success).toBe(true)
+      expect(mockRateLimiterFns.acquireKey).toHaveBeenCalledTimes(1)
+      expect(request).toHaveBeenCalledTimes(1)
+    })
+
+    async function runPaidOnlyToolWithoutAttribution() {
+      mockGetBYOKKey.mockResolvedValue(null)
+      mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+      mockSecureFetchWithPinnedIP.mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: { get: () => null, toRecord: () => ({}) },
+        json: async () => ({ ok: true }),
+        text: async () => '{"ok":true}',
+      })
+      const result = await executeTool(PAID_ONLY_TOOL_ID, {
+        _context: { workspaceId: 'workspace-without-run', userId: 'user-1' },
+      })
+      return { result, request: mockSecureFetchWithPinnedIP }
+    }
+
+    it('judges the workspace payer when the run carries no attribution', async () => {
+      mockResolveWorkspaceBillingPayer.mockResolvedValue({
+        billedAccountUserId: 'payer-1',
+        organizationId: 'org-1',
+        payerSubscription: { plan: 'team' },
+      })
+      mockPayerHasPaidAccess.mockResolvedValue(true)
+
+      const { result, request } = await runPaidOnlyToolWithoutAttribution()
+
+      expect(result.success).toBe(true)
+      expect(mockResolveWorkspaceBillingPayer).toHaveBeenCalledWith('workspace-without-run', {
+        onMissing: 'return-null',
+      })
+      expect(mockPayerHasPaidAccess).toHaveBeenCalledWith(
+        {
+          billingEntity: { type: 'organization', id: 'org-1' },
+          payerSubscription: { plan: 'team' },
+        },
+        { onBalanceUnavailable: 'deny' }
+      )
+      expect(request).toHaveBeenCalledTimes(1)
+    })
+
+    it('refuses the hosted key when the workspace has no payer', async () => {
+      mockResolveWorkspaceBillingPayer.mockResolvedValue(null)
+      mockPayerHasPaidAccess.mockResolvedValue(true)
+
+      const { result, request } = await runPaidOnlyToolWithoutAttribution()
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('available on paid plans')
+      expect(mockPayerHasPaidAccess).not.toHaveBeenCalled()
+      expect(mockRateLimiterFns.acquireKey).not.toHaveBeenCalled()
+      expect(request).not.toHaveBeenCalled()
+    })
+
+    it("runs a free payer's own workspace key without consulting the plan", async () => {
+      mockGetBYOKKey.mockResolvedValue({ apiKey: 'workspace-own-key' })
+      mockPayerHasPaidAccess.mockResolvedValue(false)
+
+      const { result, request } = await runPaidOnlyTool()
+
+      expect(result.success).toBe(true)
+      expect(mockPayerHasPaidAccess).not.toHaveBeenCalled()
+      expect(mockRateLimiterFns.acquireKey).not.toHaveBeenCalled()
+      expect(request).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('should not inject hosted key when tool has no hosting config', async () => {

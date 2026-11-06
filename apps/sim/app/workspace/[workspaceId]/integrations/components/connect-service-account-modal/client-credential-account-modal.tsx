@@ -12,6 +12,7 @@ import {
   SecretInput,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
   resourceScopeFields,
@@ -25,6 +26,7 @@ import {
   type ClientCredentialAccountFieldId,
   partitionClientCredentialFields,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
+import type { ServiceAccountSecretFields } from '@/lib/credentials/service-account-secret'
 import { withBrandIcon } from '@/blocks/brand-icon'
 import {
   useCreateScopedCredential,
@@ -43,7 +45,8 @@ const FALLBACK_ERROR_MESSAGE = "We couldn't save this credential. Try again in a
 function messageForClientCredentialError(
   err: unknown,
   descriptor: ClientCredentialAccountDescriptor,
-  requiredFields: ClientCredentialAccountField[]
+  requiredFields: ClientCredentialAccountField[],
+  fallbackMessage = FALLBACK_ERROR_MESSAGE
 ): string {
   if (isApiClientError(err) && err.code) {
     // Names the fields the *selected* auth method needed, so a JWT failure
@@ -66,10 +69,10 @@ function messageForClientCredentialError(
       case 'duplicate_display_name':
         return 'A credential with that name already exists in this workspace.'
       default:
-        return FALLBACK_ERROR_MESSAGE
+        return fallbackMessage
     }
   }
-  return FALLBACK_ERROR_MESSAGE
+  return fallbackMessage
 }
 
 type FieldValues = Partial<Record<ClientCredentialAccountFieldId, string>>
@@ -92,6 +95,10 @@ interface ClientCredentialAccountModalProps {
   initialDescription?: string
   /** Called with the credential id after a successful create or reconnect. */
   onCreated?: (credentialId: string) => void
+  onSubmitCredentials?: (
+    fields: ServiceAccountSecretFields & { displayName?: string; description?: string }
+  ) => Promise<string>
+  submitPending?: boolean
 }
 
 /**
@@ -129,6 +136,8 @@ function ClientCredentialAccountModalForm({
   initialDisplayName,
   initialDescription,
   onCreated,
+  onSubmitCredentials,
+  submitPending,
 }: ClientCredentialAccountModalProps) {
   const [values, setValues] = useState<FieldValues>({})
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
@@ -167,7 +176,8 @@ function ClientCredentialAccountModalForm({
   const missingRequired =
     mustRestateAuthMethod || required.some((field) => !values[field.id]?.trim())
 
-  const isPending = createCredential.isPending || updateCredential.isPending
+  const isPending =
+    createCredential.isPending || updateCredential.isPending || submitPending === true
   const isDisabled = missingRequired || isPending
   const actionLabel = credentialId ? 'Reconnect' : 'Add'
 
@@ -195,6 +205,16 @@ function ClientCredentialAccountModalForm({
         const value = field.preserveWhitespace ? values[field.id] : values[field.id]?.trim()
         if (value) secretFields[field.id] = value
       }
+      if (onSubmitCredentials) {
+        const savedId = await onSubmitCredentials({
+          ...secretFields,
+          displayName: displayName.trim() || undefined,
+          description: description.trim() || undefined,
+        })
+        onCreated?.(savedId)
+        onOpenChange(false)
+        return
+      }
       if (credentialId) {
         await updateCredential.mutateAsync({
           ...resourceScopeFields(resourceScopeFromOwner({ workspaceId, organizationId })),
@@ -217,7 +237,14 @@ function ClientCredentialAccountModalForm({
       if (connectedCredentialId) onCreated?.(connectedCredentialId)
       onOpenChange(false)
     } catch (err: unknown) {
-      setError(messageForClientCredentialError(err, descriptor, required))
+      setError(
+        messageForClientCredentialError(
+          err,
+          descriptor,
+          required,
+          onSubmitCredentials ? getErrorMessage(err, FALLBACK_ERROR_MESSAGE) : undefined
+        )
+      )
       logger.error(`Failed to save ${descriptor.serviceLabel} service account credential`, err)
     }
   }

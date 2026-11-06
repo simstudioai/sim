@@ -62,6 +62,8 @@ Assume an IAM role and receive temporary security credentials
 
 Assume an IAM role using an OIDC/OAuth 2.0 web identity token (e.g. GitHub Actions OIDC, EKS IRSA, Google/Facebook federation) and receive temporary security credentials
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -91,9 +93,13 @@ Assume an IAM role using an OIDC/OAuth 2.0 web identity token (e.g. GitHub Actio
 | `packedPolicySize` | number | Percentage of allowed policy size used |
 | `sourceIdentity` | string | Source identity set on the role session, if any |
 
+</ReferenceDetails>
+
 ### STS Assume Role With SAML
 
 Assume an IAM role using a SAML 2.0 authentication response from an enterprise identity provider and receive temporary security credentials
+
+<ReferenceDetails>
 
 #### Input
 
@@ -125,9 +131,13 @@ Assume an IAM role using a SAML 2.0 authentication response from an enterprise i
 | `packedPolicySize` | number | Percentage of allowed policy size used |
 | `sourceIdentity` | string | Source identity set on the role session, if any |
 
+</ReferenceDetails>
+
 ### STS Get Caller Identity
 
 Get details about the IAM user or role whose credentials are used to call the API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -145,9 +155,13 @@ Get details about the IAM user or role whose credentials are used to call the AP
 | `arn` | string | ARN of the calling entity |
 | `userId` | string | Unique identifier of the calling entity |
 
+</ReferenceDetails>
+
 ### STS Get Session Token
 
 Get temporary security credentials for an IAM user, optionally with MFA
+
+<ReferenceDetails>
 
 #### Input
 
@@ -169,9 +183,13 @@ Get temporary security credentials for an IAM user, optionally with MFA
 | `sessionToken` | string | Temporary session token |
 | `expiration` | string | Credential expiration timestamp |
 
+</ReferenceDetails>
+
 ### STS Get Access Key Info
 
 Get the AWS account ID associated with an access key
+
+<ReferenceDetails>
 
 #### Input
 
@@ -187,5 +205,7 @@ Get the AWS account ID associated with an access key
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `account` | string | AWS account ID that owns the access key |
+
+</ReferenceDetails>
 
 

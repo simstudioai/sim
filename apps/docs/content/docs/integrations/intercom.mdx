@@ -1207,6 +1207,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Trigger workflow when a new lead is created in Intercom
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1225,13 +1227,14 @@ Trigger workflow when a new lead is created in Intercom
 | `first_sent_at` | number | Unix timestamp of first delivery attempt |
 | `data` | json | Event data containing the contact object. Access via data.item for contact details including id, role, email, name, phone, external_id, custom_attributes, location, avatar, tags, companies, and timestamps |
 
-
----
+</ReferenceDetails>
 
 ### Intercom Conversation Closed
 
 Trigger workflow when a conversation is closed in Intercom
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1250,13 +1253,14 @@ Trigger workflow when a conversation is closed in Intercom
 | `first_sent_at` | number | Unix timestamp of first delivery attempt |
 | `data` | json | Event data containing the conversation object. Access via data.item for conversation details including id, state, open, assignee, contacts, conversation_parts, tags, and source |
 
-
----
+</ReferenceDetails>
 
 ### Intercom Conversation Created
 
 Trigger workflow when a new conversation is created in Intercom
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1275,13 +1279,14 @@ Trigger workflow when a new conversation is created in Intercom
 | `first_sent_at` | number | Unix timestamp of first delivery attempt |
 | `data` | json | Event data containing the conversation object. Access via data.item for conversation details including id, state, open, assignee, contacts, conversation_parts, tags, and source |
 
-
----
+</ReferenceDetails>
 
 ### Intercom Conversation Reply
 
 Trigger workflow when someone replies to an Intercom conversation
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1300,12 +1305,13 @@ Trigger workflow when someone replies to an Intercom conversation
 | `first_sent_at` | number | Unix timestamp of first delivery attempt |
 | `data` | json | Event data containing the conversation object. Access via data.item for conversation details including id, state, open, assignee, contacts, conversation_parts, tags, and source |
 
-
----
+</ReferenceDetails>
 
 ### Intercom User Created
 
 Trigger workflow when a new user is created in Intercom
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1325,12 +1331,13 @@ Trigger workflow when a new user is created in Intercom
 | `first_sent_at` | number | Unix timestamp of first delivery attempt |
 | `data` | json | Event data containing the contact object. Access via data.item for contact details including id, role, email, name, phone, external_id, custom_attributes, location, avatar, tags, companies, and timestamps |
 
-
----
+</ReferenceDetails>
 
 ### Intercom Webhook (All Events)
 
 Trigger workflow on any Intercom webhook event
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1349,4 +1356,6 @@ Trigger workflow on any Intercom webhook event
 | `delivery_attempts` | number | Number of delivery attempts for this notification |
 | `first_sent_at` | number | Unix timestamp of first delivery attempt |
 | `data` | json | Event data containing the affected object. Access via data.item for the resource \(conversation, contact, company, ticket, etc.\) |
+
+</ReferenceDetails>
 

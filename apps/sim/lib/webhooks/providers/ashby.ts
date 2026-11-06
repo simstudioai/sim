@@ -165,9 +165,9 @@ export const ashbyHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext): NextResponse | null {
     const secretToken = (providerConfig.secretToken as string | undefined)?.trim()
     if (!secretToken) {
-      logger.warn(
-        `[${requestId}] Ashby webhook missing secretToken in providerConfig — rejecting request`
-      )
+      logger.warn('Ashby webhook missing secretToken in providerConfig — rejecting request', {
+        requestId,
+      })
       return new NextResponse(
         'Unauthorized - Ashby webhook signing secret is not configured. Re-save the trigger so a webhook can be registered.',
         { status: 401 }
@@ -176,12 +176,13 @@ export const ashbyHandler: WebhookProviderHandler = {
 
     const signature = request.headers.get('ashby-signature')
     if (!signature) {
-      logger.warn(`[${requestId}] Ashby webhook missing signature header`)
+      logger.warn('Ashby webhook missing signature header', { requestId })
       return new NextResponse('Unauthorized - Missing Ashby signature', { status: 401 })
     }
 
     if (!validateAshbySignature(secretToken, signature, rawBody)) {
-      logger.warn(`[${requestId}] Ashby signature verification failed`, {
+      logger.warn('Ashby signature verification failed', {
+        requestId,
         signatureLength: signature.length,
         secretLength: secretToken.length,
       })
@@ -202,7 +203,8 @@ export const ashbyHandler: WebhookProviderHandler = {
     const action = typeof obj?.action === 'string' ? obj.action : ''
 
     if (action === 'ping') {
-      logger.debug(`[${requestId}] Ashby ping event received. Skipping execution.`, {
+      logger.debug('Ashby ping event received. Skipping execution.', {
+        requestId,
         webhookId: webhook.id,
         triggerId,
       })
@@ -214,12 +216,8 @@ export const ashbyHandler: WebhookProviderHandler = {
     const { isAshbyEventMatch } = await import('@/triggers/ashby/utils')
     if (!isAshbyEventMatch(triggerId, action)) {
       logger.debug(
-        `[${requestId}] Ashby event mismatch for trigger ${triggerId}. Action: ${action || '(missing)'}. Skipping execution.`,
-        {
-          webhookId: webhook.id,
-          triggerId,
-          receivedAction: action,
-        }
+        `Ashby event mismatch for trigger ${triggerId}. Action: ${action || '(missing)'}. Skipping execution.`,
+        { requestId, webhookId: webhook.id, triggerId, receivedAction: action }
       )
       return false
     }
@@ -258,7 +256,8 @@ export const ashbyHandler: WebhookProviderHandler = {
       const notificationUrl = getNotificationUrl(ctx.webhook)
       const authString = Buffer.from(`${apiKey}:`).toString('base64')
 
-      logger.info(`[${ctx.requestId}] Creating Ashby webhook`, {
+      logger.info('Creating Ashby webhook', {
+        requestId: ctx.requestId,
         triggerId,
         webhookType,
         webhookId: ctx.webhook.id,
@@ -321,19 +320,18 @@ export const ashbyHandler: WebhookProviderHandler = {
       }
 
       logger.info(
-        `[${ctx.requestId}] Successfully created Ashby webhook subscription ${externalId} for webhook ${ctx.webhook.id}`
+        `Successfully created Ashby webhook subscription ${externalId} for webhook ${ctx.webhook.id}`,
+        { requestId: ctx.requestId }
       )
       return { providerConfigUpdates: { externalId, secretToken } }
     } catch (error: unknown) {
       if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
-      logger.error(
-        `[${ctx.requestId}] Exception during Ashby webhook creation for webhook ${ctx.webhook.id}.`,
-        {
-          message: err.message,
-          stack: err.stack,
-        }
-      )
+      logger.error(`Exception during Ashby webhook creation for webhook ${ctx.webhook.id}.`, {
+        requestId: ctx.requestId,
+        message: err.message,
+        stack: err.stack,
+      })
       throw error
     }
   },
@@ -346,7 +344,8 @@ export const ashbyHandler: WebhookProviderHandler = {
 
       if (!apiKey) {
         logger.warn(
-          `[${ctx.requestId}] Missing apiKey for Ashby webhook deletion ${ctx.webhook.id}, skipping cleanup`
+          `Missing apiKey for Ashby webhook deletion ${ctx.webhook.id}, skipping cleanup`,
+          { requestId: ctx.requestId }
         )
         if (ctx.strict) throw new Error('Missing Ashby apiKey for webhook deletion')
         return
@@ -354,7 +353,8 @@ export const ashbyHandler: WebhookProviderHandler = {
 
       if (!externalId) {
         logger.warn(
-          `[${ctx.requestId}] Missing externalId for Ashby webhook deletion ${ctx.webhook.id}, skipping cleanup`
+          `Missing externalId for Ashby webhook deletion ${ctx.webhook.id}, skipping cleanup`,
+          { requestId: ctx.requestId }
         )
         if (ctx.strict) throw new Error('Missing Ashby externalId for webhook deletion')
         return
@@ -393,27 +393,28 @@ export const ashbyHandler: WebhookProviderHandler = {
       const errorMessage = ashbyErrorMessage(responseBody, `HTTP ${ashbyResponse.status}`)
 
       if (!rejected) {
-        logger.info(
-          `[${ctx.requestId}] Successfully deleted Ashby webhook subscription ${externalId}`
-        )
+        logger.info(`Successfully deleted Ashby webhook subscription ${externalId}`, {
+          requestId: ctx.requestId,
+        })
       } else if (
         ashbyResponse.status === 404 ||
         isAshbyWebhookNotFound(responseBody, errorMessage)
       ) {
-        logger.info(
-          `[${ctx.requestId}] Ashby webhook ${externalId} not found during deletion (already removed)`
-        )
+        logger.info(`Ashby webhook ${externalId} not found during deletion (already removed)`, {
+          requestId: ctx.requestId,
+        })
       } else {
-        logger.warn(
-          `[${ctx.requestId}] Failed to delete Ashby webhook (non-fatal): ${errorMessage}`,
-          { status: ashbyResponse.status, response: responseBody }
-        )
+        logger.warn(`Failed to delete Ashby webhook (non-fatal): ${errorMessage}`, {
+          requestId: ctx.requestId,
+          status: ashbyResponse.status,
+          response: responseBody,
+        })
         if (ctx.strict) {
           throw new Error(`Failed to delete Ashby webhook: ${errorMessage}`)
         }
       }
     } catch (error) {
-      logger.warn(`[${ctx.requestId}] Error deleting Ashby webhook (non-fatal)`, error)
+      logger.warn('Error deleting Ashby webhook (non-fatal)', error, { requestId: ctx.requestId })
       if (ctx.strict) throw error
     }
   },

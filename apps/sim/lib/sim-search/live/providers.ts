@@ -1,6 +1,7 @@
 import { MAX_NATIVE_QUERIES_PER_ACCOUNT } from '@/lib/api/contracts/mothership-assistant-tools'
 import { previewConfluence, readAtlassian, searchAtlassian } from '@/lib/sim-search/live/atlassian'
 import { readCoda, searchCoda } from '@/lib/sim-search/live/coda'
+import { readFlow, searchFlow } from '@/lib/sim-search/live/flow'
 import { readGitHub, searchGitHub } from '@/lib/sim-search/live/github'
 import { readGitLab, searchGitLab } from '@/lib/sim-search/live/gitlab'
 import {
@@ -14,6 +15,7 @@ import {
 } from '@/lib/sim-search/live/google'
 import { readGoogleMeet, searchGoogleMeet } from '@/lib/sim-search/live/google-meet'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
+import { readJama, searchJama } from '@/lib/sim-search/live/jama'
 import { readLinear, searchLinear } from '@/lib/sim-search/live/linear'
 import {
   LIVE_SEARCH_PROVIDER_IDS,
@@ -53,7 +55,7 @@ interface NativeProvider {
    * metadata. At most one request; undefined for kinds without a cheap text form.
    */
   previewText?(client: NativeClient, document: NativeDocument): Promise<string | undefined>
-  search(client: NativeClient, input: NativeSearchInput): Promise<NativePage>
+  search(client: NativeClient, input: NativeSearchInput, origin?: string): Promise<NativePage>
   read(
     client: NativeClient,
     reference: Pick<NativeDocument, 'id' | 'container' | 'kind' | 'revision' | 'threadId'>,
@@ -183,12 +185,12 @@ export const LIVE_SEARCH_PROVIDERS = {
   confluence: {
     guide: {
       syntax:
-        'CQL: text ~ "term", title ~ "term" (title ~ "win*" for a prefix), type IN (page, blogpost) and space = KEY (quote keys starting with a digit), joined with AND/OR/NOT and parentheses; add ORDER BY lastmodified DESC only when recency matters more than relevance.',
+        'CQL: siteSearch ~ "a few words" is Confluence relevance search and ranks pages about the topic first, so use it for topic, acronym and how-to lookups. text ~ "term" and title ~ "term" (title ~ "win*" for a prefix) match pages containing those words or their variants without that ranking, so keep them for a specific identifier or term; text ~ "\\"exact phrase\\"" matches a phrase. Combine with type IN (page, blogpost) and space = KEY (quote keys starting with a digit) using AND/OR/NOT and parentheses; add ORDER BY lastmodified DESC only when recency matters more than relevance.',
       scope:
         'creator = currentUser(), contributor = currentUser(), mention = currentUser() and space = KEY. CQL has no project field; the separate native project field takes an Atlassian site cloud ID.',
-      example: 'type IN (page, blogpost) AND space = ENG AND text ~ "roadmap"',
+      example: 'type IN (page, blogpost) AND siteSearch ~ "deployment freeze process"',
       avoid:
-        'starting the query with a negative clause (NOT, !=, !~ or NOT IN), which CQL rejects; lead with a positive clause such as type IN (page, blogpost).',
+        'ORing several text ~ clauses for a topic, which ranks pages sharing one common word first (put the words in one siteSearch instead), and starting the query with a negative clause (NOT, !=, !~ or NOT IN), which CQL rejects; lead with a positive clause such as type IN (page, blogpost).',
     },
     requiresEveryTerm: true,
     previewText: previewConfluence,
@@ -209,6 +211,32 @@ export const LIVE_SEARCH_PROVIDERS = {
     search: searchGitHub,
     read: (client, reference) =>
       readGitHub(client, reference.id, reference.container, reference.kind),
+  },
+  jama: {
+    guide: {
+      syntax:
+        'Literal words searched by Jama Connect across accessible items. Use a short distinctive phrase. Results are paginated with the returned cursor.',
+      scope:
+        'project optionally takes a numeric Jama project ID. Dates filter returned item modification timestamps; results use Jama default ordering, not a global newest/oldest guarantee.',
+      example: 'battery safety',
+      avoid:
+        'Boolean or field operators, invented project IDs, and expecting attachments or full discussion search. Read a result for its current item fields.',
+    },
+    search: searchJama,
+    read: (client, reference, options) => readJama(client, reference, options.origin),
+  },
+  flow: {
+    guide: {
+      syntax:
+        'Nonempty plain text up to 1024 characters, searched by Flow across accessible engineering items. Results are bounded; the API provides no search cursor.',
+      scope:
+        'project optionally takes a Flow project ID. Without project, searches at most six accessible projects. Dates and sorting apply to returned entity metadata only.',
+      example: 'battery safety',
+      avoid:
+        'Boolean operators, empty browsing queries, cursor pagination, and claiming exhaustive coverage. Read a match for current field values and formulas; comments and files are not included.',
+    },
+    search: searchFlow,
+    read: (client, reference, options) => readFlow(client, reference, options.origin),
   },
   gitlab: {
     guide: {
@@ -302,7 +330,8 @@ export const LIVE_SEARCH_PROVIDERS = {
 export function searchNativeProvider(
   provider: LiveSearchProviderId,
   client: NativeClient,
-  input: NativeSearchInput
+  input: NativeSearchInput,
+  origin?: string
 ): Promise<NativePage> {
   const adapter = LIVE_SEARCH_PROVIDERS[provider]
   if (!('search' in adapter))
@@ -310,7 +339,7 @@ export function searchNativeProvider(
       'unavailable',
       `${provider} requires a connected member MCP account`
     )
-  return adapter.search(client, input)
+  return adapter.search(client, input, origin)
 }
 
 /** True when the provider's plain-text search matches only items containing every query word. */

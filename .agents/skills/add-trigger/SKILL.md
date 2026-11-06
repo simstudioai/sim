@@ -411,7 +411,7 @@ export const {service}PollingHandler: PollingProviderHandler = {
       await markWebhookSuccess(webhookId, logger)
       return 'success'
     } catch (error) {
-      logger.error(`[${requestId}] Error processing {service} webhook ${webhookId}:`, error)
+      logger.error('Error processing {service} webhook:', error)
       await markWebhookFailed(webhookId, logger)
       return 'failure'
     }
@@ -423,6 +423,7 @@ export const {service}PollingHandler: PollingProviderHandler = {
 - First poll seeds state and emits nothing (avoids flooding with existing data)
 - Use `pollingIdempotency.executeWithIdempotency(provider, key, callback)` for dedup
 - Use `processPolledWebhookEvent(webhookData, workflowData, payload, requestId)` to fire the workflow
+- Log through `ctx.logger` (already bound with `webhookId` and `pollId`, which equals `ctx.requestId`). Never add `{ requestId }` to a log line; the poll route's request context owns that field and overwrites it
 - Use `updateWebhookProviderConfig(webhookId, partialConfig, logger)` for read-merge-write on state
 - Use the latest server-side timestamp from API responses (not wall clock) to avoid clock skew
 

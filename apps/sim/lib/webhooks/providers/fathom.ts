@@ -25,7 +25,8 @@ export const fathomHandler: WebhookProviderHandler = {
       const includeCrmMatches = providerConfig.includeCrmMatches as unknown
 
       if (!apiKey) {
-        logger.warn(`[${requestId}] Missing apiKey for Fathom webhook creation.`, {
+        logger.warn('Missing apiKey for Fathom webhook creation.', {
+          requestId,
           webhookId: webhook.id,
         })
         throw new WebhookDeploymentConfigurationError(
@@ -51,7 +52,8 @@ export const fathomHandler: WebhookProviderHandler = {
         include_crm_matches: toBool(includeCrmMatches, false),
       }
 
-      logger.info(`[${requestId}] Creating Fathom webhook`, {
+      logger.info('Creating Fathom webhook', {
+        requestId,
         triggerId,
         triggeredFor: triggeredForValue,
         webhookId: webhook.id,
@@ -77,8 +79,8 @@ export const fathomHandler: WebhookProviderHandler = {
           (responseBody.error as string) ||
           'Unknown Fathom API error'
         logger.error(
-          `[${requestId}] Failed to create webhook in Fathom for webhook ${webhook.id}. Status: ${fathomResponse.status}`,
-          { message: errorMessage, response: responseBody }
+          `Failed to create webhook in Fathom for webhook ${webhook.id}. Status: ${fathomResponse.status}`,
+          { requestId, message: errorMessage, response: responseBody }
         )
 
         let userFriendlyMessage = 'Failed to create webhook subscription in Fathom'
@@ -95,29 +97,26 @@ export const fathomHandler: WebhookProviderHandler = {
 
       if (!responseBody.id) {
         logger.error(
-          `[${requestId}] Fathom webhook creation returned success but no webhook ID for ${webhook.id}.`
+          `Fathom webhook creation returned success but no webhook ID for ${webhook.id}.`,
+          { requestId }
         )
         throw new Error('Fathom webhook created but no ID returned. Please try again.')
       }
 
-      logger.info(
-        `[${requestId}] Successfully created webhook in Fathom for webhook ${webhook.id}.`,
-        {
-          fathomWebhookId: responseBody.id,
-        }
-      )
+      logger.info(`Successfully created webhook in Fathom for webhook ${webhook.id}.`, {
+        requestId,
+        fathomWebhookId: responseBody.id,
+      })
 
       return { providerConfigUpdates: { externalId: responseBody.id } }
     } catch (error: unknown) {
       if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
-      logger.error(
-        `[${requestId}] Exception during Fathom webhook creation for webhook ${webhook.id}.`,
-        {
-          message: err.message,
-          stack: err.stack,
-        }
-      )
+      logger.error(`Exception during Fathom webhook creation for webhook ${webhook.id}.`, {
+        requestId,
+        message: err.message,
+        stack: err.stack,
+      })
       throw error
     }
   },
@@ -130,16 +129,17 @@ export const fathomHandler: WebhookProviderHandler = {
       const externalId = config.externalId as string | undefined
 
       if (!apiKey) {
-        logger.warn(
-          `[${requestId}] Missing apiKey for Fathom webhook deletion ${webhook.id}, skipping cleanup`
-        )
+        logger.warn(`Missing apiKey for Fathom webhook deletion ${webhook.id}, skipping cleanup`, {
+          requestId,
+        })
         if (ctx.strict) throw new Error('Missing Fathom apiKey for webhook deletion')
         return
       }
 
       if (!externalId) {
         logger.warn(
-          `[${requestId}] Missing externalId for Fathom webhook deletion ${webhook.id}, skipping cleanup`
+          `Missing externalId for Fathom webhook deletion ${webhook.id}, skipping cleanup`,
+          { requestId }
         )
         if (ctx.strict) throw new Error('Missing Fathom externalId for webhook deletion')
         return
@@ -148,7 +148,8 @@ export const fathomHandler: WebhookProviderHandler = {
       const idValidation = validateAlphanumericId(externalId, 'Fathom webhook ID', 100)
       if (!idValidation.isValid) {
         logger.warn(
-          `[${requestId}] Invalid externalId format for Fathom webhook deletion ${webhook.id}, skipping cleanup`
+          `Invalid externalId format for Fathom webhook deletion ${webhook.id}, skipping cleanup`,
+          { requestId }
         )
         if (ctx.strict) throw new Error('Invalid Fathom externalId for webhook deletion')
         return
@@ -165,15 +166,15 @@ export const fathomHandler: WebhookProviderHandler = {
       })
 
       if (!fathomResponse.ok && fathomResponse.status !== 404) {
-        logger.warn(
-          `[${requestId}] Failed to delete Fathom webhook (non-fatal): ${fathomResponse.status}`
-        )
+        logger.warn(`Failed to delete Fathom webhook (non-fatal): ${fathomResponse.status}`, {
+          requestId,
+        })
         if (ctx.strict) throw new Error(`Failed to delete Fathom webhook: ${fathomResponse.status}`)
       } else {
-        logger.info(`[${requestId}] Successfully deleted Fathom webhook ${externalId}`)
+        logger.info(`Successfully deleted Fathom webhook ${externalId}`, { requestId })
       }
     } catch (error) {
-      logger.warn(`[${requestId}] Error deleting Fathom webhook (non-fatal)`, error)
+      logger.warn('Error deleting Fathom webhook (non-fatal)', error, { requestId })
       if (ctx.strict) throw error
     }
   },

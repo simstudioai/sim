@@ -6,11 +6,12 @@ integration:
   color: "#FFFFFF"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 [Google Meet](https://meet.google.com/) provides meeting spaces and conference records. Create or configure a meeting space, inspect participants and past conferences, or end an active conference. Select the space or conference identifier required by the operation.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -38,6 +39,8 @@ Create meeting spaces, get space details, end conferences, list conference recor
 
 Create a new Google Meet meeting space
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -55,9 +58,13 @@ Create a new Google Meet meeting space
 | `accessType` | string | Access type configuration |
 | `entryPointAccess` | string | Entry point access configuration |
 
+</ReferenceDetails>
+
 ### Google Meet Get Space
 
 Get details of a Google Meet meeting space by name or meeting code
+
+<ReferenceDetails>
 
 #### Input
 
@@ -76,9 +83,13 @@ Get details of a Google Meet meeting space by name or meeting code
 | `entryPointAccess` | string | Entry point access configuration |
 | `activeConference` | string | Active conference record name |
 
+</ReferenceDetails>
+
 ### Google Meet End Conference
 
 End the active conference in a Google Meet space
+
+<ReferenceDetails>
 
 #### Input
 
@@ -92,9 +103,13 @@ End the active conference in a Google Meet space
 | --------- | ---- | ----------- |
 | `ended` | boolean | Whether the conference was ended successfully |
 
+</ReferenceDetails>
+
 ### Google Meet List Conference Records
 
 List conference records for meetings you organized
+
+<ReferenceDetails>
 
 #### Input
 
@@ -111,9 +126,13 @@ List conference records for meetings you organized
 | `conferenceRecords` | json | List of conference records with name, start/end times, and space |
 | `nextPageToken` | string | Token for next page of results |
 
+</ReferenceDetails>
+
 ### Google Meet Get Conference Record
 
 Get details of a specific conference record
+
+<ReferenceDetails>
 
 #### Input
 
@@ -131,9 +150,13 @@ Get details of a specific conference record
 | `expireTime` | string | Conference record expiration time |
 | `space` | string | Associated space resource name |
 
+</ReferenceDetails>
+
 ### Google Meet List Participants
 
 List participants of a conference record
+
+<ReferenceDetails>
 
 #### Input
 
@@ -151,5 +174,7 @@ List participants of a conference record
 | `participants` | json | List of participants with name, times, display name, and user type |
 | `nextPageToken` | string | Token for next page of results |
 | `totalSize` | number | Total number of participants |
+
+</ReferenceDetails>
 
 

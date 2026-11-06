@@ -18,22 +18,23 @@ export const stripeHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const secret = providerConfig.webhookSecret as string | undefined
     if (!secret) {
-      logger.warn(
-        `[${requestId}] Stripe webhook missing webhookSecret in providerConfig — rejecting request`
-      )
+      logger.warn('Stripe webhook missing webhookSecret in providerConfig — rejecting request', {
+        requestId,
+      })
       return new NextResponse('Unauthorized - Webhook secret not configured', { status: 401 })
     }
 
     const signature = request.headers.get('stripe-signature')
     if (!signature) {
-      logger.warn(`[${requestId}] Stripe webhook missing Stripe-Signature header`)
+      logger.warn('Stripe webhook missing Stripe-Signature header', { requestId })
       return new NextResponse('Unauthorized - Missing Stripe signature', { status: 401 })
     }
 
     try {
       Stripe.webhooks.constructEvent(rawBody, signature, secret)
     } catch (error) {
-      logger.warn(`[${requestId}] Stripe signature verification failed`, {
+      logger.warn('Stripe signature verification failed', {
+        requestId,
         error: getErrorMessage(error),
       })
       return new NextResponse('Unauthorized - Invalid Stripe signature', { status: 401 })

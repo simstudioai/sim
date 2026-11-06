@@ -83,6 +83,8 @@ Parse documents using AWS Textract OCR and document analysis
 
 Extract structured invoice and receipt fields using AWS Textract AnalyzeExpense
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -110,9 +112,13 @@ Extract structured invoice and receipt fields using AWS Textract AnalyzeExpense
 |   ↳ `pages` | number | Number of pages in the document |
 | `modelVersion` | string | Version of the AnalyzeExpense model used \(multi-page/async only\) |
 
+</ReferenceDetails>
+
 ### AWS Textract Analyze ID
 
 Extract identity document fields using AWS Textract AnalyzeID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -142,5 +148,7 @@ Extract identity document fields using AWS Textract AnalyzeID
 | `documentMetadata` | object | Metadata about the analyzed document |
 |   ↳ `pages` | number | Number of pages analyzed |
 | `modelVersion` | string | Version of the AnalyzeID model used for processing |
+
+</ReferenceDetails>
 
 

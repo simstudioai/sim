@@ -14,7 +14,7 @@ export const servicenowHandler: WebhookProviderHandler = {
   verifyAuth({ request, requestId, providerConfig }: AuthContext): NextResponse | null {
     const secret = providerConfig.webhookSecret as string | undefined
     if (!secret?.trim()) {
-      logger.warn(`[${requestId}] ServiceNow webhook missing webhookSecret — rejecting`)
+      logger.warn('ServiceNow webhook missing webhookSecret — rejecting', { requestId })
       return new NextResponse('Unauthorized - Webhook secret not configured', { status: 401 })
     }
 
@@ -22,7 +22,7 @@ export const servicenowHandler: WebhookProviderHandler = {
       !verifyTokenAuth(request, secret.trim(), 'x-sim-webhook-secret') &&
       !verifyTokenAuth(request, secret.trim())
     ) {
-      logger.warn(`[${requestId}] ServiceNow webhook secret verification failed`)
+      logger.warn('ServiceNow webhook secret verification failed', { requestId })
       return new NextResponse('Unauthorized - Invalid webhook secret', { status: 401 })
     }
 
@@ -40,10 +40,12 @@ export const servicenowHandler: WebhookProviderHandler = {
     const obj = toRecord(body)
 
     if (!isServiceNowEventMatch(triggerId, obj, configuredTableName)) {
-      logger.debug(
-        `[${requestId}] ServiceNow event mismatch for trigger ${triggerId}. Skipping execution.`,
-        { webhookId: webhook.id, workflowId: workflow.id, triggerId }
-      )
+      logger.debug(`ServiceNow event mismatch for trigger ${triggerId}. Skipping execution.`, {
+        requestId,
+        webhookId: webhook.id,
+        workflowId: workflow.id,
+        triggerId,
+      })
       return false
     }
 

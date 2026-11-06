@@ -271,7 +271,6 @@
     "apps/sim/lib/pptx-renderer/shapes/custom-geometry.ts": 1,
     "apps/sim/lib/pptx-renderer/shapes/presets.ts": 1,
     "apps/sim/lib/table/workflow-columns.ts": 1,
-    "apps/sim/lib/tools/falai-pricing.test.ts": 1,
     "apps/sim/lib/uploads/contexts/workspace/file-manager-errors.test.ts": 1,
     "apps/sim/lib/uploads/contexts/workspace/file-manager.test.ts": 1,
     "apps/sim/lib/uploads/contexts/workspace/track-chat-upload.test.ts": 1,
@@ -669,5 +668,6 @@
   "bare-route-handler": {
     "apps/sim/app/api/health/route.ts": 1,
     "apps/sim/app/api/mothership/chat/stream/route.ts": 1
-  }
+  },
+  "log-message-tag": {}
 }

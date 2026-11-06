@@ -616,6 +616,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Trigger workflow when an Azure DevOps build fails, is canceled, or partially succeeds
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Output
 
 | Parameter | Type | Description |
@@ -634,12 +636,13 @@ Trigger workflow when an Azure DevOps build fails, is canceled, or partially suc
 | `finishTime` | string | Build finish time \(ISO 8601\) |
 | `buildUrl` | string | API URL for the build resource |
 
-
----
+</ReferenceDetails>
 
 ### Azure DevOps Webhook (All Service Hook Events)
 
 Trigger on whichever service hook event types you configure in Azure DevOps. Sim does not filter deliveries for this trigger.
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Output
 
@@ -655,12 +658,13 @@ Trigger on whichever service hook event types you configure in Azure DevOps. Sim
 | `message` | json | Short message object |
 | `detailedMessage` | json | Detailed message object |
 
-
----
+</ReferenceDetails>
 
 ### Azure DevOps Work Item Created
 
 Trigger workflow when a work item is created in Azure DevOps
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Output
 
@@ -678,4 +682,6 @@ Trigger workflow when a work item is created in Azure DevOps
 | `description` | string | Work item description \(HTML\), or null if not set |
 | `projectName` | string | Azure DevOps project name |
 | `workItemUrl` | string | API URL for the work item resource |
+
+</ReferenceDetails>
 

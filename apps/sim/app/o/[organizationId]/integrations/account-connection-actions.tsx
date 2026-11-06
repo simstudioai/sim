@@ -5,11 +5,14 @@ import { ChipConfirmModal, ChipModalError } from '@sim/emcn'
 import { type SettingsAction, SettingsActionChips } from '@/components/settings/settings-header'
 import type { ViewerSearchSourceAccount } from '@/lib/api/contracts/knowledge/connectors'
 import { useDisconnectPersonalOrganizationAccount } from '@/hooks/queries/organization-accounts'
+import { useRemovePersonalSearchCredential } from '@/hooks/queries/personal-search-integrations'
 
 interface AccountConnectionActionsProps {
   organizationId: string
   integrationName: string
   account?: ViewerSearchSourceAccount
+  /** A saved credential (Jama, Flow) is removed through Search, not the managed-account route. */
+  saved?: boolean
   onConnect?: () => void
   connectLabel: 'Connect' | 'Add account'
   onReconnect: () => void
@@ -23,6 +26,7 @@ export function AccountConnectionActions({
   organizationId,
   integrationName,
   account,
+  saved = false,
   onConnect,
   connectLabel,
   onReconnect,
@@ -30,7 +34,9 @@ export function AccountConnectionActions({
   canConnect,
   connectionPending,
 }: AccountConnectionActionsProps) {
-  const disconnect = useDisconnectPersonalOrganizationAccount()
+  const disconnectManaged = useDisconnectPersonalOrganizationAccount()
+  const removeSaved = useRemovePersonalSearchCredential()
+  const disconnect = saved ? removeSaved : disconnectManaged
   const [confirming, setConfirming] = useState(false)
   const pending = connectionPending || disconnect.isPending
   const actions: SettingsAction[] = []
@@ -78,11 +84,12 @@ export function AccountConnectionActions({
             pendingLabel: 'Disconnecting',
             pending: disconnect.isPending,
             disabled: disconnect.isPending,
-            onClick: () =>
-              disconnect.mutate(
-                { credentialId: account.credentialId, organizationId },
-                { onSuccess: () => setConfirming(false) }
-              ),
+            onClick: () => {
+              const body = { credentialId: account.credentialId, organizationId }
+              const onSuccess = () => setConfirming(false)
+              if (saved) removeSaved.mutate(body, { onSuccess })
+              else disconnectManaged.mutate(body, { onSuccess })
+            },
           }}
         >
           <ChipModalError>{disconnect.error?.message}</ChipModalError>

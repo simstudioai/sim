@@ -6,13 +6,14 @@ integration:
   color: "#FFFFFF"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [QuiverAI](https://quiver.ai/) to generate SVG graphics from text or vectorize a raster image. Supply up to four reference images for generation, and configure temperature, output count, and token limits where supported.
 
 **List Models** reports available models and capabilities. Generated SVG markup and stored files are returned for downstream processing, storage, or delivery.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -23,6 +24,8 @@ Generate SVG images from text prompts or vectorize raster images into SVGs using
 ### Quiver Text to SVG
 
 Generate SVG images from text prompts using QuiverAI
+
+<ReferenceDetails>
 
 #### Input
 
@@ -50,9 +53,13 @@ Generate SVG images from text prompts using QuiverAI
 |   ↳ `inputTokens` | number | Input tokens used |
 |   ↳ `outputTokens` | number | Output tokens used |
 
+</ReferenceDetails>
+
 ### Quiver Image to SVG
 
 Convert raster images into vector SVG format using QuiverAI
+
+<ReferenceDetails>
 
 #### Input
 
@@ -79,9 +86,13 @@ Convert raster images into vector SVG format using QuiverAI
 |   ↳ `inputTokens` | number | Input tokens used |
 |   ↳ `outputTokens` | number | Output tokens used |
 
+</ReferenceDetails>
+
 ### Quiver List Models
 
 List all available QuiverAI models
+
+<ReferenceDetails>
 
 #### Input
 
@@ -107,5 +118,7 @@ List all available QuiverAI models
 |     ↳ `maxOutputLength` | number | Maximum generation length |
 |     ↳ `supportedOperations` | json | Available operations \(svg_generate, svg_edit, svg_animate, svg_vectorize, chat_completions\) |
 |     ↳ `supportedSamplingParameters` | json | Supported sampling parameters \(temperature, top_p, top_k, repetition_penalty, presence_penalty, stop\) |
+
+</ReferenceDetails>
 
 

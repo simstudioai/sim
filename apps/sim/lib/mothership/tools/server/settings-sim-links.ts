@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { listSimLinksQuerySchema } from '@/lib/api/contracts/sim-links'
-import { presentSimLink } from '@/lib/api/server/sim-link-presenters'
+import { presentSimLink, presentSimLinkPage } from '@/lib/api/server/sim-link-presenters'
 import type { SettingsContext } from '@/lib/mothership/application/settings-context'
 import {
   settingsOperation,
@@ -22,11 +22,12 @@ export async function readSettingsSimLinks(
   context: SettingsContext,
   query: z.output<typeof listSimLinksQuerySchema> = {}
 ) {
-  const page = await listSimLinks.execute({
-    principal: context.principal,
-    input: { ...query, organizationId: settingsOrganizationId(context) },
-  })
-  return { links: page.links.map(presentSimLink), nextCursor: page.nextCursor }
+  return presentSimLinkPage(
+    await listSimLinks.execute({
+      principal: context.principal,
+      input: { ...query, organizationId: settingsOrganizationId(context) },
+    })
+  )
 }
 
 /** Per-link edit, unlist and restrict rules, audit and the rollout flag stay in the use cases. */

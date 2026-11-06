@@ -502,7 +502,8 @@ export const POST = withRouteHandler((req: NextRequest) => {
         }
 
         if (reconciledOutcome !== 'updated') {
-          logger.error(`[${tracker.requestId}] Failed to update tool call status`, {
+          logger.error('Failed to update tool call status', {
+            requestId: tracker.requestId,
             userId: authenticatedUserId,
             toolCallId,
             status: effectiveStatus,
@@ -523,7 +524,8 @@ export const POST = withRouteHandler((req: NextRequest) => {
       } catch (error) {
         const duration = tracker.getDuration()
 
-        logger.error(`[${tracker.requestId}] Unexpected error:`, {
+        logger.error('Unexpected error:', {
+          requestId: tracker.requestId,
           duration,
           error: getErrorMessage(error, 'Unknown error'),
           stack: error instanceof Error ? error.stack : undefined,

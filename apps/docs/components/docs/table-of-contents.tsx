@@ -26,11 +26,11 @@ export function TableOfContents({ headings, active, compact = false }: TableOfCo
               if (details) details.open = false
             }}
             className={cn(
-              'dark:-mx-2 block rounded-md pointer-coarse:py-3 text-docs-control leading-5 transition-colors focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 dark:px-2 dark:hover:bg-[var(--docs-hover)]',
+              'dark:-mx-2 block rounded-md pointer-coarse:py-3 text-docs-control leading-5 transition-colors focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 dark:px-2',
               depth > 2 && 'pl-3 dark:pl-5',
               active === id
-                ? 'text-[var(--docs-toc-current)] dark:underline dark:underline-offset-[3px]'
-                : 'text-[var(--docs-muted)] hover:text-[var(--docs-heading)] dark:hover:text-[var(--docs-muted)]'
+                ? 'text-[var(--docs-toc-current)] underline underline-offset-[3px]'
+                : 'text-[var(--docs-muted)]'
             )}
           >
             {title}

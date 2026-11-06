@@ -83,7 +83,7 @@ export const POST = withRouteHandler(
         json.length === 0 ||
         json.length > QUICKBOOKS_WEBHOOK_MAX_EVENTS
       ) {
-        logger.warn(`[${requestId}] Invalid QuickBooks webhook envelope`)
+        logger.warn('Invalid QuickBooks webhook envelope')
         return NextResponse.json({ error: 'Invalid webhook envelope' }, { status: 400 })
       }
 
@@ -95,7 +95,7 @@ export const POST = withRouteHandler(
         else droppedCount += 1
       }
       if (droppedCount > 0) {
-        logger.warn(`[${requestId}] Dropped unmodelled QuickBooks webhook events`, {
+        logger.warn('Dropped unmodelled QuickBooks webhook events', {
           droppedCount,
           eventCount: json.length,
         })
@@ -112,13 +112,13 @@ export const POST = withRouteHandler(
         receivedAt,
       }
       const jobId = await enqueueQuickBooksWebhookIngress(payload)
-      logger.info(`[${requestId}] Accepted QuickBooks webhook delivery`, {
+      logger.info('Accepted QuickBooks webhook delivery', {
         eventCount: events.length,
         jobId,
       })
       return NextResponse.json({ ok: true })
     } catch (error) {
-      logger.error(`[${requestId}] QuickBooks webhook ingress error`, {
+      logger.error('QuickBooks webhook ingress error', {
         error: getErrorMessage(error, 'Unknown error'),
       })
       return NextResponse.json({ error: 'Temporarily unable to accept webhook' }, { status: 503 })

@@ -417,7 +417,7 @@ export async function performCreateKnowledgeConnector(
     newTagSlots = mapping
 
     for (const name of skippedTags) {
-      logger.warn(`[${requestId}] No available slots for "${name}"`)
+      logger.warn(`No available slots for "${name}"`, { requestId })
     }
 
     if (skippedTags.length > 0 && Object.keys(tagSlotMapping).length === 0) {
@@ -588,7 +588,8 @@ export async function performCreateKnowledgeConnector(
         { workspaceId, credentialGroupId: membersBinding.credentialGroupId, connectorId },
         params.userId
       ).catch((revokeError) => {
-        logger.error(`[${requestId}] Failed to revoke the grant of an uncreated connector`, {
+        logger.error('Failed to revoke the grant of an uncreated connector', {
+          requestId,
           connectorId,
           error: revokeError,
         })
@@ -606,7 +607,7 @@ export async function performCreateKnowledgeConnector(
     return { success: true, connector: withoutSecret(created), reused: true }
   }
 
-  logger.info(`[${requestId}] Created connector ${connectorId} for KB ${kb.id}`)
+  logger.info(`Created connector ${connectorId} for KB ${kb.id}`, { requestId })
 
   if (params.recordProductAnalytics !== false) {
     captureServerEvent(
@@ -669,16 +670,15 @@ export async function performCreateKnowledgeConnector(
       : await (await loadDispatchSync())(connectorId, { billingAttribution, requestId })
     if (!dispatch.queued) {
       initialSyncQueued = false
-      logger.warn(
-        `[${requestId}] Initial sync for connector ${connectorId} was not queued: ${dispatch.reason}`
-      )
+      logger.warn(`Initial sync for connector ${connectorId} was not queued: ${dispatch.reason}`, {
+        requestId,
+      })
     }
   } catch (error) {
     initialSyncQueued = false
-    logger.error(
-      `[${requestId}] Failed to dispatch initial sync for connector ${connectorId}`,
-      error
-    )
+    logger.error(`Failed to dispatch initial sync for connector ${connectorId}`, error, {
+      requestId,
+    })
   }
 
   return { success: true, connector: withoutSecret(created), initialSyncQueued }
@@ -1119,13 +1119,11 @@ export async function performUpdateKnowledgeConnector(
         requireRunnable: true,
       })
     } catch (error) {
-      logger.error(
-        `[${requestId}] Saved connector; member sync remains due after dispatch failed`,
-        {
-          connectorId,
-          error,
-        }
-      )
+      logger.error('Saved connector; member sync remains due after dispatch failed', {
+        requestId,
+        connectorId,
+        error,
+      })
     }
   }
 
@@ -1138,7 +1136,8 @@ export async function performUpdateKnowledgeConnector(
         requireRunnable: true,
       })
     } catch (error) {
-      logger.error(`[${requestId}] Saved connector; sync remains due after dispatch failed`, {
+      logger.error('Saved connector; sync remains due after dispatch failed', {
+        requestId,
         connectorId,
         error,
       })
@@ -1356,7 +1355,8 @@ export async function performDeleteKnowledgeConnector(
     })
   } catch (error) {
     if (['55P03', '57014', '40P01'].includes(getPostgresErrorCode(error) ?? '')) {
-      logger.warn(`[${requestId}] Connector removal could not acquire or finish its transaction`, {
+      logger.warn('Connector removal could not acquire or finish its transaction', {
+        requestId,
         connectorId,
         error,
       })
@@ -1382,7 +1382,8 @@ export async function performDeleteKnowledgeConnector(
       },
       params.userId
     ).catch((error) => {
-      logger.error(`[${requestId}] Failed to revoke the detached connector's credential access`, {
+      logger.error("Failed to revoke the detached connector's credential access", {
+        requestId,
         connectorId,
         error,
       })
@@ -1390,7 +1391,8 @@ export async function performDeleteKnowledgeConnector(
   }
 
   logger.info(
-    `[${requestId}] Deleted connector ${connectorId}${deleteDocuments ? ` and ${docCount} documents` : `, kept ${docCount} documents`}`
+    `Deleted connector ${connectorId}${deleteDocuments ? ` and ${docCount} documents` : `, kept ${docCount} documents`}`,
+    { requestId }
   )
 
   if (params.recordProductAnalytics !== false) {
@@ -1512,7 +1514,8 @@ export async function performSyncKnowledgeConnector(
     )
   }
   logger.info(
-    `[${requestId}] Manual sync${rehydrate ? ' (full rehydrate)' : ''} triggered for connector ${connectorId}`
+    `Manual sync${rehydrate ? ' (full rehydrate)' : ''} triggered for connector ${connectorId}`,
+    { requestId }
   )
 
   /**
@@ -1545,16 +1548,15 @@ export async function performSyncKnowledgeConnector(
      * with an audit and a product event behind it.
      */
     if (!dispatch.queued) {
-      logger.warn(
-        `[${requestId}] Manual sync for connector ${connectorId} was not queued: ${dispatch.reason}`
-      )
+      logger.warn(`Manual sync for connector ${connectorId} was not queued: ${dispatch.reason}`, {
+        requestId,
+      })
       return fail(dispatch.reason ?? 'Sync could not be queued', 'conflict')
     }
   } catch (error) {
-    logger.error(
-      `[${requestId}] Failed to dispatch manual sync for connector ${connectorId}`,
-      error
-    )
+    logger.error(`Failed to dispatch manual sync for connector ${connectorId}`, error, {
+      requestId,
+    })
     return classifyKnowledgeFailure(error, requestId, `Sync connector ${connectorId}`)
   }
 

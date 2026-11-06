@@ -121,7 +121,8 @@ export async function executeFirecrawlParse(
     context.signal?.throwIfAborted()
     const notReady = docNotReadyResponse(error)
     if (notReady) return notReady
-    logger.error(`[${context.requestId}] Firecrawl parse failed`, {
+    logger.error('Firecrawl parse failed', {
+      requestId: context.requestId,
       error: getErrorMessage(error),
     })
     return failureResponse(

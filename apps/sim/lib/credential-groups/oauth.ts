@@ -12,10 +12,12 @@ import {
   sameResourceScope,
 } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { resolveAccountWrite } from '@/lib/credential-groups/account-rules'
 import {
   type CredentialGroupOAuthContext,
   lockCredentialGroupEnrollmentLifecycle,
 } from '@/lib/credential-groups/enrollments'
+import { CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT } from '@/lib/credential-groups/limits'
 import type { CredentialGroupConnectionIntent } from '@/lib/credential-groups/oauth-intent'
 import {
   type CredentialGroupOAuthAttempt,
@@ -222,10 +224,11 @@ async function persistGrant(
       )
     }
 
-    const [existing] = await tx
+    const accounts = await tx
       .select({
         id: credential.id,
         revokedAt: credential.revokedAt,
+        managedOauthStatus: credential.managedOauthStatus,
         providerSubjectId: credential.providerSubjectId,
         providerTenantId: credential.providerTenantId,
         encryptedOauthTokenSet: credential.encryptedOauthTokenSet,
@@ -239,28 +242,12 @@ async function persistGrant(
           eq(credential.credentialGroupOptionId, context.option.id)
         )
       )
-      .limit(1)
-
-    if (
-      (connectionIntent?.kind === 'create' && existing && !existing.revokedAt) ||
-      (connectionIntent?.kind === 'reconnect' && existing?.id !== connectionIntent.credentialId)
-    ) {
-      throw new CredentialGroupOAuthError(
-        'The account changed during authorization. Refresh your connections and try again.',
-        409
-      )
-    }
-
-    if (
-      existing &&
-      (existing.providerSubjectId !== grant.providerSubjectId ||
-        existing.providerTenantId !== grant.providerTenantId)
-    ) {
-      throw new CredentialGroupOAuthError(
-        'Reconnect with the account originally used for this connection. Switching to a different account is not supported for this connection.',
-        409
-      )
-    }
+    const existing = resolveAccountWrite({
+      intent: connectionIntent,
+      limit: CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT,
+      accounts,
+      identity: { subject: grant.providerSubjectId, tenant: grant.providerTenantId },
+    })
 
     let refreshToken = grant.refreshToken
     if (!refreshToken && existing?.encryptedOauthTokenSet) {
@@ -409,7 +396,13 @@ export async function completeCredentialGroupOAuth(
     sha256Hex(attempt.invitationToken),
     attempt.connectionIntent
   )
-  if (attempt.connectionIntent && attempt.completionId && attempt.organizationId) {
+  /** Only Search cards and GitHub setup read a receipt; Integrations refreshes its inventory. */
+  if (
+    attempt.connectionIntent &&
+    attempt.completionId &&
+    attempt.organizationId &&
+    attempt.returnTo !== 'integrations'
+  ) {
     await recordSearchConnectionCompletion({
       organizationId: attempt.organizationId,
       userId: attempt.userId,

@@ -6,23 +6,17 @@ import {
   type RecordSearchHistoryBody,
   recordSearchHistoryContract,
 } from '@/lib/api/contracts/knowledge/search-history'
-import { useSession } from '@/lib/auth/client'
+import {
+  SEARCH_HISTORY_STALE_TIME,
+  searchHistoryKeys,
+} from '@/hooks/queries/utils/search-history-keys'
 
-export const SEARCH_HISTORY_STALE_TIME = 30_000
-export const searchHistoryKeys = {
-  all: ['search-history'] as const,
-  lists: () => [...searchHistoryKeys.all, 'list'] as const,
-  list: (organizationId: string | undefined, userId: string | undefined) =>
-    [...searchHistoryKeys.lists(), organizationId ?? '', userId ?? ''] as const,
-}
-
-export function useSearchHistory(organizationId: string | undefined) {
-  const { data: session } = useSession()
+export function useSearchHistory(organizationId: string | undefined, userId: string | undefined) {
   return useQuery({
-    queryKey: searchHistoryKeys.list(organizationId, session?.user?.id),
+    queryKey: searchHistoryKeys.list(organizationId, userId),
     queryFn: ({ signal }) =>
       requestJson(listSearchHistoryContract, { params: { id: organizationId! }, signal }),
-    enabled: Boolean(organizationId && session?.user?.id),
+    enabled: Boolean(organizationId && userId),
     staleTime: SEARCH_HISTORY_STALE_TIME,
   })
 }

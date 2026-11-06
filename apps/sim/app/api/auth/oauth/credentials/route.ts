@@ -7,7 +7,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { oauthCredentialsQuerySchema } from '@/lib/api/contracts/credentials'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { AuthType, type AuthTypeValue, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { canUseCredential, getCredentialActorContext } from '@/lib/credentials/access'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
@@ -84,8 +83,6 @@ async function integrationsWithheldFromSession(
  * Get credentials for a specific provider
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
   try {
     const { searchParams } = new URL(request.url)
     const rawQuery = {
@@ -100,11 +97,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!parseResult.success) {
       const refinementError = parseResult.error.issues.find((err) => err.code === 'custom')
       if (refinementError) {
-        logger.warn(`[${requestId}] Invalid query parameters: ${refinementError.message}`)
+        logger.warn(`Invalid query parameters: ${refinementError.message}`)
         return NextResponse.json({ error: refinementError.message }, { status: 400 })
       }
 
-      logger.warn(`[${requestId}] Invalid query parameters`, {
+      logger.warn('Invalid query parameters', {
         errors: parseResult.error.issues,
       })
 
@@ -119,7 +116,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     // Authenticate requester (supports session and internal JWT)
     const authResult = await checkSessionOrInternalAuth(request)
     if (!authResult.success || !authResult.userId) {
-      logger.warn(`[${requestId}] Unauthenticated credentials request rejected`)
+      logger.warn('Unauthenticated credentials request rejected')
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
     const requesterUserId = authResult.userId
@@ -132,7 +129,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         action: 'read',
       })
       if (!workflowAuthorization.allowed) {
-        logger.warn(`[${requestId}] Forbidden credentials request for workflow`, {
+        logger.warn('Forbidden credentials request for workflow', {
           requesterUserId,
           workflowId,
           status: workflowAuthorization.status,
@@ -378,7 +375,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ credentials: [] }, { status: 200 })
   } catch (error) {
-    logger.error(`[${requestId}] Error fetching OAuth credentials`, error)
+    logger.error('Error fetching OAuth credentials', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })

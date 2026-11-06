@@ -657,8 +657,7 @@
     "TS18048": 7
   },
   "apps/sim/blocks/blocks/google_drive.test.ts": {
-    "TS18048": 1,
-    "TS2554": 4
+    "TS18048": 1
   },
   "apps/sim/blocks/blocks/instagram.test.ts": {
     "TS18048": 1
@@ -1176,7 +1175,7 @@
     "TS2739": 1
   },
   "apps/sim/lib/credential-groups/oauth.test.ts": {
-    "TS2345": 10
+    "TS2345": 9
   },
   "apps/sim/lib/credential-groups/organization-account-options.test.ts": {
     "TS18048": 1

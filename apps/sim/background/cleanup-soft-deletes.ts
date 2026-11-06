@@ -168,7 +168,8 @@ async function reRootOne(
     await preferred()
     return
   } catch (error) {
-    logger.warn(`[${label}] Re-rooting ${subject} under its deduplicated name failed; retrying`, {
+    logger.warn(`Re-rooting ${subject} under its deduplicated name failed; retrying`, {
+      label,
       error,
     })
   }
@@ -176,7 +177,7 @@ async function reRootOne(
   try {
     await withUniqueName()
   } catch (error) {
-    logger.error(`[${label}] Could not re-root ${subject}; its folder delete may stall`, { error })
+    logger.error(`Could not re-root ${subject}; its folder delete may stall`, { label, error })
   }
 }
 
@@ -195,7 +196,7 @@ async function reRootActiveFolderChildren(
   try {
     await reRootActiveFolderChildrenUnguarded(folderIds, retentionDate, label)
   } catch (error) {
-    logger.error(`[${label}] Re-rooting children of purged folders failed`, { error })
+    logger.error('Re-rooting children of purged folders failed', { label, error })
   }
 }
 
@@ -300,7 +301,7 @@ async function reRootActiveFolderChildrenUnguarded(
   }
 
   if (workflows.length > 0) {
-    logger.warn(`[${label}] Re-rooted ${workflows.length} workflow(s) out of folders being purged`)
+    logger.warn(`Re-rooted ${workflows.length} workflow(s) out of folders being purged`, { label })
   }
 }
 
@@ -408,7 +409,7 @@ async function cleanupOrphanedKnowledgeBaseBindings(
         const failedKeys = new Set(result.failed.map(({ key }) => key))
         deletableKeys = keys.filter((key) => !failedKeys.has(key))
         for (const { key, error } of result.failed) {
-          logger.error(`[${label}] Failed to delete orphan KB object ${key}:`, { error })
+          logger.error(`Failed to delete orphan KB object ${key}:`, { label, error })
         }
       }
 
@@ -419,7 +420,7 @@ async function cleanupOrphanedKnowledgeBaseBindings(
           deletedThisBatch++
         } catch (error) {
           stats.failed++
-          logger.error(`[${label}] Failed to delete orphan KB binding ${key}:`, { error })
+          logger.error(`Failed to delete orphan KB binding ${key}:`, { label, error })
         }
       }
       stats.deleted += deletedThisBatch
@@ -431,7 +432,8 @@ async function cleanupOrphanedKnowledgeBaseBindings(
   }
 
   logger.info(
-    `[${label}/kb_orphan_bindings] Complete: ${stats.deleted}/${stats.total} bindings cleaned, ${stats.failed} failed`
+    `Complete: ${stats.deleted}/${stats.total} bindings cleaned, ${stats.failed} failed`,
+    { label: `${label}/kb_orphan_bindings` }
   )
   return stats
 }
@@ -445,13 +447,14 @@ export async function runCleanupSoftDeletes(
   const scope = resolveCleanupOwnerScope(payload)
   const fileOwners = fileRetentionOwners(payload)
   if (scope.ids.length === 0 && fileOwners.length === 0) {
-    logger.info(`[${label}] No resource owners to process`)
+    logger.info('No resource owners to process', { label })
     return
   }
 
   const retentionDate = new Date(Date.now() - retentionHours * 60 * 60 * 1000)
   logger.info(
-    `[${label}] Processing ${scope.ids.length} ${scope.kind} owners, cutoff: ${retentionDate.toISOString()}`
+    `Processing ${scope.ids.length} ${scope.kind} owners, cutoff: ${retentionDate.toISOString()}`,
+    { label }
   )
 
   // Select workflows + files + soft-deleted chats once. These sets drive BOTH
@@ -544,7 +547,7 @@ export async function runCleanupSoftDeletes(
       totalDeleted += deleted.length
     } catch (error) {
       if (budgets) throw error
-      logger.error(`[${label}/workflow] Archived workflow delete failed`, { error })
+      logger.error('Archived workflow delete failed', { label: `${label}/workflow`, error })
     }
   }
 
@@ -569,7 +572,7 @@ export async function runCleanupSoftDeletes(
       totalDeleted += deleted.length
     } catch (error) {
       if (budgets) throw error
-      logger.error(`[${label}/copilotChats] Soft-deleted chat delete failed`, { error })
+      logger.error('Soft-deleted chat delete failed', { label: `${label}/copilotChats`, error })
     }
   }
 
@@ -610,7 +613,8 @@ export async function runCleanupSoftDeletes(
   )
 
   logger.info(
-    `[${label}] Complete: ${totalDeleted} rows deleted, ${fileCleanup.filesDeleted} files cleaned, ${orphanBindingStats.deleted} orphan KB bindings cleaned`
+    `Complete: ${totalDeleted} rows deleted, ${fileCleanup.filesDeleted} files cleaned, ${orphanBindingStats.deleted} orphan KB bindings cleaned`,
+    { label }
   )
 
   // Clean up copilot backend + chat storage files after DB rows are gone
@@ -619,7 +623,7 @@ export async function runCleanupSoftDeletes(
   }
 
   const timeElapsed = (Date.now() - startTime) / 1000
-  logger.info(`[${label}] Job completed in ${timeElapsed.toFixed(2)}s`)
+  logger.info(`Job completed in ${timeElapsed.toFixed(2)}s`, { label })
 }
 
 export const cleanupSoftDeletesTask = task({

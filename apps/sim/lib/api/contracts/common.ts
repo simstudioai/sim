@@ -13,7 +13,6 @@ export const helpFormBodySchema = z.object({
   message: z.string().min(1, 'Message is required'),
   type: z.enum(['bug', 'feedback', 'feature_request', 'other']),
 })
-export type HelpFormBody = z.input<typeof helpFormBodySchema>
 
 export const integrationRequestBodySchema = z.object({
   integrationName: z

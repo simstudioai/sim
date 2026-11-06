@@ -6,13 +6,14 @@ integration:
   color: "#D6D3C7"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Linkup](https://linkup.so) to search the web from a workflow or an agent's tool set. Choose the supported search depth and output type for your query; results can include source URLs for downstream citation.
 
 Supply your Linkup API key and query in the block. When using it as an agent tool, the agent decides when to call it based on its instructions.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -23,6 +24,8 @@ Search the web with a Linkup API key, query, supported search depth, and output 
 ### Linkup Search
 
 Search the web for information using Linkup
+
+<ReferenceDetails>
 
 #### Input
 
@@ -46,5 +49,7 @@ Search the web for information using Linkup
 | --------- | ---- | ----------- |
 | `answer` | string | The sourced answer to the search query |
 | `sources` | array | Array of sources used to compile the answer, each containing name, url, and snippet |
+
+</ReferenceDetails>
 
 

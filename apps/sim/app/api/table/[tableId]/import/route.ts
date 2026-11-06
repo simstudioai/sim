@@ -105,7 +105,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
 
     if (table.workspaceId !== workspaceId) {
       logger.warn(
-        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${workspaceId}, Actual: ${table.workspaceId}`
+        `Workspace ID mismatch for table ${tableId}. Provided: ${workspaceId}, Actual: ${table.workspaceId}`
       )
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
@@ -195,7 +195,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   } catch (error) {
     if (isMultipartError(error)) return multipartErrorResponse(error)
 
-    logger.error(`[${requestId}] CSV import into existing table failed:`, error)
+    logger.error('CSV import into existing table failed:', error)
     return NextResponse.json({ error: 'Failed to import CSV' }, { status: 500 })
   } finally {
     fileStream?.destroy()

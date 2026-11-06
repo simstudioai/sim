@@ -261,8 +261,9 @@ async function processTriggerFileOutputs(
         processed[key] = processedFile
       } catch (error) {
         logger.error(
-          `[${context.requestId}] Error processing ${currentPath}`,
-          context.projectDiagnosticError(error, { path: currentPath })
+          `Error processing ${currentPath}`,
+          context.projectDiagnosticError(error, { path: currentPath }),
+          { requestId: context.requestId }
         )
         processed[key] = value
       }
@@ -409,33 +410,29 @@ async function requeueWebhookExecutionAfterSetupFailure(
       },
     })
 
-    logger.warn(
-      `[${correlation.requestId}] Requeued webhook execution after retryable setup failure`,
-      {
-        workflowId: payload.workflowId,
-        webhookId: payload.webhookId,
-        executionId: correlation.executionId,
-        provider: payload.provider,
-        retryAttempt,
-        maxAttempts: WEBHOOK_INFRA_RETRY_MAX_ATTEMPTS,
-        delayMs,
-        jobId,
-        error: error.message,
-        cause: error.cause,
-      }
-    )
+    logger.warn('Requeued webhook execution after retryable setup failure', {
+      requestId: correlation.requestId,
+      workflowId: payload.workflowId,
+      webhookId: payload.webhookId,
+      executionId: correlation.executionId,
+      provider: payload.provider,
+      retryAttempt,
+      maxAttempts: WEBHOOK_INFRA_RETRY_MAX_ATTEMPTS,
+      delayMs,
+      jobId,
+      error: error.message,
+      cause: error.cause,
+    })
     return true
   } catch (enqueueError) {
-    logger.error(
-      `[${correlation.requestId}] Failed to requeue webhook execution after setup failure`,
-      {
-        workflowId: payload.workflowId,
-        webhookId: payload.webhookId,
-        executionId: correlation.executionId,
-        retryAttempt,
-        error: enqueueError,
-      }
-    )
+    logger.error('Failed to requeue webhook execution after setup failure', {
+      requestId: correlation.requestId,
+      workflowId: payload.workflowId,
+      webhookId: payload.webhookId,
+      executionId: correlation.executionId,
+      retryAttempt,
+      error: enqueueError,
+    })
     return false
   }
 }
@@ -475,7 +472,8 @@ async function recordSetupFailureWithoutRequeue(
       skipCost: true,
     })
   } catch (loggingError) {
-    logger.error(`[${correlation.requestId}] Failed to record terminal webhook setup failure`, {
+    logger.error('Failed to record terminal webhook setup failure', {
+      requestId: correlation.requestId,
       workflowId: payload.workflowId,
       executionId: correlation.executionId,
       error: loggingError,
@@ -568,7 +566,8 @@ export async function executeWebhookJob(
       client: { surface: 'webhook', source: 'trigger' },
     }
     return await runWithRequestContext(requestContext, async () => {
-      logger.info(`[${requestId}] Starting webhook execution`, {
+      logger.info('Starting webhook execution', {
+        requestId,
         webhookId: authenticatedPayload.webhookId,
         workflowId: authenticatedPayload.workflowId,
         provider: authenticatedPayload.provider,
@@ -612,7 +611,8 @@ export async function executeWebhookJob(
       if (execution.outcome === 'in-progress') {
         // Ingress already acknowledged this delivery and nothing reads this job's result,
         // so waiting on the live holder would only pin the machine and queue slot.
-        logger.info(`[${requestId}] Skipping duplicate webhook delivery already in progress`, {
+        logger.info('Skipping duplicate webhook delivery already in progress', {
+          requestId,
           webhookId: authenticatedPayload.webhookId,
           workflowId: authenticatedPayload.workflowId,
           provider: authenticatedPayload.provider,
@@ -775,7 +775,8 @@ async function handleExecutionResult(
     ctx.timeoutController.timeoutMs
   ) {
     const timeoutErrorMessage = getTimeoutErrorMessage(ctx.timeoutController.timeoutMs)
-    logger.info(`[${ctx.requestId}] Webhook execution timed out`, {
+    logger.info('Webhook execution timed out', {
+      requestId: ctx.requestId,
       timeoutMs: ctx.timeoutController.timeoutMs,
     })
     await ctx.loggingSession.markAsFailed(timeoutErrorMessage)
@@ -844,7 +845,8 @@ async function executeWebhookJobInternal(
      * condition, not a job fault: acknowledge and skip so workers do not
      * record a failed job (or burn retries) for work that must never run.
      */
-    logger.info(`[${requestId}] Skipping webhook execution for undeployed workflow`, {
+    logger.info('Skipping webhook execution for undeployed workflow', {
+      requestId,
       workflowId: payload.workflowId,
       archived: Boolean(workflowRecord.archivedAt),
     })
@@ -903,9 +905,9 @@ async function executeWebhookJobInternal(
       const credentialAccountUserId =
         credentialAccount?.status === 'resolved' ? credentialAccount.userId : undefined
       if (credentialAccount?.status === 'missing') {
-        logger.warn(
-          `[${requestId}] Failed to resolve credential account for credential ${payload.credentialId}`
-        )
+        logger.warn(`Failed to resolve credential account for credential ${payload.credentialId}`, {
+          requestId,
+        })
       }
 
       if (!workflowData) {
@@ -967,8 +969,9 @@ async function executeWebhookJobInternal(
               })
             } catch (error) {
               logger.warn(
-                `[${requestId}] Failed to build webhook trace secret catalog`,
-                loggingSession.projectDiagnosticError(error)
+                'Failed to build webhook trace secret catalog',
+                loggingSession.projectDiagnosticError(error),
+                { requestId }
               )
               resolvedSecretTraceRegistry = createIncompleteResolvedSecretTraceRegistry(secretScope)
             }
@@ -1074,8 +1077,9 @@ async function executeWebhookJobInternal(
           }
         } catch (error) {
           logger.error(
-            `[${requestId}] Error processing trigger file outputs`,
-            loggingSession.projectDiagnosticError(error)
+            'Error processing trigger file outputs',
+            loggingSession.projectDiagnosticError(error),
+            { requestId }
           )
         }
       }
@@ -1094,13 +1098,14 @@ async function executeWebhookJobInternal(
           })
         } catch (error) {
           logger.error(
-            `[${requestId}] Error processing provider-specific files`,
-            loggingSession.projectDiagnosticError(error)
+            'Error processing provider-specific files',
+            loggingSession.projectDiagnosticError(error),
+            { requestId }
           )
         }
       }
 
-      logger.info(`[${requestId}] Executing workflow for ${payload.provider} webhook`)
+      logger.debug(`Executing workflow for ${payload.provider} webhook`, { requestId })
 
       const metadata: ExecutionMetadata = {
         requestId,
@@ -1138,7 +1143,8 @@ async function executeWebhookJobInternal(
        */
       if (payload.webhookReceivedAt !== undefined || payload.triggerTimestampMs !== undefined) {
         const now = Date.now()
-        logger.info(`[${requestId}] Webhook dispatch latency`, {
+        logger.info('Webhook dispatch latency', {
+          requestId,
           workflowId: payload.workflowId,
           provider: payload.provider,
           dispatchLatencyMs:
@@ -1231,7 +1237,8 @@ async function executeWebhookJobInternal(
         workflowId: payload.workflowId,
       })
 
-      logger.info(`[${requestId}] Webhook execution completed`, {
+      logger.info('Webhook execution completed', {
+        requestId,
         success: executionResult.success,
         workflowId: payload.workflowId,
         provider: payload.provider,
@@ -1264,7 +1271,8 @@ async function executeWebhookJobInternal(
         ? describeRetryableInfrastructureError(error)
         : undefined
     if (retryableSetupCause && hasRemainingWebhookInfraRetry(payload)) {
-      logger.warn(`[${requestId}] Retryable setup failure before webhook workflow started`, {
+      logger.warn('Retryable setup failure before webhook workflow started', {
+        requestId,
         workflowId: payload.workflowId,
         provider: payload.provider,
         cause: retryableSetupCause,
@@ -1272,12 +1280,14 @@ async function executeWebhookJobInternal(
       throw new RetryableSetupError(errorMessage, { cause: retryableSetupCause })
     }
 
-    logFailureOnce(logger, `[${requestId}] Webhook execution failed`, error, {
-      metadata: () =>
-        loggingSession.projectDiagnosticError(error, {
+    logFailureOnce(logger, 'Webhook execution failed', error, {
+      metadata: () => ({
+        requestId,
+        ...loggingSession.projectDiagnosticError(error, {
           workflowId: payload.workflowId,
           provider: payload.provider,
         }),
+      }),
       executionId,
     })
 
@@ -1290,7 +1300,8 @@ async function executeWebhookJobInternal(
       provider: payload.provider,
     })
     const completeWithDeletedScope = (scope: ExecutionScope) => {
-      logger.info(`[${requestId}] Webhook execution ended: its ${scope} was deleted`, {
+      logger.info(`Webhook execution ended: its ${scope} was deleted`, {
+        requestId,
         workflowId: payload.workflowId,
         executionId,
       })
@@ -1343,8 +1354,9 @@ async function executeWebhookJobInternal(
       })
     } catch (loggingError) {
       logger.error(
-        `[${requestId}] Failed to complete logging session`,
-        loggingSession.projectDiagnosticError(loggingError)
+        'Failed to complete logging session',
+        loggingSession.projectDiagnosticError(loggingError),
+        { requestId }
       )
     }
 

@@ -333,6 +333,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Trigger workflow on any Granola note event
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -352,13 +354,14 @@ Trigger workflow on any Granola note event
 | `changed_fields` | json | Note fields that changed. Present on note.edited events \(currently always \["summary"\]\); null otherwise. |
 | `payload` | json | Full raw webhook body as delivered by Granola. |
 
-
----
+</ReferenceDetails>
 
 ### Granola Note Access Granted
 
 Trigger workflow when a Granola note is shared with you, directly or via a folder
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -378,13 +381,14 @@ Trigger workflow when a Granola note is shared with you, directly or via a folde
 | `changed_fields` | json | Note fields that changed. Present on note.edited events \(currently always \["summary"\]\); null otherwise. |
 | `payload` | json | Full raw webhook body as delivered by Granola. |
 
-
----
+</ReferenceDetails>
 
 ### Granola Note Edited
 
 Trigger workflow when a Granola note summary is edited or regenerated
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -404,13 +408,14 @@ Trigger workflow when a Granola note summary is edited or regenerated
 | `changed_fields` | json | Note fields that changed. Present on note.edited events \(currently always \["summary"\]\); null otherwise. |
 | `payload` | json | Full raw webhook body as delivered by Granola. |
 
-
----
+</ReferenceDetails>
 
 ### Granola Note Generated
 
 Trigger workflow when the first AI summary for a Granola note is generated
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -429,4 +434,6 @@ Trigger workflow when the first AI summary for a Granola note is generated
 | `occurred_at` | string | ISO 8601 timestamp of when the event occurred. |
 | `changed_fields` | json | Note fields that changed. Present on note.edited events \(currently always \["summary"\]\); null otherwise. |
 | `payload` | json | Full raw webhook body as delivered by Granola. |
+
+</ReferenceDetails>
 

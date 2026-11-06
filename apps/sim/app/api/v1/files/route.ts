@@ -4,7 +4,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1ListFilesContract, v1UploadFileFormFieldsSchema } from '@/lib/api/contracts/v1/files'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
-import { generateRequestId } from '@/lib/core/utils/request'
 import {
   isMultipartFieldValidationError,
   isPayloadSizeLimitError,
@@ -37,8 +36,6 @@ const MAX_FILE_SIZE = 100 * 1024 * 1024
 
 /** GET /api/v1/files — List all files in a workspace. */
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
   try {
     const rateLimit = await checkRateLimit(request, 'files')
     if (!rateLimit.allowed) {
@@ -80,15 +77,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    logger.error(`[${requestId}] Error listing files:`, error)
+    logger.error('Error listing files:', error)
     return NextResponse.json({ error: 'Failed to list files' }, { status: 500 })
   }
 })
 
 /** POST /api/v1/files — Upload a file to a workspace. */
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
   try {
     const rateLimit = await checkRateLimit(request, 'files')
     if (!rateLimit.allowed) {
@@ -169,7 +164,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       { secretProvenance: EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE }
     )
 
-    logger.info(`[${requestId}] Uploaded file: ${file.name} to workspace ${workspaceId}`)
+    logger.info(`Uploaded file: ${file.name} to workspace ${workspaceId}`)
 
     recordAudit({
       workspaceId,
@@ -219,7 +214,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: errorMessage }, { status: 409 })
     }
 
-    logger.error(`[${requestId}] Error uploading file:`, error)
+    logger.error('Error uploading file:', error)
     return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 })
   }
 })

@@ -6,13 +6,14 @@ integration:
   color: "#FFFFFF"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Wealthbox](https://www.wealthbox.com/) to read and write client notes, contacts, and tasks. A workflow can turn meeting output into a note, retrieve client context, or create follow-up work.
 
 Connect with OAuth or a supported [API access token](/integrations/wealthbox-service-account). Each credential uses the connected Wealthbox user's permissions. Contact writes create new contacts; note and task writes also support updates.
 {/* MANUAL-CONTENT-END */}
-
 
 Connection guides: [API access tokens](/integrations/wealthbox-service-account).
 
@@ -40,6 +41,8 @@ Read or write Wealthbox notes, contacts, and tasks with OAuth or a supported API
 
 Read content from a Wealthbox note
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -59,9 +62,13 @@ Read content from a Wealthbox note
 |     ↳ `noteId` | string | ID of the note |
 |     ↳ `itemType` | string | Type of item \(note\) |
 
+</ReferenceDetails>
+
 ### Write Wealthbox Note
 
 Create or update a Wealthbox note
+
+<ReferenceDetails>
 
 #### Input
 
@@ -83,9 +90,13 @@ Create or update a Wealthbox note
 |     ↳ `noteId` | string | ID of the created/updated note |
 |     ↳ `itemType` | string | Type of item \(note\) |
 
+</ReferenceDetails>
+
 ### Read Wealthbox Contact
 
 Read content from a Wealthbox contact
+
+<ReferenceDetails>
 
 #### Input
 
@@ -106,9 +117,13 @@ Read content from a Wealthbox contact
 |     ↳ `contactId` | string | ID of the contact |
 |     ↳ `itemType` | string | Type of item \(contact\) |
 
+</ReferenceDetails>
+
 ### Write Wealthbox Contact
 
 Create a new Wealthbox contact
+
+<ReferenceDetails>
 
 #### Input
 
@@ -132,9 +147,13 @@ Create a new Wealthbox contact
 |     ↳ `contactId` | string | ID of the created/updated contact |
 |     ↳ `itemType` | string | Type of item \(contact\) |
 
+</ReferenceDetails>
+
 ### Read Wealthbox Task
 
 Read content from a Wealthbox task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -155,9 +174,13 @@ Read content from a Wealthbox task
 |     ↳ `taskId` | string | ID of the task |
 |     ↳ `itemType` | string | Type of item \(task\) |
 
+</ReferenceDetails>
+
 ### Write Wealthbox Task
 
 Create or update a Wealthbox task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -180,5 +203,7 @@ Create or update a Wealthbox task
 |     ↳ `itemId` | string | ID of the created/updated task |
 |     ↳ `taskId` | string | ID of the created/updated task |
 |     ↳ `itemType` | string | Type of item \(task\) |
+
+</ReferenceDetails>
 
 

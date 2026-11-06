@@ -28,6 +28,7 @@ const NON_LANDING_LIGHT_SEGMENTS = [
   'unsubscribe',
   'cli',
   'credential-groups',
+  'marketplace',
 ] as const
 
 /**

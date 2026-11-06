@@ -47,7 +47,7 @@ export const otterHandler: WebhookProviderHandler = {
     const { isOtterEventMatch } = await import('@/triggers/otter/utils')
     const { event } = readWebhookMeta(body)
     if (!isOtterEventMatch(triggerId, event)) {
-      logger.debug(`[${requestId}] Otter event mismatch for trigger ${triggerId}: ${event}`)
+      logger.debug(`Otter event mismatch for trigger ${triggerId}: ${event}`, { requestId })
       return false
     }
     return true

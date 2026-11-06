@@ -44,6 +44,12 @@ Select a model beginning with `nebius/` to run an open model through Nebius Toke
 
 Bring your own Nebius Token Factory API key. On Sim Cloud, a workspace admin can add it under **Workspace settings → BYOK → Nebius**. On self-hosted Sim, provide the key in the Agent block's **API Key** field, using a [secret reference](/platform/credentials). Model features such as image input and structured outputs depend on the selected model.
 
+#### Thinking Machines
+
+Select a model beginning with `thinkingmachines/` to run Inkling, Inkling-Small, or Inkling 2 Small through Tinker serverless inference. To sample a checkpoint you trained on Tinker, enter `thinkingmachines/` followed by its `tinker://` path. Custom checkpoints have no catalog pricing.
+
+Bring your own Thinking Machines Tinker API key. On Sim Cloud, a workspace admin can add it under **Workspace settings → BYOK → Thinking Machines**. On self-hosted Sim, provide the key in the Agent block's **API Key** field, using a [secret reference](/platform/credentials). Tinker's serverless inference is in beta: file attachments are not sent, tools run with automatic tool choice only, and structured outputs are requested through the prompt.
+
 #### Jev evaluation models
 
 Select `jev-latest` from TypeSafe in the Agent model selector. Hosted Sim supplies a key and bills model usage through the normal credit system; workspace or organization BYOK keys override the hosted key without model charges. Self-hosted users enter their TypeSafe key in the block. Use `jev-1.13.0` to pin a version or `jev-preview` to follow preview releases. These models use **State** and **Questions** in place of conversational messages. State accepts text or a reference to a JSON object or array. Questions is a JSON object keyed by the answer names you want:

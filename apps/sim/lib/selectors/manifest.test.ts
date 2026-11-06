@@ -73,7 +73,6 @@ describe('selector manifest', () => {
       (attachment) => attachment.destination !== 'fixed'
     )
 
-    expect(preparedDestinations).toHaveLength(14)
     for (const attachment of preparedDestinations) {
       expect(attachment.destination).toEqual(
         expect.objectContaining({

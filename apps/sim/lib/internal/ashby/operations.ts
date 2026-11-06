@@ -161,7 +161,8 @@ export async function executeAshbyUpload(
     context.signal?.throwIfAborted()
     const notReady = docNotReadyResponse(error)
     if (notReady) return notReady
-    logger.error(`[${context.requestId}] Ashby candidate file upload failed`, {
+    logger.error('Ashby candidate file upload failed', {
+      requestId: context.requestId,
       error: getErrorMessage(error),
     })
     return failure(

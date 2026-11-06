@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-28",
+  "updatedAt": "2026-11-06",
   "integrations": [
     {
       "type": "onepassword",
@@ -9445,16 +9445,20 @@
         {
           "name": "Credit Usage",
           "description": "Retrieve the remaining and allocated Firecrawl credits for the team."
+        },
+        {
+          "name": "Enrich Contact or Company",
+          "description": "Find work emails, phone numbers, LinkedIn profiles, company domains, and company information through Firecrawl Alexandria. Uses FullEnrich for contact lookups and People Data Labs for company, name-based profile, and single-part-name contact lookups. Provider terms must be enabled in Firecrawl. People Data Labs has a 50,000-record annual team limit."
         }
       ],
-      "operationCount": 13,
+      "operationCount": 14,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "search",
       "tags": ["web-scraping", "automation"],
-      "updatedAt": "2026-10-20"
+      "updatedAt": "2026-11-05"
     },
     {
       "type": "fireflies_v2",
@@ -9793,6 +9797,118 @@
       "updatedAt": "2026-08-18"
     },
     {
+      "type": "flow",
+      "slug": "flow-engineering",
+      "name": "Flow Engineering",
+      "description": "Manage engineering requirements and traceability",
+      "longDescription": "Read and update Flow Engineering projects, requirements, tests, and other entities through its customer API. Search current project data, inspect categories and relationships, manage comments, and make controlled changes on a working branch using your connected account permissions.",
+      "bgColor": "#2448C7",
+      "iconName": "ApiIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/flow",
+      "operations": [
+        {
+          "name": "List Projects",
+          "description": "List projects accessible to the connected Flow user. The API returns up to the requested limit without a continuation cursor."
+        },
+        {
+          "name": "Get Project",
+          "description": "Read a Flow project by its UUID."
+        },
+        {
+          "name": "Get Data Model",
+          "description": "Read the project categories and field definitions before interpreting values or writing custom fields."
+        },
+        {
+          "name": "List Branches",
+          "description": "List the Flow project branches and their review and protection state."
+        },
+        {
+          "name": "Create Branch",
+          "description": "Create a working branch before modifying requirements, tests, or other project entities."
+        },
+        {
+          "name": "Search Entities",
+          "description": "Search live Flow entities by name, supported field values, or exact Flow/Human ID. Returns at most 100 compact matches; fetch entities for full values. Text results may be unavailable while the provider index warms."
+        },
+        {
+          "name": "List Entities",
+          "description": "Read one page of live Flow entities. Continue with nextPageStart while moreAvailable is true, including after an empty page."
+        },
+        {
+          "name": "Get Entities",
+          "description": "Read the full values, relationships, and timestamps of up to 100 Flow entities in one project and branch."
+        },
+        {
+          "name": "Create Entity",
+          "description": "Create an entity in a category on the selected branch. Branch protection and the connected user permissions remain enforced."
+        },
+        {
+          "name": "Create Entities",
+          "description": "Create 1\\u2013100 entities atomically on a single branch. A timed-out request may already have committed; inspect the branch before retrying."
+        },
+        {
+          "name": "Set Value",
+          "description": "Set one field on a Flow entity using a key from the data model and a JSON value of the documented field type."
+        },
+        {
+          "name": "Set Values",
+          "description": "Set 1\\u2013100 field values atomically on one branch. Returns each affected entity once in first-touched order."
+        },
+        {
+          "name": "Delete Entity",
+          "description": "Delete an entity on the selected branch. Branch protection is enforced."
+        },
+        {
+          "name": "Restore Entity",
+          "description": "Restore a deleted entity with its prior fields and links. Restoring a child does not restore its deleted parent."
+        },
+        {
+          "name": "Add Link",
+          "description": "Add a downstream relationship between Flow entities on the selected branch."
+        },
+        {
+          "name": "Remove Link",
+          "description": "Remove a downstream relationship between Flow entities on the selected branch."
+        },
+        {
+          "name": "List Comments",
+          "description": "Read direct comment threads for an entity or direct replies to the original comment ID. Keep the same branch when following replies."
+        },
+        {
+          "name": "Get Comment",
+          "description": "Read a comment using its ID and its returned entity_id as the parent path."
+        },
+        {
+          "name": "Create Comment",
+          "description": "Start a thread on an entity or reply using the original comment ID as entityId. Set the branch explicitly; replies do not inherit it."
+        },
+        {
+          "name": "Update Comment",
+          "description": "Edit comment text or resolve/reopen its thread. Use the original comment to change the thread status."
+        },
+        {
+          "name": "Delete Comment",
+          "description": "Delete a comment authored by the connected user."
+        },
+        {
+          "name": "Filter Entities",
+          "description": "Read one page of IDs matching typed field conditions and AND/OR groups. Continue until nextCursor is null, including after empty pages; results reflect current state."
+        },
+        {
+          "name": "Get Entity History",
+          "description": "Read a page of change history for up to 500 entities. Keep project, branch, and entity IDs fixed while paging; restart if a rebase expires the cursor."
+        }
+      ],
+      "operationCount": 23,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["project-management", "automation", "version-control"],
+      "updatedAt": "2026-11-05"
+    },
+    {
       "type": "gamma",
       "slug": "gamma",
       "name": "Gamma",
@@ -9831,6 +9947,134 @@
       "integrationType": "marketing",
       "tags": ["document-processing", "content-management"],
       "updatedAt": "2026-10-14"
+    },
+    {
+      "type": "gauge",
+      "slug": "gauge",
+      "name": "Gauge",
+      "description": "Track AI visibility and manage Gauge prompts",
+      "longDescription": "Manage organizations, categories, topics, tracked prompts, and tags; inspect brands, AI answers, citations, and search queries; and run visibility, share-of-voice, and AI-traffic reports with the Gauge Chat API.",
+      "bgColor": "#E8FF3F",
+      "iconName": "GaugeIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/gauge",
+      "operations": [
+        {
+          "name": "Get Current Credential",
+          "description": "Read the identity, permissions, and expiry of the connected Gauge API key."
+        },
+        {
+          "name": "List Organizations",
+          "description": "List organizations and agency clients accessible to the connected API key."
+        },
+        {
+          "name": "Get Organization",
+          "description": "Read an organization and its enabled Gauge products."
+        },
+        {
+          "name": "List Categories",
+          "description": "List the AI-search categories configured for an organization."
+        },
+        {
+          "name": "Get Category",
+          "description": "Read the details of an AI-search category."
+        },
+        {
+          "name": "List Topics",
+          "description": "List one page of tracked-prompt topics in a category."
+        },
+        {
+          "name": "Create Topic",
+          "description": "Create a topic to organize tracked prompts."
+        },
+        {
+          "name": "Get Topic",
+          "description": "Read a topic and its tracked-prompt count."
+        },
+        {
+          "name": "Rename Topic",
+          "description": "Change the title of an existing topic."
+        },
+        {
+          "name": "List Prompts",
+          "description": "List one page of tracked prompts with optional topic, tag, and tracking-type filters."
+        },
+        {
+          "name": "Create Prompts",
+          "description": "Add a batch of tracked questions or preview the import without creating prompts."
+        },
+        {
+          "name": "Bulk Update Prompts",
+          "description": "Change the topic or tracking type of up to 500 tracked prompts."
+        },
+        {
+          "name": "Add Tags to Prompts",
+          "description": "Apply a set of tags to the selected tracked prompts."
+        },
+        {
+          "name": "Remove Tags from Prompts",
+          "description": "Remove a set of tags from the selected tracked prompts."
+        },
+        {
+          "name": "Get Prompt",
+          "description": "Read a tracked question and its topic, tags, and sampling information."
+        },
+        {
+          "name": "Update Prompt",
+          "description": "Move a prompt to another topic or change its tracking type. Prompt text is immutable: create a new prompt instead."
+        },
+        {
+          "name": "List Tags",
+          "description": "List the tags available to organize prompts in an organization."
+        },
+        {
+          "name": "Create Tag",
+          "description": "Create an organization-wide prompt tag."
+        },
+        {
+          "name": "Get Tag",
+          "description": "Read a prompt tag and its usage count."
+        },
+        {
+          "name": "Update Tag",
+          "description": "Change the name or color of a prompt tag."
+        },
+        {
+          "name": "Delete Tag",
+          "description": "Delete a prompt tag and remove its associations with prompts."
+        },
+        {
+          "name": "List Brands",
+          "description": "Your owned brands and the category's tracked competitors. Together these are the share-of-voice denominator."
+        },
+        {
+          "name": "Get Query Catalog",
+          "description": "Discover available report datasets, metrics, dimensions, filters, and values."
+        },
+        {
+          "name": "Run Report Query",
+          "description": "Run a report on AI answers, citations, search queries, or AI bot traffic using metrics from the query catalog."
+        },
+        {
+          "name": "List Answers",
+          "description": "List one page of collected AI answers using date, model, prompt, and brand filters."
+        },
+        {
+          "name": "Get Answer",
+          "description": "Read an AI answer with its prompt, brand mentions, source citations, and searches."
+        },
+        {
+          "name": "List Citations",
+          "description": "List one page of sources cited by AI answers in a category."
+        }
+      ],
+      "operationCount": 27,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "marketing",
+      "tags": ["marketing", "seo", "data-analytics", "automation"],
+      "updatedAt": "2026-11-06"
     },
     {
       "type": "github_v2",
@@ -14195,6 +14439,187 @@
       "integrationType": "support",
       "tags": ["customer-support", "messaging"],
       "updatedAt": "2026-10-14"
+    },
+    {
+      "type": "jama",
+      "slug": "jama-connect",
+      "name": "Jama Connect",
+      "description": "Manage requirements, traceability, and verification in Jama Connect",
+      "longDescription": "Search and manage requirements, inspect custom item types and pick lists, trace upstream and downstream relationships, collaborate with comments, compare item versions and baselines, and read test plans, cycles, and runs or update execution results. Connect with saved Jama API client credentials that retain the account owner’s permissions.",
+      "bgColor": "#E25100",
+      "iconName": "ApiIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/jama",
+      "operations": [
+        {
+          "name": "List Projects",
+          "description": "List Projects in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "Get Project",
+          "description": "Get Project in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Item Types",
+          "description": "List Item Types in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "Get Item Type",
+          "description": "Get Item Type in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Items",
+          "description": "List Items in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "Search Items",
+          "description": "Search Items in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "Get Item",
+          "description": "Get Item in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "Create Item",
+          "description": "Create Item in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "Update Item",
+          "description": "Update Item in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "Delete Item",
+          "description": "Delete Item in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Item Children",
+          "description": "List Item Children in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Upstream Items",
+          "description": "List Upstream Items in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Downstream Items",
+          "description": "List Downstream Items in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Relationships",
+          "description": "List Relationships in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "Get Relationship",
+          "description": "Get Relationship in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "Create Relationship",
+          "description": "Create Relationship in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "Delete Relationship",
+          "description": "Delete Relationship in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Relationship Types",
+          "description": "List Relationship Types in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Item Comments",
+          "description": "List Item Comments in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "Create Comment",
+          "description": "Create Comment in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Item Versions",
+          "description": "List Item Versions in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "Get Item Version",
+          "description": "Get Item Version in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Filters",
+          "description": "List Filters in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "Get Filter",
+          "description": "Get Filter in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Filter Results",
+          "description": "List Filter Results in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Baselines",
+          "description": "List Baselines in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "Get Baseline",
+          "description": "Get Baseline in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Baseline Items",
+          "description": "List Baseline Items in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Test Plans",
+          "description": "List Test Plans in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "Get Test Plan",
+          "description": "Get Test Plan in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Test Cycles",
+          "description": "List Test Cycles in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "Get Test Cycle",
+          "description": "Get Test Cycle in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Test Runs",
+          "description": "List Test Runs in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "Get Test Run",
+          "description": "Get Test Run in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "Update Test Run",
+          "description": "Update Test Run in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Releases",
+          "description": "List Releases in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Tags",
+          "description": "List Tags in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Pick Lists",
+          "description": "List Pick Lists in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "List Pick List Options",
+          "description": "List Pick List Options in Jama Connect using the connected user's access permissions."
+        },
+        {
+          "name": "Get Current User",
+          "description": "Get Current User in Jama Connect using the connected user's access permissions."
+        }
+      ],
+      "operationCount": 40,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "jama",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["project-management", "knowledge-base"],
+      "updatedAt": "2026-11-05"
     },
     {
       "type": "jina",

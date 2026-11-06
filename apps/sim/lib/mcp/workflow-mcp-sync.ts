@@ -276,7 +276,8 @@ async function restoreArchivedMcpToolsForWorkflow(
     MAX_MCP_SERVERS_PER_WORKFLOW - (await countWorkflowLiveMcpServers(tx, workflowId))
   if (preLockServerBudget <= 0) {
     logger.warn(
-      `[${requestId}] Skipped restoring archived MCP tools for workflow ${workflowId}: it is already exposed on the maximum of ${MAX_MCP_SERVERS_PER_WORKFLOW} MCP servers`
+      `Skipped restoring archived MCP tools for workflow ${workflowId}: it is already exposed on the maximum of ${MAX_MCP_SERVERS_PER_WORKFLOW} MCP servers`,
+      { requestId }
     )
     return
   }
@@ -358,7 +359,8 @@ async function restoreArchivedMcpToolsForWorkflow(
     const skipReason = await getRestoreSkipReason(tx, workflowId, candidate, remainingServerBudget)
     if (skipReason) {
       logger.warn(
-        `[${requestId}] Skipped restoring archived MCP tool "${candidate.toolName}" for workflow ${workflowId} on server ${candidate.serverId}: ${skipReason}`
+        `Skipped restoring archived MCP tool "${candidate.toolName}" for workflow ${workflowId} on server ${candidate.serverId}: ${skipReason}`,
+        { requestId }
       )
       continue
     }
@@ -372,9 +374,9 @@ async function restoreArchivedMcpToolsForWorkflow(
     .set({ archivedAt: null })
     .where(inArray(workflowMcpTool.id, restorableIds))
 
-  logger.info(
-    `[${requestId}] Restored ${restorableIds.length} archived MCP tool(s) for workflow: ${workflowId}`
-  )
+  logger.info(`Restored ${restorableIds.length} archived MCP tool(s) for workflow: ${workflowId}`, {
+    requestId,
+  })
 }
 
 /**
@@ -458,8 +460,9 @@ export async function syncMcpToolsForWorkflow(
         state = await loadDeployedWorkflowState(options.workflowId)
       } catch (error) {
         logger.error(
-          `[${options.requestId}] Error loading deployed state for MCP tool sync (${options.context ?? 'sync'}):`,
-          error
+          `Error loading deployed state for MCP tool sync (${options.context ?? 'sync'}):`,
+          error,
+          { requestId: options.requestId }
         )
         if (options.throwOnError) throw error
         return []
@@ -577,13 +580,13 @@ export async function syncMcpToolsForWorkflow(
       afterToolId = pageTools.at(-1)?.id
     }
 
-    logger.info(
-      `[${requestId}] Synced ${syncedToolCount} MCP tool(s) for workflow (${context}): ${workflowId}`
-    )
+    logger.info(`Synced ${syncedToolCount} MCP tool(s) for workflow (${context}): ${workflowId}`, {
+      requestId,
+    })
 
     return [...affectedServerIds].map((serverId) => ({ serverId }))
   } catch (error) {
-    logger.error(`[${requestId}] Error syncing MCP tools (${context}):`, error)
+    logger.error(`Error syncing MCP tools (${context}):`, error, { requestId })
     if (throwOnError) throw error
     return []
   }
@@ -631,11 +634,11 @@ export async function removeMcpToolsForWorkflow(
       .update(workflowMcpTool)
       .set({ archivedAt: new Date() })
       .where(and(eq(workflowMcpTool.workflowId, workflowId), isNull(workflowMcpTool.archivedAt)))
-    logger.info(`[${requestId}] Archived MCP tools for workflow: ${workflowId}`)
+    logger.info(`Archived MCP tools for workflow: ${workflowId}`, { requestId })
 
     return tools
   } catch (error) {
-    logger.error(`[${requestId}] Error archiving MCP tools:`, error)
+    logger.error('Error archiving MCP tools:', error, { requestId })
     if (throwOnError) throw error
     return []
   }

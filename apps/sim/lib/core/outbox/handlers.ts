@@ -1,6 +1,10 @@
 import { ADMIN_INVITATION_OPERATION_EVENT_TYPE } from '@/lib/admin/invitation-operation-event'
 import { ADMIN_MEMBER_OPERATION_EVENT_TYPE } from '@/lib/admin/member-operation-event'
 import {
+  AWS_MARKETPLACE_BUYER_NOTICE_EVENT,
+  AWS_MARKETPLACE_TEAM_NOTICE_EVENT,
+} from '@/lib/billing/aws-marketplace/notice-events'
+import {
   ENTERPRISE_INVITE_PEOPLE_EVENT_TYPE,
   ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE,
   ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
@@ -150,6 +154,15 @@ export const OUTBOX_HANDLER_GROUPS: readonly LazyOutboxHandlerGroup[] = [
         '@/lib/billing/enterprise-owner-claim'
       )
       return enterpriseOwnerClaimOutboxHandlers
+    },
+  },
+  {
+    events: [AWS_MARKETPLACE_TEAM_NOTICE_EVENT, AWS_MARKETPLACE_BUYER_NOTICE_EVENT],
+    load: async () => {
+      const { awsMarketplaceOutboxHandlers } = await import(
+        '@/lib/billing/aws-marketplace/notifications'
+      )
+      return awsMarketplaceOutboxHandlers
     },
   },
   {
