@@ -17,7 +17,12 @@ import {
   url,
   withSession,
 } from '@/scripts/org-redesign-e2e/harness'
-import { composer, navigateWithinDocument, railLink } from '@/scripts/org-redesign-e2e/locators'
+import {
+  composer,
+  navigateWithinDocument,
+  parkMouse,
+  railLink,
+} from '@/scripts/org-redesign-e2e/locators'
 
 export async function blastRadiusChecks() {
   section('Blast radius')
@@ -103,6 +108,7 @@ export async function blastRadiusChecks() {
               session.page.getByRole('complementary', { name: 'Workspace sidebar' })
             ).toBeVisible()
             await session.settle()
+            await parkMouse(session.page)
             fresh = await sample(session.page)
           },
           { theme }
@@ -125,6 +131,11 @@ export async function blastRadiusChecks() {
             assert(await inDocument(), 'The move to /workspace reloaded the page')
             await session.settle()
             await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
+            // The click that got here leaves the pointer over a rail row, which would read as hover.
+            await parkMouse(page)
+            await expect(
+              page.getByRole('complementary', { name: 'Workspace sidebar' }).locator(':hover')
+            ).toHaveCount(0)
             const carried = await sample(page)
             const differences = Object.keys(fresh)
               .filter((key) => key in carried && carried[key] !== fresh[key])

@@ -87,6 +87,25 @@ export async function navigateWithinDocument(page: Page, navigate: () => Promise
   return () => page.evaluate(() => window.sameDocumentMark)
 }
 
+/**
+ * Rests the pointer on the page's far corner and lets any hover transition it ended finish, so two
+ * captures of computed styles compare the same pointer state.
+ */
+export async function parkMouse(page: Page) {
+  const size = page.viewportSize()
+  assert(size, 'The page has a viewport')
+  await page.mouse.move(size.width - 1, size.height - 1)
+  await pageTurn(page)
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((animation) => animation instanceof CSSTransition)
+        .map((animation) => animation.finished.catch(() => {}))
+    )
+  )
+}
+
 export async function assertNoHorizontalOverflow(page: Page, label: string) {
   const { scrollWidth, width } = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
