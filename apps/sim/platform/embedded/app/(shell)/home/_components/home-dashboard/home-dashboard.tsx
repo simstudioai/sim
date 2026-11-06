@@ -5,7 +5,6 @@ import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import { FailureNotice } from '@/platform/design-system/components'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { ActionMenu } from '@/platform/design-system/components/menu/action-menu'
-import { RecentItems } from '@/platform/design-system/components/recent-items/recent-items'
 import { Surface } from '@/platform/design-system/components/surface/surface'
 import { HomeActivityChart } from '@/platform/embedded/app/(shell)/home/_components/activity-chart/activity-chart'
 import {
@@ -16,6 +15,7 @@ import { CalendarDay } from '@/platform/embedded/app/(shell)/home/_components/ca
 import { ConnectedWidget } from '@/platform/embedded/app/(shell)/home/_components/connected-widget/connected-widget'
 import { GetStarted } from '@/platform/embedded/app/(shell)/home/_components/get-started/get-started'
 import styles from '@/platform/embedded/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css'
+import { HomeRecents } from '@/platform/embedded/app/(shell)/home/_components/home-recents/home-recents'
 import { HomeWorkspaces } from '@/platform/embedded/app/(shell)/home/_components/home-workspaces/home-workspaces'
 import { SkeletonLane } from '@/platform/embedded/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import type { HomeActions, HomeView } from '@/platform/embedded/lib/data/home-view'
@@ -112,11 +112,7 @@ export function HomeDashboard({ view, actions, requestMode, composer }: HomeDash
             )}
             {view.recents.status === 'ready' && view.recents.items.length > 0 && (
               <div className={styles.recents}>
-                <RecentItems
-                  label='Recents'
-                  items={view.recents.items}
-                  onRemove={actions.removeRecent}
-                />
+                <HomeRecents items={view.recents.items} onRemove={actions.removeRecent} />
               </div>
             )}
             {view.getStarted.length > 0 && <GetStarted steps={view.getStarted} />}

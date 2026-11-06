@@ -366,6 +366,53 @@ export async function homeChecks() {
       await expect(recents.getByRole('link', { name: SEEDED_SOURCE.title })).toHaveCount(0)
     })
   })
+  await check('Recents collapse repeats, and every chip has a mark', async () => {
+    const [before] =
+      await sql`select sources from organization_search_history where user_id = ${MEMBER.userId} and organization_id = ${ORGANIZATION_ID}`
+    const viewedAt = new Date().toISOString()
+    const channel = (id: string) => ({
+      url: `https://acme.slack.com/archives/C1/${id}`,
+      title: '#candidates',
+      connectorType: 'slack',
+      viewedAt,
+    })
+    const sources = [
+      channel('p3'),
+      channel('p2'),
+      { url: 'https://www.linkedin.example/in/someone', viewedAt },
+      channel('p1'),
+    ]
+    await withRestore(
+      () =>
+        sql`update organization_search_history set sources = ${sql.json(before?.sources ?? [])} where user_id = ${MEMBER.userId} and organization_id = ${ORGANIZATION_ID}`,
+      async () => {
+        await sql`update organization_search_history set sources = ${sql.json(sources)} where user_id = ${MEMBER.userId} and organization_id = ${ORGANIZATION_ID}`
+        await onHome(MEMBER, async (session) => {
+          const { page } = session
+          const recents = homeRegion(page, 'Recents')
+          const links = recents.getByRole('link')
+          await expect(links).toHaveCount(2)
+          assert.deepEqual(await links.allInnerTexts(), ['#candidates', 'linkedin.example'])
+          assert.equal(
+            await links.first().getAttribute('href'),
+            sources[0].url,
+            'A collapsed chip must link its latest visit'
+          )
+          for (const link of await links.all()) {
+            await expect(link.locator('svg, img').first()).toBeVisible()
+          }
+          const channelChip = links.first()
+          await channelChip.hover()
+          await recents.getByRole('button', { name: 'Remove #candidates from recents' }).click()
+          await expect(links).toHaveCount(1)
+          await page.reload()
+          await expect(homeRegion(page, 'Email')).toBeVisible()
+          await session.settle()
+          assert.deepEqual(await recents.getByRole('link').allInnerTexts(), ['linkedin.example'])
+        })
+      }
+    )
+  })
   await check('Unread chats need attention and open under Search', async () => {
     const { id, title } = MEMBER_CHATS.unread
     await withRestore(

@@ -16,10 +16,15 @@ import {
   getCredentialGroupProviderId,
 } from '@/lib/credential-groups/providers'
 import { requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
-import { linkSiteName } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
+import {
+  externalLinkHostname,
+  linkSiteName,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
-import { providerMark } from '@/platform/design-system/components/icon/provider-marks'
-import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
+import {
+  FALLBACK_PROVIDER_MARK,
+  providerMark,
+} from '@/platform/design-system/components/icon/provider-marks'
 import type {
   AttentionItem,
   CalendarMeeting,
@@ -27,6 +32,7 @@ import type {
   HomeAccountView,
   HomeCalendarDay,
   HomeConnectOption,
+  HomeRecentItem,
   HomeWidgetState,
   HomeWorkspaceItem,
 } from '@/platform/embedded/lib/data/home-view'
@@ -238,16 +244,32 @@ export function toTaskPoints(summary: OrganizationActivitySummary) {
   }))
 }
 
-export function toRecentItems(history: SearchHistoryResponse): RecentItem[] {
-  return history.sources.map((source) => {
-    const mark = source.connectorType ? providerMark(source.connectorType) : undefined
-    return {
-      id: source.url,
-      label: source.title ?? linkSiteName(source.url, source.siteName),
-      href: source.url,
-      icon: typeof mark === 'string' ? mark : undefined,
+/**
+ * The server keeps sources newest first, one per URL. Chips that would read the same from the same
+ * place, such as several messages in one channel, are one chip at its latest visit.
+ */
+export function toRecentItems(history: SearchHistoryResponse): HomeRecentItem[] {
+  const items = new Map<string, HomeRecentItem & { urls: string[] }>()
+  for (const source of history.sources) {
+    const label = source.title ?? linkSiteName(source.url, source.siteName)
+    const host = externalLinkHostname(source.url)
+    const key = `${source.connectorType ?? host}\0${label.toLowerCase()}`
+    const existing = items.get(key)
+    if (existing) {
+      existing.urls.push(source.url)
+      continue
     }
-  })
+    const mark = source.connectorType ? providerMark(source.connectorType) : undefined
+    items.set(key, {
+      id: source.url,
+      label,
+      href: source.url,
+      icon: typeof mark === 'string' && mark !== FALLBACK_PROVIDER_MARK ? mark : undefined,
+      host,
+      urls: [source.url],
+    })
+  }
+  return [...items.values()]
 }
 
 export function greetingAt(nowMs: number, timeZone: string): string {

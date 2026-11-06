@@ -249,7 +249,7 @@ function useHomeRecents(organization: PlatformOrganization, userId: string | und
     state,
     retry: () => void history.refetch(),
     remove: (url: string) =>
-      remove.mutate(url, {
+      remove.mutate([url], {
         onError: (error) =>
           toast.error(getErrorMessage(error, 'That recent could not be removed.')),
       }),

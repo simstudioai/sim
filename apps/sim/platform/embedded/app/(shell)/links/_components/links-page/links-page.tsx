@@ -1,7 +1,6 @@
 'use client'
 
 import { type MouseEvent, memo, type ReactNode, type TouchEvent, useMemo, useState } from 'react'
-import { Favicon } from '@/components/favicon'
 import type { SimLink } from '@/lib/api/contracts/sim-links'
 import { simLinkOrigin } from '@/lib/sim-links/validation'
 import { QueryBoundary } from '@/platform/design-system/components'
@@ -18,6 +17,7 @@ import { ActionMenu, ContextActionMenu } from '@/platform/design-system/componen
 import { ConfirmDialog } from '@/platform/design-system/components/modal/confirm-dialog'
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 import type { LoadMoreState } from '@/platform/design-system/components/scroll-area/use-load-more'
+import { SiteMark } from '@/platform/embedded/app/(shell)/_components/site-mark/site-mark'
 import { LinkEditor } from '@/platform/embedded/app/(shell)/links/_components/links-page/link-editor'
 import { LinksFrame } from '@/platform/embedded/app/(shell)/links/_components/links-page/links-frame'
 import styles from '@/platform/embedded/app/(shell)/links/_components/links-page/links-page.module.css'
@@ -105,22 +105,6 @@ function LinkRowContextMenu({ links, children, ...actions }: LinkRowContextMenuP
   )
 }
 
-/** Holds the favicon's box with the globe until the image paints, so a row never shows a gap. */
-function LinkMark({ host }: { host: string | null }) {
-  const [loaded, setLoaded] = useState(false)
-  return (
-    <span className={styles.nameLeading}>
-      {!loaded && <Icon name='I041' />}
-      <Favicon
-        host={host}
-        fallback={null}
-        className={styles.favicon}
-        onLoad={() => setLoaded(true)}
-      />
-    </span>
-  )
-}
-
 interface LinkSummaryProps {
   link: SimLink
   updated: string
@@ -173,7 +157,11 @@ const LinksTable = memo(function LinksTable({
         cells: {
           name: (
             <TableLabel
-              leading={<LinkMark key={origin} host={origin ? new URL(origin).hostname : null} />}
+              leading={
+                <span className={styles.nameLeading}>
+                  <SiteMark key={origin} host={origin ? new URL(origin).hostname : null} />
+                </span>
+              }
             >
               <span className={styles.nameCell}>
                 <OverflowText text={link.name}>{link.name}</OverflowText>

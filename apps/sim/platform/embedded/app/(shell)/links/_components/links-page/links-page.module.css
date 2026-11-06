@@ -29,14 +29,7 @@
   min-inline-size: 0;
 }
 .nameLeading {
-  display: grid;
   flex: none;
-  place-items: center;
-  inline-size: var(--spacing-16);
-  block-size: var(--spacing-16);
-}
-.nameLeading > * {
-  grid-area: 1 / 1;
 }
 .nameCell {
   display: grid;
@@ -68,12 +61,6 @@
   .summaryDestination {
     display: grid;
   }
-}
-.favicon {
-  flex: none;
-  inline-size: var(--spacing-16);
-  block-size: var(--spacing-16);
-  border-radius: var(--radius-2);
 }
 .learnMore {
   margin-inline-start: calc(-1 * var(--spacing-8));

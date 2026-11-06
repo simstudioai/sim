@@ -30,7 +30,6 @@ import { useRemoveSearchHistorySource, useSearchHistory } from '@/hooks/queries/
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useOrderedWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
-import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
 import {
   organizationChatHref,
   useCanOpenOrganizationChat,
@@ -65,6 +64,7 @@ import {
   type HomeActivityState,
   type HomeCalendarDay,
   type HomeListState,
+  type HomeRecentItem,
   type HomeView,
   type HomeWidgetActions,
   type HomeWidgetState,
@@ -270,16 +270,17 @@ function useHomeRecents(organization: OrganizationSurfaceContext) {
   const allowed = organization.searchAccess.memberScoped
   const history = useSearchHistory(allowed ? organizationId : undefined, userId)
   const remove = useRemoveSearchHistorySource(organizationId, userId)
-  const state: HomeListState<RecentItem> = !allowed
+  const items = history.data ? toRecentItems(history.data) : []
+  const state: HomeListState<HomeRecentItem> = !allowed
     ? { status: 'ready', items: [] }
     : history.data
-      ? { status: 'ready', items: toRecentItems(history.data) }
+      ? { status: 'ready', items }
       : withoutResult(history)
   return {
     state,
     retry: () => void history.refetch(),
-    remove: (url: string) =>
-      remove.mutate(url, {
+    remove: (id: string) =>
+      remove.mutate(items.find((item) => item.id === id)?.urls ?? [id], {
         onError: (error) =>
           toast.error(getErrorMessage(error, 'That recent could not be removed.')),
       }),
