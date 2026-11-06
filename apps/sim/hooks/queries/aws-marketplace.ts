@@ -67,6 +67,22 @@ export function useSaveAwsMarketplaceClaimContact() {
   })
 }
 
+/**
+ * Whether AWS Marketplace bills this organization or the viewer's own account: a pending or active
+ * license on either. Pending until both reads settle.
+ */
+export function useAwsMarketplaceBilling(organizationId: string | null) {
+  const organizationLicenses = useAwsMarketplaceLicenses(organizationId)
+  const accountLicenses = useAwsMarketplaceLicenses(null)
+  return {
+    isPending: organizationLicenses.isPending || accountLicenses.isPending,
+    billedThroughMarketplace: [
+      ...(organizationLicenses.data ?? []),
+      ...(accountLicenses.data ?? []),
+    ].some((license) => license.status !== 'inactive'),
+  }
+}
+
 /** The Marketplace subscriptions an organization holds, or with null the viewer's own account. */
 export function useAwsMarketplaceLicenses(organizationId: string | null) {
   return useQuery({

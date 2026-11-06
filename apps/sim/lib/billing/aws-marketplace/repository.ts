@@ -255,7 +255,8 @@ export type LicenseVerificationOutcome =
 /**
  * Applies a verification read. A license AWS describes with an entitlement but nobody registered is
  * recorded (a renewal gets a new ARN), carrying on a renewed license's owner when there is one; one
- * AWS no longer describes is only updated if it exists.
+ * AWS no longer describes is only updated if it exists. The first License Updated event for a
+ * license already taken tells the team, whose earlier notice said to wait for it.
  */
 export async function recordLicenseVerification(input: {
   licenseArn: string
@@ -298,7 +299,19 @@ export async function recordLicenseVerification(input: {
       ...agreementFields(locked, seen),
       ...stamp,
     })
-    return { kind: 'updated', license: await inheritFromRenewedLicense(tx, written) }
+    const license = await inheritFromRenewedLicense(tx, written)
+    if (
+      licenseEventReceivedAt &&
+      !locked.licenseEventReceivedAt &&
+      (license.organizationId || license.linkedByUserId)
+    ) {
+      await enqueueTeamNotice(
+        tx,
+        { kind: 'license-event-received', licenseId: license.id },
+        `aws-marketplace-license-event-${license.id}`
+      )
+    }
+    return { kind: 'updated', license }
   })
 }
 
@@ -482,18 +495,27 @@ export async function lockLicense(
   return row ?? null
 }
 
+interface BuyerContact {
+  email: string
+  companyName: string | null
+}
+
+function contactChanged(locked: AwsMarketplaceLicenseRecord, contact: BuyerContact): boolean {
+  return locked.contactEmail !== contact.email || locked.companyName !== contact.companyName
+}
+
 /**
  * Consumes the claim under the caller's row lock, taking the license when `link` is given: for an
  * organization, or for an account alone when its organization is null. A take tells the team and
  * confirms to the buyer in the same transaction. A license the same party already holds keeps its
- * link and announces nothing.
+ * link and announces only new contact details.
  */
 export async function consumeLicenseClaim(
   tx: DbTransaction,
   locked: AwsMarketplaceLicenseRecord,
   input: {
     link: { organizationId: string | null; userId: string } | null
-    contact: { email: string; companyName: string | null }
+    contact: BuyerContact
     verification: LicenseVerification
   }
 ): Promise<AwsMarketplaceLicenseRecord> {
@@ -510,6 +532,8 @@ export async function consumeLicenseClaim(
   if (input.link) {
     await enqueueTeamNotice(tx, { kind: 'taken', licenseId: license.id, userId: input.link.userId })
     await enqueueBuyerNotice(tx, { licenseId: license.id })
+  } else if (contactChanged(locked, input.contact)) {
+    await enqueueTeamNotice(tx, { kind: 'contact', licenseId: license.id })
   }
   return license
 }
@@ -522,12 +546,11 @@ export async function saveLicenseContact(
   tx: DbTransaction,
   locked: AwsMarketplaceLicenseRecord,
   input: {
-    contact: { email: string; companyName: string | null }
+    contact: BuyerContact
     verification: LicenseVerification
   }
 ): Promise<AwsMarketplaceLicenseRecord> {
-  const changed =
-    locked.contactEmail !== input.contact.email || locked.companyName !== input.contact.companyName
+  const changed = contactChanged(locked, input.contact)
   const license = await applyVerification(tx, locked, input.verification, {
     contactEmail: input.contact.email,
     companyName: input.contact.companyName,
@@ -580,7 +603,10 @@ export async function listAccountLicenses(userId: string) {
     .orderBy(asc(awsMarketplaceLicense.createdAt))
 }
 
-/** The licenses waiting for the team to link them, newest first, for the admin dashboard. */
+/**
+ * Licenses with no organization, newest first, for the admin dashboard: those waiting for the team
+ * to link them, and inactive ones that never will be.
+ */
 export async function listUnlinkedLicenses(page: { limit: number; offset: number }) {
   return db
     .select()

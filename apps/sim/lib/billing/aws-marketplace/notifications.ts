@@ -31,7 +31,9 @@ const PROVISION =
 const LINK =
   'Then link the license with POST /api/v1/admin/dashboard/aws-marketplace-licenses (licenseId, organizationId).'
 const CANCEL =
-  'Cancel the Enterprise subscription with POST /api/v1/admin/dashboard/organizations/<id>/cancellation (timing: immediate), unless a replacement notice for this account follows. The organization goes dormant and is not deleted.'
+  'Cancel the Enterprise subscription with POST /api/v1/admin/dashboard/organizations/<id>/cancellation (operationId: a new UUID, timing: immediate), unless a replacement notice for this account follows. The organization goes dormant and is not deleted.'
+const NO_ORGANIZATION_TO_CANCEL =
+  'No organization holds this license. If you provisioned one for this buyer, cancel it there.'
 const UNCONFIRMED =
   'Unconfirmed: AWS has returned no entitlement for this license yet. Do not provision it until its status is active.'
 
@@ -82,7 +84,9 @@ function nextStepForTerms(
   if (after.status === 'inactive' && license.renewedAgreementId) {
     return `Agreement ${license.renewedAgreementId} replaced this license's agreement. Do not cancel on this notice: AWS grants the replacement its own license, so check that one.`
   }
-  if (after.status === 'inactive') return CANCEL
+  if (after.status === 'inactive') {
+    return license.organizationId ? CANCEL : NO_ORGANIZATION_TO_CANCEL
+  }
   if (after.status === 'active' && !license.organizationId) return `${PROVISION} ${LINK}`
   return 'Update the Enterprise provisioning to match. Never send a Stripe invoice for a Marketplace customer: AWS bills them.'
 }
@@ -131,14 +135,28 @@ Organizations linked to other licenses of this account: ${others}`,
         replyTo: license.contactEmail ?? userEmail,
       }
     }
-    case 'contact':
+    case 'contact': {
+      const confirming = license.status === 'pending'
       return {
         subject: `Buyer contact: ${account}`,
-        opening: `A buyer left contact details while AWS confirms their subscription.${
-          license.status === 'pending' ? `\n${UNCONFIRMED}` : ''
-        }`,
-        next: 'Nothing to provision on this notice; a separate one follows when AWS confirms it.',
+        opening: confirming
+          ? `A buyer left contact details while AWS confirms their subscription.\n${UNCONFIRMED}`
+          : 'A buyer changed their contact details.',
+        next: confirming
+          ? 'Nothing to provision on this notice; a separate one follows when AWS confirms it.'
+          : 'Nothing to provision on this notice. Use these contact details from now on.',
         replyTo: license.contactEmail,
+      }
+    }
+    case 'license-event-received':
+      return {
+        subject: `License Updated event received: ${account}`,
+        opening:
+          'AWS sent the License Updated event for a license already taken. AWS says not to activate a subscription until it arrives.',
+        next:
+          license.status === 'active'
+            ? 'Provisioning that was waiting for this event can go ahead, following the earlier notice.'
+            : 'Do not provision it until its status is active.',
       }
     case 'terms-changed':
       return {

@@ -46,10 +46,8 @@ const claimedLicenseSchema = awsMarketplaceLicenseSchema.extend({
 })
 
 const awsMarketplaceClaimSchema = z.discriminatedUnion('status', [
-  /** This browser holds no claim, or one already used. */
+  /** No open claim: none in this browser, or it was used, expired, or cleared by a lapse. */
   z.object({ status: z.literal('missing') }),
-  z.object({ status: z.literal('expired') }),
-  z.object({ status: z.literal('inactive') }),
   /** AWS has returned no entitlement yet; the buyer can leave contact details meanwhile. */
   z.object({ status: z.literal('pending'), license: claimedLicenseSchema }),
   z.object({

@@ -15,16 +15,18 @@ const STATUS_BADGES = {
 interface AwsMarketplaceSubscriptionSectionProps {
   /** Null reads the licenses registered to the viewer's own account. */
   organizationId: string | null
+  label?: string
 }
 
 /** Read-only: AWS requires buyers to see their subscription status in the product. */
 export function AwsMarketplaceSubscriptionSection({
   organizationId,
+  label = 'AWS Marketplace subscription',
 }: AwsMarketplaceSubscriptionSectionProps) {
   const { data: licenses, error, isFetching, refetch } = useAwsMarketplaceLicenses(organizationId)
   if (error && !licenses) {
     return (
-      <SettingsSection label='AWS Marketplace subscription'>
+      <SettingsSection label={label}>
         <SettingsQueryErrorState
           variant='inline'
           error={error}
@@ -38,7 +40,7 @@ export function AwsMarketplaceSubscriptionSection({
   if (!licenses?.length) return null
 
   return (
-    <SettingsSection label='AWS Marketplace subscription'>
+    <SettingsSection label={label}>
       <div className='flex flex-col gap-6'>
         {licenses.map((license) => {
           const badge = STATUS_BADGES[license.status]

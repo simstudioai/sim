@@ -92,6 +92,7 @@ const NOTICE_EVENTS = [AWS_MARKETPLACE_TEAM_NOTICE_EVENT, AWS_MARKETPLACE_BUYER_
 const DAY_MS = 24 * 60 * 60 * 1000
 const TEAM = /^enterprise@/
 const BUYER = /^buyer@example\.test$/
+const CANCEL_CALL = /POST \/api\/v1\/admin\/dashboard\/organizations\/<id>\/cancellation/
 
 /** What GetEntitlements answers for each license ARN; an Error is thrown instead. */
 const entitlementsByLicense = new Map<string, Entitlement[] | Error>()
@@ -607,7 +608,7 @@ describe('reading a claim', () => {
     const organizationId = await createOrganization([{ userId: adminId, role: 'admin' }])
     const open = await createClaimedLicense({ customerAwsAccountId: '123456781234' })
     const linked = await createClaimedLicense({ organizationId })
-    const lapsed = await createClaimedLicense({ status: 'inactive' })
+    const expired = await createClaimedLicense({ claimExpiresAt: new Date(Date.now() - 1000) })
     const read = (userId: string, claimToken: string) =>
       readAwsMarketplaceClaim.execute({
         principal: createSessionPrincipal({ userId }),
@@ -620,7 +621,7 @@ describe('reading a claim', () => {
     })
     expect(await read(adminId, linked.token)).toEqual({ status: 'linked', organizationId })
     expect(await read(strangerId, linked.token)).toEqual({ status: 'linked', organizationId: null })
-    expect(await read(strangerId, lapsed.token)).toEqual({ status: 'inactive' })
+    expect(await read(strangerId, expired.token)).toEqual({ status: 'missing' })
   })
 })
 
@@ -848,19 +849,19 @@ describe.each([
     ])
   })
 
-  it('a claim whose read predates a newer inactive verification', async () => {
+  it('an active read older than a newer read that still says pending', async () => {
     const license = await createClaimedLicense({
-      status: 'inactive',
+      status: 'pending',
       lastVerifiedAt: new Date(Date.now() + 5 * 60 * 1000),
     })
     entitlementsByLicense.set(license.licenseArn, [currentEntitlement()])
 
     const error = await rejection(run({ licenseId: license.id, claimToken: license.token }))
 
-    expect(error).toMatchObject({ code: 'conflict' })
+    expect(error).toMatchObject({ code: 'conflict', message: expect.stringMatching(/confirming/) })
     expect(await readLicense(license.licenseArn)).toMatchObject({
       linkedByUserId: null,
-      status: 'inactive',
+      status: 'pending',
       claimTokenHash: hashClaimToken(license.token),
     })
     expect(await emailsTo(/./)).toEqual([])
@@ -874,7 +875,11 @@ describe('registering a claimed license to an account', () => {
     buyerId = await createUser()
   })
 
-  function registerToAccount(input: { licenseId: string; claimToken: string | null }) {
+  function registerToAccount(input: {
+    licenseId: string
+    claimToken: string | null
+    contactEmail?: string
+  }) {
     return registerAwsMarketplaceLicenseToAccount.execute({
       principal: createSessionPrincipal({ userId: buyerId }),
       input: { ...CONTACT, ...input },
@@ -908,6 +913,32 @@ describe('registering a claimed license to an account', () => {
         .where(and(eq(auditLog.resourceId, license.id), eq(auditLog.actorId, buyerId)))
       expect(entries).toEqual([{ action: 'aws_marketplace_license.registered' }])
     })
+  })
+
+  it('tells the team when a re-registration changes the contact details, and only then', async () => {
+    const license = await createClaimedLicense()
+    entitlementsByLicense.set(license.licenseArn, [currentEntitlement()])
+    await registerToAccount({ licenseId: license.id, claimToken: license.token })
+    const contactNotices = async () =>
+      (await emailsTo(TEAM)).filter((email) => /Buyer contact/.test(email.subject))
+    const reclaim = async (token: string) => {
+      resolvesTo(license.licenseArn)
+      return claimTokenOf(await registration(`x-amzn-marketplace-token=${token}`))
+    }
+
+    await registerToAccount({ licenseId: license.id, claimToken: await reclaim('same-contact') })
+    expect(await contactNotices()).toEqual([])
+
+    await registerToAccount({
+      licenseId: license.id,
+      claimToken: await reclaim('new-contact'),
+      contactEmail: 'new-contact@example.test',
+    })
+
+    expect(await contactNotices()).toEqual([
+      expect.objectContaining({ text: expect.stringMatching(/new-contact@example\.test/) }),
+    ])
+    expect((await readLicense(license.licenseArn))?.contactEmail).toBe('new-contact@example.test')
   })
 
   it('refuses a license already linked to an organization', async () => {
@@ -1006,7 +1037,32 @@ describe('reconcileAwsMarketplaceLicenses', () => {
       expect.stringMatching(/active → inactive/),
       expect.stringMatching(/active → inactive/),
     ])
-    expect(notices[0].text).toMatch(/DELETE \/api\/v1\/admin\/subscriptions/)
+  })
+
+  it('gives the cancel instruction and its required body only when an organization holds the lapsed license', async () => {
+    const organizationId = await createOrganization([{ userId: await createUser(), role: 'owner' }])
+    const linked = await insertLicense({ organizationId })
+    const unlinked = await insertLicense()
+    entitlementsByLicense.set(linked.licenseArn, [lapsedEntitlement()])
+    entitlementsByLicense.set(unlinked.licenseArn, [lapsedEntitlement()])
+    deliverOnce(
+      [linked, unlinked].map(({ licenseArn }) => ({
+        'detail-type': 'License Deprovisioned - Manufacturer',
+        detail: { license: { arn: licenseArn }, product: { code: PRODUCT } },
+      }))
+    )
+
+    await reconcileAwsMarketplaceLicenses()
+
+    const notices = await emailsTo(TEAM)
+    const noticeOf = ({ id }: { id: string }) =>
+      notices.find((email) => email.text.includes(`License ID: ${id}`))?.text
+    expect(noticeOf(linked)).toMatch(CANCEL_CALL)
+    expect(noticeOf(linked)).toMatch(/\(operationId: a new UUID, timing: immediate\)/)
+    expect(noticeOf(unlinked)).not.toMatch(CANCEL_CALL)
+    expect(noticeOf(unlinked)).toMatch(
+      /No organization holds this license\. If you provisioned one for this buyer, cancel it there\./
+    )
   })
 
   it('sends the team nothing when a re-verify finds the same terms', async () => {
@@ -1057,6 +1113,34 @@ describe('reconcileAwsMarketplaceLicenses', () => {
     expect(row?.id).toBe(id)
   })
 
+  it('tells the team once when the License Updated event reaches a license already taken', async () => {
+    const organizationId = await createOrganization([{ userId: await createUser(), role: 'owner' }])
+    const linked = await insertLicense({ organizationId })
+    const registered = await insertLicense({ linkedByUserId: await createUser() })
+    const unowned = await insertLicense()
+    for (const { licenseArn } of [linked, registered, unowned]) {
+      entitlementsByLicense.set(licenseArn, [currentEntitlement()])
+    }
+    deliverOnce([
+      licenseUpdated(linked.licenseArn),
+      licenseUpdated(registered.licenseArn),
+      licenseUpdated(unowned.licenseArn),
+      licenseUpdated(linked.licenseArn),
+    ])
+
+    expect(await reconcileAwsMarketplaceLicenses()).toMatchObject({ applied: 4, retained: 0 })
+
+    const received = (await emailsTo(TEAM)).filter((email) =>
+      /License Updated event received/.test(email.subject)
+    )
+    const announces = ({ id }: { id: string }) =>
+      received.filter((email) => email.text.includes(`License ID: ${id}`)).length
+    expect(received).toHaveLength(2)
+    expect(announces(linked)).toBe(1)
+    expect(announces(registered)).toBe(1)
+    expect(announces(unowned)).toBe(0)
+  })
+
   it('keeps a Deprovisioned event for redelivery while AWS still reports the license current', async () => {
     const { licenseArn } = await insertLicense()
     entitlementsByLicense.set(licenseArn, [currentEntitlement()])
@@ -1080,12 +1164,31 @@ describe('reconcileAwsMarketplaceLicenses', () => {
     expect(deleted).toEqual([])
   })
 
-  it('skips an unknown license AWS describes nothing for, and warns rather than applying', async () => {
+  it('keeps a License Updated event for redelivery while AWS describes nothing for an unknown license', async () => {
     const licenseArn = uniqueArn()
     entitlementsByLicense.set(licenseArn, [])
     const deleted = deliverOnce([licenseUpdated(licenseArn)])
 
-    expect(await reconcileAwsMarketplaceLicenses()).toMatchObject({ skipped: 1, applied: 0 })
+    expect(await reconcileAwsMarketplaceLicenses()).toMatchObject({
+      retained: 1,
+      skipped: 0,
+      applied: 0,
+    })
+    expect(deleted).toEqual([])
+    expect(await readLicense(licenseArn)).toBeUndefined()
+  })
+
+  it('skips and deletes a Deprovisioned event for a license it never recorded', async () => {
+    const licenseArn = uniqueArn()
+    entitlementsByLicense.set(licenseArn, [])
+    const deleted = deliverOnce([
+      {
+        'detail-type': 'License Deprovisioned - Manufacturer',
+        detail: { license: { arn: licenseArn }, product: { code: PRODUCT } },
+      },
+    ])
+
+    expect(await reconcileAwsMarketplaceLicenses()).toMatchObject({ skipped: 1, retained: 0 })
     expect(deleted).toEqual(['r-0'])
     expect(await readLicense(licenseArn)).toBeUndefined()
   })
@@ -1408,7 +1511,7 @@ describe('a replaced agreement', () => {
 
     const [notice] = await emailsTo(TEAM)
     expect(notice.text).toMatch(/Do not cancel/)
-    expect(notice.text).not.toMatch(/DELETE \/api\/v1\/admin\/subscriptions/)
+    expect(notice.text).not.toMatch(CANCEL_CALL)
   })
 })
 

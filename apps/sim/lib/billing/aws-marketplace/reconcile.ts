@@ -67,7 +67,7 @@ interface AwsMarketplaceReconcileSummary {
   received: number
   applied: number
   discarded: number
-  /** Named a license that has no row and that AWS described nothing to create one from. */
+  /** A Deprovisioned event for a license that has no row, so nothing is left to record. */
   skipped: number
   retained: number
   reverified: number
@@ -275,9 +275,13 @@ async function applyLicenseEvent(
     licenseEventReceivedAt: event.deprovisioned ? undefined : new Date(),
   })
   if (outcome.kind === 'skipped') {
-    logger.warn('Skipping an AWS Marketplace event for a license AWS does not describe', {
-      messageId,
-    })
+    if (!event.deprovisioned) {
+      logger.warn('Leaving a License Updated event for a license AWS does not describe yet', {
+        messageId,
+      })
+      return 'retained'
+    }
+    logger.warn('Skipping a License Deprovisioned event for a license with no row', { messageId })
     return 'skipped'
   }
   if (event.deprovisioned && summary.active) {

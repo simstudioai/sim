@@ -42,15 +42,13 @@ const SUBSCRIPTION_UNCONFIRMED =
   'AWS is still confirming your subscription. Try again in a few minutes.'
 
 /**
- * Under the row lock: a newer verification than this request's wins, so a license a newer read
- * says is not active cannot be taken.
+ * Under the row lock, after the claim is rechecked: a newer read that still says pending wins over
+ * this request's. A newer read that says inactive already cleared the claim.
  */
 function requireNotOverruled(locked: AwsMarketplaceLicenseRecord, verifiedAt: Date): void {
-  if (isNewerRead(locked, verifiedAt) || locked.status === 'active') return
-  throw new OrchestrationError(
-    'conflict',
-    locked.status === 'pending' ? SUBSCRIPTION_UNCONFIRMED : NO_ACTIVE_SUBSCRIPTION
-  )
+  if (locked.status === 'pending' && !isNewerRead(locked, verifiedAt)) {
+    throw new OrchestrationError('conflict', SUBSCRIPTION_UNCONFIRMED)
+  }
 }
 
 const CLAIM_NOT_FOUND =
@@ -120,9 +118,7 @@ export const readAwsMarketplaceClaim: OperationUseCase<
     requireProductCode()
     if (!input.claimToken) return { status: 'missing' }
     const license = await findLicenseByClaimHash(hashClaimToken(input.claimToken))
-    if (!license) return { status: 'missing' }
-    if (!isClaimOpen(license, new Date())) return { status: 'expired' }
-    if (license.status === 'inactive') return { status: 'inactive' }
+    if (!license || !isClaimOpen(license, new Date())) return { status: 'missing' }
     if (license.status === 'pending') {
       return { status: 'pending', license: claimedLicenseView(license) }
     }

@@ -53,7 +53,7 @@ import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { RESOURCE_ROW_ARROW_CLASSES } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useAwsMarketplaceLicenses } from '@/hooks/queries/aws-marketplace'
+import { useAwsMarketplaceBilling } from '@/hooks/queries/aws-marketplace'
 import {
   useBillingUsageNotifications,
   useUpdateGeneralSetting,
@@ -135,10 +135,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     enabled: !isOrganizationScope,
   })
   const billingOrganizationId = isOrganizationScope ? (organizationId ?? null) : null
-  const { data: marketplaceLicenses } = useAwsMarketplaceLicenses(billingOrganizationId)
-  const billedThroughMarketplace = marketplaceLicenses?.some(
-    (license) => license.status !== 'inactive'
-  )
+  const { billedThroughMarketplace } = useAwsMarketplaceBilling(billingOrganizationId)
 
   const {
     data: organizationBillingData,
@@ -459,7 +456,9 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       : `Organization ${planName} plan`
     : `Personal ${planName} plan`
   const priceText = billedThroughMarketplace
-    ? 'Billed through AWS Marketplace'
+    ? subscription.isFree
+      ? 'AWS Marketplace setup in progress'
+      : 'Billed through AWS Marketplace'
     : organizationSubscriptionState === 'free'
       ? 'No active organization subscription'
       : organizationSubscriptionState === 'lapsed'
@@ -669,6 +668,12 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       )}
 
       <AwsMarketplaceSubscriptionSection organizationId={billingOrganizationId} />
+      {isOrganizationScope && (
+        <AwsMarketplaceSubscriptionSection
+          organizationId={null}
+          label='AWS Marketplace subscription on your account'
+        />
+      )}
 
       {!subscription.isFree && invoices.length > 0 && (
         <SettingsSection label='Invoices'>

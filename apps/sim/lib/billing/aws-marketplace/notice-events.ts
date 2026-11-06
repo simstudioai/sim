@@ -13,6 +13,7 @@ export type AwsMarketplaceTeamNotice =
   | { kind: 'new-license'; licenseId: string; source: 'registration' | 'event' }
   | { kind: 'taken'; licenseId: string; userId: string }
   | { kind: 'contact'; licenseId: string }
+  | { kind: 'license-event-received'; licenseId: string }
   | {
       kind: 'terms-changed'
       licenseId: string

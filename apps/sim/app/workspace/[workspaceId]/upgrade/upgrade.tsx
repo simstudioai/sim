@@ -85,10 +85,12 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
     return null
   }
 
-  if (!canManageBilling) {
-    const description = hostContext.hostOrganizationId
-      ? `Plans for ${hostContext.workspace.name} are managed by its organization administrators. Contact an organization admin to change this workspace’s plan.`
-      : `Only the owner of ${hostContext.workspace.name} can change this workspace’s plan.`
+  if (!canManageBilling || state.billedThroughMarketplace) {
+    const description = canManageBilling
+      ? 'Your subscription is billed through AWS Marketplace, so plans can’t be changed here.'
+      : hostContext.hostOrganizationId
+        ? `Plans for ${hostContext.workspace.name} are managed by its organization administrators. Contact an organization admin to change this workspace’s plan.`
+        : `Only the owner of ${hostContext.workspace.name} can change this workspace’s plan.`
 
     return (
       <div className='flex h-full flex-col bg-[var(--bg)]'>

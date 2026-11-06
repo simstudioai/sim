@@ -134,7 +134,7 @@ export function AwsMarketplaceOnboarding({
         <InviteStatusCard
           type='login'
           title='Set up your AWS Marketplace subscription'
-          description='Sign in to Sim to link this subscription to your organization.'
+          description='Sign in or create an account to set up this subscription.'
           details={supportContact}
           actions={[
             ...(registrationDisabled
@@ -199,18 +199,13 @@ export function AwsMarketplaceOnboarding({
   }
 
   const claim = claimQuery.data
-  if (claim.status === 'missing' || claim.status === 'expired' || claim.status === 'inactive') {
-    const title = {
-      missing: 'No subscription to set up',
-      expired: 'Setup link expired',
-      inactive: 'No active subscription found',
-    }[claim.status]
+  if (claim.status === 'missing') {
     return (
       <InviteLayout>
         <InviteStatusCard
-          type='error'
-          title={title}
-          description={RESTART_FROM_AWS}
+          type='warning'
+          title='No setup in progress'
+          description={`${RESTART_FROM_AWS} If you already finished setup, we will contact you ${AWS_MARKETPLACE_SETUP_TURNAROUND}.`}
           details={supportContact}
           actions={[returnHome]}
         />
