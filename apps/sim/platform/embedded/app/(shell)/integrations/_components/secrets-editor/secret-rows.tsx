@@ -101,20 +101,22 @@ interface SecretRowMenuProps {
 
 function SecretRowMenu({ name, onDelete }: SecretRowMenuProps) {
   return (
-    <ActionMenu
-      label='Secret actions'
-      icon='I108'
-      actions={[
-        { id: 'copy', label: 'Copy name', onSelect: () => copySecretName(name) },
-        {
-          id: 'delete',
-          label: 'Delete',
-          destructive: true,
-          separatorBefore: true,
-          onSelect: onDelete,
-        },
-      ]}
-    />
+    <span className={styles.menu}>
+      <ActionMenu
+        label='Secret actions'
+        icon='I108'
+        actions={[
+          { id: 'copy', label: 'Copy name', onSelect: () => copySecretName(name) },
+          {
+            id: 'delete',
+            label: 'Delete',
+            destructive: true,
+            separatorBefore: true,
+            onSelect: onDelete,
+          },
+        ]}
+      />
+    </span>
   )
 }
 
@@ -204,7 +206,7 @@ export function NewRow({ envVar, index, onUpdate, onPaste }: NewRowProps) {
           }}
         />
       ) : (
-        <span />
+        <span className={styles.menuSlot} />
       )}
       {keyError && (
         <p className={styles.rowError} data-type='T052' role='alert'>
