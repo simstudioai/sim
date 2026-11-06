@@ -78,6 +78,18 @@ export function findLiveResponseId(messages: readonly ChatMessage[]): string | u
   return undefined
 }
 
+/**
+ * The last row of the conversation proper: messages on their way into a turn, or
+ * shown as not delivered, trail it without being its end. The answer here is the one
+ * still thinking, and the one whose choices can still be picked.
+ */
+export function findLastConversationIndex(messages: readonly ChatMessage[]): number {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    if (!messages[index].steering && !messages[index].delivery) return index
+  }
+  return -1
+}
+
 const ANSWER_SEGMENT_MARKER = ':before:'
 
 /**
