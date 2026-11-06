@@ -25,7 +25,7 @@ import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AuthorizedAppsPage } from '@/lib/api/contracts/user'
-import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
+import { readDraft, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 
 const mocks = vi.hoisted(() => ({
   plan: false,
@@ -153,6 +153,18 @@ function composerProps(): ConversationComposerProps {
   return call[0]
 }
 
+function draftText() {
+  return (
+    readDraft(useMothershipDraftsStore.getState().drafts, composerProps().draftKeys)?.text ?? ''
+  )
+}
+
+function writeDraft(text: string) {
+  const store = useMothershipDraftsStore.getState()
+  const [key] = composerProps().draftKeys
+  store.setDraft(key, { ...store.drafts[key], text })
+}
+
 async function attachDraftImage() {
   const files = [new File(['image'], 'draft.png', { type: 'image/png' })]
   await act(async () =>
@@ -188,15 +200,15 @@ describe('organization home', () => {
     await act(async () =>
       renderHome(<PageConversation requestMode='agent' chatId='chat-a' fallback={null} />)
     )
-    await act(async () => composerProps().onChange('A draft for chat A'))
+    await act(async () => writeDraft('A draft for chat A'))
     await act(async () =>
       renderHome(<PageConversation requestMode='agent' chatId='chat-a' fallback={null} />)
     )
-    expect(composerProps().value).toBe('A draft for chat A')
+    expect(draftText()).toBe('A draft for chat A')
     await act(async () =>
       renderHome(<PageConversation requestMode='agent' chatId='chat-b' fallback={null} />)
     )
-    expect(composerProps().value).toBe('')
+    expect(draftText()).toBe('')
     expect(mocks.chat).toHaveBeenLastCalledWith(
       { organizationId: 'organization-a' },
       'chat-b',
@@ -214,21 +226,21 @@ it('isolates saved drafts by user, organization, and conversation', async () => 
     renderHome(<PageConversation chatId='chat-a' requestMode='assistant' fallback={null} />)
   )
   await attachDraftImage()
-  await act(async () => composerProps().onChange('Chat A follow-up'))
+  await act(async () => writeDraft('Chat A follow-up'))
   await act(async () =>
     renderHome(<PageConversation chatId='chat-b' requestMode='assistant' fallback={null} />)
   )
-  expect(composerProps().value).toBe('')
+  expect(draftText()).toBe('')
   await act(async () =>
     renderHome(<PageConversation chatId='chat-a' requestMode='assistant' fallback={null} />)
   )
-  expect(composerProps().value).toBe('Chat A follow-up')
+  expect(draftText()).toBe('Chat A follow-up')
   expect(composerProps().files.attachedFiles[0]?.key).toBe('image-key')
   mockSession.mockReturnValue({ data: { user: { id: 'other-user' } } })
   await act(async () =>
     renderHome(<PageConversation chatId='chat-a' requestMode='assistant' fallback={null} />)
   )
-  expect(composerProps().value).toBe('')
+  expect(draftText()).toBe('')
   mockSession.mockReturnValue({ data: { user: { id: 'reader' } } })
   mockContext.mockReturnValue({
     ...toRecord(mockContext()),
@@ -237,5 +249,5 @@ it('isolates saved drafts by user, organization, and conversation', async () => 
   await act(async () =>
     renderHome(<PageConversation chatId='chat-a' requestMode='assistant' fallback={null} />)
   )
-  expect(composerProps().value).toBe('')
+  expect(draftText()).toBe('')
 })

@@ -16,6 +16,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useComposerSubmission } from '@/hooks/use-composer-submission'
 import type { useSpeechToText } from '@/hooks/use-speech-to-text'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import {
   useMothershipEffortStore,
   useMothershipPlanEffortStore,
@@ -92,6 +93,11 @@ import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/fe
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { PageComposer as Composer } from '@/platform/app/(shell)/_components/conversation/page-composer'
 
+const DRAFT_KEY = 'composer-test-draft'
+const DRAFT_KEYS = [DRAFT_KEY]
+const writeDraft = (text: string) =>
+  useMothershipDraftsStore.getState().setDraft(DRAFT_KEY, { text })
+
 const deploymentShape = () => createMockDeploymentShape()
 deploymentShapeMockFns.mockUseDeploymentShape.mockImplementation(deploymentShape)
 deploymentShapeMockFns.mockGetDeploymentShape.mockImplementation(deploymentShape)
@@ -107,6 +113,7 @@ beforeEach(() => {
   mocks.advanced = false
   useMothershipEffortStore.getState().reset()
   useMothershipPlanEffortStore.getState().reset()
+  useMothershipDraftsStore.setState({ drafts: {} })
   mocks.plan = false
   vi.clearAllMocks()
   mocks.workspaces = [
@@ -201,8 +208,8 @@ async function render(
     'isSending' | 'restoredContexts' | 'onSendQueuedHead'
   > = { isSending: false }
 ) {
+  writeDraft(initialValue)
   function Harness() {
-    const [value, setValue] = useState(initialValue)
     const submission = useComposerSubmission({ mode: requestMode })
     const files = useFileAttachments({
       userId: 'user-a',
@@ -215,9 +222,8 @@ async function render(
         requestMode={requestMode}
         submission={submission}
         restoredContexts={controls.restoredContexts}
-        value={value}
+        draftKeys={DRAFT_KEYS}
         files={files}
-        onChange={setValue}
         isInitialView={isInitialView}
         isSending={controls.isSending}
         onStop={vi.fn()}
@@ -225,7 +231,7 @@ async function render(
         onSubmit={(text, contexts) => {
           mocks.submit(text, files.attachedFiles)
           mocks.contexts(contexts)
-          setValue('')
+          useMothershipDraftsStore.getState().clearDraft(DRAFT_KEY)
           files.clearAttachedFiles()
         }}
       />
@@ -276,12 +282,12 @@ it.each([false, true])(
   'keeps restored queued skills scoped and warns about lost context (%s)',
   async (invalidContext) => {
     let restore: () => void = () => {}
+    writeDraft('Original draft')
     function Harness() {
-      const [value, setValue] = useState('Original draft')
       const [contexts, setContexts] =
         useState<ComponentProps<typeof Composer>['restoredContexts']>()
       restore = () => {
-        setValue('/review fix this @Browser')
+        writeDraft('/review fix this @Browser')
         setContexts([
           { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
           ...(invalidContext
@@ -307,8 +313,7 @@ it.each([false, true])(
         <Composer
           requestMode='agent'
           submission={submission}
-          value={value}
-          onChange={setValue}
+          draftKeys={DRAFT_KEYS}
           restoredContexts={contexts}
           files={files}
           isInitialView={false}

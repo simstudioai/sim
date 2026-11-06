@@ -19,19 +19,20 @@ import type {
   useComposerSubmission,
 } from '@/hooks/use-composer-submission'
 import { useVoiceInput } from '@/hooks/use-voice-input'
+import { readDraft, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
 
 /** What a conversation hands whichever composer view its surface draws. */
 export interface ConversationComposerProps {
   requestMode: ChatRequestMode
   onPlanChange?: () => void
-  value: string
+  /** Where the draft lives: written to the first key, read through the rest. */
+  draftKeys: readonly string[]
   files: ReturnType<typeof useFileAttachments>
   submission: ReturnType<typeof useComposerSubmission>
   /** On the empty home the placeholder types itself and the field is taller; in a chat it is the plain footer input. */
   isInitialView: boolean
   isSending: boolean
-  onChange: (value: string, contexts?: ChatContext[]) => void
   restoredContexts?: ChatContext[]
   onSubmit: (
     text: string,
@@ -71,12 +72,11 @@ interface HeldSend {
 export function useComposer({
   requestMode,
   onPlanChange,
-  value,
+  draftKeys,
   files,
   submission,
   isInitialView,
   isSending,
-  onChange,
   restoredContexts,
   onSubmit,
   onSendQueuedHead,
@@ -86,6 +86,8 @@ export function useComposer({
   waitsForFullLists,
   hasAdditionalAttachments,
 }: UseComposerOptions) {
+  const [draftKey] = draftKeys
+  const value = useMothershipDraftsStore((state) => readDraft(state.drafts, draftKeys)?.text ?? '')
   const imagesOnly = requestMode === 'assistant'
   const { organization } = useOrganizationContext()
   const { data: allWorkspaces = [], isPending: workspacesPending } = useWorkspacesQuery(!imagesOnly)
@@ -133,25 +135,25 @@ export function useComposer({
     getMessages: () => messages ?? [],
   })
   const { textareaRef, setValue, setContexts, getValue, getPlainValue, restorePrompt } = editor
-  const lastPublished = useRef(value)
+  /**
+   * The editor holds chips, the draft holds plain text, so neither can be the other's value. A write
+   * from outside, a queued message restored or a chat cleared, reaches the editor here.
+   */
   useEffect(() => {
-    if (value !== lastPublished.current) {
-      setValue(value)
-      if (!value) setContexts([])
-      lastPublished.current = value
-      if (value) textareaRef.current?.focus()
-    }
-  }, [value, textareaRef, setValue, setContexts])
-  const lastContexts = useRef(editor.contexts)
+    if (value === getPlainValue()) return
+    setValue(value)
+    if (value) textareaRef.current?.focus()
+    else setContexts([])
+  }, [value, textareaRef, setValue, setContexts, getPlainValue])
   useEffect(() => {
     if (getValue() !== editor.value) return
-    const plainValue = getPlainValue()
-    if (plainValue !== lastPublished.current || editor.contexts !== lastContexts.current) {
-      lastPublished.current = plainValue
-      lastContexts.current = editor.contexts
-      onChange(plainValue, editor.contexts.length ? editor.contexts : undefined)
-    }
-  }, [editor.value, editor.contexts, onChange, getValue, getPlainValue])
+    const text = getPlainValue()
+    const contexts = editor.contexts.length ? editor.contexts : undefined
+    const store = useMothershipDraftsStore.getState()
+    const saved = readDraft(store.drafts, draftKeys)
+    if (text === (saved?.text ?? '') && contexts === saved?.contexts) return
+    store.setDraft(draftKey, { ...store.drafts[draftKey], text, contexts })
+  }, [editor.value, editor.contexts, draftKeys, draftKey, getValue, getPlainValue])
   useEffect(() => {
     if (!restoredContexts) return
     history.reset()

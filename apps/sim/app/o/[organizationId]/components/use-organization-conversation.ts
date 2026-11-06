@@ -1,6 +1,6 @@
 'use client'
 
-import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
+import { type RefObject, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
@@ -57,7 +57,7 @@ import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { type PrepareChatSubmission, useComposerSubmission } from '@/hooks/use-composer-submission'
 import { useHydrated } from '@/hooks/use-hydrated'
-import { type DraftPayload, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
+import { readDraft, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
 
 export interface OrganizationSummaryRequest {
@@ -190,18 +190,12 @@ export function useOrganizationConversation({
       !canBuild || modes[`${userId}:${organization.id}`] === 'assistant' ? 'assistant' : 'agent'
     return legacyMode === destinationMode ? key : null
   })
-  const readDraft = (drafts: Record<string, DraftPayload>) =>
-    drafts[draftKey] ??
-    drafts[initialDraftKey] ??
-    (legacyDraftKey ? drafts[legacyDraftKey] : undefined)
-  const initialDraft = readDraft(useMothershipDraftsStore.getState().drafts)
-  const draft = useMothershipDraftsStore((state) => readDraft(state.drafts)?.text ?? '')
-  const setDraft = useCallback(
-    (text: string, contexts?: ChatContext[]) => {
-      const store = useMothershipDraftsStore.getState()
-      store.setDraft(draftKey, { ...store.drafts[draftKey], text, contexts })
-    },
-    [draftKey]
+  const draftKeys = useMemo(
+    () => [draftKey, initialDraftKey, ...(legacyDraftKey ? [legacyDraftKey] : [])],
+    [draftKey, initialDraftKey, legacyDraftKey]
+  )
+  const [initialDraft] = useState(() =>
+    readDraft(useMothershipDraftsStore.getState().drafts, draftKeys)
   )
   const [restoredContexts, setRestoredContexts] = useState<ChatContext[]>(
     () => initialDraft?.contexts ?? []
@@ -427,7 +421,12 @@ export function useOrganizationConversation({
   const editQueuedMessage = (id: string) => {
     const queued = chat.editQueuedMessage(id)
     if (queued) {
-      setDraft(queued.content, queued.contexts)
+      const store = useMothershipDraftsStore.getState()
+      store.setDraft(draftKey, {
+        ...store.drafts[draftKey],
+        text: queued.content,
+        contexts: queued.contexts,
+      })
       setRestoredContexts(queued.contexts ?? [])
       files.restoreAttachedFiles(
         (queued.fileAttachments ?? []).map((file) => ({
@@ -459,7 +458,7 @@ export function useOrganizationConversation({
       !hasChat && destinationMode === 'agent' && planEnabled
         ? () => setPlanning((value) => !value)
         : undefined,
-    value: draft,
+    draftKeys,
     restoredContexts,
     messages: chat.messages,
     onEditQueuedTail: () => {
@@ -469,7 +468,6 @@ export function useOrganizationConversation({
     files,
     isInitialView: !hasChat,
     isSending: chat.isSending || chat.isReconnecting,
-    onChange: setDraft,
     onSubmit: submit,
     onSendQueuedHead: () => {
       void chat.sendNow()
