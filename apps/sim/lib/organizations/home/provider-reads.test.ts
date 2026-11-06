@@ -326,7 +326,7 @@ describe('sharing a Gmail read across accounts', () => {
   })
 
   it('does not wait for the listing before asking for the mailbox address', async () => {
-    let listed: (response: Response) => void = () => {}
+    let listed: (response: ReturnType<typeof respond>) => void = () => {}
     providerFetch.mockImplementation((url: string) =>
       url.includes('/threads?')
         ? new Promise((resolve) => {
