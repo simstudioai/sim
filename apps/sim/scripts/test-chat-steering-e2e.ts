@@ -439,6 +439,22 @@ const TURN_PATH = '/api/mothership/chat'
 const STEER_PATH = '/api/copilot/chat/steer'
 const DISMISS_PATH = '/api/copilot/chat/steer/dismiss'
 const STEER_WORKER_PATH = '/api/streams/steer/v2'
+const DISPOSITION_WORKER_PATH = '/api/streams/steer/v2/disposition'
+
+/**
+ * Cuts Sim off from every worker route that could deliver a steering message or say what became of
+ * it. With only the steer route cut off, a turn's end still reads that the worker never got the
+ * message and sends it on as a turn, which is scenario 13.
+ */
+function cutSteeringWorker() {
+  proxy.refuse(STEER_WORKER_PATH)
+  proxy.refuse(DISPOSITION_WORKER_PATH)
+}
+
+function reachSteeringWorker() {
+  proxy.allow(STEER_WORKER_PATH)
+  proxy.allow(DISPOSITION_WORKER_PATH)
+}
 
 async function openSurface(): Promise<Surface> {
   assert(context)
@@ -500,14 +516,15 @@ const notDelivered = (page: Page) => page.getByRole('status').filter({ hasText: 
 const NOT_DELIVERED_TIMEOUT_MS = 240_000
 
 /**
- * Starts a turn, steers `steer` into it with the worker's steer route unreachable, and lets the
- * turn finish, so the steer runs out of attempts and shows as not delivered.
+ * Starts a turn, steers `steer` into it with the worker's steer and read routes unreachable, and
+ * lets the turn finish, so nothing can say what became of it: its reads run out of attempts and it
+ * shows as not delivered.
  */
 async function undeliveredSteer(surface: Surface, first: string, steer: string, before: string) {
   const { page } = surface
   const gate = createGate()
   const chatId = await startTurn(surface, first, { text: before, gate })
-  proxy.refuse(STEER_WORKER_PATH)
+  cutSteeringWorker()
   await send(page, steer)
   await expect(page.getByText(steer, { exact: true })).toBeVisible({ timeout: 2_000 })
   await expect
@@ -1294,7 +1311,7 @@ const scenarios: Scenario[] = [
         await page.screenshot({ path: shot })
         evidence.screenshot = shot
         model.enqueue({ text: reply })
-        proxy.allow(STEER_WORKER_PATH)
+        reachSteeringWorker()
         await notDelivered(page).getByRole('button', { name: 'Retry', exact: true }).click()
         await model.waitFor(steer)
         await expect(page.getByText(reply)).toBeVisible()
@@ -1309,7 +1326,7 @@ const scenarios: Scenario[] = [
         await assertOneBubble(page, steer)
         await expect(notDelivered(page)).toHaveCount(0)
       } finally {
-        proxy.allow(STEER_WORKER_PATH)
+        reachSteeringWorker()
       }
     },
   },
@@ -1337,7 +1354,7 @@ const scenarios: Scenario[] = [
         await assertOneBubble(page, steer)
         assert.equal((await userRows(chatId, steer)).length, 1, 'It keeps its record')
 
-        proxy.allow(STEER_WORKER_PATH)
+        reachSteeringWorker()
         const [answered] = await dismiss()
         assert.equal(answered.status(), 200)
         evidence.dismissOutcome = await answered.json()
@@ -1373,7 +1390,7 @@ const scenarios: Scenario[] = [
         await expect(page.getByText(steer, { exact: true })).toHaveCount(0)
         await assertOneBubble(page, later)
       } finally {
-        proxy.allow(STEER_WORKER_PATH)
+        reachSteeringWorker()
       }
     },
   },
@@ -1410,7 +1427,7 @@ const scenarios: Scenario[] = [
         assert.equal(model.containing(failed).length, 0, 'A reload does not send it')
 
         model.enqueue({ text: retryReply })
-        proxy.allow(STEER_WORKER_PATH)
+        reachSteeringWorker()
         await notDelivered(page).getByRole('button', { name: 'Retry', exact: true }).click()
         await model.waitFor(failed)
         await expect(page.getByText(retryReply)).toBeVisible()
@@ -1428,7 +1445,59 @@ const scenarios: Scenario[] = [
         await assertOneBubble(page, later)
         await expect(notDelivered(page)).toHaveCount(0)
       } finally {
-        proxy.allow(STEER_WORKER_PATH)
+        reachSteeringWorker()
+      }
+    },
+  },
+  {
+    id: '13',
+    name: 'unreachable steer: the read says the run never got it, so it goes out once as the next turn',
+    run: async (surface, evidence) => {
+      const { page } = surface
+      const first = 'S13 start the turn'
+      const steer = 'S13 the steer never reaches the worker'
+      const after = 'S13-answered-as-its-own-turn'
+      const gate = createGate()
+      const chatId = await startTurn(surface, first, { text: 'S13-before', gate })
+      try {
+        proxy.refuse(STEER_WORKER_PATH)
+        model.enqueue({ text: after })
+        await send(page, steer)
+        await expect(page.getByText(steer, { exact: true })).toBeVisible({ timeout: 2_000 })
+        await expect
+          .poll(() => surface.steerPosts.find((post) => post.body.content === steer)?.status)
+          .toBeGreaterThanOrEqual(500)
+        gate.release()
+        await model.waitFor(steer)
+        await expect(page.getByText(after)).toBeVisible()
+        await waitForIdle(page)
+        await expect(notDelivered(page)).toHaveCount(0)
+        await assertDeliveredAsTurn(surface, chatId, steer)
+        const reads = proxy.calls.filter(
+          (call) => call.path === DISPOSITION_WORKER_PATH && !call.refused
+        )
+        evidence.dispositionReads = reads.map((call) => toRecord(call.response).status)
+        assert(
+          reads.some((call) => toRecord(call.response).status === 'not_applied'),
+          'The worker read it as never applied'
+        )
+        assert(
+          proxy.steers(steer).every((call) => call.refused),
+          'No steer of it reached the worker'
+        )
+        assert.equal(
+          surface.turnPosts.find((post) => post.body.message === steer)?.body.steeringFallback,
+          true
+        )
+        assert.deepEqual(
+          (await userRows(chatId)).map((candidate) => candidate.content),
+          [first, steer]
+        )
+        await reload(page)
+        await assertOneBubble(page, steer)
+        await expect(notDelivered(page)).toHaveCount(0)
+      } finally {
+        reachSteeringWorker()
       }
     },
   },
