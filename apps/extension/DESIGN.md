@@ -66,8 +66,11 @@ other workspace resources or browser-control tools.
 - HTTP(S) page access is one optional browser-wide grant, requested from a direct
   user gesture. The browser owns revocation and restrictions. Approval enables
   capture across sites; switching tabs alone does not extract content.
-- No history permission, bookmarks, cookie API, debugger, native messaging, external messaging,
-  or arbitrary remote code execution. The only network interception is the static
+- `history` and `favicon` are optional, requested only by the click in the extension's own setup
+  page, with a stored preference, for recent pages on Sim Home. External messaging exists only for
+  this: the exact Sim origin may ask for status, recent pages, or to open setup. It can never turn
+  the feature on, and addresses are answered and forgotten, never stored or sent to the server.
+- No bookmarks, cookie API, debugger, native messaging, or arbitrary remote code execution. The only network interception is the static
   `sim/` and `go/` redirect rule above.
 - Background network requests are limited to two. Once a week at browser start, and after
   signing in to the panel, the worker asks the Sim origin whether links are on for the session;

@@ -114,6 +114,10 @@ export interface HomeRecentItem {
   /** Where to look up an icon, for a source with no provider mark. */
   host: string | null
   urls: readonly string[]
+  /** The extension's own icon, on a page from this browser's history. */
+  iconUrl?: string
+  /** From this browser's history: it stays on the device, and the server has nothing to remove. */
+  local?: boolean
 }
 
 export interface HomeView {
@@ -129,6 +133,8 @@ export interface HomeView {
   workspaces: HomeListState<HomeWorkspaceItem>
   workspaceCount: number
   recents: HomeListState<HomeRecentItem>
+  /** Someone with the extension can turn on recent pages from their browser. */
+  recentsOffer: boolean
   getStarted: readonly HomeGetStartedStep[]
   hiddenWidgets: readonly OrganizationHomeWidget[]
 }
@@ -153,5 +159,7 @@ export interface HomeActions {
   retryWorkspaces: () => void
   retryRecents: () => void
   removeRecent: (id: string) => void
+  openRecentsSetup: () => void
+  dismissRecentsOffer: () => void
   setWidgetHidden: (widget: OrganizationHomeWidget, hidden: boolean) => void
 }

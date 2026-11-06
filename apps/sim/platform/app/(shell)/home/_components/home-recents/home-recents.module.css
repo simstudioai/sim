@@ -1,0 +1,9 @@
+.recents {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-row-gap);
+}
+.offer {
+  justify-self: start;
+  max-inline-size: 100%;
+}

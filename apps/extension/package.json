@@ -11,7 +11,7 @@
     "lint:check": "biome check .",
     "format": "biome format --write .",
     "format:check": "biome format .",
-    "test:e2e": "bun scripts/test-e2e.ts"
+    "test:e2e": "bun scripts/test-e2e.ts && bun scripts/test-recents-e2e.ts"
   },
   "dependencies": {
     "@sim/browser-extension-protocol": "workspace:*",

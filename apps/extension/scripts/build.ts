@@ -142,6 +142,7 @@ await writeFile(
       background: { service_worker: 'background.js' },
       omnibox: { keyword: 'sim' },
       side_panel: { default_path: 'sidepanel.html' },
+      options_ui: { page: 'recents.html', open_in_tab: true },
       action: { default_title: 'Open Sim' },
       icons: { 16: 'icon-16.png', 32: 'icon-32.png', 128: 'icon-128.png' },
       commands: {

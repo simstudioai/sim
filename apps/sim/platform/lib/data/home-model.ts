@@ -1,3 +1,4 @@
+import type { RecentPage } from '@sim/browser-extension-protocol'
 import type { AccessRequestRecord } from '@/lib/api/contracts/access-requests'
 import type { SearchHistoryResponse } from '@/lib/api/contracts/knowledge/search-history'
 import type { SearchIntegrationStatus } from '@/lib/api/contracts/knowledge/search-integrations'
@@ -270,6 +271,19 @@ export function toRecentItems(history: SearchHistoryResponse): HomeRecentItem[] 
     })
   }
   return [...items.values()]
+}
+
+/** Pages from this browser's history: already filtered, and never looked up or recorded anywhere. */
+export function toBrowserRecentItems(pages: readonly RecentPage[]): HomeRecentItem[] {
+  return pages.map((page) => ({
+    id: page.url,
+    label: page.title,
+    href: page.url,
+    host: null,
+    urls: [page.url],
+    iconUrl: page.iconUrl,
+    local: true,
+  }))
 }
 
 export function greetingAt(nowMs: number, timeZone: string): string {

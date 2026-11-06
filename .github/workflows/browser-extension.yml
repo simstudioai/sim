@@ -7,6 +7,7 @@ on:
       - 'apps/extension/**'
       - 'packages/browser-extension-protocol/**'
       - 'apps/sim/app/extension/**'
+      - 'apps/sim/platform/**'
       - 'apps/sim/app/workspace/**/home/**'
       - 'apps/sim/stores/mothership-drafts/**'
       - 'apps/sim/scripts/test-browser-extension-e2e.ts'
@@ -50,6 +51,7 @@ jobs:
         working-directory: apps/extension
         env:
           EXTENSION_REPORT_PATH: test-results/extension-report.json
+          EXTENSION_RECENTS_REPORT_PATH: test-results/extension-recents-report.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

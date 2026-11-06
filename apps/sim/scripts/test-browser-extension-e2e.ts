@@ -351,6 +351,9 @@ try {
   const fixtureOrigin = `http://localhost:${fixtureAddress.port}`
   // Only the synthetic page is pregranted; native permission prompts are a separate acceptance check.
   manifest.host_permissions.push(`${fixtureOrigin}/*`)
+  // Chrome's history prompt cannot be automated, so recent pages start with the permission held.
+  manifest.permissions.push(...manifest.optional_permissions)
+  manifest.optional_permissions = undefined
   await writeFile(resolve(extensionPath, 'manifest.json'), JSON.stringify(manifest))
   const launchBrowserContext = async () => {
     const opened = await chromium.launchPersistentContext(resolve(temporary, 'profile'), {
@@ -1494,6 +1497,60 @@ try {
         await draft.close()
         await sql`delete from organization where id=${organizationId}`
       }
+    }
+  )
+  await checkNavigation(
+    'Recent pages reach Home from the extension and never leave the browser',
+    async () => {
+      const visited = 'recent-page.example.com'
+      const urls = [`https://${visited}/article`, `https://${visited}/next`]
+      await worker.evaluate(async (pages) => {
+        for (const url of pages) await chrome.history.addUrl({ url })
+      }, urls)
+      const leaks: string[] = []
+      const home = await openPage()
+      await setPageViewport(home, 1280, 900)
+      home.on('request', (request) => {
+        const sent = `${request.url()} ${request.postData() ?? ''} ${request.headers().referer ?? ''}`
+        if (sent.includes(visited)) leaks.push(`${request.method()} ${request.url()}`)
+      })
+      const main = home.getByRole('main')
+      await home.goto(`${base.origin}/o/${organizationId}/home`)
+      assert.equal(new URL(home.url()).pathname, `/o/${organizationId}/home`)
+
+      const offer = main.getByRole('button', { name: 'See your recently visited pages here' })
+      await expect(offer).toBeVisible()
+      await expect(main.getByRole('link', { name: visited })).toHaveCount(0)
+
+      await worker.evaluate(() => chrome.storage.local.set({ recentPagesEnabled: true }))
+      await home.reload()
+      const recents = main.getByRole('region', { name: 'Recents', exact: true })
+      await expect(recents.getByRole('link', { name: visited })).toHaveCount(2)
+      await expect(recents.locator('img').first()).toHaveAttribute(
+        'src',
+        /^data:image\/png;base64,/
+      )
+      await expect(recents.getByRole('button', { name: /^Remove / })).toHaveCount(0)
+      await expect(
+        recents.locator('xpath=ancestor::*[contains(@class, "ph-no-capture")]')
+      ).toHaveCount(1)
+      await expect(offer).toHaveCount(0)
+      assert.equal(
+        await home.evaluate(() => sessionStorage.getItem('sim:recent-pages-on')),
+        '1',
+        'The hint was not remembered'
+      )
+      const remembered = await home.evaluate(() =>
+        JSON.stringify([{ ...sessionStorage }, { ...localStorage }])
+      )
+      assert(!remembered.includes(visited), 'A visited address reached page storage')
+
+      await worker.evaluate(() => chrome.storage.local.remove('recentPagesEnabled'))
+      await home.evaluate(() => window.dispatchEvent(new Event('focus')))
+      await expect(recents.getByRole('link', { name: visited })).toHaveCount(0)
+      await expect(offer).toBeVisible()
+      assert.deepEqual(leaks, [], 'A visited address left the browser')
+      await home.close()
     }
   )
   await checkComposer(

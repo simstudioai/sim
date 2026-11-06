@@ -12,6 +12,7 @@ import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isInvitationsDisabled } from '@/lib/core/config/env-flags'
+import { getBrowserExtensionIds } from '@/lib/core/security/extension'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import {
@@ -64,6 +65,8 @@ export interface OrganizationSurfaceGate extends OrganizationChatAccess {
 export interface OrganizationSurfaceContext extends Omit<OrganizationSurfaceGate, 'organization'> {
   organization: OrganizationSurfaceOrganization & { memberCount: number }
   settingsFeatures: OrganizationSettingsFeatures
+  /** Sim's browser extensions on this deployment, which a page may ask for recent pages. */
+  browserExtensionIds: readonly string[]
 }
 
 export function canConnectSearchIntegrations(config: PermissionGroupConfig | null): boolean {
@@ -168,6 +171,7 @@ async function resolveOrganizationSurfaceContext(
       deployment,
       governanceActive
     ),
+    browserExtensionIds: getBrowserExtensionIds(),
   }
 }
 

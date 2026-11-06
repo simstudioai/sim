@@ -66,6 +66,7 @@ const SURFACE = {
   searchAccess: { memberScoped: true },
   connectedAccountsAvailable: true,
   settingsFeatures: { hosted: true, billingEnabled: true },
+  browserExtensionIds: [],
 }
 
 const SOURCE = {

@@ -30,6 +30,7 @@ import { useRemoveSearchHistorySource, useSearchHistory } from '@/hooks/queries/
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useOrderedWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useBrowserRecents } from '@/platform/lib/data/browser-recents'
 import { organizationChatHref, useCanOpenOrganizationChat } from '@/platform/lib/data/chat-list'
 import { useGetStartedSteps } from '@/platform/lib/data/get-started'
 import {
@@ -40,6 +41,7 @@ import {
   localDate,
   settleReadAccounts,
   toAttentionItems,
+  toBrowserRecentItems,
   toCalendarDay,
   toEmailItems,
   toHomeConnection,
@@ -267,14 +269,22 @@ function useHomeRecents(organization: OrganizationSurfaceContext) {
   const allowed = organization.searchAccess.memberScoped
   const history = useSearchHistory(allowed ? organizationId : undefined, userId)
   const remove = useRemoveSearchHistorySource(organizationId, userId)
+  const browser = useBrowserRecents(organization.browserExtensionIds)
   const items = history.data ? toRecentItems(history.data) : []
-  const state: HomeListState<HomeRecentItem> = !allowed
+  const searchHistory: HomeListState<HomeRecentItem> = !allowed
     ? { status: 'ready', items: [] }
     : history.data
       ? { status: 'ready', items }
       : withoutResult(history)
+  const state: HomeListState<HomeRecentItem> =
+    browser.kind === 'ready'
+      ? { status: 'ready', items: toBrowserRecentItems(browser.pages) }
+      : browser.kind === 'pending'
+        ? { status: 'loading' }
+        : searchHistory
   return {
     state,
+    offer: browser.kind === 'offer' ? browser : null,
     retry: () => void history.refetch(),
     remove: (id: string) =>
       remove.mutate(items.find((item) => item.id === id)?.urls ?? [id], {
@@ -446,6 +456,7 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
       workspaces: workspaces.state,
       workspaceCount: workspaces.count,
       recents: recents.state,
+      recentsOffer: recents.offer !== null,
       getStarted,
       hiddenWidgets,
     },
@@ -465,6 +476,8 @@ export function useLiveHome(assistant: boolean): { view: HomeView; actions: Home
       retryWorkspaces: workspaces.retry,
       retryRecents: recents.retry,
       removeRecent: recents.remove,
+      openRecentsSetup: () => recents.offer?.open(),
+      dismissRecentsOffer: () => recents.offer?.dismiss(),
       setWidgetHidden: (widget, hidden) => setWidgetHidden(viewer, widget, hidden),
     },
   }

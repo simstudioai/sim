@@ -44,7 +44,7 @@ function richText(content: string): ReactNode {
 export const PRIVACY_CONFIG: LegalPageConfig = {
   title: 'Privacy Policy',
   description: 'Sim Studio, Inc. · Operating the Sim platform (sim.ai)',
-  lastUpdated: 'November 4, 2026',
+  lastUpdated: 'November 6, 2026',
   intro: [
     {
       kind: 'paragraph',
@@ -842,13 +842,19 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'When You use the sim address-bar keyword, the extension sends the typed link name, before any path values or query, to Sim with Your authenticated session to suggest Your organization’s links. Suggestions are cached in memory and are not written to extension storage. Opening a sim/ or go/ shortcut sends its path and query to Sim to resolve the destination, then opens that destination. Sim records each link’s visit count and last-visited time. These requests also use the operational diagnostics described in this Privacy Policy. Choosing Create link in Sim from the browser menu opens a draft with the selected link’s address, omitting query parameters and fragments. The destination becomes an organization link only when You confirm creation. The extension does not read Your browser history or unrelated address-bar input.'
+            'When You use the sim address-bar keyword, the extension sends the typed link name, before any path values or query, to Sim with Your authenticated session to suggest Your organization’s links. Suggestions are cached in memory and are not written to extension storage. Opening a sim/ or go/ shortcut sends its path and query to Sim to resolve the destination, then opens that destination. Sim records each link’s visit count and last-visited time. These requests also use the operational diagnostics described in this Privacy Policy. Choosing Create link in Sim from the browser menu opens a draft with the selected link’s address, omitting query parameters and fragments. The destination becomes an organization link only when You confirm creation. Apart from the optional feature described next, the extension does not read Your browser history, and it does not read unrelated address-bar input.'
           ),
         },
         {
           kind: 'paragraph',
           content: richText(
             'When Links are available for Your organization, the extension opens sim/ and go/ about once a week in background tabs that close themselves, so Chrome recognizes these shortcuts in the address bar. Those tabs load Sim’s link page with Your session, send no browsing data, and appear in Your browser history.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Recent pages on Sim Home is off by default. If You turn it on from the extension’s own setup page, Chrome asks You to allow the extension to read Your browsing history, which can include visits from other devices signed in to the same Chrome profile, and the icons of sites You visit. The extension then gives Your Sim Home page, in Your browser, the address, title, and icon of up to 20 recently visited pages so You can return to them. On Your device it leaves out sign-in pages, private and local addresses, addresses that depend on a query string, and Sim’s own pages. These details stay in memory while the page is open: the extension does not store them, they are not sent to Sim’s servers or AI providers, and they are excluded from analytics and session replay. Only Sim’s configured site can ask for them. You can turn this off on the same setup page, which is the extension’s Options page in Chrome, or by removing the permission in Chrome.'
           ),
         },
         {

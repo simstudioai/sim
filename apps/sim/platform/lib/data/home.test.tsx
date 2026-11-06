@@ -53,6 +53,7 @@ const ORGANIZATION = {
   searchAccess: { memberScoped: true },
   connectedAccountsAvailable: true,
   settingsFeatures: { hosted: true, billingEnabled: true },
+  browserExtensionIds: [],
 }
 
 const ACCOUNTS = {

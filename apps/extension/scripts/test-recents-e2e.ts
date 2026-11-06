@@ -133,6 +133,7 @@ try {
     )
     assert(manifest.optional_permissions.includes('favicon'), 'Favicon is not optional')
     assert(!manifest.web_accessible_resources, 'A resource was exposed to web pages')
+    assert(manifest.options_ui?.page === 'recents.html', 'Setup cannot be reached after dismissal')
     assert(
       JSON.stringify(manifest.externally_connectable.matches) === JSON.stringify([`${origin}/*`]),
       'externally_connectable is wider than the Sim origin'

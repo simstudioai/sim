@@ -110,11 +110,18 @@ export function HomeDashboard({ view, actions, requestMode, composer }: HomeDash
                 onRetry={actions.retryRecents}
               />
             )}
-            {view.recents.status === 'ready' && view.recents.items.length > 0 && (
-              <div className={styles.recents}>
-                <HomeRecents items={view.recents.items} onRemove={actions.removeRecent} />
-              </div>
-            )}
+            {view.recents.status === 'ready' &&
+              (view.recents.items.length > 0 || view.recentsOffer) && (
+                <div className={styles.recents}>
+                  <HomeRecents
+                    items={view.recents.items}
+                    onRemove={actions.removeRecent}
+                    offer={view.recentsOffer}
+                    onOpenSetup={actions.openRecentsSetup}
+                    onDismissOffer={actions.dismissRecentsOffer}
+                  />
+                </div>
+              )}
             {view.getStarted.length > 0 && <GetStarted steps={view.getStarted} />}
             <div className={styles.columns}>
               <div className={styles.column}>
