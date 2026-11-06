@@ -3,6 +3,10 @@ import { createSessionPrincipal } from '@sim/testing/factories/principal.factory
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
 import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
 import { billingUsageLogMock } from '@sim/testing/mocks/billing-usage-log.mock'
 import {
   executorPrincipalMock,
@@ -178,6 +182,8 @@ vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
 vi.mock('@/lib/billing/core/chat-access', () => ({
   payerHasPaidAccess: mockPayerHasPaidAccess,
 }))
+
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
@@ -448,6 +454,7 @@ import { createToolConfig, getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
 
 const mockGetBYOKKey = apiKeyByokMockFns.mockGetBYOKKey
+const mockResolveWorkspaceBillingPayer = billingAttributionMockFns.mockResolveWorkspaceBillingPayer
 const mockGenerateInternalToken = authInternalMockFns.mockGenerateInternalToken
 const mockCreateExecutorPrincipalFromExecutionContext =
   executorPrincipalMockFns.mockCreateExecutorPrincipalFromExecutionContext
@@ -6619,7 +6626,9 @@ describe('Hosted Key Injection', () => {
 
       expect(result.success).toBe(false)
       expect(result.error).toContain('available on paid plans')
-      expect(mockPayerHasPaidAccess).toHaveBeenCalledWith(TEST_BILLING_ATTRIBUTION)
+      expect(mockPayerHasPaidAccess).toHaveBeenCalledWith(TEST_BILLING_ATTRIBUTION, {
+        onBalanceUnavailable: 'deny',
+      })
       expect(mockRateLimiterFns.acquireKey).not.toHaveBeenCalled()
       expect(request).not.toHaveBeenCalled()
     })
@@ -6633,6 +6642,60 @@ describe('Hosted Key Injection', () => {
       expect(result.success).toBe(true)
       expect(mockRateLimiterFns.acquireKey).toHaveBeenCalledTimes(1)
       expect(request).toHaveBeenCalledTimes(1)
+    })
+
+    async function runPaidOnlyToolWithoutAttribution() {
+      mockGetBYOKKey.mockResolvedValue(null)
+      mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+      mockSecureFetchWithPinnedIP.mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: { get: () => null, toRecord: () => ({}) },
+        json: async () => ({ ok: true }),
+        text: async () => '{"ok":true}',
+      })
+      const result = await executeTool(PAID_ONLY_TOOL_ID, {
+        _context: { workspaceId: 'workspace-without-run', userId: 'user-1' },
+      })
+      return { result, request: mockSecureFetchWithPinnedIP }
+    }
+
+    it('judges the workspace payer when the run carries no attribution', async () => {
+      mockResolveWorkspaceBillingPayer.mockResolvedValue({
+        billedAccountUserId: 'payer-1',
+        organizationId: 'org-1',
+        payerSubscription: { plan: 'team' },
+      })
+      mockPayerHasPaidAccess.mockResolvedValue(true)
+
+      const { result, request } = await runPaidOnlyToolWithoutAttribution()
+
+      expect(result.success).toBe(true)
+      expect(mockResolveWorkspaceBillingPayer).toHaveBeenCalledWith('workspace-without-run', {
+        onMissing: 'return-null',
+      })
+      expect(mockPayerHasPaidAccess).toHaveBeenCalledWith(
+        {
+          billingEntity: { type: 'organization', id: 'org-1' },
+          payerSubscription: { plan: 'team' },
+        },
+        { onBalanceUnavailable: 'deny' }
+      )
+      expect(request).toHaveBeenCalledTimes(1)
+    })
+
+    it('refuses the hosted key when the workspace has no payer', async () => {
+      mockResolveWorkspaceBillingPayer.mockResolvedValue(null)
+      mockPayerHasPaidAccess.mockResolvedValue(true)
+
+      const { result, request } = await runPaidOnlyToolWithoutAttribution()
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('available on paid plans')
+      expect(mockPayerHasPaidAccess).not.toHaveBeenCalled()
+      expect(mockRateLimiterFns.acquireKey).not.toHaveBeenCalled()
+      expect(request).not.toHaveBeenCalled()
     })
 
     it("runs a free payer's own workspace key without consulting the plan", async () => {

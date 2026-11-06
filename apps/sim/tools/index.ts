@@ -557,7 +557,7 @@ async function registerAssistantCredentialSecrets(
 /**
  * Refuses a `requiresPaidPlan` hosted key to a run whose payer lacks paid access. The payer is
  * the run's admitted attribution, or the workspace's payer for a surface that carries none; a
- * workspace without a payer is refused.
+ * workspace without a payer, or a free payer whose credit balance cannot be read, is refused.
  */
 async function assertPayerMayUseHostedKey(
   tool: ToolDefinition,
@@ -581,7 +581,7 @@ async function assertPayerMayUseHostedKey(
     }
   }
 
-  if (payer && (await payerHasPaidAccess(payer))) return
+  if (payer && (await payerHasPaidAccess(payer, { onBalanceUnavailable: 'deny' }))) return
 
   throw new HostedKeyRequiresPaidPlanError(
     `${tool.name} with Sim's hosted key is available on paid plans. Upgrade your plan, or add your own API key under Settings > BYOK.`
