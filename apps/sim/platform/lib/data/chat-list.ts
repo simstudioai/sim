@@ -2,6 +2,8 @@
 
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
+import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
+import { canOpenOrganizationChat } from '@/lib/organizations/chat-open'
 import {
   MothershipChatDeleteError,
   mothershipChatHistoryQueryOptions,
@@ -14,9 +16,17 @@ import {
 } from '@/hooks/queries/mothership-chats'
 import { prefetchQueryOnIntent } from '@/hooks/queries/utils/prefetch-query-on-intent'
 import type { ShellChatActions } from '@/platform/app/(shell)/_components/model'
+import { useOrganization } from '@/platform/lib/data/organization'
 import { toast } from '@/platform/lib/data/toast'
 
 const CHAT_PREFETCH_DWELL_MS = 80
+
+/** Whether the chat routes would open this chat for the viewer: {@link canOpenOrganizationChat}. */
+export function useCanOpenOrganizationChat() {
+  const organization = useOrganization()
+  const planEnabled = useFeatureFlag('mothership-plan-mode')
+  return ({ mode }: { mode?: string }) => canOpenOrganizationChat(organization, planEnabled, mode)
+}
 
 /** The legacy sidebar's chat mutations, for one organization's list. */
 export function useChatListActions(organizationId: string): ShellChatActions {
