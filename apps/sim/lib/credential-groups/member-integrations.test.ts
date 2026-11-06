@@ -56,6 +56,30 @@ function entryFor(provider: string, viewerAccounts: unknown[], viewerMcpAccounts
 }
 
 describe('offering another account', () => {
+  it.each(['jama', 'flow'] as const)(
+    'keeps %s reconnects available but stops offering another account at the limit',
+    (provider) => {
+      const providerId = `${provider}-service-account` as const
+      const accounts = Array.from({ length: 5 }, (_, index) => ({
+        credentialId: `${provider}-${index}`,
+        displayName: `account-${index}@example.test`,
+        providerId,
+        status: 'active' as const,
+      }))
+      const project = (viewerSavedAccounts: typeof accounts) =>
+        memberIntegrationEntries({ ...settings([]), viewerSavedAccounts }, [
+          approved(provider),
+        ]).find((entry) => entry.provider === provider)
+
+      expect(project(accounts.slice(0, 4))?.connectionTarget).toEqual({
+        savedProviderId: providerId,
+      })
+      const full = project(accounts)
+      expect(full?.connectionTarget).toBeUndefined()
+      expect(full?.reconnectAccountIds).toEqual(accounts.map((entry) => entry.credentialId))
+    }
+  )
+
   it('still offers the provider to a member who has connected one account', () => {
     expect(entryFor('google_drive', [account(1, 'drive', 'google-drive')])).toMatchObject({
       connectionTarget: { optionId: 'drive' },

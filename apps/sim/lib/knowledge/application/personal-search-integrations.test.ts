@@ -1,4 +1,4 @@
-import { user } from '@sim/db/schema'
+import { credential, user } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock, resetEnvFlagsMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import {
@@ -128,6 +128,35 @@ beforeEach(() => {
 })
 
 describe('live Search connection controls', () => {
+  it.each(['jama', 'flow'] as const)(
+    'keeps %s reconnect controls but withholds another connection at the limit',
+    async (connectorType) => {
+      const providerId = `${connectorType}-service-account`
+      const rows = Array.from({ length: 5 }, (_, index) => ({
+        id: `${connectorType}-${index}`,
+        providerId,
+        displayName: `account-${index}@example.test`,
+      }))
+      mockListOrganizationSearchApprovals.mockResolvedValue(new Map([[connectorType, true]]))
+      m.providerCatalog.mockResolvedValue([
+        { type: 'service_account', providerId, available: true },
+      ])
+      const request = { principal, input: { ...input, connectorType } }
+      queueTableRows(credential, rows.slice(0, 4))
+      expect((await listPersonalSearchIntegrations.execute(request)).available).toHaveLength(1)
+
+      queueTableRows(user, [{ emailVerified: true }])
+      queueTableRows(credential, rows)
+      const full = await listPersonalSearchIntegrations.execute(request)
+      expect(full.available).toEqual([])
+      expect(
+        full.connections.flatMap((connection) =>
+          connection.accounts.map((account) => account.action?.credentialId)
+        )
+      ).toEqual(rows.map((row) => row.id))
+    }
+  )
+
   it.each(['jama', 'flow'])(
     'withholds %s setup when the credential provider is unavailable',
     async (connectorType) => {

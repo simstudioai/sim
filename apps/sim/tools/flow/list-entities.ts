@@ -95,7 +95,7 @@ export const flowListEntitiesTool: ToolConfig<FlowListEntitiesParams, FlowListEn
     },
     nextPageStart: {
       type: 'string',
-      optional: true,
+      nullable: true,
       description: 'Opaque cursor for the next page',
     },
     moreAvailable: { type: 'boolean', description: 'Continue even after empty pages while true' },

@@ -121,7 +121,10 @@ export function memberIntegrationEntries(
         ready,
         permissionAccountIds: [],
         reconnectAccountIds: ready ? savedAccounts.map((account) => account.credentialId) : [],
-        connectionTarget: ready ? { savedProviderId } : undefined,
+        connectionTarget:
+          ready && savedAccounts.length < CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT
+            ? { savedProviderId }
+            : undefined,
         description: !policies
           ? undefined
           : approval?.available === false

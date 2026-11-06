@@ -95,7 +95,7 @@ export const flowFilterEntitiesTool: ToolConfig<
     },
     nextCursor: {
       type: 'string',
-      optional: true,
+      nullable: true,
       description: 'Continue until null, even after an empty page',
     },
   },

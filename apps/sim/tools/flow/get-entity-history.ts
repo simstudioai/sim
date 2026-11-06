@@ -91,6 +91,6 @@ export const flowGetEntityHistoryTool: ToolConfig<
       items: { type: 'object', properties: FLOW_HISTORY_ENTRY_PROPERTIES },
       description: 'Entity change history page',
     },
-    nextCursor: { type: 'string', optional: true, description: 'Continue until null' },
+    nextCursor: { type: 'string', nullable: true, description: 'Continue until null' },
   },
 }

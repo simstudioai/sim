@@ -9,6 +9,10 @@ import {
 } from '@sim/db/schema'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { createDeferred } from '@sim/testing/helpers/deferred'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -20,6 +24,7 @@ import {
 import type { ServiceAccountSecretResult } from '@/lib/credentials/service-account-secret'
 
 const verifier = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
 vi.mock('@/lib/credentials/service-account-secret', () => ({
   verifyAndBuildServiceAccountSecret: verifier,
 }))
@@ -81,6 +86,7 @@ describe('personal Search connections in PostgreSQL', () => {
   })
 
   beforeEach(async () => {
+    credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable.mockReset()
     verifier.mockReset().mockResolvedValue(verified())
     await db
       .delete(credential)
@@ -118,6 +124,27 @@ describe('personal Search connections in PostgreSQL', () => {
       .delete(organization)
       .where(inArray(organization.id, [organizationId, otherOrganizationId]))
     await db.delete(user).where(inArray(user.id, [userId, adminId]))
+  })
+
+  it('refuses provider verification and persistence when connected accounts are unavailable', async () => {
+    credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable.mockResolvedValueOnce(
+      false
+    )
+    await expect(save()).rejects.toMatchObject({ code: 'not_found' })
+    expect(verifier).not.toHaveBeenCalled()
+    expect(await ownRows()).toEqual([])
+  })
+
+  it('still removes a personal connection after connected accounts become unavailable', async () => {
+    const created = await save()
+    credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable.mockResolvedValue(
+      false
+    )
+    await removeSearchPersonalCredential.execute({
+      principal,
+      input: { organizationId, ...created },
+    })
+    expect(await ownRows()).toEqual([])
   })
 
   it('creates a private connection, rotates its secret, and removes its membership with it', async () => {
@@ -234,7 +261,7 @@ describe('personal Search connections in PostgreSQL', () => {
           ...created,
           ...(changed === 'tenant' ? { orgId: 'https://other.example.test/jama' } : {}),
         })
-      ).rejects.toMatchObject({ code: 'validation' })
+      ).rejects.toMatchObject({ failure: 'account_mismatch', statusCode: 409 })
       expect(await ownRows()).toMatchObject([
         { providerSubjectId: '42', providerTenantId: input.orgId },
       ])
@@ -252,10 +279,10 @@ describe('personal Search connections in PostgreSQL', () => {
     const created = await save(flow)
     await expect(
       save({ ...flow, ...created, providerWorkspaceId: 'workspace-b' })
-    ).rejects.toMatchObject({ code: 'validation' })
+    ).rejects.toMatchObject({ failure: 'account_mismatch', statusCode: 409 })
     await expect(
       save({ ...flow, ...created, domain: 'https://other-flow.example.test' })
-    ).rejects.toMatchObject({ code: 'validation' })
+    ).rejects.toMatchObject({ failure: 'account_mismatch', statusCode: 409 })
     expect(await ownRows()).toMatchObject([
       { providerTenantId: '["https://flow.example.test","workspace-a"]' },
     ])
@@ -294,10 +321,13 @@ describe('personal Search connections in PostgreSQL', () => {
         id: generateId(),
         organizationId,
         createdBy: userId,
-        providerId: 'jama-service-account',
+        providerId: 'coda-service-account',
         displayName: 'Limit fixture',
         type: 'service_account' as const,
       }))
+    )
+    verifier.mockResolvedValueOnce(
+      verified({ principal: { kind: 'user', id: '43', label: email } })
     )
     const results = await Promise.allSettled([save(), save()])
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
@@ -305,5 +335,44 @@ describe('personal Search connections in PostgreSQL', () => {
       { reason: { code: 'validation' } },
     ])
     expect(await ownRows()).toHaveLength(100)
+  })
+
+  it('allows only one concurrent connection for the same verified provider identity', async () => {
+    const results = await Promise.allSettled([save(), save()])
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    expect(results.filter((result) => result.status === 'rejected')).toMatchObject([
+      { reason: { failure: 'account_already_connected', statusCode: 409 } },
+    ])
+    expect(await ownRows()).toHaveLength(1)
+  })
+
+  it('limits concurrent additions per provider while allowing reconnect at the limit', async () => {
+    const ids: string[] = []
+    for (let index = 0; index < 4; index++) {
+      verifier.mockResolvedValueOnce(
+        verified({ principal: { kind: 'user', id: `member-${index}`, label: email } })
+      )
+      ids.push((await save()).credentialId)
+    }
+    verifier.mockResolvedValueOnce(
+      verified({ principal: { kind: 'user', id: '43', label: email } })
+    )
+    const results = await Promise.allSettled([save(), save()])
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    expect(results.filter((result) => result.status === 'rejected')).toMatchObject([
+      { reason: { failure: 'account_limit_reached', statusCode: 409 } },
+    ])
+    verifier.mockResolvedValueOnce(
+      verified({
+        principal: { kind: 'user', id: 'member-0', label: email },
+        encryptedServiceAccountKey: 'rotated-at-limit',
+      })
+    )
+    await save({ credentialId: ids[0] })
+    const rows = await ownRows()
+    expect(rows).toHaveLength(5)
+    expect(rows.find((row) => row.id === ids[0])?.encryptedServiceAccountKey).toBe(
+      'rotated-at-limit'
+    )
   })
 })

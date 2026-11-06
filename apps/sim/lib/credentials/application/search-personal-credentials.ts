@@ -11,7 +11,12 @@ import { authorizeOrganizationOperation } from '@/lib/core/application/organizat
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { ORGANIZATION_VIEWER_ACCOUNT_LIMIT } from '@/lib/credential-groups/limits'
+import { resolveAccountWrite } from '@/lib/credential-groups/account-rules'
+import {
+  CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT,
+  ORGANIZATION_VIEWER_ACCOUNT_LIMIT,
+} from '@/lib/credential-groups/limits'
+import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { CredentialProviderOperationError } from '@/lib/credentials/application/crud'
 import {
   listCredentialProviderCatalog,
@@ -63,6 +68,14 @@ export const saveSearchPersonalCredential: OperationUseCase<
   operation: searchPersonalCredentialOperations.save,
   async execute({ principal, input, request }) {
     const context = await authorizeOrganizationOperation(principal, this.operation, input)
+    if (
+      !(await isScopedCredentialGroupsAvailable({
+        kind: 'organization',
+        organizationId: context.organizationId,
+      }))
+    ) {
+      throw new OrchestrationError('not_found', 'Connected accounts are not available')
+    }
     const provider = input.providerId === 'jama-service-account' ? 'jama' : 'flow'
     await requireOrganizationSearchApproval(context.organizationId, provider)
     if (
@@ -134,6 +147,7 @@ export const saveSearchPersonalCredential: OperationUseCase<
         .limit(1)
       if (
         !person?.verified ||
+        verified.principal?.kind !== 'user' ||
         !providerEmail ||
         providerEmail !== person.email.trim().toLowerCase()
       ) {
@@ -142,53 +156,44 @@ export const saveSearchPersonalCredential: OperationUseCase<
           'Use your own provider account with the same email as your verified Sim account'
         )
       }
-      if (input.credentialId) {
-        const [existing] = await tx
-          .select({
-            tenantId: credential.providerTenantId,
-            subjectId: credential.providerSubjectId,
-          })
-          .from(credential)
-          .where(ownedCredential(context.organizationId, context.userId, input.credentialId))
-          .for('update')
-          .limit(1)
-        if (
-          !existing ||
-          existing.tenantId !== tenantId ||
-          verified.principal?.kind !== 'user' ||
-          existing.subjectId !== verified.principal.id
-        ) {
-          throw new OrchestrationError(
-            'validation',
-            'Reconnect with the same provider account and workspace. Add a new connection to use a different account.'
+      const accounts = await tx
+        .select({
+          id: credential.id,
+          revokedAt: credential.revokedAt,
+          providerSubjectId: credential.providerSubjectId,
+          providerTenantId: credential.providerTenantId,
+        })
+        .from(credential)
+        .where(
+          and(
+            eq(credential.organizationId, context.organizationId),
+            isNull(credential.workspaceId),
+            eq(credential.createdBy, context.userId),
+            eq(credential.type, 'service_account'),
+            eq(credential.providerId, input.providerId)
           )
-        }
-      }
+        )
+        .for('update')
+      const existing = resolveAccountWrite({
+        intent: input.credentialId
+          ? { kind: 'reconnect', credentialId: input.credentialId }
+          : { kind: 'create' },
+        limit: CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT,
+        accounts: accounts.map((account) => ({ ...account, managedOauthStatus: 'active' })),
+        identity: { subject: verified.principal.id, tenant: tenantId },
+      })
       const now = new Date()
-      const credentialId = input.credentialId ?? generateId()
+      const credentialId = existing?.id ?? generateId()
       const fields = {
         displayName: input.displayName?.trim() || verified.displayName,
         description: input.description?.trim() || null,
         encryptedServiceAccountKey: verified.encryptedServiceAccountKey,
-        providerSubjectId: verified.principal?.kind === 'user' ? verified.principal.id : null,
+        providerSubjectId: verified.principal.id,
         providerTenantId: tenantId,
         revokedAt: null,
         updatedAt: now,
       }
-      if (input.credentialId) {
-        const updated = await tx
-          .update(credential)
-          .set(fields)
-          .where(
-            and(
-              ownedCredential(context.organizationId, context.userId, credentialId),
-              eq(credential.providerId, input.providerId)
-            )
-          )
-          .returning({ id: credential.id })
-        if (!updated.length)
-          throw new OrchestrationError('not_found', 'Personal connection not found')
-      } else {
+      if (!existing || existing.revokedAt) {
         const [saved] = await tx
           .select({ count: count() })
           .from(credential)
@@ -208,6 +213,21 @@ export const saveSearchPersonalCredential: OperationUseCase<
             'Remove an unused personal Search connection before adding another'
           )
         }
+      }
+      if (existing) {
+        const updated = await tx
+          .update(credential)
+          .set(fields)
+          .where(
+            and(
+              ownedCredential(context.organizationId, context.userId, credentialId),
+              eq(credential.providerId, input.providerId)
+            )
+          )
+          .returning({ id: credential.id })
+        if (!updated.length)
+          throw new OrchestrationError('not_found', 'Personal connection not found')
+      } else {
         await tx.insert(credential).values({
           id: credentialId,
           organizationId: context.organizationId,
@@ -225,7 +245,7 @@ export const saveSearchPersonalCredential: OperationUseCase<
           joinedAt: now,
         })
       }
-      return { credentialId }
+      return { credentialId, created: !existing }
     })
     recordProjectedUseCaseAuditEntries(
       this.operation,
@@ -234,9 +254,7 @@ export const saveSearchPersonalCredential: OperationUseCase<
       request,
       [
         {
-          action: input.credentialId
-            ? AuditAction.CREDENTIAL_UPDATED
-            : AuditAction.CREDENTIAL_CREATED,
+          action: result.created ? AuditAction.CREDENTIAL_CREATED : AuditAction.CREDENTIAL_UPDATED,
           resourceType: AuditResourceType.CREDENTIAL,
           resourceId: result.credentialId,
           metadata: { providerId: input.providerId, ...verified.auditMetadata },
@@ -244,7 +262,7 @@ export const saveSearchPersonalCredential: OperationUseCase<
       ],
       context.organizationId
     )
-    return result
+    return { credentialId: result.credentialId }
   },
 }
 

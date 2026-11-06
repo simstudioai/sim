@@ -13,6 +13,8 @@ Flow Engineering Search retrieves current engineering items when you search. It 
 
 The default API host is `backend.branch.flowengineering.com`; use the host shown by your Flow instance. Sim saves the destination with the credential and verifies the current user before each Search operation. Other members cannot search with your connection. Reconnecting preserves the provider identity and workspace; use a new connection for a different account or workspace.
 
+You can connect up to five accounts per provider. Reconnect an existing account to rotate its credentials.
+
 ## Search and read
 
 Use a short phrase, optionally scoped to a known Flow project ID. Without a project, Sim searches at most six accessible projects. Each project returns up to 100 matches, subject to the requested result limit. Flow does not provide a continuation cursor for this search endpoint, so narrow the project or query when results are incomplete.

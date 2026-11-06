@@ -163,7 +163,8 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
               ? ('connected' as const)
               : ('not_connected' as const)
             : ('unavailable' as const),
-          action: ready ? target : null,
+          action:
+            ready && own.length < CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT ? target : null,
         },
       ]
     })

@@ -7,7 +7,10 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { internalCredentialErrorPolicy } from '@/lib/credentials/api/route-policies'
+import {
+  internalCredentialErrorPolicy,
+  internalPersonalCredentialConnectionErrorPolicy,
+} from '@/lib/credentials/api/route-policies'
 import {
   removeSearchPersonalCredential,
   saveSearchPersonalCredential,
@@ -18,7 +21,7 @@ export const POST = defineInternalJsonRoute({
   auth: internalSessionAuth,
   operation: saveSearchPersonalCredential.operation,
   rateLimit: internalRateLimits.user({ bucketName: 'search-personal-credentials' }),
-  errorPolicy: internalCredentialErrorPolicy,
+  errorPolicy: internalPersonalCredentialConnectionErrorPolicy,
   parseOptions: { maxBodyBytes: 16_384 },
   mapInput: ({ body }) => body,
   useCase: saveSearchPersonalCredential,

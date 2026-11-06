@@ -217,7 +217,7 @@ export const LIVE_SEARCH_PROVIDERS = {
       syntax:
         'Literal words searched by Jama Connect across accessible items. Use a short distinctive phrase. Results are paginated with the returned cursor.',
       scope:
-        'project optionally takes a numeric Jama project ID. Dates filter returned item modification timestamps; ordering is provider relevance, not a global newest/oldest guarantee.',
+        'project optionally takes a numeric Jama project ID. Dates filter returned item modification timestamps; results use Jama default ordering, not a global newest/oldest guarantee.',
       example: 'battery safety',
       avoid:
         'Boolean or field operators, invented project IDs, and expecting attachments or full discussion search. Read a result for its current item fields.',
