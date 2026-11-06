@@ -577,7 +577,10 @@ const railLink = (page: Page, label: string) =>
 const accountChip = (page: Page) => sidebar(page).getByRole('button', { name: /, account menu$/ })
 
 /** The row around a rail link: its status glyph sits beside the link, not in it. */
-const railRow = (page: Page, label: string) => railLink(page, label).locator('xpath=..')
+const railRow = (page: Page, label: string) =>
+  sidebar(page)
+    .locator('[data-action-side]')
+    .filter({ has: page.getByRole('link', { name: label, exact: true }) })
 
 const railSection = (page: Page, name: string) =>
   sidebar(page).locator('summary', { hasText: name })
@@ -1695,7 +1698,9 @@ async function homeChecks() {
         await expect(page.getByRole('heading', { level: 1 })).toContainText(', Mia')
         await expect(page.getByText('Ask about your company’s knowledge.')).toBeVisible()
         await expect(composer(page)).toHaveAttribute('placeholder', 'Ask about your sources')
-        await expect(composer(page).locator('xpath=ancestor::*[@data-platform-ui]')).toHaveCount(0)
+        await expect(
+          page.locator('[data-platform-ui]').filter({ has: composer(page) })
+        ).toHaveCount(0)
         await expect(page.getByRole('radio', { name: 'Search' })).toHaveCount(0)
         await expect(page.getByRole('combobox', { name: 'Conversation mode' })).toHaveCount(0)
         await expect(page.getByRole('button', { name: 'Add resources' })).toHaveCount(0)
@@ -1786,13 +1791,26 @@ async function homeChecks() {
         await expect(
           calendar.getByRole('button', { name: 'Google Calendar', exact: true })
         ).toBeEnabled()
-        const cardHeight = async (region: Locator, title: string) =>
-          Math.round(
-            (await region.getByText(title, { exact: true }).locator('xpath=..').boundingBox())
-              ?.height ?? 0
+        const measureCard = async (region: Locator, provider: string) => {
+          const [card, connect] = [
+            await region.locator('[data-widget]').boundingBox(),
+            await region.getByRole('button', { name: provider, exact: true }).boundingBox(),
+          ]
+          assert(card && connect, `The ${provider} card and its button are on screen`)
+          assert(
+            connect.y >= card.y && connect.y + connect.height <= card.y + card.height,
+            `The ${provider} button leaves its card`
           )
-        assert.equal(await cardHeight(email, 'Connect your email'), 176)
-        assert.equal(await cardHeight(calendar, 'Connect your calendar'), 156)
+          return card
+        }
+        const [mailCard, calendarCard] = [
+          await measureCard(email, 'Gmail'),
+          await measureCard(calendar, 'Google Calendar'),
+        ]
+        assert(
+          calendarCard.height < mailCard.height,
+          `Calendar ${calendarCard.height}px is meant to be the shorter card, beside Email ${mailCard.height}px`
+        )
         await expect(calendar.getByRole('button', { name: 'Outlook', exact: true })).toHaveCount(0)
         const authorization = context.waitForEvent('request', (request) =>
           request.url().startsWith('https://accounts.google.com/')
@@ -2215,7 +2233,9 @@ async function homeChecks() {
         await expect(page).toHaveURL(orgUrl('/home'))
         await expect(page.getByRole('heading', { level: 1 })).toContainText(', Ada')
         await expect(composer(page)).toBeVisible()
-        await expect(composer(page).locator('xpath=ancestor::*[@data-platform-ui]')).toHaveCount(0)
+        await expect(
+          page.locator('[data-platform-ui]').filter({ has: composer(page) })
+        ).toHaveCount(0)
         await expect(page.getByRole('button', { name: 'Add resources' })).toBeVisible()
         await expect(page.getByRole('button', { name: 'Attach file' })).toBeVisible()
         await expect(page.getByRole('button', { name: /Skills/ }).first()).toBeVisible()
@@ -2324,9 +2344,11 @@ async function homeChecks() {
       await page.goto(orgUrl('/home'))
       await composer(page).fill('/review this')
       await composer(page).press('Enter')
-      await expect(composer(page).locator('xpath=ancestor::*[@aria-busy="true"]')).toHaveCount(1)
+      await expect(page.locator('[aria-busy="true"]').filter({ has: composer(page) })).toHaveCount(
+        1
+      )
       await expect(composer(page)).toBeEditable()
-      await expect(composer(page).locator('xpath=ancestor::*[@inert]')).toHaveCount(0)
+      await expect(page.locator('[inert]').filter({ has: composer(page) })).toHaveCount(0)
       await pageTurn(page)
       assert.deepEqual(sends, [], 'The message waits for the skill lists')
       releaseSkills()
@@ -2376,7 +2398,9 @@ async function chatChecks() {
   section('3 Chat')
   await check("Share and the feedback form on a chat are the design system's dialogs", async () => {
     const inSurface = (dialogLocator: ReturnType<typeof dialog>) =>
-      expect(dialogLocator.locator('xpath=ancestor::*[@data-platform-ui]')).not.toHaveCount(0)
+      expect(
+        dialogLocator.page().locator('[data-platform-ui]').filter({ has: dialogLocator })
+      ).not.toHaveCount(0)
     const fileId = '6f1f4a52-8e0b-4d7a-9a13-0d5d3c1b7e21'
     await sql`insert into workspace_files (id, key, user_id, workspace_id, context, original_name, content_type, size_bytes)
       values (${fileId}, ${`workspace/${fileId}.md`}, ${ADMIN.userId}, ${MEMBER_ADMIN_WORKSPACE.id}, 'workspace', 'share-check.md', 'text/markdown', 1)`
@@ -2657,8 +2681,19 @@ async function searchChecks() {
         async ({ page }) => {
           await stubSearch(page)
           await page.goto(orgUrl('/search?mode=search&q=recall'))
-          const frame = searchField(page).locator('xpath=..')
-          const row = page.getByRole('link', { name: 'Recall playbook' }).locator('xpath=../..')
+          const frame = page.locator('[data-material="reading"]').filter({ has: searchField(page) })
+          // The innermost element holding the row's link and its actions is the row.
+          const row = page
+            .getByRole('region', { name: 'Search results' })
+            .locator('div')
+            .filter({ has: page.getByRole('link', { name: 'Recall playbook' }) })
+            .filter({
+              has: page.getByRole('button', {
+                name: 'Actions for Recall playbook',
+                includeHidden: true,
+              }),
+            })
+            .last()
           await expect(row).toBeVisible()
           const [field, result] = [await frame.boundingBox(), await row.boundingBox()]
           assert(field && result, 'The field and a result are on screen')
@@ -2715,7 +2750,7 @@ async function searchChecks() {
         await create.click()
         const form = page.getByRole('dialog').filter({ hasText: 'Destination URL' })
         await expect(form).toBeVisible()
-        await expect(form.locator('xpath=ancestor::*[@data-platform-ui]')).not.toHaveCount(0)
+        await expect(page.locator('[data-platform-ui]').filter({ has: form })).not.toHaveCount(0)
         await expect(form.getByRole('checkbox', { name: 'Hide from the Links page' })).toBeVisible()
         await expect(form.getByRole('textbox', { name: 'Destination URL' })).toHaveValue(
           'https://wiki.example.com/recall'
