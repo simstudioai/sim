@@ -26,7 +26,7 @@ import {
   auditLogFilterUrlKeys,
   DEFAULT_AUDIT_TIME_RANGE,
 } from '@/ee/audit-logs/search-params'
-import { useDebounce } from '@/hooks/use-debounce'
+import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { currentMinute } from '@/platform/lib/time'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
@@ -47,7 +47,7 @@ export function useAuditLogFeed(organizationId: string) {
   const workspaces = useOrganizationWorkspaces(organizationId, Boolean(workspaceScope))
   const scope = resolveAuditWorkspaceScope(workspaceScope, workspaces)
   const [search, setSearch] = useSettingsSearch()
-  const debouncedSearch = useDebounce(search, SEARCH_DEBOUNCE_MS).trim()
+  const debouncedSearch = useSearchFilterValue(search, SEARCH_DEBOUNCE_MS).trim()
 
   /**
    * What a preset's window is measured from. It is part of the query key, so it holds still while

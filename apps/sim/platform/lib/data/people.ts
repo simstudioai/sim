@@ -46,7 +46,6 @@ import {
   usePeopleSyncActions,
   usePeopleSyncStatus,
 } from '@/hooks/queries/people-sync'
-import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
@@ -216,7 +215,7 @@ export function usePeoplePicker(
 ) {
   const [open, setOpen] = useState(false)
   const [term, setTerm] = useState('')
-  const debounced = useDebounce(term.trim(), SEARCH_DEBOUNCE_MS)
+  const debounced = useSearchFilterValue(term, SEARCH_DEBOUNCE_MS).trim()
   const query = usePeople(organizationId, debounced, '', { scope, enabled: open })
   const waiting = term.trim() !== debounced || query.isPlaceholderData
   const pages = waiting || query.isRefetchError ? undefined : query.data?.pages

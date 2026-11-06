@@ -36,6 +36,5 @@ export {
   useUpdateOrganizationAccounts,
   useUpdateOrganizationAccountWorkspaceAccess,
 } from '@/hooks/queries/organization-accounts'
-export { useDebounce } from '@/hooks/use-debounce'
 export { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 export { useOrganizationAccountPeopleSearch } from '@/hooks/use-organization-account-people-search'

@@ -5,6 +5,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import {
   DetailHeader,
   LoadingState,
@@ -33,7 +34,6 @@ import {
   SEARCH_DEBOUNCE_MS,
   searchSetupAccessParam,
   searchSetupParam,
-  useDebounce,
   useOrganizationAccounts,
   usePermissionConfig,
   useSearchIntegrations,
@@ -51,7 +51,7 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
   const router = useRouter()
   const meta = CONNECTOR_META_REGISTRY[connectorType]
   const [search, setSearch] = useSettingsSearch()
-  const sourceSearch = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
+  const sourceSearch = useSearchFilterValue(search, SEARCH_DEBOUNCE_MS).trim()
   const [removingSlackAccounts, setRemovingSlackAccounts] = useState(false)
   const scope = { kind: 'organization', organizationId: organization.id } as const
   const overview = useSearchIntegrations(organization.id)

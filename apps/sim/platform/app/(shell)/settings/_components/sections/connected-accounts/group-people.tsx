@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import {
   LoadingState,
@@ -31,7 +32,6 @@ import {
 import {
   personConnectionSummaries,
   SEARCH_DEBOUNCE_MS,
-  useDebounce,
   useOrganizationAccountPeople,
   useOrganizationAccountPeopleSearch,
   useResendOrganizationAccountInvitation,
@@ -70,7 +70,7 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
   const resend = useResendOrganizationAccountInvitation()
   const revoke = useRevokeOrganizationAccountEnrollment()
   const [peopleSearch, setPeopleSearch] = useOrganizationAccountPeopleSearch()
-  const search = useDebounce(peopleSearch.trim(), SEARCH_DEBOUNCE_MS)
+  const search = useSearchFilterValue(peopleSearch, SEARCH_DEBOUNCE_MS).trim()
   const people = useOrganizationAccountPeople(organizationId, search, { enabled: true })
   const [inviteOpen, setInviteOpen] = useState(false)
   const [revoking, setRevoking] = useState<{ id: string; email: string } | null>(null)

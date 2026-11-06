@@ -86,6 +86,5 @@ export {
   useSearchIntegrations,
   useUpdateSearchIntegration,
 } from '@/hooks/queries/search-integrations'
-export { useDebounce } from '@/hooks/use-debounce'
 export { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
 export { usePermissionConfig } from '@/hooks/use-permission-config'
