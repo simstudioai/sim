@@ -78,6 +78,11 @@ interface Problem {
   detail: string
 }
 
+interface PageRead {
+  path: string
+  ms: number
+}
+
 interface FirstPaint {
   persona: string
   page: string
@@ -109,6 +114,11 @@ export const routes: {
   platformSurfaces: number
   /** From the document's load to no read or skeleton left, or null if it never got there. */
   contentReadyMs: number | null
+  /** The document's own load, which `contentReadyMs` starts after. */
+  documentMs: number
+  /** Where the route's time went: its slowest reads, and how many it sent. */
+  slowestReads: PageRead[]
+  readCount: number
 }[] = []
 export const firstPaints: FirstPaint[] = []
 const unexpected: Problem[] = []
@@ -260,6 +270,9 @@ class Session {
   /** The document a navigation is loading, until it replaces the page. */
   private loadingDocument: Request | null = null
   readonly requests: { method: string; path: string; type: string }[] = []
+  /** The page's own reads and how long each took, from the last navigation a walk started. */
+  readonly reads: PageRead[] = []
+  private readonly readStarted = new Map<Request, number>()
 
   constructor(
     readonly context: BrowserContext,
@@ -287,6 +300,7 @@ class Session {
       if (isPageRead(request)) {
         this.inflight.add(request)
         this.lastActivity = Date.now()
+        this.readStarted.set(request, Date.now())
       }
       if (isSameOrigin(request.url()))
         this.requests.push({
@@ -305,6 +319,13 @@ class Session {
     })
     const settled = (request: Request) => {
       if (this.inflight.delete(request)) this.lastActivity = Date.now()
+      const started = this.readStarted.get(request)
+      if (started === undefined) return
+      this.readStarted.delete(request)
+      this.reads.push({
+        path: `${request.method()} ${pathOf(request.url())}`,
+        ms: Date.now() - started,
+      })
     }
     page.on('requestfinished', settled)
     page.on('requestfailed', (request) => {

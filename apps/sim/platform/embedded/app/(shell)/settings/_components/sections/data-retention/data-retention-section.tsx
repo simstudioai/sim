@@ -267,6 +267,7 @@ function RetentionForm({
             density='comfortable'
             title='Organization'
             detail={orgPolicySummary(snapshot)}
+            wrapDetail
             metadata='Default'
             onOpen={() => setSelection({ kind: 'organization' })}
           />
@@ -276,6 +277,7 @@ function RetentionForm({
               key={workspaceId}
               title={workspaceName(workspaceId)}
               detail={overridePolicySummary(snapshot, workspaceId)}
+              wrapDetail
               onOpen={() => setSelection({ kind: 'override', workspaceId })}
             />
           ))}

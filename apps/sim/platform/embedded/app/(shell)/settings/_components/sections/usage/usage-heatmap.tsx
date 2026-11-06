@@ -25,7 +25,7 @@ function Heatmap({ days }: { days: readonly UsageCalendarDay[] }) {
   const columns = { gridTemplateColumns: `repeat(${layout.weeks}, minmax(0, 1fr))` }
   return (
     <>
-      <ScrollArea label='Daily credit usage' axis='horizontal'>
+      <ScrollArea label='Daily credit usage' axis='horizontal' startAtEnd>
         <div className={styles.heatmap}>
           <div className={styles.heatMonths} style={columns} aria-hidden='true'>
             {layout.months.map((month) => (

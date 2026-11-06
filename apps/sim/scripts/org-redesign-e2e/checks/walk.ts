@@ -70,6 +70,8 @@ function routesFor(persona: Persona): { name: string; path: string }[] {
   return shared
 }
 
+/** Enough to name what a slow route was waiting on. */
+const SLOWEST_READS = 5
 /** How far a probe grows the viewport to see which panes follow it. */
 const PANE_PROBE_PX = 200
 /** Home's composer types its suggestion out, then holds it this long before deleting it. */
@@ -132,7 +134,10 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
         const failures: string[] = []
         if (persona === CONNECTED) await stubConnectedHome(page)
         for (const route of routesFor(persona)) {
+          session.reads.length = 0
+          const navigated = performance.now()
           const response = await page.goto(orgUrl(`/${route.path}`), { timeout: 60_000 })
+          const documentMs = Math.round(performance.now() - navigated)
           const contentReadyMs = await session.contentReady().catch((error) => {
             failures.push(`${route.name}: ${getErrorMessage(error)}`)
             return null
@@ -174,6 +179,9 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
             screenshot,
             platformSurfaces: facts.surfaces,
             contentReadyMs,
+            documentMs,
+            slowestReads: [...session.reads].sort((a, b) => b.ms - a.ms).slice(0, SLOWEST_READS),
+            readCount: session.reads.length,
           })
           if ((response?.status() ?? 500) >= 400)
             failures.push(`${route.name} status ${response?.status()}`)

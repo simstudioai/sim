@@ -17,6 +17,11 @@
   margin-inline: auto;
   padding-block: var(--design-spacing-64) var(--design-spacing-24);
 }
+@media (max-width: 48rem) {
+  .dashboard {
+    padding-block-start: var(--design-spacing-24);
+  }
+}
 /* Customize Home's menu opens over the composer, whose own stacking stays within its row. */
 .dashboard > :first-child {
   position: relative;
