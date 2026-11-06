@@ -102,7 +102,7 @@ describe('image operations', () => {
     ])
   })
 
-  it('cancels polling without resubmitting or storing an image', async () => {
+  it('cancels the fal request when polling stops, without resubmitting or storing an image', async () => {
     const controller = new AbortController()
     mocks.fetch.mockResolvedValueOnce(
       Response.json({
@@ -121,7 +121,11 @@ describe('image operations', () => {
       })
     ).rejects.toMatchObject({ name: 'AbortError' })
 
-    expect(mocks.fetch).toHaveBeenCalledTimes(1)
+    expect(mocks.fetch).toHaveBeenCalledTimes(2)
+    expect(mocks.fetch).toHaveBeenLastCalledWith(
+      expect.stringMatching(/^https:\/\/queue\.fal\.run\/.+\/requests\/job-2\/cancel$/),
+      expect.objectContaining({ method: 'PUT' })
+    )
     expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
     expect(mockUploadCopilotFile).not.toHaveBeenCalled()
   })

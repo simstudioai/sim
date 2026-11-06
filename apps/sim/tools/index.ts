@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { isLoopbackIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
+import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { describeError, getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isPlainRecord, isRecordLike, toRecord } from '@sim/utils/object'
@@ -99,6 +100,8 @@ import {
 } from '@/lib/mothership/billing/service-observer'
 import { CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 import type { CredentialTokenPayload } from '@/lib/oauth/token-resolution'
+import { isFalAICostSource } from '@/lib/tools/falai-pricing'
+import { scheduleFalAICostSettlement } from '@/lib/tools/falai-settlement'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/file-manager'
 import { markWorkspaceFileSecretProvenanceUnknown } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
@@ -1029,6 +1032,49 @@ export function postProcessToolOutput(toolId: string, output: Record<string, unk
 }
 
 /**
+ * Schedules the exact-cost settlement for a hosted charge billed before the provider recorded
+ * its receipt, for a tool whose hosting declares one.
+ */
+async function scheduleExactCostSettlement(
+  tool: ToolDefinition,
+  metadata: Record<string, unknown> | undefined,
+  scope: ToolExecutionScope,
+  envVarName: string | undefined
+): Promise<void> {
+  if (tool.hosting?.exactCostSettlement !== 'falai' || !envVarName) return
+  const endpointId = toStringOrNull(metadata?.endpointId)
+  const falRequestId = toStringOrNull(metadata?.requestId)
+  const costSource = metadata?.source
+  const providerCostDollars = toNumberOrNull(metadata?.providerCostDollars)
+  const markupMultiplier = toNumberOrNull(metadata?.markupMultiplier)
+  if (
+    !endpointId ||
+    !falRequestId ||
+    !isFalAICostSource(costSource) ||
+    providerCostDollars === null ||
+    markupMultiplier === null
+  ) {
+    return
+  }
+
+  const { billingAttribution, copilotToolExecution, workflowId, executionId } = scope
+  await scheduleFalAICostSettlement({
+    cost: {
+      endpointId,
+      requestId: falRequestId,
+      costDollars: providerCostDollars,
+      source: costSource,
+    },
+    envVarName,
+    markupMultiplier,
+    source: copilotToolExecution ? 'copilot' : executionId ? 'workflow' : 'api-tool',
+    billingAttribution,
+    workflowId,
+    executionId,
+  })
+}
+
+/**
  * Apply post-execution hosted-key cost tracking to a successful tool result.
  * Reports custom dimension usage, calculates cost, and merges it into the output.
  *
@@ -1081,8 +1127,10 @@ async function applyHostedKeyCostToResult(
   hostedKeyMetrics.recordCostCharged(hostedKeyCost, { provider, tool: tool.id })
 
   if (hostedKeyCost > 0) {
-    const { copilotToolExecution } = resolveToolScope(params, executionContext)
+    const scope = resolveToolScope(params, executionContext)
+    const { copilotToolExecution } = scope
     if (copilotToolExecution) await recordServiceCost(provider, hostedKeyCost)
+    await scheduleExactCostSettlement(tool, metadata, scope, envVarName)
     finalResult.output = {
       ...finalResult.output,
       cost: {
