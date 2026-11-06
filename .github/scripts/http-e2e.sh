@@ -555,14 +555,25 @@ JS
     ;;
 
   # No zone at all: built without SIM_PLATFORM_ORIGIN, so even with the flag on nothing may change.
+  # Then that image as a self-hoster runs it: not on a Sim hostname, billing off, no rollout flag.
+  # Both report, whichever fails.
   platform-live-flag-off)
     platform_live_environment
     export PLATFORM_ORG_UI=true
+    export ALLOWED_ORIGINS=http://127.0.0.1:3027
     start_browser_install platform-live --only-shell chromium
     start_app platform-live-flag-off 3027 'Main, no zone' record-http-status
     start_realtime platform-live-flag-off 3030
     wait_for_browsers
-    run_platform_live flag-off platform-live-flag-off
+    live_status=0
+    run_platform_live flag-off platform-live-flag-off || live_status=$?
+    stop_app
+    unset PLATFORM_ORG_UI BILLING_ENABLED NEXT_PUBLIC_BILLING_ENABLED
+    unset ENTERPRISE_ENABLED NEXT_PUBLIC_ENTERPRISE_ENABLED
+    export E2E_APP_PUBLIC_URL=http://127.0.0.1:3027 PLATFORM_LIVE_ORIGIN=http://127.0.0.1:3027
+    start_app platform-live-self-hosted 3027 'Main, self-hosted' record-http-status
+    run_platform_live self-hosted platform-live-self-hosted || live_status=$?
+    exit "$live_status"
     ;;
 
   *)
