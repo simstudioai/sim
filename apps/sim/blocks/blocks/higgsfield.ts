@@ -1,5 +1,6 @@
 import { HiggsfieldIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { parseOptionalNumberInput } from '@/blocks/utils'
 
 const GENERATE_OPERATIONS = ['higgsfield_generate', 'higgsfield_generate_soul_image']
 const REQUEST_OPERATIONS = [
@@ -9,13 +10,6 @@ const REQUEST_OPERATIONS = [
 ]
 const CHARACTER_ID_OPERATIONS = ['higgsfield_get_character', 'higgsfield_delete_character']
 const SOUL = 'higgsfield_generate_soul_image'
-
-function optionalNumber(value: unknown): number | undefined {
-  if (value === undefined || value === null || value === '') return undefined
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) throw new Error(`Expected a number but received "${value}"`)
-  return parsed
-}
 
 export const HiggsfieldBlock: BlockConfig = {
   type: 'higgsfield',
@@ -322,13 +316,32 @@ export const HiggsfieldBlock: BlockConfig = {
       tool: (params) => params.operation,
       params: (params) => ({
         ...params,
-        batchSize: optionalNumber(params.batchSize),
-        characterStrength: optionalNumber(params.characterStrength),
-        styleStrength: optionalNumber(params.styleStrength),
-        seed: optionalNumber(params.seed),
-        expiresAfter: optionalNumber(params.expiresAfter),
-        page: optionalNumber(params.page),
-        pageSize: optionalNumber(params.pageSize),
+        batchSize: parseOptionalNumberInput(params.batchSize, 'Number of Images', {
+          integer: true,
+        }),
+        characterStrength: parseOptionalNumberInput(
+          params.characterStrength,
+          'Character Strength',
+          {
+            min: 0,
+            max: 1,
+          }
+        ),
+        styleStrength: parseOptionalNumberInput(params.styleStrength, 'Style Strength', {
+          min: 0,
+          max: 1,
+        }),
+        seed: parseOptionalNumberInput(params.seed, 'Seed', {
+          integer: true,
+          min: 1,
+          max: 1000000,
+        }),
+        expiresAfter: parseOptionalNumberInput(params.expiresAfter, 'Keep Data For', {
+          integer: true,
+          min: 3600,
+        }),
+        page: parseOptionalNumberInput(params.page, 'Page', { integer: true, min: 1 }),
+        pageSize: parseOptionalNumberInput(params.pageSize, 'Page Size', { integer: true, min: 1 }),
       }),
     },
   },
