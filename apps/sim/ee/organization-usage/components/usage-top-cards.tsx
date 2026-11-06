@@ -3,7 +3,6 @@
 import { Chip } from '@sim/emcn'
 import {
   ORGANIZATION_USAGE_OVERVIEW_ROW_LIMIT,
-  type OrganizationUsageBreakdown,
   type OrganizationUsageOverview,
 } from '@/lib/api/contracts/organization-usage'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'

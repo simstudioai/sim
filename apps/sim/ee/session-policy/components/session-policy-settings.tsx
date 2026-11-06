@@ -5,11 +5,7 @@ import { ChipConfirmModal, ChipInput, Label, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
-import {
-  MAX_SESSION_POLICY_HOURS,
-  MIN_IDLE_TIMEOUT_HOURS,
-  MIN_SESSION_LIFETIME_HOURS,
-} from '@/lib/api/contracts/organization'
+import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
