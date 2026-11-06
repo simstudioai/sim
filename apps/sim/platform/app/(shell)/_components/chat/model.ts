@@ -219,6 +219,7 @@ export interface ChatRuntime {
   retry?: (turnId: string) => void
   /** Tries again to deliver a message shown as not delivered. */
   retryMessage?: (messageId: string) => void
+  dismissMessage?: (messageId: string) => void
   approvals: ToolApprovalProgress
   registerApproval: (toolCallId: string) => () => void
   decideTools: (ids: readonly string[], decision: ToolDecision) => Promise<'ok' | 'gone'>

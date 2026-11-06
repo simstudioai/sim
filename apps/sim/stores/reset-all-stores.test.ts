@@ -26,6 +26,7 @@ vi.mock('@/app/_shell/providers/get-query-client', () => ({
   getQueryClient: mockGetQueryClient,
 }))
 vi.mock('@/stores/user-data-reset-registry', () => ({
+  registerUserDataReset: vi.fn(),
   resetRegisteredUserData: mockResetRegisteredUserData,
 }))
 vi.mock('@/stores/execution', () => ({
@@ -45,6 +46,7 @@ vi.mock('@/stores/workflows/workflow/store', () => ({
   useWorkflowStore: { setState: mockWorkflowSetState },
 }))
 
+import { useMothershipOutgoingStore } from '@/stores/mothership-outgoing/store'
 import { resetAllStores } from '@/stores/reset-all-stores'
 
 const mockRegistrySetState = workflowRegistryStoreMockFns.mockSetState
@@ -74,6 +76,16 @@ describe('resetAllStores', () => {
     await resetAllStores()
 
     expect(queryClient.getQueryCache().getAll()).toHaveLength(0)
+  })
+
+  it('clears what the outgoing journal holds even if no chat loaded it this session', async () => {
+    useMothershipOutgoingStore
+      .getState()
+      .record('chat-a', [{ id: 'message-a', payload: { content: 'Hi' }, status: 'pending' }])
+
+    await resetAllStores()
+
+    expect(useMothershipOutgoingStore.getState().chats).toEqual({})
   })
 
   it('removes transient workflow state and replaces persisted console data', async () => {

@@ -524,6 +524,7 @@ function OrganizationConversationContent({
               void chat.stopGeneration()
             }}
             onRetryMessage={chat.retryMessage}
+            onDismissMessage={chat.dismissMessage}
             userId={session?.user?.id}
             chatId={chat.resolvedChatId}
             composer={composer}

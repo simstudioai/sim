@@ -44,6 +44,7 @@ import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/mothership/requ
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
+import { useMothershipOutgoingStore } from '@/stores/mothership-outgoing/store'
 
 export interface MothershipChatMetadata {
   mode?: MothershipChat['mode']
@@ -521,6 +522,7 @@ export function useDeleteMothershipChat(owner?: MothershipChatOwner) {
     onSuccess: async (_data, chatId) => {
       await suspendDesktopChatScopes(chatId)
       queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(chatId) })
+      useMothershipOutgoingStore.getState().record(chatId, [])
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
@@ -563,6 +565,7 @@ export function useDeleteMothershipChats(owner?: MothershipChatOwner) {
           await deleteChat(chatId)
           await suspendDesktopChatScopes(chatId)
           queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(chatId) })
+          useMothershipOutgoingStore.getState().record(chatId, [])
         })
       )
       const failed = results.find((result) => result.status === 'rejected')

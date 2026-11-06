@@ -64,14 +64,28 @@ function withSteeringAt(
 }
 
 /**
- * The message a running turn is streaming into: the last assistant message, since
- * messages still on their way into the turn show after it.
+ * The message a running turn is streaming into: the last assistant message, past
+ * any messages still on their way into the turn, which show after it. A turn's own
+ * user message after it means this turn has no response in the list yet (a
+ * reconnect before its first event), so the one before belongs to a finished turn.
  */
 export function findLiveResponseId(messages: readonly ChatMessage[]): string | undefined {
   for (let index = messages.length - 1; index >= 0; index--) {
-    if (messages[index].role === 'assistant') return messages[index].id
+    const message = messages[index]
+    if (message.role === 'assistant') return message.id
+    if (!message.steering && !message.delivery) return undefined
   }
   return undefined
+}
+
+const ANSWER_SEGMENT_MARKER = ':before:'
+
+/**
+ * Whether this row is the part of an answer before a steered message: a view of the
+ * stored message, with no id of its own a server can act on.
+ */
+export function isAnswerSegmentId(id: string): boolean {
+  return id.includes(ANSWER_SEGMENT_MARKER)
 }
 
 function mainText(blocks: ContentBlock[]): string {
@@ -141,7 +155,7 @@ export function placeSteeredMessages(
       if (segment.length > 0) {
         result.push({
           ...message,
-          id: `${message.id}:before:${steering.id}`,
+          id: `${message.id}${ANSWER_SEGMENT_MARKER}${steering.id}`,
           content: mainText(segment),
           contentBlocks: segment,
         })

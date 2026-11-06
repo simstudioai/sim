@@ -39,6 +39,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/message-content/parse-blocks'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
 import { isToolDone } from '@/app/workspace/[workspaceId]/home/components/message-content/tool-status'
+import { findLiveResponseId } from '@/app/workspace/[workspaceId]/home/hooks/steered-messages'
 import type {
   ChatMessage,
   ChatMessageContext,
@@ -521,8 +522,7 @@ export function toPlatformTurns(
   { streaming, sentAt, now, isPersisted }: ProjectionOptions
 ): PlatformTurn[] {
   const { byIndex, hidden } = pairInteractions(messages)
-  /** The live response is the last assistant: messages on their way into it show after it. */
-  const liveIndex = messages.map((message) => message.role).lastIndexOf('assistant')
+  const liveResponseId = findLiveResponseId(messages)
   let lastUserText = ''
   const turns: PlatformTurn[] = []
   messages.forEach((message, index) => {
@@ -544,7 +544,7 @@ export function toPlatformTurns(
       )
       return
     }
-    const live = streaming && index === liveIndex
+    const live = streaming && message.id === liveResponseId
     const blocks = message.contentBlocks ?? []
     const pairing = byIndex.get(index)
     const pairingKey = pairing ? JSON.stringify(pairing) : ''

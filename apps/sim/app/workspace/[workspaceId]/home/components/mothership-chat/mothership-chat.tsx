@@ -104,6 +104,7 @@ interface MothershipChatProps {
   onStopGeneration: () => void
   /** Tries again to deliver a message shown as not delivered. */
   onRetryMessage?: (messageId: string) => void
+  onDismissMessage?: (messageId: string) => void
   userId?: string
   chatId?: string
   onContextAdd?: (context: ChatContext) => void
@@ -202,6 +203,7 @@ interface UserMessageRowProps {
   messageId: string
   delivery?: ChatMessage['delivery']
   onRetry?: (messageId: string) => void
+  onDismiss?: (messageId: string) => void
   content: string
   contexts?: ChatMessageContext[]
   attachments?: ChatMessageAttachment[]
@@ -250,6 +252,7 @@ const UserMessageRow = memo(function UserMessageRow({
   messageId,
   delivery,
   onRetry,
+  onDismiss,
   content,
   contexts,
   attachments,
@@ -279,6 +282,11 @@ const UserMessageRow = memo(function UserMessageRow({
           {delivery === 'failed' && onRetry && (
             <Chip variant='border' onClick={() => onRetry(messageId)}>
               Retry
+            </Chip>
+          )}
+          {delivery === 'failed' && onDismiss && (
+            <Chip variant='border' onClick={() => onDismiss(messageId)}>
+              Dismiss
             </Chip>
           )}
         </div>
@@ -427,6 +435,7 @@ export function MothershipChat({
   onComposerSubmit,
   onStopGeneration,
   onRetryMessage,
+  onDismissMessage,
   userId,
   chatId,
   onContextAdd,
@@ -997,6 +1006,7 @@ export function MothershipChat({
                             messageId={msg.id}
                             delivery={msg.delivery}
                             onRetry={onRetryMessage}
+                            onDismiss={onDismissMessage}
                             content={msg.content}
                             contexts={msg.contexts}
                             attachments={msg.attachments}

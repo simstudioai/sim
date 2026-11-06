@@ -8,6 +8,7 @@ type ChatHandlers = Pick<
   | 'sendText'
   | 'retry'
   | 'retryMessage'
+  | 'dismissMessage'
   | 'registerApproval'
   | 'decideTools'
   | 'rate'
@@ -41,6 +42,7 @@ export function ChatRuntimeProvider({
     decideTools: (ids, decision) => latest.current.decideTools(ids, decision),
     retry: runtime.retry && ((turnId) => latest.current.retry?.(turnId)),
     retryMessage: runtime.retryMessage && ((id) => latest.current.retryMessage?.(id)),
+    dismissMessage: runtime.dismissMessage && ((id) => latest.current.dismissMessage?.(id)),
     rate: runtime.rate && (async (input) => latest.current.rate?.(input)),
     fork: runtime.fork && (async (turnId) => latest.current.fork?.(turnId)),
     openResource: runtime.openResource && ((ref) => latest.current.openResource?.(ref)),

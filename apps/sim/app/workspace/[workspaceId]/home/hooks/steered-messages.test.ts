@@ -30,6 +30,26 @@ const text = (content: string) => ({ type: 'text' as const, content })
 const marker = { type: 'steering' as const, steering: { steeringId: 'steer' } }
 const shape = (messages: ChatMessage[]) => messages.map((m) => [m.role, m.content, m.id])
 
+describe('findLiveResponseId', () => {
+  const answer: ChatMessage = { id: 'answer', role: 'assistant', content: 'Done' }
+  const user: ChatMessage = { id: 'turn', role: 'user', content: 'Go' }
+
+  it('is the last response, past what is on its way into it', () => {
+    expect(
+      findLiveResponseId([
+        user,
+        answer,
+        { ...user, id: 'sending', delivery: 'sending' },
+        { ...user, id: 'held', steering: { streamId: 'turn' } },
+      ])
+    ).toBe('answer')
+  })
+
+  it("is none while the running turn's own message has no response after it", () => {
+    expect(findLiveResponseId([user, answer, { ...user, id: 'next-turn' }])).toBeUndefined()
+  })
+})
+
 describe('placeSteeredMessages', () => {
   it('splits the answer at the turn marker and shows the message there', () => {
     const placed = placeSteeredMessages(

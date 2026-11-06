@@ -15,6 +15,7 @@ import {
   mothershipChatKeys,
 } from '@/hooks/queries/mothership-chats'
 import { desktopActivityKeys } from '@/hooks/queries/utils/desktop-activity-keys'
+import { useMothershipOutgoingStore } from '@/stores/mothership-outgoing/store'
 
 const logger = createLogger('MothershipChatEvents')
 
@@ -127,6 +128,7 @@ export function handleMothershipChatStatusEvent(
     // mutation would leave pages and PTYs running indefinitely.
     void suspendDesktopChatScopes(payload.chatId)
     queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(payload.chatId) })
+    useMothershipOutgoingStore.getState().record(payload.chatId, [])
     return
   }
   if (payload.type === 'renamed') {

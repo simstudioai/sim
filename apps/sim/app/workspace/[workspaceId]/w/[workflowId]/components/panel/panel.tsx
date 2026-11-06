@@ -427,6 +427,7 @@ export const Panel = memo(function Panel() {
     stopGeneration: copilotStopGeneration,
     resolvedChatId: copilotResolvedChatId,
     retryMessage: copilotRetryMessage,
+    dismissMessage: copilotDismissMessage,
   } = useChat(
     workspaceId,
     copilotChatId,
@@ -1065,6 +1066,7 @@ export const Panel = memo(function Panel() {
                   onSubmit={handleCopilotSubmit}
                   onStopGeneration={handleCopilotStopGeneration}
                   onRetryMessage={copilotRetryMessage}
+                  onDismissMessage={copilotDismissMessage}
                   userId={session?.user?.id}
                   chatId={copilotResolvedChatId}
                   draftScopeKey={copilotDraftScopeKey}

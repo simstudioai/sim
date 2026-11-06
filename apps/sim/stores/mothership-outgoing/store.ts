@@ -1,3 +1,5 @@
+import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { create } from 'zustand'
 import { createJSONStorage, devtools, persist } from 'zustand/middleware'
 import type { SendPayload } from '@/app/workspace/[workspaceId]/home/types'
@@ -15,7 +17,7 @@ export interface JournaledOutgoing {
   status: 'pending' | 'steered' | 'applied' | 'failed'
   streamId?: string
   refusedBy?: string
-  resumed?: boolean
+  unconfirmed?: boolean
   textOffset?: number
 }
 
@@ -27,12 +29,43 @@ interface MothershipOutgoingState {
   reset: () => void
 }
 
-/** The storage of this tab, or none on the server or where it is unavailable. */
-const tabStorage = createJSONStorage(() =>
-  typeof sessionStorage === 'undefined'
-    ? { getItem: () => null, setItem: () => {}, removeItem: () => {} }
-    : sessionStorage
-)
+const logger = createLogger('MothershipOutgoingStore')
+
+/**
+ * This tab's storage, or nothing on the server. Delivery never depends on it: a
+ * quota or access error only costs the message its resume across a reload, so it
+ * is logged and never reaches the send.
+ */
+const tabStorageAdapter = {
+  getItem: (name: string): string | null => {
+    if (typeof sessionStorage === 'undefined') return null
+    try {
+      return sessionStorage.getItem(name)
+    } catch (error) {
+      logger.warn('Failed to read the outgoing journal', toError(error))
+      return null
+    }
+  },
+  setItem: (name: string, value: string): void => {
+    if (typeof sessionStorage === 'undefined') return
+    try {
+      sessionStorage.setItem(name, value)
+    } catch (error) {
+      logger.warn('Failed to write the outgoing journal', toError(error))
+    }
+  },
+  removeItem: (name: string): void => {
+    if (typeof sessionStorage === 'undefined') return
+    try {
+      sessionStorage.removeItem(name)
+    } catch (error) {
+      logger.warn('Failed to clear the outgoing journal', toError(error))
+    }
+  },
+}
+
+/** What this tab's journal replaced; a tab open across the release drops it once. */
+tabStorageAdapter.removeItem('mothership-queue')
 
 /**
  * The outgoing messages of each chat, kept per tab (sessionStorage) so a remount,
@@ -58,7 +91,7 @@ export const useMothershipOutgoingStore = create<MothershipOutgoingState>()(
       }),
       {
         name: 'mothership-outgoing:v1',
-        storage: tabStorage,
+        storage: createJSONStorage(() => tabStorageAdapter),
         partialize: (state) => ({ chats: state.chats }),
       }
     ),

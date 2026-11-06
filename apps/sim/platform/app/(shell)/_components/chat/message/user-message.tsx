@@ -16,7 +16,7 @@ interface UserMessageProps {
   turn: Extract<PlatformTurn, { role: 'user' }>
 }
 export function UserMessage({ turn }: UserMessageProps) {
-  const { retryMessage } = useChatHandlers()
+  const { retryMessage, dismissMessage } = useChatHandlers()
   return (
     <div className={styles.user}>
       <MessageAttachments items={turn.prompt.attachments} />
@@ -31,6 +31,11 @@ export function UserMessage({ turn }: UserMessageProps) {
           {turn.delivery === 'failed' && retryMessage && (
             <Button variant='muted' size='compact' onClick={() => retryMessage(turn.id)}>
               Retry
+            </Button>
+          )}
+          {turn.delivery === 'failed' && dismissMessage && (
+            <Button variant='muted' size='compact' onClick={() => dismissMessage(turn.id)}>
+              Dismiss
             </Button>
           )}
         </div>

@@ -80,7 +80,8 @@ vi.mock('@/lib/api/client/request', async (importOriginal) => {
     ...actual,
     requestJson<C extends AnyApiRouteContract>(contract: C, input: ApiClientRequest<C>) {
       return contract.path === '/api/copilot/chat/abort' ||
-        contract.path === '/api/copilot/chat/steer'
+        contract.path === '/api/copilot/chat/steer' ||
+        contract.path === '/api/copilot/chat/steer/dismiss'
         ? actual.requestJson(contract, input)
         : mockRequestJson(contract, input)
     },
@@ -117,7 +118,10 @@ import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/
 import { handleMothershipChatStatusEvent } from '@/hooks/use-mothership-chat-events'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
-import { useMothershipOutgoingStore } from '@/stores/mothership-outgoing/store'
+import {
+  type JournaledOutgoing,
+  useMothershipOutgoingStore,
+} from '@/stores/mothership-outgoing/store'
 import type { ChatContext } from '@/stores/panel'
 
 /** Captured before any test fakes timers, so the act budget below runs in real time. */
@@ -189,6 +193,9 @@ interface NetworkState {
   steerDispositions: Array<'queued' | 'applied' | 'not_applied' | 409 | 500>
   /** The `textOffset` an `applied` disposition reports. */
   appliedOffset?: number
+  dismissBodies: Array<{ chatId: string; steeringId: string }>
+  /** How the dismiss route answers, one per request; `500` fails it. Once spent, `dismissed`. */
+  dismissAnswers: Array<{ status: 'dismissed' | 'applied' | 'busy'; streamId?: string } | 500>
 }
 
 const state: NetworkState = {
@@ -201,6 +208,8 @@ const state: NetworkState = {
   abortTraceparents: [],
   steerBodies: [],
   steerDispositions: [],
+  dismissBodies: [],
+  dismissAnswers: [],
 }
 
 /** An SSE response whose stream ends immediately without a terminal event. */
@@ -222,6 +231,13 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
     if (body.streamId) state.pendingAdmissions.get(body.streamId)?.()
     state.abortTraceparents.push(new Headers(init?.headers).get('traceparent'))
     return Response.json({ aborted: true, settled: state.abortSettlements.shift() ?? true })
+  }
+  if (url.includes('/api/copilot/chat/steer/dismiss')) {
+    state.dismissBodies.push(JSON.parse(String(init?.body)))
+    const answer = state.dismissAnswers.shift() ?? { status: 'dismissed' }
+    return answer === 500
+      ? Response.json({ error: 'Failed' }, { status: 500 })
+      : Response.json(answer)
   }
   if (url.includes('/api/copilot/chat/steer')) {
     const body: CopilotChatSteerBody = JSON.parse(String(init?.body))
@@ -3377,6 +3393,337 @@ describe('useChat remount send recovery', () => {
       return { turn, view }
     }
 
+    /** A chat whose journal holds these entries, with nothing running. */
+    async function restoredChat(
+      entries: JournaledOutgoing[],
+      messages: MothershipChatHistory['messages'] = []
+    ) {
+      const chat = { ...history, messages }
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat }))
+      state.postBehavior = 'accept'
+      vi.stubGlobal('fetch', fetchStub)
+      useMothershipOutgoingStore.getState().record(chatId, entries)
+      const view = renderUseChatInChat(chatId, chat)
+      await act(async () => {
+        await settle()
+      })
+      return view
+    }
+
+    const steeringRow = (
+      id: string,
+      minutesOld: number,
+      extra: Partial<MothershipChatHistory['messages'][number]> = {}
+    ): MothershipChatHistory['messages'][number] => ({
+      id,
+      role: 'user',
+      content: 'Then summarize',
+      timestamp: new Date(Date.now() - minutesOld * 60_000).toISOString(),
+      steering: { streamId: 'earlier-turn' },
+      ...extra,
+    })
+
+    const deliveryOf = (view: { getResult: () => ReturnType<typeof useChat> }, id: string) =>
+      view.getResult().messages.find((message) => message.id === id)?.delivery
+
+    it('never steers a send into itself when the server admitted it without answering', async () => {
+      let admittedId: string | undefined
+      mockRequestJson.mockImplementation(() =>
+        Promise.resolve({
+          chat: admittedId
+            ? {
+                ...history,
+                activeStreamId: admittedId,
+                messages: [
+                  {
+                    id: admittedId,
+                    role: 'user',
+                    content: 'hello',
+                    timestamp: new Date().toISOString(),
+                  },
+                ],
+              }
+            : history,
+        })
+      )
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url === '/api/mothership/chat' && init?.method === 'POST') {
+          const body = JSON.parse(String(init.body))
+          state.postBodies.push(body)
+          admittedId = body.userMessageId
+          throw new TypeError('Failed to fetch')
+        }
+        if (url.includes('/api/mothership/chat/stream')) {
+          await elapse(50)
+          return Response.json({ success: true, events: [], status: 'active' })
+        }
+        return fetchStub(input, init)
+      })
+      state.steerDispositions = ['queued', 'queued', 'queued']
+      const view = renderUseChatInChat(chatId, history)
+
+      await act(async () => {
+        void view.getResult().sendMessage('hello')
+      })
+      await waitFor(() => state.postBodies.length === 1)
+      await act(async () => {
+        await queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
+      })
+      /* Past the retry delay the entry would have fired on. */
+      await act(async () => {
+        await elapse(2_500)
+      })
+
+      expect(state.steerBodies).toEqual([])
+      expect(state.postBodies).toHaveLength(1)
+      expect(userMessages(view.getResult())).toEqual(['hello'])
+    }, 15_000)
+
+    it('never steers a send whose POST got no answer into another turn', async () => {
+      const turn = stubRunningTurn()
+      const view = renderUseChatInChat(chatId, history)
+      useMothershipOutgoingStore.getState().reset()
+      await act(async () => {
+        void view.getResult().sendMessage('Count to fifty')
+      })
+      await waitFor(() => state.postBodies.length === 1)
+      await turn.text('1\n')
+      const id = '6f1e2d3c-4b5a-4978-8695-a4b3c2d1e0f9'
+
+      await act(async () => {
+        await view.getResult().sendMessage('Maybe a turn already', undefined, undefined, {
+          resumeUserMessageId: id,
+        })
+        await settle()
+      })
+
+      expect(state.steerBodies).toEqual([])
+      expect(deliveryOf(view, id)).toBe('waiting')
+    })
+
+    it("drops a stale entry from another tab's view once its id is a turn in the chat", async () => {
+      const id = '6f1e2d3c-4b5a-4978-8695-a4b3c2d1e0f7'
+      const view = await restoredChat(
+        [{ id, payload: { content: 'hello' }, status: 'steered', streamId: 'earlier-turn' }],
+        [{ id, role: 'user', content: 'hello', timestamp: new Date().toISOString() }]
+      )
+
+      expect(state.steerBodies).toEqual([])
+      expect(state.postBodies).toEqual([])
+      expect(userMessages(view.getResult())).toEqual(['hello'])
+      expect(useMothershipOutgoingStore.getState().chats[chatId]).toBeUndefined()
+    })
+
+    it('does not let a message not delivered hold back a later plain send', async () => {
+      const id = '6f1e2d3c-4b5a-4978-8695-a4b3c2d1e0f9'
+      const view = await restoredChat([
+        { id, payload: { content: 'stuck one' }, status: 'failed', streamId: 'earlier-turn' },
+      ])
+
+      await act(async () => {
+        await view.getResult().sendMessage('a brand new question')
+        await settle()
+      })
+
+      expect(state.postBodies.map((body) => body.message)).toEqual(['a brand new question'])
+      expect(deliveryOf(view, id)).toBe('failed')
+    })
+
+    it('still sends a plain message when the journal cannot be written', async () => {
+      const view = await restoredChat([])
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new DOMException('quota', 'QuotaExceededError')
+      })
+
+      await act(async () => {
+        await view.getResult().sendMessage('over quota')
+        await settle()
+      })
+
+      expect(state.postBodies.map((body) => body.message)).toEqual(['over quota'])
+    })
+
+    it('shows an old steering record as not delivered, and sends it only on Retry, through the gate', async () => {
+      const id = '5d0a0f8e-1b2c-4d3e-8f90-a1b2c3d4e5f6'
+      const view = await restoredChat([], [steeringRow(id, 60 * 24 * 3)])
+
+      expect(deliveryOf(view, id)).toBe('failed')
+      expect(state.steerBodies).toEqual([])
+      expect(state.postBodies).toEqual([])
+
+      state.steerDispositions = ['not_applied']
+      await act(async () => {
+        view.getResult().retryMessage(id)
+        await settle()
+      })
+      await waitFor(() => state.postBodies.length === 1)
+
+      expect(state.steerBodies).toHaveLength(1)
+      expect(state.postBodies[0]).toMatchObject({ userMessageId: id, steeringFallback: true })
+    })
+
+    it('keeps the mentions of a recent steering record sent as a turn', async () => {
+      const id = '5d0a0f8e-1b2c-4d3e-8f90-a1b2c3d4e5f6'
+      state.steerDispositions = ['not_applied']
+      await restoredChat(
+        [],
+        [
+          steeringRow(id, 1, {
+            contexts: [{ kind: 'workflow', label: 'Invoices', workflowId: 'workflow-1' }],
+          }),
+        ]
+      )
+      await waitFor(() => state.postBodies.length === 1)
+
+      expect(state.postBodies[0]).toMatchObject({
+        contexts: [expect.objectContaining({ kind: 'workflow', workflowId: 'workflow-1' })],
+      })
+    })
+
+    it('never adopts a row re-marked as the turn its id went out as', async () => {
+      const id = '5d0a0f8e-1b2c-4d3e-8f90-a1b2c3d4e5f6'
+      await restoredChat([], [steeringRow(id, 1, { steering: { streamId: id } })])
+
+      expect(state.steerBodies).toEqual([])
+      expect(state.postBodies).toEqual([])
+      expect(useMothershipOutgoingStore.getState().chats[chatId]).toBeUndefined()
+    })
+
+    it('holds what waited on a turn that errored as not delivered, until Retry', async () => {
+      const { turn, view } = await startTurn()
+      const unsteerable = 'x'.repeat(32_769)
+      await act(async () => {
+        await view.getResult().sendMessage(unsteerable)
+      })
+      const waitingId = view.getResult().messages.at(-1)?.id ?? ''
+
+      await turn.emit('error', { message: 'The model failed.' })
+      await turn.emit('complete', { status: 'error' })
+      await turn.end()
+      await act(async () => {
+        await settle()
+      })
+
+      expect(state.postBodies).toHaveLength(1)
+      expect(deliveryOf(view, waitingId)).toBe('failed')
+
+      await act(async () => {
+        view.getResult().retryMessage(waitingId)
+        await settle()
+      })
+      await waitFor(() => state.postBodies.length === 2)
+      expect(state.postBodies[1]).toMatchObject({ userMessageId: waitingId })
+    })
+
+    it('holds a message steered into a turn that errored, once it reads as not applied', async () => {
+      const { turn, view } = await startTurn()
+      state.steerDispositions = ['queued', 'not_applied']
+      await act(async () => {
+        await view.getResult().sendMessage('Stop at ten')
+      })
+      await waitFor(() => state.steerBodies.length === 1)
+      const steeringId = state.steerBodies[0].steeringId
+
+      await turn.emit('error', { message: 'The model failed.' })
+      await turn.emit('complete', { status: 'error' })
+      await turn.end()
+      await waitFor(() => state.steerBodies.length === 2)
+      await act(async () => {
+        await settle()
+      })
+
+      expect(state.postBodies).toHaveLength(1)
+      expect(deliveryOf(view, steeringId)).toBe('failed')
+    })
+
+    it('tells the desktop a turn is done when the only message on it was applied by the turn', async () => {
+      const notify = vi.fn(async () => {})
+      libDesktopMockFns.mockGetDesktopBridge.mockReturnValue({ settings: { notify } })
+      const { turn, view } = await startTurn()
+      state.steerDispositions = ['queued']
+      await act(async () => {
+        await view.getResult().sendMessage('Stop at ten')
+      })
+      await waitFor(() => state.steerBodies.length === 1)
+
+      await turn.applied(state.steerBodies[0].steeringId)
+      await turn.end()
+      libDesktopMockFns.mockGetDesktopBridge.mockReset()
+
+      expect(notify).toHaveBeenCalledWith(expect.objectContaining({ title: 'Task complete' }))
+    })
+
+    describe('dismissing a message not delivered', () => {
+      const id = '6f1e2d3c-4b5a-4978-8695-a4b3c2d1e0f9'
+      const failedEntry: JournaledOutgoing = {
+        id,
+        payload: { content: 'Then summarize' },
+        status: 'failed',
+        streamId: 'earlier-turn',
+      }
+
+      it('removes the message and its record', async () => {
+        const view = await restoredChat([failedEntry], [steeringRow(id, 60)])
+
+        await act(async () => {
+          view.getResult().dismissMessage(id)
+          await settle()
+        })
+
+        expect(state.dismissBodies).toEqual([{ chatId, steeringId: id }])
+        expect(userMessages(view.getResult())).toEqual([])
+        expect(useMothershipOutgoingStore.getState().chats[chatId]).toBeUndefined()
+      })
+
+      it('leaves one a run applied in the conversation', async () => {
+        state.dismissAnswers = [{ status: 'applied' }]
+        const view = await restoredChat([failedEntry], [steeringRow(id, 60)])
+
+        await act(async () => {
+          view.getResult().dismissMessage(id)
+          await settle()
+        })
+
+        expect(userMessages(view.getResult())).toEqual(['Then summarize'])
+        expect(deliveryOf(view, id)).toBeUndefined()
+      })
+
+      it('goes back to waiting on a turn that still holds it', async () => {
+        state.dismissAnswers = [{ status: 'busy', streamId: 'earlier-turn' }]
+        state.steerDispositions = ['queued', 'queued']
+        const view = await restoredChat([failedEntry])
+
+        await act(async () => {
+          view.getResult().dismissMessage(id)
+          await settle()
+        })
+
+        expect(userMessages(view.getResult())).toEqual(['Then summarize'])
+        expect(deliveryOf(view, id)).not.toBe('failed')
+      })
+
+      it('stays not delivered when the server gave no answer', async () => {
+        state.dismissAnswers = [500]
+        const view = await restoredChat([failedEntry])
+
+        await act(async () => {
+          view.getResult().dismissMessage(id)
+          await settle()
+        })
+
+        expect(deliveryOf(view, id)).toBe('failed')
+      })
+
+      it('forgets the journal of a chat deleted elsewhere', async () => {
+        await restoredChat([failedEntry])
+
+        handleMothershipChatStatusEvent(queryClient, 'ws-1', { chatId, type: 'deleted' })
+
+        expect(useMothershipOutgoingStore.getState().chats[chatId]).toBeUndefined()
+      })
+    })
+
     it('steers the running turn instead of sending a turn of its own, and shows it at once', async () => {
       const { turn, view } = await startTurn()
       state.steerDispositions = ['queued']
@@ -3635,7 +3982,7 @@ describe('useChat remount send recovery', () => {
 
     it('settles a steering record its turn ended without marking, sending it on as a turn once', async () => {
       const steeringId = '5d0a0f8e-1b2c-4d3e-8f90-a1b2c3d4e5f6'
-      const at = '2026-11-05T00:00:00.000Z'
+      const at = new Date().toISOString()
       const withRecord: MothershipChatHistory = {
         ...history,
         messages: [
