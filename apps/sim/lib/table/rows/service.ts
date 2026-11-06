@@ -959,7 +959,7 @@ export async function upsertRow(
     }
   })
 
-  logger.info(
+  logger.debug(
     `[${requestId}] Upserted (${result.operation}) row ${result.row.id} in table ${data.tableId}`
   )
 

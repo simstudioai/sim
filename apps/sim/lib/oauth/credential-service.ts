@@ -1764,7 +1764,7 @@ export async function resolveCredentialTokenBundle(
     logger.error(`[${requestId}] Missing access token for credential`)
     return null
   }
-  if (!result.refreshed) logger.info(`[${requestId}] Access token is valid for credential`)
+  if (!result.refreshed) logger.debug(`[${requestId}] Access token is valid for credential`)
   return { accessToken: result.accessToken }
 }
 
@@ -1817,7 +1817,7 @@ export async function refreshTokenIfNeeded(
     throw new Error('OAuth access token expired and cannot be refreshed; reconnect the account')
   }
   if (result.kind === 'token') {
-    if (!result.refreshed) logger.info(`[${requestId}] Access token is valid`)
+    if (!result.refreshed) logger.debug(`[${requestId}] Access token is valid`)
     /** A row storing neither token returns its empty token as before; callers decide how to fail. */
     return {
       accessToken: result.accessToken ?? credential.accessToken,

@@ -742,7 +742,7 @@ async function executeWorkflowCoreImpl(
 
       if (metadata.workflowStateOverride) {
         const override = metadata.workflowStateOverride
-        logger.info(`[${requestId}] Using workflow state override (diff workflow execution)`, {
+        logger.debug(`[${requestId}] Using workflow state override (diff workflow execution)`, {
           blocksCount: Object.keys(override.blocks).length,
           edgesCount: override.edges.length,
         })
@@ -775,7 +775,7 @@ async function executeWorkflowCoreImpl(
       }
 
       const deployedData = await loadDeployedWorkflowState(workflowId, providedWorkspaceId)
-      logger.info(`[${requestId}] Using deployed workflow state (deployed execution)`)
+      logger.debug(`[${requestId}] Using deployed workflow state (deployed execution)`)
       return {
         blocks: deployedData.blocks,
         edges: deployedData.edges,
@@ -907,7 +907,7 @@ async function executeWorkflowCoreImpl(
       }
 
       resolvedTriggerBlockId = startBlock.blockId
-      logger.info(`[${requestId}] Identified trigger block for ${executionKind} execution:`, {
+      logger.debug(`[${requestId}] Identified trigger block for ${executionKind} execution:`, {
         blockId: resolvedTriggerBlockId,
         blockType: startBlock.block.type,
         path: startBlock.path,
