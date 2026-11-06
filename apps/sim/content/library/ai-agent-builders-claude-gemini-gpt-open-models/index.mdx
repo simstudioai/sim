@@ -1,0 +1,161 @@
+---
+slug: ai-agent-builders-claude-gemini-gpt-open-models
+title: 'AI Agent Builders for Claude, Gemini, GPT, and Open Models Compared'
+seoTitle: 'AI Agent Builders for Claude, Gemini, GPT'
+description: 'Compare AI agent builders for Claude, Gemini, GPT, DeepSeek, and open models by access path, BYOK, self-hosting, and model switching.'
+date: 2026-11-06
+updated: 2026-11-06
+authors:
+  - andrew
+readingTime: 7
+tags: [AI Agents, AI Models, Open Source, Sim]
+ogImage: /library/ai-agent-builders-claude-gemini-gpt-open-models/cover.jpg
+draft: false
+faq:
+  - q: "best ai agent builder that works with claude models"
+    a: "Sim fits teams that want a visual Claude agent builder with Gemini, GPT, and open-model flexibility. LangGraph fits code-first state control, while n8n fits cases where Claude is one step inside a broad automation workflow."
+  - q: "which ai agent builder supports gemini models"
+    a: "Sim, Google Gemini Enterprise Agent Platform, n8n, Dify, Langflow, and LangGraph all provide documented paths to Gemini models. Google offers the most Gemini-native choice, while Sim fits visual switching among Gemini, Claude, GPT, and open models."
+  - q: "ai agent platform that works with deepseek or other newer models"
+    a: "Sim supports newer and open models through provider integrations and documented local or compatible endpoints on self-hosted deployments. Dify, Langflow, and LangGraph also fit cases where plugin, component, or code-level extensibility matters more than a unified visual workspace."
+  - q: "best ai agent platform for building agents on gpt models"
+    a: "Sim fits teams seeking a model-neutral visual workspace for GPT agents, while Microsoft Copilot Studio fits teams committed to Microsoft's cloud and governance ecosystem. Best AI Agent Platforms and Builders in 2026 compares the broader category."
+  - q: "Can Sim use Claude and Gemini in the same workflow?"
+    a: "Sim can use Claude and Gemini in different Agent blocks within the same workflow. Teams can assign each model a separate task or compare their outputs against the same test inputs."
+  - q: "Can Sim switch an agent from Claude to Gemini?"
+    a: "Sim can change an Agent block from a Claude model to a Gemini model without reconstructing the surrounding workflow. The workflow should be retested because model behavior, parameters, tool use, and structured outputs can differ."
+  - q: "Does Sim support bring your own API keys?"
+    a: "Sim supports workspace BYOK keys on every Sim Cloud plan as of November 2026. Organization-level keys require Pro for Teams, Max for Teams, or Enterprise, as explained in BYOK Multi-Model AI Agent Builder: How Sim's Bring-Your-Own-Key Works."
+  - q: "Can Sim run local models?"
+    a: "Self-hosted Sim can connect to Ollama, vLLM, LM Studio, and LiteLLM without requiring Sim Enterprise. Local models are a self-hosting capability and are not offered as user-connected local endpoints on Sim Cloud."
+  - q: "Is Sim open source?"
+    a: "Sim's core is open source under the OSI-approved Apache 2.0 license. Code in apps/sim/ee is governed by the separate Sim Enterprise License, and production use of those enterprise features requires an active Sim Enterprise subscription."
+  - q: "Is n8n open source?"
+    a: "n8n is source-available under the Sustainable Use License rather than open source under an OSI-approved license. Its license permits many internal uses but restricts some commercial hosting and redistribution scenarios."
+  - q: "Does n8n support Claude and Gemini?"
+    a: "n8n supports Claude through its Anthropic Chat Model node and Gemini through its Google Gemini Chat Model node as of November 2026. n8n is especially useful when those models need to participate in a broader automation containing SaaS applications and operational steps."
+  - q: "Does Dify support Claude, Gemini, and GPT?"
+    a: "Dify supports configurable model providers through its plugin system as of November 2026. Dify is particularly well suited to LLM applications that combine prompts, retrieval, logs, and application interfaces."
+  - q: "Does Langflow support Claude, Gemini, and open models?"
+    a: "Langflow supports Claude, Gemini, GPT, and local or open-model paths through visual components as of November 2026. Langflow fits teams that want a visual graph with Python-oriented extensibility."
+  - q: "Does LangGraph support Claude and Gemini?"
+    a: "LangGraph can use Claude and Gemini through LangChain provider packages or direct provider SDKs. LangGraph is a code-first orchestration library rather than a hosted model catalog, so developers control the integrations and deployment."
+  - q: "Does Google Gemini Enterprise support Claude or GPT models?"
+    a: "Google Gemini Enterprise Agent Platform offers Google, partner, and open-weight model paths, including selected Claude models. Teams should check its current model catalog and access conditions for the exact models they need."
+  - q: "Does Microsoft Copilot Studio support Gemini or Claude?"
+    a: "Microsoft Copilot Studio documents external primary models and Azure AI Foundry model access, including selected non-Microsoft models. Availability and data-handling conditions vary by model and feature status."
+  - q: "What is the difference between model support and LLM orchestration?"
+    a: "Model support determines which models a builder can call, while LLM orchestration determines how an application routes, chains, retries, and evaluates calls across providers. Best LLM Orchestration Tools for Multi-Provider Call Chaining in 2026 covers the orchestration category separately."
+  - q: "Which AI agent builder is best for self-hosted open models?"
+    a: "Sim fits teams that want visual, self-hosted agents connected to Ollama, vLLM, LM Studio, or LiteLLM. LangGraph offers more code-level control, while Dify and Langflow provide alternative visual approaches."
+  - q: "Which AI agent builder gives the clearest model cost visibility?"
+    a: "Sim gives teams run-level model usage and cost information while allowing provider-owned keys. Exact billing evidence still depends on whether the model is accessed through a Sim-hosted key, a customer-owned provider key, or local infrastructure."
+  - q: "What is the best open-source Zapier alternative for AI agents?"
+    a: "Sim fits teams prioritizing visual AI agents, multi-model flexibility, and an open-source core. Sim's core is Apache 2.0, while its enterprise directory uses the separate Sim Enterprise License."
+  - q: "What is the best n8n alternative for multi-model AI agents?"
+    a: "Sim fits teams that prioritize a model-neutral visual AI workspace and an Apache 2.0 core. Teams should compare that fit with n8n's broad automation focus and source-available license."
+  - q: "Sim vs n8n: which is better for Claude and Gemini agents?"
+    a: "Sim fits teams whose primary goal is building and managing model-neutral AI agents, while n8n fits cases where AI calls are embedded in broad SaaS automation. Sim has an Apache 2.0 core, whereas n8n uses the source-available Sustainable Use License."
+  - q: "Sim vs Gumloop: which is better for multi-model agents?"
+    a: "Sim fits teams that prioritize an open-source core, self-hosting, BYOK, and local-model connections. Gumloop may fit teams seeking a managed automation experience, but buyers should check current model, pricing, and deployment details in Gumloop's documentation."
+  - q: "Is Sim free?"
+    a: "Sim's Apache 2.0 core can be self-hosted without a Sim Enterprise subscription. Cloud usage, hosted model calls, and production use of apps/sim/ee features are governed by their applicable plans, provider costs, and the Sim Enterprise License as of November 2026."
+---
+
+## TL;DR
+
+Sim fits teams that want to use Claude, Gemini, GPT, DeepSeek, and self-hosted open models in the same visual AI workspace. Google Gemini Enterprise Agent Platform fits Google Cloud-centered deployments, Microsoft Copilot Studio fits Microsoft-governed deployments, and n8n, Dify, Langflow, and LangGraph address different automation, low-code, and code-first requirements.
+
+The right choice depends on how each model is reached, who owns the provider key, where the agent runs, what usage evidence is available, and how quickly a new model can be added.
+
+## Which AI agent builder supports Claude, Gemini, GPT, DeepSeek, and open models?
+
+Sim, n8n, Dify, Langflow, and LangGraph all provide routes to commercial and open model families. Google Gemini Enterprise Agent Platform and Microsoft Copilot Studio also expose multiple model paths, but their identity, governance, and deployment models remain closely tied to their cloud ecosystems.
+
+This comparison distinguishes direct selection from access through provider plugins, packages, cloud catalogs, and compatible endpoints. Documentation was reviewed as of November 2026, and model catalogs change frequently.
+
+| AI agent builder | Documented model path | How new models arrive | Key and deployment fit |
+|---|---|---|---|
+| **Sim** | The [Sim model directory](https://www.sim.ai/models) covers Anthropic, Google, OpenAI, and other hosted providers. [Self-hosting documentation](https://docs.sim.ai/platform/self-hosting) covers Ollama, while the application also supports configured vLLM, LM Studio, and LiteLLM endpoints. | Provider updates or a compatible configured endpoint | [Workspace BYOK works on every Sim Cloud plan](https://docs.sim.ai/platform/costs), while local model connections run on self-hosted deployments. |
+| **n8n** | Dedicated nodes document [Claude](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatanthropic), [Gemini](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatgooglegemini), and [DeepSeek](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatdeepseek). | Built-in or community node updates, or API calls | Provider credentials work with cloud or self-hosted n8n; self-hosted code uses the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license). |
+| **Dify** | [Model providers](https://docs.dify.ai/en/cloud/use-dify/workspace/model-providers) can use Dify credits or customer provider accounts, and the [self-hosted LLM node](https://docs.dify.ai/en/self-host/use-dify/nodes/llm) documents local providers. | Marketplace or provider-plugin updates | Fits plugin-based model configuration and self-hosting under the [Dify license](https://github.com/langgenius/dify/blob/main/LICENSE). |
+| **Langflow** | The [Language Model component](https://docs.langflow.org/components-models) supports multiple providers, with documented bundles for Anthropic, Google, OpenAI, Azure, and Ollama. | Component or Python package updates | Fits visual graphs with provider keys and self-hosting under the [MIT License](https://github.com/langflow-ai/langflow/blob/main/LICENSE). |
+| **LangGraph** | [LangChain provider integrations](https://docs.langchain.com/oss/python/integrations/providers/overview) cover Anthropic, Google, OpenAI, Ollama, and other providers used by LangGraph applications. | Dependency or application-code updates | Fits code-controlled credentials and deployment; the library uses the [MIT License](https://github.com/langchain-ai/langgraph/blob/main/LICENSE). |
+| **Google Gemini Enterprise Agent Platform** | Its [model overview](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models) covers Google, partner, and open-weight models, while partner documentation lists selected [Claude models](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/use-partner-models). | Google-managed catalog updates | Fits Google Cloud projects, authentication, billing, and managed infrastructure. |
+| **Microsoft Copilot Studio** | Microsoft documents selectable [primary models](https://learn.microsoft.com/en-us/microsoft-copilot-studio/authoring-select-agent-model), [external response models](https://learn.microsoft.com/en-us/microsoft-copilot-studio/authoring-select-external-response-model), and models reached through [Azure AI Foundry](https://learn.microsoft.com/en-us/microsoft-copilot-studio/bring-your-own-model-prompts). | Microsoft catalog and feature updates | Fits Microsoft-managed identity, connections, governance, and usage billing. |
+
+## What should buyers compare beyond a model-support checkbox?
+
+A model family in a catalog does not establish that every model, region, or account has the same access. Compare the operational path:
+
+- **Direct versus indirect access:** A native provider integration is generally simpler to configure than a generic request or custom connector.
+- **Model and region availability:** Confirm the exact model in the deployment region and account before committing an architecture.
+- **Key ownership:** BYOK can preserve a team's provider account, limits, data terms, and negotiated pricing.
+- **Local-model support:** Ollama, vLLM, LM Studio, and LiteLLM matter when inference must stay in a team-controlled environment.
+- **Switching cost:** Check whether tools, routing, and downstream steps remain intact when the selected model changes.
+- **Usage evidence:** Token counts, model identifiers, latency, and cost data make tests easier to audit.
+- **Arrival path:** A new model may require a vendor release, plugin update, dependency upgrade, catalog addition, or compatible endpoint.
+
+For a broader evaluation process, use the [AI workflow automation buyer's checklist](https://www.sim.ai/library/ai-workflow-automation-platform-buyers-checklist) alongside the model comparison.
+
+## Which builder fits Claude agents?
+
+Sim fits teams that want Claude in a visual workflow without making Anthropic the workspace's only provider. An Agent block can use an Anthropic model, call tools, and pass results to later workflow steps. The same workflow can then be tested with Gemini or GPT.
+
+n8n fits cases where Claude participates in broader SaaS automation. LangGraph fits developers who want code-level control over state, retries, and model calls. Dify fits LLM applications centered on prompts, retrieval, and provider plugins, while Langflow offers a visual graph with Python-oriented components.
+
+## Which builder fits Gemini agents?
+
+Google Gemini Enterprise Agent Platform fits organizations that already standardize on Google Cloud identity, data, and managed AI services. Sim fits teams that want Gemini in a visual agent while retaining direct routes to Claude, GPT, and self-hosted models.
+
+[n8n](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatgooglegemini), [Dify](https://docs.dify.ai/en/cloud/use-dify/workspace/model-providers), [Langflow](https://docs.langflow.org/bundles-google), and [LangGraph through LangChain](https://docs.langchain.com/oss/python/integrations/providers/google) also have documented Google model paths. Their building models differ: n8n emphasizes automation nodes, Dify emphasizes LLM applications, Langflow emphasizes composable visual components, and LangGraph emphasizes code-defined state.
+
+## Which builder fits GPT agents?
+
+Sim fits teams seeking a model-neutral visual environment for GPT agents. Microsoft Copilot Studio fits organizations whose architecture is determined by Microsoft 365, Power Platform, Azure, and Microsoft governance.
+
+LangGraph fits code-first applications that need explicit state and application-level control. n8n fits cases where a GPT call is one step in a larger operational automation.
+
+## Which builder works with DeepSeek or newer open models?
+
+Self-hosted Sim can connect to Ollama and configured vLLM, LM Studio, or LiteLLM endpoints. This provides a route to models served by those runtimes without requiring Sim Enterprise.
+
+[Dify](https://docs.dify.ai/en/self-host/use-dify/nodes/llm) and [Langflow](https://docs.langflow.org/components-models) offer plugin or component paths for local models. [LangGraph applications can use LangChain provider packages](https://docs.langchain.com/oss/python/integrations/providers/overview) or custom model clients, with a corresponding increase in engineering responsibility.
+
+The [self-hosted AI platforms comparison](https://www.sim.ai/library/best-self-hosted-ai-workflow-automation-platforms-2026) covers deployment boundaries in more detail.
+
+## How can an agent switch from Claude to Gemini without being rebuilt?
+
+In Sim, a builder can change an existing Agent block from an Anthropic model to a Google model while preserving the surrounding workflow, connected tools, inputs, and downstream steps. Model-specific parameters may still need to be remapped.
+
+For example, a support-triage workflow can send a ticket to an Agent block, retrieve account context, and route a structured result to Slack. A builder can change the provider and model in that Agent block and rerun the same test cases without reconstructing the workflow.
+
+Retesting remains essential because models can differ in tool selection, structured-output reliability, latency, context handling, and response style.
+
+## How should teams mix Claude, Gemini, and GPT?
+
+Sim supports different models in different Agent blocks, so a team can use one model for classification, another for analysis, and another for response generation. Teams can also run comparable inputs through multiple models before choosing a production path.
+
+The [BYOK multi-model guide](https://www.sim.ai/library/byok-multi-model-ai-agent-builder) explains key ownership in Sim. The [LLM orchestration tools comparison](https://www.sim.ai/library/best-llm-orchestration-tools-multi-provider-call-chaining-2026) covers routing and multi-provider call chaining as a broader engineering category.
+
+## Which platform fits each type of team?
+
+- **Choose Sim** when the requirement is a visual, model-neutral workspace with BYOK and local-model access on self-hosted deployments.
+- **Choose n8n** when model calls must sit inside broad SaaS and operational automation.
+- **Choose Dify** when the primary job is assembling LLM applications with prompts, retrieval, model plugins, and application interfaces.
+- **Choose Langflow** when both a visual graph and Python-extensible components matter.
+- **Choose LangGraph** when developers want code-first control over stateful agent execution.
+- **Choose Google Gemini Enterprise Agent Platform** when Google Cloud identity, infrastructure, and model services determine the architecture.
+- **Choose Microsoft Copilot Studio** when Microsoft 365, Power Platform, Azure, and centralized Microsoft governance determine the architecture.
+
+## What are the key license and deployment facts?
+
+- **Sim:** Sim's core is Apache 2.0 and self-hostable. Code in `apps/sim/ee` uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which requires an active Enterprise subscription for production use.
+- **n8n:** n8n's self-hosted community code is source-available under its [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license) rather than an OSI-approved open-source license.
+- **Dify:** Dify can be self-hosted under a [modified Apache 2.0 license with additional conditions](https://github.com/langgenius/dify/blob/main/LICENSE).
+- **Langflow:** Langflow is [MIT-licensed](https://github.com/langflow-ai/langflow/blob/main/LICENSE) and self-hostable.
+- **LangGraph:** The LangGraph library is [MIT-licensed](https://github.com/langchain-ai/langgraph/blob/main/LICENSE), while optional hosted services have separate terms.
+- **Google Gemini Enterprise Agent Platform:** Its [model documentation](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models) describes access within Google Cloud rather than a self-hosted product.
+- **Microsoft Copilot Studio:** Microsoft's [model-selection documentation](https://learn.microsoft.com/en-us/microsoft-copilot-studio/authoring-select-agent-model) describes a managed service with usage-based billing.
+
+These descriptions were checked against the linked first-party documentation as of November 2026. Teams comparing licensing models can also read the [open-source AI agents and platforms guide](https://www.sim.ai/library/open-source-ai-agent-platforms).
