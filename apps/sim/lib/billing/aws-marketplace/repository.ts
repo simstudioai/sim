@@ -613,6 +613,30 @@ export async function listAccountLicenses(userId: string) {
 }
 
 /**
+ * Whether AWS Marketplace bills this billing reference: a license that is not inactive, linked to
+ * the organization, or registered to the user's account with no organization yet.
+ */
+export async function holdsMarketplaceLicense(referenceId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: awsMarketplaceLicense.id })
+    .from(awsMarketplaceLicense)
+    .where(
+      and(
+        ne(awsMarketplaceLicense.status, 'inactive'),
+        or(
+          eq(awsMarketplaceLicense.organizationId, referenceId),
+          and(
+            isNull(awsMarketplaceLicense.organizationId),
+            eq(awsMarketplaceLicense.linkedByUserId, referenceId)
+          )
+        )
+      )
+    )
+    .limit(1)
+  return Boolean(row)
+}
+
+/**
  * Licenses with no organization, newest first, for the admin dashboard: those waiting for the team
  * to link them, and inactive ones that never will be.
  */
