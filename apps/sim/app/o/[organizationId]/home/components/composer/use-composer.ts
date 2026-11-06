@@ -86,8 +86,6 @@ export function useComposer({
   waitsForFullLists,
   hasAdditionalAttachments,
 }: UseComposerOptions) {
-  const attachedFilesRef = useRef(files.attachedFiles)
-  attachedFilesRef.current = files.attachedFiles
   const imagesOnly = requestMode === 'assistant'
   const { organization } = useOrganizationContext()
   const { data: allWorkspaces = [], isPending: workspacesPending } = useWorkspacesQuery(!imagesOnly)
@@ -134,42 +132,37 @@ export function useComposer({
     restoreAttachedFiles: files.restoreAttachedFiles,
     getMessages: () => messages ?? [],
   })
-  const { textareaRef } = editor
-  const editorRef = useRef(editor)
-  editorRef.current = editor
+  const { textareaRef, setValue, setContexts, getValue, getPlainValue, restorePrompt } = editor
   const lastPublished = useRef(value)
   useEffect(() => {
     if (value !== lastPublished.current) {
-      editorRef.current.setValue(value)
-      if (!value) editorRef.current.setContexts([])
+      setValue(value)
+      if (!value) setContexts([])
       lastPublished.current = value
       if (value) textareaRef.current?.focus()
     }
-  }, [value, textareaRef])
+  }, [value, textareaRef, setValue, setContexts])
   const lastContexts = useRef(editor.contexts)
   useEffect(() => {
-    if (editorRef.current.getValue() !== editor.value) return
-    const plainValue = editorRef.current.getPlainValue()
+    if (getValue() !== editor.value) return
+    const plainValue = getPlainValue()
     if (plainValue !== lastPublished.current || editor.contexts !== lastContexts.current) {
       lastPublished.current = plainValue
       lastContexts.current = editor.contexts
       onChange(plainValue, editor.contexts.length ? editor.contexts : undefined)
     }
-  }, [editor.value, editor.contexts, onChange])
+  }, [editor.value, editor.contexts, onChange, getValue, getPlainValue])
   useEffect(() => {
     if (!restoredContexts) return
     history.reset()
-    const { hasUnavailableContexts } = editorRef.current.restorePrompt(
-      editorRef.current.getPlainValue(),
-      restoredContexts
-    )
+    const { hasUnavailableContexts } = restorePrompt(getPlainValue(), restoredContexts)
     if (hasUnavailableContexts) toast.info(UNAVAILABLE_CONTEXT_NOTICE)
-  }, [restoredContexts, history.reset])
+  }, [restoredContexts, history.reset, restorePrompt, getPlainValue])
   useChatInputFocus({ textareaRef })
   const voice = useVoiceInput({
     organizationId: organization.id,
-    getValue: () => editor.getPlainValue(),
-    onChange: (text) => editor.setValue(text),
+    getValue: getPlainValue,
+    onChange: (text) => setValue(text),
   })
   const canSubmit =
     !files.attachedFiles.some((file) => file.uploading) &&
@@ -179,10 +172,11 @@ export function useComposer({
 
   const { pending: preparingSubmission, accept: acceptSubmission } = submission
   const send = () => {
-    if (attachedFilesRef.current.some((file) => file.uploading)) return
+    const filesAtSend = files.getAttachedFiles()
+    if (filesAtSend.some((file) => file.uploading)) return
     const hasPayload =
-      editor.getValue().trim().length > 0 ||
-      attachedFilesRef.current.some((file) => file.key) ||
+      getValue().trim().length > 0 ||
+      filesAtSend.some((file) => file.key) ||
       hasAdditionalAttachments
     if (!hasPayload) {
       if (isSending) onSendQueuedHead?.()
@@ -191,26 +185,24 @@ export function useComposer({
     const contexts = imagesOnly
       ? filterContextsPresentInMessage(
           editor.contexts.filter((context) => context.kind === 'browser_page'),
-          editor.getPlainValue()
+          getPlainValue()
         )
       : editor.getActiveContexts()
-    const raw = editor.getValue()
-    const filesAtSend = attachedFilesRef.current
+    const raw = getValue()
     acceptSubmission(
-      () => onSubmit(editor.getPlainValue(), contexts.length ? contexts : undefined),
+      () => onSubmit(getPlainValue(), contexts.length ? contexts : undefined),
       () => {
-        attachedFilesRef.current = []
         voice.resetTranscript()
         history.reset()
         editor.clear()
       },
-      () => editorRef.current.getValue() === raw && attachedFilesRef.current === filesAtSend,
+      () => getValue() === raw && files.getAttachedFiles() === filesAtSend,
       textareaRef.current
     )
   }
 
   const submit = () => {
-    const text = editor.getPlainValue()
+    const text = getPlainValue()
     if (waitsForLists && skillListsPending && SLASH_TOKEN.test(text)) {
       setHeldSend((held) => held ?? { text, chipped: false, expired: false })
       return
@@ -229,26 +221,26 @@ export function useComposer({
   }, [heldSend])
   useEffect(() => {
     if (!heldSend) return
-    if (editorRef.current.getPlainValue() !== heldSend.text) {
+    if (getPlainValue() !== heldSend.text) {
       setHeldSend(null)
       return
     }
     if (skillListsPending && !heldSend.expired) return
     if (!heldSend.chipped) {
-      editorRef.current.setValue(heldSend.text)
+      setValue(heldSend.text)
       setHeldSend({ ...heldSend, chipped: true })
       return
     }
     setHeldSend(null)
     sendRef.current()
-  }, [heldSend, skillListsPending, editor.value])
+  }, [heldSend, skillListsPending, editor.value, getPlainValue, setValue])
 
   const openResourceMenu = (event: { currentTarget: Element }) => {
     const rect = event.currentTarget.getBoundingClientRect()
     editor.openResourceMenu({ left: rect.left, top: rect.top })
   }
   const recallQueuedTail = () => {
-    if (hasAdditionalAttachments || attachedFilesRef.current.length > 0) return false
+    if (hasAdditionalAttachments || files.getAttachedFiles().length > 0) return false
     return onEditQueuedTail?.() ?? false
   }
 
