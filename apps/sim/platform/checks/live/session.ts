@@ -55,8 +55,11 @@ export async function signIn(page: Page, email: string, target: string) {
     return
   }
   await signInThroughForm(page, email, target)
-  // The login page returns to the zone root, not to the deep link it was sent from.
-  await page.goto(target)
+  // The login page returns to the zone root, not to the deep link it was sent from, and that
+  // redirect can abort a navigation started while it is still running.
+  await expect(async () => {
+    await page.goto(target)
+  }).toPass({ timeout: 30_000 })
   mkdirSync(path.dirname(SESSIONS_FILE), { recursive: true })
   writeFileSync(
     SESSIONS_FILE,
