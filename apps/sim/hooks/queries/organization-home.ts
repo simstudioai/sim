@@ -9,7 +9,7 @@ import {
 import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
 
 /** Each read costs a request per thread at the member's mail provider, so focus re-reads are spaced. */
-const EMAIL_STALE_TIME = 2 * 60 * 1000
+const EMAIL_STALE_TIME = 5 * 60 * 1000
 /** A day's meetings change less often than a mailbox, and every day browsed is its own read. */
 const CALENDAR_STALE_TIME = 5 * 60 * 1000
 /** A run's state moves quickly, but no one is waiting on it to the second. */
