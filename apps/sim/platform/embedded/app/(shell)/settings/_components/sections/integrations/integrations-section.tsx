@@ -348,7 +348,6 @@ export default function IntegrationsSection({ organization: context }: SettingsS
         )}
         {adding && (
           <AddSourceModal
-            organization={organization}
             sources={availableToAdd}
             descriptions={Object.fromEntries(
               availableToAdd.map(({ type, access }) => [

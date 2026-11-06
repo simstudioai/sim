@@ -7,14 +7,12 @@ import { useRouter } from 'next/navigation'
 import type { GenericSecretSource } from '@/lib/api/contracts/organization-secrets'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
-import { useOrganization } from '@/lib/organizations/provider'
 import {
   useConfigureOrganizationSecretSource,
   useRemoveOrganizationSecretSource,
 } from '@/hooks/queries/organization-secrets'
 import {
   ActionMenu,
-  Avatar,
   Button,
   ConfirmDialog,
   FieldFrame,
@@ -22,6 +20,7 @@ import {
   SegmentedControl,
 } from '@/platform/design-system/components'
 import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
+import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import {
   ActionRow,
   Muted,
@@ -81,7 +80,6 @@ interface GenericSecretSourceRowProps {
 }
 
 export function GenericSecretSourceRow({ organizationId, source }: GenericSecretSourceRowProps) {
-  const { organization } = useOrganization()
   const [editing, setEditing] = useState(false)
   const [removing, setRemoving] = useState(false)
   const remove = useRemoveOrganizationSecretSource(organizationId)
@@ -91,9 +89,7 @@ export function GenericSecretSourceRow({ organizationId, source }: GenericSecret
       <SettingsRow
         label={GENERIC_SECRETS_NAME}
         description={source.mode === 'organization' ? 'Organization' : 'Member'}
-        leading={
-          <Avatar name={organization.name} src={organization.logo ?? undefined} organization />
-        }
+        leading={<IntegrationMark />}
       >
         <ActionRow>
           {source.mode === 'organization' && (
