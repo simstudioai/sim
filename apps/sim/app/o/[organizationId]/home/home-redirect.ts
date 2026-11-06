@@ -1,8 +1,8 @@
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
-import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
+import type { OrganizationSurfaceGate } from '@/lib/organizations/surface'
 
 type OrganizationRedirectContext = Pick<
-  OrganizationSurfaceContext,
+  OrganizationSurfaceGate,
   'mothershipAvailable' | 'canBuild' | 'searchAccess'
 >
 

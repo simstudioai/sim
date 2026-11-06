@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import type { SessionPrincipal } from '@sim/auth/principal'
-import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
+import type { OrganizationSurfaceGate } from '@/lib/organizations/surface'
 import { Hydrated } from '@/app/o/[organizationId]/_redesign/hydrated'
 import { IntegrationsHost } from '@/app/o/[organizationId]/integrations/integrations-host'
 import {
@@ -11,7 +11,7 @@ import {
 import { prefetchIntegrations } from '@/platform/lib/data/prefetch-member-inventory'
 
 interface HydratedIntegrationsProps extends Omit<IntegrationsRouteProps, 'organizationId'> {
-  surface: OrganizationSurfaceContext
+  surface: OrganizationSurfaceGate
   principal: SessionPrincipal
 }
 

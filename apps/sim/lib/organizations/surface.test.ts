@@ -23,6 +23,7 @@ vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 
 import {
   getOrganizationSurfaceContext,
+  getOrganizationSurfaceGate,
   resolveOrganizationLanding,
 } from '@/lib/organizations/surface'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
@@ -39,6 +40,50 @@ permissionGroupsResolveMockFns.mockIsOrganizationPermissionRegimeActive.mockImpl
 
 afterAll(resetDbChainMock)
 afterAll(resetEnvFlagsMock)
+
+/**
+ * Failure mode: every page runs its gate on every client navigation, while the layout that draws
+ * the member count and the nav does not re-render. A gate that reads for those wastes each of them.
+ */
+describe('getOrganizationSurfaceGate', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    mockSearchAccess.mockReset().mockResolvedValue({ memberScoped: true, sourceMirrored: false })
+    mockPermissionConfig.mockReset().mockResolvedValue(null)
+    mockEnterprisePlan.mockReset().mockResolvedValue(true)
+    setEnvFlags({ isInvitationsDisabled: false, isHosted: true, isBillingEnabled: true })
+  })
+
+  it("decides an admin's page without counting members or reading billing", async () => {
+    queueTableRows(member, [{ role: 'admin' }])
+    queueTableRows(organization, [{ id: 'org-1', name: 'Acme', slug: 'acme', logo: null }])
+
+    const gate = await getOrganizationSurfaceGate('org-1', 'viewer')
+
+    expect(gate).toMatchObject({ viewer: { userId: 'viewer', isAdmin: true } })
+    expect(gate?.organization).not.toHaveProperty('memberCount')
+    expect(gate).not.toHaveProperty('settingsFeatures')
+    expect(mockEnterprisePlan).not.toHaveBeenCalled()
+  })
+
+  it('denies a non-member the same as the full context', async () => {
+    queueTableRows(member, [])
+    queueTableRows(organization, [{ id: 'org-1', name: 'Acme', slug: 'acme', logo: null }])
+    await expect(getOrganizationSurfaceGate('org-1', 'viewer')).resolves.toBeNull()
+  })
+
+  it('leaves the full context what the layout draws', async () => {
+    queueTableRows(member, [{ role: 'admin' }])
+    queueTableRows(organization, [{ id: 'org-1', name: 'Acme', slug: 'acme', logo: null }])
+    queueTableRows(member, [{ memberCount: 3 }])
+
+    const context = await getOrganizationSurfaceContext('org-1', 'viewer')
+
+    expect(context?.organization.memberCount).toBe(3)
+    expect(context).toHaveProperty('settingsFeatures')
+    expect(mockEnterprisePlan).toHaveBeenCalled()
+  })
+})
 
 describe('getOrganizationSurfaceContext', () => {
   beforeEach(() => {

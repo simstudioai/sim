@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ context: vi.fn(), prefetchHome: vi.fn() }))
 
 vi.mock('next/navigation', () => nextNavigationMock)
-vi.mock('@/lib/organizations/surface', () => ({ getOrganizationSurfaceContext: mocks.context }))
+vi.mock('@/lib/organizations/surface', () => ({ getOrganizationSurfaceGate: mocks.context }))
 vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
 vi.mock('@/platform/lib/data/prefetch', () => ({}))
 vi.mock('@/platform/lib/data/prefetch-member-inventory', () => ({
