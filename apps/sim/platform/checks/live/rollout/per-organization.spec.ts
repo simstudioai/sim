@@ -6,7 +6,11 @@ import {
   signIn,
   signInAsAdmin,
 } from '@/platform/checks/live/session'
-import { ROLLOUT_TEST_TIMEOUT_MS, waitForRollout } from '@/platform/checks/live/support/rollout'
+import {
+  expectHandoff,
+  ROLLOUT_TEST_TIMEOUT_MS,
+  waitForRollout,
+} from '@/platform/checks/live/support/rollout'
 import {
   expectMainAppSurface,
   expectPlatformSurface,
@@ -24,8 +28,7 @@ test('a targeted organization is handed to the Platform', async ({ page }) => {
   const route = `/o/${organizationId()}/home`
   await signInAsAdmin(page, route)
   await waitForRollout(page, true)
-  await page.goto(route)
-  await expect(page).toHaveURL(/\/org\/home/)
+  await expectHandoff(page, route, /\/org\/home/)
   await expectPlatformSurface(page)
 })
 
