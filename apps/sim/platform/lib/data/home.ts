@@ -70,7 +70,7 @@ import {
 } from '@/platform/lib/data/home-model'
 import { useIntegrationActions } from '@/platform/lib/data/integrations'
 import { workspaceHref } from '@/platform/lib/data/workspaces'
-import { MINUTE_MS } from '@/platform/lib/time'
+import { currentMinute, MINUTE_MS } from '@/platform/lib/time'
 import {
   type OrganizationHomeWidget,
   useOrganizationHomeStore,
@@ -88,10 +88,6 @@ function subscribeToMinutes(onChange: () => void) {
     clearInterval(interval)
     window.removeEventListener('focus', onChange)
   }
-}
-
-function currentMinute() {
-  return Math.floor(Date.now() / MINUTE_MS) * MINUTE_MS
 }
 
 /** Home mounts only after hydration, behind the conversation's own gate, so no markup can disagree. */

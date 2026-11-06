@@ -1,4 +1,4 @@
-import { hashKey, useInfiniteQuery } from '@tanstack/react-query'
+import { hashKey, infiniteQueryOptions, useInfiniteQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import { type AuditLogPage, listAuditLogsContract } from '@/lib/api/contracts/audit-logs'
 
@@ -59,15 +59,22 @@ async function fetchAuditLogs(
   })
 }
 
-export function useAuditLogs(organizationId: string, filters: AuditLogFilters, enabled = true) {
-  const queryKey = auditLogKeys.list(organizationId, filters)
-  return useInfiniteQuery({
-    queryKey,
+/** The feed's read under one set of filters, for a hook or a read made ahead of showing it. */
+export function auditLogsInfiniteOptions(organizationId: string, filters: AuditLogFilters) {
+  return infiniteQueryOptions({
+    queryKey: auditLogKeys.list(organizationId, filters),
     queryFn: ({ pageParam, signal }) => fetchAuditLogs(organizationId, filters, pageParam, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
-    enabled: Boolean(organizationId) && enabled,
     staleTime: AUDIT_LOG_LIST_STALE_TIME,
+  })
+}
+
+export function useAuditLogs(organizationId: string, filters: AuditLogFilters, enabled = true) {
+  const options = auditLogsInfiniteOptions(organizationId, filters)
+  return useInfiniteQuery({
+    ...options,
+    enabled: Boolean(organizationId) && enabled,
     /**
      * Held across a filter change, never across a scope change.
      *
@@ -81,7 +88,7 @@ export function useAuditLogs(organizationId: string, filters: AuditLogFilters, e
     placeholderData: (previous, previousQuery) =>
       previous &&
       previousQuery &&
-      auditListScopeIdentity(previousQuery.queryKey) === auditListScopeIdentity(queryKey)
+      auditListScopeIdentity(previousQuery.queryKey) === auditListScopeIdentity(options.queryKey)
         ? previous
         : undefined,
   })
