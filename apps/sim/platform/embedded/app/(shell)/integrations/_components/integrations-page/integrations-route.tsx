@@ -125,7 +125,11 @@ export function IntegrationsRoute({
         <IntegrationsHeading
           handoff={
             slackOnboarding && (
-              <SlackSearchActions organizationId={organizationId} {...slackOnboarding} />
+              <SlackSearchActions
+                organizationId={organizationId}
+                token={slackOnboarding.token}
+                userId={slackOnboarding.userId}
+              />
             )
           }
         />
@@ -133,7 +137,8 @@ export function IntegrationsRoute({
           <SearchConnectionRequest
             key={JSON.stringify([connectionRequest.userId, connectionRequest.target])}
             organizationId={organizationId}
-            {...connectionRequest}
+            target={connectionRequest.target}
+            userId={connectionRequest.userId}
           />
         )}
         {inventoryStatus ?? (

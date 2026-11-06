@@ -48,6 +48,28 @@ export function EmailList({ items, asOf, onOpen }: EmailListProps) {
   )
 }
 
+function AttentionRow({ row, asOf }: { row: AttentionItem; asOf: number }) {
+  const leading = <Icon name={row.icon} />
+  const metadata = relativeTime(row.occurredAt, asOf)
+  return row.onOpen ? (
+    <ActivityRow
+      leading={leading}
+      title={row.title}
+      detail={row.detail}
+      metadata={metadata}
+      onOpen={row.onOpen}
+    />
+  ) : (
+    <ActivityRow
+      leading={leading}
+      title={row.title}
+      detail={row.detail}
+      metadata={metadata}
+      href={row.href}
+    />
+  )
+}
+
 interface AttentionListProps {
   state: HomeListState<AttentionItem>
   asOf: number
@@ -80,14 +102,7 @@ export function AttentionList({ state, asOf, onRetry }: AttentionListProps) {
               <ScrollArea label='Attention requests'>
                 <ul className={styles.entries} data-row-rhythm='dividers'>
                   {state.items.map((row) => (
-                    <ActivityRow
-                      key={row.id}
-                      leading={<Icon name={row.icon} />}
-                      title={row.title}
-                      detail={row.detail}
-                      metadata={relativeTime(row.occurredAt, asOf)}
-                      {...(row.onOpen ? { onOpen: row.onOpen } : { href: row.href })}
-                    />
+                    <AttentionRow key={row.id} row={row} asOf={asOf} />
                   ))}
                 </ul>
               </ScrollArea>

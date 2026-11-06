@@ -35,7 +35,11 @@ export function RailFlyout({ label, icon, children }: RailFlyoutProps) {
       open={hover.isOpen}
       onOpenChange={(next) => (next ? hover.open() : hover.close())}
     >
-      <div {...hover.triggerProps} className={styles.railRow}>
+      <div
+        className={styles.railRow}
+        onMouseEnter={hover.triggerProps.onMouseEnter}
+        onMouseLeave={hover.triggerProps.onMouseLeave}
+      >
         <ControlRow
           render={<Popover.Trigger ref={portal.trigger} />}
           accessibleLabel={label}

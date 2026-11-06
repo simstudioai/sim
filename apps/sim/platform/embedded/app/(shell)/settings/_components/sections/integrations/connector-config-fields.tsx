@@ -131,22 +131,27 @@ function ConnectorSelector({ label, hint, optional, ...options }: SelectorProps)
   )
 }
 
+interface ConnectorFieldListProps {
+  config: Omit<ConnectorConfigFieldsProps, 'isFieldVisible'>
+  isFieldVisible: ConnectorConfigFieldsProps['isFieldVisible']
+}
+
 /** A connector's dynamic configuration fields, with their selector/manual pairs. */
-export function ConnectorConfigFields({
-  scope,
-  accessMode = 'workspace',
-  connectorConfig,
-  sourceConfig,
-  selectionLabels,
-  credentialId,
-  credentialType,
-  canonicalGroups,
-  canonicalModes,
-  isFieldVisible,
-  onFieldChange,
-  onToggleCanonicalMode,
-  disabled,
-}: ConnectorConfigFieldsProps) {
+export function ConnectorConfigFields({ config, isFieldVisible }: ConnectorFieldListProps) {
+  const {
+    scope,
+    accessMode = 'workspace',
+    connectorConfig,
+    sourceConfig,
+    selectionLabels,
+    credentialId,
+    credentialType,
+    canonicalGroups,
+    canonicalModes,
+    onFieldChange,
+    onToggleCanonicalMode,
+    disabled,
+  } = config
   return (
     <>
       {connectorConfig.configFields.map((field) => {

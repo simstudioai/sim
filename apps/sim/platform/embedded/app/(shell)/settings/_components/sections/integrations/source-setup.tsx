@@ -313,7 +313,7 @@ export function SourceSetupForm({
                 )}
                 {configFieldsProps && (
                   <ConnectorConfigFields
-                    {...configFieldsProps}
+                    config={configFieldsProps}
                     isFieldVisible={(field) =>
                       isFieldVisible(field) &&
                       !hiddenCapFieldIds.has(field.id) &&
@@ -330,7 +330,7 @@ export function SourceSetupForm({
                       {!form.canSetUpGitHubInstallation && contentCredentialField}
                       {configFieldsProps && form.hasOptionalSetupFields && (
                         <ConnectorConfigFields
-                          {...configFieldsProps}
+                          config={configFieldsProps}
                           isFieldVisible={(field) =>
                             isFieldVisible(field) &&
                             !hiddenCapFieldIds.has(field.id) &&
@@ -389,7 +389,8 @@ export function SourceSetupForm({
             onOpenChange={(open) => {
               if (!open) form.setServiceAccountField(null)
             }}
-            {...owner}
+            workspaceId={owner.workspaceId}
+            organizationId={owner.organizationId}
             serviceAccountProviderId={connectableServiceAccount.serviceAccountProviderId}
             serviceName={connectableServiceAccount.serviceName}
             serviceIcon={connectableServiceAccount.serviceIcon}
@@ -421,7 +422,8 @@ export function SourceSetupForm({
             providerId={form.connectorProviderId}
             docsUrl={form.docsUrl}
             requiredScopes={getCanonicalScopesForProvider(form.connectorProviderId)}
-            {...owner}
+            workspaceId={owner.workspaceId}
+            organizationId={owner.organizationId}
             knowledgeBaseId={knowledgeBaseId}
             connectorType={connectorType}
             sourceAccess={access.accessMode === 'members' ? 'members' : undefined}

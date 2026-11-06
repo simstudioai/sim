@@ -74,16 +74,18 @@ function PersonCard({ data }: NodeProps<PersonCardNode>) {
       {hasReportLine && <Handle type='source' position={Position.Bottom} className={styles.port} />}
     </>
   )
-  const explore = {
-    type: 'button',
-    'aria-label': `Explore ${person.name}`,
-    onClick: (event: MouseEvent<HTMLButtonElement>) => data.onFocus(person.memberId, event),
-  } as const
+  const exploreLabel = `Explore ${person.name}`
+  const explore = (event: MouseEvent<HTMLButtonElement>) => data.onFocus(person.memberId, event)
   if (compact)
     return (
       <>
         {lines}
-        <button {...explore} className={`${styles.compactCard} nodrag nopan`}>
+        <button
+          type='button'
+          aria-label={exploreLabel}
+          onClick={explore}
+          className={`${styles.compactCard} nodrag nopan`}
+        >
           <Avatar name={person.name} src={person.image ?? undefined} size='row' />
           {copy}
           <Icon name='I032' />
@@ -102,7 +104,12 @@ function PersonCard({ data }: NodeProps<PersonCardNode>) {
       {focused ? (
         <div className={styles.cardBody}>{body}</div>
       ) : (
-        <button {...explore} className={`${styles.cardBody} nodrag nopan`}>
+        <button
+          type='button'
+          aria-label={exploreLabel}
+          onClick={explore}
+          className={`${styles.cardBody} nodrag nopan`}
+        >
           {body}
         </button>
       )}

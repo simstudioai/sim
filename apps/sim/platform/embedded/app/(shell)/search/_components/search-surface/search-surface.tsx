@@ -235,8 +235,8 @@ function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearch
 }
 
 /** Organization Search in the design system. The Assistant conversation renders beside it. */
-export function OrganizationSearchSurface(props: OrganizationSearchSurfaceProps) {
+export function OrganizationSearchSurface({ userId, chatId }: OrganizationSearchSurfaceProps) {
   const { searchAccess } = useOrganization()
   if (!searchAccess.memberScoped) return null
-  return <OrganizationSearchSurfaceContent {...props} />
+  return <OrganizationSearchSurfaceContent userId={userId} chatId={chatId} />
 }

@@ -226,7 +226,10 @@ export default function SearchSlackSection({ organization: context }: SettingsSe
         <SlackSetupWizard
           key={wizard.installationId ?? 'new'}
           organizationId={organization.id}
-          {...wizard}
+          mode={wizard.mode}
+          installationId={wizard.installationId}
+          appId={wizard.appId}
+          initialName={wizard.initialName}
           onClose={() => setWizard(null)}
         />
       )}

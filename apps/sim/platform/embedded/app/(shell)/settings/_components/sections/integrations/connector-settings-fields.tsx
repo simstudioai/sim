@@ -1,7 +1,6 @@
 'use client'
 
 import { getErrorMessage } from '@sim/utils/errors'
-import { resourceScopeFields } from '@/lib/core/resource-scope'
 import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import type { ConnectorSettingsFieldsProps } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/connector-settings-fields'
 import {
@@ -31,45 +30,52 @@ import {
 } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/gitlab-fields'
 
 /** The editable settings of an existing Search connection. Stored credentials are never returned. */
+interface OrganizationConnectorSettingsFieldsProps {
+  fields: ConnectorSettingsFieldsProps
+}
+
 export function ConnectorSettingsFields({
-  gitlabPermissions,
-  availability,
-  isSearchIndex,
-  usesGitHubInstallation = false,
-  connectorConfig: originalConfig,
-  sourceConfig,
-  selectionLabels,
-  credentialId,
-  canonicalGroups,
-  canonicalModes,
-  onToggleCanonicalMode,
-  onFieldChange,
-  isFieldVisible,
-  isSaving,
-  error,
-  saveBlockedReason,
-  access,
-  onAccessChange,
-  canAdmin,
-  showAccessField,
-  allowMembers,
-  allowAdmin,
-  allowWorkspace,
-  canReenableMemberSync,
-  accessDirty,
-  accessModeChanged,
-  accessComplete,
-  accessSetupHint,
-  isSwitchingAccess,
-  onApplyAccess,
-  onResetAccess,
-  scope,
-  needsWorkspaceCredential,
-  workspaceCredentialId,
-  contentCredentialId,
-  onContentCredentialChange,
-  onWorkspaceCredentialChange,
-}: ConnectorSettingsFieldsProps) {
+  fields: settings,
+}: OrganizationConnectorSettingsFieldsProps) {
+  const {
+    gitlabPermissions,
+    availability,
+    isSearchIndex,
+    usesGitHubInstallation = false,
+    connectorConfig: originalConfig,
+    sourceConfig,
+    selectionLabels,
+    credentialId,
+    canonicalGroups,
+    canonicalModes,
+    onToggleCanonicalMode,
+    onFieldChange,
+    isFieldVisible,
+    isSaving,
+    error,
+    saveBlockedReason,
+    access,
+    onAccessChange,
+    canAdmin,
+    showAccessField,
+    allowMembers,
+    allowAdmin,
+    allowWorkspace,
+    canReenableMemberSync,
+    accessDirty,
+    accessModeChanged,
+    accessComplete,
+    accessSetupHint,
+    isSwitchingAccess,
+    onApplyAccess,
+    onResetAccess,
+    scope,
+    needsWorkspaceCredential,
+    workspaceCredentialId,
+    contentCredentialId,
+    onContentCredentialChange,
+    onWorkspaceCredentialChange,
+  } = settings
   const fields = useConnectorSettingsFields({
     gitlabPermissions,
     isSearchIndex,
@@ -292,7 +298,8 @@ export function ConnectorSettingsFields({
             }
             open
             onOpenChange={fields.setShowServiceAccountModal}
-            {...resourceScopeFields(scope)}
+            workspaceId={scope.kind === 'workspace' ? scope.workspaceId : undefined}
+            organizationId={scope.kind === 'organization' ? scope.organizationId : undefined}
             serviceAccountProviderId={serviceAccountTarget.serviceAccountProviderId}
             serviceName={serviceAccountTarget.serviceName}
             serviceIcon={serviceAccountTarget.serviceIcon}
@@ -326,7 +333,7 @@ export function ConnectorSettingsFields({
         )}
       {configFieldsProps && (
         <ConnectorConfigFields
-          {...configFieldsProps}
+          config={configFieldsProps}
           isFieldVisible={(field) =>
             isFieldVisible(field) &&
             !hiddenCapFieldIds.has(field.id) &&
@@ -345,7 +352,7 @@ export function ConnectorSettingsFields({
           onOpenChange={fields.setShowMoreOptions}
         >
           <ConnectorConfigFields
-            {...configFieldsProps}
+            config={configFieldsProps}
             isFieldVisible={(field) =>
               isFieldVisible(field) &&
               !hiddenCapFieldIds.has(field.id) &&

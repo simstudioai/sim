@@ -208,18 +208,22 @@ function WorkspaceAccessList({
       </SettingsSection>
       {editor && (
         <WorkspaceGrantModal
-          {...(editor.mode === 'create'
-            ? ({ mode: 'create', workspaces: availableWorkspaces } as const)
-            : ({
-                mode: 'edit',
-                grant: editor.grant,
-                workspaceName: byId.get(editor.grant.workspaceId)?.name ?? '',
-                onRemove: () =>
-                  void save(
-                    access.grants.filter((grant) => grant.workspaceId !== editor.grant.workspaceId),
-                    editor.revision
-                  ),
-              } as const))}
+          target={
+            editor.mode === 'create'
+              ? { mode: 'create', workspaces: availableWorkspaces }
+              : {
+                  mode: 'edit',
+                  grant: editor.grant,
+                  workspaceName: byId.get(editor.grant.workspaceId)?.name ?? '',
+                  onRemove: () =>
+                    void save(
+                      access.grants.filter(
+                        (grant) => grant.workspaceId !== editor.grant.workspaceId
+                      ),
+                      editor.revision
+                    ),
+                }
+          }
           credentialTypes={access.credentialTypes}
           disabled={update.isPending}
           error={update.error?.message}

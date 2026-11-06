@@ -73,7 +73,21 @@ export function PageConversation(props: PageConversationProps) {
   if (gate.status === 'denied') return null
   if (gate.status === 'restoring') return <ConversationSkeleton header={props.header} />
   if (gate.status === 'waiting') return props.fallback
-  return <PageConversationContent key={`${gate.instanceKey}:${props.requestMode}`} {...props} />
+  return (
+    <PageConversationContent
+      key={`${gate.instanceKey}:${props.requestMode}`}
+      chatId={props.chatId}
+      requestMode={props.requestMode}
+      header={props.header}
+      chatHeader={props.chatHeader}
+      active={props.active}
+      summaryRequest={props.summaryRequest}
+      onSummaryConsumed={props.onSummaryConsumed}
+      draftSlot={props.draftSlot}
+      fallback={props.fallback}
+      landing={props.landing}
+    />
+  )
 }
 
 function PageConversationContent({
@@ -130,7 +144,13 @@ function PageConversationContent({
           )}
         >
           {hasChat ? (
-            <AssistantActionReviewProvider {...reviewProps}>
+            <AssistantActionReviewProvider
+              organizationId={reviewProps.organizationId}
+              chatId={reviewProps.chatId}
+              messages={reviewProps.messages}
+              active={reviewProps.active}
+              enabled={reviewProps.enabled}
+            >
               <MothershipChat
                 {...threadProps}
                 className={cn(hostBridge.palette, styles.thread)}

@@ -243,7 +243,14 @@ function SourceSettingsEditor(props: SourceSettingsEditorProps) {
   return (
     <SourceSettingsForm
       key={draft.revision}
-      {...props}
+      connector={props.connector}
+      scope={props.scope}
+      title={props.title}
+      description={props.description}
+      queryError={props.queryError}
+      backText={props.backText}
+      onBack={props.onBack}
+      onRemoved={props.onRemoved}
       baseline={draft.connector}
       onSaved={reset}
       onDiscard={() => reset(props.connector)}
@@ -341,7 +348,7 @@ function SourceSettingsForm({
           />
         )}
         <FieldStack>
-          <ConnectorSettingsFields {...form.fieldsProps} />
+          <ConnectorSettingsFields fields={form.fieldsProps} />
         </FieldStack>
       </SettingsSection>
       <SaveActions
