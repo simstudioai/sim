@@ -74,12 +74,13 @@ export default async function OrganizationLayout({
   if (!context) {
     return <OrganizationAccessDenied />
   }
-  const platformOrgUi = await isPlatformOrgUiEnabled(organizationId)
-  if (platformOrgUi) {
-    const legacyUrl = (await headers()).get(LEGACY_URL_HEADER)
-    const platformUrl = legacyUrl && mapLegacyOrganizationUrl(legacyUrl, organizationId)
-    if (platformUrl) redirect(platformUrl)
-  }
+  // The proxy sends no legacy URL while the zone is unavailable: this organization stays here, on
+  // client navigation too, until the zone can serve it.
+  const legacyUrl = (await isPlatformOrgUiEnabled(organizationId))
+    ? (await headers()).get(LEGACY_URL_HEADER)
+    : null
+  const platformUrl = legacyUrl && mapLegacyOrganizationUrl(legacyUrl, organizationId)
+  if (platformUrl) redirect(platformUrl)
   const peopleEnabledLookup = canBrowsePeople(organizationId, context.viewer.role)
   const simLinksEnabledLookup = isSimLinksEnabled(organizationId)
   if (
@@ -145,7 +146,7 @@ export default async function OrganizationLayout({
       >
         <OrganizationProvider context={context}>
           <OrganizationToastSink />
-          {platformOrgUi && (
+          {legacyUrl && (
             <Suspense fallback={null}>
               <PlatformRouteGuard organizationId={organizationId} />
             </Suspense>

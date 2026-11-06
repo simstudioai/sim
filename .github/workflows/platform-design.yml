@@ -112,7 +112,8 @@ jobs:
 
   # The Platform against the real stack: Postgres, Redis, migrations, the production main app and
   # the production Platform. `zone` is the deployed topology, and then that same build with the flag
-  # off. `flag-off` builds with no zone at all, so it is the only proof /org is truly absent.
+  # off. `flag-off` builds with no zone at all, so it is the only proof /org is truly absent, and
+  # then runs that build self-hosted.
   # Group environment and seed: `.github/scripts/http-e2e.sh`.
   live:
     name: live (${{ matrix.topology }})
@@ -189,8 +190,21 @@ jobs:
         if: always() && matrix.topology == 'zone'
         run: >-
           bun run check:platform-parity
+          --job zone
           --report "$RUNNER_TEMP/e2e/platform-live/report.json"
+          --report "$RUNNER_TEMP/e2e/platform-live-zone-down/report.json"
+          --report "$RUNNER_TEMP/e2e/platform-live-zone-5xx/report.json"
+          --report "$RUNNER_TEMP/e2e/platform-live-zone-recovered/report.json"
           --report "$RUNNER_TEMP/e2e/platform-live-flag-off/report.json"
+          --report "$RUNNER_TEMP/e2e/platform-live-rollout/report.json"
+          --report "$RUNNER_TEMP/e2e/platform-live-zone-boot/report.json"
+      - name: Hold the parity ledger's flag-off rows to this run
+        if: always() && matrix.topology == 'flag-off'
+        run: >-
+          bun run check:platform-parity
+          --job flag-off
+          --report "$RUNNER_TEMP/e2e/platform-live-flag-off/report.json"
+          --report "$RUNNER_TEMP/e2e/platform-live-self-hosted/report.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

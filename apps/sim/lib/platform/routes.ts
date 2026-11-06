@@ -4,12 +4,13 @@
  */
 
 /** Where the main app's `/org` rewrite in `next.config.ts` mounts the zone. */
-const PLATFORM_BASE_PATH = '/org'
+export const PLATFORM_BASE_PATH = '/org'
 
 /**
  * Carries the requested `/o/...` URL from the proxy to the organization layout, which Next gives no
  * way to learn its own sub-path. A forged value can only choose among the mapped routes of an
- * organization the viewer already belongs to.
+ * organization the viewer already belongs to. The proxy withholds it while the zone is unavailable,
+ * and its absence is what keeps the layout from handing anyone off.
  */
 export const LEGACY_URL_HEADER = 'x-sim-legacy-url'
 
