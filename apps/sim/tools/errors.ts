@@ -17,6 +17,19 @@ export class HostedKeyRateLimitedError extends HttpError {
   }
 }
 
+/**
+ * The tool's hosted key is reserved for paying payers and this run's payer is on the free plan.
+ * Carries a 402 so the run fails as the caller's plan, not as a Sim fault.
+ */
+export class HostedKeyRequiresPaidPlanError extends HttpError {
+  readonly statusCode = 402
+
+  constructor(message: string) {
+    super(message)
+    this.name = 'HostedKeyRequiresPaidPlanError'
+  }
+}
+
 /** No hosted keys are configured or available for this provider. */
 export class HostedKeyUnavailableError extends HttpError {
   readonly statusCode = 503
