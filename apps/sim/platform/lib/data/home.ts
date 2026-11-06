@@ -22,6 +22,7 @@ import {
 } from '@/hooks/queries/organization-home'
 import { useRemoveSearchHistorySource, useSearchHistory } from '@/hooks/queries/search-history'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useHydrated } from '@/hooks/use-hydrated'
 import type { HomeWidget } from '@/platform/app/(shell)/_components/model'
 import type {
@@ -37,8 +38,9 @@ import type {
   HomeWidgetActions,
   HomeWidgetState,
 } from '@/platform/app/(shell)/home/_components/model'
-import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
+import { useCanOpenOrganizationChat } from '@/platform/lib/data/chat-list'
 import {
+  type CollapsedRecent,
   greetingAt,
   HOME_CALENDAR_SOURCES,
   HOME_EMAIL_SOURCES,
@@ -180,6 +182,9 @@ interface HomeClock {
   today: string
 }
 
+/** Paging through days only reads the day the viewer stops on: each read costs provider requests. */
+const CALENDAR_DAY_SETTLE_MS = 250
+
 function useHomeCalendar(
   organizationId: string,
   connection: HomeConnection,
@@ -190,8 +195,11 @@ function useHomeCalendar(
   hidden: boolean
 ): HomeWidgetRead<HomeCalendarDay> {
   const date = selectedDay ?? clock.today
+  const settledDate = useDebounce(date, CALENDAR_DAY_SETTLE_MS)
+  // Keyed by the shown day throughout: the header moves at once, a day already read shows at once,
+  // and any other reads as loading until it settles.
   const read = useOrganizationHomeCalendar(organizationId, date, timeZone, {
-    enabled: connection.status === 'connected' && !hidden,
+    enabled: connection.status === 'connected' && !hidden && settledDate === date,
   })
   const retry = () => void read.refetch()
   if (connection.status !== 'connected') return { state: connection, retry: retryConnection }
@@ -240,7 +248,7 @@ function useHomeRecents(organization: PlatformOrganization, userId: string | und
   const allowed = organization.searchAccess.memberScoped
   const history = useSearchHistory(allowed ? organizationId : undefined, userId)
   const remove = useRemoveSearchHistorySource(organizationId, userId)
-  const state: HomeListState<RecentItem> = !allowed
+  const state: HomeListState<CollapsedRecent> = !allowed
     ? { status: 'ready', items: [] }
     : history.data
       ? { status: 'ready', items: toRecentItems(history.data) }
@@ -248,11 +256,16 @@ function useHomeRecents(organization: PlatformOrganization, userId: string | und
   return {
     state,
     retry: () => void history.refetch(),
-    remove: (url: string) =>
-      remove.mutate([url], {
-        onError: (error) =>
-          toast.error(getErrorMessage(error, 'That recent could not be removed.')),
-      }),
+    remove: (id: string) =>
+      remove.mutate(
+        state.status === 'ready'
+          ? (state.items.find((item) => item.id === id)?.urls ?? [id])
+          : [id],
+        {
+          onError: (error) =>
+            toast.error(getErrorMessage(error, 'That recent could not be removed.')),
+        }
+      ),
   }
 }
 
@@ -265,12 +278,13 @@ function useHomeAttention(
   const organizationId = organization.organization.id
   const canReview = organization.viewer.isAdmin
   const chats = useOrganizationMothershipChats(organizationId)
+  const canOpenChat = useCanOpenOrganizationChat()
   const requests = useOrganizationAccessRequests(canReview ? organizationId : '')
   const reviewFailed = canReview && requests.isError && !isRefusal(requests.error)
   const items = toAttentionItems({
     entries: integrations.entries ?? [],
     readAccounts,
-    chats: (chats.data ?? []).map((chat) => ({
+    chats: (chats.data ?? []).filter(canOpenChat).map((chat) => ({
       id: chat.id,
       title: chat.name,
       href: surfaceHref(

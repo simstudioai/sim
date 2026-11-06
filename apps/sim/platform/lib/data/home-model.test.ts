@@ -17,6 +17,7 @@ import {
   toCalendarDay,
   toHomeConnection,
   toReadableProviders,
+  toRecentItems,
 } from '@/platform/lib/data/home-model'
 
 function entry(provider: string, overrides: Partial<MemberIntegration>): MemberIntegration {
@@ -217,5 +218,34 @@ describe('placing a meeting on the day', () => {
     const calendar = day([event(window.startAt, window.endAt, true)])
     expect(calendar.meetings).toEqual([])
     expect(calendar.allDay).toHaveLength(1)
+  })
+
+  it('moves a timed event filling the whole day out of the timeline', () => {
+    const calendar = day([event(window.startAt, window.endAt)])
+    expect(calendar.meetings).toEqual([])
+    expect(calendar.allDay).toHaveLength(1)
+  })
+})
+
+describe('toRecentItems', () => {
+  const viewed = (url: string, title: string, connectorType?: string) => ({
+    url,
+    title,
+    ...(connectorType ? { connectorType } : {}),
+    viewedAt: '2026-11-05T10:00:00.000Z',
+  })
+
+  it('shows one chip for a channel, carrying every message it stands for', () => {
+    const items = toRecentItems({
+      sources: [
+        viewed('https://acme.slack.com/archives/C1/p2', '#candidates', 'slack'),
+        viewed('https://acme.slack.com/archives/C1/p1', '#candidates', 'slack'),
+        viewed('https://a.example.com/x', 'Roadmap'),
+      ],
+      queries: [],
+    })
+    expect(items.map((item) => item.label)).toEqual(['#candidates', 'Roadmap'])
+    expect(items[0].href).toBe('https://acme.slack.com/archives/C1/p2')
+    expect(items[0].urls).toHaveLength(2)
   })
 })
