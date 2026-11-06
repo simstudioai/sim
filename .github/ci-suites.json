@@ -29,6 +29,10 @@
       "task": "ci:e2e-org-redesign"
     },
     {
+      "group": "workspace-sidebar",
+      "task": "ci:e2e-workspace-sidebar"
+    },
+    {
       "group": "browser-extension-navigation",
       "task": "ci:e2e-browser-extension"
     },
