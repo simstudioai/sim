@@ -32,14 +32,15 @@ export async function peoplePhaseChecks() {
         if (route.request().headers()['next-router-prefetch'] === undefined) await hold.promise
         await route.continue()
       })
-      const prefetched = page.waitForResponse(
-        async (response) =>
-          isPeoplePayload(new URL(response.url())) &&
-          (await response.text().catch(() => '')).includes('Loading people')
+      // The router can only show a loading boundary a prefetch has already delivered.
+      const prefetched = page.waitForResponse((response) =>
+        isPeoplePayload(new URL(response.url()))
       )
       await page.goto(orgUrl('/home'))
+      const link = mainNav(page).getByRole('link', { name: 'People', exact: true })
+      await link.hover()
       await prefetched
-      await mainNav(page).getByRole('link', { name: 'People', exact: true }).click()
+      await link.click()
       const rows = page.getByRole('status', { name: 'Loading people…' })
       await expect(rows).toBeVisible()
       const heading = await page.getByRole('heading', { name: 'People', exact: true }).boundingBox()

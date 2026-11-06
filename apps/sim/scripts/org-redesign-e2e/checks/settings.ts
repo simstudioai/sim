@@ -553,7 +553,7 @@ export async function settingsChecks() {
       )
       await page.goto(orgUrl('/settings/usage/events'))
       await expect(page.getByRole('columnheader', { name: 'Description' })).toBeVisible()
-      await expect(page.getByText('A described charge')).toBeVisible()
+      await expect(page.getByText('A described charge').filter({ visible: true })).toHaveCount(1)
     })
   })
   await check('Credential groups: a bad address leaves the valid one sent', async () => {
